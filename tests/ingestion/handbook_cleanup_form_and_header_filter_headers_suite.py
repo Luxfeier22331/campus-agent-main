@@ -8,7 +8,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     244,
                     "heading",
-                    "中央民族大学助学贷款管理暂行办法",
+                    "示例大学助学贷款管理暂行办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -20,8 +20,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 244,
                 244,
-                title="中央民族大学助学贷款管理暂行办法",
-                handbook_section="中央民族大学学生资助管理规定",
+                title="示例大学助学贷款管理暂行办法",
+                handbook_section="示例大学学生资助管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -35,7 +35,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     177,
                     "heading",
-                    "中央民族大学本科学生国家奖学金评审办法",
+                    "示例大学本科学生国家奖学金评审办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -53,8 +53,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 177,
                 177,
-                title="中央民族大学本科学生国家奖学金评审办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学本科学生国家奖学金评审办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -72,15 +72,15 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     214,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(214, "paragraph", "民大校发[2013]154号"),
                 _source_row(214, "paragraph", "附件："),
-                _source_row(214, "paragraph", "中央民族大学本科生家庭经济困难学生认定申请表"),
-                _source_row(214, "paragraph", "中央民族大学本科学生及家庭情况调查表"),
-                _source_row(214, "paragraph", "中央民族大学本科生家庭经济困难学生认定统计表"),
+                _source_row(214, "paragraph", "示例大学本科生家庭经济困难学生认定申请表"),
+                _source_row(214, "paragraph", "示例大学本科学生及家庭情况调查表"),
+                _source_row(214, "paragraph", "示例大学本科生家庭经济困难学生认定统计表"),
                 _source_row(214, "paragraph", "学生手册"),
                 _source_row(
                     214,
@@ -94,8 +94,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 214,
                 214,
-                title="中央民族大学本科生家庭经济困难学生认定管理办法",
-                handbook_section="中央民族大学学生资助管理规定",
+                title="示例大学本科生家庭经济困难学生认定管理办法",
+                handbook_section="示例大学学生资助管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -122,11 +122,11 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     214,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
-                _source_row(214, "paragraph", "附表二:中央民族大学本科学生及家庭情况调查表"),
+                _source_row(214, "paragraph", "附表二:示例大学本科学生及家庭情况调查表"),
                 _source_row(
                     214,
                     "table",
@@ -150,8 +150,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 214,
                 214,
-                title="中央民族大学本科生家庭经济困难学生认定管理办法",
-                handbook_section="中央民族大学学生资助管理规定",
+                title="示例大学本科生家庭经济困难学生认定管理办法",
+                handbook_section="示例大学学生资助管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -169,7 +169,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     163,
                     "heading",
-                    "中央民族大学本科(预科)学生证管理办法",
+                    "示例大学本科(预科)学生证管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -201,8 +201,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 163,
                 165,
-                title="中央民族大学本科(预科)学生证管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学本科(预科)学生证管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -219,7 +219,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     163,
                     "heading",
-                    "中央民族大学本科(预科)学生证管理办法",
+                    "示例大学本科(预科)学生证管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -249,8 +249,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 163,
                 164,
-                title="中央民族大学本科(预科)学生证管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学本科(预科)学生证管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -271,7 +271,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                 _source_row(
                     163,
                     "heading",
-                    "中央民族大学本科(预科)学生证管理办法",
+                    "示例大学本科(预科)学生证管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -287,7 +287,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                         (
                             "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。如遗失不报被他人使用造成不良后果,由本人负责。",
                             "七、学生遗失学生证应及时申请补办。遗失或损坏的学生证,原则上可以申请补办一次。补办后如再次遗失或损坏,根据遗失或损坏的原因决定是否可以补发第二次。",
-                            "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。",
+                            "八、学生补办学生证,必须提出书面申请,并填写《示例大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。",
                         )
                     ),
                 ),
@@ -300,8 +300,8 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             manifest_document=_manifest_document(
                 163,
                 164,
-                title="中央民族大学本科(预科)学生证管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学本科(预科)学生证管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -312,17 +312,17 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
             any("学生遗失学生证应及时申请补办" in row["clean_text"] for row in body_units)
         )
         self.assertTrue(
-            any("填写《中央民族大学补办学生证申请表》" in row["clean_text"] for row in body_units)
+            any("填写《示例大学补办学生证申请表》" in row["clean_text"] for row in body_units)
         )
 
     def test_cleanup_keeps_known_punctuationless_final_numbered_clause_headings(self) -> None:
         cases = (
             (
-                "中央民族大学关于加强学生宿舍电器使用管理的规定",
+                "示例大学关于加强学生宿舍电器使用管理的规定",
                 "五、本规定自公布之日起实施",
             ),
             (
-                "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                "示例大学学生课堂行为规范及课堂秩序管理办法",
                 "四、本办法由学生工作部(处)负责解释",
             ),
         )
@@ -350,7 +350,7 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
                         1,
                         1,
                         title=title,
-                        handbook_section="中央民族大学学生日常管理规定",
+                        handbook_section="示例大学学生日常管理规定",
                     ),
                     source_doc="学生手册_2018.pdf",
                 )

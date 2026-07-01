@@ -14,10 +14,6 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_inventory_postgres import (
-    _list_document_registry_scope_records_for_inventory,
-    _list_raw_asset_registry_scope_records_for_inventory,
-)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory_shared import (
     AUTHENTICATED_NOTICE_SOURCE_TRUTH_BASE_WEIGHT,
     AUTHENTICATED_NOTICE_SOURCE_TRUTH_OCR_ATTACHMENT_WEIGHT,
@@ -157,6 +153,24 @@ def _select_latest_authenticated_notice_parent_records_for_inventory(
             key=lambda record: _extract_notice_id_from_document_id(record.document_id),
         )
     )
+
+
+def _list_document_registry_scope_records_for_inventory(
+    document_registry: DocumentRegistry,
+    *,
+    corpus: str,
+    collection: str,
+) -> tuple[DocumentRegistryRecord, ...]:
+    return tuple(document_registry.list_by_scope(corpus, collection))
+
+
+def _list_raw_asset_registry_scope_records_for_inventory(
+    raw_asset_registry: RawAssetRegistry,
+    *,
+    corpus: str,
+    collection: str,
+) -> tuple[RawAssetRecord, ...]:
+    return tuple(raw_asset_registry.list_by_scope(corpus, collection))
 
 
 def _inventory_parent_sort_key(

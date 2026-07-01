@@ -56,6 +56,8 @@ Before release acceptance:
    release candidate.
 1. Confirm reset / publish policy for the target alias family is explicit.
 1. Confirm legacy corpus-specific Python live runner entrypoints are not used.
+1. Confirm whether this release uses public synthetic repo fixtures or a private
+   fixture root / Langfuse dataset. Public fixtures are not real gold truth.
 
 For `student_rules`, also confirm payload indexes required by authorization
 projection are present, including `entitlement_groups`, `visibility_scope`,
@@ -67,8 +69,9 @@ projection are present, including `entitlement_groups`, `visibility_scope`,
    current serving collection is the intended release.
 1. Record collection schema, point count, payload sample and registry backlink
    sample.
-1. Sync Langfuse-bound qrels / answer-quality fixtures when the denominator
-   changed.
+1. Sync Langfuse-bound qrels / answer-quality data when the denominator
+   changed. For real release denominators, use an approved private fixture root
+   or existing Langfuse dataset, not the public synthetic repo fixtures.
 1. Materialize safe trace or dataset projection from the real runtime path.
 1. Run Ragas trace or materialized-dataset scoring in validate-only mode before
    publishing scores.
@@ -81,6 +84,10 @@ Expected result artifact names:
 - `curriculum_plan_release_acceptance.v1.result.json`
 
 ## Surface-Specific Fixtures
+
+The repo paths below are public synthetic examples. They validate dataset shape
+and smoke projection only. Real gold qrels / answer-quality truth must be
+provided by private release data or Langfuse datasets.
 
 `student_rules`:
 
@@ -116,6 +123,7 @@ Dataset and score config sync dry-run:
 
 ```bash
 pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest \
+  --fixture-root <public-synthetic-or-private-fixture-root> \
   --output .tmp/langfuse-rag-dataset-manifest.json --json
 pnpm --dir packages/eval-langfuse langfuse sync-datasets \
   --dataset-manifest .tmp/langfuse-rag-dataset-manifest.json --dry-run --json

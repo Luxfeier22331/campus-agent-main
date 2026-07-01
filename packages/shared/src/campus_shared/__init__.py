@@ -7,25 +7,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "APP_NAME": ("campus_shared.constants", "APP_NAME"),
     "HEALTH_ROUTE": ("campus_shared.constants", "HEALTH_ROUTE"),
     "READY_ROUTE": ("campus_shared.constants", "READY_ROUTE"),
-    "ProviderConfigResolutionError": (
-        "campus_shared.provider_config",
-        "ProviderConfigResolutionError",
-    ),
     "RepoEnvBootstrapState": (
         "campus_shared.env_bootstrap",
         "RepoEnvBootstrapState",
-    ),
-    "ResolvedEmbeddingProviderConfig": (
-        "campus_shared.provider_config",
-        "ResolvedEmbeddingProviderConfig",
-    ),
-    "ResolvedLLMProviderConfig": (
-        "campus_shared.provider_config",
-        "ResolvedLLMProviderConfig",
-    ),
-    "ResolvedProviderConfig": (
-        "campus_shared.provider_config",
-        "ResolvedProviderConfig",
     ),
     "get_repo_env_bootstrap_state": (
         "campus_shared.env_bootstrap",
@@ -35,18 +19,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "reset_repo_env_bootstrap_state": (
         "campus_shared.env_bootstrap",
         "reset_repo_env_bootstrap_state",
-    ),
-    "resolve_embedding_provider_config": (
-        "campus_shared.provider_config",
-        "resolve_embedding_provider_config",
-    ),
-    "resolve_llm_provider_config": (
-        "campus_shared.provider_config",
-        "resolve_llm_provider_config",
-    ),
-    "resolve_provider_config": (
-        "campus_shared.provider_config",
-        "resolve_provider_config",
     ),
 }
 

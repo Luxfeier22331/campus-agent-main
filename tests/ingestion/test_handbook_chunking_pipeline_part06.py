@@ -38,7 +38,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                         "article_label": "第十六条",
                     },
                     metadata={
-                        "title": "中央民族大学本科学生专业奖学金评定办法",
+                        "title": "示例大学本科学生专业奖学金评定办法",
                         "policy_doc_no": "民大校发[2018]326号",
                     },
                 ),
@@ -205,7 +205,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                         "page_end": 1,
                     },
                     metadata={
-                        "title": "中央民族大学国家助学金评审办法",
+                        "title": "示例大学国家助学金评审办法",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -254,7 +254,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                         "page_end": 1,
                     },
                     metadata={
-                        "title": "中央民族大学本科生境外留学管理办法",
+                        "title": "示例大学本科生境外留学管理办法",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -300,7 +300,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
             unit_type="article_body",
             root_unit_id="article-assessment-heading-pieces",
             metadata={
-                "title": "中央民族大学本科生境外留学管理办法",
+                "title": "示例大学本科生境外留学管理办法",
                 "content_role": "regulation_body",
             },
         )
@@ -342,7 +342,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                         "page_end": 1,
                     },
                     metadata={
-                        "title": "中央民族大学本科生学籍管理规定",
+                        "title": "示例大学本科生学籍管理规定",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -395,7 +395,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                                 "page_end": 68,
                             },
                             metadata={
-                                "title": "中央民族大学本科生专业调整实施办法",
+                                "title": "示例大学本科生专业调整实施办法",
                                 "content_role": "regulation_body",
                             },
                         ),
@@ -427,7 +427,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                                 "page_end": 69,
                             },
                             metadata={
-                                "title": "中央民族大学本科生专业调整实施办法",
+                                "title": "示例大学本科生专业调整实施办法",
                                 "content_role": "regulation_body",
                             },
                         ),
@@ -495,7 +495,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
             unit_type="article_body",
             root_unit_id="article-piece-group-id",
             metadata={
-                "title": "中央民族大学学生申诉处理办法",
+                "title": "示例大学学生申诉处理办法",
                 "content_role": "regulation_body",
             },
         )
@@ -550,7 +550,7 @@ class HandbookChunkingPipelinePart06Test(unittest.TestCase):
                         "section_path": ["第四章 发放与中止", "中止发放"],
                         "article_label": "第十条",
                     },
-                    metadata={"title": "中央民族大学本科生国家助学金评审办法"},
+                    metadata={"title": "示例大学本科生国家助学金评审办法"},
                 ),
                 ensure_ascii=False,
             )

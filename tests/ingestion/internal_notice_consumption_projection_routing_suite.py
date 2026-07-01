@@ -172,7 +172,7 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
         }
         self.assertEqual(
             ocr_backed_units["354889"].role_metadata["attachment_document_ids"],
-            ("notice_attachment:muc_internal_portal:354889:attachment-0001",),
+            ("notice_attachment:example_internal_portal:354889:attachment-0001",),
         )
         self.assertEqual(
             ocr_backed_units["355122"].source_attachment_ref_ids,
@@ -209,7 +209,7 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
             )
         )
         scoped_report = _promotion_report(
-            document_id="notice:muc_internal_portal:354578",
+            document_id="notice:example_internal_portal:354578",
             notice_id="354578",
             source_title="关于寒假期间两校区通勤班车班次调整的通知",
             document_nature=NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
@@ -446,7 +446,7 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
                             "attachment_ref_id": "attachment-0001",
                             "classification": "text_extractable",
                             "document_id": (
-                                "notice_attachment:muc_internal_portal:355119:attachment-0001"
+                                "notice_attachment:example_internal_portal:355119:attachment-0001"
                             ),
                             "materialization_policy": "required_document",
                             "attachment_filename": "拔尖创新人才证书项目报名表.docx",
@@ -477,7 +477,7 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
         self.assertEqual(template_unit.source_attachment_ref_ids, ("attachment-0001",))
         self.assertEqual(
             template_unit.source_document_id,
-            "notice_attachment:muc_internal_portal:355119:attachment-0001",
+            "notice_attachment:example_internal_portal:355119:attachment-0001",
         )
         self.assertEqual(
             template_unit.role_metadata["notice_query_reason"],
@@ -506,7 +506,7 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
                             "attachment_ref_id": "attachment-0001",
                             "classification": "text_extractable",
                             "document_id": (
-                                "notice_attachment:muc_internal_portal:355120:attachment-0001"
+                                "notice_attachment:example_internal_portal:355120:attachment-0001"
                             ),
                             "materialization_policy": "required_document",
                             "attachment_filename": "普通说明材料.docx",

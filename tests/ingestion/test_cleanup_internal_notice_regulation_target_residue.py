@@ -22,15 +22,15 @@ class InternalNoticeRegulationTargetResidueCleanupTest(unittest.TestCase):
                 [
                     {
                         "collection": "scoped_rules",
-                        "document_id": "institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
+                        "document_id": "institutional_regulation:example:甲学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
                         "version_id": "sha256:target-version",
                     }
                 ]
             )
             object_store = InMemoryRegulationTargetResidueObjectStore(
                 {
-                    "campus-rag-derived": {
-                        "regulations/documents/scoped_rules/药学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md": b"# historical target\n",
+                    "campus-agent-derived": {
+                        "regulations/documents/scoped_rules/甲学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md": b"# historical target\n",
                     }
                 }
             )
@@ -57,20 +57,20 @@ class InternalNoticeRegulationTargetResidueCleanupTest(unittest.TestCase):
                 [
                     {
                         "collection": "scoped_rules",
-                        "document_id": "institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
+                        "document_id": "institutional_regulation:example:甲学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
                         "version_id": "sha256:target-version",
                     },
                     {
                         "collection": "scoped_rules",
-                        "document_id": "institutional_regulation:muc:unrelated:keep",
+                        "document_id": "institutional_regulation:example:unrelated:keep",
                         "version_id": "sha256:keep",
                     },
                 ]
             )
             object_store = InMemoryRegulationTargetResidueObjectStore(
                 {
-                    "campus-rag-derived": {
-                        "regulations/documents/scoped_rules/药学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md": b"# historical target\n",
+                    "campus-agent-derived": {
+                        "regulations/documents/scoped_rules/甲学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md": b"# historical target\n",
                         "regulations/documents/scoped_rules/unrelated/source-faithful/2026/canonical.md": b"# keep\n",
                     }
                 }
@@ -91,7 +91,7 @@ class InternalNoticeRegulationTargetResidueCleanupTest(unittest.TestCase):
             self.assertEqual(len(registry.rows), 1)
             self.assertTrue(
                 object_store.exists(
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     "regulations/documents/scoped_rules/unrelated/source-faithful/2026/canonical.md",
                 )
             )
@@ -111,7 +111,7 @@ class InternalNoticeRegulationTargetResidueCleanupTest(unittest.TestCase):
                         {
                             "id": "point-186977",
                             "payload": {
-                                "document_id": "institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
+                                "document_id": "institutional_regulation:example:甲学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
                                 "source_notice_ids": ["186977"],
                                 "target_surface": "regulations/scoped_rules",
                                 "version_id": "sha256:target-version",
@@ -120,7 +120,7 @@ class InternalNoticeRegulationTargetResidueCleanupTest(unittest.TestCase):
                         {
                             "id": "point-keep",
                             "payload": {
-                                "document_id": "institutional_regulation:muc:unrelated:keep",
+                                "document_id": "institutional_regulation:example:unrelated:keep",
                                 "source_notice_ids": ["999999"],
                                 "target_surface": "regulations/scoped_rules",
                                 "version_id": "sha256:keep",
@@ -158,14 +158,14 @@ def _request(
 ) -> RegulationTargetResidueCleanupRequest:
     return RegulationTargetResidueCleanupRequest(
         notice_id="186977",
-        title="药学院2021年硕博连读博士研究生招生实施细则",
+        title="甲学院2021年硕博连读博士研究生招生实施细则",
         collection="scoped_rules",
-        document_id="institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
+        document_id="institutional_regulation:example:甲学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3",
         version_id="sha256:target-version",
-        bucket="campus-rag-derived",
+        bucket="campus-agent-derived",
         qdrant_collections=qdrant_collections,
         target_keys=(
-            "regulations/documents/scoped_rules/药学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md",
+            "regulations/documents/scoped_rules/甲学院2021年硕博连读博士研究生招生实施细则--b398c5cf/source-faithful/2021/canonical.md",
         ),
         output_dir=root / "cleanup",
         apply=apply,

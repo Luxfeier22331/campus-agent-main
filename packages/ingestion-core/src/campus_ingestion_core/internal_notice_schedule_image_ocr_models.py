@@ -101,6 +101,14 @@ class ScheduleImageOcrAttempt:
     error: str = ""
 
 
+class InMemoryScheduleImageOcrAttemptStore:
+    def __init__(self) -> None:
+        self.attempts: list[ScheduleImageOcrAttempt] = []
+
+    def record(self, attempt: ScheduleImageOcrAttempt) -> None:
+        self.attempts.append(attempt)
+
+
 @dataclass(frozen=True, slots=True)
 class ScheduleImageOcrSourceArtifactWriteReport:
     status: str

@@ -41,34 +41,32 @@ class InternalNoticeSelectedRegulationCohortAuditTest(unittest.TestCase):
             (
                 _entry(
                     notice_id="300001",
-                    title="中央民族大学实验室安全管理规定",
+                    title="示例大学实验室安全管理规定",
                     primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
                     target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
                 ),
                 _entry(
                     notice_id="300002",
-                    title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                    title="示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                     primary_role=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
                     target_surface=NOTICE_TARGET_SURFACE_SCOPED_RULES,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
                 ),
                 _entry(
                     notice_id="300003",
-                    title="关于修订《中央民族大学采购工作管理办法》的通知",
-                    role_metadata={
-                        "notice_title": "关于修订《中央民族大学采购工作管理办法》的通知"
-                    },
+                    title="关于修订《示例大学采购工作管理办法》的通知",
+                    role_metadata={"notice_title": "关于修订《示例大学采购工作管理办法》的通知"},
                 ),
                 _entry(
                     notice_id="300004",
-                    title="关于发布《中央民族大学关于学生使用人工智能的指导意见》的通知",
+                    title="关于发布《示例大学关于学生使用人工智能的指导意见》的通知",
                     primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
                     target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
                     semantic_owner=NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
                     role_metadata={
-                        "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见》的通知",
+                        "title": "关于发布《示例大学关于学生使用人工智能的指导意见》的通知",
                         "owner_source_missing_reason": "attachment_backed_regulation_body_missing",
                     },
                 ),
@@ -77,23 +75,21 @@ class InternalNoticeSelectedRegulationCohortAuditTest(unittest.TestCase):
         inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
         inventory_store.upsert_many(
             (
-                _inventory("300001", "中央民族大学实验室安全管理规定"),
-                _inventory("300002", "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"),
-                _inventory("300003", "关于修订《中央民族大学采购工作管理办法》的通知"),
-                _inventory(
-                    "300004", "关于发布《中央民族大学关于学生使用人工智能的指导意见》的通知"
-                ),
+                _inventory("300001", "示例大学实验室安全管理规定"),
+                _inventory("300002", "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则"),
+                _inventory("300003", "关于修订《示例大学采购工作管理办法》的通知"),
+                _inventory("300004", "关于发布《示例大学关于学生使用人工智能的指导意见》的通知"),
             )
         )
         promotion_report = _manifest(
             (
                 replace(
                     _machine_processing_report(
-                        document_id="notice:muc_internal_portal:300003",
+                        document_id="notice:example_internal_portal:300003",
                         notice_id="300003",
                         document_nature="wrapper_notice",
                         reasons=("parent_notice_body_not_full_regulation_text",),
-                        source_title="关于修订《中央民族大学采购工作管理办法》的通知",
+                        source_title="关于修订《示例大学采购工作管理办法》的通知",
                     ),
                     action="hold_in_internal_notice",
                     promotion_class="wrapper_notice_only",
@@ -150,7 +146,7 @@ def _entry(
         source_corpus="campus_notices",
         source_collection="internal_notice",
         source_notice_id=notice_id,
-        unit_id=f"notice_unit:muc_internal_portal:{notice_id}:{primary_role}",
+        unit_id=f"notice_unit:example_internal_portal:{notice_id}:{primary_role}",
         primary_role=primary_role,
         semantic_owner=semantic_owner,
         default_agent=(
@@ -163,8 +159,8 @@ def _entry(
         completeness_status="complete",
         answerability="answerable",
         consumption_status=consumption_status,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
         role_metadata=role_metadata or {"title": title, "notice_title": title},
     )
 

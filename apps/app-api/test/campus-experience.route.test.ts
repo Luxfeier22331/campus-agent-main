@@ -31,7 +31,7 @@ function createService(): CampusExperienceService {
 				description: "图书馆与自习相关服务的主要位置。",
 				geojson: {
 					type: "Feature",
-					geometry: { type: "Point", coordinates: [116.3211, 39.9524] },
+					geometry: { type: "Point", coordinates: [116.2145, 39.9524] },
 					properties: { category: "building", placeId: "library", title: "图书馆" },
 				},
 				id: "library",
@@ -42,7 +42,7 @@ function createService(): CampusExperienceService {
 		}),
 		getMapPlaces: vi.fn().mockResolvedValue({
 			campus: {
-				defaultCenter: [116.3216, 39.9519],
+				defaultCenter: [116.2145, 39.9519],
 				id: "haidian",
 				name: "海淀校区",
 			},

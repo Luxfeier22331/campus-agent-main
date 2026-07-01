@@ -4,7 +4,7 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.internal_notice_read_model_entries import (
     InternalNoticeReadModelObjectStore,
     _is_queryable,
@@ -12,9 +12,6 @@ from campus_ingestion_core.internal_notice_read_model_entries import (
 )
 from campus_ingestion_core.internal_notice_read_model_env import (
     build_internal_notice_read_model_store_from_env,
-)
-from campus_ingestion_core.internal_notice_read_model_postgres import (
-    PostgresInternalNoticeReadModelStore,
 )
 from campus_ingestion_core.internal_notice_read_model_shared import (
     InternalNoticeReadModelEntry,
@@ -80,13 +77,6 @@ def rebuild_internal_notice_read_model(
         runtime_object_store = object_store
         runtime_bucket_derived = bucket_derived
     normalized_notice_ids = normalize_notice_ids(notice_ids)
-    if not normalized_notice_ids and isinstance(
-        runtime_read_model_store, PostgresInternalNoticeReadModelStore
-    ):
-        raise ValueError(
-            "refusing persistent full-scope internal notice read model rebuild without "
-            "explicit notice_ids"
-        )
     projection_entries = runtime_projection_store.list_by_scope(
         source_corpus,
         source_collection,

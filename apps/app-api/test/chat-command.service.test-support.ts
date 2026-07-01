@@ -41,6 +41,7 @@ export {
 } from "../src/modules/runtime-command";
 export type { AppTelemetry } from "../src/modules/telemetry";
 
+export const PUBLIC_NOTICE_URL_ALLOWLIST = ["www.example.edu"];
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
 export const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";
 export const CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester";

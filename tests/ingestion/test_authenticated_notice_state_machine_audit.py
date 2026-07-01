@@ -95,7 +95,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/355882-attachment-0002.png",
                         },
                     }
@@ -348,7 +348,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/missing.pdf",
                         },
                     }
@@ -403,7 +403,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/skipped.png",
                         },
                     }
@@ -458,7 +458,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/file-release-477/capture/source.pdf",
                         },
                     }
@@ -495,7 +495,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "failed",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/355867.png",
                         },
                     }
@@ -567,7 +567,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/stale.png",
                         },
                     }
@@ -605,7 +605,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/355867.png",
                         },
                     },
@@ -619,12 +619,12 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/355867-copy.png",
                         },
                     },
                     {
-                        "unit_id": "searchable:notice:muc_internal_portal:missing",
+                        "unit_id": "searchable:notice:example_internal_portal:missing",
                         "candidate_id": "candidate:orphan",
                         "source_notice_id": "missing",
                         "media_kind": "image",
@@ -633,7 +633,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                         "status": "pending",
                         "target_blocking": True,
                         "source_object_ref": {
-                            "bucket": "campus-rag-source",
+                            "bucket": "campus-agent-source",
                             "key": "authenticated_notice_portal/attachment/missing.png",
                         },
                     },
@@ -676,7 +676,7 @@ def _unit(
         "ingest_status": "uploaded",
     }
     return {
-        "unit_id": f"searchable:{source_surface}:muc_internal_portal:{notice_id}",
+        "unit_id": f"searchable:{source_surface}:example_internal_portal:{notice_id}",
         "source_surface": source_surface,
         "source_notice_id": notice_id,
         "title": f"notice {notice_id}",

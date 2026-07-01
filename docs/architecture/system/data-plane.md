@@ -209,6 +209,17 @@ admit
 - Python 只承接 MinerU / OCR / ML / domain extraction adapters、offline eval 与
   historical tooling；Python adapter 产物必须回到 canonical source truth /
   document artifact / projection contract 后才能被下游消费。
+- Python 不拥有默认 Postgres connection runtime。Python data-plane code 只能保留连接
+  URL validation / normalization、SQL shape test 与显式隔离 adapter；registry /
+  projection 的实际数据库 mutation owner 必须回到 TS/Go runtime 或重新 admission 的
+  adapter boundary。
+- Python 不拥有默认 tokenizer / LlamaIndex runtime。Qwen3 chunk budgeting 使用本地
+  `tokenizer.json` + Hugging Face `tokenizers`，不得回退到 Python `transformers`
+  runtime 或联网下载；embedding / chunk node seam 使用 repo-owned protocol / DTO。
+- Python Qdrant client、S3-compatible object-store client 与 index / audit mutation
+  仍是待迁移残留，只能维持已有 ingestion data-plane 测试覆盖的 legacy 路径；新工作不得继续把
+  collection lifecycle、alias publish、object-store runtime client creation 或 audit
+  closeout 扩建在 Python 默认路径上。
 - 学校特定 collector adapter 可以使用 TS、Python 或其他 repo-approved runtime
   实现采集，但它的唯一 data-plane handoff 是 source bucket artifact pack 和
   capture-release object；不能因语言或部署便利绕过 ingestion-control。

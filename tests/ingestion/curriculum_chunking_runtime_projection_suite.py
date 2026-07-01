@@ -6,260 +6,181 @@ from .curriculum_chunking_test_support import *
 
 
 class CurriculumChunkingRuntimeProjectionTest(unittest.TestCase):
-    def test_real_curriculum_projection_can_chunk_after_split(self) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
+    def test_synthetic_curriculum_projection_can_chunk_after_split(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks(SYNTHETIC_PUBLIC_AFFAIRS_ID)
 
         self.assertGreater(len(chunks), 0)
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
         self.assertEqual(chunks[0].anchor["page_start"], 278)
-        self.assertIn("国际经济与贸易本科人才培养方案", chunks[0].text)
+        self.assertIn(SYNTHETIC_PUBLIC_AFFAIRS_TITLE, chunks[0].text)
 
-    def test_real_curriculum_projection_absorbs_short_intro_and_table_cue_into_table_chunk(
+    def test_synthetic_curriculum_projection_keeps_course_setting_context_on_table_chunks(
         self,
     ) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
+        _, chunks = _build_real_curriculum_projection_chunks(SYNTHETIC_PUBLIC_AFFAIRS_ID)
 
-        self.assertFalse(any(chunk.text.strip() == "建议课程清单:" for chunk in chunks))
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and "国际经济与贸易专业选修课程至少任选 7 门课程,完成 14 学分。" in chunk.text
-                for chunk in chunks
-            )
-        )
+        table_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "table_unit"]
+        self.assertGreaterEqual(len(table_chunks), 2)
         self.assertTrue(
             any(
-                chunk.metadata["unit_type"] == "table_unit"
-                and "国际经济与贸易专业选修课程至少任选 7 门课程,完成 14 学分。" in chunk.text
-                and "课程清单如下:" in chunk.text
-                and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期" in chunk.text
-                for chunk in chunks
-            )
-        )
-        self.assertTrue(
-            any(
-                chunk.metadata["unit_type"] == "table_unit"
-                and "建议课程清单:" in chunk.text
-                and "课程类 | 课程号 | 课程名称 | 学分" in chunk.text
-                for chunk in chunks
-            )
-        )
-
-    def test_real_curriculum_projection_merges_weak_single_row_table_into_previous_table_context(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
-
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "table_unit"
-                and chunk.text.strip()
-                == "1034030154 | 国际商务案例分析(实训) | 1 | 36 | 18 | 理论部分第6学期1-9周/实践部分5-6小学期"
-                for chunk in chunks
-            )
-        )
-        self.assertTrue(
-            any(
-                chunk.metadata["unit_type"] == "table_unit"
-                and "1034030154 | 国际商务案例分析(实训) | 1 | 36 | 18 | 理论部分第6学期1-9周/实践部分5-6小学期"
-                in chunk.text
+                "五、课程设置和修读建议" in chunk.text
+                and "2. 学科基础教育" in chunk.text
                 and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
-                for chunk in chunks
-            )
-        )
-
-    def test_real_curriculum_projection_repairs_parent_heading_context_for_subsection_chunks(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
-
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and chunk.text.startswith("(二)知识要求")
-                for chunk in chunks
+                and "SYN101 | 公共问题分析" in chunk.text
+                for chunk in table_chunks
             )
         )
         self.assertTrue(
             any(
-                chunk.metadata["unit_type"] == "section_text"
-                and chunk.text.startswith("二、毕业要求\n\n(二)知识要求")
-                for chunk in chunks
+                "五、课程设置和修读建议" in chunk.text
+                and "(三)个性化培养" in chunk.text
+                and "建议课程清单:" in chunk.text
+                and "SYN201 | 协同治理专题" in chunk.text
+                for chunk in table_chunks
             )
         )
 
-    def test_runtime_v2_does_not_duplicate_leaf_heading_when_prepending_parent_context(
+    def test_synthetic_curriculum_projection_repairs_parent_heading_context_for_subsection_chunks(
         self,
     ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
+        _, chunks = _build_real_curriculum_projection_chunks(SYNTHETIC_DATA_SYSTEMS_ID)
 
         target_chunk = next(
             chunk
             for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and chunk.anchor["section_path"]
-            == [
-                "经济学拔尖人才创新班人才培养方案",
-                "二、毕业要求",
-                "(二)知识要求",
-            ]
+            if chunk.metadata["unit_type"] == "section_text" and "(二)知识要求" in chunk.text
         )
 
-        self.assertTrue(target_chunk.text.startswith("二、毕业要求\n\n(二)知识要求"))
-        self.assertNotIn("(二)知识要求\n\n(二)知识要求", target_chunk.text)
+        self.assertTrue(target_chunk.text.startswith("一、培养目标\n\n(二)知识要求"))
+        self.assertEqual(
+            target_chunk.anchor["section_path"],
+            [SYNTHETIC_DATA_SYSTEMS_TITLE, "一、培养目标", "(二)知识要求"],
+        )
 
-    def test_runtime_v2_does_not_duplicate_leaf_heading_on_historical_curriculum_chunks(
+    def test_synthetic_curriculum_projection_does_not_emit_course_map_title_chunks(
         self,
     ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks(
-            "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"
-        )
-
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and "2. 专业选修课程\n\n2. 专业选修课程" in chunk.text
-                for chunk in chunks
-            )
-        )
-
-    def test_real_curriculum_projection_does_not_emit_orphan_heading_only_section_chunk(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
-
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and chunk.text.strip() == "(二)专业教育"
-                for chunk in chunks
-            )
-        )
-
-    def test_real_curriculum_projection_repairs_course_setting_parent_context_for_section_and_table_chunks(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
-
-        self.assertTrue(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and "2. 学科基础教育" in chunk.text
-                and chunk.text.startswith(
-                    "五、课程设置和修读建议\n\n(一) 大类培养\n\n2. 学科基础教育"
-                )
-                for chunk in chunks
-            )
-        )
-        self.assertTrue(
-            any(
-                chunk.metadata["unit_type"] == "table_unit"
-                and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
-                and chunk.text.startswith(
-                    "五、课程设置和修读建议\n\n(一) 大类培养\n\n2. 学科基础教育"
-                )
-                for chunk in chunks
-            )
-        )
-
-    def test_curriculum_answer_facts_are_marked_answer_bearing(self) -> None:
-        _, chunks = _build_real_curriculum_projection_chunks(
-            "curriculum:国际经济与贸易本科人才培养方案"
-        )
-
-        graduation_requirement_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and "二、毕业要求" in chunk.text
-            and "(二)知识要求" in chunk.text
-        )
-        course_table_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "table_unit"
-            and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
-        )
-
-        self.assertTrue(graduation_requirement_chunk.metadata["is_answer_bearing"])
-        self.assertTrue(course_table_chunk.metadata["is_answer_bearing"])
-
-    def test_real_curriculum_projection_keeps_structural_context_on_high_token_table_chunks(
-        self,
-    ) -> None:
-        for document_id in (
-            "curriculum:国际经济与贸易本科人才培养方案",
-            "curriculum:经济学拔尖人才创新班人才培养方案",
-        ):
+        for document_id in (SYNTHETIC_PUBLIC_AFFAIRS_ID, SYNTHETIC_DATA_SYSTEMS_ID):
             _, chunks = _build_real_curriculum_projection_chunks(document_id)
 
             self.assertFalse(
                 any(
-                    chunk.metadata["unit_type"] == "table_unit"
-                    and "五、课程设置和修读建议" in chunk.anchor["section_path"]
-                    and chunk.metadata["final_token_count"] >= 500
-                    and not any(
-                        heading in chunk.text for heading in chunk.anchor["section_path"][1:]
-                    )
+                    chunk.metadata["unit_type"] == "section_text" and "课程结构拓扑图" in chunk.text
                     for chunk in chunks
                 )
             )
 
-    def test_runtime_v2_keeps_intermediate_course_setting_heading_on_high_token_table_chunks(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
+    def test_synthetic_curriculum_answer_facts_are_marked_answer_bearing(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks(SYNTHETIC_PUBLIC_AFFAIRS_ID)
 
-        target_chunk = next(
+        section_chunk = next(
             chunk
             for chunk in chunks
-            if chunk.metadata["unit_type"] == "table_unit"
-            and chunk.anchor["section_path"]
-            == [
-                "经济学拔尖人才创新班人才培养方案",
-                "五、课程设置和修读建议",
-                "(一) 大类培养",
-                "1. 通识教育",
-            ]
-            and int(chunk.metadata["final_token_count"]) >= 600
+            if chunk.metadata["unit_type"] == "section_text" and "(二)知识要求" in chunk.text
         )
-
-        self.assertIn("五、课程设置和修读建议", target_chunk.text)
-        self.assertIn("(一) 大类培养", target_chunk.text)
-        self.assertIn("1. 通识教育", target_chunk.text)
-
-    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_historical_table_chunks(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("孝通实验班本科人才培养方案")
-
-        target_chunk = next(
+        course_table_chunk = next(
             chunk
             for chunk in chunks
-            if chunk.metadata["unit_type"] == "table_unit"
-            and chunk.anchor["section_path"]
-            == [
-                "孝通实验班本科人才培养方案",
-                "五、课程设置和修读建议",
-                "(二)专业教育",
-            ]
-            and "老龄化与健康" in chunk.text
+            if chunk.metadata["unit_type"] == "table_unit" and "SYN101 | 公共问题分析" in chunk.text
         )
 
-        self.assertIn("五、课程设置和修读建议", target_chunk.text)
-        self.assertIn("(二)专业教育", target_chunk.text)
+        self.assertTrue(section_chunk.metadata["is_answer_bearing"])
+        self.assertTrue(course_table_chunk.metadata["is_answer_bearing"])
+
+    def test_build_indexable_chunks_from_jsonl_skips_course_map_navigation_noise(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0001",
+                        "row_id": "page-0600-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "六、课程地图",
+                        "section_hint": "section",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0002",
+                        "row_id": "page-0600-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "1. 哲学",
+                        "section_hint": "numeric_heading",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0003",
+                        "row_id": "page-0600-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "哲学专业本科课程结构拓扑图",
+                        "section_hint": None,
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0004",
+                        "row_id": "page-0600-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、其他说明",
+                        "section_hint": "section",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0005",
+                        "row_id": "page-0600-block-0005",
+                        "row_type": "paragraph",
+                        "clean_text": "允许国际学分转换。",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_curriculum_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].anchor["section_path"], ["七、其他说明"])
+        self.assertNotIn("拓扑图", chunks[0].text)
 
     def test_runtime_v2_preserves_table_segment_metadata_when_absorbing_heading_context(
         self,
@@ -356,221 +277,3 @@ class CurriculumChunkingRuntimeProjectionTest(unittest.TestCase):
             target_chunk.metadata["segment_total"],
             target_chunk.metadata["member_segment_lineage"][-1]["segment_total"],
         )
-
-    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_historical_curriculum(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("财政学本科人才培养方案")
-
-        target_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and chunk.anchor["section_path"]
-            == [
-                "财政学本科人才培养方案",
-                "三、学制、总学分和学位授予",
-            ]
-        )
-
-        self.assertTrue(target_chunk.text.startswith("三、学制、总学分和学位授予"))
-        self.assertNotIn("二、毕业要求\n\n", target_chunk.text)
-
-    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_mixed_heading_historical_curriculum(
-        self,
-    ) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学本科人才培养方案")
-
-        target_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and chunk.anchor["section_path"]
-            == [
-                "中国少数民族语言文学本科人才培养方案",
-                "三、学制、总学分和学位授予",
-            ]
-        )
-
-        self.assertTrue(target_chunk.text.startswith("三、学制、总学分和学位授予"))
-        self.assertNotIn("二、毕业要求\n\n", target_chunk.text)
-
-    def test_runtime_v2_absorbs_short_parent_intro_into_following_child_section(self) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks(
-            "中央民族大学通识课程思想政治理论课教学计划"
-        )
-
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and chunk.anchor["section_path"]
-                == [
-                    "中央民族大学通识课程思想政治理论课教学计划",
-                    "二、课程设置及培养要求",
-                ]
-                and chunk.text
-                == "二、课程设置及培养要求\n\n课程模式包括大学体育课程和第二课堂实践活动。"
-                for chunk in chunks
-            )
-        )
-        target_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and "课程模式包括大学体育课程和第二课堂实践活动。" in chunk.text
-            and "(一)大学体育课程" in chunk.text
-        )
-
-        self.assertTrue(target_chunk.text.startswith("二、课程设置及培养要求"))
-
-    def test_runtime_v2_excludes_course_map_section_chunks_from_query_serving(self) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
-        self.assertFalse(
-            any(
-                chunk.metadata["unit_type"] == "section_text"
-                and chunk.anchor["section_path"]
-                == [
-                    "经济学拔尖人才创新班人才培养方案",
-                    "六、课程地图",
-                ]
-                for chunk in chunks
-            )
-        )
-
-    def test_runtime_v2_does_not_leave_course_map_title_card_on_previous_section(self) -> None:
-        _, chunks = _build_real_curriculum_runtime_chunks(
-            "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"
-        )
-
-        self.assertFalse(
-            any(
-                "拓扑图" in chunk.text
-                for chunk in chunks
-                if (chunk.anchor.get("section_path") or [])[-1:] != ["六、课程地图"]
-            )
-        )
-
-    def test_build_indexable_chunks_from_jsonl_skips_course_map_navigation_noise(self) -> None:
-        record = _make_curriculum_record()
-        structured_payload = "\n".join(
-            [
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0001",
-                        "row_id": "page-0600-block-0001",
-                        "row_type": "heading",
-                        "heading_level": 2,
-                        "clean_text": "六、课程地图",
-                        "section_hint": "section",
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0002",
-                        "row_id": "page-0600-block-0002",
-                        "row_type": "heading",
-                        "heading_level": 4,
-                        "clean_text": "1. 哲学",
-                        "section_hint": "numeric_heading",
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0003",
-                        "row_id": "page-0600-block-0003",
-                        "row_type": "heading",
-                        "heading_level": 2,
-                        "clean_text": "哲学专业本科课程结构拓扑图",
-                        "section_hint": None,
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0004",
-                        "row_id": "page-0600-block-0004",
-                        "row_type": "heading",
-                        "heading_level": 4,
-                        "clean_text": "2. 宗教学",
-                        "section_hint": "numeric_heading",
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0005",
-                        "row_id": "page-0600-block-0005",
-                        "row_type": "heading",
-                        "heading_level": 2,
-                        "clean_text": "宗教学专业本科课程结构拓扑图",
-                        "section_hint": None,
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0006",
-                        "row_id": "page-0600-block-0006",
-                        "row_type": "heading",
-                        "heading_level": 2,
-                        "clean_text": "七、其他说明",
-                        "section_hint": "section",
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-                json.dumps(
-                    {
-                        "doc_id": record.document_id,
-                        "version_id": record.version_id,
-                        "chunk_id": "page-0600-block-0007",
-                        "row_id": "page-0600-block-0007",
-                        "row_type": "paragraph",
-                        "clean_text": "允许国际学分转换。",
-                        "page_start": 600,
-                        "page_end": 600,
-                        "acl": {"level": "public", "allow_groups": ["students"]},
-                    },
-                    ensure_ascii=False,
-                ),
-            ]
-        ).encode("utf-8")
-
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record, structured_jsonl_bytes=structured_payload
-        )
-
-        self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0].anchor["section_path"], ["七、其他说明"])
-        self.assertNotIn("拓扑图", chunks[0].text)

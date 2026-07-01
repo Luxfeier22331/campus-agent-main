@@ -9,7 +9,7 @@ from typing import Literal
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,
@@ -194,9 +194,9 @@ def _serialize_projection_row(
         "chunk_id": f"{document_id}:row-0001",
         "clean_text": family.answer_snippet,
         "source_pdf": source_pdf,
-        "source_url": f"campusrag://rag-data/canonical/curriculum_plan/program-family/{family.canonical_program_family_title}.md",
+        "source_url": f"campus-agent://rag-data/canonical/curriculum_plan/program-family/{family.canonical_program_family_title}.md",
         "source": {
-            "id": f"campusrag://rag-data/canonical/curriculum_plan/program-family/{family.canonical_program_family_title}.md"
+            "id": f"campus-agent://rag-data/canonical/curriculum_plan/program-family/{family.canonical_program_family_title}.md"
         },
         "page_start": page_start,
         "page_end": page_end,

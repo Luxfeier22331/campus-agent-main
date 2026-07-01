@@ -29,7 +29,7 @@ def _institutional_registry_record(document_id: str) -> DocumentRegistryRecord:
         document_id=document_id,
         revision_track="current-effective",
         version_id=f"owregver:{document_id}",
-        source_uri=f"https://www.muc.edu.cn/{document_id}.htm",
+        source_uri=f"https://www.example.edu/{document_id}.htm",
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
         collection="institutional_rules",

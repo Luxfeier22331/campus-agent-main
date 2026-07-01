@@ -624,7 +624,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     location_description="海淀校区西侧，靠近图书馆。",
                     source_refs=(
                         "seed:campus_navigation/place_catalog.v1",
-                        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+                        "https://www.example.edu/xxgk1/xydt.htm",
                     ),
                 ),
             ),
@@ -652,13 +652,13 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 ),
                 diagnostics=RagResultDiagnostics(
                     resolved_policy_document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-                    resolved_policy_title="中央民族大学本科学生国家奖学金评审办法",
-                    rewritten_query="中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
+                    resolved_policy_title="示例大学本科学生国家奖学金评审办法",
+                    rewritten_query="示例大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
                     clarification_reason="",
                     no_answer_reason="resolved_policy_clause_not_found",
                     semantic_outcome="unsupported_by_evidence",
                     scope_class="in_scope",
-                    retrieved_title_summary=("中央民族大学本科学生国家奖学金评审办法",),
+                    retrieved_title_summary=("示例大学本科学生国家奖学金评审办法",),
                 ),
             ),
         )
@@ -667,7 +667,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         self.assertEqual(
             payload["result"]["diagnostics"]["resolved_policy_title"],
-            "中央民族大学本科学生国家奖学金评审办法",
+            "示例大学本科学生国家奖学金评审办法",
         )
         self.assertEqual(
             payload["result"]["diagnostics"]["no_answer_reason"],
@@ -684,7 +684,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(
             tuple(payload["result"]["diagnostics"]["retrieved_title_summary"]),
-            ("中央民族大学本科学生国家奖学金评审办法",),
+            ("示例大学本科学生国家奖学金评审办法",),
         )
 
     def test_execution_response_serializes_selected_tool_and_context_free_shape(self) -> None:

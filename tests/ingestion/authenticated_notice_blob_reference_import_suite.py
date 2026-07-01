@@ -41,7 +41,7 @@ class AuthenticatedNoticeBlobReferenceImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeImportRequest(
                         bundle_path=bundle_path,
                         export_manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/home",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -86,7 +86,7 @@ class AuthenticatedNoticeBlobReferenceImportTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",

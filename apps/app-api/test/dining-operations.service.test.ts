@@ -110,15 +110,7 @@ describe("dining operations service", () => {
 				}),
 			]),
 		);
-		expect(firstCanteenReviews.reviews.flatMap((review) => review.images)).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					alt: "金汤鱼粉评价图片",
-					imageId: "dining-review-image:rec27DpktN6uQn:1",
-					url: "/assets/dining/reviews/rec27DpktN6uQn.jpg",
-				}),
-			]),
-		);
+		expect(firstCanteenReviews.reviews.flatMap((review) => review.images)).toEqual([]);
 		expect(juyaReviews.reviews).toHaveLength(1);
 		expect(juyaReviews.reviews[0]?.sourceRecordId).toBe("rec27Dph0spQzm");
 		expect(JSON.stringify(firstCanteenReviews)).not.toContain("file_token");

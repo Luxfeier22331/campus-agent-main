@@ -205,7 +205,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
@@ -259,7 +259,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
@@ -289,7 +289,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
@@ -319,7 +319,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
@@ -375,7 +375,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {

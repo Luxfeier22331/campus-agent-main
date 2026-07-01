@@ -74,6 +74,12 @@ class owns a fact.
   - [runbooks/README.md](./runbooks/README.md)
   - [environment/README.md](./environment/README.md)
   - [policies/README.md](./policies/README.md)
+- License, notices and third-party source attribution:
+  - [../LICENSE](../LICENSE)
+  - [../NOTICE](../NOTICE)
+  - [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
+  - [policies/public-source-data.md](./policies/public-source-data.md)
+  - [reference/open-source-data.md](./reference/open-source-data.md)
 - Current work map and backlog signals:
   - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)

@@ -112,7 +112,7 @@ describe("chat e2e runner", () => {
 		expect(streamCalls).toEqual([
 			{
 				body: {
-					prompt: "中央民族大学本科学生国家奖学金评审办法",
+					prompt: "示例大学本科学生国家奖学金评审办法",
 				},
 				url: "https://campus.example.com/api/chat/requests/stream",
 			},

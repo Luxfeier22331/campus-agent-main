@@ -6,12 +6,12 @@ _REPAIRABLE_ROW_TYPES = frozenset({"list_item"})
 _TERMINAL_ENDINGS = ("。", "；", ";", "！", "!", "？", "?", "：", ":", "）", ")", "”", '"')
 _MIN_REPAIR_PREFIX_LENGTH = 12
 _MAX_REPAIR_SUFFIX_LENGTH = 12
-_STUDENT_STATUS_POLICY_TITLE = "中央民族大学本科学生学籍管理办法"
+_STUDENT_STATUS_POLICY_TITLE = "示例大学本科学生学籍管理办法"
 _STUDENT_STATUS_ARTICLE_42_TRUNCATED_PREFIX = (
     "第四十二条 学生退学处理由所在学院(系)提出处理意见,文件"
 )
 _STUDENT_STATUS_ARTICLE_43_PREFIX = "第四十三条"
-_STUDENT_STATUS_SOURCE_REPAIR_URL = "https://xingong.muc.edu.cn/info/1080/1935.htm"
+_STUDENT_STATUS_SOURCE_REPAIR_URL = "https://xingong.example.edu/info/1080/1935.htm"
 
 _STUDENT_STATUS_ARTICLE_42 = (
     "第四十二条 学生退学处理由所在学院(系)提出处理意见,报学生处;学生申请退学的,"

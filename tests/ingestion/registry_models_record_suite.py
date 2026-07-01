@@ -38,7 +38,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
         self.assertEqual(payload["status"], "active")
         self.assertEqual(payload["import_source"], "raw_online_ocr")
         self.assertEqual(payload["source_channel"], "pdf_ocr")
-        self.assertEqual(payload["raw_asset"]["raw_asset_id"], "asset:student-handbook-pdf")
+        self.assertEqual(payload["raw_asset"]["raw_asset_id"], "asset:synthetic-student-handbook")
         self.assertEqual(payload["raw_asset"]["raw_version_id"], "sha256:raw-001")
         self.assertEqual(payload["raw_asset"]["page_start"], 10)
         self.assertEqual(payload["raw_asset"]["page_end"], 12)
@@ -122,7 +122,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                 source_observations=(
                     SourceObservation(
                         source_channel="pdf_ocr",
-                        source_uri="campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                        source_uri="campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                         raw_asset=record.raw_asset,
                         is_primary=False,
                         import_source="raw_online_ocr",
@@ -308,7 +308,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                            "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                             "content_hash": "sha256:test-001",
                             "corpus": "regulations",
                             "collection": "student_rules",
@@ -358,7 +358,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                            "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                             "content_hash": "sha256:test-001",
                             "corpus": "regulations",
                             "collection": "student_rules",
@@ -393,7 +393,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                 "document_id": "handbook:test-001",
                 "revision_track": "source-faithful",
                 "version_id": "v1:test-001",
-                "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                 "content_hash": "sha256:test-001",
                 "corpus": "regulations",
                 "collection": "student_rules",
@@ -423,7 +423,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                    "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -453,7 +453,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                    "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "status": "active",
@@ -469,7 +469,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                 {
                     "document_id": "handbook:test-001",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                    "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -488,7 +488,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
+                    "source_uri": "campus-agent://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "status": "active",
@@ -504,10 +504,10 @@ class RegistryModelsRecordSuite(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "collection"):
             _raw_asset_record_from_dict(
                 {
-                    "raw_asset_id": "asset:student-handbook-pdf",
+                    "raw_asset_id": "asset:synthetic-student-handbook",
                     "raw_version_id": "sha256:raw-001",
                     "corpus": "regulations",
-                    "raw_source_uri": "campusrag://raw/regulations/student_rules/student-handbook.pdf",
+                    "raw_source_uri": "campus-agent://raw/regulations/student_rules/student-handbook.pdf",
                     "content_hash": "raw-001",
                     "source_filename": "student-handbook.pdf",
                     "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
@@ -519,11 +519,11 @@ class RegistryModelsRecordSuite(unittest.TestCase):
     def test_raw_asset_registry_payload_backfills_missing_typed_metadata_fields(self) -> None:
         record = _raw_asset_record_from_dict(
             {
-                "raw_asset_id": "asset:student-handbook-pdf",
+                "raw_asset_id": "asset:synthetic-student-handbook",
                 "raw_version_id": "sha256:raw-001",
                 "corpus": "regulations",
                 "collection": "student_rules",
-                "raw_source_uri": "campusrag://raw/regulations/student_rules/student-handbook.pdf",
+                "raw_source_uri": "campus-agent://raw/regulations/student_rules/student-handbook.pdf",
                 "content_hash": "raw-001",
                 "source_filename": "student-handbook.pdf",
                 "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
@@ -550,7 +550,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
             registry.upsert(record)
 
             self.assertEqual(
-                registry.get("asset:student-handbook-pdf", "sha256:raw-001"),
+                registry.get("asset:synthetic-student-handbook", "sha256:raw-001"),
                 record,
             )
 
@@ -565,7 +565,7 @@ class RegistryModelsRecordSuite(unittest.TestCase):
 
             registry.delete_by_scope("regulations", "student_rules")
 
-            self.assertIsNone(registry.get("asset:student-handbook-pdf", "sha256:raw-001"))
+            self.assertIsNone(registry.get("asset:synthetic-student-handbook", "sha256:raw-001"))
             self.assertEqual(
                 registry.get("asset:curriculum-plan-master-pdf", "sha256:raw-002"),
                 curriculum_record,
@@ -578,11 +578,11 @@ class RegistryModelsRecordSuite(unittest.TestCase):
             handbook_record = _handbook_raw_asset_record()
             curriculum_record = _curriculum_raw_asset_record()
             handbook_replacement = RawAssetRecord(
-                raw_asset_id="asset:student-handbook-pdf-v2",
+                raw_asset_id="asset:synthetic-student-handbook-v2",
                 raw_version_id="sha256:raw-003",
                 corpus="regulations",
                 collection="student_rules",
-                raw_source_uri="campusrag://raw/regulations/student_rules/student-handbook-v2.pdf",
+                raw_source_uri="campus-agent://raw/regulations/student_rules/student-handbook-v2.pdf",
                 content_hash="raw-003",
                 source_filename="student-handbook-v2.pdf",
                 object_key="official_pdf/student-handbook/undated/sha256/raw-003/capture/student-handbook-v2.pdf",

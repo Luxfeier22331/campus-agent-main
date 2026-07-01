@@ -140,6 +140,69 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_forbids_secret_workflow_automatic_triggers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                eval_schedule=True,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/eval-ragas-score.yml",
+                message=(
+                    "workflow references secrets and must not define automatic triggers: schedule"
+                ),
+            ),
+            issues,
+        )
+
+    def test_audit_requires_secret_workflow_protected_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                include_eval_environment=False,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/eval-ragas-score.yml",
+                message=(
+                    "eval-ragas-score must use protected environment 'eval-internal' "
+                    "because workflow references secrets"
+                ),
+            ),
+            issues,
+        )
+
     def test_audit_forbids_public_docs_workflow_deploy_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -378,6 +441,8 @@ def _write_minimal_workflows(
     include_path_filters: bool = True,
     public_docs_schedule: bool = False,
     public_docs_deploy: bool = False,
+    eval_schedule: bool = False,
+    include_eval_environment: bool = True,
 ) -> None:
     go_lint_install_steps = (
         (
@@ -514,14 +579,27 @@ def _write_minimal_workflows(
         ),
         encoding="utf-8",
     )
+    eval_triggers = (
+        (
+            "on:",
+            "  schedule:",
+            "    - cron: '9 4 * * *'",
+            "  workflow_dispatch:",
+        )
+        if eval_schedule
+        else ("on:", "  workflow_dispatch:")
+    )
+    eval_environment_lines = ("    environment: eval-internal",) if include_eval_environment else ()
     (root / ".github/workflows/eval-ragas-score.yml").write_text(
         "\n".join(
             (
                 "name: eval-ragas-score",
-                "on:",
-                "  workflow_dispatch:",
+                *eval_triggers,
                 "jobs:",
                 "  eval-ragas-score:",
+                *eval_environment_lines,
+                "    env:",
+                "      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}",
                 "    steps:",
                 "      - uses: actions/setup-python@v5",
                 "      - uses: astral-sh/setup-uv@v6",

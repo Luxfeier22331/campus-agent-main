@@ -6,7 +6,7 @@ import {
 const DEFAULT_PASSWORD_ENV_KEY = "APP_API_SMOKE_IDENTITY_PASSWORD";
 const DEFAULT_APP_NAME = "campus-agent-app-api";
 const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
-const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn";
+const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";
 const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";

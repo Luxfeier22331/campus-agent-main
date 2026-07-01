@@ -127,10 +127,10 @@ def _portal_print_url(
 
 
 def _source_home_origin(value: str) -> str:
-    parsed = urlparse(value.strip() or "https://my.muc.edu.cn")
+    parsed = urlparse(value.strip() or "https://portal.example.edu")
     if parsed.scheme and parsed.netloc:
         return f"{parsed.scheme}://{parsed.netloc}"
-    return "https://my.muc.edu.cn"
+    return "https://portal.example.edu"
 
 
 def _notice_id(*, notice: dict[str, Any], record: dict[str, Any]) -> str:

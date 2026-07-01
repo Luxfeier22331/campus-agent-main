@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-import os
-
 from .chunking_policy_test_support import *
 
 
@@ -122,122 +118,83 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
             allow_patterns=tokenizer_cache.HF_TOKENIZER_ALLOW_PATTERNS,
         )
 
-    def test_load_hf_tokenizer_uses_resolved_local_snapshot_only(self) -> None:
-        fake_tokenizer = object()
-        fake_transformers = types.SimpleNamespace(
-            AutoTokenizer=types.SimpleNamespace(
-                from_pretrained=mock.Mock(return_value=fake_tokenizer)
-            )
-        )
+    def test_count_hf_tokens_uses_local_tokenizer_kernel(self) -> None:
         with (
             mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-                return_value="/tmp/qwen-tokenizer",
-            ) as resolve_path,
-            mock.patch.dict(sys.modules, {"transformers": fake_transformers}),
+                "campus_ingestion_core.chunking_tokenizers.count_tokens_with_local_tokenizer",
+                return_value=2,
+            ) as count_tokens,
         ):
-            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+            result = _count_hf_tokens("Qwen/Qwen3-Embedding-4B", "hello world")
 
-        self.assertIs(result, fake_tokenizer)
-        resolve_path.assert_called_once_with("Qwen/Qwen3-Embedding-4B")
-        fake_transformers.AutoTokenizer.from_pretrained.assert_called_once_with(
-            "/tmp/qwen-tokenizer",
-            local_files_only=True,
+        self.assertEqual(result, 2)
+        count_tokens.assert_called_once_with(
+            repo_id="Qwen/Qwen3-Embedding-4B",
+            text="hello world",
         )
 
-    def test_load_hf_tokenizer_suppresses_transformers_missing_torch_advisory_only(
-        self,
-    ) -> None:
-        fake_tokenizer = object()
-        captured_import_env: dict[str, str | None] = {}
-
-        def fake_import_module(name: str, *args: object, **kwargs: object) -> object:
-            self.assertEqual(name, "transformers")
-            captured_import_env["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = os.environ.get(
-                "TRANSFORMERS_NO_ADVISORY_WARNINGS"
-            )
-            return types.SimpleNamespace(
-                AutoTokenizer=types.SimpleNamespace(
-                    from_pretrained=mock.Mock(return_value=fake_tokenizer)
-                )
-            )
-
-        with (
-            mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-                return_value="/tmp/qwen-tokenizer",
-            ),
-            mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.importlib.import_module",
-                side_effect=fake_import_module,
-            ),
-            mock.patch.dict(os.environ, {}, clear=True),
-        ):
-            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
-
-        self.assertIs(result, fake_tokenizer)
-        self.assertEqual(captured_import_env["TRANSFORMERS_NO_ADVISORY_WARNINGS"], "1")
-        self.assertNotIn("TRANSFORMERS_NO_ADVISORY_WARNINGS", os.environ)
-
-    def test_load_hf_tokenizer_preserves_existing_transformers_advisory_env(self) -> None:
-        fake_tokenizer = object()
-
-        def fake_import_module(name: str, *args: object, **kwargs: object) -> object:
-            self.assertEqual(name, "transformers")
-            self.assertEqual(os.environ.get("TRANSFORMERS_NO_ADVISORY_WARNINGS"), "custom")
-            return types.SimpleNamespace(
-                AutoTokenizer=types.SimpleNamespace(
-                    from_pretrained=mock.Mock(return_value=fake_tokenizer)
-                )
-            )
-
-        with (
-            mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-                return_value="/tmp/qwen-tokenizer",
-            ),
-            mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.importlib.import_module",
-                side_effect=fake_import_module,
-            ),
-            mock.patch.dict(os.environ, {"TRANSFORMERS_NO_ADVISORY_WARNINGS": "custom"}),
-        ):
-            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
-            self.assertEqual(os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"], "custom")
-
-        self.assertIs(result, fake_tokenizer)
-
-    def test_load_hf_tokenizer_initializes_once_under_concurrent_calls(self) -> None:
-        _load_hf_tokenizer.cache_clear()
+    def test_count_hf_tokens_initializes_once_under_concurrent_calls(self) -> None:
+        _count_hf_tokens.cache_clear()
         call_count = [0]
         call_lock = threading.Lock()
 
-        def fake_from_pretrained(path: str, *, local_files_only: bool = True) -> object:
-            self.assertEqual(path, "/tmp/qwen-tokenizer")
-            self.assertTrue(local_files_only)
+        def fake_count_tokens(*, repo_id: str, text: str) -> int:
+            self.assertEqual(repo_id, "Qwen/Qwen3-Embedding-4B")
+            self.assertEqual(text, "hello world")
             with call_lock:
                 call_count[0] += 1
             time.sleep(0.05)
-            return object()
-
-        fake_transformers = types.SimpleNamespace(
-            AutoTokenizer=types.SimpleNamespace(from_pretrained=fake_from_pretrained)
-        )
+            return 2
 
         with (
             mock.patch(
-                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-                return_value="/tmp/qwen-tokenizer",
+                "campus_ingestion_core.chunking_tokenizers.count_tokens_with_local_tokenizer",
+                side_effect=fake_count_tokens,
             ),
-            mock.patch.dict(sys.modules, {"transformers": fake_transformers}),
             ThreadPoolExecutor(max_workers=8) as executor,
         ):
-            results = list(
+            counts = list(
                 executor.map(
-                    lambda _: _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B"),
+                    lambda _: _count_hf_tokens("Qwen/Qwen3-Embedding-4B", "hello world"),
                     range(8),
                 )
             )
 
         self.assertEqual(call_count[0], 1)
-        self.assertEqual(len({id(result) for result in results}), 1)
+        self.assertEqual(counts, [2] * 8)
+
+    def test_local_tokenizer_counts_without_special_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tokenizer_path = Path(temp_dir) / "tokenizer.json"
+            tokenizer_path.write_text(
+                """{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {"id": 2, "content": "[CLS]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true}
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {"type": "Whitespace"},
+  "post_processor": {
+    "type": "TemplateProcessing",
+    "single": [{"SpecialToken": {"id": "[CLS]", "type_id": 0}}, {"Sequence": {"id": "A", "type_id": 0}}],
+    "pair": [{"SpecialToken": {"id": "[CLS]", "type_id": 0}}, {"Sequence": {"id": "A", "type_id": 0}}, {"Sequence": {"id": "B", "type_id": 0}}],
+    "special_tokens": {"[CLS]": {"id": "[CLS]", "ids": [2], "tokens": ["[CLS]"]}}
+  },
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {"hello": 0, "world": 1, "[CLS]": 2, "[UNK]": 3},
+    "unk_token": "[UNK]"
+  }
+}""",
+                encoding="utf-8",
+            )
+            with mock.patch(
+                "campus_ingestion_core.tokenizer_cache._snapshot_download",
+                return_value=temp_dir,
+            ):
+                count = _count_hf_tokens("Qwen/Qwen3-Embedding-4B", "hello world")
+
+        self.assertEqual(count, 2)

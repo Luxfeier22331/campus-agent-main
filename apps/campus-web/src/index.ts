@@ -7,6 +7,7 @@ import {
 import { DEFAULT_DOCS_READER_PATH } from "./platform/navigation/product-nav";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
+import { PUBLIC_MAP_DATA_PREFIX, serveCampusMapData } from "./platform/worker-proxy/map-data";
 import {
 	isPublicCacheableAppApiRequest,
 	proxyCacheableAppApiRequest,
@@ -25,6 +26,7 @@ export interface Env {
 	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
 	CAMPUS_WEB_HOSTNAME?: string;
+	MAP_DATA?: R2Bucket;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
@@ -62,7 +64,6 @@ const PUBLIC_DOCS_STATIC_ASSET_PREFIX = "/_docs-static/";
 const PUBLIC_DOCS_ROUTE_PREFIX = "/docs";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
-const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
 const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
 
 const VITE_DEV_ASSET_PREFIXES = [
@@ -186,8 +187,12 @@ const worker = {
 				return servePublicDocsReader(request, env);
 			}
 
-			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
-				return serveStaticAsset(request, env);
+			if (url.pathname.startsWith(PUBLIC_MAP_DATA_PREFIX)) {
+				return serveCampusMapData({
+					mapData: env.MAP_DATA,
+					request,
+					securityHeaders: SECURITY_HEADERS,
+				});
 			}
 
 			if (url.pathname.startsWith(PUBLIC_VENDOR_ASSET_PREFIX)) {

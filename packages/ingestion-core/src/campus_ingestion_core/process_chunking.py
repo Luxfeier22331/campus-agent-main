@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from llama_index.core.base.embeddings.base import BaseEmbedding
-
 from campus_ingestion_core.answer_ready_contract_quality import (
     evaluate_answer_ready_contract_metadata,
 )
@@ -13,6 +11,7 @@ from campus_ingestion_core.chunking import (
     assemble_chunk_text,
     build_chunk_text_context,
 )
+from campus_ingestion_core.embed import EmbeddingModel
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process_candidate_aggregation import (
     build_collection_semantic_metadata,
@@ -161,7 +160,7 @@ def build_indexable_chunks_from_jsonl(
     record: DocumentRegistryRecord,
     structured_jsonl_bytes: bytes,
     chunk_profile: ChunkProfile | None = None,
-    embedding_model: BaseEmbedding | None = None,
+    embedding_model: EmbeddingModel | None = None,
     sparse_embedding_model: SparseEmbeddingModel | None = None,
 ) -> tuple[IndexableChunk, ...]:
     del sparse_embedding_model
@@ -407,7 +406,7 @@ def build_anchor_release_metadata(anchor: dict[str, object]) -> dict[str, object
     return release_metadata
 
 
-def embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float, ...] | None:
+def embed_text(text: str, embedding_model: EmbeddingModel | None) -> tuple[float, ...] | None:
     if embedding_model is None:
         return None
     return tuple(float(item) for item in embedding_model.get_text_embedding(text))
@@ -415,7 +414,7 @@ def embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float,
 
 def embed_texts(
     texts: list[str],
-    embedding_model: BaseEmbedding | object | None,
+    embedding_model: EmbeddingModel | object | None,
 ) -> tuple[tuple[float, ...] | None, ...]:
     if not texts:
         return ()
@@ -431,7 +430,7 @@ def embed_texts(
 
 
 def _resolve_embedding_model_name(
-    embedding_model: BaseEmbedding | object | None,
+    embedding_model: EmbeddingModel | object | None,
     *,
     registry_model_name: str,
 ) -> str:

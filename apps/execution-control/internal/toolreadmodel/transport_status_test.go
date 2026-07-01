@@ -53,7 +53,7 @@ func TestTransportStatusProjectionReturnsCurrentEffectiveTimetable(t *testing.T)
 	if projection.Release.PublishedAt != "2026-04-20T18:00:00+08:00" {
 		t.Fatalf("published_at = %q", projection.Release.PublishedAt)
 	}
-	wantReleaseRefs := []string{"https://portal.muc.edu.cn/notice/123"}
+	wantReleaseRefs := []string{"https://portal.example.edu/notice/123"}
 	if !reflect.DeepEqual(projection.Release.SourceRefs, wantReleaseRefs) {
 		t.Fatalf("release.source_refs = %#v, want %#v", projection.Release.SourceRefs, wantReleaseRefs)
 	}
@@ -77,7 +77,7 @@ func TestTransportStatusProjectionReturnsCurrentEffectiveTimetable(t *testing.T)
 		first.Departures[0].Note != "今天 10:00-12:00 因临时管制暂停发车" {
 		t.Fatalf("first departure = %#v", first.Departures[0])
 	}
-	wantOverrideRefs := []string{"https://portal.muc.edu.cn/notice/123"}
+	wantOverrideRefs := []string{"https://portal.example.edu/notice/123"}
 	if !reflect.DeepEqual(first.Departures[0].SourceRefs, wantOverrideRefs) {
 		t.Fatalf("override source_refs = %#v, want %#v", first.Departures[0].SourceRefs, wantOverrideRefs)
 	}
@@ -102,7 +102,7 @@ func TestTransportStatusProjectionMapsNoticeRefsToReleaseNoticeURLs(t *testing.T
 	if !ok {
 		t.Fatalf("body = %T, want TransportStatusProjection", response.Body)
 	}
-	wantRefs := []string{"https://my.muc.edu.cn/#/print?type=5&notice_id=355867&show_type=1"}
+	wantRefs := []string{"https://portal.example.edu/#/print?type=5&notice_id=355867&show_type=1"}
 	if !reflect.DeepEqual(projection.Release.SourceRefs, wantRefs) {
 		t.Fatalf("release.source_refs = %#v, want %#v", projection.Release.SourceRefs, wantRefs)
 	}
@@ -116,10 +116,10 @@ func transportStatusProjectionFixture() string {
 		strings.ReplaceAll(
 			transportProjectionFixture(),
 			"notice:bus-schedule-2026-04-20",
-			"https://portal.muc.edu.cn/notice/123",
+			"https://portal.example.edu/notice/123",
 		),
 		"notice:metro-shuttle-suspended",
-		"https://portal.muc.edu.cn/notice/metro-shuttle-suspended",
+		"https://portal.example.edu/notice/metro-shuttle-suspended",
 	)
 }
 
@@ -128,10 +128,10 @@ func transportStatusProjectionNoticeRefFixture() string {
 		strings.ReplaceAll(
 			transportProjectionFixture(),
 			`"source_ref":"notice:bus-schedule-2026-04-20"`,
-			`"source_ref":"notice:muc_internal_portal:355867"`,
+			`"source_ref":"notice:example_internal_portal:355867"`,
 		),
 		`"transport_service_exceptions":[`,
-		`"transport_release_notices":[{"source_notice_id":"355867","source_ref":"notice:muc_internal_portal:355867"}],
+		`"transport_release_notices":[{"source_notice_id":"355867","source_ref":"notice:example_internal_portal:355867"}],
 		"transport_service_exceptions":[`,
 	)
 }

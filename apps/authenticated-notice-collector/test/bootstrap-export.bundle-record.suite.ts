@@ -24,6 +24,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 				organization_id: "00001",
 				organization_name: "教务处",
 			},
+			sourceHomeUrl: "https://portal.example.edu/page/11",
 		});
 
 		expect(record).toEqual({
@@ -57,7 +58,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 				notice_title: "关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知",
 				organization_id: "00001",
 				organization_name: "教务处",
-				portal_print_url: "https://my.muc.edu.cn/#/print?type=6&notice_id=355119&show_type=1",
+				portal_print_url: "https://portal.example.edu/#/print?type=6&notice_id=355119&show_type=1",
 			},
 			notice_attachments: [],
 			notice_id: 355119,
@@ -81,13 +82,14 @@ export function registerBootstrapExportBundleRecordSuite() {
 				notice_type: "9980",
 				notice_type_name: "学术信息",
 			},
-			sourceHomeUrl: "https://my.muc.edu.cn/page/11",
+			sourceHomeUrl: "https://portal.example.edu/page/11",
 		});
 
 		expect(record.notice).toMatchObject({
-			notice_browser_url: "https://my.muc.edu.cn/#/print?type=9980&notice_id=351117&show_type=1",
+			notice_browser_url:
+				"https://portal.example.edu/#/print?type=9980&notice_id=351117&show_type=1",
 			notice_browser_url_source: "portal_print_route",
-			portal_print_url: "https://my.muc.edu.cn/#/print?type=9980&notice_id=351117&show_type=1",
+			portal_print_url: "https://portal.example.edu/#/print?type=9980&notice_id=351117&show_type=1",
 		});
 	});
 
@@ -320,7 +322,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 				notice_annext: [
 					{
 						notice_annex_id: "c46da95c-464c-4faf-8415-11974c33d3a4",
-						notice_annex_name: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+						notice_annex_name: "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx",
 					},
 				],
 				notice_content: "<p>通知正文</p>",
@@ -338,7 +340,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 		expect(record.links).toEqual([]);
 		expect(record.notice_attachments).toEqual([
 			{
-				anchor_text: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+				anchor_text: "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx",
 				attachment_id: 1,
 				discovered_at: "2026-04-04T01:23:45.000Z",
 				link_id: null,
@@ -367,7 +369,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 				origin_host: "portal.example.edu",
 				origin_scope: "internal",
 				origin_url_scheme: "https",
-				original_filename: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+				original_filename: "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx",
 				provenance_status: "reference_only",
 				sha256: null,
 				source_url:
@@ -387,11 +389,11 @@ export function registerBootstrapExportBundleRecordSuite() {
 				notice_annext: [
 					{
 						notice_annex_id: "ac84e8d1-c32e-4023-81fa-fae84e10216b",
-						notice_annex_name: "中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf",
+						notice_annex_name: "示例大学新一轮本科教育教学审核评估应知应会手册.pdf",
 					},
 				],
 				notice_content:
-					'<p>附件：<a href="/comsys-portal-notice-web/download?id=ac84e8d1-c32e-4023-81fa-fae84e10216b&notice_id=351704">中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf</a></p>',
+					'<p>附件：<a href="/comsys-portal-notice-web/download?id=ac84e8d1-c32e-4023-81fa-fae84e10216b&notice_id=351704">示例大学新一轮本科教育教学审核评估应知应会手册.pdf</a></p>',
 				notice_id: 351704,
 			},
 			observedAt: "2026-04-04T01:23:45.000Z",
@@ -407,7 +409,7 @@ export function registerBootstrapExportBundleRecordSuite() {
 		expect(record.attachments).toHaveLength(1);
 		expect(record.notice_attachments).toEqual([
 			{
-				anchor_text: "中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf",
+				anchor_text: "示例大学新一轮本科教育教学审核评估应知应会手册.pdf",
 				attachment_id: 1,
 				discovered_at: "2026-04-04T01:23:45.000Z",
 				link_id: 1,

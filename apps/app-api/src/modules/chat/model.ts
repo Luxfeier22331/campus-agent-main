@@ -316,11 +316,7 @@ function normalizeSourceTargetKind(value: unknown): ChatSourceTargetKind | null 
 function isBrowserSafePublicNoticeHref(value: string): boolean {
 	try {
 		const url = new URL(value);
-		const hostname = url.hostname.toLowerCase();
-		const isMucPublicHost =
-			(hostname === "muc.edu.cn" || hostname.endsWith(".muc.edu.cn")) &&
-			hostname !== "my.muc.edu.cn";
-		return url.protocol === "https:" && (isMucPublicHost || hostname === "mp.weixin.qq.com");
+		return url.protocol === "https:";
 	} catch {
 		return false;
 	}

@@ -187,13 +187,7 @@ GET /api/dining/halls/:hallId/reviews
       "rating": 4,
       "comment": "有一点辣，有一点酸。现煮的，需要等几分钟（不到五分钟吧）。分量比较大，能吃撑我。",
       "contributorName": "果小生",
-      "images": [
-        {
-          "imageId": "dining-review-image:rec27DpktN6uQn:1",
-          "url": "/assets/dining/reviews/rec27DpktN6uQn.jpg",
-          "alt": "金汤鱼粉评价图片"
-        }
-      ]
+      "images": []
     }
   ]
 }

@@ -277,7 +277,7 @@ export async function seedOfficialWebSmokeSamples(input: {
 	const runtime = input.runtime;
 	const app = createApp(runtime.env);
 	const siteId = input.args.siteId;
-	const host = "www.muc.edu.cn";
+	const host = "www.example.edu";
 	const baseSeedKey = `official-web-smoke-${now.toISOString()}`;
 	const internalSharedSecret = runtime.env.APP_API_INTERNAL_SHARED_SECRET;
 	if (!internalSharedSecret) {
@@ -358,7 +358,7 @@ export async function seedOfficialWebSmokeSamples(input: {
 				normalizedCanonicalUrl: `https://${host}/news/`,
 				observedAt: baselineFinishedAt,
 				pageFamily: "listing_page",
-				pageTitleNormalized: "中央民族大学新闻网",
+				pageTitleNormalized: "示例大学新闻网",
 				rawAssetId: `${baselineRunId}-raw-listing`,
 				rawVersionId: `${baselineRunId}-rawv-listing`,
 				requestedUrl: `https://${host}/news/`,

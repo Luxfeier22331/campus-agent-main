@@ -1958,7 +1958,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'campus-rag-derived'"
+          "default": "'campus-agent-derived'"
         },
         "content_type": {
           "name": "content_type",

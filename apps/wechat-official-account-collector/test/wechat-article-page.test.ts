@@ -10,14 +10,14 @@ describe("WeChat article page parsing", () => {
 		const html = `<!doctype html>
 <html>
   <head>
-    <meta property="og:title" content="MUC出行快讯｜加车！实践周班车合集来啦～" />
-    <meta property="og:description" content="有乘车需求的MUCer注意啦&#10;4月27日—5月5日期间&#10;通勤车辆有所调整" />
+    <meta property="og:title" content="示例出行快讯｜加车！实践周班车合集来啦～" />
+    <meta property="og:description" content="有乘车需求的同学注意啦&#10;4月27日—5月5日期间&#10;通勤车辆有所调整" />
     <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg" />
   </head>
   <body>
-    <h1 id="activity-name">MUC出行快讯｜加车！实践周班车合集来啦～</h1>
+    <h1 id="activity-name">示例出行快讯｜加车！实践周班车合集来啦～</h1>
     <div id="js_content">
-      <section><p>有乘车需求的MUCer注意啦</p></section>
+      <section><p>有乘车需求的同学注意啦</p></section>
       <section><p>4月27日—5月5日期间通勤车辆有所调整</p></section>
       <section><p>🚌通勤班车运营安排</p></section>
       <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg" />
@@ -30,20 +30,20 @@ describe("WeChat article page parsing", () => {
 </html>`;
 
 		const parsed = parseWeChatOfficialAccountArticlePageHtml({
-			articleUrl: "https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw",
+			articleUrl: "https://mp.weixin.qq.com/s/synthetic-schedule-article",
 			html,
 		});
 
 		expect(parsed.pageKind).toBe("article");
-		expect(parsed.title).toBe("MUC出行快讯｜加车！实践周班车合集来啦～");
-		expect(parsed.summary).toBe("有乘车需求的MUCer注意啦\n4月27日—5月5日期间\n通勤车辆有所调整");
+		expect(parsed.title).toBe("示例出行快讯｜加车！实践周班车合集来啦～");
+		expect(parsed.summary).toBe("有乘车需求的同学注意啦\n4月27日—5月5日期间\n通勤车辆有所调整");
 		expect(parsed.publishTime).toBe("2026-04-26T01:15:01.000Z");
 		expect(parsed.publishTimeSource).toBe("window.ct");
 		expect(parsed.coverImageUrl).toBe(
 			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
 		);
 		expect(parsed.bodyBlocks).toEqual([
-			"有乘车需求的MUCer注意啦",
+			"有乘车需求的同学注意啦",
 			"4月27日—5月5日期间通勤车辆有所调整",
 			"🚌通勤班车运营安排",
 		]);
@@ -76,17 +76,17 @@ describe("WeChat article page parsing", () => {
 		const html = `<!doctype html>
 <html>
   <head>
-    <meta property="og:title" content="MUC出行快讯｜加车！实践周班车合集来啦～" />
-    <meta property="og:description" content="有乘车需求的MUCer注意啦\\x0a详情可见上图2" />
+    <meta property="og:title" content="示例出行快讯｜加车！实践周班车合集来啦～" />
+    <meta property="og:description" content="有乘车需求的同学注意啦\\x0a详情可见上图2" />
     <meta property="og:image" content="http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg" />
   </head>
   <body>
     <script>
       function JsDecode(value) { return value; }
       window.cgiDataNew = {
-        title: JsDecode('MUC出行快讯｜加车！实践周班车合集来啦～'),
-        desc: JsDecode('有乘车需求的MUCer注意啦\\x0a详情可见上图2'),
-        content_noencode: JsDecode('有乘车需求的MUCer注意啦\\x0a4月27日—5月5日期间\\x0a详情可见上图2'),
+        title: JsDecode('示例出行快讯｜加车！实践周班车合集来啦～'),
+        desc: JsDecode('有乘车需求的同学注意啦\\x0a详情可见上图2'),
+        content_noencode: JsDecode('有乘车需求的同学注意啦\\x0a4月27日—5月5日期间\\x0a详情可见上图2'),
         create_time: JsDecode('2026-04-26 09:15'),
         cdn_url: JsDecode('http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg'),
         picture_page_info_list: [
@@ -100,20 +100,20 @@ describe("WeChat article page parsing", () => {
 </html>`;
 
 		const parsed = parseWeChatOfficialAccountArticlePageHtml({
-			articleUrl: "https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw",
+			articleUrl: "https://mp.weixin.qq.com/s/synthetic-schedule-article",
 			html,
 		});
 
 		expect(parsed.pageKind).toBe("article");
-		expect(parsed.title).toBe("MUC出行快讯｜加车！实践周班车合集来啦～");
-		expect(parsed.summary).toBe("有乘车需求的MUCer注意啦\n详情可见上图2");
+		expect(parsed.title).toBe("示例出行快讯｜加车！实践周班车合集来啦～");
+		expect(parsed.summary).toBe("有乘车需求的同学注意啦\n详情可见上图2");
 		expect(parsed.publishTime).toBe("2026-04-26T01:15:01.000Z");
 		expect(parsed.publishTimeSource).toBe("ori_create_time");
 		expect(parsed.coverImageUrl).toBe(
 			"http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg",
 		);
 		expect(parsed.bodyBlocks).toEqual([
-			"有乘车需求的MUCer注意啦",
+			"有乘车需求的同学注意啦",
 			"4月27日—5月5日期间",
 			"详情可见上图2",
 		]);
@@ -127,13 +127,13 @@ describe("WeChat article page parsing", () => {
 		const html = `<!doctype html>
 <html>
   <head>
-    <meta property="og:title" content="MUC出行快讯｜加车！实践周班车合集来啦～" />
+    <meta property="og:title" content="示例出行快讯｜加车！实践周班车合集来啦～" />
   </head>
   <body>
     <script>
       function JsDecode(value) { return value; }
       window.cgiDataNew = {
-        title: JsDecode('MUC出行快讯｜加车！实践周班车合集来啦～'),
+        title: JsDecode('示例出行快讯｜加车！实践周班车合集来啦～'),
       };
     </script>
   </body>

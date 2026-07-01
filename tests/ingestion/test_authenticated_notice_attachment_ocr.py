@@ -42,9 +42,9 @@ class AuthenticatedNoticeAttachmentOcrArtifactsTest(unittest.TestCase):
         }
 
         artifacts = build_authenticated_notice_ocr_attachment_artifacts(
-            document_id="notice_attachment:muc_internal_portal:351886:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:351886:attachment-0001",
             version_id="sha256:test",
-            source_uri="campusnotice://muc_internal_portal/notice/351886",
+            source_uri="campusnotice://example_internal_portal/notice/351886",
             title="测试附件",
             attachment_ref_id="attachment-0001",
             provider_response_bytes=_jsonl_bytes(payload),
@@ -92,9 +92,9 @@ class AuthenticatedNoticeAttachmentOcrArtifactsTest(unittest.TestCase):
         }
 
         artifacts = build_authenticated_notice_ocr_attachment_artifacts(
-            document_id="notice_attachment:muc_internal_portal:352633:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:352633:attachment-0001",
             version_id="sha256:test",
-            source_uri="campusnotice://muc_internal_portal/notice/352633",
+            source_uri="campusnotice://example_internal_portal/notice/352633",
             title="测试二维码",
             attachment_ref_id="attachment-0001",
             provider_response_bytes=_jsonl_bytes(payload),

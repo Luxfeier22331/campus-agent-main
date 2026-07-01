@@ -180,17 +180,15 @@ class RegulationChunkQualityTest(unittest.TestCase):
     def test_contains_publication_imprint_allows_office_address_line(self) -> None:
         self.assertFalse(
             contains_publication_imprint(
-                "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则 / "
+                "示例大学示例传媒学院 2026年“英才计划”硕博连读研究生招生实施细则 / "
                 "九、其他事项 / （三）\n"
-                "（三）办公地址：中央民族大学文华楼1335D办公室。"
+                "（三）办公地址：示例大学文华楼1335D办公室。"
             )
         )
 
     def test_contains_publication_imprint_flags_plain_issuer_line(self) -> None:
         self.assertTrue(
-            contains_publication_imprint(
-                "中央民族大学本科教学管理办法 / 附则\n中央民族大学校长办公室"
-            )
+            contains_publication_imprint("示例大学本科教学管理办法 / 附则\n示例大学校长办公室")
         )
 
     def test_contains_form_tail_marker_flags_flattened_information_table_tail(self) -> None:

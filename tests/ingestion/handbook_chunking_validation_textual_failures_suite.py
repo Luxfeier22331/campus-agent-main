@@ -38,7 +38,7 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
                             doc_id=record.document_id,
                             version_id=record.version_id,
                             unit_type="article_body",
-                            clean_text="第一条 百分制成绩、成绩等级及学分绩点的对应关系根据《中央民族大学本科学生学籍管理规定》(民大校发\n[2009]89号)规定执行。",
+                            clean_text="第一条 百分制成绩、成绩等级及学分绩点的对应关系根据《示例大学本科学生学籍管理规定》(民大校发\n[2009]89号)规定执行。",
                             root_unit_id="article-001",
                         ),
                         "metadata": {"title": "断行制度"},
@@ -56,13 +56,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -106,7 +106,7 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
                             doc_id=record.document_id,
                             version_id=record.version_id,
                             unit_type="article_body",
-                            clean_text="第一条 为认真贯彻有关精神,根据《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》(民大党发〔2009〕41号的精神,特制定本办法。",
+                            clean_text="第一条 为认真贯彻有关精神,根据《示例大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》(民大党发〔2009〕41号的精神,特制定本办法。",
                             root_unit_id="article-001",
                         ),
                         "metadata": {"title": "未闭合引文制度"},
@@ -124,13 +124,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -172,7 +172,7 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
                             doc_id=record.document_id,
                             version_id=record.version_id,
                             unit_type="article_body",
-                            clean_text="第八条 十佳大学生评选程序\n3. 候选人公示中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
+                            clean_text="第八条 十佳大学生评选程序\n3. 候选人公示示例大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
                             root_unit_id="article-001",
                         ),
                         "metadata": {"title": "粘连制度"},
@@ -190,13 +190,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -258,13 +258,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -326,13 +326,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -379,7 +379,7 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
                             root_unit_id="policy-page-001",
                         ),
                         "metadata": {
-                            "title": "中央民族大学本科受资助学生参与公益服务活动实施办法",
+                            "title": "示例大学本科受资助学生参与公益服务活动实施办法",
                             "policy_doc_no": "民大学发[2013]7号",
                         },
                         "anchor": {
@@ -395,13 +395,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -462,13 +462,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -527,13 +527,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -595,13 +595,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -661,13 +661,13 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,

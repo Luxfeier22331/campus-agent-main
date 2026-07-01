@@ -20,9 +20,9 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         inventory_store.upsert_many((_inventory_entry("351907"),))
         object_store = _FakeObjectStore(
             {
-                ("campus-rag-source", "notice/351907/attachment-map.png"): b"PNGDATA",
+                ("campus-agent-source", "notice/351907/attachment-map.png"): b"PNGDATA",
                 (
-                    "campus-rag-source",
+                    "campus-agent-source",
                     "notice/351907/attachment-refs.jsonl",
                 ): _jsonl_bytes(
                     (
@@ -51,7 +51,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=object_store,
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
             admission_batch_id="batch-multimodal-001",
             admission_command="multimodal_process",
@@ -112,7 +112,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
                 projection_store=projection_store,
                 source_truth_inventory_store=inventory_store,
                 object_store=object_store,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 processor=processor,
                 admission_batch_id="batch-multimodal-001",
                 admission_command="multimodal_process",
@@ -134,7 +134,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         object_store = _FakeObjectStore(
             {
                 (
-                    "campus-rag-source",
+                    "campus-agent-source",
                     "notice/351907/attachment-refs.jsonl",
                 ): _jsonl_bytes(
                     (
@@ -164,7 +164,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
                 projection_store=projection_store,
                 source_truth_inventory_store=inventory_store,
                 object_store=object_store,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 processor=processor,
                 admission_batch_id="batch-multimodal-001",
                 admission_command="multimodal_process",
@@ -191,7 +191,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
         )
 
@@ -228,7 +228,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
             max_attempts=3,
         )
@@ -277,7 +277,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
             max_attempts=3,
         )
@@ -324,7 +324,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
             attempt_store=attempt_store,
             max_attempts=1,
@@ -362,7 +362,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=_FailingProcessor(RuntimeError("provider timeout")),
             attempt_store=attempt_store,
             max_attempts=1,
@@ -404,7 +404,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects()),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
         )
 
@@ -419,7 +419,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         object_store = _FakeObjectStore(
             {
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     record.canonical_markdown_object_key,
                 ): _canonical_markdown("# 校园卡业务办理地点通知\n\n见附件示意图。"),
             }
@@ -432,7 +432,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             ),
             registry=InMemoryDocumentRegistry((record,)),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
         )
 
         self.assertEqual(len(rows), 1)
@@ -440,54 +440,8 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         self.assertIn("丰台校区校园卡业务办理地点", rows[0].body_excerpt)
         self.assertIn("北区服务大厅办理校园卡业务", rows[0].search_text)
 
-    def test_postgres_attempt_store_records_and_lists_attempts(self) -> None:
-        store = object.__new__(PostgresInternalNoticeMultimodalAttemptStore)
-        store.database_url = "postgresql://example.test/db"
-        store.table_name = "ingestion_projection.internal_notice_multimodal_attempt"
-        attempt = InternalNoticeMultimodalAttempt(
-            source_corpus="campus_notices",
-            source_collection="internal_notice",
-            source_notice_id="351907",
-            unit_id="notice_unit:351907:pending_multimodal",
-            attempt_number=2,
-            admission_batch_id="batch-multimodal-001",
-            model="gpt-4.1-mini",
-            decision_action="needs_additional_processing",
-            status="processed",
-            reasons=("low_visual_confidence",),
-            error=None,
-            created_at="2026-04-25T00:00:00Z",
-        )
-        cursor = _PagedCursor([[(json.dumps(asdict(attempt)),)]])
-
-        with patch(
-            "campus_ingestion_core.internal_notice_multimodal_processing_attempts._postgres_connection",
-            return_value=_FakeConnectionContextManager(cursor),
-        ):
-            store.record(attempt)
-            attempts = store.list_by_unit("notice_unit:351907:pending_multimodal")
-
-        insert_query, insert_params = cursor.execute_calls[0]
-        self.assertIn("insert into", insert_query)
-        self.assertIn(
-            "on conflict (source_corpus, source_collection, unit_id, attempt_number)",
-            insert_query,
-        )
-        self.assertEqual(insert_params[0], "campus_notices")
-        self.assertEqual(insert_params[3], "notice_unit:351907:pending_multimodal")
-        self.assertEqual(insert_params[5], "batch-multimodal-001")
-        self.assertEqual(
-            json.loads(insert_params[-1])["decision_action"], "needs_additional_processing"
-        )
-        select_query, select_params = cursor.execute_calls[1]
-        self.assertIn("where unit_id = %s", select_query)
-        self.assertEqual(select_params, ("notice_unit:351907:pending_multimodal",))
-        self.assertEqual(attempts, (attempt,))
-
-    def test_attempt_store_builder_uses_dedicated_url_before_shared_postgres(self) -> None:
-        with patch(
-            "campus_ingestion_core.internal_notice_multimodal_processing_attempts.PostgresInternalNoticeMultimodalAttemptStore"
-        ) as store_cls:
+    def test_attempt_store_builder_fails_closed_after_python_db_runtime_retirement(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "Python database runtime is retired"):
             build_internal_notice_multimodal_attempt_store_from_env(
                 {
                     "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL": "postgresql://attempt/db",
@@ -495,14 +449,12 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
                 }
             )
 
-        store_cls.assert_called_once_with(database_url="postgresql://attempt/db")
-
-    def test_attempt_store_builder_rejects_admission_url_without_attempt_or_shared_url(
+    def test_attempt_store_builder_rejects_admission_url_after_python_db_runtime_retirement(
         self,
     ) -> None:
         with self.assertRaisesRegex(
-            ValueError,
-            "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+            RuntimeError,
+            "Python database runtime is retired",
         ):
             build_internal_notice_multimodal_attempt_store_from_env(
                 {
@@ -516,7 +468,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
                 projection_store=InMemoryNoticeConsumptionProjectionStore(),
                 source_truth_inventory_store=InMemoryAuthenticatedNoticeSourceTruthInventoryStore(),
                 object_store=_FakeObjectStore({}),
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 processor=_FakeProcessor(
                     InternalNoticeMultimodalDecision(
                         action="retain_for_notice_query",
@@ -605,7 +557,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
             object_store=_FakeObjectStore(_multimodal_attachment_objects(("351907", "355222"))),
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             processor=processor,
             attempt_store=attempt_store,
             limit=10,

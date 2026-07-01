@@ -158,7 +158,7 @@ Default claim set:
 ```json
 {
   "sub": "acct_01HQ...",
-  "email": "name@muc.edu.cn",
+  "email": "name@example.edu",
   "email_verified": true,
   "name": "Name",
   "preferred_username": "name",

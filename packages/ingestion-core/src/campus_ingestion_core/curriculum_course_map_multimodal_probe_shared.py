@@ -16,7 +16,7 @@ from campus_ingestion_core.object_store import (
 CURRICULUM_COURSE_MAP_PROBE_SCHEMA_VERSION = "curriculum_course_map_multimodal_probe_v2"
 CURRICULUM_COURSE_MAP_SAMPLE_MANIFEST_VERSION = "curriculum_course_map_probe_samples_v1"
 CURRICULUM_COURSE_MAP_GOLD_MANIFEST_VERSION = "curriculum_course_map_probe_gold_v2"
-DEFAULT_CURRICULUM_RAW_ASSET_ID = "asset:curriculum-plan-2022"
+DEFAULT_CURRICULUM_RAW_ASSET_ID = "asset:synthetic-curriculum-plan"
 DEFAULT_CURRICULUM_RAW_VERSION_ID = (
     "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67"
 )
@@ -358,7 +358,7 @@ def default_curriculum_source_pdf_key() -> str:
         corpus="curriculum",
         raw_asset_id=DEFAULT_CURRICULUM_RAW_ASSET_ID,
         raw_version_id=DEFAULT_CURRICULUM_RAW_VERSION_ID,
-        filename="curriculum-plan-2022.pdf",
+        filename="synthetic-curriculum-plan.pdf",
         year=DEFAULT_CURRICULUM_YEAR,
     )
 

@@ -79,7 +79,7 @@ describe("chat command service", () => {
 								doc_id: "handbook:55f7",
 								snippet: "所评学年学习成绩排名与综合测评排名均位于前10%以内。",
 								source_ref: "campus-agent://regulations/student_rules/docs/handbook:55f7",
-								source_title: "中央民族大学本科学生国家奖学金评审办法",
+								source_title: "示例大学本科学生国家奖学金评审办法",
 								structural_ref:
 									"span://handbook:55f7/handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
 							},
@@ -154,7 +154,7 @@ describe("chat command service", () => {
 				evidence_id:
 					"handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
 				source_id: "campus-agent://regulations/student_rules/docs/handbook:55f7",
-				title: "中央民族大学本科学生国家奖学金评审办法",
+				title: "示例大学本科学生国家奖学金评审办法",
 				version_id:
 					"span://handbook:55f7/handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
 			}),

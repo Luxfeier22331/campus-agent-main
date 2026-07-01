@@ -42,7 +42,7 @@ it("classifies visual reference patterns from notice html", () => {
 it("builds a read-only visual reference audit report", () => {
 	const report = buildVisualReferenceAuditReport({
 		generatedAt: "2026-04-26T22:30:00.000Z",
-		siteId: "muc_internal_portal",
+		siteId: "example_internal_portal",
 		sourceHomeUrl: "https://portal.example.edu/home",
 		notices: [
 			{
@@ -62,7 +62,7 @@ it("builds a read-only visual reference audit report", () => {
 
 	expect(report).toEqual({
 		generated_at: "2026-04-26T22:30:00.000Z",
-		site_id: "muc_internal_portal",
+		site_id: "example_internal_portal",
 		source_home_url: "https://portal.example.edu/home",
 		summary: {
 			notices_scanned: 1,
@@ -188,7 +188,7 @@ it("collects a selected visual reference audit without materializing attachments
 				noticeType: "5",
 			},
 		],
-		siteId: "muc_internal_portal",
+		siteId: "example_internal_portal",
 		sourceHomeUrl: "https://portal.example.edu/home",
 	});
 
@@ -226,7 +226,7 @@ it("writes a visual reference audit report", () => {
 		const report = buildVisualReferenceAuditReport({
 			generatedAt: "2026-04-26T22:30:00.000Z",
 			notices: [],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 

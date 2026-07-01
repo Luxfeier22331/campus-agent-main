@@ -5,7 +5,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.campus_agent_ingestion_reporting import utc_now
 
 AUTHENTICATED_NOTICE_CHILD_TASK_CONTRACT_SCHEMA_VERSION = (
     "authenticated_notice_child_task_state_contract.v1"

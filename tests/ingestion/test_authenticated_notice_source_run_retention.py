@@ -36,7 +36,7 @@ class FakeCleanupObjectStore:
 
 def _object(run_id: str, suffix: str, size: int) -> AuthenticatedNoticeSourceRunObject:
     return AuthenticatedNoticeSourceRunObject(
-        bucket="campus-rag-source",
+        bucket="campus-agent-source",
         object_key=f"authenticated_notice_portal/runs/{run_id}/{suffix}",
         byte_size=size,
         last_modified="2026-04-12T00:00:00+00:00",
@@ -75,7 +75,7 @@ class AuthenticatedNoticeSourceRunRetentionTest(unittest.TestCase):
                 request=AuthenticatedNoticeSourceRunRetentionAuditRequest(
                     output_dir=output_dir,
                 ),
-                env={"OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source"},
+                env={"OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source"},
                 objects=(
                     _object("keep-run", "notices-bundle.json", 10),
                     _object("delete-run", "export-manifest.json", 20),
@@ -106,7 +106,7 @@ class AuthenticatedNoticeSourceRunRetentionTest(unittest.TestCase):
             candidate_path.write_text(
                 json.dumps(
                     {
-                        "bucket": "campus-rag-source",
+                        "bucket": "campus-agent-source",
                         "object_key": object_key,
                         "run_id": "delete-run",
                         "byte_size": 20,
@@ -127,7 +127,7 @@ class AuthenticatedNoticeSourceRunRetentionTest(unittest.TestCase):
                     output_dir=output_dir / "delete",
                     dry_run=False,
                 ),
-                env={"OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source"},
+                env={"OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source"},
                 object_store=object_store,
             )
 
@@ -142,7 +142,7 @@ class AuthenticatedNoticeSourceRunRetentionTest(unittest.TestCase):
             candidate_path.write_text(
                 json.dumps(
                     {
-                        "bucket": "campus-rag-source",
+                        "bucket": "campus-agent-source",
                         "object_key": "authenticated_notice_portal/runs/keep-run/export.json",
                         "run_id": "keep-run",
                         "byte_size": 10,
@@ -161,7 +161,7 @@ class AuthenticatedNoticeSourceRunRetentionTest(unittest.TestCase):
                         output_dir=output_dir / "delete",
                         dry_run=True,
                     ),
-                    env={"OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source"},
+                    env={"OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source"},
                     object_store=FakeCleanupObjectStore({}),
                 )
 

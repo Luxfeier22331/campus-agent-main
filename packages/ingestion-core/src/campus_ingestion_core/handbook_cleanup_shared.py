@@ -141,7 +141,7 @@ DECORATIVE_TABLE_KEYWORDS = (
     "签章",
 )
 SHORT_HEADING_BODY_STARTERS = (
-    "中央民族大学",
+    "示例大学",
     "本科学生",
     "考核形式",
     "学生需要",

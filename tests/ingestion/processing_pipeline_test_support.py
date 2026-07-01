@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
 
 from campus_ingestion_core.chunking import (
     CURRICULUM_CLEANING_POLICY_VERSION,
@@ -27,6 +28,7 @@ from campus_ingestion_core.process_indexing import _chunk_lineage_payload_defaul
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
+from tests.ingestion._handbook_chunking_test_support import build_hermetic_curriculum_chunk_profile
 
 
 def _make_registry_record() -> DocumentRegistryRecord:
@@ -118,7 +120,7 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
         document_id="curriculum:test-001",
         revision_track="source-faithful",
         version_id="v1:curriculum-test-001",
-        source_uri="campusrag://source/curriculum/test/pages/1-1",
+        source_uri="campus-agent://source/curriculum/test/pages/1-1",
         content_hash="sha256:curriculum-test-001",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -160,10 +162,10 @@ def _make_official_web_registry_record(
     *, collection: str = "muc_public_pages"
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
-        document_id="official_web:muc_public:listing_page:test-001",
+        document_id="official_web:example_public:listing_page:test-001",
         revision_track="source-faithful",
         version_id="owdocver:test-001",
-        source_uri="https://news.muc.edu.cn/jxky.htm",
+        source_uri="https://news.example.edu/jxky.htm",
         content_hash="sha256:official-web-test-001",
         corpus="official_web",
         collection=collection,

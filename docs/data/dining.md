@@ -226,7 +226,8 @@ Rules:
 - student UI uses `stallName` and `dishName` only to group reviews under the
   current stall/dish context, not as repeated review-card titles
 - inconsistent records are not guessed into another campus or hall
-- image URLs point to local static assets under `/assets/dining/reviews/*`
+- review media is not published from the repo; `images` remains empty until a
+  separate media provenance boundary is accepted
 - Lark / Feishu file tokens and raw attachment URLs are not public schema fields
 - the seed does not create `menu_items`, `menu_offerings`, `window_assignments`
   or `source_observations`

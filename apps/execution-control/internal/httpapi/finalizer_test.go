@@ -192,7 +192,7 @@ func TestFinalizeAgentToolResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			"confidence":         "high",
 			"result": map[string]any{
 				"outcome":             "resolved_current",
-				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
+				"related_notice_refs": []any{"notice:example_internal_portal:353903"},
 			},
 			"tool_observability": map[string]any{
 				"selected_tool":    "transport_schedule_lookup",
@@ -282,12 +282,12 @@ func TestWorkflowSourceIDsCollectsStringSliceRefs(t *testing.T) {
 		"outcome":     "resolved_current",
 		"source_refs": []string{"official_web:campus-card-guide"},
 		"nested": map[string]any{
-			"related_notice_refs": []string{"notice:muc_internal_portal:353903"},
+			"related_notice_refs": []string{"notice:example_internal_portal:353903"},
 		},
 	})
 
 	if len(sourceIDs) != 2 ||
-		sourceIDs[0] != "notice:muc_internal_portal:353903" ||
+		sourceIDs[0] != "notice:example_internal_portal:353903" ||
 		sourceIDs[1] != "official_web:campus-card-guide" {
 		t.Fatalf("sourceIDs = %#v, want stable sorted string slice source refs", sourceIDs)
 	}
@@ -401,7 +401,7 @@ func TestFinalizeAgentToolResponseProjectsActualToolCallsAndVersions(t *testing.
 			"confidence":         "high",
 			"result": map[string]any{
 				"outcome":             "resolved_current",
-				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
+				"related_notice_refs": []any{"notice:example_internal_portal:353903"},
 			},
 			"tool_observability": map[string]any{
 				"selected_tool":    "transport_schedule_lookup",
@@ -501,7 +501,7 @@ func TestFinalizeAgentToolResponseProjectsActualToolCallsAndVersions(t *testing.
 		t.Fatalf("business_outcome = %v, want resolved_current", toolCall["business_outcome"])
 	}
 	sourceIDs, ok := toolCall["source_ids"].([]string)
-	if !ok || len(sourceIDs) != 1 || sourceIDs[0] != "notice:muc_internal_portal:353903" {
+	if !ok || len(sourceIDs) != 1 || sourceIDs[0] != "notice:example_internal_portal:353903" {
 		t.Fatalf("source_ids = %#v, want notice source ref", toolCall["source_ids"])
 	}
 	argumentSummary, ok := toolCall["argument_summary"].(map[string]any)

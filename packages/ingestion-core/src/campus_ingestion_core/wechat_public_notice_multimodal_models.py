@@ -149,6 +149,34 @@ class WeChatPublicNoticeMultimodalAttempt:
     created_at: str = ""
 
 
+class InMemoryWeChatPublicNoticeMultimodalAttemptStore:
+    def __init__(
+        self,
+        records: Sequence[WeChatPublicNoticeMultimodalAttempt] = (),
+    ) -> None:
+        self._records = list(records)
+
+    def record(self, attempt: WeChatPublicNoticeMultimodalAttempt) -> None:
+        self._records.append(attempt)
+
+    def list_by_image(
+        self,
+        *,
+        source_corpus: str = "",
+        source_collection: str = "",
+        source_notice_id: str,
+        media_ref_id: str,
+    ) -> tuple[WeChatPublicNoticeMultimodalAttempt, ...]:
+        return tuple(
+            item
+            for item in self._records
+            if (not source_corpus or item.source_corpus == source_corpus)
+            and (not source_collection or item.source_collection == source_collection)
+            and item.source_notice_id == source_notice_id
+            and item.media_ref_id == media_ref_id
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class WeChatPublicNoticeMultimodalItemReport:
     source_notice_id: str

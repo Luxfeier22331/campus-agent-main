@@ -295,8 +295,8 @@ test("projectLocalRuntimeEnv projects repo-local object store defaults for conta
 			assert.equal(projected.OBJECT_STORE_ACCESS_KEY, "minioadmin");
 			assert.equal(projected.OBJECT_STORE_SECRET_KEY, "minioadmin");
 			assert.equal(projected.OBJECT_STORE_REGION, "us-east-1");
-			assert.equal(projected.OBJECT_STORE_BUCKET_SOURCE, "campus-rag-source");
-			assert.equal(projected.OBJECT_STORE_BUCKET_DERIVED, "campus-rag-derived");
+			assert.equal(projected.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
+			assert.equal(projected.OBJECT_STORE_BUCKET_DERIVED, "campus-agent-derived");
 		}
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
@@ -349,10 +349,10 @@ test("projectLocalRuntimeEnv keeps explicit object store env over repo-local def
 test("repo-local MinIO bucket initialization uses accepted source and derived buckets", async () => {
 	const source = await readFile(path.resolve(scriptDir, "../minio/create_buckets.sh"), "utf8");
 
-	assert.match(source, /OBJECT_STORE_BUCKET_SOURCE:-campus-rag-source/);
-	assert.match(source, /OBJECT_STORE_BUCKET_DERIVED:-campus-rag-derived/);
-	assert.doesNotMatch(source, /campus-rag-raw/);
-	assert.doesNotMatch(source, /campus-rag-processed/);
+	assert.match(source, /OBJECT_STORE_BUCKET_SOURCE:-campus-agent-source/);
+	assert.match(source, /OBJECT_STORE_BUCKET_DERIVED:-campus-agent-derived/);
+	assert.doesNotMatch(source, /campus-agent-raw/);
+	assert.doesNotMatch(source, /campus-agent-processed/);
 });
 
 async function writeProviderConfigProjection(filePath) {

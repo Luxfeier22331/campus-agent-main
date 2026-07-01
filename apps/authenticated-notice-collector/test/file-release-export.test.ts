@@ -46,7 +46,7 @@ describe("authenticated notice collector file release export", () => {
 				explainDept: "教务处（考试中心、教师教学发展中心）",
 				filecode: "民大校发〔2026〕39号",
 				filedepartment: "教务处（考试中心、教师教学发展中心）",
-				filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+				filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 				filetime: "2026-03-31 13:51:11",
 				filetypeid: 18,
 				fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
@@ -54,14 +54,14 @@ describe("authenticated notice collector file release export", () => {
 				important: 12,
 				role: 2,
 				state: 1,
-				upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 			},
 			downloadUrl: "/comsys-prompt-portlet-web/file/sample.pdf",
 			fileTypeNameById: new Map([[18, "教学管理"]]),
 			item: {
 				filecode: "民大校发〔2026〕39号",
 				filedepartment: "教务处（考试中心、教师教学发展中心）",
-				filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+				filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 				filetime: "2026-03-31 13:51:11",
 				id: 646,
 				typename: "教学管理",
@@ -80,7 +80,7 @@ describe("authenticated notice collector file release export", () => {
 				file_type_name: "教学管理",
 				filecode: "民大校发〔2026〕39号",
 				filedepartment: "教务处（考试中心、教师教学发展中心）",
-				filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+				filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 				filetime: "2026-03-31 13:51:11",
 				important: 12,
 				last_seen_at: "2026-04-12T00:30:00.000Z",
@@ -91,7 +91,7 @@ describe("authenticated notice collector file release export", () => {
 					"https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
 				role: 2,
 				source_surface: "file_release",
-				upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 			},
 			file_release_id: 646,
 			released_file: {
@@ -111,7 +111,7 @@ describe("authenticated notice collector file release export", () => {
 				origin_host: "portal.example.edu",
 				origin_scope: "internal",
 				origin_url_scheme: "https",
-				original_filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				original_filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 				provenance_status: "reference_only",
 				sha256: null,
 				source_url: "https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
@@ -245,7 +245,7 @@ describe("authenticated notice collector file release export", () => {
 			maxFileReleases: 2,
 			pageSize: 2,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu",
 		});
 
@@ -381,7 +381,7 @@ describe("authenticated notice collector file release export", () => {
 			maxFileReleases: null,
 			pageSize: 10,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu",
 			targetFileReleaseId: 647,
 		});
@@ -459,7 +459,7 @@ describe("authenticated notice collector file release export", () => {
 				maxFileReleases: null,
 				pageSize: 10,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu",
 				targetFileReleaseId: 351119,
 			}),
@@ -502,7 +502,7 @@ describe("authenticated notice collector file release export", () => {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						byteSize: data.byteLength,
 						contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 						etag: '"etag-1"',
@@ -532,13 +532,13 @@ describe("authenticated notice collector file release export", () => {
 			fetchFileReleaseDetail: async ({ fileReleaseId }) => ({
 				filecode: "民大校发〔2026〕39号",
 				filedepartment: "教务处",
-				filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+				filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 				filetime: "2026-03-31 13:51:11",
 				filetypeid: 18,
 				fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
 				id: fileReleaseId,
 				state: 1,
-				upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 			}),
 			fetchFileReleaseDownloadUrl: async () => ({
 				state: true,
@@ -567,7 +567,7 @@ describe("authenticated notice collector file release export", () => {
 					{
 						filecode: "民大校发〔2026〕39号",
 						filedepartment: "教务处",
-						filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+						filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 						filetime: "2026-03-31 13:51:11",
 						id: 646,
 						typename: "教学管理",
@@ -591,19 +591,19 @@ describe("authenticated notice collector file release export", () => {
 			}),
 			pageSize: 10,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu",
 		});
 
 		expect(result.stats.fileObjectsUploaded).toBe(1);
 		expect(result.bundleRecords[0]?.released_file).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 5,
 			ingest_status: "uploaded",
 			mime_type: "application/pdf",
 			object_key:
-				"authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
-			original_filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				"authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+			original_filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 			provenance_status: "collected_internal",
 			sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 			storage_provider: "object_store",
@@ -612,7 +612,7 @@ describe("authenticated notice collector file release export", () => {
 			{
 				contentType: "application/pdf",
 				data: "hello",
-				key: "authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				key: "authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 				metadata: {
 					"content-sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 					"source-surface": "file_release",
@@ -654,13 +654,13 @@ describe("authenticated notice collector file release export", () => {
 				fetchFileReleaseDetail: async ({ fileReleaseId }) => ({
 					filecode: "民大校发〔2026〕39号",
 					filedepartment: "教务处",
-					filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+					filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 					filetime: "2026-03-31 13:51:11",
 					filetypeid: 18,
 					fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
 					id: fileReleaseId,
 					state: 1,
-					upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+					upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 				}),
 				fetchFileReleaseDownloadUrl: async () => ({
 					state: true,
@@ -676,7 +676,7 @@ describe("authenticated notice collector file release export", () => {
 						{
 							filecode: "民大校发〔2026〕39号",
 							filedepartment: "教务处",
-							filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+							filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 							filetime: "2026-03-31 13:51:11",
 							id: 646,
 							typename: "教学管理",
@@ -691,7 +691,7 @@ describe("authenticated notice collector file release export", () => {
 				fetchFileReleaseTypes: async () => ({ data: [], state: true }),
 				pageSize: 10,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu",
 			}),
 		).rejects.toThrow("file_release_materialization_failed:file_release=646");
@@ -700,7 +700,7 @@ describe("authenticated notice collector file release export", () => {
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

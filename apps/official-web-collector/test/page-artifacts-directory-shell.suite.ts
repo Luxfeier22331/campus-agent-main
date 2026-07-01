@@ -104,7 +104,7 @@ export function registerPageArtifactsDirectoryShellSuite() {
 		});
 
 		const matchingBlocks = pageArtifacts.contentBlocks.filter(
-			(item) => item.textNormalized === "中央民族大学图书馆",
+			(item) => item.textNormalized === "示例大学图书馆",
 		);
 		const titleBlock = matchingBlocks.find((item) => item.blockRole === "title");
 
@@ -280,13 +280,13 @@ export function registerPageArtifactsDirectoryShellSuite() {
 	it("keeps long-form information disclosure regulations as article_detail even when contact fields appear in body text", () => {
 		const classification = classifyPageFamily({
 			hostPolicy: {
-				host: "xxgk.muc.edu.cn",
+				host: "xxgk.example.edu",
 				publicKind: "content_site",
 				hostGroup: "university_support",
 				ownerLabel: "Information disclosure",
 				rolloutOrder: 1,
 				enabled: true,
-				seedUrls: ["https://xxgk.muc.edu.cn/"],
+				seedUrls: ["https://xxgk.example.edu/"],
 				allowedPathPrefixes: ["/"],
 				deniedPathPatterns: [],
 				queryParamAllowlist: [],
@@ -298,8 +298,8 @@ export function registerPageArtifactsDirectoryShellSuite() {
 				explicitSitemaps: [],
 				dynamicShellDiscovery: null,
 			},
-			finalUrl: "https://xxgk.muc.edu.cn/info/1005/1107.htm",
-			pageTitleNormalized: "中央民族大学信息公开实施细则",
+			finalUrl: "https://xxgk.example.edu/info/1005/1107.htm",
+			pageTitleNormalized: "示例大学信息公开实施细则",
 			pageSignals: {
 				mainContentBlockCount: 3,
 				mainHeadingCount: 1,

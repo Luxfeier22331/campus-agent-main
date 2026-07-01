@@ -159,7 +159,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		const config = {
 			...buildConfig(runtimeDir),
-			authSsoTgcToken: "SSO_TGC=seeded-token; Path=/; Domain=.muc.edu.cn",
+			authSsoTgcToken: "SSO_TGC=seeded-token; Path=/; Domain=.example.edu",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
 			bootstrapStorageState: async () => ({ cookies: [], origins: [] }),
@@ -167,7 +167,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 				const ssoCookie = input.storageState.cookies.find((cookie) => cookie.name === "SSO_TGC");
 				calls.push(`request.newContext:${ssoCookie?.value ?? "missing"}`);
 				expect(ssoCookie).toMatchObject({
-					domain: ".muc.edu.cn",
+					domain: ".example.edu",
 					httpOnly: true,
 					name: "SSO_TGC",
 					path: "/",
@@ -226,7 +226,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 					value: "seeded-upstream",
 				});
 				expect(cookiesByName.get("SSO_TGC")).toMatchObject({
-					domain: ".muc.edu.cn",
+					domain: ".example.edu",
 					httpOnly: true,
 					name: "SSO_TGC",
 					path: "/",
@@ -287,7 +287,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 						value: "stale-upstream",
 					},
 					{
-						domain: ".muc.edu.cn",
+						domain: ".example.edu",
 						expires: -1,
 						httpOnly: true,
 						name: "SSO_TGC",

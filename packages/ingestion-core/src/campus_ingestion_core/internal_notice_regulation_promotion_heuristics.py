@@ -275,8 +275,7 @@ def _is_wrapper_trailing_line(line: str) -> bool:
     return bool(
         len(normalized) <= 24
         and any(
-            keyword in normalized
-            for keyword in ("中央民族大学", "处", "部", "学院", "中心", "办公室")
+            keyword in normalized for keyword in ("示例大学", "处", "部", "学院", "中心", "办公室")
         )
     )
 

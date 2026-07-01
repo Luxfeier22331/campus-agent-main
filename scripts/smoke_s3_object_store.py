@@ -44,7 +44,7 @@ class SmokeS3Handler(BaseHTTPRequestHandler):
 
 
 def _bucket_name() -> str:
-    return os.getenv("SMOKE_S3_BUCKET", "campus-rag-derived").strip() or "campus-rag-derived"
+    return os.getenv("SMOKE_S3_BUCKET", "campus-agent-derived").strip() or "campus-agent-derived"
 
 
 def _bucket_from_path(path: str) -> str:

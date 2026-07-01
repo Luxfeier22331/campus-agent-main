@@ -12,7 +12,7 @@ from typing import Protocol
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
@@ -510,12 +510,12 @@ def _serialize_projection_row(
         "clean_text": _projection_snippet(projection),
         "source_pdf": source_pdf,
         "source_url": (
-            "campusrag://rag-data/canonical/curriculum_plan/program-semester/"
+            "campus-agent://rag-data/canonical/curriculum_plan/program-semester/"
             f"{projection.source_document.title}/{projection.semester_label}.md"
         ),
         "source": {
             "id": (
-                "campusrag://rag-data/canonical/curriculum_plan/program-semester/"
+                "campus-agent://rag-data/canonical/curriculum_plan/program-semester/"
                 f"{projection.source_document.title}/{projection.semester_label}.md"
             )
         },
@@ -680,7 +680,7 @@ def _build_raw_asset_record_from_canonical_row(
         raw_version_id=raw_version_id,
         corpus="curriculum",
         collection="curriculum_plan",
-        raw_source_uri=f"campusrag://source/curriculum/{split_manifest_raw_asset_id}/{raw_version_id}",
+        raw_source_uri=f"campus-agent://source/curriculum/{split_manifest_raw_asset_id}/{raw_version_id}",
         content_hash=raw_version_id.removeprefix("sha256:"),
         source_filename=source_pdf,
         object_key=build_raw_asset_key(

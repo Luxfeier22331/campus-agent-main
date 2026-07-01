@@ -134,7 +134,7 @@ describe("authenticated notice collector api", () => {
 							data: [
 								{
 									filecode: "民大校发〔2026〕39号",
-									filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+									filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 									filetime: "2026-03-31 13:51:11",
 									filedepartment: "教务处",
 									id: 646,
@@ -154,7 +154,7 @@ describe("authenticated notice collector api", () => {
 								data: [
 									{
 										filecode: "民大校发〔2026〕39号",
-										filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+										filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 										filetime: "2026-03-31 13:51:11",
 										filedepartment: "教务处",
 										id: 646,
@@ -173,13 +173,13 @@ describe("authenticated notice collector api", () => {
 						json: async () => ({
 							filecode: "民大校发〔2026〕39号",
 							filedepartment: "教务处",
-							filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+							filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 							filetime: "2026-03-31 13:51:11",
 							filetypeid: 18,
 							fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
 							id: 646,
 							state: 1,
-							upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+							upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 						}),
 						ok: () => true,
 						status: () => 200,
@@ -188,13 +188,13 @@ describe("authenticated notice collector api", () => {
 							JSON.stringify({
 								filecode: "民大校发〔2026〕39号",
 								filedepartment: "教务处",
-								filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+								filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 								filetime: "2026-03-31 13:51:11",
 								filetypeid: 18,
 								fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
 								id: 646,
 								state: 1,
-								upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+								upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 							}),
 					};
 				}

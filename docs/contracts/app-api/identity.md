@@ -61,7 +61,7 @@ Returns the account center overview for the current signed-in principal.
 {
   "account": {
     "accountId": "acct_01HQ...",
-    "email": "name@muc.edu.cn",
+    "email": "name@example.edu",
     "displayName": "Name",
     "status": "active"
   },

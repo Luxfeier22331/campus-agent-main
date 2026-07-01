@@ -39,7 +39,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 						resolved_policy_document_id: "handbook:library-hours",
 						resolved_policy_title: "图书馆开放时间",
 						retrieved_title_summary: ["图书馆开放时间"],
-						rewritten_query: "中央民族大学 图书馆 周末 开放时间",
+						rewritten_query: "示例大学 图书馆 周末 开放时间",
 						semantic_outcome: "answered",
 					},
 					evidence: {
@@ -259,7 +259,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 					diagnostics: {
 						no_answer_reason: "resolved_policy_clause_not_found",
 						semantic_outcome: "no_answer",
-						rewritten_query: "中央民族大学 火星校区 开学 时间",
+						rewritten_query: "示例大学 火星校区 开学 时间",
 					},
 				},
 				selectedTool: "knowledge_query",

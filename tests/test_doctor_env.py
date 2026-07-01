@@ -430,7 +430,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "AUTH_SHELL_ORIGIN=https://campus.example.com",
                         "EXECUTION_CONTROL_BASE_URL=https://execution-control.internal",
                         "EXECUTION_CONTROL_SHARED_SECRET=shared-secret",
-                        "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn",
+                        "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=example.edu",
                         "APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com",
                         "APP_API_INTERNAL_SHARED_SECRET=internal-secret",
                     ]
@@ -496,7 +496,9 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertNotIn("shell-secret", rendered)
             self.assertNotIn("repo-secret", rendered)
 
-    def test_collect_env_doctor_status_can_probe_shared_postgres_connectivity(self) -> None:
+    def test_collect_env_doctor_status_reports_retired_shared_postgres_connectivity_probe(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -512,18 +514,7 @@ class DoctorEnvTest(unittest.TestCase):
                 + "\n",
             )
 
-            with (
-                patch.dict(os.environ, {}, clear=True),
-                patch(
-                    "scripts.doctor_env._probe_postgres_connectivity",
-                    return_value={
-                        "checked": True,
-                        "ok": True,
-                        "error": None,
-                        "error_class": None,
-                    },
-                ) as probe,
-            ):
+            with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
                     surface="query",
@@ -531,9 +522,12 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             shared_pg = status["postgres"]["shared"]
-            probe.assert_called_once()
             self.assertTrue(shared_pg["connectivity"]["checked"])
-            self.assertTrue(shared_pg["connectivity"]["ok"])
+            self.assertFalse(shared_pg["connectivity"]["ok"])
+            self.assertEqual(
+                shared_pg["connectivity"]["error_class"],
+                "PythonPostgresProbeRetired",
+            )
 
     def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_source(
         self,

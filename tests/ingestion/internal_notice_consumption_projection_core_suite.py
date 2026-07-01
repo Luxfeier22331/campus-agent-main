@@ -29,9 +29,6 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
-from campus_ingestion_core.notice_consumption_projection import (
-    PostgresNoticeConsumptionProjectionStore,
-)
 
 from tests.ingestion.internal_notice_consumption_projection_test_support import (
     _build_runtime,
@@ -90,7 +87,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
         )
         self.assertEqual(ready_scoped.target_surface, NOTICE_TARGET_SURFACE_SCOPED_RULES)
         self.assertEqual(ready_scoped.default_agent, NOTICE_DEFAULT_AGENT_RAG)
-        self.assertEqual(ready_scoped.role_metadata["school_unit_name"], "新闻与传播学院")
+        self.assertEqual(ready_scoped.role_metadata["school_unit_name"], "示例传媒学院")
 
         pending_scoped = next(
             entry
@@ -116,7 +113,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 _notice_runtime_record(
                     notice_id="355222",
                     title_slug="procurement-bid",
-                    title="中央民族大学丰台校区家具采购项目比选公告",
+                    title="示例大学丰台校区家具采购项目比选公告",
                 ),
                 _notice_runtime_record(
                     notice_id="355326",
@@ -134,7 +131,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="355222",
-                    notice_title="中央民族大学丰台校区家具采购项目比选公告",
+                    notice_title="示例大学丰台校区家具采购项目比选公告",
                     published_date="2026-04-12 10:00",
                 ),
                 _inventory_entry(
@@ -203,7 +200,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 target_surface=NOTICE_TARGET_SURFACE_SCOPED_RULES,
                 primary_roles=(NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,),
             ),
-            ("notice:muc_internal_portal:351907",),
+            ("notice:example_internal_portal:351907",),
         )
         self.assertEqual(
             select_ready_target_document_ids(
@@ -211,7 +208,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
                 primary_roles=(NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,),
             ),
-            ("notice:muc_internal_portal:187233",),
+            ("notice:example_internal_portal:187233",),
         )
 
     def test_rebuild_projection_stamps_consumer_admission_provenance(self) -> None:
@@ -243,25 +240,10 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             "2026-04-25T00:00:00Z",
         )
 
-    def test_rebuild_projection_refuses_persistent_full_scope_without_selected_notice_ids(
-        self,
-    ) -> None:
-        registry, inventory_store, object_store = _build_runtime()
-        projection_store = object.__new__(PostgresNoticeConsumptionProjectionStore)
-
-        with self.assertRaisesRegex(ValueError, "notice_ids or document_ids"):
-            rebuild_internal_notice_consumption_projection(
-                env=_env(),
-                registry=registry,
-                source_truth_inventory_store=inventory_store,
-                object_store=object_store,
-                projection_store=projection_store,
-            )
-
     def test_rebuild_projection_requires_explicit_store_when_env_is_unconfigured(self) -> None:
         registry, inventory_store, object_store = _build_runtime()
 
-        with self.assertRaisesRegex(ValueError, "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL"):
+        with self.assertRaisesRegex(RuntimeError, "Python database runtime is retired"):
             rebuild_internal_notice_consumption_projection(
                 env=_env(),
                 registry=registry,
@@ -277,12 +259,12 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 _notice_runtime_record(
                     notice_id="355222",
                     title_slug="procurement-bid",
-                    title="中央民族大学丰台校区家具采购项目比选公告",
+                    title="示例大学丰台校区家具采购项目比选公告",
                 ),
                 _notice_runtime_record(
                     notice_id="355325",
                     title_slug="procurement-result",
-                    title="中央民族大学丰台校区家具采购项目中选结果公示",
+                    title="示例大学丰台校区家具采购项目中选结果公示",
                 ),
             )
         )
@@ -290,12 +272,12 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="355222",
-                    notice_title="中央民族大学丰台校区家具采购项目比选公告",
+                    notice_title="示例大学丰台校区家具采购项目比选公告",
                     published_date="2026-04-12 10:00",
                 ),
                 _inventory_entry(
                     notice_id="355325",
-                    notice_title="中央民族大学丰台校区家具采购项目中选结果公示",
+                    notice_title="示例大学丰台校区家具采购项目中选结果公示",
                     published_date="2026-04-16 10:00",
                 ),
             )
@@ -473,14 +455,14 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
         institutional_record = next(
             record
             for record in registry.list_by_scope("campus_notices", "internal_notice")
-            if record.document_id == "notice:muc_internal_portal:187233"
+            if record.document_id == "notice:example_internal_portal:187233"
         )
         object_store.objects[
-            ("campus-rag-derived", institutional_record.canonical_markdown_object_key)
+            ("campus-agent-derived", institutional_record.canonical_markdown_object_key)
         ] = _canonical_markdown(
-            "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+            "# 关于修订《示例大学采购工作管理办法》的通知\n\n"
             "学校各单位、各部门：\n\n"
-            "为进一步规范采购与招标管理工作，现将《中央民族大学采购工作管理办法》主要修订内容通知如下：\n\n"
+            "为进一步规范采购与招标管理工作，现将《示例大学采购工作管理办法》主要修订内容通知如下：\n\n"
             "一、主要修订内容\n\n"
             "第一条中的校内集中采购限额标准调整为20万元（含）以上。\n\n"
             "第二条新增采购意向公开要求，项目采购活动开始前35日应提交采购意向公开文件。\n\n"
@@ -490,11 +472,11 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
         )
         stale_ready = replace(
             _projection_entry("187233"),
-            unit_id="notice_unit:muc_internal_portal:187233:attachment_rule_body:stale",
+            unit_id="notice_unit:example_internal_portal:187233:attachment_rule_body:stale",
             primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
             target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
             consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-            source_document_id="notice:muc_internal_portal:187233",
+            source_document_id="notice:example_internal_portal:187233",
         )
         projection_store = InMemoryNoticeConsumptionProjectionStore((stale_ready,))
 

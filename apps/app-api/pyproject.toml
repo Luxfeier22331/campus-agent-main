@@ -2,6 +2,7 @@
 name = "campus-app-api"
 version = "0.1.0"
 description = "Python projection helpers bundled with the shared app-api boundary."
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

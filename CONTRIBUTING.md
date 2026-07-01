@@ -71,22 +71,41 @@ pre-commit install
 
 先跑与你改动直接相关的聚焦验证，再跑 repo 级最低门禁。
 
-默认最低门禁：
+默认 public clone 最低门禁：
 
 ```bash
 uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
-pnpm web:build
 ```
 
 补充说明：
 
-- `pnpm web:test:integration` 只在触及 `app-api` shared DB / integration lane 时显式执行
+- `pnpm web:build` 是 full build lane；构建 campus-web docs surface 时需要已有 docs
+  read-model sync manifest，或可访问 app-api operator database 的
+  `APP_API_OPERATOR_DATABASE_URL` 等内部配置
+- `pnpm web:test:integration` 只在触及 `app-api` shared DB / integration lane 时显式执行，并且需要
+  shared DB / Hyperdrive local connection env
 - `apps/app-api` 的 `test:shared-db-integration` 不是默认稳定 gate
 - 局部 Python 验证继续优先使用 `uv run --all-packages python -m unittest ...`
 - JS/TS surface 优先使用 repo root `pnpm` + `turbo` 命令，而不是在各 app 手动串行拼命令
+
+## Public Source / Data Rules
+
+这个仓库可以公开协作的默认面是代码、schema、validator、文档、synthetic examples 和明确自有的低频
+seed。不要把真实学校 source-derived 内容放进 public PR。
+
+提交 fixture、eval sample、source config 或 public asset 时：
+
+- 使用 synthetic 或 self-authored 数据，或者在 owning 文档中写明再分发权利
+- 不提交 raw notice、采集 HTML、OCR 输出、canonical docs artifact、真实 qrels / gold truth
+- 不提交 secret、private URL、数据库连接串、对象存储 key 或内部运行日志
+- 不把 current serving truth、release current pointer 或生产 projection 写进 git
+- 触及这些路径时运行 `pnpm repo:static`
+
+长期策略见 `docs/policies/public-source-data.md`，当前 tracked data-like artifact 盘点见
+`docs/reference/open-source-data.md`。
 
 ## 文档与规划分工
 
@@ -116,3 +135,15 @@ pnpm web:build
 - 如果改动触及架构或 contract，PR 中要列出同步更新的文档
 - 验证命令要写实际跑过的命令，不写“should pass”
 - 如果存在 worktree-local 前置条件、未关闭 blocker 或暂未覆盖的 lane，要在 PR 中显式写出
+
+## License and Third-Party Content
+
+By intentionally submitting a contribution to this repository, you agree that
+your contribution is licensed under the Apache License, Version 2.0 unless you
+explicitly mark it as "Not a Contribution".
+
+Do not add third-party source code, website captures, datasets, fixtures, media,
+fonts, maps or generated artifacts unless their source and license are known.
+When such material is necessary for tests or documentation, keep it minimal and
+update `THIRD_PARTY_NOTICES.md` or the owning data/source documentation with the
+source, license and redistribution boundary.

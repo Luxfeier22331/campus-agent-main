@@ -11,7 +11,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
-from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
     DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY,
 )
@@ -20,9 +20,6 @@ from campus_ingestion_core.internal_notice_multimodal_processing_attempts import
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
     DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE,
-)
-from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
-    PostgresInternalNoticeMultimodalAttemptStore as PostgresInternalNoticeMultimodalAttemptStore,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
     build_internal_notice_multimodal_attempt_store_from_env as build_internal_notice_multimodal_attempt_store_from_env,
@@ -783,7 +780,6 @@ __all__ = [
     "InternalNoticeMultimodalProcessingReport",
     "InternalNoticeMultimodalProcessingRequest",
     "InternalNoticeMultimodalProcessor",
-    "PostgresInternalNoticeMultimodalAttemptStore",
     "build_internal_notice_multimodal_attempt_store_from_env",
     "build_internal_notice_multimodal_processor_from_env",
     "drain_internal_notice_pending_multimodal_entries",

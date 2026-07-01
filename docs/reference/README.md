@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-04-12
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 # Reference
 
@@ -31,7 +31,6 @@ updated: 2026-06-29
 ## Authenticated Notice / Internal Notice 策略与口径
 
 - `internal-notice-pdf-chunks.md`
-- `institutional-regulations-offline-inventory.md`
 
 ## Authenticated Notice / Internal Notice Quality Acceptance
 
@@ -39,7 +38,14 @@ updated: 2026-06-29
 
 ## Navigation / Inventory
 
-- `campus-navigation-authoritative-source-inventory.md`
+- `open-source-data.md`
+  - Open-source publication inventory for tracked source/data artifacts,
+    fixtures, media, map data and source-derived corpora.
+
+真实 institutional regulation inventory、navigation source inventory 与 release
+gold corpus 属于 private source/data boundary，不在公开 repo 的 active
+reference namespace 中保留。公开仓库只保留数据形态、admission 规则与 synthetic
+fixtures。
 
 补充规则：
 

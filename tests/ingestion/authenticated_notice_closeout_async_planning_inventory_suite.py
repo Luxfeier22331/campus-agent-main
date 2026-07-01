@@ -19,7 +19,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 ),
@@ -147,7 +147,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             self.assertNotIn("bundle_records", batch_input)
             self.assertEqual(len(batch_input["source_truth_parents"]), 1)
             parent = batch_input["source_truth_parents"][0]
-            self.assertEqual(parent["document_id"], "notice:muc_internal_portal:355119")
+            self.assertEqual(parent["document_id"], "notice:example_internal_portal:355119")
             self.assertEqual(parent["notice_risk_label"], "body_with_text_attachments")
             self.assertEqual(parent["attachment_ref_count"], 3)
             self.assertEqual(parent["attachment_mix_score"], 5)
@@ -156,7 +156,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             self.assertTrue(parent["has_reference_only_attachment"])
             self.assertEqual(
                 parent["raw_record"]["raw_asset_id"],
-                "asset:authenticated-notice:muc_internal_portal:355119",
+                "asset:authenticated-notice:example_internal_portal:355119",
             )
             self.assertEqual(
                 sorted(item["classification"] for item in parent["attachment_projection_plans"]),
@@ -285,7 +285,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 ),
@@ -531,7 +531,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             assert poisoned is not None
             inventory_key = str(poisoned.source_truth_inventory_object_key)
             inventory_payload = json.loads(
-                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode(
+                object_store.get_bytes(bucket="campus-agent-derived", key=inventory_key).decode(
                     "utf-8"
                 )
             )
@@ -541,13 +541,13 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 {
                     "attachment_ref_id": "attachment-0001",
                     "classification": "text_extractable",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                     "materialization_policy": "required_document",
                 },
                 {
                     "attachment_ref_id": "attachment-0002",
                     "classification": "ocr_required",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0002",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0002",
                     "materialization_policy": "conditional_on_extracted_text",
                 },
             ]
@@ -555,7 +555,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 {
                     "attachment_ref_id": "attachment-0001",
                     "classification": "text_extractable",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                     "materialization_policy": "required_document",
                 }
             ]
@@ -564,7 +564,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             parent["attachment_document_count"] = 1
             inventory_payload["parents"] = [parent]
             object_store.put_bytes(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 key=inventory_key,
                 data=json.dumps(
                     inventory_payload,
@@ -590,7 +590,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             self.assertEqual(repaired["expected_ocr_candidate_count"], 0)
             expected_attachment_sha256 = str(bundle[0]["attachments"][0]["sha256"])
             refreshed_payload = json.loads(
-                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode(
+                object_store.get_bytes(bucket="campus-agent-derived", key=inventory_key).decode(
                     "utf-8"
                 )
             )
@@ -602,7 +602,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                         "attachment_ref_id": "attachment-0001",
                         "attachment_content_sha256": expected_attachment_sha256,
                         "classification": "text_extractable",
-                        "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                        "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                         "materialization_policy": "required_document",
                     }
                 ],
@@ -669,13 +669,13 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 {
                     "attachment_ref_id": "attachment-0001",
                     "classification": "text_extractable",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                     "materialization_policy": "required_document",
                 },
                 {
                     "attachment_ref_id": "attachment-0002",
                     "classification": "ocr_required",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0002",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0002",
                     "materialization_policy": "conditional_on_extracted_text",
                 },
             ]
@@ -683,7 +683,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                 {
                     "attachment_ref_id": "attachment-0001",
                     "classification": "text_extractable",
-                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                     "materialization_policy": "required_document",
                 }
             ]
@@ -692,7 +692,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
             parent["attachment_document_count"] = 1
             poisoned_batch_input["source_truth_parents"] = [parent]
             object_store.put_bytes(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 key=batch_input_key,
                 data=json.dumps(
                     poisoned_batch_input,
@@ -720,7 +720,7 @@ class AuthenticatedNoticeCloseoutAsyncPlanningInventoryTest(unittest.TestCase):
                         "attachment_ref_id": "attachment-0001",
                         "attachment_content_sha256": str(bundle[0]["attachments"][0]["sha256"]),
                         "classification": "text_extractable",
-                        "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                        "document_id": "notice_attachment:example_internal_portal:355119:attachment-0001",
                         "materialization_policy": "required_document",
                     }
                 ],

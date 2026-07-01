@@ -360,6 +360,7 @@ function resolveFinalizedScope(input: {
 }
 
 export function buildFinalizedWrite(input: {
+	allowedPublicNoticeHosts?: readonly string[];
 	assistantMessageId: string;
 	branchId: string;
 	conversation: ChatConversation;
@@ -392,6 +393,7 @@ export function buildFinalizedWrite(input: {
 	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
+		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
 		result: input.response.result,
 		selectedTool: input.response.selectedTool,
 		status: input.response.status,

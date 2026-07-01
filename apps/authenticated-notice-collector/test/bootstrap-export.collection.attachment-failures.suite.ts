@@ -20,7 +20,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 						byteSize: 5,
@@ -112,7 +112,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -229,7 +229,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 				],
 				requestBackoffBaseMs: 1,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu/home",
 			}),
 		).rejects.toThrow("attachment_materialization_failed:notice=355600:attachment=attachment-0001");
@@ -318,7 +318,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 					noticeTypeName: "教学通知",
 				},
 			],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -354,7 +354,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			],
 			attachmentFetchStatusStore: {
 				getTerminalUnavailable: async ({ attachmentRefId, noticeId, siteId, sourceUrl }) => {
-					expect(siteId).toBe("muc_internal_portal");
+					expect(siteId).toBe("example_internal_portal");
 					expect(noticeId).toBe("186977");
 					expect(attachmentRefId).toBe("attachment-0001");
 					expect(sourceUrl).toBe(
@@ -392,7 +392,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 						notice_content: "<p>正文</p>",
 						notice_id: noticeId,
 						notice_release_time: "2021-01-05 19:02",
-						notice_title: "药学院2021年硕博连读博士研究生招生实施细则",
+						notice_title: "甲学院2021年硕博连读博士研究生招生实施细则",
 					},
 				},
 				state: true,
@@ -432,7 +432,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 					noticeTypeName: "教学通知",
 				},
 			],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -452,7 +452,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

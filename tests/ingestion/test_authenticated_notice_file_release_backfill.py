@@ -30,11 +30,11 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
             _bundle_record(
                 file_release_id=647,
-                filename="中央民族大学合同管理办法.pdf",
+                filename="示例大学合同管理办法.pdf",
             ),
         )
         manifest = _export_manifest()
@@ -55,7 +55,7 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
                             filename="旧制度.pdf",
                         ),
                         export_scope="old-export",
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         collector_contract_version="authenticated_notice_file_release_export_v1",
                     ),
@@ -91,7 +91,7 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
         )
         manifest = _export_manifest()
@@ -114,7 +114,7 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
                             filename="旧制度.pdf",
                         ),
                         export_scope="old-export",
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         collector_contract_version="authenticated_notice_file_release_export_v1",
                     ),
@@ -148,7 +148,7 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 storage_provider="reference_only",
                 bucket=None,
                 object_key=None,
@@ -190,7 +190,7 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 bucket=None,
                 object_key=None,
                 sha256=None,

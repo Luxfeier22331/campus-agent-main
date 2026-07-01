@@ -16,7 +16,7 @@ class CurriculumProviderNormalizeTestSupport(unittest.TestCase):
     def _normalize_fixture_rows(self, fixture_path: str) -> list[dict[str, object]]:
         structured_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=Path(fixture_path).read_bytes(),
-            source_pdf="curriculum-plan-2022.pdf",
+            source_pdf="synthetic-curriculum-plan.pdf",
             ocr_provider="mineru_api",
             ocr_model="vlm",
         )

@@ -16,18 +16,18 @@ class ObjectStoreKeyBuilderTest(unittest.TestCase):
         key = build_document_artifact_key(
             corpus="regulations",
             collection="institutional_rules",
-            document_id="institutional_regulation:muc:中央民族大学党建经费管理办法:b77c7a48bd4e",
+            document_id="institutional_regulation:example:示例大学党建经费管理办法:b77c7a48bd4e",
             revision_track="current-effective",
             version_id="sha256:sample",
             filename="canonical.md",
-            title="中央民族大学党建经费管理办法",
+            title="示例大学党建经费管理办法",
             year=None,
         )
 
         self.assertEqual(
             key,
             "regulations/documents/institutional_rules/"
-            "中央民族大学党建经费管理办法--b77c7a48/"
+            "示例大学党建经费管理办法--b77c7a48/"
             "current-effective/undated/canonical.md",
         )
 

@@ -9,7 +9,6 @@ CASE_MODULES = (
     "tests.ingestion.cases_internal_notice_schedule_image_ocr_part01",
     "tests.ingestion.cases_internal_notice_schedule_image_ocr_part02",
     "tests.ingestion.cases_internal_notice_schedule_image_ocr_part03",
-    "tests.ingestion.cases_internal_notice_schedule_image_ocr_part04",
 )
 
 

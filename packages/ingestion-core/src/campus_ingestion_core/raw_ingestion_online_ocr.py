@@ -12,6 +12,8 @@ from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
+import httpx
+
 from campus_ingestion_core.file_asset_routing import (
     RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
     RAW_PROVIDER_RESPONSE_MANIFEST_FILENAME,
@@ -221,11 +223,6 @@ class PaddleOcrAsyncClient:
         return self.parse_file(pdf_path)
 
     def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
-        try:
-            import requests
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError("requests is required to use the online OCR service") from exc
-
         start_monotonic = time.monotonic()
         headers = {"Authorization": f"bearer {self._settings.api_key}"}
         data = {
@@ -239,7 +236,7 @@ class PaddleOcrAsyncClient:
             ),
         }
         with file_path.open("rb") as file_obj:
-            response = requests.post(
+            response = httpx.post(
                 self._settings.base_url,
                 headers=headers,
                 data=data,
@@ -251,7 +248,7 @@ class PaddleOcrAsyncClient:
 
         deadline = start_monotonic + self._settings.timeout_seconds
         while True:
-            status_response = requests.get(
+            status_response = httpx.get(
                 f"{self._settings.base_url}/{job_id}",
                 headers=headers,
                 timeout=self._settings.timeout_seconds,
@@ -276,7 +273,7 @@ class PaddleOcrAsyncClient:
                     )
                 result_deadline = time.monotonic() + self._settings.result_ready_grace_seconds
                 while True:
-                    json_response = requests.get(
+                    json_response = httpx.get(
                         json_url,
                         timeout=self._settings.timeout_seconds,
                     )
@@ -312,11 +309,6 @@ class PaddleOcrLayoutParsingServiceClient:
         return self.parse_file(pdf_path)
 
     def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
-        try:
-            import requests
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError("requests is required to use the online OCR service") from exc
-
         payload = {
             "file": base64.b64encode(file_path.read_bytes()).decode("ascii"),
             "fileType": _layout_parsing_file_type(file_path),
@@ -326,7 +318,7 @@ class PaddleOcrLayoutParsingServiceClient:
             "useDocUnwarping": False,
             "useChartRecognition": False,
         }
-        response = requests.post(
+        response = httpx.post(
             _resolve_layout_parsing_url(self._settings.base_url),
             headers={"Authorization": f"bearer {self._settings.api_key}"},
             json=payload,
@@ -472,10 +464,6 @@ class MineruApiClient:
         file_path: Path | None = None,
         file_bytes: bytes | None = None,
     ) -> tuple[bytes, dict[str, object]]:
-        try:
-            import requests
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError("requests is required to use the online OCR service") from exc
         if file_path is None and file_bytes is None:
             raise ValueError("file_path or file_bytes is required")
 
@@ -485,7 +473,7 @@ class MineruApiClient:
             else hashlib.sha256(file_bytes or b"").hexdigest()[:16]
         )
         headers = {"Authorization": f"Bearer {self._settings.api_key}"}
-        upload_response = requests.post(
+        upload_response = httpx.post(
             resolve_mineru_file_upload_url(self._settings.base_url),
             headers=headers,
             json={
@@ -515,13 +503,13 @@ class MineruApiClient:
             raise RuntimeError(f"MinerU upload response for {file_name} is missing file_urls")
         if file_path is not None and file_bytes is None:
             with file_path.open("rb") as file_stream:
-                upload_file_response = requests.put(
+                upload_file_response = httpx.put(
                     str(file_urls[0]),
                     data=file_stream,
                     timeout=self._settings.timeout_seconds,
                 )
         else:
-            upload_file_response = requests.put(
+            upload_file_response = httpx.put(
                 str(file_urls[0]),
                 data=file_bytes,
                 timeout=self._settings.timeout_seconds,
@@ -530,7 +518,7 @@ class MineruApiClient:
 
         deadline = time.monotonic() + self._settings.timeout_seconds
         while True:
-            status_response = requests.get(
+            status_response = httpx.get(
                 resolve_mineru_extract_results_url(self._settings.base_url, batch_id=batch_id),
                 headers=headers,
                 timeout=self._settings.timeout_seconds,
@@ -562,10 +550,9 @@ class MineruApiClient:
                     raise RuntimeError(
                         f"MinerU extract result for {file_name} is missing full_zip_url"
                     )
-                archive_response = requests.get(
+                archive_response = httpx.get(
                     full_zip_url,
                     timeout=self._settings.timeout_seconds,
-                    stream=True,
                 )
                 archive_response.raise_for_status()
                 archive_bytes = _read_response_bytes(archive_response)
@@ -682,40 +669,46 @@ def _layout_parsing_file_type(file_path: Path) -> int:
 
 def _read_pdf_page_count(file_bytes: bytes) -> int:
     try:
-        import fitz
+        from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("PyMuPDF (fitz) is required to split oversized MinerU PDFs") from exc
-    with fitz.open(stream=file_bytes, filetype="pdf") as document:
-        return int(document.page_count)
+        raise RuntimeError("pypdf is required to split oversized MinerU PDFs") from exc
+    reader = PdfReader(BytesIO(file_bytes))
+    return len(reader.pages)
 
 
 def _read_pdf_page_count_from_path(file_path: Path) -> int:
     try:
-        import fitz
+        from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("PyMuPDF (fitz) is required to split oversized MinerU PDFs") from exc
-    with fitz.open(file_path) as document:
-        return int(document.page_count)
+        raise RuntimeError("pypdf is required to split oversized MinerU PDFs") from exc
+    reader = PdfReader(file_path)
+    return len(reader.pages)
 
 
 def _split_pdf_bytes(*, file_bytes: bytes, max_pages: int) -> list[dict[str, object]]:
     try:
-        import fitz
+        from pypdf import PdfReader, PdfWriter
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("PyMuPDF (fitz) is required to split oversized MinerU PDFs") from exc
+        raise RuntimeError("pypdf is required to split oversized MinerU PDFs") from exc
+    if max_pages <= 0:
+        raise ValueError("max_pages must be greater than zero")
     segments: list[dict[str, object]] = []
-    with fitz.open(stream=file_bytes, filetype="pdf") as source_document:
-        for start in range(0, source_document.page_count, max_pages):
-            end = min(start + max_pages, source_document.page_count)
-            with fitz.open() as segment_document:
-                segment_document.insert_pdf(source_document, from_page=start, to_page=end - 1)
-                segments.append(
-                    {
-                        "page_start": start + 1,
-                        "page_end": end,
-                        "file_bytes": segment_document.tobytes(garbage=3, deflate=True),
-                    }
-                )
+    reader = PdfReader(BytesIO(file_bytes))
+    page_count = len(reader.pages)
+    for start in range(0, page_count, max_pages):
+        end = min(start + max_pages, page_count)
+        writer = PdfWriter()
+        for page in reader.pages[start:end]:
+            writer.add_page(page)
+        buffer = BytesIO()
+        writer.write(buffer)
+        segments.append(
+            {
+                "page_start": start + 1,
+                "page_end": end,
+                "file_bytes": buffer.getvalue(),
+            }
+        )
     return segments
 
 

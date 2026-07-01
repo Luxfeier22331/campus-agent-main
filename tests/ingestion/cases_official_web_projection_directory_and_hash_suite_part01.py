@@ -121,7 +121,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="link",
-                        text="中华民族共同体学院",
+                        text="示例共同体学院",
                         parent_heading_path=["组织机构", "组织机构"],
                     ),
                     _block(
@@ -131,8 +131,8 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
                         row_index=6,
                         block_order=6,
                         block_role="link",
-                        text="民族学与社会学学院",
-                        parent_heading_path=["组织机构", "组织机构", "中华民族共同体学院"],
+                        text="示例社会学院",
+                        parent_heading_path=["组织机构", "组织机构", "示例共同体学院"],
                     ),
                 ],
             )
@@ -150,7 +150,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
                 if line.strip()
             ]
 
-            self.assertEqual(units[0]["clean_text"], "中华民族共同体学院")
+            self.assertEqual(units[0]["clean_text"], "示例共同体学院")
             self.assertEqual(units[0]["anchor"]["row_ids"], ["entry-1"])
             self.assertNotIn("职能部门", units[0]["clean_text"])
             self.assertNotIn("校属机构", units[0]["clean_text"])
@@ -241,7 +241,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
                         row_index=3,
                         block_order=3,
                         block_role="link",
-                        text="中央民族大学2023年工作要点",
+                        text="示例大学2023年工作要点",
                         parent_heading_path=["规章制度"],
                     ),
                     _block(
@@ -261,7 +261,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="link",
-                        text="中央民族大学事业发展“十三五”规划",
+                        text="示例大学事业发展“十三五”规划",
                         parent_heading_path=["规章制度"],
                     ),
                 ],
@@ -282,7 +282,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart01(unittest.TestCase):
 
             self.assertEqual(
                 units[0]["clean_text"],
-                "中央民族大学2023年工作要点\n中央民族大学事业发展“十三五”规划",
+                "示例大学2023年工作要点\n示例大学事业发展“十三五”规划",
             )
             self.assertEqual(units[0]["anchor"]["row_ids"], ["entry-1", "entry-2"])
 

@@ -11,7 +11,7 @@ from typing import Protocol
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
@@ -230,7 +230,7 @@ def build_scoped_rule_scope_refresh_documents(
         semantic_content_hash = hashlib.sha256(canonical_markdown.encode("utf-8")).hexdigest()
         document_id = build_institutional_regulation_document_id(
             regulation_title_normalized=title,
-            issuing_org=candidate.issuing_org or "中央民族大学",
+            issuing_org=candidate.issuing_org or "示例大学",
             semantic_scope="regulations/scoped_rules",
         )
         version_id = build_institutional_regulation_version_id(
@@ -386,7 +386,7 @@ def _build_projection_scoped_report(
         target_corpus=_TARGET_SCOPE[0],
         target_collection=_TARGET_SCOPE[1],
         regulation_title_normalized=str(metadata.get("regulation_title_normalized") or title),
-        issuing_org=str(metadata.get("issuing_org") or "中央民族大学"),
+        issuing_org=str(metadata.get("issuing_org") or "示例大学"),
         effective_date=str(metadata.get("effective_date") or "").strip() or None,
         revision_signal=str(metadata.get("revision_signal") or "").strip() or None,
         source_notice_release_time=entry.source_notice_release_time or source_record.published_date,
@@ -417,7 +417,7 @@ def _extract_projection_markdown_title(markdown: str) -> str:
 
 def _extract_site_id(source_notice_document_id: str) -> str:
     parts = source_notice_document_id.split(":")
-    return parts[1] if len(parts) >= 3 else "muc_internal_portal"
+    return parts[1] if len(parts) >= 3 else "example_internal_portal"
 
 
 def _build_scoped_rule_candidate(

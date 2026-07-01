@@ -21,7 +21,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: "s3://campus-source/official_web/stable_reference/run-001/source-truth-bundle.json",
+		uri: "s3://campus-agent-source/official_web/stable_reference/run-001/source-truth-bundle.json",
 	},
 	output_contract: "official_web_stable_reference_source_truth.v1",
 	idempotency_key: "official_web/stable_reference/source_truth_materialize/run-001",
@@ -46,7 +46,7 @@ const rustTask: IngestionTaskEnvelope = {
 	task_kind: "document_units_validate",
 	input_ref: {
 		kind: "object_store",
-		uri: "s3://campus-rag-derived/regulations/student_rules/document-units.jsonl",
+		uri: "s3://campus-agent-derived/regulations/student_rules/document-units.jsonl",
 	},
 	output_contract: "document_units_validation_report.v1",
 	idempotency_key: "regulations/student_rules/document_units_validate/release-001",

@@ -126,7 +126,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     corpus="campus_notices",
@@ -157,7 +157,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                     completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
                     answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-                    source_notice_document_id="notice:muc_internal_portal:355119",
+                    source_notice_document_id="notice:example_internal_portal:355119",
                 ),
             )
         )
@@ -223,7 +223,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     corpus="campus_notices",
@@ -241,7 +241,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedCommonDownloadImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="admit_and_materialize",
                 ),
@@ -268,7 +268,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                     completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
                     answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-                    source_notice_document_id="notice:muc_internal_portal:355119",
+                    source_notice_document_id="notice:example_internal_portal:355119",
                 ),
             )
         )
@@ -337,7 +337,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     corpus="campus_notices",
@@ -368,7 +368,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                     completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
                     answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-                    source_notice_document_id="notice:muc_internal_portal:355119",
+                    source_notice_document_id="notice:example_internal_portal:355119",
                 ),
             )
         )
@@ -427,7 +427,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256=source_sha256,
             ),
         )
@@ -462,7 +462,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -501,7 +501,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
         capture_only = inventory_entry_from_file_release_bundle_record(
             record=_bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 storage_provider="reference_only",
                 bucket=None,
                 object_key=None,
@@ -510,20 +510,20 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 provenance_status="reference_only",
             ),
             export_scope="file-release-20260412T003300Z",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_home_url="https://portal.example.edu/",
             collector_contract_version="authenticated_notice_file_release_export_v1",
         )
         source_ready_record = _bundle_record(
             file_release_id=647,
-            filename="中央民族大学合同管理办法.pdf",
+            filename="示例大学合同管理办法.pdf",
             sha256=source_sha256,
         )
         source_ready_record["released_file"]["byte_size"] = len(source_bytes)
         source_ready = inventory_entry_from_file_release_bundle_record(
             record=source_ready_record,
             export_scope="file-release-20260412T003300Z",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_home_url="https://portal.example.edu/",
             collector_contract_version="authenticated_notice_file_release_export_v1",
         )
@@ -565,7 +565,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256=source_sha256,
             ),
         )
@@ -595,7 +595,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                 request=AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -628,7 +628,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                     completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
                     answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-                    source_notice_document_id="file-release:muc_internal_portal:646",
+                    source_notice_document_id="file-release:example_internal_portal:646",
                 ),
             )
         )
@@ -645,7 +645,7 @@ class AuthenticatedDocumentHoldingStatusTest(unittest.TestCase):
                     target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
                     consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
                     queryable=True,
-                    title="中央民族大学差旅费管理办法.pdf",
+                    title="示例大学差旅费管理办法.pdf",
                 ),
             )
         )

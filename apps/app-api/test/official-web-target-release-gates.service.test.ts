@@ -58,7 +58,9 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 		promotionDecision: "staged",
 		rawAssetId: "owasset_school_intro",
 		rawVersionId: "owver_school_intro",
-		sourceObjectKeys: ["official_web/muc_public/runs/owrun_school_intro/source-truth-bundle.json"],
+		sourceObjectKeys: [
+			"official_web/example_public/runs/owrun_school_intro/source-truth-bundle.json",
+		],
 		targetAttemptId: "owattempt_school_intro",
 		targetJobId: "owtarget_school_intro",
 	},
@@ -73,8 +75,8 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 	],
 	reviewState: "previewed",
 	selectedWriteTarget: "official_web/stable_reference",
-	sourceUrls: ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
-	targetLabel: "中央民族大学学校简介",
+	sourceUrls: ["https://www.example.edu/xxgk1/xxjj.htm"],
+	targetLabel: "示例大学学校简介",
 };
 
 function createReleaseGateStore(): OfficialWebTargetReleaseGateStore {
@@ -130,7 +132,7 @@ describe("official web target release gate service", () => {
 					fieldStatus: previewedStableReferenceEntry.fieldStatus,
 					releaseBlockers: ["release_gate_not_reviewed"],
 					sourceObjectKeys: previewedStableReferenceEntry.previewEvidence?.sourceObjectKeys,
-					sourceUrls: ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
+					sourceUrls: ["https://www.example.edu/xxgk1/xxjj.htm"],
 				}),
 				publishAlias: false,
 				releaseId: expectedReleaseId,

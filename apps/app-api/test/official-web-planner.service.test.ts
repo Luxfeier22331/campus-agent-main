@@ -27,10 +27,10 @@ function buildTargetCandidate(
 		discoveryMethod: "manual_requeue",
 		etag: null,
 		fetchProfile: "target_candidate_fetch",
-		host: "www.muc.edu.cn",
+		host: "www.example.edu",
 		hostPolicy: {
-			host: "www.muc.edu.cn",
-			sourceHost: "www.muc.edu.cn",
+			host: "www.example.edu",
+			sourceHost: "www.example.edu",
 		},
 		inventoryOnly: false,
 		lastChangeReason: "target_candidate_admitted",
@@ -44,7 +44,7 @@ function buildTargetCandidate(
 		mainContentHash: null,
 		materializationPolicy: "candidate_only",
 		nextEligibleFetchAt: "2026-05-01T08:00:00.000Z",
-		normalizedCanonicalUrl: "https://www.muc.edu.cn/calendar/",
+		normalizedCanonicalUrl: "https://www.example.edu/calendar/",
 		pageFamily: "target_candidate",
 		pageTitleNormalized: "",
 		priorityScore: 80,
@@ -52,9 +52,9 @@ function buildTargetCandidate(
 		retentionPolicy: "retain_source_truth",
 		reviewPolicy: "selected_write_requires_review",
 		selectedWriteTarget: "calendar/academic_calendar",
-		siteId: "muc_public",
+		siteId: "example_public",
 		targetCandidateId: "owcand_calendar",
-		targetDeclarationVersion: "muc_public_target_source_map_v2",
+		targetDeclarationVersion: "example_public_target_source_map_v2",
 		targetId: "official-web-academic-calendar",
 		targetJobId: "owtarget_calendar",
 		worksetReason: "target_candidate_due",
@@ -92,8 +92,8 @@ describe("official web planner service", () => {
 	it("keeps same-url target candidates together when explicit target candidates are requested", () => {
 		const rows = [
 			buildTargetCandidate({
-				host: "www.muc.edu.cn",
-				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+				host: "www.example.edu",
+				normalizedCanonicalUrl: "https://www.example.edu/xxgk1/xxjj.htm",
 				consumerFamily: "stable_reference_candidate",
 				materializationPolicy: "release_gate_required",
 				reviewPolicy: "release_gate_required",
@@ -103,19 +103,19 @@ describe("official web planner service", () => {
 				targetJobId: "owtarget_stable",
 			}),
 			buildTargetCandidate({
-				host: "www.muc.edu.cn",
+				host: "www.example.edu",
 				consumerFamily: "academic_calendar_candidate",
-				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+				normalizedCanonicalUrl: "https://www.example.edu/xxgk1/xxjj.htm",
 				selectedWriteTarget: "calendar/academic_calendar",
 				targetCandidateId: "owcand_calendar",
 				targetId: "official-web-academic-calendar",
 				targetJobId: "owtarget_calendar",
 			}),
 			buildTargetCandidate({
-				host: "xxgk.muc.edu.cn",
+				host: "info.example.edu",
 				consumerFamily: "regulation_candidate",
 				materializationPolicy: "release_gate_required",
-				normalizedCanonicalUrl: "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+				normalizedCanonicalUrl: "https://info.example.edu/info/1007/1113.htm",
 				reviewPolicy: "release_gate_required",
 				selectedWriteTarget: "regulations/institutional_rules",
 				targetCandidateId: "owcand_rules",
@@ -127,12 +127,12 @@ describe("official web planner service", () => {
 		const selected = __officialWebPlannerStoreTestUtils.selectBudgetedRows(
 			rows,
 			{
-				hostFilter: ["www.muc.edu.cn", "xxgk.muc.edu.cn"],
+				hostFilter: ["www.example.edu", "info.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 2,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 				targetCandidateIds: ["owcand_stable", "owcand_calendar", "owcand_rules"],
 			},
 			{ dedupeByCanonicalUrl: true },
@@ -155,12 +155,12 @@ describe("official web planner service", () => {
 
 		const result = await service.resolve({
 			payload: {
-				hostFilter: ["www.muc.edu.cn"],
+				hostFilter: ["www.example.edu"],
 				maxPagesPerHost: 10,
 				maxTotalPages: 40,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: collectorPrincipal,
 		});
@@ -173,12 +173,12 @@ describe("official web planner service", () => {
 			worksetRows: 1,
 		});
 		expect(store.listDuePages).toHaveBeenCalledWith({
-			hostFilter: ["www.muc.edu.cn"],
+			hostFilter: ["www.example.edu"],
 			maxPagesPerHost: 10,
 			maxTotalPages: 40,
 			now: "2026-05-01T09:00:00.000Z",
 			runIntent: "hot",
-			siteId: "muc_public",
+			siteId: "example_public",
 			targetCandidateIds: [],
 		});
 	});
@@ -194,12 +194,12 @@ describe("official web planner service", () => {
 
 		await service.resolve({
 			payload: {
-				hostFilter: ["www.muc.edu.cn"],
+				hostFilter: ["www.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 				targetCandidateIds: ["owcand_requested"],
 			},
 			principal: collectorPrincipal,
@@ -215,16 +215,16 @@ describe("official web planner service", () => {
 	it("keeps explicitly requested deleted candidates eligible for requeue", () => {
 		const rows = [
 			buildTargetCandidate({
-				host: "met.muc.edu.cn",
+				host: "dept.example.edu",
 				lastFetchDisposition: "deleted",
-				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1832.htm",
+				normalizedCanonicalUrl: "https://dept.example.edu/info/1068/1832.htm",
 				targetCandidateId: "owcand_deleted",
 				targetId: "official-web-academic-calendar",
 				targetJobId: "owtarget_calendar",
 			}),
 			buildTargetCandidate({
-				host: "met.muc.edu.cn",
-				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1830.htm",
+				host: "dept.example.edu",
+				normalizedCanonicalUrl: "https://dept.example.edu/info/1068/1830.htm",
 				targetCandidateId: "owcand_live",
 				targetId: "official-web-academic-calendar",
 				targetJobId: "owtarget_calendar",
@@ -234,12 +234,12 @@ describe("official web planner service", () => {
 		const selected = __officialWebPlannerStoreTestUtils.selectBudgetedRows(
 			rows,
 			{
-				hostFilter: ["met.muc.edu.cn"],
+				hostFilter: ["dept.example.edu"],
 				maxPagesPerHost: 10,
 				maxTotalPages: 10,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 				targetCandidateIds: ["owcand_deleted", "owcand_live"],
 			},
 			{ dedupeByCanonicalUrl: true },
@@ -279,12 +279,12 @@ describe("official web planner service", () => {
 
 		const result = await service.resolve({
 			payload: {
-				hostFilter: ["xxgk.muc.edu.cn"],
+				hostFilter: ["info.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: collectorPrincipal,
 		});
@@ -309,12 +309,12 @@ describe("official web planner service", () => {
 
 		const result = await service.resolve({
 			payload: {
-				hostFilter: ["xxgk.muc.edu.cn"],
+				hostFilter: ["info.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: collectorPrincipal,
 		});
@@ -337,12 +337,12 @@ describe("official web planner service", () => {
 
 		const result = await service.resolve({
 			payload: {
-				hostFilter: ["jwc.muc.edu.cn"],
+				hostFilter: ["teaching.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: collectorPrincipal,
 		});
@@ -370,7 +370,7 @@ describe("official web planner service", () => {
 					maxTotalPages: 40,
 					now: "2026-05-01T09:00:00.000Z",
 					runIntent: "baseline",
-					siteId: "muc_public",
+					siteId: "example_public",
 				},
 				principal: collectorPrincipal,
 			}),

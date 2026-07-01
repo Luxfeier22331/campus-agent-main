@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrProviderResult
 from campus_ingestion_core.settings import ObjectStoreSettings

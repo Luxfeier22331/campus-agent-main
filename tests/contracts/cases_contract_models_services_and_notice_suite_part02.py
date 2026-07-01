@@ -29,7 +29,7 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
                 title="2026年春假安排通知",
             ),
             content_hash="sha256:abc123",
-            source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+            source_url="https://www.example.edu/info/2026-spring-break.htm",
             body_excerpt="春假安排短摘要。",
             bounded_summary="该通知说明春假安排，以官方链接为准。",
             extracted_facts=("春假安排以官方链接为准",),
@@ -91,8 +91,8 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
                 title="2026年春假安排通知",
                 outcome="resolved_current",
                 source_family="official_web_public_notice",
-                source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
-                canonical_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+                source_url="https://www.example.edu/info/2026-spring-break.htm",
+                canonical_url="https://www.example.edu/info/2026-spring-break.htm",
                 body_excerpt="春假安排以官方链接为准。",
                 published_at="2026-04-18",
                 effective_at="2026-04-30",
@@ -147,7 +147,7 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
             version_id="v1:schedule-001",
             corpus="campus_services",
             collection="transport_schedule",
-            source_uri="https://www.muc.edu.cn/bus/schedule.htm",
+            source_uri="https://www.example.edu/bus/schedule.htm",
             content_hash="sha256:schedule-001",
         )
 

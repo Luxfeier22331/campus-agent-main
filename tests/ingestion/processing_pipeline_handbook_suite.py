@@ -9,7 +9,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
     def test_build_indexable_chunks_from_jsonl_accepts_split_handbook_cleanup_output(self) -> None:
         cleanup_result = cleanup_handbook_document(
             structured_rows=[
-                _handbook_source_row(1, "heading", "中央民族大学奖学金评定办法"),
+                _handbook_source_row(1, "heading", "示例大学奖学金评定办法"),
                 _handbook_source_row(1, "paragraph", "民大校发〔2018〕329号"),
                 _handbook_source_row(1, "paragraph", "第一条 奖学金评定坚持公开、公平、公正。"),
                 _handbook_source_row(
@@ -21,11 +21,11 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             ],
             manifest_document=SplitManifestDocument(
                 document_id="manifest:scholarship-policy",
-                title="中央民族大学奖学金评定办法",
+                title="示例大学奖学金评定办法",
                 page_start=1,
                 page_end=2,
                 source_uri="https://campus.example/handbook/scholarship-policy",
-                handbook_section="中央民族大学学生奖励管理规定",
+                handbook_section="示例大学学生奖励管理规定",
                 entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
@@ -58,7 +58,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
                 document_id=cleanup_result.doc_id,
                 revision_track="source-faithful",
                 version_id=cleanup_result.version_id,
-                title="中央民族大学奖学金评定办法",
+                title="示例大学奖学金评定办法",
                 year=None,
                 filename="document-units.jsonl",
             ),
@@ -69,7 +69,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
                     document_id=cleanup_result.doc_id,
                     revision_track="source-faithful",
                     version_id=cleanup_result.version_id,
-                    title="中央民族大学奖学金评定办法",
+                    title="示例大学奖学金评定办法",
                     year=None,
                     filename="document-units.jsonl",
                 ),
@@ -111,17 +111,17 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
     ) -> None:
         cleanup_result = cleanup_handbook_document(
             structured_rows=[
-                _handbook_source_row(1, "heading", "中央民族大学奖学金评定办法"),
+                _handbook_source_row(1, "heading", "示例大学奖学金评定办法"),
                 _handbook_source_row(1, "paragraph", "民大校发〔2018〕329号"),
                 _handbook_source_row(1, "paragraph", "第一条 奖学金评定坚持公开、公平、公正。"),
             ],
             manifest_document=SplitManifestDocument(
                 document_id="manifest:scholarship-policy",
-                title="中央民族大学奖学金评定办法",
+                title="示例大学奖学金评定办法",
                 page_start=1,
                 page_end=1,
                 source_uri="https://campus.example/handbook/scholarship-policy",
-                handbook_section="中央民族大学学生奖励管理规定",
+                handbook_section="示例大学学生奖励管理规定",
                 entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
@@ -154,7 +154,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
                 document_id=cleanup_result.doc_id,
                 revision_track="source-faithful",
                 version_id=cleanup_result.version_id,
-                title="中央民族大学奖学金评定办法",
+                title="示例大学奖学金评定办法",
                 year=None,
                 filename="document-units.jsonl",
             ),
@@ -171,7 +171,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
         article_chunk = next(
             chunk for chunk in chunks if chunk.metadata["unit_type"] == "article_body"
         )
-        self.assertIn("中央民族大学奖学金评定办法", article_chunk.text)
+        self.assertIn("示例大学奖学金评定办法", article_chunk.text)
         self.assertIn("第一条", article_chunk.text)
         self.assertIn("文号：民大校发〔2018〕329号", article_chunk.text)
         self.assertIn("奖学金评定坚持公开、公平、公正", article_chunk.text)
@@ -203,7 +203,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
                             "page_end": 12,
                         },
                         "metadata": {
-                            "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                            "title": "示例大学学生课堂行为规范及课堂秩序管理办法",
                             "policy_doc_no": "民大校发〔2007〕282号",
                         },
                         "acl": {"level": "public", "allow_groups": []},
@@ -227,7 +227,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
         self.assertEqual(len(chunks), 1)
         chunk = chunks[0]
         self.assertTrue(chunk.metadata["contextualized_text"])
-        self.assertIn("中央民族大学学生课堂行为规范及课堂秩序管理办法", chunk.text)
+        self.assertIn("示例大学学生课堂行为规范及课堂秩序管理办法", chunk.text)
         self.assertIn("二、学生课堂行为规范", chunk.text)
         self.assertIn("第十六条", chunk.text)
         self.assertIn("3、学生应严格遵守课堂纪律", chunk.text)

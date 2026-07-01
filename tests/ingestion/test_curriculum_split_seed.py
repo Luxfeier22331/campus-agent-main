@@ -67,12 +67,12 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         seed = build_curriculum_split_manifest_seed(
             historical_documents=historical_documents,
             structured_rows=structured_rows,
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
         )
 
         self.assertEqual(seed.manifest.corpus, "curriculum")
         self.assertEqual(seed.manifest.collection, "curriculum_plan")
-        self.assertEqual(seed.manifest.raw_asset_id, "asset:curriculum-plan-2022")
+        self.assertEqual(seed.manifest.raw_asset_id, "asset:synthetic-curriculum-plan")
         self.assertEqual(len(seed.manifest.documents), 2)
         self.assertEqual(len(seed.missing_documents), 0)
         self.assertEqual(len(seed.retired_documents), 0)
@@ -92,7 +92,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             derive_curriculum_source_uri_from_canonical_path(
                 "rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md"
             ),
-            "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
+            "campus-agent://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
         )
 
     def test_curriculum_split_manifest_seed_retires_historical_synthetic_umbrella_title(
@@ -131,7 +131,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         seed = build_curriculum_split_manifest_seed(
             historical_documents=historical_documents,
             structured_rows=structured_rows,
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
         )
         self.assertEqual(len(seed.missing_documents), 0)
         self.assertEqual(len(seed.retired_documents), 1)
@@ -192,7 +192,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         seed = build_curriculum_split_manifest_seed(
             historical_documents=historical_documents,
             structured_rows=structured_rows,
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
         )
 
         self.assertEqual(len(seed.manifest.documents), 1)
@@ -242,7 +242,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         seed = build_curriculum_split_manifest_seed(
             historical_documents=historical_documents,
             structured_rows=structured_rows,
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
         )
 
         self.assertEqual(len(seed.manifest.documents), 1)
@@ -251,31 +251,31 @@ class CurriculumSplitSeedTest(unittest.TestCase):
 
     def test_build_manifest_document_rows_produces_document_level_structured_shape(self) -> None:
         structured_rows = load_layout_elements_rows(
-            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
+            Path("packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl")
         )
         document = SplitManifestDocument(
-            document_id="curriculum:国际经济与贸易本科人才培养方案",
-            title="国际经济与贸易本科人才培养方案",
+            document_id="curriculum:示例公共事务本科人才培养方案",
+            title="示例公共事务本科人才培养方案",
             page_start=278,
             page_end=288,
             status="active",
         )
         source_uri = derive_curriculum_source_uri_from_canonical_path(
-            "rag-data/canonical/curriculum_plan/docs/国际经济与贸易本科人才培养方案.md"
+            "rag-data/canonical/curriculum_plan/docs/示例公共事务本科人才培养方案.md"
         )
 
         rows = build_manifest_document_rows(
             structured_rows=structured_rows,
             manifest_document=document,
-            version_id="sha256:curriculum-plan-2022:split:test",
-            source_pdf="curriculum-plan-2022.pdf",
+            version_id="sha256:synthetic-curriculum-plan:split:test",
+            source_pdf="synthetic-curriculum-plan.pdf",
             source_uri=source_uri,
         )
 
         self.assertGreater(len(rows), 5)
         summary_row = rows[0]
         self.assertEqual(summary_row["doc_id"], document.document_id)
-        self.assertEqual(summary_row["version_id"], "sha256:curriculum-plan-2022:split:test")
+        self.assertEqual(summary_row["version_id"], "sha256:synthetic-curriculum-plan:split:test")
         self.assertEqual(summary_row["chunk_id"], "document-0000")
         self.assertEqual(summary_row["page_start"], 278)
         self.assertEqual(summary_row["page_end"], 288)
@@ -289,7 +289,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             "phase1-authorization-projection-v1",
         )
         self.assertNotIn("acl", summary_row)
-        self.assertIn("国际经济与贸易本科人才培养方案", summary_row["clean_text"])
+        self.assertIn("示例公共事务本科人才培养方案", summary_row["clean_text"])
 
         first_page_row = rows[1]
         self.assertEqual(first_page_row["chunk_id"], "page-0278-block-1-0001")
@@ -335,7 +335,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             manifest_document=manifest_document,
             version_id="sha256:test",
             source_pdf="curriculum-plan.pdf",
-            source_uri="campusrag://source/curriculum/test/pages/100-101",
+            source_uri="campus-agent://source/curriculum/test/pages/100-101",
         )
 
         self.assertEqual(rows[1]["clean_text"], "民族学本科第二学士学位人才培养方案")
@@ -365,7 +365,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
                 manifest_document=manifest_document,
                 version_id="sha256:test",
                 source_pdf="curriculum-plan.pdf",
-                source_uri="campusrag://source/curriculum/test/pages/1-1",
+                source_uri="campus-agent://source/curriculum/test/pages/1-1",
             )
 
 

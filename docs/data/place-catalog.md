@@ -31,9 +31,9 @@ updated: 2026-04-14
 - seed：`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`
 - runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-pro
   file.json`
-- consumption owner：`packages/navigation-tool`
-- authoritative source
-  inventory：`docs/reference/campus-navigation-authoritative-source-inventory.md`
+- current consumption owner：未开放；旧 Python `packages/navigation-tool` 已退役
+- authoritative source inventory：private source/data boundary；公开 repo 只保留
+  admission rule 与 synthetic fixture
 
 ## 当前用途
 
@@ -115,7 +115,8 @@ updated: 2026-04-14
 
 - 记录当前 place truth 的来源线索
 - 当前 seed 默认使用 `seed:campus_navigation/place_catalog.v1`
-- 当点位由官方 `校园地图` / `校园导游` admitted 时，应同时保留相应 official page / image URL
+- 当点位由 private source inventory admitted 时，公开 seed 只保留 repo-owned
+  source ref 或 synthetic source ref；真实 official URL 不进入公开仓库
 
 ### `verification_state`
 
@@ -141,9 +142,7 @@ updated: 2026-04-14
     verification posture 完整
 - 仅靠示意图视觉位置、且连 coarse 位置描述都不足的 candidate，仍必须先 `park_pending_geometry`
 
-详见：
-
-- `docs/reference/campus-navigation-authoritative-source-inventory.md`
+真实 authoritative source inventory 不在公开 repo 保留。公开仓库层面的 source/data 发布边界见 `docs/reference/open-source-data.md`
 
 ## Current Ambiguity Families
 
@@ -203,7 +202,7 @@ updated: 2026-04-14
 
 - `docs/contracts/place-finding.md`
 - `docs/domains/place.md`
-- `docs/reference/campus-navigation-authoritative-source-inventory.md`
+- `docs/reference/open-source-data.md`
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

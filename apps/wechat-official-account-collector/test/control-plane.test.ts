@@ -7,7 +7,7 @@ import {
 
 function startRunInput() {
 	return {
-		accountName: "中央民族大学学生会",
+		accountName: "示例大学学生会",
 		accountSlug: "muc-student-union",
 		collectorVersion: "wechat-official-account-collector@0.1.0",
 		providerBaseUrl: "https://feedwe.example.com",

@@ -27,10 +27,6 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
     document_stage_slug,
 )
 
-from campus_ingestion_core.authenticated_notice_closeout_store import (
-    PostgresAuthenticatedNoticeCloseoutStore,
-)
-
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
@@ -443,7 +439,7 @@ def _bootstrap_source_truth_scope(
         request=AuthenticatedNoticeImportRequest(
             bundle_path=bundle_path,
             export_manifest_path=manifest_path,
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_home_url="https://portal.example.edu/home",
             allow_local_fixture_import=True,
             mode="admit_and_materialize",
@@ -470,7 +466,7 @@ def _bootstrap_source_truth_scope(
     }
     for object_key, (data, content_type) in payloads.items():
         object_store.put_bytes(
-            bucket="campus-rag-source",
+            bucket="campus-agent-source",
             key=object_key,
             data=data,
             content_type=content_type,

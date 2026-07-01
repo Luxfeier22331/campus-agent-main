@@ -65,15 +65,15 @@ describe("official web target inventory operator route", () => {
 						requiredFields: ["reference_title"],
 						reviewState: "candidate",
 						selectedWriteTarget: "regulations/institutional_rules",
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
-						targetLabel: "中央民族大学学术委员会章程",
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
+						targetLabel: "示例大学学术委员会章程",
 					},
 				],
 				page: { nextCursor: null },
 				summary: {
 					countsByReviewState: { candidate: 1 },
-					inventoryVersion: "muc_public_target_inventory_v1",
-					siteId: "muc_public",
+					inventoryVersion: "example_public_target_inventory_v1",
+					siteId: "example_public",
 				},
 			}),
 		};
@@ -84,7 +84,7 @@ describe("official web target inventory operator route", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/target-inventory?siteId=muc_public",
+				"https://app-api.internal/api/operator/official-web/target-inventory?siteId=example_public",
 			),
 		);
 
@@ -100,8 +100,8 @@ describe("official web target inventory operator route", () => {
 			page: { nextCursor: null },
 			summary: {
 				countsByReviewState: { candidate: 1 },
-				inventoryVersion: "muc_public_target_inventory_v1",
-				siteId: "muc_public",
+				inventoryVersion: "example_public_target_inventory_v1",
+				siteId: "example_public",
 			},
 		});
 		expect(service.listTargetInventory).toHaveBeenCalledWith({
@@ -109,7 +109,7 @@ describe("official web target inventory operator route", () => {
 				consumerFamily: null,
 				ownerSurface: null,
 				reviewState: null,
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal,
 		});

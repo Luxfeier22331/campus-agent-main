@@ -8,7 +8,7 @@ from .authenticated_notice_source_projection_test_support import *
 class AuthenticatedNoticeSourceProjectionChunkingTest(unittest.TestCase):
     def test_internal_notice_chunking_skips_attachment_ref_units(self) -> None:
         record = DocumentRegistryRecord(
-            document_id="notice:muc_internal_portal:355119",
+            document_id="notice:example_internal_portal:355119",
             revision_track="source-faithful",
             version_id="sha256:test-version",
             source_uri="https://portal.example.edu/notice/355119",
@@ -79,7 +79,7 @@ class AuthenticatedNoticeSourceProjectionChunkingTest(unittest.TestCase):
 
     def test_internal_notice_chunking_splits_large_table_unit_without_row_lines(self) -> None:
         record = DocumentRegistryRecord(
-            document_id="notice:muc_internal_portal:355120",
+            document_id="notice:example_internal_portal:355120",
             revision_track="source-faithful",
             version_id="sha256:test-version-2",
             source_uri="https://portal.example.edu/notice/355120",

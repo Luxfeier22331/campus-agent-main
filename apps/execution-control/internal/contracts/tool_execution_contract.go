@@ -29,6 +29,14 @@ const (
 	ToolIDCampusNoticeGet             ToolID = "campus_notice_get"
 )
 
+type ModelVisibleToolName string
+
+const (
+	ModelVisibleToolNameKnowledgeQuery          ModelVisibleToolName = "knowledge_query"
+	ModelVisibleToolNameTransportScheduleLookup ModelVisibleToolName = "transport_schedule_lookup"
+	ModelVisibleToolNameCampusNoticeDiscover    ModelVisibleToolName = "campus_notice_discover"
+)
+
 type RequestedTool string
 
 const (
@@ -245,7 +253,7 @@ type ToolRequestWire struct {
 	Context          map[string]any           `json:"context,omitempty"`
 	WorkflowContext  *WorkflowToolContextWire `json:"workflow_context,omitempty"`
 	Payload          map[string]any           `json:"payload"`
-	AllowedTools     []string                 `json:"allowed_tools"`
+	AllowedTools     []ModelVisibleToolName   `json:"allowed_tools"`
 }
 
 type WorkflowTraceSummaryWire struct {

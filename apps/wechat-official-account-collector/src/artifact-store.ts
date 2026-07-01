@@ -76,7 +76,7 @@ export function createWeChatOfficialAccountArtifactStoreFromEnv(
 	}
 
 	return new S3WeChatOfficialAccountArtifactStore({
-		bucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-rag-source",
+		bucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
 		client: new S3Client({
 			endpoint,
 			region: env.OBJECT_STORE_REGION?.trim() || "us-east-1",

@@ -13,7 +13,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
-from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.internal_notice_consumption_notice_entries import (
     _build_notice_level_entries,
 )
@@ -100,7 +100,6 @@ from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
-    PostgresNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     normalize_notice_ids,
 )
@@ -264,15 +263,6 @@ def rebuild_internal_notice_consumption_projection(
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
     runtime_projection_store = projection_store or _build_projection_store(source, dry_run=dry_run)
-    if (
-        not runtime_request.notice_ids
-        and not runtime_request.document_ids
-        and isinstance(runtime_projection_store, PostgresNoticeConsumptionProjectionStore)
-    ):
-        raise ValueError(
-            "refusing persistent full-scope notice consumption projection rebuild without "
-            "explicit notice_ids or document_ids"
-        )
     entries = build_internal_notice_consumption_projection_entries(
         request=runtime_request,
         env=source,

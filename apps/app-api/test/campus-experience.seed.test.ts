@@ -13,8 +13,8 @@ describe("campus experience projection seed", () => {
 		const placesById = new Map(response.places.map((place) => [place.id, place]));
 
 		expect(response.campus).toMatchObject({
-			id: "muc-campuses",
-			name: "中央民族大学校区",
+			id: "example-campuses",
+			name: "示例大学校区",
 		});
 		expect(response.places.length).toBeGreaterThanOrEqual(12);
 		for (const officialHaidianPlaceId of [
@@ -65,10 +65,10 @@ describe("campus experience projection seed", () => {
 		]) {
 			expect(placeIds.has(officialHaidianPlaceId), officialHaidianPlaceId).toBe(true);
 			expect(placesById.get(officialHaidianPlaceId)?.sourceRefs).toContain(
-				"https://www.muc.edu.cn/xxgk1/xydt.htm",
+				"campus-map:private-source:official-map",
 			);
 			expect(placesById.get(officialHaidianPlaceId)?.sourceRefs).toContain(
-				"https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png",
+				"campus-map:private-source:haidian-map-image",
 			);
 		}
 		for (const unboundOfficialHaidianPlaceId of [
@@ -180,10 +180,10 @@ describe("campus experience projection seed", () => {
 			{ fid: 40, layer: "building", sourceId: "fengtai-campus" },
 		]);
 		expect(placesById.get("library")?.mapFeatureRefs).toEqual([
-			{ fid: 849087992, layer: "building", sourceId: "haidian-campus" },
+			{ fid: 1001, layer: "building", sourceId: "haidian-campus" },
 		]);
 		expect(placesById.get("haidian-hospital")?.mapFeatureRefs).toEqual([
-			{ fid: 548820883, layer: "building", sourceId: "haidian-campus" },
+			{ fid: 1003, layer: "building", sourceId: "haidian-campus" },
 		]);
 		expect(placesById.get("fengtai-library")?.mapFeatureRefs).toEqual([
 			{ fid: 49, layer: "building", sourceId: "fengtai-campus" },

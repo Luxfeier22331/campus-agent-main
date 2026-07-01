@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: domains/regulations
 status: active
 created: 2026-03-25
-updated: 2026-05-07
+updated: 2026-06-30
 ---
 # `student_rules` Chunking 与 Validation 规则
 
@@ -44,6 +44,9 @@ updated: 2026-05-07
 - tokenizer repo: `Qwen/Qwen3-Embedding-4B`
 - 运行时只允许使用本地已预取 tokenizer
 - 主链路默认离线，不允许在 chunking 或 validation 过程中隐式联网下载 tokenizer
+- 当前实现读取本地 snapshot 中的 `tokenizer.json`，通过 Hugging Face `tokenizers`
+  执行 `add_special_tokens=false` 的计数；不得重新引入 Python `transformers`
+  runtime 或 regex fallback 作为 handbook v3 预算真相。
 
 额外约束：
 

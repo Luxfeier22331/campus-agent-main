@@ -391,7 +391,7 @@ class OfficialWebProjectionArticleUnitsTestPart02(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="paragraph",
-                        text="投稿方式：mucxcb@muc.edu.cn",
+                        text="投稿方式：mucxcb@example.edu",
                         parent_heading_path=["人才培养"],
                         is_boilerplate=True,
                     ),
@@ -425,4 +425,4 @@ class OfficialWebProjectionArticleUnitsTestPart02(unittest.TestCase):
         self.assertIn("新闻网版权与免责声明：", units[2]["clean_text"])
         self.assertNotIn("（来源：教务处）", canonical)
         self.assertNotIn("新闻网版权与免责声明：", canonical)
-        self.assertNotIn("投稿方式：mucxcb@muc.edu.cn", canonical)
+        self.assertNotIn("投稿方式：mucxcb@example.edu", canonical)

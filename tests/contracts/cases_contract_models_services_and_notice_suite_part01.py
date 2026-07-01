@@ -108,6 +108,17 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                 allowed_tools=("transport_notice_latest",),  # type: ignore[arg-type]
             )
 
+    def test_agent_request_rejects_closed_navigation_as_model_facing_allowed_tool(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: place_lookup"):
+            ToolRequest(
+                tool="place_lookup",
+                user_goal="图书馆在哪",
+                payload=PlaceLookupPayload(query_text="图书馆在哪"),
+                allowed_tools=("place_lookup",),
+            )
+
     def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when temporal mode is as_of"):
             TemporalQuery(mode="as_of")
@@ -238,7 +249,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             departure_status="changed",
             departure_kind="student",
             operational_note="该班次临时改至南门上车",
-            related_notice_refs=("https://portal.muc.edu.cn/notice/456",),
+            related_notice_refs=("https://portal.example.edu/notice/456",),
         )
 
         payload = asdict(departure)
@@ -248,7 +259,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         self.assertEqual(payload["operational_note"], "该班次临时改至南门上车")
         self.assertEqual(
             tuple(payload["related_notice_refs"]),
-            ("https://portal.muc.edu.cn/notice/456",),
+            ("https://portal.example.edu/notice/456",),
         )
 
     def test_scheduled_departure_rejects_invalid_status_and_kind(self) -> None:
@@ -314,8 +325,8 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                     notice_id="notice:muc-spring-break-2025",
                     title="2025年春假安排通知",
                     source_family="official_web_public_notice",
-                    source_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
-                    canonical_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
+                    source_url="https://www.example.edu/info/2025-spring-break.htm",
+                    canonical_url="https://www.example.edu/info/2025-spring-break.htm",
                     summary="当前年份未命中，仅返回上一年度相关通知作为历史参考。",
                     published_at="2025-03-01",
                     effective_at="2025-03-10",
@@ -359,7 +370,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
     def test_notice_card_and_get_result_carry_minimum_web_card_surface(self) -> None:
         card = NoticeCard(
             notice_id="355222",
-            title="中央民族大学丰台校区家具采购项目比选公告",
+            title="示例大学丰台校区家具采购项目比选公告",
             source_family="internal_notice_restricted",
             source_url="https://portal.example.edu/notices/355222",
             canonical_url="https://portal.example.edu/notices/355222",
@@ -392,7 +403,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                     notice_id="notice:muc-spring-break-2024",
                     title="2024年春假安排通知",
                     source_family="official_web_public_notice",
-                    source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+                    source_url="https://www.example.edu/info/2024-spring-break.htm",
                 ),
             ),
         )
@@ -406,7 +417,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             outcome="resolved_historical_reference",
             title="2024年春假安排通知",
             source_family="official_web_public_notice",
-            source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+            source_url="https://www.example.edu/info/2024-spring-break.htm",
         )
 
         self.assertEqual(result.outcome, "resolved_historical_reference")
@@ -420,7 +431,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             title="2026年春假安排通知",
             outcome="resolved_current",
             source_family="official_web_public_notice",
-            source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+            source_url="https://www.example.edu/info/2026-spring-break.htm",
         )
 
         self.assertEqual(result.normalized_body, "")

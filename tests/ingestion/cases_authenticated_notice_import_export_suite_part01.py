@@ -49,7 +49,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -69,11 +69,11 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         entry = entries[0]
         self.assertEqual(entry.notice_id, "355119")
-        self.assertEqual(entry.site_id, "muc_internal_portal")
-        self.assertEqual(entry.document_id, "notice:muc_internal_portal:355119")
+        self.assertEqual(entry.site_id, "example_internal_portal")
+        self.assertEqual(entry.document_id, "notice:example_internal_portal:355119")
         self.assertEqual(
             entry.raw_asset_id,
-            "asset:authenticated-notice:muc_internal_portal:355119",
+            "asset:authenticated-notice:example_internal_portal:355119",
         )
         self.assertEqual(entry.source_home_url, "https://portal.example.edu/home")
         self.assertEqual(
@@ -150,7 +150,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=existing_bundle_path,
                     export_manifest_path=existing_manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -165,7 +165,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=incremental_bundle_path,
                     export_manifest_path=incremental_manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -194,8 +194,8 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 if record.document_id.startswith("notice:")
             ),
             [
-                "notice:muc_internal_portal:355119",
-                "notice:muc_internal_portal:355120",
+                "notice:example_internal_portal:355119",
+                "notice:example_internal_portal:355120",
             ],
         )
 
@@ -249,7 +249,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=first_bundle_path,
                     export_manifest_path=first_manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -264,7 +264,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=selected_bundle_path,
                     export_manifest_path=selected_manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -297,8 +297,8 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 if record.document_id.startswith("notice:")
             ),
             [
-                "notice:muc_internal_portal:355119",
-                "notice:muc_internal_portal:355120",
+                "notice:example_internal_portal:355119",
+                "notice:example_internal_portal:355120",
             ],
         )
 
@@ -363,7 +363,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -377,7 +377,7 @@ class AuthenticatedNoticeImportExportTestPart01(unittest.TestCase):
 
         self.assertEqual(report["errors"], [])
         records = fetch_status_store.list_by_notice_ids(
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             notice_ids=("355119",),
         )
         self.assertEqual(len(records), 2)

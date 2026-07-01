@@ -80,7 +80,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                 _handbook_page(
                     _handbook_block(
                         "doc_title",
-                        "中央民族大学学生手册",
+                        "示例大学学生手册",
                         block_id="p1-title",
                         block_order=1,
                         block_bbox=[0, 140, 300, 180],
@@ -220,7 +220,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         rows = normalize_handbook_provider_result(
             source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=Path(
-                "tests/fixtures/student_handbook/provider-result-updated.jsonl"
+                "packages/ingestion-core/testdata/student_handbook/provider-result-updated.synthetic.jsonl"
             ).read_bytes(),
             ocr_provider="mineru_api",
             ocr_model="vlm",
@@ -234,7 +234,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]["schema_version"], "student_handbook_layout_elements_v3")
         self.assertEqual(rows[0]["row_type"], "heading")
-        self.assertEqual(rows[0]["text_normalized"], "中央民族大学奖学金评定办法")
+        self.assertEqual(rows[0]["text_normalized"], "示例奖学金评定办法")
         self.assertEqual(rows[1]["row_type"], "paragraph")
         self.assertEqual(
             rows[1]["text_normalized"], "第一条 奖学金评定坚持公开、公平、公正,并接受监督。"
@@ -247,7 +247,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                 _handbook_page(
                     _handbook_block(
                         "doc_title",
-                        "中央民族大学学生手册",
+                        "示例大学学生手册",
                         block_id="p1-title",
                         block_order=1,
                         block_bbox=[0, 140, 300, 180],
@@ -333,7 +333,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                 "row_type": "heading",
                 "block_role": "title",
                 "heading_level": None,
-                "text_normalized": "中央民族大学学生手册",
+                "text_normalized": "示例大学学生手册",
                 "page_start": 1,
                 "reading_order": 1,
             },

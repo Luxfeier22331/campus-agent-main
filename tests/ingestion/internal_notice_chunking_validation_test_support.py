@@ -13,8 +13,8 @@ def chunking_test_env() -> dict[str, str]:
         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-        "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+        "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+        "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
     }
 
 
@@ -179,8 +179,8 @@ def _make_inventory_entry(
         "corpus": record.corpus,
         "collection": record.collection,
         "notice_id": notice_id,
-        "site_id": "muc_internal_portal",
-        "document_id": f"notice:muc_internal_portal:{notice_id}",
+        "site_id": "example_internal_portal",
+        "document_id": f"notice:example_internal_portal:{notice_id}",
         "revision_track": "source-faithful",
         "version_id": f"sha256:{notice_id}-inventory",
         "raw_asset_id": f"raw-{notice_id}",
@@ -204,7 +204,7 @@ def _make_inventory_entry(
         "planning_weight": 1,
         "parent_snapshot": {
             "notice_id": notice_id,
-            "document_id": f"notice:muc_internal_portal:{notice_id}",
+            "document_id": f"notice:example_internal_portal:{notice_id}",
             "notice_risk_label": notice_risk_label,
             "attachment_mix_score": attachment_mix_score,
             "attachment_ref_count": attachment_ref_count,
@@ -233,7 +233,7 @@ def _make_frozen_inventory_payload(
             "selected_notice_ids": [notice_id],
             "notice_risk_counts": {notice_risk_label: 1},
             "high_risk_notice_count": 1 if has_spatial_attachment else 0,
-            "site_id": "muc_internal_portal",
+            "site_id": "example_internal_portal",
             "source_home_url": "https://portal.example.edu",
             "embedding_model": "Qwen3-Embedding-4B",
             "expected_notice_count": 1,
@@ -244,7 +244,7 @@ def _make_frozen_inventory_payload(
             "parents": [
                 {
                     "notice_id": notice_id,
-                    "document_id": f"notice:muc_internal_portal:{notice_id}",
+                    "document_id": f"notice:example_internal_portal:{notice_id}",
                     "notice_risk_label": notice_risk_label,
                     "attachment_mix_score": attachment_mix_score,
                     "attachment_ref_count": attachment_ref_count,
@@ -316,7 +316,7 @@ def _attachment_rows(
 ) -> bytes:
     shared_metadata = {
         "projection_name": "internal_notice_attachment_documents",
-        "parent_document_id": "notice:muc_internal_portal:355119",
+        "parent_document_id": "notice:example_internal_portal:355119",
         "attachment_ref_id": "attachment-0001",
         "attachment_kind": "office_document_attachment",
         "attachment_role": "notice_attachment_document",

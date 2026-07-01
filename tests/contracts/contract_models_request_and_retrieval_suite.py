@@ -407,7 +407,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             is_current=True,
             snippet="学生受处分满考察期后，可以申请解除纪律处分。",
             score=0.91,
-            source_title="中央民族大学解除学生纪律处分实施办法",
+            source_title="示例大学解除学生纪律处分实施办法",
             content_role="procedure",
             is_answer_bearing=True,
             semantic_role="procedure_step",
@@ -433,13 +433,13 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
     def test_evidence_source_rejects_unknown_remote_content_suspicion_label(self) -> None:
         with self.assertRaises(ValueError):
             EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:inject-001",
+                doc_id="official_web:example_public:article_detail:inject-001",
                 revision_track="source-faithful",
                 version_id="owdocver:inject-001",
-                chunk_id="official_web:muc_public:article_detail:inject-001:chunk-0001",
+                chunk_id="official_web:example_public:article_detail:inject-001:chunk-0001",
                 anchor={"segment_ord": 1},
-                canonical_url="https://www.muc.edu.cn/inject-001.htm",
-                latest_url="https://www.muc.edu.cn/inject-001.htm",
+                canonical_url="https://www.example.edu/inject-001.htm",
+                latest_url="https://www.example.edu/inject-001.htm",
                 source_channel="official_web",
                 collection="stable_reference",
                 is_current=True,

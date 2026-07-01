@@ -9,13 +9,13 @@ import {
 } from "../src/modules/authenticated-notice-run-processing-command";
 
 const runSnapshot = {
-	id: "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
-	runKey: "authenticated_notice_portal:notice:muc_internal_portal:20260428T181953007Z",
+	id: "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
+	runKey: "authenticated_notice_portal:notice:example_internal_portal:20260428T181953007Z",
 	sourceChannel: "authenticated_notice_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
+	siteId: "example_internal_portal",
 	collectorRunToken: "20260428T181953007Z",
-	runId: "muc_internal_portal:notice:20260428T181953007Z",
+	runId: "example_internal_portal:notice:20260428T181953007Z",
 	replayBatchId: "manual-smoke-20260501",
 	enqueueSource: "manual_replay",
 	lifecycleStatus: "mixed_terminal",
@@ -46,7 +46,7 @@ const runSnapshot = {
 			attemptCount: 1,
 			jobId: "authenticated_notice_ingest_job:01d27923bbfebb329b2b8935",
 			queueStatus: "succeeded",
-			runId: "muc_internal_portal:notice:20260428T181953007Z",
+			runId: "example_internal_portal:notice:20260428T181953007Z",
 			updatedAt: "2026-05-01T01:27:00.000Z",
 		},
 	],

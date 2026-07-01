@@ -278,7 +278,7 @@ def _build_parent_notice_document(
     parent_source_truth: _AuthenticatedNoticeParentSourceTruth,
     runtime_profile,
 ):
-    from campus_ingestion_core.campusrag_ingestion_support import (
+    from campus_ingestion_core.campus_agent_ingestion_support import (
         DocumentImportInput,
         apply_authorization_projection_metadata,
     )

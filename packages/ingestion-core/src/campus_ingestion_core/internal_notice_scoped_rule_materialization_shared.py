@@ -14,9 +14,9 @@ _TARGET_SCOPE = ("regulations", "scoped_rules")
 _TARGET_SOURCE_FILENAME = "internal-notice-scoped-rules-manifest.json"
 _TARGET_IMPORT_SOURCE = "internal_notice_scoped_rule_materialization"
 _TARGET_PARSER_VERSION = "internal_notice_scoped_rule_materialization_v1"
-_SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice_scoped_rules"
+_SOURCE_URL_PREFIX = "campus-agent://promotion/synthetic_notice_scoped_rules"
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
-_INSTITUTION_PREFIX = "中央民族大学"
+_INSTITUTION_PREFIX = "示例大学"
 _SCHOOL_UNIT_RE = re.compile(
     r"(?P<unit>[一-龥]{1,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室))"
 )

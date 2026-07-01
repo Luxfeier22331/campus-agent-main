@@ -168,7 +168,7 @@ describe("chat durable staging e2e runner", () => {
 										requestId: "req_01HQ",
 										retryable: false,
 										role: "user",
-										text: "中央民族大学本科学生国家奖学金评审办法",
+										text: "示例大学本科学生国家奖学金评审办法",
 									},
 									{
 										createdAt: "2026-06-04T00:00:02.000Z",
@@ -285,7 +285,7 @@ describe("chat durable staging e2e runner", () => {
 				expect.objectContaining({
 					body: {
 						conversationId: "conv_existing",
-						prompt: "中央民族大学本科学生国家奖学金评审办法",
+						prompt: "示例大学本科学生国家奖学金评审办法",
 					},
 					method: "POST",
 					url: "https://campus.example.com/api/chat/requests/stream",

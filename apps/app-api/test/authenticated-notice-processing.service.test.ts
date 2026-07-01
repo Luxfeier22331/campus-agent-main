@@ -9,13 +9,13 @@ import {
 } from "../src/modules/authenticated-notice-processing-command";
 
 const regulationCleanupSnapshot = {
-	id: "authenticated_notice_portal:notice:muc_internal_portal:186977:run-004:job-004",
-	noticeKey: "authenticated_notice_portal:notice:muc_internal_portal:186977",
+	id: "authenticated_notice_portal:notice:example_internal_portal:186977:run-004:job-004",
+	noticeKey: "authenticated_notice_portal:notice:example_internal_portal:186977",
 	sourceChannel: "authenticated_notice_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
+	siteId: "example_internal_portal",
 	noticeId: "186977",
-	title: "药学院2021年硕博连读博士研究生招生实施细则",
+	title: "甲学院2021年硕博连读博士研究生招生实施细则",
 	runId: "run-004",
 	jobId: "job-004",
 	replayBatchId: "run14-policy-regulation",
@@ -91,7 +91,7 @@ describe("authenticated notice processing command service", () => {
 					{
 						...regulationCleanupSnapshot.timeline[0],
 						payload: {
-							bucket: "campus-rag-derived",
+							bucket: "campus-agent-derived",
 						},
 					},
 				],

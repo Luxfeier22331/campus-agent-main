@@ -9,7 +9,7 @@ from campus_ingestion_core.official_web_regulation_titles import (
 )
 
 _REGULATION_FORMAL_TITLE_RE = re.compile(
-    r"(?P<title>中央民族大学[^\n]{0,80}?(?:办法|规定|章程|细则|规程|制度|规划|条例)"
+    r"(?P<title>示例大学[^\n]{0,80}?(?:办法|规定|章程|细则|规程|制度|规划|条例)"
     r"(?:[（(](?:试行|暂行|修订|最新)[）)])?)"
 )
 _STRUCTURE_MARKER_RE = re.compile(

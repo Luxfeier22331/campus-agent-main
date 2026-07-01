@@ -198,7 +198,7 @@ describe("official web target workset executor", () => {
 			finalUrl: "https://www.example.edu/rules/",
 			declaredCanonicalUrl: null,
 			responseBody:
-				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>中央民族大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>中央民族大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>示例大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>示例大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
 			responseHeaders: {
 				"content-type": "text/html; charset=utf-8",
 			},
@@ -224,7 +224,7 @@ describe("official web target workset executor", () => {
 				compositionRole: null,
 			},
 			html: load(
-				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>中央民族大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>中央民族大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>示例大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>示例大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
 			),
 		});
 		page.pageManifest.pageFamily = "listing_page";
@@ -388,8 +388,8 @@ describe("official web target workset executor", () => {
 							<a href="/index/gsgg/">公示公告</a>
 						</nav>
 						<main>
-							<a href="/rules/policy-a.html">中央民族大学岗位设置与聘用管理暂行办法</a>
-							<a href="/rules/policy-b.html">中央民族大学登记备案人员因私出国（境）管理办法</a>
+							<a href="/rules/policy-a.html">示例大学岗位设置与聘用管理暂行办法</a>
+							<a href="/rules/policy-b.html">示例大学登记备案人员因私出国（境）管理办法</a>
 							<a href="/rules/not-policy.html">办公地点</a>
 							<a href="/">首页</a>
 						</main>
@@ -429,8 +429,8 @@ describe("official web target workset executor", () => {
 							<a href="/index/gsgg/">公示公告</a>
 						</nav>
 						<main>
-							<a href="/rules/policy-a.html">中央民族大学岗位设置与聘用管理暂行办法</a>
-							<a href="/rules/policy-b.html">中央民族大学登记备案人员因私出国（境）管理办法</a>
+							<a href="/rules/policy-a.html">示例大学岗位设置与聘用管理暂行办法</a>
+							<a href="/rules/policy-b.html">示例大学登记备案人员因私出国（境）管理办法</a>
 							<a href="/rules/not-policy.html">办公地点</a>
 							<a href="/">首页</a>
 						</main>

@@ -15,6 +15,10 @@ import {
 	recordString,
 	recordStringArray,
 } from "./normalize-record-utils";
+import {
+	normalizedAllowedPublicNoticeHosts,
+	normalizePublicNoticeUrl,
+} from "./public-notice-url-policy";
 
 function normalizePointGeometry(value: unknown): ChatPlaceCard["pointGeometry"] {
 	if (!isRecord(value)) {
@@ -241,27 +245,10 @@ function normalizeSourceTargetKind(
 	return null;
 }
 
-function normalizePublicNoticeUrl(value: unknown): string | null {
-	const rawUrl = normalizeOptionalString(value);
-	if (!rawUrl) {
-		return null;
-	}
-	try {
-		const url = new URL(rawUrl);
-		const hostname = url.hostname.toLowerCase();
-		const isMucPublicHost =
-			(hostname === "muc.edu.cn" || hostname.endsWith(".muc.edu.cn")) &&
-			hostname !== "my.muc.edu.cn";
-		if (url.protocol !== "https:" || !(isMucPublicHost || hostname === "mp.weixin.qq.com")) {
-			return null;
-		}
-		return url.toString();
-	} catch {
-		return null;
-	}
-}
-
-function sourceOriginalNoticeUrl(source: Record<string, unknown>): string | null {
+function sourceOriginalNoticeUrl(
+	source: Record<string, unknown>,
+	allowedPublicNoticeHosts: Set<string>,
+): string | null {
 	return normalizePublicNoticeUrl(
 		source.original_url ??
 			source.originalUrl ??
@@ -271,6 +258,7 @@ function sourceOriginalNoticeUrl(source: Record<string, unknown>): string | null
 			source.noticeUrl ??
 			source.source_url ??
 			source.sourceUrl,
+		allowedPublicNoticeHosts,
 	);
 }
 
@@ -395,7 +383,10 @@ function buildRestrictedNoticeSourceItem(input: {
 	};
 }
 
-function normalizeSourceItem(source: unknown): ChatSourceItem | null {
+function normalizeSourceItem(
+	source: unknown,
+	allowedPublicNoticeHosts: Set<string>,
+): ChatSourceItem | null {
 	if (!isRecord(source)) {
 		return null;
 	}
@@ -410,7 +401,7 @@ function normalizeSourceItem(source: unknown): ChatSourceItem | null {
 		recordString(source, "source_title", "sourceTitle") ??
 		recordString(source, "title", "title");
 	const snippet = normalizeSnippet(source.snippet);
-	const originalNoticeUrl = sourceOriginalNoticeUrl(source);
+	const originalNoticeUrl = sourceOriginalNoticeUrl(source, allowedPublicNoticeHosts);
 	const targetKind = normalizeSourceTargetKind(
 		source,
 		Boolean(basePath),
@@ -545,6 +536,7 @@ export function resultEvidenceSources(result: unknown): unknown[] {
 }
 
 export function normalizeSourceItemsPart(input: {
+	allowedPublicNoticeHosts?: readonly string[];
 	selectedTool: string | null;
 	status: ToolExecutionResponse["status"];
 	result: unknown;
@@ -555,8 +547,11 @@ export function normalizeSourceItemsPart(input: {
 
 	const sourceItems: ChatSourceItem[] = [];
 	const seenSourceKeys = new Set<string>();
+	const allowedPublicNoticeHosts = normalizedAllowedPublicNoticeHosts(
+		input.allowedPublicNoticeHosts,
+	);
 	for (const source of resultEvidenceSources(input.result)) {
-		const sourceItem = normalizeSourceItem(source);
+		const sourceItem = normalizeSourceItem(source, allowedPublicNoticeHosts);
 		if (!sourceItem) {
 			continue;
 		}
@@ -611,7 +606,7 @@ function formatCampusServiceTraceRef(ref: string): string {
 	if (ref.startsWith("authenticated_notice:")) {
 		return `认证通知 #${ref.split(":").at(-1)}`;
 	}
-	const internalNoticeMatch = ref.match(/^notice:muc_internal_portal:(\d+)$/iu);
+	const internalNoticeMatch = ref.match(/^notice:[a-z0-9._-]{2,120}:(\d+)$/iu);
 	if (internalNoticeMatch) {
 		return `校内通知 #${internalNoticeMatch[1]}`;
 	}
@@ -761,13 +756,17 @@ export function normalizeCampusServiceTracePart(input: {
 }
 
 export function normalizeChatResponseStructuredParts(input: {
+	allowedPublicNoticeHosts?: readonly string[];
 	selectedTool: string | null;
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	return [
 		...normalizePlaceCardPart(input),
-		...normalizeSourceItemsPart(input),
+		...normalizeSourceItemsPart({
+			...input,
+			allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
+		}),
 		...normalizeCampusServiceTracePart(input),
 	];
 }

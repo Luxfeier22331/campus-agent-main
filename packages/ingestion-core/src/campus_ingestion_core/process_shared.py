@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
 
 from campus_ingestion_core.chunking import ChunkProfile, ChunkTextAssembly, SemanticChunkPiece
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -14,6 +14,28 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 
 class ProcessArtifactReader(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
+
+
+@dataclass(frozen=True, slots=True)
+class IndexableChunkNode:
+    id_: str
+    text: str
+    metadata: dict[str, object]
+    relationships: dict[str, object]
+    embedding: list[float] | None = None
+
+    def model_dump_json(self) -> str:
+        return json.dumps(
+            {
+                "id_": self.id_,
+                "text": self.text,
+                "metadata": self.metadata,
+                "relationships": self.relationships,
+                "embedding": self.embedding,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,8 +114,8 @@ class IndexableChunk:
         if policy_projection_version != self.policy_projection_version:
             object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
-    def to_node(self) -> TextNode:
-        node = TextNode(
+    def to_node(self) -> IndexableChunkNode:
+        return IndexableChunkNode(
             id_=str(uuid.uuid5(uuid.NAMESPACE_URL, self.chunk_id)),
             text=self.text,
             metadata={
@@ -121,19 +143,17 @@ class IndexableChunk:
                 **self.metadata,
             },
             relationships={
-                NodeRelationship.SOURCE: RelatedNodeInfo(
-                    node_id=self.document_id,
-                    metadata={
+                "source": {
+                    "node_id": self.document_id,
+                    "metadata": {
                         "revision_track": self.revision_track,
                         "version_id": self.version_id,
                         "source_uri": self.source_uri,
                     },
-                )
+                }
             },
+            embedding=list(self.embedding) if self.embedding is not None else None,
         )
-        if self.embedding is not None:
-            node.embedding = list(self.embedding)
-        return node
 
 
 _SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD = 72
@@ -182,6 +202,7 @@ __all__ = [
     "_SHORT_TEXTUAL_MAX_MEMBER_COUNT",
     "_SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS",
     "IndexableChunk",
+    "IndexableChunkNode",
     "ProcessArtifactReader",
     "StructuredUnit",
     "_ChunkCandidate",

@@ -182,15 +182,16 @@ function contentDispositionFilename(value: string | null): string | null {
 	}
 }
 
-export function classifyOriginScope(urlValue: string): "internal" | "external" | "unsupported" {
+export function classifyOriginScope(
+	urlValue: string,
+	sourceHomeUrl: string,
+): "internal" | "external" | "unsupported" {
 	try {
 		const url = new URL(urlValue);
 		if (url.protocol !== "http:" && url.protocol !== "https:") {
 			return "unsupported";
 		}
-		return url.hostname.endsWith("muc.edu.cn") || url.hostname === "portal.example.edu"
-			? "internal"
-			: "external";
+		return url.origin === new URL(sourceHomeUrl).origin ? "internal" : "external";
 	} catch {
 		return "unsupported";
 	}

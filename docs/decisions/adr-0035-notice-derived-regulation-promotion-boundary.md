@@ -113,11 +113,11 @@ promotion boundary 至少负责判断：
 - 不生成 `regulations/*` target identity
 - 不进入 document reader manifest
 
-示例：`药学院2021年硕博连读博士研究生招生实施细则` 可被识别为
-`policy_regulation`，但它绑定 `药学院 + 2021 + 硕博连读招生` 的历史年度周期，
+示例：`甲学院2021年硕博连读博士研究生招生实施细则` 可被识别为
+`policy_regulation`，但它绑定 `甲学院 + 2021 + 硕博连读招生` 的历史年度周期，
 不应默认进入 regulation 文档站。
 
-示例：`生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 可被识别为
+示例：`示例生命学院关于2021年暑假期间实验室安全管理规定` 可被识别为
 `policy_regulation` 和 scoped operational rule，但它绑定 `2021 + 暑假期间`
 的已过期时间窗口，不应默认进入 regulation 文档站。
 

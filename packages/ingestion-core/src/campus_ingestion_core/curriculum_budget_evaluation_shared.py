@@ -13,11 +13,11 @@ _DEFAULT_SPLIT_MANIFEST_PATH = (
     _REPO_ROOT / "configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"
 )
 _DEFAULT_LAYOUT_FIXTURE_PATH = (
-    _REPO_ROOT / "tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl"
+    _REPO_ROOT / "packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl"
 )
 _DEFAULT_RUNTIME_TITLES = (
-    "国际经济与贸易本科人才培养方案",
-    "经济学拔尖人才创新班人才培养方案",
+    "示例公共事务本科人才培养方案",
+    "示例数据系统本科人才培养方案",
 )
 _DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 

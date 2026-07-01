@@ -12,7 +12,7 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
                 _source_row(
                     192,
                     "heading",
-                    "中央民族大学本科学生专项奖学金评定办法",
+                    "示例大学本科学生专项奖学金评定办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -30,7 +30,7 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
                 _source_row(
                     160,
                     "heading",
-                    "中央民族大学本科学生国家奖学金评审办法",
+                    "示例大学本科学生国家奖学金评审办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -44,8 +44,8 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 192,
                 192,
-                title="中央民族大学本科学生专项奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学本科学生专项奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -65,7 +65,7 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
                 _source_row(
                     192,
                     "heading",
-                    "中央民族大学本科学生专项奖学金评定办法",
+                    "示例大学本科学生专项奖学金评定办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -96,8 +96,8 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 192,
                 192,
-                title="中央民族大学本科学生专项奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学本科学生专项奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -115,7 +115,7 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
                 _source_row(
                     36,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -157,8 +157,8 @@ class HandbookCleanupPhraseCompletionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 36,
                 47,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )

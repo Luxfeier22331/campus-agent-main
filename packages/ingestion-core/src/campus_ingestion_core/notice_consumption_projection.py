@@ -5,9 +5,6 @@ import os
 from campus_ingestion_core.notice_consumption_projection_memory import (
     InMemoryNoticeConsumptionProjectionStore,
 )
-from campus_ingestion_core.notice_consumption_projection_postgres import (
-    PostgresNoticeConsumptionProjectionStore,
-)
 from campus_ingestion_core.notice_consumption_projection_shared import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
@@ -71,44 +68,18 @@ from campus_ingestion_core.notice_consumption_projection_shared import (
     is_notice_query_retained_consumption_status,
     normalize_notice_ids,
 )
-from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-    _postgres_connection,
-)
+from campus_ingestion_core.python_db_runtime import raise_python_db_runtime_retired
 
 
 def build_notice_consumption_projection_store_from_env(
     env: dict[str, str] | None = None,
     *,
     prefer_operator: bool = False,
-) -> PostgresNoticeConsumptionProjectionStore:
-    source = env if env is not None else dict(os.environ)
-    if prefer_operator:
-        operator_database_url = (
-            source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or ""
-        ).strip()
-        if not operator_database_url:
-            raise ValueError(
-                f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
-            )
-        return PostgresNoticeConsumptionProjectionStore(
-            database_url=build_operator_postgres_connection_url(operator_database_url)
-        )
-    database_url = (
-        source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY)
-        or source.get(SHARED_POSTGRES_ENV_KEY)
-        or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(
-            f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
-        )
-    return PostgresNoticeConsumptionProjectionStore(database_url=database_url)
+) -> NoticeConsumptionProjectionStore:
+    del env, prefer_operator
+    if os.environ:
+        pass
+    raise_python_db_runtime_retired("notice consumption projection")
 
 
 __all__ = [
@@ -172,8 +143,6 @@ __all__ = [
     "InMemoryNoticeConsumptionProjectionStore",
     "NoticeConsumptionProjectionEntry",
     "NoticeConsumptionProjectionStore",
-    "PostgresNoticeConsumptionProjectionStore",
-    "_postgres_connection",
     "build_notice_consumption_projection_store_from_env",
     "is_notice_query_retained_consumption_status",
     "normalize_notice_ids",

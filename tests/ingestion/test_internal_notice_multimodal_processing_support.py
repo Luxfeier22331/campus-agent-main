@@ -4,10 +4,6 @@ import json
 
 import unittest
 
-from dataclasses import asdict
-
-from unittest.mock import patch
-
 import httpx
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -23,7 +19,6 @@ from campus_ingestion_core.internal_notice_multimodal_processing import (
     InternalNoticeMultimodalAttempt,
     InternalNoticeMultimodalDecision,
     InternalNoticeMultimodalProcessingRequest,
-    PostgresInternalNoticeMultimodalAttemptStore,
     build_internal_notice_multimodal_attempt_store_from_env,
     build_internal_notice_multimodal_processor_from_env,
     drain_internal_notice_pending_multimodal_entries,
@@ -102,45 +97,6 @@ class _FakeAgentsSdkRunner:
         return dict(self.result)
 
 
-class _FakeCursorContextManager:
-    def __init__(self, cursor: object) -> None:
-        self._cursor = cursor
-
-    def __enter__(self) -> object:
-        return self._cursor
-
-    def __exit__(self, exc_type, exc, tb) -> bool:
-        return False
-
-
-class _FakeConnectionContextManager:
-    def __init__(self, cursor: object) -> None:
-        self._cursor = cursor
-
-    def __enter__(self) -> _FakeConnectionContextManager:
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> bool:
-        return False
-
-    def cursor(self) -> _FakeCursorContextManager:
-        return _FakeCursorContextManager(self._cursor)
-
-
-class _PagedCursor:
-    def __init__(self, pages: list[list[tuple[object, ...]]]) -> None:
-        self._pages = list(pages)
-        self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
-
-    def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
-        self.execute_calls.append((query, params))
-
-    def fetchall(self) -> list[tuple[object, ...]]:
-        if not self._pages:
-            return []
-        return self._pages.pop(0)
-
-
 def _pending_entry(notice_id: str) -> NoticeConsumptionProjectionEntry:
     return NoticeConsumptionProjectionEntry(
         source_family="internal_notice_restricted",
@@ -156,8 +112,8 @@ def _pending_entry(notice_id: str) -> NoticeConsumptionProjectionEntry:
         completeness_status="requires_multimodal_processing",
         answerability="not_answerable",
         consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
         role_metadata={
             "notice_title": f"测试通知 {notice_id}",
             "reasons": ("multimodal_processing_required",),
@@ -180,8 +136,8 @@ def _notice_window_entry(notice_id: str) -> NoticeConsumptionProjectionEntry:
         completeness_status="complete",
         answerability="answerable",
         consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
     )
 
 
@@ -190,8 +146,8 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
         corpus="campus_notices",
         collection="internal_notice",
         notice_id=notice_id,
-        site_id="muc_internal_portal",
-        document_id=f"notice:muc_internal_portal:{notice_id}",
+        site_id="example_internal_portal",
+        document_id=f"notice:example_internal_portal:{notice_id}",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
         raw_asset_id=f"asset:{notice_id}",
@@ -220,7 +176,7 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
                     "attachment_ref_id": "attachment-map",
                     "classification": "multimodal_processing_required",
                     "materialization_policy": "multimodal_processing",
-                    "document_id": f"notice_attachment:muc_internal_portal:{notice_id}:attachment-map",
+                    "document_id": f"notice_attachment:example_internal_portal:{notice_id}:attachment-map",
                     "review_reason": "spatial_visual_asset",
                 }
             ],
@@ -235,7 +191,7 @@ def _jsonl_bytes(rows: tuple[dict[str, object], ...]) -> bytes:
 def _multimodal_attachment_objects(
     notice_ids: tuple[str, ...] = ("351907",),
     *,
-    bucket: str = "campus-rag-source",
+    bucket: str = "campus-agent-source",
 ) -> dict[tuple[str, str], bytes]:
     objects: dict[tuple[str, str], bytes] = {}
     for notice_id in notice_ids:

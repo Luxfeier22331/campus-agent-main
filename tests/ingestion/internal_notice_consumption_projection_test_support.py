@@ -28,8 +28,8 @@ def _env() -> dict[str, str]:
         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-        "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+        "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+        "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
         "EMBEDDING_PROVIDER": "mock",
         "EMBEDDING_MODEL": "mock-embedding-8d",
         "SPARSE_PROVIDER": "mock",
@@ -69,17 +69,17 @@ def _build_runtime(*, extra_notice_rows=()):
         (
             _inventory_entry(
                 notice_id="187233",
-                notice_title="关于修订《中央民族大学采购工作管理办法》的通知",
+                notice_title="关于修订《示例大学采购工作管理办法》的通知",
                 published_date="2021-02-28 16:09",
             ),
             _inventory_entry(
                 notice_id="351907",
-                notice_title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                notice_title="示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                 published_date="2026-04-01 10:00",
             ),
             _inventory_entry(
                 notice_id="351908",
-                notice_title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                notice_title="示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                 published_date="2026-04-02 10:00",
             ),
         )
@@ -87,31 +87,34 @@ def _build_runtime(*, extra_notice_rows=()):
     object_store = _FakeObjectStore(
         objects={
             (
-                "campus-rag-derived",
+                "campus-agent-derived",
                 institutional.canonical_markdown_object_key,
             ): _canonical_markdown(
-                "# 中央民族大学采购工作管理办法\n\n第一条 为规范学校采购工作，制定本办法。\n第二条 本办法自2021年3月1日起施行。\n"
-            ),
-            ("campus-rag-derived", annual_ready.canonical_markdown_object_key): _canonical_markdown(
-                "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n第二条 本细则适用于新闻与传播学院相关学生。\n"
+                "# 示例大学采购工作管理办法\n\n第一条 为规范学校采购工作，制定本办法。\n第二条 本办法自2021年3月1日起施行。\n"
             ),
             (
-                "campus-rag-derived",
+                "campus-agent-derived",
+                annual_ready.canonical_markdown_object_key,
+            ): _canonical_markdown(
+                "# 示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n第二条 本细则适用于示例传媒学院相关学生。\n"
+            ),
+            (
+                "campus-agent-derived",
                 annual_pending.canonical_markdown_object_key,
             ): _canonical_markdown(
-                "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 本细则所涉具体选拔条件详见附件《新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则》。\n第二条 学生应按附件要求准备材料。\n附件：《新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则》\n"
+                "# 示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 本细则所涉具体选拔条件详见附件《示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则》。\n第二条 学生应按附件要求准备材料。\n附件：《示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则》\n"
             ),
-            ("campus-rag-derived", institutional.document_units_object_key): _document_units([]),
-            ("campus-rag-derived", annual_ready.document_units_object_key): _document_units([]),
-            ("campus-rag-derived", annual_pending.document_units_object_key): _document_units([]),
+            ("campus-agent-derived", institutional.document_units_object_key): _document_units([]),
+            ("campus-agent-derived", annual_ready.document_units_object_key): _document_units([]),
+            ("campus-agent-derived", annual_pending.document_units_object_key): _document_units([]),
             **{
-                ("campus-rag-derived", record.canonical_markdown_object_key): _canonical_markdown(
+                ("campus-agent-derived", record.canonical_markdown_object_key): _canonical_markdown(
                     f"# {record.document_id}\n\n{record.document_id}\n"
                 )
                 for record in extra_notice_rows
             },
             **{
-                ("campus-rag-derived", record.document_units_object_key): _document_units([])
+                ("campus-agent-derived", record.document_units_object_key): _document_units([])
                 for record in extra_notice_rows
             },
         }
@@ -137,7 +140,7 @@ def _attachment_runtime_record(*, notice_id: str, attachment_ref_id: str, title_
         title=f"附件 {attachment_ref_id}",
     )
     attachment_document_id = (
-        f"notice_attachment:muc_internal_portal:{notice_id}:{attachment_ref_id}"
+        f"notice_attachment:example_internal_portal:{notice_id}:{attachment_ref_id}"
     )
     return replace(
         parent,
@@ -198,7 +201,7 @@ def _commute_inventory_entry(*, notice_id: str, notice_title: str):
             {
                 "attachment_ref_id": "attachment-0001",
                 "classification": "ocr_required",
-                "document_id": f"notice_attachment:muc_internal_portal:{notice_id}:attachment-0001",
+                "document_id": f"notice_attachment:example_internal_portal:{notice_id}:attachment-0001",
                 "materialization_policy": "required_document",
                 "attachment_filename": "班次表.jpg",
             },
@@ -265,12 +268,12 @@ def _machine_processing_report(
     notice_id: str,
     document_nature: str,
     reasons: tuple[str, ...],
-    source_title: str = "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+    source_title: str = "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
 ) -> InternalNoticeRegulationPromotionDocumentReport:
     return InternalNoticeRegulationPromotionDocumentReport(
         document_id=document_id,
         notice_id=notice_id,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         source_kind="parent_notice",
         source_title=source_title,
         input_lane="notice_body",
@@ -283,7 +286,7 @@ def _machine_processing_report(
         target_corpus="regulations",
         target_collection="scoped_rules",
         regulation_title_normalized=source_title,
-        issuing_org="中央民族大学",
+        issuing_org="示例大学",
         effective_date=None,
         revision_signal=None,
         source_notice_release_time="2026-04-01 10:00",

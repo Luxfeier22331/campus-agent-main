@@ -45,8 +45,8 @@ class ObjectStoreConfigTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.region, "us-east-1")
-        self.assertEqual(settings.bucket_source, "campus-rag-source")
-        self.assertEqual(settings.bucket_derived, "campus-rag-derived")
+        self.assertEqual(settings.bucket_source, "campus-agent-source")
+        self.assertEqual(settings.bucket_derived, "campus-agent-derived")
         self.assertFalse(settings.secure)
 
     def test_legacy_bucket_envs_no_longer_override_source_and_derived_fields(self) -> None:
@@ -60,8 +60,8 @@ class ObjectStoreConfigTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(settings.bucket_source, "campus-rag-source")
-        self.assertEqual(settings.bucket_derived, "campus-rag-derived")
+        self.assertEqual(settings.bucket_source, "campus-agent-source")
+        self.assertEqual(settings.bucket_derived, "campus-agent-derived")
 
     def test_bucket_name_resolution_ignores_legacy_envs_without_full_settings(self) -> None:
         bucket_source, bucket_derived = resolve_object_store_bucket_names(
@@ -71,8 +71,8 @@ class ObjectStoreConfigTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(bucket_source, "campus-rag-source")
-        self.assertEqual(bucket_derived, "campus-rag-derived")
+        self.assertEqual(bucket_source, "campus-agent-source")
+        self.assertEqual(bucket_derived, "campus-agent-derived")
 
     def test_rejects_local_directory_fallback_endpoint(self) -> None:
         with self.assertRaises(ValueError):
@@ -102,14 +102,14 @@ class ObjectStoreConfigTest(unittest.TestCase):
     def test_build_raw_asset_key_uses_asset_namespace(self) -> None:
         object_key = build_raw_asset_key(
             corpus="regulations",
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:raw-001",
             filename="student-handbook.pdf",
         )
 
         self.assertEqual(
             object_key,
-            "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
+            "official_pdf/synthetic-student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
         )
 
     def test_build_processed_artifact_key_supports_curriculum_plan(self) -> None:
@@ -134,7 +134,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
         first_key = build_processed_artifact_key(
             corpus="campus_notices",
             collection="internal_notice",
-            document_id="notice_attachment:muc_internal_portal:353901:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:353901:attachment-0001",
             revision_track="source-faithful",
             version_id="sha256:attachment-a",
             filename="document-units.jsonl",
@@ -144,7 +144,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
         second_key = build_processed_artifact_key(
             corpus="campus_notices",
             collection="internal_notice",
-            document_id="notice_attachment:muc_internal_portal:354270:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:354270:attachment-0001",
             revision_track="source-faithful",
             version_id="sha256:attachment-b",
             filename="document-units.jsonl",
@@ -158,7 +158,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self,
     ) -> None:
         title = (
-            "2022年中央民族大学新校区图书馆阅览设施及资源建设项目-"
+            "2022年示例大学新校区图书馆阅览设施及资源建设项目-"
             "中国历史文献总库.民国图书数据库、人大“复印报刊资料”全文数据库、"
             "民族特色特藏资源数据库、Emerald电子系列丛书数据库采购成交公告"
         )
@@ -166,7 +166,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
         object_key = build_processed_artifact_key(
             corpus="campus_notices",
             collection="internal_notice",
-            document_id="notice:muc_internal_portal:198705",
+            document_id="notice:example_internal_portal:198705",
             revision_track="source-faithful",
             version_id="sha256:089db276965bd6494fcd6e99d0501457e064361af0d3bce6cac70fae3aad0a13",
             filename="document-units.jsonl",
@@ -194,24 +194,24 @@ class ObjectStoreConfigTest(unittest.TestCase):
     def test_build_processed_asset_artifact_key_uses_source_stage_namespace(self) -> None:
         provider_key = build_processed_asset_artifact_key(
             corpus="regulations",
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:raw-001",
             filename="provider-response.jsonl",
         )
         layout_key = build_processed_asset_artifact_key(
             corpus="regulations",
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:raw-001",
             filename="layout-elements.jsonl",
         )
 
         self.assertEqual(
             provider_key,
-            "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            "official_pdf/synthetic-student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
         )
         self.assertEqual(
             layout_key,
-            "official_pdf/student-handbook/undated/sha256/raw-001/source-truth/layout-elements.jsonl",
+            "official_pdf/synthetic-student-handbook/undated/sha256/raw-001/source-truth/layout-elements.jsonl",
         )
 
     def test_parse_source_object_key_supports_provider_stage(self) -> None:
@@ -228,7 +228,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
     def test_parse_source_object_key_supports_projection_stage(self) -> None:
         key = build_source_projection_artifact_key(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:raw-001",
             projection_name="handbook_navigation_service_catalog",
             filename="flow-graph.json",
@@ -239,7 +239,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertEqual(
             key,
-            "official_pdf/student-handbook/2018/sha256/raw-001/projection/handbook_navigation_service_catalog/flow-graph.json",
+            "official_pdf/synthetic-student-handbook/2018/sha256/raw-001/projection/handbook_navigation_service_catalog/flow-graph.json",
         )
         self.assertEqual(parsed["raw_version_id"], "sha256:raw-001")
         self.assertEqual(parsed["stage"], "projection")

@@ -115,7 +115,11 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - provider-specific route or geocode logic
 - browser map rendering
 
-### `packages/navigation-tool`
+### Navigation Tool Runtime
+
+当前 `place_lookup` 没有 model-visible runtime；旧 Python
+`packages/navigation-tool` 已退役。重新开放前必须在 TS/Go owner 中重新建立 typed
+tool runtime 或 internal query service。
 
 长期负责：
 

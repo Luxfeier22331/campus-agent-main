@@ -99,9 +99,9 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 - 这类页面当前固定使用 `promotion_block_reason = low_value_public_notice_audit_only`
 - 它们允许进入 replay / validator / chunk audit，但不得进入 promote / release truth
 - 当前已确认落在这条规则下的页面包括：
-  - `中央民族大学公开招聘及公示信息`
-  - `中央民族大学2020年公开招聘补充公告`
-  - `中央民族大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示`
+  - `示例大学公开招聘及公示信息`
+  - `示例大学2020年公开招聘补充公告`
+  - `示例大学海淀校区家具加装嵌入式插座项目采购谈判结果公示`
 
 通过条件：
 
@@ -348,12 +348,12 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `current_scope_follow_up_candidate`
   - 当前为空
 - `future_fresh_news_surface`
-  - 当前 `8` 条 news 页面，包括 `中央民族大学与北京丰台人才集团共建就业实习实践基地` 这类已用于 cross-host regression
+  - 当前 `8` 条 news 页面，包括 `示例大学与示例人才集团共建就业实习实践基地` 这类已用于 cross-host regression
     的新闻页
 
 对应 machine-checkable fixture：
 
-- historical `official_web_muc_public_pages/current_truth_inventory` fixture
+- historical `official_web_example_pages/current_truth_inventory` fixture
   was removed from active `packages/eval-langfuse`; recover it from git history
   only if the mixed inventory surface is reopened with an explicit owner
 

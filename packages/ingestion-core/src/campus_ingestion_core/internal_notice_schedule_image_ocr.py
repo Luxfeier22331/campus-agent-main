@@ -24,11 +24,6 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr_constants import (
     ScheduleImageOcrAdmissionStatus,
     ScheduleImageOcrConfidence,
 )
-from campus_ingestion_core.internal_notice_schedule_image_ocr_db import (
-    InMemoryScheduleImageOcrAttemptStore,
-    PostgresScheduleImageOcrAttemptStore,
-    build_schedule_image_ocr_attempt_store_from_env,
-)
 from campus_ingestion_core.internal_notice_schedule_image_ocr_dry_run import (
     run_schedule_image_ocr_dry_run,
 )
@@ -37,6 +32,7 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr_inventory import (
     load_schedule_image_ocr_evidence_inventory,
 )
 from campus_ingestion_core.internal_notice_schedule_image_ocr_models import (
+    InMemoryScheduleImageOcrAttemptStore,
     ScheduleImageOcrAdmissionDecision,
     ScheduleImageOcrArtifactKeys,
     ScheduleImageOcrAttempt,
@@ -61,6 +57,9 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr_provider import (
 from campus_ingestion_core.internal_notice_schedule_image_ocr_scalars import (
     normalize_schedule_image_ocr_attachment_ref_id,
 )
+from campus_ingestion_core.internal_notice_schedule_image_ocr_store import (
+    build_schedule_image_ocr_attempt_store_from_env,
+)
 
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY",
@@ -70,7 +69,6 @@ __all__ = [
     "DEFAULT_SCHEDULE_IMAGE_OCR_MAX_OUTPUT_TOKENS",
     "ChatCompletionsScheduleImageOcrProvider",
     "InMemoryScheduleImageOcrAttemptStore",
-    "PostgresScheduleImageOcrAttemptStore",
     "ScheduleImageOcrAdmissionDecision",
     "ScheduleImageOcrAdmissionStatus",
     "ScheduleImageOcrArtifactKeys",

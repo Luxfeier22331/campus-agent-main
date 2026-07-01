@@ -26,7 +26,7 @@ def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentReg
         document_id=document_id,
         revision_track="current-effective",
         version_id=version_id,
-        source_uri=f"campusrag://promotion/internal_notice_scoped_rules/{document_id}",
+        source_uri=f"campus-agent://promotion/synthetic_notice_scoped_rules/{document_id}",
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
         collection="scoped_rules",
@@ -50,7 +50,7 @@ def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentReg
 
 def _source_notice_record(*, notice_id: str) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
-        document_id=f"notice:muc_internal_portal:{notice_id}",
+        document_id=f"notice:example_internal_portal:{notice_id}",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
         source_uri=f"https://portal.example.edu/notices/{notice_id}",
@@ -241,7 +241,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
         self,
     ) -> None:
         record = _record(
-            document_id="institutional_regulation:muc:历史专项规则:chunk-quality",
+            document_id="institutional_regulation:example:历史专项规则:chunk-quality",
             version_id="sha256:scoped:chunk-quality",
             units_key="regulations/documents/scoped_rules/chunk-quality/document-units.jsonl",
         )
@@ -324,49 +324,49 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
 
     def test_prepare_scoped_rule_chunks_emits_local_only_artifacts_and_validation(self) -> None:
         annual_record = _record(
-            document_id="institutional_regulation:muc:推免工作实施细则:abc12345",
+            document_id="institutional_regulation:example:推免工作实施细则:abc12345",
             version_id="sha256:annual:1",
             units_key="regulations/documents/scoped_rules/annual-rule/document-units.jsonl",
         )
         seasonal_record = _record(
-            document_id="institutional_regulation:muc:暑假实验室安全管理规定:def67890",
+            document_id="institutional_regulation:example:暑假实验室安全管理规定:def67890",
             version_id="sha256:seasonal:1",
             units_key="regulations/documents/scoped_rules/seasonal-rule/document-units.jsonl",
         )
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     annual_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=annual_record.document_id,
                     version_id=annual_record.version_id,
-                    title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                    title="示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                     document_nature="annual_cycle_rule",
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-04-01 12:00",
                     cycle_year="2026",
-                    school_unit_name="新闻与传播学院",
+                    school_unit_name="示例传媒学院",
                     body_blocks=(
                         "## 第一条",
                         "为规范推荐2026届本科生免试攻读研究生工作，制定本细则。",
                         "## 第二条",
-                        "本细则适用于新闻与传播学院相关学生。",
+                        "本细则适用于示例传媒学院相关学生。",
                         "附件：推荐免试攻读研究生申请材料清单",
                     ),
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     seasonal_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=seasonal_record.document_id,
                     version_id=seasonal_record.version_id,
-                    title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     document_nature="time_bound_operational_rule",
                     source_notice_ids=("191176", "191177"),
                     source_notice_release_time="2021-07-01 08:00",
                     cycle_year="2021",
-                    school_unit_name="生命与环境科学学院",
+                    school_unit_name="示例生命学院",
                     body_blocks=(
                         "## 第一条",
                         "为加强暑假期间实验室安全管理，制定本规定。",
@@ -443,19 +443,19 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
         self,
     ) -> None:
         annual_record = _record(
-            document_id="institutional_regulation:muc:推免工作实施细则:missing-year",
+            document_id="institutional_regulation:example:推免工作实施细则:missing-year",
             version_id="sha256:annual:missing-year",
             units_key="regulations/documents/scoped_rules/missing-year/document-units.jsonl",
         )
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     annual_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=annual_record.document_id,
                     version_id=annual_record.version_id,
-                    title="新闻与传播学院推荐本科生免试攻读研究生工作实施细则",
+                    title="示例传媒学院推荐本科生免试攻读研究生工作实施细则",
                     document_nature="annual_cycle_rule",
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-04-01 12:00",
@@ -490,19 +490,19 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
         self,
     ) -> None:
         annual_record = _record(
-            document_id="institutional_regulation:muc:推免工作实施细则:missing-school-unit",
+            document_id="institutional_regulation:example:推免工作实施细则:missing-school-unit",
             version_id="sha256:annual:missing-school-unit",
             units_key="regulations/documents/scoped_rules/missing-school-unit/document-units.jsonl",
         )
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     annual_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=annual_record.document_id,
                     version_id=annual_record.version_id,
-                    title="中央民族大学2026届推荐本科生免试攻读研究生工作实施细则",
+                    title="示例大学2026届推荐本科生免试攻读研究生工作实施细则",
                     document_nature="annual_cycle_rule",
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-04-01 12:00",
@@ -536,14 +536,14 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
 
     def test_prepare_scoped_rule_chunks_blocks_generated_at_release_time(self) -> None:
         scoped_record = _record(
-            document_id="institutional_regulation:muc:历史专项规则:generated-at-release-time",
+            document_id="institutional_regulation:example:历史专项规则:generated-at-release-time",
             version_id="sha256:scoped:generated-at-release-time",
             units_key="regulations/documents/scoped_rules/generated-at/document-units.jsonl",
         )
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     scoped_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=scoped_record.document_id,
@@ -553,7 +553,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-05-02T00:00:00+00:00",
                     cycle_year="2026",
-                    school_unit_name="新闻与传播学院",
+                    school_unit_name="示例传媒学院",
                     body_blocks=(
                         "## 第一条",
                         "为规范历史专项规则处理流程，制定本规则。",
@@ -579,14 +579,14 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
 
     def test_prepare_scoped_rule_chunks_blocks_html_and_body_like_section_path(self) -> None:
         scoped_record = _record(
-            document_id="institutional_regulation:muc:历史专项规则:html-section-path",
+            document_id="institutional_regulation:example:历史专项规则:html-section-path",
             version_id="sha256:scoped:html-section-path",
             units_key="regulations/documents/scoped_rules/html-section-path/document-units.jsonl",
         )
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     scoped_record.document_units_object_key or "",
                 ): _scoped_rule_rows(
                     document_id=scoped_record.document_id,
@@ -596,7 +596,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-04-01 12:00",
                     cycle_year="2026",
-                    school_unit_name="新闻与传播学院",
+                    school_unit_name="示例传媒学院",
                     body_blocks=(
                         "## （一）应遵守学校纪律要求；",
                         "申请者应按要求提交材料。<table><tr><td>材料</td></tr></table>",

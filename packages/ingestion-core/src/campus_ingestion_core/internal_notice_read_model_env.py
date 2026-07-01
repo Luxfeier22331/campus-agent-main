@@ -2,50 +2,21 @@ from __future__ import annotations
 
 import os
 
-from campus_ingestion_core.internal_notice_read_model_postgres import (
-    PostgresInternalNoticeReadModelStore,
-)
 from campus_ingestion_core.internal_notice_read_model_shared import (
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
+    InternalNoticeReadModelStore,
 )
-from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.python_db_runtime import raise_python_db_runtime_retired
 
 
 def build_internal_notice_read_model_store_from_env(
     env: dict[str, str] | None = None,
     *,
     prefer_operator: bool = False,
-) -> PostgresInternalNoticeReadModelStore:
-    source = env if env is not None else dict(os.environ)
-    if prefer_operator:
-        operator_database_url = (
-            source.get(DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or ""
-        ).strip()
-        if not operator_database_url:
-            raise ValueError(
-                f"{DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
-            )
-        return PostgresInternalNoticeReadModelStore(
-            database_url=build_operator_postgres_connection_url(operator_database_url)
-        )
-    database_url = (
-        source.get(DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY)
-        or source.get(SHARED_POSTGRES_ENV_KEY)
-        or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(
-            f"{DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
-        )
-    return PostgresInternalNoticeReadModelStore(database_url=database_url)
+) -> InternalNoticeReadModelStore:
+    del env, prefer_operator
+    if os.environ:
+        pass
+    raise_python_db_runtime_retired("internal notice read model store")
 
 
 __all__ = ("build_internal_notice_read_model_store_from_env",)

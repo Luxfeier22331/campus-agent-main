@@ -14,9 +14,9 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
     return InternalNoticeRegulationCandidateArtifactDocument(
         candidate_id="0425aed278c86fda",
-        source_document_id="notice:muc_internal_portal:187233",
+        source_document_id="notice:example_internal_portal:187233",
         notice_id="187233",
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         source_kind="parent_notice",
         input_lane="notice_body",
         revision_track="source-faithful",
@@ -26,12 +26,12 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         semantic_owner_kind="notice_body",
         target_corpus="regulations",
         target_collection="institutional_rules",
-        regulation_title_normalized="中央民族大学采购工作管理办法",
-        issuing_org="中央民族大学",
+        regulation_title_normalized="示例大学采购工作管理办法",
+        issuing_org="示例大学",
         effective_date="2021年3月1日",
         revision_signal="修订",
         source_notice_release_time="2021-02-28 16:09",
-        source_parent_document_id="notice:muc_internal_portal:187233",
+        source_parent_document_id="notice:example_internal_portal:187233",
         source_attachment_ref_id=None,
         source_attachment_sha256=None,
         source_uri="https://portal.example.edu/notices/187233",
@@ -64,21 +64,21 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
             "2.填报采购申请：校内集中采购项目在服务门户的采购申请模块中填报采购需求；\n\n"
             "3.采购申请受理：资产管理处（招标采购中心）受理采购申请，组织采购。"
         ),
-        artifact_markdown_path="candidates/中央民族大学采购工作管理办法--0425aed278c86fda/canonical.md",
+        artifact_markdown_path="candidates/示例大学采购工作管理办法--0425aed278c86fda/canonical.md",
         artifact_body_sha256="ba2650d0594638552323b13693d065765ac9746a4229cf4ca47b959c61843ef4",
-        regulation_work_title="中央民族大学采购工作管理办法",
+        regulation_work_title="示例大学采购工作管理办法",
         regulation_edition_label=None,
-        regulation_display_title="中央民族大学采购工作管理办法",
-        source_title_literal="中央民族大学采购工作管理办法",
+        regulation_display_title="示例大学采购工作管理办法",
+        source_title_literal="示例大学采购工作管理办法",
     )
 
 
 def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
     return InternalNoticeRegulationCandidateArtifactDocument(
         candidate_id="7c2f1e6f9d6aa381",
-        source_document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
+        source_document_id="notice_attachment:example_internal_portal:355282:attachment-0001",
         notice_id="355282",
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         source_kind="attachment_document",
         input_lane="attachment_document",
         revision_track="source-faithful",
@@ -88,12 +88,12 @@ def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifact
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
         target_collection="institutional_rules",
-        regulation_title_normalized="中央民族大学关于学生使用人工智能的指导意见（2026版）",
-        issuing_org="中央民族大学",
+        regulation_title_normalized="示例大学关于学生使用人工智能的指导意见（2026版）",
+        issuing_org="示例大学",
         effective_date=None,
         revision_signal=None,
         source_notice_release_time="2026-03-27 15:15",
-        source_parent_document_id="notice:muc_internal_portal:355282",
+        source_parent_document_id="notice:example_internal_portal:355282",
         source_attachment_ref_id="attachment-0001",
         source_attachment_sha256="sha256-guideline",
         source_uri="https://portal.example.edu/files/355282.docx",
@@ -109,12 +109,12 @@ def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifact
         ),
         reasons=(),
         promotion_body="第一条 为规范学生使用人工智能，制定本指导意见。",
-        artifact_markdown_path="candidates/中央民族大学关于学生使用人工智能的指导意见（2026版）--7c2f1e6f9d6aa381/canonical.md",
+        artifact_markdown_path="candidates/示例大学关于学生使用人工智能的指导意见（2026版）--7c2f1e6f9d6aa381/canonical.md",
         artifact_body_sha256="7c2f1e6f9d6aa381",
-        regulation_work_title="中央民族大学关于学生使用人工智能的指导意见",
+        regulation_work_title="示例大学关于学生使用人工智能的指导意见",
         regulation_edition_label="2026版",
-        regulation_display_title="中央民族大学关于学生使用人工智能的指导意见 / 2026版",
-        source_title_literal="中央民族大学关于学生使用人工智能的指导意见（2026版）",
+        regulation_display_title="示例大学关于学生使用人工智能的指导意见 / 2026版",
+        source_title_literal="示例大学关于学生使用人工智能的指导意见（2026版）",
     )
 
 
@@ -165,19 +165,17 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
         )
         self.assertEqual(rows[7]["anchor"]["provision_label"], "1.")
         self.assertEqual(rows[0]["metadata"]["semantic_owner_kind"], "notice_body")
+        self.assertEqual(rows[0]["metadata"]["regulation_work_title"], "示例大学采购工作管理办法")
         self.assertEqual(
-            rows[0]["metadata"]["regulation_work_title"], "中央民族大学采购工作管理办法"
-        )
-        self.assertEqual(
-            rows[0]["metadata"]["regulation_display_title"], "中央民族大学采购工作管理办法"
+            rows[0]["metadata"]["regulation_display_title"], "示例大学采购工作管理办法"
         )
         self.assertEqual(
             rows[0]["metadata"]["source_notice_document_id"],
-            "notice:muc_internal_portal:187233",
+            "notice:example_internal_portal:187233",
         )
         self.assertEqual(
             rows[0]["metadata"]["semantic_owner_document_id"],
-            "notice:muc_internal_portal:187233",
+            "notice:example_internal_portal:187233",
         )
 
     def test_projected_document_uses_work_title_for_identity_and_display_title_for_title(
@@ -189,19 +187,19 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
 
         self.assertEqual(
             projected.title,
-            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+            "示例大学关于学生使用人工智能的指导意见 / 2026版",
         )
         self.assertEqual(
             projected.metadata["title"],
-            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+            "示例大学关于学生使用人工智能的指导意见 / 2026版",
         )
         self.assertIn(
-            "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:",
+            "institutional_regulation:example:示例大学关于学生使用人工智能的指导意见:",
             projected.document_id,
         )
         self.assertEqual(
             projected.canonical_markdown.splitlines()[0],
-            "# 中央民族大学关于学生使用人工智能的指导意见（2026版）",
+            "# 示例大学关于学生使用人工智能的指导意见（2026版）",
         )
 
 

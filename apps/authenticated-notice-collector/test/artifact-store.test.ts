@@ -29,7 +29,7 @@ describe("authenticated-notice artifact store env", () => {
 				OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
 				OBJECT_STORE_SOURCE_SECRET_KEY: "source-sk",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			} as never),
 		).not.toThrow();
 	});
@@ -37,7 +37,7 @@ describe("authenticated-notice artifact store env", () => {
 	it("verifies a stored object with head metadata after upload", async () => {
 		const sentCommandNames: string[] = [];
 		const store = createAuthenticatedNoticeArtifactStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client: {
 				async send(command) {
 					sentCommandNames.push(command.constructor.name);
@@ -63,7 +63,7 @@ describe("authenticated-notice artifact store env", () => {
 
 		expect(sentCommandNames).toEqual(["PutObjectCommand", "HeadObjectCommand"]);
 		expect(ref).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byteSize: 5,
 			contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 			objectKey: "authenticated_notice_portal/runs/run/notices-bundle.json",
@@ -72,7 +72,7 @@ describe("authenticated-notice artifact store env", () => {
 
 	it("fails closed when post-upload head metadata does not match payload size", async () => {
 		const store = createAuthenticatedNoticeArtifactStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client: {
 				async send(command) {
 					if (command.constructor.name === "PutObjectCommand") {

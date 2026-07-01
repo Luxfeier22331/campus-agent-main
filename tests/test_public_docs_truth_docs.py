@@ -62,7 +62,7 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
         self.assertNotEqual(checked_in_docs, ())
 
         for text in checked_in_docs:
-            self.assertNotIn("campus-rag-derived", text)
+            self.assertNotIn("campus-agent-derived", text)
             self.assertNotIn("canonical.md", text)
             self.assertNotIn("document-units.jsonl", text)
 

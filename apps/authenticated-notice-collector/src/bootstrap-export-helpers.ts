@@ -519,6 +519,9 @@ function buildPortalPrintUrl(input: {
 		return null;
 	}
 	const origin = sourceHomeOrigin(input.sourceHomeUrl);
+	if (!origin) {
+		return null;
+	}
 	const params = new URLSearchParams({
 		type: noticeType,
 		notice_id: String(input.noticeId),
@@ -530,11 +533,12 @@ function buildPortalPrintUrl(input: {
 	return `${origin}/#/print?${params.toString()}`;
 }
 
-function sourceHomeOrigin(value: string | null | undefined): string {
+function sourceHomeOrigin(value: string | null | undefined): string | null {
 	try {
-		return new URL(value?.trim() || "https://my.muc.edu.cn").origin;
+		const trimmed = value?.trim();
+		return trimmed ? new URL(trimmed).origin : null;
 	} catch {
-		return "https://my.muc.edu.cn";
+		return null;
 	}
 }
 

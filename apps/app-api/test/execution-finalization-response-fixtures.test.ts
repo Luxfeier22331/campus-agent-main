@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 
-const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/tool_execution_contract");
+const fixtureDir = resolve(
+	process.cwd(),
+	"../..",
+	"packages/contracts/fixtures/tool_execution_contract",
+);
 
 function loadFixture(name: string): Record<string, unknown> {
 	return JSON.parse(readFileSync(join(fixtureDir, name), "utf8")) as Record<string, unknown>;
@@ -35,7 +39,7 @@ describe("execution finalization canonical response fixtures", () => {
 				loadFixture("response_temporal_finalization.valid.json"),
 			),
 		).toMatchObject({
-			answerText: "国家奖学金按学校现行评审办法执行。",
+			answerText: "示例奖学金按合成评审办法执行。",
 			error: null,
 			selectedTool: "knowledge_query",
 			status: "completed",

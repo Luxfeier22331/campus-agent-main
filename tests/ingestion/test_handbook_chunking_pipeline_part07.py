@@ -36,7 +36,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                         "section_path": ["第三章 听证程序"],
                         "article_label": "第十二条",
                     },
-                    metadata={"title": "中央民族大学学生听证实施办法"},
+                    metadata={"title": "示例大学学生听证实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -133,7 +133,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                         "section_path": ["第二章 听证申请"],
                         "article_label": "第十条",
                     },
-                    metadata={"title": "中央民族大学学生听证实施办法"},
+                    metadata={"title": "示例大学学生听证实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -184,7 +184,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                         "section_path": ["第三章 申诉申请"],
                         "article_label": "第十条",
                     },
-                    metadata={"title": "中央民族大学学生申诉管理办法"},
+                    metadata={"title": "示例大学学生申诉管理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -245,7 +245,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                         "section_path": ["学生证补办"],
                         "article_label": "第六条",
                     },
-                    metadata={"title": "中央民族大学本科(预科)学生证管理办法"},
+                    metadata={"title": "示例大学本科(预科)学生证管理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -258,14 +258,14 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                     root_unit_id="article-student-card-reissue",
                     clean_text=(
                         "八、学生补办学生证,必须提出书面申请,并填写"
-                        "《中央民族大学补办学生证申请表》。申请表经学院(系)"
+                        "《示例大学补办学生证申请表》。申请表经学院(系)"
                         "领导审批后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
                     ),
                     anchor={
                         "section_path": ["学生证补办"],
                         "article_label": "第八条",
                     },
-                    metadata={"title": "中央民族大学本科(预科)学生证管理办法"},
+                    metadata={"title": "示例大学本科(预科)学生证管理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -295,7 +295,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
 
         reissue = chunks_by_text[
             "八、学生补办学生证,必须提出书面申请,并填写"
-            "《中央民族大学补办学生证申请表》。申请表经学院(系)"
+            "《示例大学补办学生证申请表》。申请表经学院(系)"
             "领导审批后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
         ]
         self.assertEqual(reissue["answer_role"], "time_constraint")
@@ -329,7 +329,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                         "table_context": "成绩与平均学分绩点对照表",
                     },
                     metadata={
-                        "title": "中央民族大学本科学生学籍管理办法",
+                        "title": "示例大学本科学生学籍管理办法",
                         "caption_lines": ["成绩与平均学分绩点对照表"],
                         "table_header_line": "百分制成绩 | 平均学分绩点",
                         "table_row_lines": ["90-100 | 4.0", "80-89 | 3.0"],
@@ -380,7 +380,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
 
         self.assertEqual(object_ids, manifest_ids)
         self.assertEqual(category_member_ids, manifest_ids)
-        self.assertGreaterEqual(len(config["policy_categories"]), 17)
+        self.assertEqual(len(config["policy_categories"]), 6)
         self.assertTrue(
             all(
                 isinstance(category.get("overview_document_id"), str)

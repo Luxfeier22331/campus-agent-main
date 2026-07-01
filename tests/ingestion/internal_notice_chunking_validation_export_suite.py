@@ -25,12 +25,12 @@ from .internal_notice_chunking_validation_test_support import (
 class InternalNoticeChunkingValidationExportTest(unittest.TestCase):
     def test_export_internal_notice_chunk_samples_writes_lane_specific_evidence(self) -> None:
         parent_record = _make_notice_record(
-            document_id="notice:muc_internal_portal:355119",
+            document_id="notice:example_internal_portal:355119",
             source_uri="https://portal.example.edu/notice/355119",
             object_key="campus_notices/documents/internal_notice/notice-355119/source-faithful/2026/document-units.jsonl",
         )
         attachment_record = _make_notice_record(
-            document_id="notice_attachment:muc_internal_portal:355119:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:355119:attachment-0001",
             source_uri="https://portal.example.edu/notice/355119/attachments/1",
             object_key=(
                 "campus_notices/documents/internal_notice/"
@@ -41,7 +41,7 @@ class InternalNoticeChunkingValidationExportTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     parent_record.document_units_object_key,
                 ): _parent_notice_rows(
                     record=parent_record,
@@ -49,7 +49,7 @@ class InternalNoticeChunkingValidationExportTest(unittest.TestCase):
                     body_lines=("请于本周内完成登记并提交材料。",),
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     attachment_record.document_units_object_key,
                 ): _attachment_rows(
                     record=attachment_record,
@@ -89,7 +89,7 @@ class InternalNoticeChunkingValidationExportTest(unittest.TestCase):
         )
 
         parent_record = _make_notice_record(
-            document_id="notice:muc_internal_portal:355120",
+            document_id="notice:example_internal_portal:355120",
             source_uri="https://portal.example.edu/notice/355120",
             object_key="campus_notices/documents/internal_notice/notice-355120/source-faithful/2026/document-units.jsonl",
         )
@@ -112,7 +112,7 @@ class InternalNoticeChunkingValidationExportTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     parent_record.document_units_object_key,
                 ): _parent_notice_rows(
                     record=parent_record,

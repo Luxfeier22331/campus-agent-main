@@ -23,7 +23,7 @@ describe("docs read model manifest", () => {
 				documentVersions: [
 					{
 						deliveryMode: "gated_asset",
-						docId: "notice:muc_internal_portal:187233",
+						docId: "notice:example_internal_portal:187233",
 						entitlementGroups: ["campus_members"],
 						isCurrent: true,
 						label: "现行版",
@@ -40,9 +40,9 @@ describe("docs read model manifest", () => {
 						corpus: "campus_notices",
 						currentVersionId: "sha256:187233",
 						currentVersionSlug: "2021-current",
-						docId: "notice:muc_internal_portal:187233",
+						docId: "notice:example_internal_portal:187233",
 						documentSlug: "187233",
-						title: "关于修订《中央民族大学采购工作管理办法》的通知",
+						title: "关于修订《示例大学采购工作管理办法》的通知",
 						updatedAt: "2026-04-27T08:00:00.000Z",
 					},
 				],

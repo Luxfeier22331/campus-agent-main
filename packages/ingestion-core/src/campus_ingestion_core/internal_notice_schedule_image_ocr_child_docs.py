@@ -71,7 +71,7 @@ def build_schedule_image_ocr_child_document_registry_record(
         revision_track="source-faithful",
         version_id=f"{artifact_report.content_hash}:source-faithful",
         source_uri=(
-            "authenticated_notice_portal://muc_internal_portal/notices/"
+            "authenticated_notice_portal://example_internal_portal/notices/"
             f"{evidence.notice_id}/attachments/{document.attachment_ref_id}"
         ),
         content_hash=artifact_report.content_hash,
@@ -109,7 +109,7 @@ def _build_child_document(
 ) -> ScheduleImageOcrChildDocument:
     attachment_ref_id = normalize_schedule_image_ocr_attachment_ref_id(evidence.attachment_ref_id)
     document_id = (
-        "notice_attachment:muc_internal_portal:"
+        "notice_attachment:example_internal_portal:"
         f"{evidence.notice_id}:{attachment_ref_id}:schedule-ocr"
     )
     table_context_lines = _schedule_table_context_lines(result)

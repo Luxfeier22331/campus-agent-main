@@ -51,7 +51,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             admission_run_id="consumer-admission-001",
             selection_source="bundle_dry_run",
             selection_path="bundle.json",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             created_at="2026-04-27T00:00:00+00:00",
         )
 
@@ -81,7 +81,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             bundle_records=(
                 _bundle_record(
                     notice_id="regulation",
-                    title="关于印发《中央民族大学本科生转专业实施办法（试行）》的通知",
+                    title="关于印发《示例大学本科生转专业实施办法（试行）》的通知",
                     notice_type="6",
                     notice_type_name="教学通知",
                 ),
@@ -90,7 +90,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             admission_run_id="consumer-admission-regulation",
             selection_source="bundle_dry_run",
             selection_path="bundle.json",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             created_at="2026-04-27T00:00:00+00:00",
         )
 
@@ -110,7 +110,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             bundle_records=(
                 _bundle_record(
                     notice_id="procurement",
-                    title="中央民族大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
+                    title="示例大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
                 ),
                 _bundle_record(
                     notice_id="lecture",
@@ -120,7 +120,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
                 ),
                 _bundle_record(
                     notice_id="activity",
-                    title="关于举办中央民族大学第二十届心理文化节的通知",
+                    title="关于举办示例大学第二十届心理文化节的通知",
                     notice_type="32",
                     notice_type_name="学工通知",
                 ),
@@ -129,7 +129,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             admission_run_id="consumer-admission-generic-card",
             selection_source="bundle_dry_run",
             selection_path="bundle.json",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             created_at="2026-04-27T00:00:00+00:00",
         )
 

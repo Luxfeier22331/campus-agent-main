@@ -1,4 +1,5 @@
 import { fetchFileReleasePage, fetchNoticePage } from "./api.js";
+import type { CollectorConfig } from "./config.js";
 import { loadCollectorEnv, resolveCollectorConfig } from "./config.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
@@ -46,9 +47,11 @@ export interface AuthCheckDependencies {
 }
 
 export async function checkAuth(dependencies?: AuthCheckDependencies): Promise<AuthCheckResult> {
-	const config = resolveCollectorConfig(process.env);
+	const collectorConfig = dependencies ? undefined : resolveCollectorConfig(process.env);
+	const config = resolveAuthCheckConfig(dependencies, collectorConfig);
 	const createApiContext =
-		dependencies?.createApiContext ?? (() => createApiContextFromStorageState(config));
+		dependencies?.createApiContext ??
+		(() => createApiContextFromStorageState(requireCollectorConfig(collectorConfig)));
 	const apiContext = await createApiContext();
 	try {
 		const checkNoticePage =
@@ -95,6 +98,41 @@ export async function checkAuth(dependencies?: AuthCheckDependencies): Promise<A
 	} finally {
 		await apiContext.dispose();
 	}
+}
+
+interface AuthCheckRuntimeConfig {
+	authCheckNoticeType: string;
+	authCheckPageSize: number;
+	requestBackoffBaseMs: number;
+	requestMaxRetries: number;
+}
+
+function resolveAuthCheckConfig(
+	dependencies: AuthCheckDependencies | undefined,
+	collectorConfig: CollectorConfig | undefined,
+): AuthCheckRuntimeConfig {
+	if (!dependencies) {
+		const config = requireCollectorConfig(collectorConfig);
+		return {
+			authCheckNoticeType: config.authCheckNoticeType,
+			authCheckPageSize: config.authCheckPageSize,
+			requestBackoffBaseMs: config.requestBackoffBaseMs,
+			requestMaxRetries: config.requestMaxRetries,
+		};
+	}
+	return {
+		authCheckNoticeType: dependencies.authCheckNoticeType,
+		authCheckPageSize: dependencies.authCheckPageSize,
+		requestBackoffBaseMs: 1,
+		requestMaxRetries: 1,
+	} as const;
+}
+
+function requireCollectorConfig(config: CollectorConfig | undefined): CollectorConfig {
+	if (!config) {
+		throw new Error("collector config is required for default auth check context");
+	}
+	return config;
 }
 
 export async function main(): Promise<void> {

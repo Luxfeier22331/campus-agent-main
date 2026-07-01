@@ -48,13 +48,13 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             {
-                ("campus-rag-derived", legacy_surface_key): json.dumps(
+                ("campus-agent-derived", legacy_surface_key): json.dumps(
                     {
                         "schemaVersion": "curriculum_course_map_docs_surface_v1",
                         "generatedAt": "2026-04-22T00:00:00+00:00",
                         "documentId": "curriculum:example",
                         "documentTitle": "示例培养方案",
-                        "rawAssetId": "asset:curriculum-plan-2022",
+                        "rawAssetId": "asset:synthetic-curriculum-plan",
                         "rawVersionId": "sha256:legacy",
                         "blocks": [
                             {
@@ -93,12 +93,12 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
                     },
                     ensure_ascii=False,
                 ).encode("utf-8"),
-                ("campus-rag-derived", legacy_image_key): b"legacy-image",
+                ("campus-agent-derived", legacy_image_key): b"legacy-image",
             }
         )
 
         report = migrate_legacy_curriculum_course_map_docs_surfaces(
-            bucket="campus-rag-derived",
+            bucket="campus-agent-derived",
             generated_at="2026-05-18T00:00:00+00:00",
             object_store=object_store,
             legacy_surface_keys=(legacy_surface_key,),
@@ -106,9 +106,9 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
 
         surface_key = build_curriculum_course_map_docs_surface_object_key(document_units_key)
         self.assertEqual(report.migrated_surface_count, 1)
-        self.assertIn(("campus-rag-derived", surface_key), object_store.writes)
+        self.assertIn(("campus-agent-derived", surface_key), object_store.writes)
         surface = load_curriculum_course_map_docs_surface(
-            object_store.writes[("campus-rag-derived", surface_key)]
+            object_store.writes[("campus-agent-derived", surface_key)]
         )
         self.assertEqual(surface.schema_version, "curriculum_course_map_docs_surface_v2")
         self.assertEqual(surface.blocks[0].nodes[0].node_label, "程序设计基础")
@@ -116,7 +116,7 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
         self.assertEqual(len(surface.blocks[0].edges), 1)
         self.assertTrue(surface.blocks[0].edges[0].edge_id.startswith("edge-"))
         self.assertIn(
-            ("campus-rag-derived", surface.blocks[0].image_object_key), object_store.writes
+            ("campus-agent-derived", surface.blocks[0].image_object_key), object_store.writes
         )
         self.assertIn("/docs-surfaces/course-maps/", surface.blocks[0].image_object_key)
         self.assertNotIn("/reader-assets/", surface.blocks[0].image_object_key)
@@ -133,7 +133,7 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             {
-                ("campus-rag-derived", legacy_surface_key): json.dumps(
+                ("campus-agent-derived", legacy_surface_key): json.dumps(
                     {
                         "schemaVersion": "curriculum_course_maps_reader_v1",
                         "docId": "curriculum:example",
@@ -167,12 +167,12 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
                     },
                     ensure_ascii=False,
                 ).encode("utf-8"),
-                ("campus-rag-derived", legacy_image_key): b"legacy-image",
+                ("campus-agent-derived", legacy_image_key): b"legacy-image",
             }
         )
 
         migrate_legacy_curriculum_course_map_docs_surfaces(
-            bucket="campus-rag-derived",
+            bucket="campus-agent-derived",
             generated_at="2026-05-18T00:00:00+00:00",
             object_store=object_store,
             legacy_surface_keys=(legacy_surface_key,),
@@ -180,14 +180,14 @@ class CurriculumCourseMapDocsSurfaceMigrationTest(unittest.TestCase):
 
         surface_key = build_curriculum_course_map_docs_surface_object_key(document_units_key)
         surface = load_curriculum_course_map_docs_surface(
-            object_store.writes[("campus-rag-derived", surface_key)]
+            object_store.writes[("campus-agent-derived", surface_key)]
         )
         self.assertEqual(surface.document_title, "example")
-        self.assertEqual(surface.raw_asset_id, "asset:curriculum-plan-2022")
+        self.assertEqual(surface.raw_asset_id, "asset:synthetic-curriculum-plan")
         self.assertEqual(surface.blocks[0].nodes[0].node_id, "n01")
         self.assertEqual(surface.blocks[0].nodes[0].stage_id, "s01")
         self.assertEqual(
-            object_store.writes[("campus-rag-derived", surface.blocks[0].image_object_key)],
+            object_store.writes[("campus-agent-derived", surface.blocks[0].image_object_key)],
             b"legacy-image",
         )
 

@@ -39,8 +39,8 @@ describe("campus auth client", () => {
 	it("does not call the provider sign-up endpoint without legal consent", async () => {
 		await expect(
 			campusAuthClient.signUp.email({
-				email: "student@muc.edu.cn",
-				name: "student@muc.edu.cn",
+				email: "student@example.edu",
+				name: "student@example.edu",
 				password: "password1234",
 				callbackURL: "/account",
 			}),
@@ -59,14 +59,14 @@ describe("campus auth client", () => {
 		await expect(
 			campusAuthClient.signUp.email({
 				callbackURL: "/account",
-				email: "student@muc.edu.cn",
+				email: "student@example.edu",
 				legalConsentAccepted: true,
 				fetchOptions: {
 					headers: {
 						"x-captcha-response": "captcha-token",
 					},
 				},
-				name: "student@muc.edu.cn",
+				name: "student@example.edu",
 				password: "password1234",
 			}),
 		).resolves.toEqual({});
@@ -85,12 +85,12 @@ describe("campus auth client", () => {
 
 		await campusAuthClient.signUp.email({
 			callbackURL: "/account",
-			email: "student@muc.edu.cn",
+			email: "student@example.edu",
 			legalConsentAccepted: true,
 			fetchOptions: {
 				throw: true,
 			},
-			name: "student@muc.edu.cn",
+			name: "student@example.edu",
 			password: "password1234",
 		});
 
@@ -115,12 +115,12 @@ describe("campus auth client", () => {
 		await expect(
 			campusAuthClient.signUp.email({
 				callbackURL: "/account",
-				email: "student@muc.edu.cn",
+				email: "student@example.edu",
 				legalConsentAccepted: true,
 				fetchOptions: {
 					throw: true,
 				},
-				name: "student@muc.edu.cn",
+				name: "student@example.edu",
 				password: "password1234",
 			}),
 		).rejects.toMatchObject({
@@ -150,12 +150,12 @@ describe("campus auth client", () => {
 		await expect(
 			campusAuthClient.signUp.email({
 				callbackURL: "/account",
-				email: "student@muc.edu.cn",
+				email: "student@example.edu",
 				legalConsentAccepted: true,
 				fetchOptions: {
 					throw: true,
 				},
-				name: "student@muc.edu.cn",
+				name: "student@example.edu",
 				password: "password1234",
 			}),
 		).rejects.toMatchObject({
@@ -179,7 +179,7 @@ describe("campus auth client", () => {
 
 		await campusAuthClient.signIn.email({
 			callbackURL: "/account",
-			email: "student@muc.edu.cn",
+			email: "student@example.edu",
 			fetchOptions: {
 				headers: {
 					"x-captcha-response": "captcha-token",
@@ -234,7 +234,7 @@ describe("campus auth client", () => {
 		await expect(
 			campusAuthClient.signIn.email({
 				callbackURL: "/account",
-				email: "student@muc.edu.cn",
+				email: "student@example.edu",
 				password: "password1234",
 			}),
 		).rejects.toMatchObject({
@@ -260,9 +260,9 @@ describe("campus auth client", () => {
 		await expect(
 			campusAuthClient.signUp.email({
 				callbackURL: "/account",
-				email: "student@muc.edu.cn",
+				email: "student@example.edu",
 				legalConsentAccepted: true,
-				name: "student@muc.edu.cn",
+				name: "student@example.edu",
 				password: "password1234",
 			}),
 		).rejects.toMatchObject({

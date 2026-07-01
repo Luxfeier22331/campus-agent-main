@@ -12,7 +12,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     49,
                     "heading",
-                    "中央民族大学十佳大学生评选办法",
+                    "示例大学十佳大学生评选办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -33,18 +33,16 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(49, "paragraph", "2.初选"),
                 _source_row(49, "paragraph", "学生工作部组织相关部门人员共同组成评审小组。"),
                 _source_row(49, "paragraph", "3.候选人公示"),
-                _source_row(
-                    49, "paragraph", "中央民族大学十佳大学生候选人在学生工作部网站公示一周。"
-                ),
+                _source_row(49, "paragraph", "示例大学十佳大学生候选人在学生工作部网站公示一周。"),
                 _source_row(49, "paragraph", "4.评选"),
                 _source_row(49, "paragraph", "(1)大力宣传。"),
-                _source_row(49, "paragraph", "第九条 中央民族大学十佳大学生每学年评选一次。"),
+                _source_row(49, "paragraph", "第九条 示例大学十佳大学生每学年评选一次。"),
             ],
             manifest_document=_manifest_document(
                 49,
                 49,
-                title="中央民族大学十佳大学生评选办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学十佳大学生评选办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -68,7 +66,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     40,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -93,8 +91,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 40,
                 40,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -119,7 +117,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     36,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -132,8 +130,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 36,
                 36,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -189,7 +187,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     50,
                     "heading",
-                    "中央民族大学学生志愿服务管理办法",
+                    "示例大学学生志愿服务管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -212,8 +210,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 50,
                 50,
-                title="中央民族大学学生志愿服务管理办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学学生志愿服务管理办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -249,7 +247,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     51,
                     "heading",
-                    "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                    "示例大学学生课堂行为规范及课堂秩序管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -263,8 +261,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 51,
                 51,
-                title="中央民族大学学生课堂行为规范及课堂秩序管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学学生课堂行为规范及课堂秩序管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -296,7 +294,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     52,
                     "heading",
-                    "中央民族大学优秀本科毕业生评选办法",
+                    "示例大学优秀本科毕业生评选办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -320,8 +318,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 52,
                 52,
-                title="中央民族大学优秀本科毕业生评选办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学优秀本科毕业生评选办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -344,7 +342,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     53,
                     "heading",
-                    "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                    "示例大学学生课堂行为规范及课堂秩序管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -355,8 +353,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 53,
                 53,
-                title="中央民族大学学生课堂行为规范及课堂秩序管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学学生课堂行为规范及课堂秩序管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -375,7 +373,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     55,
                     "heading",
-                    "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                    "示例大学学生课堂行为规范及课堂秩序管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -389,8 +387,8 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 55,
                 55,
-                title="中央民族大学学生课堂行为规范及课堂秩序管理办法",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学学生课堂行为规范及课堂秩序管理办法",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -412,21 +410,21 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
                 _source_row(
                     54,
                     "heading",
-                    "中央民族大学学生志愿服务管理办法",
+                    "示例大学学生志愿服务管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(
                     54, "heading", "第三章 附则", block_role="heading", title_candidate_score=0.8
                 ),
-                _source_row(54, "paragraph", "一、本办法由共青团中央民族大学委员会负责解释。"),
+                _source_row(54, "paragraph", "一、本办法由共青团示例大学委员会负责解释。"),
                 _source_row(54, "paragraph", "二、本办法自发布之日起实施。"),
             ],
             manifest_document=_manifest_document(
                 54,
                 54,
-                title="中央民族大学学生志愿服务管理办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学学生志愿服务管理办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -443,7 +441,7 @@ class HandbookCleanupPolicyProjectionTest(unittest.TestCase):
         self.assertEqual(
             [row["clean_text"] for row in policy_units],
             [
-                "一、本办法由共青团中央民族大学委员会负责解释。",
+                "一、本办法由共青团示例大学委员会负责解释。",
                 "二、本办法自发布之日起实施。",
             ],
         )

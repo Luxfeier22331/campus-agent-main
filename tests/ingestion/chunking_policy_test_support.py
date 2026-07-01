@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import threading
 import time
 import types
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from unittest import mock
 
 import campus_ingestion_core.tokenizer_cache as tokenizer_cache
@@ -50,7 +52,7 @@ from campus_ingestion_core.chunking_token_windows import (
 )
 from campus_ingestion_core.chunking_tokenizers import (
     TiktokenTokenCounter,
-    _load_hf_tokenizer,
+    _count_hf_tokens,
     build_token_counter,
     normalize_embedding_model_name as normalize_embedding_model_name_from_tokenizers_module,
 )
@@ -59,7 +61,7 @@ from campus_ingestion_core.handbook_article_structure import normalize_article_b
 
 class _ChunkingPolicyTestCase(unittest.TestCase):
     def tearDown(self) -> None:
-        _load_hf_tokenizer.cache_clear()
+        _count_hf_tokens.cache_clear()
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

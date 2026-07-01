@@ -265,9 +265,7 @@ def _normalize_evidence(evidence: ReviewedAttachmentOcrEvidence) -> ReviewedAtta
 
 
 def _attachment_document_id(evidence: ReviewedAttachmentOcrEvidence) -> str:
-    return (
-        f"notice_attachment:muc_internal_portal:{evidence.notice_id}:{evidence.attachment_ref_id}"
-    )
+    return f"notice_attachment:example_internal_portal:{evidence.notice_id}:{evidence.attachment_ref_id}"
 
 
 def _version_id(
@@ -294,7 +292,7 @@ def _document_metadata(
         "source_id": document_id,
         "projection_name": "authenticated_notice_reviewed_attachment_ocr",
         "derived_from": "authenticated_notice_portal_attachment",
-        "parent_document_id": f"notice:muc_internal_portal:{evidence.notice_id}",
+        "parent_document_id": f"notice:example_internal_portal:{evidence.notice_id}",
         "attachment_ref_id": evidence.attachment_ref_id,
         "attachment_kind": "pdf",
         "attachment_role": "attachment",
@@ -363,7 +361,7 @@ def _content_hash(
 
 def _source_uri(evidence: ReviewedAttachmentOcrEvidence) -> str:
     return evidence.source_url or (
-        "authenticated_notice_portal://muc_internal_portal/notices/"
+        "authenticated_notice_portal://example_internal_portal/notices/"
         f"{evidence.notice_id}/attachments/{evidence.attachment_ref_id}"
     )
 

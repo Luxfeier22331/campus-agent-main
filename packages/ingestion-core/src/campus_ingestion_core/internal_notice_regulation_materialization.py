@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
@@ -67,7 +67,7 @@ _TARGET_SCOPE = ("regulations", "institutional_rules")
 _TARGET_SOURCE_FILENAME = "internal-notice-regulation-promotion-manifest.json"
 _TARGET_IMPORT_SOURCE = "internal_notice_regulation_materialization"
 _TARGET_PARSER_VERSION = "internal_notice_regulation_materialization_v1"
-_SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
+_SOURCE_URL_PREFIX = "campus-agent://promotion/synthetic_notice"
 _DATE_YEAR_RE = re.compile(r"(19|20)\d{2}")
 
 

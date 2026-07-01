@@ -29,7 +29,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "article_label": "第十三条",
                     },
                     metadata={
-                        "title": "中央民族大学基层党组织考核办法（试行）",
+                        "title": "示例大学基层党组织考核办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -68,7 +68,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "provision_label": "（七）",
                     },
                     metadata={
-                        "title": "中央民族大学专项经费管理办法",
+                        "title": "示例大学专项经费管理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -104,10 +104,10 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "不断提升办学质量和服务水平。"
                     ),
                     anchor={
-                        "section_path": ["中央民族大学事业发展“十三五”规划"],
+                        "section_path": ["示例大学事业发展“十三五”规划"],
                     },
                     metadata={
-                        "title": "中央民族大学事业发展“十三五”规划",
+                        "title": "示例大学事业发展“十三五”规划",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -145,7 +145,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "article_label": "第二十二条",
                     },
                     metadata={
-                        "title": "中央民族大学校内纠纷调解办法",
+                        "title": "示例大学校内纠纷调解办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -190,7 +190,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "section_path": ["（三）六级职员岗位"],
                     },
                     metadata={
-                        "title": "中央民族大学岗位设置与聘用管理暂行办法",
+                        "title": "示例大学岗位设置与聘用管理暂行办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -219,7 +219,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
 
     def test_institutional_break_study_intro_keeps_non_procedure_intro_shape(self) -> None:
         record = _institutional_registry_record(
-            "institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059"
+            "institutional_regulation:example:示例大学研究生学籍管理办法:d11f18c41059"
         )
         structured_payload = (
             json.dumps(
@@ -228,7 +228,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                     version_id=record.version_id,
                     unit_type="regulation_body",
                     root_unit_id=(
-                        "institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059:unit-0063"
+                        "institutional_regulation:example:示例大学研究生学籍管理办法:d11f18c41059:unit-0063"
                     ),
                     clean_text="研究生有下列情形之一者，应当办理休学手续：",
                     anchor={
@@ -236,7 +236,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "article_label": "第二十三条",
                     },
                     metadata={
-                        "title": "中央民族大学研究生学籍管理办法",
+                        "title": "示例大学研究生学籍管理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -277,7 +277,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "article_label": "第九条",
                     },
                     metadata={
-                        "title": "中央民族大学全面落实研究生导师立德树人职责实施细则",
+                        "title": "示例大学全面落实研究生导师立德树人职责实施细则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -317,7 +317,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "provision_label": "（二）",
                     },
                     metadata={
-                        "title": "中央民族大学全面落实研究生导师立德树人职责实施细则",
+                        "title": "示例大学全面落实研究生导师立德树人职责实施细则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -353,7 +353,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "provision_label": "（4）",
                     },
                     metadata={
-                        "title": "中央民族大学学院党政联席会议议事规则",
+                        "title": "示例大学学院党政联席会议议事规则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -389,7 +389,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "article_label": "第三十五条",
                     },
                     metadata={
-                        "title": "中央民族大学本科学生学籍管理办法",
+                        "title": "示例大学本科学生学籍管理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -420,23 +420,23 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
     ) -> None:
         chunks = self._build_chunks(
             document_id=(
-                "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+                "institutional_regulation:example:示例大学毕业生就业奖励办法:f16e569519f7"
             ),
             rows=(
                 self._row(
                     document_id=(
-                        "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+                        "institutional_regulation:example:示例大学毕业生就业奖励办法:f16e569519f7"
                     ),
                     root_unit_id=(
-                        "institutional_regulation:muc:"
-                        "中央民族大学毕业生就业奖励办法:f16e569519f7:unit-0025"
+                        "institutional_regulation:example:"
+                        "示例大学毕业生就业奖励办法:f16e569519f7:unit-0025"
                     ),
                     clean_text=(
                         "第十八条 本办法自公布之日起实施，适用于2019届及以后毕业的学生。"
-                        "原《中央民族大学毕业生就业奖励办法》同时废止。"
+                        "原《示例大学毕业生就业奖励办法》同时废止。"
                     ),
                     section_path=(),
-                    title="中央民族大学毕业生就业奖励办法",
+                    title="示例大学毕业生就业奖励办法",
                     article_label="第十八条",
                     promotion_class="formal_regulation",
                 ),
@@ -469,7 +469,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "provision_label": "（5）",
                     },
                     metadata={
-                        "title": "中央民族大学岗位设置与聘用管理暂行办法",
+                        "title": "示例大学岗位设置与聘用管理暂行办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -503,7 +503,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                     root_unit_id="institutional-misconduct-clause-test:unit-0034",
                     clean_text="（七）在培养环节中签署虚假意见，违规委托他人填写培养各环节的鉴定意见或评审意见；",
                     section_path=("第四章 违反立德树人规范行为的认定与处理",),
-                    title="中央民族大学全面落实研究生导师立德树人职责实施细则",
+                    title="示例大学全面落实研究生导师立德树人职责实施细则",
                     provision_label="（七）",
                     promotion_class="formal_regulation",
                 ),
@@ -527,7 +527,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                     root_unit_id="institutional-ranking-clause-test:unit-0039",
                     clean_text="（四）总成绩相同者按学业成绩 A+学业成绩 B 由高至低排序；如上述成绩仍相同，则按学业成绩 A 由高至低排序。",
                     section_path=("第四章 遴选办法及程序",),
-                    title="中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+                    title="示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
                     provision_label="（四）",
                     promotion_class="formal_regulation",
                 ),
@@ -551,7 +551,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                     root_unit_id="institutional-mixed-tail-clause-test:unit-0010",
                     clean_text="（三）因不可抗力情况、因病调课（需提供医疗证明，遇特殊情况，可先申请，3日内完善手续）的不计入调课次数；",
                     section_path=("第五条 调课要求和程序",),
-                    title="中央民族大学本科课程临时调(停)课管理办法",
+                    title="示例大学本科课程临时调(停)课管理办法",
                     provision_label="（三）",
                     promotion_class="formal_regulation",
                 ),
@@ -585,7 +585,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
                         "后勤产业集团获“后勤节能先进集体”，离退休干部处获国家民委系统“老干部工作先进集体”。"
                     ),
                     section_path=("一、发展基础及面临的机遇与挑战", "（一）发展基础"),
-                    title="中央民族大学事业发展“十三五”规划",
+                    title="示例大学事业发展“十三五”规划",
                     promotion_class="formal_regulation",
                 ),
             ),

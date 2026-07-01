@@ -121,9 +121,8 @@ Stable reference 当前 baseline：
 
 - split manifest:
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
-- retrieval qrels:
-  `packages/eval-langfuse/fixtures/rag/official_web_stable_reference/retrieval_qrels.json`
-- retrieval denominator: `4` cases (`3` positive, `1` no-hit)
+- retrieval denominator: historical private/release evidence, not a public
+  repo-tracked fixture path
 - old deterministic release-gate cases are retired with Python `campus_evals`
 
 Fresh news historical seed baseline：

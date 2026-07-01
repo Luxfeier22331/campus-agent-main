@@ -11,8 +11,7 @@ const args = [
 	"tsx",
 	"./scripts/chat-e2e-local-dev.ts",
 	"--prompt",
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() ||
-		"中央民族大学本科学生国家奖学金评审办法",
+	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() || "示例大学本科学生国家奖学金评审办法",
 	"--expect-model-execution-state",
 	"go_provider_synthesis_completed",
 	"--restart-campus-web",

@@ -14,28 +14,28 @@ const baseHeaders = {
 
 const candidates = [
 	{
-		host: "www.muc.edu.cn",
+		host: "www.example.edu",
 		pageFamily: "generic_content_page",
 		pageTitleNormalized: "中央民族大学",
-		url: "https://www.muc.edu.cn/",
+		url: "https://www.example.edu/",
 	},
 	{
-		host: "news.muc.edu.cn",
+		host: "news.example.edu",
 		pageFamily: "listing_page",
 		pageTitleNormalized: "新闻网",
-		url: "https://news.muc.edu.cn/",
+		url: "https://news.example.edu/",
 	},
 	{
-		host: "xxgk.muc.edu.cn",
+		host: "info.example.edu",
 		pageFamily: "directory_page",
 		pageTitleNormalized: "信息公开",
-		url: "https://xxgk.muc.edu.cn/",
+		url: "https://info.example.edu/",
 	},
 	{
-		host: "xiaoyou.muc.edu.cn",
+		host: "xiaoyou.example.edu",
 		pageFamily: "listing_page",
 		pageTitleNormalized: "校友会",
-		url: "https://xiaoyou.muc.edu.cn/",
+		url: "https://xiaoyou.example.edu/",
 	},
 ] as const;
 

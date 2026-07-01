@@ -5,7 +5,7 @@ import { formatSafeErrorMessage } from "../src/safe-error.js";
 describe("authenticated notice collector safe errors", () => {
 	it("redacts portal cookies from Playwright call logs", () => {
 		const message = [
-			"apiRequestContext.post: getaddrinfo EAI_AGAIN my.muc.edu.cn",
+			"apiRequestContext.post: getaddrinfo EAI_AGAIN portal.example.edu",
 			"Call log:",
 			"  - cookie: SSO_TGC=TGT-secret; JSESSIONID=session-secret; nginx=proxy-secret",
 			"  - authorization: Bearer bearer-secret",

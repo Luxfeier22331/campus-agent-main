@@ -502,17 +502,14 @@ describe("campus routes", () => {
 		expect(screen.getAllByText("鱼粉")).toHaveLength(1);
 		expect(screen.getByText("果小生")).toBeInTheDocument();
 		expect(screen.getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(screen.getByAltText("金汤鱼粉评价图片")).toHaveAttribute(
-			"src",
-			"/assets/dining/reviews/rec27DpktN6uQn.jpg",
-		);
+		expect(screen.queryByAltText("金汤鱼粉评价图片")).toBeNull();
 		const mapPanel = screen.getByTestId("dining-map-panel");
 		const reviewPanel = screen.getByTestId("dining-review-panel");
 		const detailPanel = screen.getByTestId("dining-stall-detail");
 		const selectionPanel = screen.getByTestId("dining-selection-panel");
 		expect(reviewPanel).toHaveAttribute("aria-label", "金汤鱼粉评价");
 		expect(within(reviewPanel).getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(within(reviewPanel).getByAltText("金汤鱼粉评价图片")).toBeInTheDocument();
+		expect(within(reviewPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
 		expect(selectionPanel).toContainElement(mapPanel);
 		expect(selectionPanel).toContainElement(detailPanel);
 		expect(selectionPanel).not.toContainElement(reviewPanel);

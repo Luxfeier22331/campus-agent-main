@@ -173,7 +173,7 @@ def _build_projection_candidate_document(
         target_corpus="regulations",
         target_collection="institutional_rules",
         regulation_title_normalized=title,
-        issuing_org=str(metadata.get("issuing_org") or "中央民族大学"),
+        issuing_org=str(metadata.get("issuing_org") or "示例大学"),
         effective_date=effective_date,
         revision_signal=revision_signal,
         source_notice_release_time=entry.source_notice_release_time,
@@ -315,7 +315,7 @@ def _strip_parenthesized_edition_label(title: str) -> str:
 
 def _extract_site_id(source_notice_document_id: str) -> str:
     parts = source_notice_document_id.split(":")
-    return parts[1] if len(parts) >= 3 else "muc_internal_portal"
+    return parts[1] if len(parts) >= 3 else "example_internal_portal"
 
 
 def _extract_attachment_ref_id(source_document_id: str) -> str | None:

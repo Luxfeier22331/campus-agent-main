@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 

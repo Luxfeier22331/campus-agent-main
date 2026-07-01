@@ -24,7 +24,7 @@ describe("WeChat official account capture release", () => {
 			artifacts,
 			capturedAt: "2026-04-04T01:23:45.000Z",
 			captureRunId: "wcrun_20260404T012345Z",
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 
 		expect(release).toEqual({
@@ -38,9 +38,9 @@ describe("WeChat official account capture release", () => {
 					article_stable_id: "unknown",
 					raw_asset_id: "unknown",
 					raw_version_id: "woa_ver_abc123",
-					manifest_ref: objectRef("campus-rag-source", "article-manifest.json"),
-					content_blocks_ref: objectRef("campus-rag-source", "content-blocks.jsonl"),
-					media_refs_ref: objectRef("campus-rag-source", "media-refs.jsonl"),
+					manifest_ref: objectRef("campus-agent-source", "article-manifest.json"),
+					content_blocks_ref: objectRef("campus-agent-source", "content-blocks.jsonl"),
+					media_refs_ref: objectRef("campus-agent-source", "media-refs.jsonl"),
 				},
 			],
 		});
@@ -53,7 +53,7 @@ describe("WeChat official account capture release", () => {
 				"wechat_official_account/muc_tuanwei/runs/wcrun_20260404T012345Z/capture-release.json",
 			captureRunId: "wcrun_20260404T012345Z",
 			createdAt: "2026-04-04T01:25:00.000Z",
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 
 		expect(task).toMatchObject({
@@ -67,7 +67,7 @@ describe("WeChat official account capture release", () => {
 			task_kind: "source_truth_materialize",
 			input_ref: {
 				kind: "object_store",
-				uri: "s3://campus-rag-source/wechat_official_account/muc_tuanwei/runs/wcrun_20260404T012345Z/capture-release.json",
+				uri: "s3://campus-agent-source/wechat_official_account/muc_tuanwei/runs/wcrun_20260404T012345Z/capture-release.json",
 				digest: `sha256:${"a".repeat(64)}`,
 			},
 			output_contract: "wechat_official_account_source_truth.v1",
@@ -91,7 +91,7 @@ describe("WeChat official account capture release", () => {
 			captureReleaseKey: "wechat_official_account/muc_tuanwei/runs/run-1/capture-release.json",
 			captureRunId: "run-1",
 			createdAt: "2026-04-04T01:25:00.000Z",
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 
 		await expect(client.admitTask(task)).resolves.toEqual({
@@ -172,7 +172,7 @@ describe("WeChat official account capture release", () => {
 				FEEDWE_EMAIL: "collector@example.com",
 				FEEDWE_PASSWORD: "feedwe-live-password",
 				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.internal",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 				WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL: "https://app-api.internal",
 				WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN: "service-token",
 			},
@@ -207,7 +207,7 @@ describe("WeChat official account capture release", () => {
 			expect.objectContaining({
 				input_ref: {
 					kind: "object_store",
-					uri: "s3://campus-rag-source/wechat_official_account/muc_tuanwei/runs/wcrun_01JQ/capture-release.json",
+					uri: "s3://campus-agent-source/wechat_official_account/muc_tuanwei/runs/wcrun_01JQ/capture-release.json",
 					digest: `sha256:${"c".repeat(64)}`,
 				},
 				run_id: "wcrun_01JQ",

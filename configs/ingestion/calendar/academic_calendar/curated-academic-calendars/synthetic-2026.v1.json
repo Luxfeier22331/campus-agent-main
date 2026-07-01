@@ -1,0 +1,24 @@
+{
+	"schemaVersion": "official_web_curated_academic_calendar.v1",
+	"projectionName": "synthetic-2026-academic-calendar",
+	"documentData": {
+		"title": "Synthetic 2026 academic calendar",
+		"extractionStatus": "ready",
+		"manualReviewRequired": false,
+		"sourceRefs": ["https://www.example.edu/calendar"],
+		"records": [
+			{
+				"academicYearLabel": "2026 academic year",
+				"termLabel": "Spring term",
+				"startDate": "2026-03-02",
+				"endDate": "2026-03-08",
+				"weekIndex": 1,
+				"dayKind": "teaching_day",
+				"classDayPattern": "",
+				"isMakeupClass": false,
+				"holidayName": "",
+				"sourceRefs": ["https://www.example.edu/calendar"]
+			}
+		]
+	}
+}

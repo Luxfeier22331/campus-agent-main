@@ -446,10 +446,10 @@ class DocumentReaderAssetsTest(unittest.TestCase):
         self,
     ) -> None:
         record = DocumentRegistryRecord(
-            document_id="institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
+            document_id="institutional_regulation:example:示例大学采购工作管理办法:219ecb636aaf",
             revision_track="source-faithful",
             version_id="sha256:c55cc6f8:effective-2021年3月1日:revision-修订",
-            source_uri="campusrag://promotion/internal_notice/187233",
+            source_uri="campus-agent://promotion/synthetic_notice/187233",
             content_hash="sha256:test-regulation",
             corpus="regulations",
             collection="institutional_rules",
@@ -467,12 +467,12 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             published_date="2021-02-28",
             document_units_object_key=(
                 "regulations/documents/institutional_rules/"
-                "中央民族大学采购工作管理办法--219ecb63/source-faithful/2021/"
+                "示例大学采购工作管理办法--219ecb63/source-faithful/2021/"
                 "document-units.jsonl"
             ),
             canonical_markdown_object_key=(
                 "regulations/documents/institutional_rules/"
-                "中央民族大学采购工作管理办法--219ecb63/source-faithful/2021/"
+                "示例大学采购工作管理办法--219ecb63/source-faithful/2021/"
                 "canonical.md"
             ),
             import_source="internal_notice_regulation_materialization",
@@ -480,19 +480,19 @@ class DocumentReaderAssetsTest(unittest.TestCase):
 
         entry = build_document_reader_publish_entry(
             record=record,
-            title="中央民族大学采购工作管理办法",
+            title="示例大学采购工作管理办法",
         )
 
-        self.assertEqual(entry["documentSlug"], "中央民族大学采购工作管理办法")
+        self.assertEqual(entry["documentSlug"], "示例大学采购工作管理办法")
         self.assertEqual(entry["versionSlug"], "effective-2021-03-01")
         self.assertEqual(
             entry["canonicalUrl"],
-            "/docs/regulations/institutional_rules/中央民族大学采购工作管理办法",
+            "/docs/regulations/institutional_rules/示例大学采购工作管理办法",
         )
         self.assertEqual(
             entry["targetObjects"]["reader"],
             "_gated-docs/regulations/institutional_rules/"
-            "中央民族大学采购工作管理办法/effective-2021-03-01/reader.json",
+            "示例大学采购工作管理办法/effective-2021-03-01/reader.json",
         )
         self.assertNotIn("2021年修订", "\n".join(entry["targetObjects"].values()))
 

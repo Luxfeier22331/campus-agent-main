@@ -59,7 +59,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     10,
                     "heading",
-                    "中央民族大学奖学金评定办法",
+                    "示例大学奖学金评定办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -67,12 +67,12 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(10, "footer", "10"),
             ],
             manifest_document=_manifest_document(
-                10, 10, title="占位标题", handbook_section="中央民族大学学生奖励管理规定"
+                10, 10, title="占位标题", handbook_section="示例大学学生奖励管理规定"
             ),
             source_doc="学生手册_2018.pdf",
         )
 
-        self.assertEqual(result.title, "中央民族大学奖学金评定办法")
+        self.assertEqual(result.title, "示例大学奖学金评定办法")
 
     def test_cleanup_consumes_title_variant_and_metadata_preface_without_emitting_policy_page(
         self,
@@ -82,7 +82,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     10,
                     "heading",
-                    "中央民族大学优秀本科毕业生评选办法（试行）",
+                    "示例大学优秀本科毕业生评选办法（试行）",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -92,19 +92,19 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 10,
                 10,
-                title="中央民族大学优秀本科毕业生评选办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学优秀本科毕业生评选办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
-        self.assertEqual(result.title, "中央民族大学优秀本科毕业生评选办法")
+        self.assertEqual(result.title, "示例大学优秀本科毕业生评选办法")
         self.assertEqual(
             [row["unit_type"] for row in result.document_units],
             ["article_body"],
         )
         self.assertEqual(
-            result.document_units[0]["metadata"]["title"], "中央民族大学优秀本科毕业生评选办法"
+            result.document_units[0]["metadata"]["title"], "示例大学优秀本科毕业生评选办法"
         )
         self.assertEqual(
             result.document_units[0]["metadata"]["policy_doc_no"], "民大校发〔2018〕329号"
@@ -122,7 +122,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     68,
                     "heading",
-                    "中央民族大学本科生专业调整实施办法",
+                    "示例大学本科生专业调整实施办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -133,13 +133,13 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 67,
                 68,
-                title="中央民族大学本科生专业调整实施办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生专业调整实施办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
-        self.assertEqual(result.title, "中央民族大学本科生专业调整实施办法")
+        self.assertEqual(result.title, "示例大学本科生专业调整实施办法")
         self.assertNotIn("校团委根据团中央", result.canonical_markdown)
         self.assertNotIn("四、组织管理", result.canonical_markdown)
         self.assertEqual(
@@ -164,8 +164,8 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 manifest_document=_manifest_document(
                     67,
                     68,
-                    title="中央民族大学本科生专业调整实施办法",
-                    handbook_section="中央民族大学学生教学管理规定",
+                    title="示例大学本科生专业调整实施办法",
+                    handbook_section="示例大学学生教学管理规定",
                 ),
                 source_doc="学生手册_2018.pdf",
             )
@@ -180,7 +180,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     68,
                     "heading",
-                    "中央民族大学本科生专业调整实施办法\n(修订)",
+                    "示例大学本科生专业调整实施办法\n(修订)",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -190,8 +190,8 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 67,
                 68,
-                title="中央民族大学本科生专业调整实施办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生专业调整实施办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -199,7 +199,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
         self.assertEqual([row["unit_type"] for row in result.document_units], ["article_body"])
         self.assertNotIn("上一份制度尾页", result.canonical_markdown)
         self.assertNotIn(
-            "中央民族大学本科生专业调整实施办法\n(修订)", result.document_units[0]["clean_text"]
+            "示例大学本科生专业调整实施办法\n(修订)", result.document_units[0]["clean_text"]
         )
 
     def test_cleanup_consumes_split_adjacent_title_anchor_rows(self) -> None:
@@ -208,7 +208,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     217,
                     "heading",
-                    "中央民族大学",
+                    "示例大学",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -230,21 +230,21 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 217,
                 219,
-                title="中央民族大学家庭经济困难学生临时困难补助管理办法",
-                handbook_section="中央民族大学学生资助管理规定",
+                title="示例大学家庭经济困难学生临时困难补助管理办法",
+                handbook_section="示例大学学生资助管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
-        self.assertEqual(result.title, "中央民族大学家庭经济困难学生临时困难补助管理办法")
+        self.assertEqual(result.title, "示例大学家庭经济困难学生临时困难补助管理办法")
         self.assertEqual(
             [row["unit_type"] for row in result.document_units],
             ["article_body", "article_body"],
         )
         self.assertNotIn(
-            "中央民族大学\n家庭经济困难学生临时困难补助管理办法", result.canonical_markdown
+            "示例大学\n家庭经济困难学生临时困难补助管理办法", result.canonical_markdown
         )
-        self.assertNotIn("中央民族大学", result.document_units[0]["clean_text"])
+        self.assertNotIn("示例大学", result.document_units[0]["clean_text"])
         self.assertNotIn(
             "家庭经济困难学生临时困难补助管理办法", result.document_units[0]["clean_text"]
         )
@@ -255,7 +255,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(
                     8,
                     "heading",
-                    "中央民族大学校内常用电话",
+                    "示例大学校内常用电话",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -264,7 +264,7 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
                 _source_row(8, "paragraph", "就业工作处"),
                 _source_row(8, "paragraph", "就业指导、就业派遣 68932410"),
             ],
-            manifest_document=_manifest_document(8, 8, title="中央民族大学校内常用电话"),
+            manifest_document=_manifest_document(8, 8, title="示例大学校内常用电话"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -295,22 +295,22 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
 
     def test_cleanup_fixture_update_keeps_document_id_but_changes_version_id(self) -> None:
         stable = cleanup_handbook_document(
-            structured_rows=_load_fixture_rows("provider-result-stable.jsonl"),
+            structured_rows=_load_fixture_rows("provider-result-stable.synthetic.jsonl"),
             manifest_document=_manifest_document(
                 1,
                 1,
-                title="中央民族大学奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
         updated = cleanup_handbook_document(
-            structured_rows=_load_fixture_rows("provider-result-updated.jsonl"),
+            structured_rows=_load_fixture_rows("provider-result-updated.synthetic.jsonl"),
             manifest_document=_manifest_document(
                 1,
                 1,
-                title="中央民族大学奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )

@@ -53,14 +53,14 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             ).encode("utf-8")
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(valid_record, stale_record),
                 object_store=_FakeObjectStore(
                     {
                         (
-                            "campus-rag-derived",
+                            "campus-agent-derived",
                             valid_record.document_units_object_key,
                         ): valid_payload,
                     }
@@ -121,13 +121,13 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -136,7 +136,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
 
             self.assertTrue(report.passed)
             self.assertEqual(report.chunk_policy_version, "student_rules_semantic_v3")
-            self.assertIn("Qwen3-Embedding-4B", report.tokenizer_name)
+            self.assertEqual(report.tokenizer_name, "regex_test")
             self.assertEqual(report.validated_document_count, 1)
             self.assertEqual(report.total_units, 1)
             self.assertGreaterEqual(report.total_chunks, 1)
@@ -235,7 +235,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
 
             objects = {
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     plain_record.document_units_object_key,
                 ): (
                     json.dumps(
@@ -260,7 +260,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
                     + "\n"
                 ).encode("utf-8"),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     policy_record.document_units_object_key,
                 ): (
                     json.dumps(
@@ -284,7 +284,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
                     + "\n"
                 ).encode("utf-8"),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     table_record.document_units_object_key,
                 ): (
                     "\n".join(
@@ -342,7 +342,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
                     + "\n"
                 ).encode("utf-8"),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     structure_record.document_units_object_key,
                 ): (
                     json.dumps(
@@ -367,7 +367,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
                     + "\n"
                 ).encode("utf-8"),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     guardrail_record.document_units_object_key,
                 ): (
                     json.dumps(
@@ -395,7 +395,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             export_student_handbook_chunk_samples(
                 output_dir=output_dir,
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(

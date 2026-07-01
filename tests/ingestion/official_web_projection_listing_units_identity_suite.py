@@ -215,7 +215,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_010",
                 raw_version_id="owver_listing_010",
                 normalized_canonical_url="https://www.example.edu/news/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -225,7 +225,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_010",
@@ -243,7 +243,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                         parent_heading_path=["校园经纬"],
                     ),
                     _block(
@@ -293,7 +293,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=7,
                         block_order=7,
                         block_role="paragraph",
-                        text="新闻网讯 3月23日，《学习时报》刊发中央民族大学马克思主义学院党委书记、院长孔新峰教授撰写的理论文章《政德何以重要》，文章指出：新时代新征程对干部治理能力提出更高要求，政德建设成为干部队伍建设的关键抓手。政德作为党员干部从政履职的根本道德准则，是中华传统政治文明一脉相承的精神内核，唯有筑牢政德底...",
+                        text="新闻网讯 3月23日，《学习时报》刊发示例大学马克思主义学院党委书记、院长孔新峰教授撰写的理论文章《政德何以重要》，文章指出：新时代新征程对干部治理能力提出更高要求，政德建设成为干部队伍建设的关键抓手。政德作为党员干部从政履职的根本道德准则，是中华传统政治文明一脉相承的精神内核，唯有筑牢政德底...",
                         parent_heading_path=["校园经纬"],
                     ),
                     _block(
@@ -318,7 +318,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                 encoding="utf-8"
             )
 
-            self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
+            self.assertIn("- 示例大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
             self.assertIn("- 《学习时报》孔新峰：政德何以重要", canonical)
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("全球合作", canonical)
@@ -358,7 +358,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_011",
                 raw_version_id="owver_listing_011",
                 normalized_canonical_url="https://www.example.edu/news/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -368,7 +368,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_011",
@@ -406,7 +406,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=4,
                         block_order=4,
                         block_role="heading",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                         parent_heading_path=[polluted_heading],
                     ),
                     _block(
@@ -416,7 +416,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                         parent_heading_path=[polluted_heading],
                     ),
                     _block(
@@ -493,7 +493,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_012",
                 raw_version_id="owver_listing_012",
                 normalized_canonical_url="https://www.example.edu/news/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -503,7 +503,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_012",
@@ -521,7 +521,7 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                         parent_heading_path=["校园经纬"],
                     ),
                     _block(
@@ -613,6 +613,6 @@ class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):
             self.assertEqual(len(units), 1)
             self.assertEqual(
                 units[0]["clean_text"],
-                "中央民族大学党委举办树立和践行正确政绩观学习教育读书班\n【专题报道】深入贯彻中央八项规定精神学习教育",
+                "示例大学党委举办树立和践行正确政绩观学习教育读书班\n【专题报道】深入贯彻中央八项规定精神学习教育",
             )
             self.assertEqual(units[0]["anchor"]["row_ids"], ["item-1", "item-2"])

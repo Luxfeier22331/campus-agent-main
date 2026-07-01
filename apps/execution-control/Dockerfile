@@ -20,7 +20,7 @@ COPY configs/runtime/tools.v4.json /src/configs/runtime/tools.v4.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
 COPY configs/runtime/execution-control /src/configs/runtime/execution-control
 COPY configs/ingestion /src/configs/ingestion
-COPY tests/fixtures/tool_execution_contract /src/tests/fixtures/tool_execution_contract
+COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
 RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \

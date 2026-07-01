@@ -124,7 +124,7 @@ def build_process_smoke_plan(
                 ),
                 cwd=repo_root,
                 env={
-                    "SMOKE_S3_BUCKET": "campus-rag-derived",
+                    "SMOKE_S3_BUCKET": "campus-agent-derived",
                     "SMOKE_S3_RESPONSE_BODY": _notice_smoke_body(),
                 },
                 log_path=output_dir / "s3-smoke-object-store.log",

@@ -151,8 +151,8 @@ def _manifest(
             ConsumerAdmissionDecisionRecord(
                 notice_id=notice_id,
                 source_notice_id=notice_id,
-                site_id="muc_internal_portal",
-                raw_asset_id=f"asset:authenticated-notice:muc_internal_portal:{notice_id}",
+                site_id="example_internal_portal",
+                raw_asset_id=f"asset:authenticated-notice:example_internal_portal:{notice_id}",
                 raw_version_id=f"sha256:raw-{notice_id}",
                 notice_family="course_teaching_arrangement",
                 suggested_consumption_route="notice_level_query",

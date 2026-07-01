@@ -9,7 +9,6 @@ from PIL import Image
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
     DEFAULT_REGION_TILE_COLS,
     DEFAULT_REGION_TILE_ROWS,
-    DEFAULT_RENDER_DPI,
     DEFAULT_TILE_OVERLAP_RATIO,
     CurriculumCourseMapInventoryEntry,
     CurriculumCourseMapRenderedRegion,
@@ -25,61 +24,9 @@ def render_curriculum_course_map_sample(
     sample_id: str,
     output_dir: Path | None = None,
 ) -> CurriculumCourseMapRenderedSample:
-    try:
-        import fitz
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("pymupdf is required for curriculum course-map rendering") from exc
-
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
-        if entry.page_number > document.page_count:
-            raise ValueError(
-                f"page {entry.page_number} exceeds PDF page_count {document.page_count}"
-            )
-        page = document.load_page(entry.page_number - 1)
-        page_rect = page.rect
-        provider_canvas = derive_provider_canvas(
-            pdf_page_width=page_rect.width,
-            pdf_page_height=page_rect.height,
-            provider_page_height=entry.provider_page_height,
-            provider_page_width=entry.provider_page_width,
-        )
-        pdf_bbox = project_provider_bbox_to_pdf_rect(
-            provider_bbox=entry.bbox_provider,
-            provider_canvas=provider_canvas,
-            pdf_page_width=page_rect.width,
-            pdf_page_height=page_rect.height,
-        )
-        full_page_png = page.get_pixmap(dpi=DEFAULT_RENDER_DPI, alpha=False).tobytes("png")
-        crop_png = page.get_pixmap(
-            dpi=DEFAULT_RENDER_DPI,
-            alpha=False,
-            clip=fitz.Rect(*pdf_bbox),
-        ).tobytes("png")
-
-    full_page_image_path = None
-    crop_image_path = None
-    if output_dir is not None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        full_page_path = output_dir / f"{sample_id}-page-{entry.page_number}.png"
-        crop_path = output_dir / f"{sample_id}-page-{entry.page_number}-crop.png"
-        full_page_path.write_bytes(full_page_png)
-        crop_path.write_bytes(crop_png)
-        full_page_image_path = str(full_page_path.resolve())
-        crop_image_path = str(crop_path.resolve())
-    return CurriculumCourseMapRenderedSample(
-        sample_id=sample_id,
-        page_number=entry.page_number,
-        document_id=entry.document_id,
-        document_title=entry.document_title,
-        row_id=entry.row_id,
-        parent_heading_hint=entry.parent_heading_hint,
-        provider_bbox=entry.bbox_provider,
-        provider_canvas=provider_canvas,
-        pdf_bbox=pdf_bbox,
-        full_page_png=full_page_png,
-        crop_png=crop_png,
-        full_page_image_path=full_page_image_path,
-        crop_image_path=crop_image_path,
+    raise RuntimeError(
+        "curriculum course-map PDF rendering probe is retired; "
+        "use captured rendered samples or rebuild the probe in an approved rendering runtime"
     )
 
 

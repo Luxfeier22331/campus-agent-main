@@ -97,7 +97,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -188,7 +188,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 						byteSize: data.byteLength,
@@ -278,7 +278,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -324,7 +324,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c",
 						byteSize: data.byteLength,
@@ -403,13 +403,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
 		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 11,
 			ingest_status: "uploaded",
 			mime_type: "image/png",
@@ -514,7 +514,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -613,7 +613,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -651,7 +651,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 						byteSize: data.byteLength,
@@ -744,7 +744,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -757,7 +757,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			runtime_shell: "repo_local_node",
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 5,
 			ingest_status: "uploaded",
 			mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -786,7 +786,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

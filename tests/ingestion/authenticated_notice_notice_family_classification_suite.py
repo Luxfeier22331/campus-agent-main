@@ -9,52 +9,52 @@ from tests.ingestion.authenticated_notice_notice_family_test_support import (
 
 CLASSIFICATION_CASES = (
     (
-        "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+        "关于发布《示例大学新一轮本科教育教学审核评估应知应会手册》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+        "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于印发《中央民族大学本科生转专业实施办法（试行）》的通知",
+        "关于印发《示例大学本科生转专业实施办法（试行）》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于发布《中央民族大学学生违纪处分规定》的通知",
+        "关于发布《示例大学学生违纪处分规定》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于公布《中央民族大学信息化项目建设管理规范》的通知",
+        "关于公布《示例大学信息化项目建设管理规范》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学关于进一步加强科研诚信建设的实施意见",
+        "示例大学关于进一步加强科研诚信建设的实施意见",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于废止《中央民族大学旧版校园卡管理办法》的通知",
+        "关于废止《示例大学旧版校园卡管理办法》的通知",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "关于发布《中央民族大学新一轮本科教育教学审核评估自评报告》的通知",
+        "关于发布《示例大学新一轮本科教育教学审核评估自评报告》的通知",
         "other",
         "no_adoption",
     ),
     (
-        "关于开展《中央民族大学学生违纪处分规定》专题学习的通知",
+        "关于开展《示例大学学生违纪处分规定》专题学习的通知",
         "meeting_training",
         "defer",
     ),
     (
-        "关于举办《中央民族大学信息化项目建设管理规范》解读会的通知",
+        "关于举办《示例大学信息化项目建设管理规范》解读会的通知",
         "meeting_training",
         "defer",
     ),
@@ -105,7 +105,7 @@ CLASSIFICATION_CASES = (
         "教学通知",
     ),
     (
-        "中央民族大学创新实验班——“孝通班” 2026年开始选拔",
+        "示例大学创新实验班——“孝通班” 2026年开始选拔",
         "academic_program_selection",
         "notice_level_query",
         "",
@@ -214,60 +214,60 @@ CLASSIFICATION_CASES = (
     ),
     ("关于海淀校区部分配电室停电抢修的通知", "facility_service_status", "hold_notice_runtime"),
     ("关于信息门户升级维护的通知", "it_platform_service_status", "hold_notice_runtime"),
-    ("中央民族大学图书馆2026年寒假期间开放安排", "library_service_status", "hold_notice_runtime"),
+    ("示例大学图书馆2026年寒假期间开放安排", "library_service_status", "hold_notice_runtime"),
     ("关于 JSTOR 数据库恢复开通的通知", "library_resource_notice", "notice_level_query"),
     ("关于两校区学生通勤班车增加班次的通知", "transport_commute_status", "hold_notice_runtime"),
     (
-        "中央民族大学海淀校区运动场地改造建设项目施工资格预审公告",
+        "示例大学海淀校区运动场地改造建设项目施工资格预审公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "2026年度中央民族大学海淀校区水泵和空调等机电设备维修维护服务比选公告",
+        "2026年度示例大学海淀校区水泵和空调等机电设备维修维护服务比选公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "中央民族大学2026年度公共修缮及应急抢修项目造价咨询项目比选公告",
+        "示例大学2026年度公共修缮及应急抢修项目造价咨询项目比选公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "2026年度中央民族大学海淀校区水泵和空调等机电设备维修维护服务成交结果公告",
+        "2026年度示例大学海淀校区水泵和空调等机电设备维修维护服务成交结果公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+        "示例大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学研究生学位论文评阅办法（试行）",
+        "示例大学研究生学位论文评阅办法（试行）",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+        "示例大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学本科教学事故认定与处理办法",
+        "示例大学本科教学事故认定与处理办法",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学本科学生专业奖学金评定办法（修订）",
+        "示例大学本科学生专业奖学金评定办法（修订）",
         "policy_regulation",
         "priority_now",
     ),
     (
-        "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+        "示例大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
         "policy_regulation",
         "priority_now",
     ),
-    ("中央民族大学教学行为规范", "policy_regulation", "priority_now"),
+    ("示例大学教学行为规范", "policy_regulation", "priority_now"),
     ("关于OA系统暂停访问的通知", "it_platform_service_status", "hold_notice_runtime"),
     ("关于理工楼网络中断的通知", "it_platform_service_status", "hold_notice_runtime"),
     ("关于“AI民大”2.0版本升级上线的通知", "it_platform_service_status", "hold_notice_runtime"),
@@ -311,14 +311,14 @@ CLASSIFICATION_CASES = (
         "教学通知",
     ),
     (
-        "关于召开中央民族大学第九届党委第一轮巡察动员部署会的通知",
+        "关于召开示例大学第九届党委第一轮巡察动员部署会的通知",
         "internal_governance_party_admin",
         "defer",
     ),
     ("民图影坛第五十七期 |《高山盛装》", "general_publicity_culture", "defer"),
     ("关于非学历教育管理岗位工作人员调整的通知", "staff_internal_admin", "defer"),
     ("关于开展我校2026年高等学校教育事业统计工作的通知", "staff_internal_admin", "defer"),
-    ("中央民族大学关于编制2026年校内预算的通知", "staff_internal_admin", "defer"),
+    ("示例大学关于编制2026年校内预算的通知", "staff_internal_admin", "defer"),
     (
         "征稿通知｜第六届平台研究学术工作坊——“溯源与智启：平台社会的新场景与新叙事”征稿启事",
         "research_publicity_call",
@@ -380,7 +380,7 @@ CLASSIFICATION_CASES = (
         "教学通知",
     ),
     (
-        "关于做好2026年中央民族大学社会资助评审工作的通知",
+        "关于做好2026年示例大学社会资助评审工作的通知",
         "student_affairs_application",
         "notice_level_query",
         "",
@@ -425,7 +425,7 @@ CLASSIFICATION_CASES = (
     ),
     ("丰台校区倡议一：爱护学校公共设施倡议书", "culture_publicity_activity", "defer"),
     (
-        "关于举办中央民族大学第二十届心理文化节的通知",
+        "关于举办示例大学第二十届心理文化节的通知",
         "culture_publicity_activity",
         "defer",
         "",
@@ -492,7 +492,7 @@ BULK_CLASSIFICATION_CASES = (
         "hold_notice_runtime",
     ),
     (
-        "关于中央民族大学医院海淀院区双休日门急诊时间调整的通知",
+        "关于示例大学医院海淀院区双休日门急诊时间调整的通知",
         "service_status_override",
         "hold_notice_runtime",
     ),
@@ -511,7 +511,7 @@ BULK_CLASSIFICATION_CASES = (
     ("图书馆开通在校读者图书预约外借服务的通知", "library_service_status", "hold_notice_runtime"),
     ("关于家属区微信购电暂停的通知", "it_platform_service_status", "hold_notice_runtime"),
     (
-        "第四期“中央民族大学理工科拔尖创新人才培养实验班”选拔方案",
+        "第四期“示例大学理工科拔尖创新人才培养实验班”选拔方案",
         "academic_program_selection",
         "notice_level_query",
     ),
@@ -543,7 +543,7 @@ BULK_CLASSIFICATION_CASES = (
     ("关于丰台校区图书馆向读者开设研修间的通知", "library_service_status", "hold_notice_runtime"),
     ("在线预约参观图书馆文献展的通知", "culture_publicity_activity", "defer"),
     (
-        "预告 | 第四届中国民族志纪录片学术双年展·中央民族大学专场",
+        "预告 | 第四届中国民族志纪录片学术双年展·示例大学专场",
         "research_publicity_call",
         "defer",
     ),
@@ -572,20 +572,20 @@ BULK_CLASSIFICATION_CASES = (
 )
 
 SOURCE_TRUTH_INVENTORY_CASES = (
-    ("中央民族大学工程结算付款审批单", "form_template_download", "notice_level_query"),
+    ("示例大学工程结算付款审批单", "form_template_download", "notice_level_query"),
     ("“民大通”APP使用手册", "it_platform_operation_notice", "notice_level_query"),
     (
-        "中央民族大学海淀校区2026年财政专项（工程监理服务）竞争性磋商公告",
+        "示例大学海淀校区2026年财政专项（工程监理服务）竞争性磋商公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "中央民族大学海淀校区配套机械车库建设项目资格预审公告",
+        "示例大学海淀校区配套机械车库建设项目资格预审公告",
         "procurement_notice",
         "archive_notice",
     ),
     (
-        "2026年度中央民族大学中央空调清洗消毒和运行值班服务成交结果公告",
+        "2026年度示例大学中央空调清洗消毒和运行值班服务成交结果公告",
         "procurement_notice",
         "archive_notice",
     ),
@@ -596,8 +596,8 @@ SOURCE_TRUTH_INVENTORY_CASES = (
         "defer",
     ),
     ("文学院敬文东教授新著《絮叨》出版", "research_publicity_call", "defer"),
-    ("中央民族大学高教动态2022年第1期（总第13期）", "campus_news_publicity", "defer"),
-    ("《中央民族大学教育舆情参考》2022年第38期", "campus_news_publicity", "defer"),
+    ("示例大学高教动态2022年第1期（总第13期）", "campus_news_publicity", "defer"),
+    ("《示例大学教育舆情参考》2022年第38期", "campus_news_publicity", "defer"),
     ("2021年《民大要情》第11期", "campus_news_publicity", "defer"),
     (
         "关于暂时停用相关区域停车权限的通知",
@@ -627,7 +627,7 @@ SOURCE_TRUTH_INVENTORY_CASES = (
     ),
     ("关于认领和清理历年到校未入账科研经费的通知", "finance_payment_action", "notice_level_query"),
     ("关于召开2026年春季学期高校专项工作部署会的通知", "meeting_training", "defer"),
-    ("中央民族大学中科杯“传承精神谱系 擘画时代新篇” 主题活动开始啦", "event_activity", "defer"),
+    ("示例大学中科杯“传承精神谱系 擘画时代新篇” 主题活动开始啦", "event_activity", "defer"),
     ("关于开通丰台校区社会实践专车的通知", "transport_commute_status", "hold_notice_runtime"),
     ("关于举办首届图书馆信息素养训练营活动的通知", "event_activity", "defer"),
     ("关于举办第二期“千人读四书·蒲公英成长营”的通知", "culture_publicity_activity", "defer"),
@@ -678,11 +678,11 @@ SOURCE_TRUTH_INVENTORY_CASES = (
 )
 
 PRECEDENCE_CASES = (
-    ("关于修订《中央民族大学党委会议事规则》的通知", "policy_regulation", "priority_now"),
+    ("关于修订《示例大学党委会议事规则》的通知", "policy_regulation", "priority_now"),
     ("关于 “SpecialSci专题数据库”试用开通的通知", "library_resource_notice", "notice_level_query"),
     ("国际教育学院招聘学生助理的通知", "job_recruitment", "defer", "", "10", "就业信息"),
     (
-        "关于开展“知行中华”铸魂育人工程——中央民族大学2026年大学生寒假社会实践活动的通知",
+        "关于开展“知行中华”铸魂育人工程——示例大学2026年大学生寒假社会实践活动的通知",
         "event_activity",
         "defer",
         "<p>活动主题：青春返乡行，奋进新时代</p><p>活动时间：2026年1月-3月</p>",
@@ -698,9 +698,9 @@ PRECEDENCE_CASES = (
         "科研通知",
     ),
     ("关于校园道路树木修剪温馨提醒", "other", "no_adoption"),
-    ("中央民族大学丰台校区家具采购项目比选公告", "procurement_notice", "archive_notice"),
+    ("示例大学丰台校区家具采购项目比选公告", "procurement_notice", "archive_notice"),
     ("关于暑假期间办理就业相关事务的通知", "service_status_override", "hold_notice_runtime"),
-    ("关于修订《中央民族大学采购工作管理办法》的通知", "policy_regulation", "priority_now"),
+    ("关于修订《示例大学采购工作管理办法》的通知", "policy_regulation", "priority_now"),
 )
 
 

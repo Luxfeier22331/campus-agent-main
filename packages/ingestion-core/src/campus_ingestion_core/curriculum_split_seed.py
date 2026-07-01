@@ -153,7 +153,7 @@ def derive_curriculum_source_uri_from_canonical_path(canonical_doc_path: str) ->
     normalized = canonical_doc_path.strip().lstrip("/")
     if not normalized:
         raise ValueError("canonical_doc_path is required")
-    return f"campusrag://{normalized}"
+    return f"campus-agent://{normalized}"
 
 
 def build_curriculum_split_manifest_seed(

@@ -10,13 +10,13 @@ import {
 export function registerOfficialWebE2ENotModifiedSuite() {
 	it("projects not_modified runs into operator-visible summaries without creating recent page changes", async () => {
 		const state = createMemoryState();
-		state.pageFreshnessByUrl.set("muc_public::https://www.muc.edu.cn/news/notice.htm", {
+		state.pageFreshnessByUrl.set("example_public::https://www.example.edu/news/notice.htm", {
 			cadenceClass: "detail_recent",
 			contentType: "text/html",
-			discoveredFromUrl: "https://www.muc.edu.cn/news/",
+			discoveredFromUrl: "https://www.example.edu/news/",
 			discoveryMethod: "listing_link",
 			etag: '"etag-prev"',
-			host: "www.muc.edu.cn",
+			host: "www.example.edu",
 			lastChangeReason: "main_content_changed",
 			lastChangedAt: "2026-03-29T07:00:00.000Z",
 			lastFetchDisposition: "fetched",
@@ -27,12 +27,12 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 			lastSuccessfulRunId: "owrun_prev",
 			mainContentHash: "main-prev",
 			nextEligibleFetchAt: "2026-03-29T13:00:00.000Z",
-			normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+			normalizedCanonicalUrl: "https://www.example.edu/news/notice.htm",
 			pageFamily: "article_detail",
 			pageTitleNormalized: "Notice",
 			priorityScore: 75,
 			responseBodyHash: "body-prev",
-			siteId: "muc_public",
+			siteId: "example_public",
 		});
 
 		const ingestionTasks = createIngestionTaskClient(
@@ -57,11 +57,11 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 					collectorVersion: "official-web-collector@0.1.0",
 					configVersion: "git:abc1234",
 					crawlPolicyVersion: "2026-03-29",
-					hostSet: ["www.muc.edu.cn"],
+					hostSet: ["www.example.edu"],
 					runIntent: "hot",
 					schedulerRunKey: "cron-2026-03-29T09:00:00.000Z",
-					seedSet: ["https://www.muc.edu.cn/"],
-					siteId: "muc_public",
+					seedSet: ["https://www.example.edu/"],
+					siteId: "example_public",
 					startedAt: "2026-03-29T09:00:00.000Z",
 					triggerType: "scheduled",
 				}),
@@ -89,22 +89,22 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 					pageObservations: [
 						{
 							contentType: "text/html",
-							discoveredFromUrl: "https://www.muc.edu.cn/news/",
+							discoveredFromUrl: "https://www.example.edu/news/",
 							discoveryMethod: "listing_link",
 							disposition: "not_modified",
 							etag: '"etag-prev"',
-							finalUrl: "https://www.muc.edu.cn/news/notice.htm",
-							host: "www.muc.edu.cn",
+							finalUrl: "https://www.example.edu/news/notice.htm",
+							host: "www.example.edu",
 							httpStatus: 304,
 							lastModified: "Sat, 29 Mar 2026 07:00:00 GMT",
 							mainContentHash: "main-prev",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+							normalizedCanonicalUrl: "https://www.example.edu/news/notice.htm",
 							observedAt: "2026-03-29T09:00:00.000Z",
 							pageFamily: "article_detail",
 							pageTitleNormalized: "Notice",
 							rawAssetId: null,
 							rawVersionId: null,
-							requestedUrl: "https://www.muc.edu.cn/news/notice.htm",
+							requestedUrl: "https://www.example.edu/news/notice.htm",
 							responseBodyHash: "body-prev",
 						},
 					],
@@ -128,7 +128,7 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 		await runtime.scheduled();
 
 		expect(
-			state.pageFreshnessByUrl.get("muc_public::https://www.muc.edu.cn/news/notice.htm"),
+			state.pageFreshnessByUrl.get("example_public::https://www.example.edu/news/notice.htm"),
 		).toMatchObject({
 			lastChangeReason: "conditional_not_modified",
 			lastChangedAt: "2026-03-29T07:00:00.000Z",
@@ -156,14 +156,14 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 					ingestionDispatchStatus: "dispatched",
 					ingestionExecutionStatus: "pending",
 					runId: "owrun_not_modified",
-					siteId: "muc_public",
+					siteId: "example_public",
 					status: "completed",
 				}),
 			},
 		});
 
 		const siteResponse = await runtime.fetch(
-			new Request("https://app-api.internal/api/operator/official-web/sites/muc_public"),
+			new Request("https://app-api.internal/api/operator/official-web/sites/example_public"),
 		);
 		expect(siteResponse.status).toBe(200);
 		await expect(siteResponse.json()).resolves.toEqual({
@@ -172,14 +172,14 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 				duePages: [
 					expect.objectContaining({
 						lastFetchDisposition: "not_modified",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+						normalizedCanonicalUrl: "https://www.example.edu/news/notice.htm",
 					}),
 				],
 				failedFetchPages: [],
 				hotPages: [
 					expect.objectContaining({
 						lastFetchDisposition: "not_modified",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+						normalizedCanonicalUrl: "https://www.example.edu/news/notice.htm",
 					}),
 				],
 			},
@@ -193,14 +193,14 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 			recentRuns: [
 				expect.objectContaining({
 					runId: "owrun_not_modified",
-					siteId: "muc_public",
+					siteId: "example_public",
 				}),
 			],
 			site: expect.objectContaining({
 				latestIngestionDispatchStatus: "dispatched",
 				latestIngestionExecutionStatus: "pending",
 				latestRunId: "owrun_not_modified",
-				siteId: "muc_public",
+				siteId: "example_public",
 			}),
 		});
 	});

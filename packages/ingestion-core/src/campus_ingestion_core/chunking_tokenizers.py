@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import importlib
-import os
 import re
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
 from functools import lru_cache
-from typing import Any, Protocol
+from typing import Protocol
 
-from campus_ingestion_core.tokenizer_cache import resolve_prefetched_hf_tokenizer_path
+from campus_ingestion_core.local_tokenizer import count_tokens_with_local_tokenizer
 
 DEFAULT_TOKENIZER_NAME = "regex_approximation_v1"
 QWEN3_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
@@ -72,8 +68,7 @@ class HuggingFaceTokenCounter:
         return f"hf:{self.display_name}"
 
     def count(self, text: str) -> int:
-        tokenizer = _load_hf_tokenizer(self.tokenizer_repo)
-        return len(tokenizer.encode(text, add_special_tokens=False))
+        return _count_hf_tokens(self.tokenizer_repo, text)
 
 
 def build_token_counter(model_name: str) -> TokenCounter:
@@ -108,36 +103,22 @@ def build_student_handbook_v3_token_counter(model_name: str) -> TokenCounter:
     )
 
 
-def _load_hf_tokenizer(repo_id: str) -> Any:
+def _count_hf_tokens(repo_id: str, text: str) -> int:
     with _HF_TOKENIZER_LOAD_LOCK:
-        return _load_hf_tokenizer_cached(repo_id)
+        return _count_hf_tokens_cached(repo_id, text)
 
 
 @lru_cache(maxsize=4)
-def _load_hf_tokenizer_cached(repo_id: str) -> Any:
-    with _suppress_transformers_missing_torch_advisory():
-        transformers = importlib.import_module("transformers")
-
-    local_tokenizer_path = resolve_prefetched_hf_tokenizer_path(repo_id)
-    return transformers.AutoTokenizer.from_pretrained(local_tokenizer_path, local_files_only=True)
+def _count_hf_tokens_cached(repo_id: str, text: str) -> int:
+    return count_tokens_with_local_tokenizer(repo_id=repo_id, text=text)
 
 
-@contextmanager
-def _suppress_transformers_missing_torch_advisory() -> Iterator[None]:
-    env_key = "TRANSFORMERS_NO_ADVISORY_WARNINGS"
-    previous_value = os.environ.get(env_key)
-    if previous_value is None:
-        os.environ[env_key] = "1"
-    try:
-        yield
-    finally:
-        if previous_value is None:
-            os.environ.pop(env_key, None)
-        else:
-            os.environ[env_key] = previous_value
+def _clear_hf_token_cache() -> None:
+    _count_hf_tokens_cached.cache_clear()
+    count_tokens_with_local_tokenizer.cache_clear()
 
 
-_load_hf_tokenizer.cache_clear = _load_hf_tokenizer_cached.cache_clear
+_count_hf_tokens.cache_clear = _clear_hf_token_cache
 
 
 def normalize_embedding_model_name(model_name: str) -> str:
@@ -155,7 +136,7 @@ __all__ = [
     "RegexApproxTokenCounter",
     "TiktokenTokenCounter",
     "TokenCounter",
-    "_load_hf_tokenizer",
+    "_count_hf_tokens",
     "build_curriculum_token_counter",
     "build_student_handbook_v3_token_counter",
     "build_token_counter",

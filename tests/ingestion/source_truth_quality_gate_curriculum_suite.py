@@ -31,7 +31,9 @@ def _curriculum_rows_from_payload(provider_payload: dict[str, object]) -> list[d
 
 
 def _real_curriculum_fixture_rows() -> list[dict[str, object]]:
-    fixture_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
+    fixture_path = Path(
+        "packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl"
+    )
     return [
         json.loads(line)
         for line in fixture_path.read_text(encoding="utf-8").splitlines()
@@ -40,12 +42,14 @@ def _real_curriculum_fixture_rows() -> list[dict[str, object]]:
 
 
 def _provider_curriculum_fixture_rows() -> list[dict[str, object]]:
-    fixture_path = Path("tests/fixtures/curriculum_plan/provider-result-sample.jsonl")
+    fixture_path = Path(
+        "packages/ingestion-core/testdata/curriculum_plan/provider-result.synthetic.jsonl"
+    )
     return [
         json.loads(line)
         for line in normalize_curriculum_provider_result(
             provider_jsonl_bytes=fixture_path.read_bytes(),
-            source_pdf="curriculum-plan-2022.pdf",
+            source_pdf="synthetic-curriculum-plan.pdf",
             ocr_provider="mineru_api",
             ocr_model="vlm",
         )
@@ -104,7 +108,7 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
                                     },
                                     {
                                         "block_label": "footer",
-                                        "block_content": "中央民族大学教务处",
+                                        "block_content": "示例大学教务处",
                                         "block_id": 15,
                                         "block_order": 4,
                                         "block_bbox": [20, 920, 220, 950],
@@ -145,7 +149,7 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
                                     },
                                     {
                                         "block_label": "footer",
-                                        "block_content": "中央民族大学教务处",
+                                        "block_content": "示例大学教务处",
                                         "block_id": 25,
                                         "block_order": 4,
                                         "block_bbox": [20, 920, 220, 950],
@@ -169,7 +173,7 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
         second_caption = next(row for row in rows if row["provider_block_id"] == "22")
         second_table = next(row for row in rows if row["provider_block_id"] == "23")
         note_row = next(row for row in rows if row["provider_block_id"] == "24")
-        repeated_rows = [row for row in rows if row["text_normalized"] == "中央民族大学教务处"]
+        repeated_rows = [row for row in rows if row["text_normalized"] == "示例大学教务处"]
 
         self.assertEqual(heading_row["row_type"], "heading")
         self.assertEqual(heading_row["heading_level"], 2)
@@ -262,7 +266,7 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
             rows,
             forbidden_fields=CURRICULUM_FORBIDDEN_SOURCE_TRUTH_FIELDS,
         )
-        self.assertEqual(len(rows), 21)
+        self.assertEqual(len(rows), 20)
         self.assertEqual(sum(row["row_type"] == "footer" for row in rows), 4)
         self.assertEqual(sum(row["row_type"] == "table" for row in rows), 2)
         self.assertEqual(sum(row["row_type"] == "table_caption" for row in rows), 2)
@@ -274,7 +278,7 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
     def test_curriculum_source_truth_validation_passes_provider_fixture(self) -> None:
         report = scan_curriculum_source_truth_rows(_provider_curriculum_fixture_rows())
 
-        self.assertEqual(report.total_rows, 21)
+        self.assertEqual(report.total_rows, 20)
         self.assertEqual(report.row_type_counts["table"], 2)
         self.assertEqual(report.row_type_counts["footer"], 4)
         self.assertEqual(report.forbidden_field_count, 0)

@@ -43,7 +43,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         _page_bundle_entry(
                             raw_asset_id="owasset_student_rule_4871",
                             raw_version_id="owver_student_rule_4871",
-                            normalized_canonical_url="https://xxgk.muc.edu.cn/info/1247/4871.htm",
+                            normalized_canonical_url="https://info.example.edu/info/1247/4871.htm",
                             page_family="article_detail",
                             target_matches=[regulation_match],
                             source_pack_id="official-web-public-regulation-closeout.v1",
@@ -55,10 +55,10 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
             _write_output_page(
                 output_dir,
                 site_id="campus_public",
-                host="xxgk.muc.edu.cn",
+                host="info.example.edu",
                 raw_asset_id="owasset_student_rule_4871",
                 raw_version_id="owver_student_rule_4871",
-                normalized_canonical_url="https://xxgk.muc.edu.cn/info/1247/4871.htm",
+                normalized_canonical_url="https://info.example.edu/info/1247/4871.htm",
                 page_title="成人高等教育学籍管理",
                 page_family="article_detail",
                 target_matches=[regulation_match],
@@ -89,7 +89,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         block_order=2,
                         block_role="paragraph",
                         text=(
-                            "中央民族大学成人高等学历教育学生学籍管理规定 "
+                            "示例大学成人高等学历教育学生学籍管理规定 "
                             "第一章 总则第一条 为加强我校成人高等学历教育学生的学籍管理，制定本规定。"
                             "第二条 本规定适用于我校成人高等学历教育学生。"
                         ),
@@ -108,7 +108,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
             typed_candidate = candidate["typed_candidate"]
             self.assertEqual(
                 typed_candidate["reference_title"],
-                "中央民族大学成人高等学历教育学生学籍管理规定",
+                "示例大学成人高等学历教育学生学籍管理规定",
             )
             self.assertIn("regulation_lines", typed_candidate)
             self.assertEqual(
@@ -116,7 +116,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                 "学生工作",
             )
             self.assertIn(
-                "中央民族大学成人高等学历教育学生学籍管理规定",
+                "示例大学成人高等学历教育学生学籍管理规定",
                 typed_candidate["regulation_lines"][1],
             )
 
@@ -146,14 +146,14 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         _page_bundle_entry(
                             raw_asset_id="owasset_student_rule_spacing_1",
                             raw_version_id="owver_student_rule_spacing_1",
-                            normalized_canonical_url="https://xxgk.muc.edu.cn/info/1264/5301.htm",
+                            normalized_canonical_url="https://info.example.edu/info/1264/5301.htm",
                             page_family="article_detail",
                             target_matches=[regulation_match],
                         ),
                         _page_bundle_entry(
                             raw_asset_id="owasset_student_rule_spacing_2",
                             raw_version_id="owver_student_rule_spacing_2",
-                            normalized_canonical_url="https://xxgk.muc.edu.cn/info/1265/5311.htm",
+                            normalized_canonical_url="https://info.example.edu/info/1265/5311.htm",
                             page_family="article_detail",
                             target_matches=[regulation_match],
                         ),
@@ -163,11 +163,11 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
             _write_output_page(
                 output_dir,
                 site_id="campus_public",
-                host="xxgk.muc.edu.cn",
+                host="info.example.edu",
                 raw_asset_id="owasset_student_rule_spacing_1",
                 raw_version_id="owver_student_rule_spacing_1",
-                normalized_canonical_url="https://xxgk.muc.edu.cn/info/1264/5301.htm",
-                page_title="中央民族大学外国留学生本科生 学籍管理规定",
+                normalized_canonical_url="https://info.example.edu/info/1264/5301.htm",
+                page_title="示例大学外国留学生本科生 学籍管理规定",
                 page_family="article_detail",
                 target_matches=[regulation_match],
                 blocks=[
@@ -178,7 +178,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学外国留学生本科生 学籍管理规定",
+                        text="示例大学外国留学生本科生 学籍管理规定",
                     ),
                     _block(
                         raw_asset_id="owasset_student_rule_spacing_1",
@@ -194,11 +194,11 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
             _write_output_page(
                 output_dir,
                 site_id="campus_public",
-                host="xxgk.muc.edu.cn",
+                host="info.example.edu",
                 raw_asset_id="owasset_student_rule_spacing_2",
                 raw_version_id="owver_student_rule_spacing_2",
-                normalized_canonical_url="https://xxgk.muc.edu.cn/info/1265/5311.htm",
-                page_title="中央民族大学 优秀毕业研究生评选办法",
+                normalized_canonical_url="https://info.example.edu/info/1265/5311.htm",
+                page_title="示例大学 优秀毕业研究生评选办法",
                 page_family="article_detail",
                 target_matches=[regulation_match],
                 blocks=[
@@ -209,7 +209,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学 优秀毕业研究生评选办法",
+                        text="示例大学 优秀毕业研究生评选办法",
                     ),
                     _block(
                         raw_asset_id="owasset_student_rule_spacing_2",
@@ -235,12 +235,12 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                 for candidate in report.consumer_candidate_pages
             }
             self.assertEqual(
-                by_url["https://xxgk.muc.edu.cn/info/1264/5301.htm"]["reference_title"],
-                "中央民族大学外国留学生本科生学籍管理规定",
+                by_url["https://info.example.edu/info/1264/5301.htm"]["reference_title"],
+                "示例大学外国留学生本科生学籍管理规定",
             )
             self.assertEqual(
-                by_url["https://xxgk.muc.edu.cn/info/1265/5311.htm"]["reference_title"],
-                "中央民族大学优秀毕业研究生评选办法",
+                by_url["https://info.example.edu/info/1265/5311.htm"]["reference_title"],
+                "示例大学优秀毕业研究生评选办法",
             )
 
     def test_replay_skips_non_answer_bearing_source_pack_preview_directory_seed_candidates(
@@ -420,7 +420,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="link",
-                        text="中央民族大学学生违纪处分实施办法",
+                        text="示例大学学生违纪处分实施办法",
                         is_main_content=True,
                     ),
                     _block(
@@ -430,7 +430,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="link",
-                        text="中央民族大学本科生先进班级体评选办法（修订）",
+                        text="示例大学本科生先进班级体评选办法（修订）",
                         is_main_content=True,
                     ),
                 ],
@@ -494,7 +494,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                 raw_asset_id="owasset_source_pack_attachment_only_rule",
                 raw_version_id="owver_source_pack_attachment_only_rule",
                 normalized_canonical_url="https://www.example.edu/info/1290/5661.htm",
-                page_title="中央民族大学关于登记备案人员因私出国（境）管理办法",
+                page_title="示例大学关于登记备案人员因私出国（境）管理办法",
                 page_family="article_detail",
                 target_matches=[regulation_match],
                 source_pack_id="official-web-regulation-expansion.v1",
@@ -507,7 +507,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="heading",
-                        text="中央民族大学关于登记备案人员因私出国（境）管理办法",
+                        text="示例大学关于登记备案人员因私出国（境）管理办法",
                     ),
                     _block(
                         raw_asset_id="owasset_source_pack_attachment_only_rule",
@@ -516,7 +516,7 @@ class OfficialWebProjectionSourcePackRegulationTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="link",
-                        text="中央民族大学关于登记备案人员因私出国（境）管理办法",
+                        text="示例大学关于登记备案人员因私出国（境）管理办法",
                         is_main_content=True,
                         link_target="https://www.example.edu/__local/rule.doc",
                     ),

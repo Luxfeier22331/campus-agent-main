@@ -63,7 +63,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
             source_pdf_key="source.pdf",
             provider_response_key="provider-response.jsonl",
             layout_elements_key="layout-elements.jsonl",
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
             raw_version_id="sha256:test",
         )
 
@@ -71,13 +71,15 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         self.assertEqual([item.provider_page_width for item in inventory], [300.0, 300.0])
 
     def test_build_inventory_maps_image_rows_back_to_declared_documents(self) -> None:
-        layout_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
+        layout_path = Path(
+            "packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl"
+        )
         non_course_map_image = {
             "page_start": 1,
             "row_id": "page-0001-block-0001",
             "row_type": "image",
             "bbox": [1, 2, 3, 4],
-            "parent_heading_hint": "中央民族大学本科专业人才培养方案",
+            "parent_heading_hint": "示例大学本科专业人才培养方案",
         }
         layout_bytes = (
             json.dumps(non_course_map_image, ensure_ascii=False)
@@ -92,7 +94,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
             source_pdf_key="source.pdf",
             provider_response_key="provider-response.jsonl",
             layout_elements_key="layout-elements.jsonl",
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
             raw_version_id="sha256:test",
         )
 
@@ -160,7 +162,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
             source_pdf_key="source.pdf",
             provider_response_key="provider-response.jsonl",
             layout_elements_key="layout-elements.jsonl",
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
             raw_version_id="sha256:test",
         )
 
@@ -229,7 +231,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
             source_pdf_key="source.pdf",
             provider_response_key="provider-response.jsonl",
             layout_elements_key="layout-elements.jsonl",
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
             raw_version_id="sha256:test",
         )
 
@@ -309,7 +311,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
             source_pdf_key="source.pdf",
             provider_response_key="provider-response.jsonl",
             layout_elements_key="layout-elements.jsonl",
-            raw_asset_id="asset:curriculum-plan-2022",
+            raw_asset_id="asset:synthetic-curriculum-plan",
             raw_version_id="sha256:test",
         )
 
@@ -354,46 +356,29 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         self.assertLess(pdf_bbox[0], pdf_bbox[2])
         self.assertLessEqual(pdf_bbox[2], 595)
 
-    def test_render_sample_outputs_full_page_and_crop_pngs(self) -> None:
-        try:
-            import fitz
-        except ImportError:  # pragma: no cover
-            self.skipTest("pymupdf not installed")
-            return
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            pdf_path = Path(tmpdir) / "course-map.pdf"
-            with fitz.open() as document:
-                page = document.new_page(width=600, height=800)
-                page.draw_rect((60, 120, 360, 420), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
-                document.save(pdf_path)
-
-            entry = CurriculumCourseMapInventoryEntry(
-                document_id="curriculum:test-doc",
-                document_title="测试培养方案",
-                page_number=1,
-                row_id="page-0001-block-1",
-                parent_heading_hint="测试课程拓扑图",
-                bbox_provider=(120.0, 240.0, 720.0, 840.0),
-                provider_page_height=1600.0,
-                raw_asset_id="asset:test",
-                raw_version_id="sha256:test",
-                source_pdf_key="source.pdf",
-                provider_response_key="provider-response.jsonl",
-                layout_elements_key="layout-elements.jsonl",
-                provider_page_width=1200.0,
-            )
-            rendered = render_curriculum_course_map_sample(
-                pdf_bytes=pdf_path.read_bytes(),
+    def test_render_sample_fails_closed_after_pdf_rendering_probe_retirement(self) -> None:
+        entry = CurriculumCourseMapInventoryEntry(
+            document_id="curriculum:test-doc",
+            document_title="测试培养方案",
+            page_number=1,
+            row_id="page-0001-block-1",
+            parent_heading_hint="测试课程拓扑图",
+            bbox_provider=(120.0, 240.0, 720.0, 840.0),
+            provider_page_height=1600.0,
+            raw_asset_id="asset:test",
+            raw_version_id="sha256:test",
+            source_pdf_key="source.pdf",
+            provider_response_key="provider-response.jsonl",
+            layout_elements_key="layout-elements.jsonl",
+            provider_page_width=1200.0,
+        )
+        with self.assertRaisesRegex(RuntimeError, "PDF rendering probe is retired"):
+            render_curriculum_course_map_sample(
+                pdf_bytes=b"%PDF-fixture%",
                 entry=entry,
                 sample_id="sample-01",
-                output_dir=Path(tmpdir) / "out",
+                output_dir=None,
             )
-
-            self.assertTrue(rendered.full_page_png.startswith(b"\x89PNG"))
-            self.assertTrue(rendered.crop_png.startswith(b"\x89PNG"))
-            self.assertIsNotNone(rendered.full_page_image_path)
-            self.assertIsNotNone(rendered.crop_image_path)
 
     def test_gold_v2_allows_missing_title_when_slot_does_not_require_it(self) -> None:
         run_one = CurriculumCourseMapProbeRun(

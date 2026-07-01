@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import json
 import unittest
-from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     ChatCompletionsScheduleImageOcrProvider,
     InMemoryScheduleImageOcrAttemptStore,
-    PostgresScheduleImageOcrAttemptStore,
     ScheduleImageOcrAdmissionDecision,
     ScheduleImageOcrAttempt,
     ScheduleImageOcrChildDocument,
@@ -29,11 +25,9 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr import (
 
 from tests.ingestion.internal_notice_schedule_image_ocr_test_support import (
     _evidence,
-    _FakeConnectionContextManager,
     _FakeHttpClient,
     _FakeOcrProvider,
     _NoWriteObjectStore,
-    _PagedCursor,
 )
 
 

@@ -15,7 +15,7 @@ function releaseGateRecord(
 		decision: "approved",
 		errorJson: null,
 		evidenceJson: {
-			sourceObjectKeys: ["official_web/muc_public/runs/owrun/source-truth-bundle.json"],
+			sourceObjectKeys: ["official_web/example_public/runs/owrun/source-truth-bundle.json"],
 		},
 		executionJson: null,
 		inventoryId: "muc-school-introduction-reference",

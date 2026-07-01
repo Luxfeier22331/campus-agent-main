@@ -65,7 +65,7 @@ func transportProjectionFixtureForHTTPStatusTest() string {
 				"snapshot_id":"snapshot:bus:2026-04-20",
 				"published_at":"2026-04-20T18:00:00+08:00",
 				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"https://portal.muc.edu.cn/notice/123",
+				"source_ref":"https://portal.example.edu/notice/123",
 				"is_current":true
 			}
 		],
@@ -90,7 +90,7 @@ func transportProjectionFixtureForHTTPStatusTest() string {
 				"departure_time":"16:40",
 				"origin_stop_id":"stop:haidian-east-gate",
 				"destination_stop_id":"stop:fengtai-main-gate",
-				"related_notice_refs":["https://portal.muc.edu.cn/notice/123"]
+				"related_notice_refs":["https://portal.example.edu/notice/123"]
 			}
 		]
 	}`

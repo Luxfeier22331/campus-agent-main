@@ -48,7 +48,7 @@ export function registerPageArtifactsListingSuite() {
 					item.blockRole === "heading" &&
 					item.isMainContent &&
 					(item.textNormalized ?? "").includes(
-						"中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+						"示例大学举办示例研究中心2025年度重大招标项目开题论证会",
 					),
 			),
 		).toBe(true);
@@ -90,7 +90,7 @@ export function registerPageArtifactsListingSuite() {
 					item.isMainContent &&
 					item.linkTarget === "https://www.example.edu/info/1001/1.htm",
 			)?.textNormalized,
-		).toBe("历史文化学院2025年大事记");
+		).toBe("示例历史学院2025年大事记");
 		expect(
 			pageArtifacts.contentBlocks.find(
 				(item) =>
@@ -120,7 +120,7 @@ export function registerPageArtifactsListingSuite() {
 				(item) =>
 					item.isMainContent &&
 					item.blockRole !== "link" &&
-					["历史文化学院2025年大事记", "2025-2026-1学期缓补考时间安排"].includes(
+					["示例历史学院2025年大事记", "2025-2026-1学期缓补考时间安排"].includes(
 						item.textNormalized ?? "",
 					),
 			),
@@ -170,7 +170,7 @@ export function registerPageArtifactsListingSuite() {
 				(item) =>
 					item.blockRole === "link" &&
 					item.isMainContent &&
-					item.textNormalized === "中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会" &&
+					item.textNormalized === "示例大学举办示例研究中心2025年度重大招标项目开题论证会" &&
 					item.linkTarget === "https://www.example.edu/news/info/1011/61784.htm",
 			),
 		).toBe(true);

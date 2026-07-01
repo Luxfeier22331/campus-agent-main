@@ -12,7 +12,7 @@ const env = {
 	RESEND_API_KEY: "resend_test_key",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_DB: {
@@ -34,7 +34,7 @@ describe("federation provider routes", () => {
 
 		const response = await app.fetch(
 			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {
-				body: JSON.stringify({ email: "jane@muc.edu.cn", password: "StagingPass!2026" }),
+				body: JSON.stringify({ email: "jane@example.edu", password: "StagingPass!2026" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),

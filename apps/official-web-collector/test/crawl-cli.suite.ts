@@ -16,7 +16,7 @@ export function registerCrawlCliSuite() {
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 				OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			},
 		) as {
 			options: {

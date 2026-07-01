@@ -3,75 +3,39 @@
 	"case_family": "answer_quality_contract.v1",
 	"cases": [
 		{
-			"case_id": "student-rules-answer-degree-article-ten",
+			"case_id": "student-rules-answer-synthetic-degree",
 			"split": "curated",
 			"surface": "rag_student_rules_answer",
-			"required_facts": ["学士学位", "第十条"],
+			"required_facts": ["示例学位授予规定", "第十条"],
 			"forbidden_claims": ["研究生", "院级"],
 			"requires_source_url": true,
 			"requires_source_title": true,
-			"required_source_titles": ["中央民族大学全日制本科学生学士学位授予规定"],
+			"required_source_titles": ["示例学位授予规定"],
 			"required_source_url_fragments": ["/docs/regulations/student_rules/"],
-			"forbidden_source_url_fragments": [
-				"/docs/regulations/institutional_rules/",
-				"/docs/regulations/scoped_rules/"
-			]
+			"forbidden_source_url_fragments": ["/docs/regulations/institutional_rules/"]
 		},
 		{
-			"case_id": "student-rules-answer-national-scholarship-article-nine",
+			"case_id": "student-rules-answer-synthetic-scholarship",
 			"split": "regression",
 			"surface": "rag_student_rules_answer",
-			"required_facts": ["国家奖学金", "第九条"],
-			"forbidden_claims": ["综合素质测评办法", "体育竞赛条件"],
+			"required_facts": ["示例学生奖学金评定办法"],
+			"forbidden_claims": ["示例助学金认定办法替代奖学金"],
 			"requires_source_url": true,
 			"requires_source_title": true,
-			"required_source_titles": ["中央民族大学本科学生国家奖学金评审办法"],
+			"required_source_titles": ["示例学生奖学金评定办法"],
 			"required_source_url_fragments": ["/docs/regulations/student_rules/"],
-			"forbidden_source_title_fragments": ["中央民族大学本科学生综合素质测评办法"],
-			"forbidden_source_url_fragments": [
-				"/docs/regulations/institutional_rules/",
-				"/docs/regulations/scoped_rules/"
-			]
+			"forbidden_source_title_fragments": ["示例助学金认定办法"]
 		},
 		{
-			"case_id": "student-rules-answer-public-medical",
+			"case_id": "student-rules-answer-synthetic-medical",
 			"split": "curated",
 			"surface": "rag_student_rules_answer",
-			"required_facts": ["公费医疗", "学生"],
+			"required_facts": ["示例学生医疗报销管理办法"],
 			"forbidden_claims": ["教职工", "院级"],
 			"requires_source_url": true,
 			"requires_source_title": true,
-			"required_source_titles": ["中央民族大学学生公费医疗管理办法"],
-			"required_source_url_fragments": ["/docs/regulations/student_rules/"],
-			"forbidden_source_url_fragments": ["/docs/regulations/scoped_rules/"]
-		},
-		{
-			"case_id": "student-rules-answer-major-transfer",
-			"split": "curated",
-			"surface": "rag_student_rules_answer",
-			"required_facts": ["专业调整", "本科生"],
-			"forbidden_claims": ["研究生调剂", "招生实施细则"],
-			"requires_source_url": true,
-			"requires_source_title": true,
-			"required_source_titles": ["中央民族大学本科生专业调整实施办法"],
-			"required_source_url_fragments": ["/docs/regulations/student_rules/"],
-			"forbidden_source_url_fragments": ["/docs/regulations/scoped_rules/"]
-		},
-		{
-			"case_id": "student-rules-answer-innovation-education-related-policy",
-			"split": "known_gap",
-			"surface": "rag_student_rules_answer",
-			"required_facts": ["创新教育", "本科"],
-			"forbidden_claims": [
-				"中央民族大学本科生创新教育学分认定管理办法全文已收录",
-				"教发[2016]9号全文"
-			],
-			"requires_source_url": true,
-			"requires_source_title": true,
-			"required_source_titles": ["中央民族大学本科创新教育实施办法"],
-			"required_source_url_fragments": ["/docs/regulations/student_rules/"],
-			"forbidden_source_title_fragments": ["中央民族大学本科生创新教育学分认定管理办法"],
-			"forbidden_source_url_fragments": ["/docs/regulations/scoped_rules/"]
+			"required_source_titles": ["示例学生医疗报销管理办法"],
+			"required_source_url_fragments": ["/docs/regulations/student_rules/"]
 		}
 	]
 }

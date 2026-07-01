@@ -14,7 +14,7 @@ const executionControlStartScript = resolve(
 );
 const defaultEmail = "help_bot@outlook.com";
 const defaultName = "Campus Agent Smoke";
-const defaultPrompt = "中央民族大学本科学生国家奖学金评审办法";
+const defaultPrompt = "示例大学本科学生国家奖学金评审办法";
 const defaultChatBaseUrl = "http://127.0.0.1:27014";
 const defaultExecReadyzUrl = "http://127.0.0.1:27051/readyz";
 

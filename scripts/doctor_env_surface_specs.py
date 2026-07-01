@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from campus_shared.provider_config import (
-    EMBEDDING_API_KEY_PRECEDENCE,
-    LLM_API_KEY_PRECEDENCE,
-    resolve_embedding_provider_config,
-    resolve_llm_provider_config,
-)
-
 from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
+
+LLM_API_KEY_PRECEDENCE = ("EVAL_LLM_API_KEY", "LLM_API_KEY")
+EMBEDDING_API_KEY_PRECEDENCE = ("EVAL_EMBEDDING_API_KEY", "EMBEDDING_API_KEY")
 
 SURFACE_SPECS = {
     "evals": {
@@ -20,7 +16,6 @@ SURFACE_SPECS = {
         "providers": {
             "embedding": {
                 "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
-                "resolver": resolve_embedding_provider_config,
                 "surface_name": "ingestion.worker",
             },
         },
@@ -95,12 +90,10 @@ SURFACE_SPECS = {
         "providers": {
             "llm": {
                 "checked_keys": LLM_API_KEY_PRECEDENCE,
-                "resolver": resolve_llm_provider_config,
                 "surface_name": "query.runtime",
             },
             "embedding": {
                 "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
-                "resolver": resolve_embedding_provider_config,
                 "surface_name": "query.runtime",
             },
         },

@@ -60,13 +60,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -125,13 +125,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -194,13 +194,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -264,13 +264,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -312,7 +312,7 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
                             doc_id=record.document_id,
                             version_id=record.version_id,
                             unit_type="policy_page",
-                            clean_text="中央民族大学本科生家庭经济困难学生认定统计表\n学生手册",
+                            clean_text="示例大学本科生家庭经济困难学生认定统计表\n学生手册",
                             root_unit_id="policy-page-001",
                         ),
                         "metadata": {
@@ -324,7 +324,7 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
                             "page_end": 1,
                             "section_path": [
                                 "第四章 监督与管理",
-                                "中央民族大学本科生家庭经济困难学生认定统计表",
+                                "示例大学本科生家庭经济困难学生认定统计表",
                             ],
                         },
                     },
@@ -350,9 +350,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
                             "page_end": 1,
                             "section_path": [
                                 "第四章 监督与管理",
-                                "中央民族大学本科生家庭经济困难学生认定统计表",
+                                "示例大学本科生家庭经济困难学生认定统计表",
                             ],
-                            "table_context": "中央民族大学本科生家庭经济困难学生认定统计表",
+                            "table_context": "示例大学本科生家庭经济困难学生认定统计表",
                         },
                     },
                     ensure_ascii=False,
@@ -362,13 +362,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,
@@ -435,13 +435,13 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
 
             report = validate_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),
                 object_store=_FakeObjectStore(
                     {
-                        ("campus-rag-derived", record.document_units_object_key): payload,
+                        ("campus-agent-derived", record.document_units_object_key): payload,
                     }
                 ),
                 manifest_path=manifest_path,

@@ -151,6 +151,19 @@ REMOVED_INGESTION_CORE_RUNTIME_FILES = {
     "authenticated_notice_run_processing_projection.py",
     "authenticated_notice_run_processing_projection_backfill.py",
     "verified_authenticated_notice_run_enqueue_scan.py",
+    "authenticated_notice_closeout_store_postgres.py",
+    "authenticated_notice_closeout_store_postgres_helpers.py",
+    "authenticated_notice_source_truth_inventory_postgres.py",
+    "internal_notice_read_model_postgres.py",
+    "internal_notice_schedule_image_ocr_db.py",
+    "notice_consumption_projection_postgres.py",
+    "postgres_runtime.py",
+    "registry_document_postgres.py",
+    "registry_raw_asset_postgres.py",
+    "structured_projection_postgres.py",
+    "structured_projection_postgres_models.py",
+    "structured_projection_postgres_records.py",
+    "wechat_public_notice_multimodal_db.py",
 }
 
 REMOVED_PYTHON_ONLINE_RAG_PACKAGE_ROOTS = {

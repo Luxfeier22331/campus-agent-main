@@ -21,7 +21,7 @@ describe("authenticated notice collector run lease", () => {
 	it("fails closed when another live run owns the same source-surface lease", async () => {
 		const store = createInMemoryCollectorRunLeaseStore();
 		await store.acquire({
-			leaseKey: "authenticated_notice_portal:notice:muc_internal_portal",
+			leaseKey: "authenticated_notice_portal:notice:example_internal_portal",
 			ownerId: "run-a",
 			now: "2026-04-12T00:30:00.000Z",
 			ttlSeconds: 300,
@@ -31,7 +31,7 @@ describe("authenticated notice collector run lease", () => {
 			withCollectorRunLease(
 				store,
 				{
-					leaseKey: "authenticated_notice_portal:notice:muc_internal_portal",
+					leaseKey: "authenticated_notice_portal:notice:example_internal_portal",
 					ownerId: "run-b",
 					now: "2026-04-12T00:31:00.000Z",
 					ttlSeconds: 300,
@@ -47,7 +47,7 @@ describe("authenticated notice collector run lease", () => {
 		const result = await withCollectorRunLease(
 			store,
 			{
-				leaseKey: "authenticated_notice_portal:file_release:muc_internal_portal",
+				leaseKey: "authenticated_notice_portal:file_release:example_internal_portal",
 				ownerId: "run-a",
 				now: "2026-04-12T00:30:00.000Z",
 				ttlSeconds: 300,
@@ -60,7 +60,7 @@ describe("authenticated notice collector run lease", () => {
 			withCollectorRunLease(
 				store,
 				{
-					leaseKey: "authenticated_notice_portal:file_release:muc_internal_portal",
+					leaseKey: "authenticated_notice_portal:file_release:example_internal_portal",
 					ownerId: "run-b",
 					now: "2026-04-12T00:31:00.000Z",
 					ttlSeconds: 300,

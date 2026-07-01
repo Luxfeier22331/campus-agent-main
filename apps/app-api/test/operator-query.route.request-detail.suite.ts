@@ -128,7 +128,7 @@ export function registerOperatorQueryRequestDetailSuite(): void {
 				operatorQueryService: createOperatorQueryServiceMock({
 					getById: vi.fn().mockResolvedValue({
 						answerPreview:
-							"在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+							"在《示例大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
 						completedAt: "2026-03-28T08:00:01.000Z",
 						conversationId: "conv_01HQ",
 						diagnostics: {
@@ -136,10 +136,10 @@ export function registerOperatorQueryRequestDetailSuite(): void {
 							noAnswerReason: "resolved_policy_clause_not_found",
 							policyReason: null,
 							resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-							resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
-							retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+							resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
+							retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
 							rewrittenQuery:
-								"中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+								"示例大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
 							scopeClass: null,
 							semanticOutcome: null,
 						},
@@ -174,7 +174,7 @@ export function registerOperatorQueryRequestDetailSuite(): void {
 			await expect(response.json()).resolves.toEqual({
 				request: {
 					answerPreview:
-						"在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+						"在《示例大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
 					completedAt: "2026-03-28T08:00:01.000Z",
 					conversationId: "conv_01HQ",
 					diagnostics: {
@@ -182,10 +182,10 @@ export function registerOperatorQueryRequestDetailSuite(): void {
 						noAnswerReason: "resolved_policy_clause_not_found",
 						policyReason: null,
 						resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-						resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
-						retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+						resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
+						retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
 						rewrittenQuery:
-							"中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+							"示例大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
 						scopeClass: null,
 						semanticOutcome: null,
 					},

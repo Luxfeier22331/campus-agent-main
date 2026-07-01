@@ -41,13 +41,7 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store im
     InMemoryAuthenticatedNoticeAttachmentFetchStatusStore,
 )
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
-    PostgresAuthenticatedNoticeAttachmentFetchStatusStore as PostgresAuthenticatedNoticeAttachmentFetchStatusStore,
-)
-from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
     build_authenticated_notice_attachment_fetch_status_store_from_env as build_authenticated_notice_attachment_fetch_status_store_from_env,
-)
-from campus_ingestion_core.registry import (
-    _postgres_connection,  # noqa: F401 - patched through module facade in tests.
 )
 
 
@@ -584,7 +578,6 @@ __all__ = [
     "AuthenticatedNoticeAttachmentFetchStatusRecord",
     "AuthenticatedNoticeAttachmentFetchStatusStore",
     "InMemoryAuthenticatedNoticeAttachmentFetchStatusStore",
-    "PostgresAuthenticatedNoticeAttachmentFetchStatusStore",
     "ReferenceOnlyAttachmentExplanationReport",
     "ReferenceOnlyAttachmentExplanationRow",
     "build_attachment_fetch_status_coverage_report",

@@ -679,7 +679,7 @@ describe("official-web-core policy", () => {
 		}
 		hostDriftBundle.targetSourceMap.targets[0] = {
 			...hostTarget,
-			sourceHosts: ["unknown.muc.edu.cn"],
+			sourceHosts: ["unknown.example.edu"],
 		};
 
 		expect(() => officialWebCore.validateOfficialWebConfig(hostDriftBundle)).toThrowError(
@@ -705,7 +705,7 @@ describe("official-web-core policy", () => {
 	it("rejects target inventory required evidence drift from admission target", () => {
 		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
 		const calendarEntry = bundle.targetInventory.entries.find(
-			(entry) => entry.inventoryId === "muc-public-academic-calendar",
+			(entry) => entry.inventoryId === "synthetic-academic-calendar",
 		);
 		if (!calendarEntry) {
 			throw new Error("calendar inventory entry is required");

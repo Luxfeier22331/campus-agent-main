@@ -5,28 +5,8 @@ import unittest
 from dataclasses import asdict, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.authenticated_notice_closeout_store import (
-    PostgresAuthenticatedNoticeCloseoutStore,
-    build_authenticated_notice_closeout_store_from_env,
-)
-from campus_ingestion_core.authenticated_notice_file_release_inventory import (
-    build_authenticated_notice_file_release_inventory_store_from_env,
-)
-from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
-    PostgresAuthenticatedNoticeAttachmentFetchStatusStore,
-)
-from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    build_authenticated_notice_source_truth_inventory_store_from_env,
-)
-from campus_ingestion_core.internal_notice_read_model_env import (
-    build_internal_notice_read_model_store_from_env,
-)
-from campus_ingestion_core.notice_consumption_projection import (
-    build_notice_consumption_projection_store_from_env,
-)
 from campus_ingestion_core.models import (
     DocumentRegistryRecord,
     RawAssetRecord,
@@ -36,13 +16,8 @@ from campus_ingestion_core.models import (
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
-    PostgresDocumentRegistry,
-    PostgresRawAssetRegistry,
     _document_record_from_dict,
-    _ensure_table_schema,
     _raw_asset_record_from_dict,
-    build_document_registry_from_env,
-    build_raw_asset_registry_from_env,
 )
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
@@ -71,7 +46,7 @@ def _handbook_document_record(
         document_id="handbook:test-001",
         revision_track="source-faithful",
         version_id=version_id,
-        source_uri="campusrag://canonical/regulations/student_rules/docs/test-001.md",
+        source_uri="campus-agent://canonical/regulations/student_rules/docs/test-001.md",
         content_hash=content_hash,
         corpus="regulations",
         collection="student_rules",
@@ -84,7 +59,7 @@ def _handbook_document_record(
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         raw_asset=RawAssetRef(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:raw-001",
             page_start=10,
             page_end=12,
@@ -131,11 +106,11 @@ def _curriculum_document_record() -> DocumentRegistryRecord:
 
 def _handbook_raw_asset_record() -> RawAssetRecord:
     return RawAssetRecord(
-        raw_asset_id="asset:student-handbook-pdf",
+        raw_asset_id="asset:synthetic-student-handbook",
         raw_version_id="sha256:raw-001",
         corpus="regulations",
         collection="student_rules",
-        raw_source_uri="campusrag://raw/regulations/student_rules/student-handbook.pdf",
+        raw_source_uri="campus-agent://raw/regulations/student_rules/student-handbook.pdf",
         content_hash="raw-001",
         source_filename="student-handbook.pdf",
         object_key=(
@@ -174,10 +149,6 @@ __all__ = [
     "InMemoryDocumentRegistry",
     "InMemoryRawAssetRegistry",
     "Path",
-    "PostgresAuthenticatedNoticeAttachmentFetchStatusStore",
-    "PostgresAuthenticatedNoticeCloseoutStore",
-    "PostgresDocumentRegistry",
-    "PostgresRawAssetRegistry",
     "RawAssetRecord",
     "RawAssetRef",
     "SourceObservation",
@@ -185,20 +156,11 @@ __all__ = [
     "_curriculum_document_record",
     "_curriculum_raw_asset_record",
     "_document_record_from_dict",
-    "_ensure_table_schema",
     "_handbook_document_record",
     "_handbook_raw_asset_record",
     "_raw_asset_record_from_dict",
     "asdict",
-    "build_authenticated_notice_closeout_store_from_env",
-    "build_authenticated_notice_file_release_inventory_store_from_env",
-    "build_authenticated_notice_source_truth_inventory_store_from_env",
-    "build_document_registry_from_env",
-    "build_internal_notice_read_model_store_from_env",
-    "build_notice_consumption_projection_store_from_env",
-    "build_raw_asset_registry_from_env",
     "json",
-    "patch",
     "replace",
     "unittest",
 ]

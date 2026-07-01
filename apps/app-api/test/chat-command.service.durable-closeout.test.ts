@@ -142,7 +142,7 @@ describe("chat command durable stream closeout", () => {
 		const stream = service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -243,7 +243,7 @@ describe("chat command durable stream closeout", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -354,7 +354,7 @@ describe("chat command durable stream closeout", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -461,7 +461,7 @@ describe("chat command durable stream closeout", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -513,7 +513,7 @@ describe("chat command durable stream closeout", () => {
 				conversationTitle: conversation.title,
 				idempotencyKey: null,
 				principal: createPrincipal(),
-				questionPreview: "中央民族大学本科学生国家奖学金评审办法",
+				questionPreview: "示例大学本科学生国家奖学金评审办法",
 				requestFingerprintSha256: "fingerprint_0001",
 				requestId: "req_0001",
 				requestedTool: "knowledge_query",

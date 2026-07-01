@@ -43,8 +43,8 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
                 ConsumerAdmissionDecisionRecord(
                     notice_id="355119",
                     source_notice_id="355119",
-                    site_id="muc_internal_portal",
-                    raw_asset_id="asset:authenticated-notice:muc_internal_portal:355119",
+                    site_id="example_internal_portal",
+                    raw_asset_id="asset:authenticated-notice:example_internal_portal:355119",
                     raw_version_id="sha256:raw-355119",
                     notice_family="facility_service_status",
                     suggested_consumption_route="service_status_candidate",
@@ -63,8 +63,8 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
                 ConsumerAdmissionDecisionRecord(
                     notice_id="355120",
                     source_notice_id="355120",
-                    site_id="muc_internal_portal",
-                    raw_asset_id="asset:authenticated-notice:muc_internal_portal:355120",
+                    site_id="example_internal_portal",
+                    raw_asset_id="asset:authenticated-notice:example_internal_portal:355120",
                     raw_version_id="sha256:raw-355120",
                     notice_family="facility_service_status",
                     suggested_consumption_route="service_status_candidate",
@@ -114,8 +114,8 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
         record = ConsumerAdmissionDecisionRecord(
             notice_id="355119",
             source_notice_id="355119",
-            site_id="muc_internal_portal",
-            raw_asset_id="asset:authenticated-notice:muc_internal_portal:355119",
+            site_id="example_internal_portal",
+            raw_asset_id="asset:authenticated-notice:example_internal_portal:355119",
             raw_version_id="sha256:raw-355119",
             notice_family="course_teaching_arrangement",
             suggested_consumption_route="notice_level_query",
@@ -161,8 +161,8 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
                 ConsumerAdmissionDecisionRecord(
                     notice_id="355119",
                     source_notice_id="355119",
-                    site_id="muc_internal_portal",
-                    raw_asset_id="asset:authenticated-notice:muc_internal_portal:355119",
+                    site_id="example_internal_portal",
+                    raw_asset_id="asset:authenticated-notice:example_internal_portal:355119",
                     raw_version_id="sha256:raw-355119",
                     notice_family="policy_regulation",
                     suggested_consumption_route="regulation_candidate",

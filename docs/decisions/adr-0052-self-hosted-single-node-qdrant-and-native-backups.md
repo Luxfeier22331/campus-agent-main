@@ -53,7 +53,7 @@ backup 主路径改为 qdrant-native snapshots。
    - `sha256.txt`
    - `restore-command.txt`
 1. snapshot 必须保留在 server filesystem，并复制到 off-host archive。
-1. staging R2 `campus-rag-derived-staging` 不保存 Qdrant `.snapshot`。
+1. staging R2 `campus-agent-derived-staging` 不保存 Qdrant `.snapshot`。
 
 推荐 retention：
 

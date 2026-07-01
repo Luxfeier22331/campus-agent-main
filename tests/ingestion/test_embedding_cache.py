@@ -85,7 +85,7 @@ class EmbeddingCacheTest(unittest.TestCase):
 def _cache(object_store: _FakeObjectStore) -> ObjectStoreEmbeddingCache:
     return ObjectStoreEmbeddingCache(
         object_store=object_store,
-        bucket="campus-rag-derived",
+        bucket="campus-agent-derived",
         settings=EmbeddingSettings(provider="mock", model="mock-embedding-3d", dimensions=3),
         profile_identity="regulations/student_rules|cleaning=v1|chunk=v1",
     )

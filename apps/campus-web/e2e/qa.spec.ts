@@ -35,7 +35,7 @@ test.describe("Q&A browser flow", () => {
 		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeVisible();
 		expect(requests.filter((request) => request.path === "/api/chat/requests/stream")).toEqual([]);
 
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByLabel("密码").fill("validpassword123");
 		await page.getByRole("button", { name: "登录校园问答" }).click();
 
@@ -63,7 +63,7 @@ test.describe("Q&A browser flow", () => {
 		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeVisible();
 		expect(requests.filter((request) => request.path === "/api/chat/requests/stream")).toEqual([]);
 
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByLabel("密码").fill("validpassword123");
 		await page.getByRole("button", { name: "登录校园问答" }).click();
 

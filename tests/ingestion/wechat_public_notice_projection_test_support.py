@@ -80,7 +80,7 @@ def _build_source_truth_fixture(
     manifest = {
         "schemaVersion": "wechat_official_account_article_manifest.v2",
         "sourceChannel": "wechat_official_account",
-        "accountName": "中央民族大学学生会",
+        "accountName": "示例大学学生会",
         "accountSlug": "muc",
         "articleStableId": article_stable_id,
         "rawAssetId": f"woa_asset:{article_stable_id}",

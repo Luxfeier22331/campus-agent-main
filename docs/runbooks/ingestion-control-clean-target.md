@@ -184,7 +184,7 @@ configured by:
 - `OBJECT_STORE_ENDPOINT`
 - `OBJECT_STORE_SOURCE_ACCESS_KEY`
 - `OBJECT_STORE_SOURCE_SECRET_KEY`
-- `OBJECT_STORE_BUCKET_SOURCE` (optional, defaults to `campus-rag-source`)
+- `OBJECT_STORE_BUCKET_SOURCE` (optional, defaults to `campus-agent-source`)
 
 `app-api` official-web projection is stricter: when
 `INGESTION_CONTROL_BASE_URL` is configured and terminal runs can admit

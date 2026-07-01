@@ -183,7 +183,8 @@ func (s *PostgresTransportScheduleReadModelStore) EnrichTransportReleaseNoticeUR
 		if strings.TrimSpace(bundle.TransportReleaseNotices[index].SourceURL) != "" {
 			continue
 		}
-		if url := urlByNoticeID[bundle.TransportReleaseNotices[index].normalizedSourceNoticeID()]; url != "" {
+		siteID, noticeID := bundle.TransportReleaseNotices[index].sourceNoticeIdentity()
+		if url := urlByNoticeID[transportReleaseNoticeURLKey(siteID, noticeID)]; url != "" {
 			bundle.TransportReleaseNotices[index].SourceURL = url
 		}
 	}
@@ -194,12 +195,19 @@ func (s *PostgresTransportScheduleReadModelStore) fetchAuthenticatedNoticeURLs(
 	ctx context.Context,
 	releaseNotices []transportReleaseNoticeRecord,
 ) (map[string]string, error) {
-	noticeIDs := uniqueTransportReleaseNoticeIDs(releaseNotices)
-	if len(noticeIDs) == 0 {
+	noticeIdentities := uniqueTransportReleaseNoticeIdentities(releaseNotices)
+	if len(noticeIdentities) == 0 {
 		return map[string]string{}, nil
 	}
+	siteIDs := make([]string, 0, len(noticeIdentities))
+	noticeIDs := make([]string, 0, len(noticeIdentities))
+	for _, identity := range noticeIdentities {
+		siteIDs = append(siteIDs, identity.SiteID)
+		noticeIDs = append(noticeIDs, identity.NoticeID)
+	}
 	query := fmt.Sprintf(
-		`select notice_id,
+		`select site_id,
+		        notice_id,
 		        coalesce(
 		            record->>'notice_browser_url',
 		            record->>'portal_print_url',
@@ -208,26 +216,29 @@ func (s *PostgresTransportScheduleReadModelStore) fetchAuthenticatedNoticeURLs(
 		            ''
 		        ) as source_url
 		   from %s
-		  where site_id = 'muc_internal_portal'
-		    and notice_id = any($1)`,
+		  where (site_id, notice_id) in (
+		      select * from unnest($1::text[], $2::text[])
+		  )`,
 		s.tableSQL("authenticated_notice_source_truth_inventory"),
 	)
-	rows, err := s.pool.Query(ctx, query, noticeIDs)
+	rows, err := s.pool.Query(ctx, query, siteIDs, noticeIDs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	urls := map[string]string{}
 	for rows.Next() {
+		var siteID string
 		var noticeID string
 		var sourceURL string
-		if err := rows.Scan(&noticeID, &sourceURL); err != nil {
+		if err := rows.Scan(&siteID, &noticeID, &sourceURL); err != nil {
 			return nil, err
 		}
+		siteID = strings.TrimSpace(siteID)
 		noticeID = strings.TrimSpace(noticeID)
 		sourceURL = strings.TrimSpace(sourceURL)
-		if noticeID != "" && sourceURL != "" {
-			urls[noticeID] = sourceURL
+		if siteID != "" && noticeID != "" && sourceURL != "" {
+			urls[transportReleaseNoticeURLKey(siteID, noticeID)] = sourceURL
 		}
 	}
 	return urls, rows.Err()

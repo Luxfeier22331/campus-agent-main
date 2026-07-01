@@ -262,8 +262,8 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         self,
     ) -> None:
         with self.assertRaisesRegex(
-            ValueError,
-            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+            RuntimeError,
+            "Python database runtime is retired",
         ):
             build_wechat_public_notice_multimodal_attempt_store_from_env(
                 {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
@@ -273,9 +273,8 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         self,
     ) -> None:
         with self.assertRaisesRegex(
-            ValueError,
-            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL or "
-            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+            RuntimeError,
+            "Python database runtime is retired",
         ):
             build_wechat_public_notice_multimodal_attempt_store_from_env(
                 {

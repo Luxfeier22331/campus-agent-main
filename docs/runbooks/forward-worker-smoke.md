@@ -53,7 +53,7 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
   `node apps/app-api/scripts/run-with-local-env.mjs node
   ./scripts/bootstrap-shared-product-with-seeds.mjs`
 - 做 campus-web docs build 前，repo-local MinIO 应已运行并包含
-  `campus-rag-source` / `campus-rag-derived` bucket。`campus-web` 本地 build
+  `campus-agent-source` / `campus-agent-derived` bucket。`campus-web` 本地 build
   通过 `apps/campus-web/scripts/run-with-local-env.mjs` 消费
   `infra/local/scripts/project-local-runtime-env.mjs --target host`，不要求当前 shell
   手写 `OBJECT_STORE_*`

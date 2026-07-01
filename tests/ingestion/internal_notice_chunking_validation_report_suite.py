@@ -25,14 +25,14 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         self,
     ) -> None:
         record = _make_notice_record(
-            document_id="notice:muc_internal_portal:355119",
+            document_id="notice:example_internal_portal:355119",
             source_uri="https://portal.example.edu/notice/355119",
             object_key="campus_notices/documents/internal_notice/notice-355119/source-faithful/2026/document-units.jsonl",
         )
         registry = InMemoryDocumentRegistry((record,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key): _parent_notice_rows(
+                ("campus-agent-derived", record.document_units_object_key): _parent_notice_rows(
                     record=record,
                     title="关于开展专项申请的通知",
                     body_lines=("请于本周内完成登记并提交材料。",),
@@ -53,7 +53,7 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
 
     def test_validate_internal_notice_chunking_flags_ocr_noise_and_header_dominance(self) -> None:
         record = _make_notice_record(
-            document_id="notice_attachment:muc_internal_portal:355119:attachment-0002",
+            document_id="notice_attachment:example_internal_portal:355119:attachment-0002",
             source_uri="https://portal.example.edu/notice/355119/attachments/2",
             object_key=(
                 "campus_notices/documents/internal_notice/"
@@ -63,7 +63,7 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         registry = InMemoryDocumentRegistry((record,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key): _attachment_rows(
+                ("campus-agent-derived", record.document_units_object_key): _attachment_rows(
                     record=record,
                     title="报名流程图.png",
                     filename="报名流程图.png",
@@ -92,7 +92,7 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         )
 
         record = _make_notice_record(
-            document_id="notice:muc_internal_portal:355119",
+            document_id="notice:example_internal_portal:355119",
             source_uri="https://portal.example.edu/notice/355119",
             object_key="campus_notices/documents/internal_notice/notice-355119/source-faithful/2026/document-units.jsonl",
         )
@@ -113,7 +113,7 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         registry = InMemoryDocumentRegistry((record,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key): _parent_notice_rows(
+                ("campus-agent-derived", record.document_units_object_key): _parent_notice_rows(
                     record=record,
                     title="关于现场审核安排的通知",
                     body_lines=("请按照附件位置图前往现场办理。",),
@@ -137,7 +137,7 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         from campus_ingestion_core.authenticated_notice_closeout_models import CloseoutRun
 
         attachment_record = _make_notice_record(
-            document_id="notice_attachment:muc_internal_portal:355121:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:355121:attachment-0001",
             source_uri="https://portal.example.edu/notice/355121/attachments/1",
             object_key=(
                 "campus_notices/documents/internal_notice/"
@@ -178,14 +178,14 @@ class InternalNoticeChunkingValidationReportTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", staged_key): _attachment_rows(
+                ("campus-agent-derived", staged_key): _attachment_rows(
                     record=attachment_record,
                     title="办理位置图.png",
                     filename="办理位置图.png",
                     extraction_class="ocr_required",
                     body_blocks=("请按图示前往一号楼大厅。",),
                 ),
-                ("campus-rag-derived", inventory_key): _make_frozen_inventory_payload(
+                ("campus-agent-derived", inventory_key): _make_frozen_inventory_payload(
                     run_id="run-verified",
                     notice_id="355121",
                     notice_risk_label="body_with_spatial_attachments",

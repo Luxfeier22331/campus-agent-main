@@ -36,7 +36,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -93,7 +93,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         pdf_child = next(
             record
             for record in document_registry.list_by_scope("campus_notices", "internal_notice")
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0003"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0003"
         )
         provider_payload_bytes = object_store.get_bytes(
             bucket=DERIVED_BUCKET,
@@ -105,7 +106,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
             "parsing_res_list"
         ]
         self.assertEqual(blocks[0]["block_label"], "doc_title")
-        self.assertEqual(blocks[0]["block_content"], "中央民族大学附件 OCR 标题")
+        self.assertEqual(blocks[0]["block_content"], "示例大学附件 OCR 标题")
         self.assertIn("字段", blocks[2]["block_content"])
 
     def test_rebuild_authenticated_notice_source_projections_fails_closed_when_mineru_primary_fails(
@@ -133,7 +134,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -211,7 +212,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -260,8 +261,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
             },
         )
 
@@ -290,7 +291,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -329,7 +330,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         image_child = next(
             record
             for record in document_registry.list_by_scope("campus_notices", "internal_notice")
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0002"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0002"
         )
         self.assertIsNotNone(image_child.provider_response_object_key)
         self.assertIsNotNone(image_child.layout_elements_object_key)
@@ -411,7 +413,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -469,7 +471,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         pdf_child = next(
             record
             for record in records
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0003"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0003"
         )
         pdf_units = [
             json.loads(line)
@@ -519,7 +522,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -599,7 +602,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -625,7 +628,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RuntimeError,
-                r"notice:muc_internal_portal:355119#attachment-0002 attachment OCR failed: "
+                r"notice:example_internal_portal:355119#attachment-0002 attachment OCR failed: "
                 r"provider contract breach for",
             ):
                 rebuild_authenticated_notice_source_projections(

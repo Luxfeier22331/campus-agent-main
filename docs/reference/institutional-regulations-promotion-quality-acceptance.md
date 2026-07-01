@@ -27,7 +27,7 @@ promotion/materialization 的 acceptance truth。
 
 相关文档：
 
-- `docs/reference/institutional-regulations-offline-inventory.md`
+- `docs/reference/open-source-data.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 - 旧 Python promotion runbook 正文已退出 branch tip；需要追溯时通过
   git history 恢复具体片段。
@@ -161,7 +161,8 @@ local-only proof 时通过 git history 恢复具体片段，再提升到当前 o
 
 ## Usage Rule
 
-- 需要看当前 target bucket 与 blocked frontier，读
-  `institutional-regulations-offline-inventory.md`
+- 当前 target bucket 与 blocked frontier 属于 private source/data boundary；
+  公开 repo 不保留真实 inventory。需要公开仓库层面的 source/data 规则，读
+  `open-source-data.md`
 - 需要看 target quality acceptance 与 identity rules，读本文
 - 需要看 operator path，读对应 runbook

@@ -36,7 +36,7 @@ function createCampusPrincipal() {
 		},
 		principal: {
 			displayName: "Jane Doe",
-			email: "jane@muc.edu.cn",
+			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "student" as const,
 		},

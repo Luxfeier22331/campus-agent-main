@@ -53,8 +53,8 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 },
                 object_store=_FakeObjectStore(),
                 registry=InMemoryDocumentRegistry(()),
@@ -102,45 +102,45 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="351907",
-                    notice_title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                    notice_title="示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                     published_date="2026-04-01",
                 ),
                 _inventory_entry(
                     notice_id="191176",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-01",
                 ),
                 _inventory_entry(
                     notice_id="191177",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-01",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", annual.canonical_markdown_object_key): _canonical_markdown(
-                    "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n第二条 本细则适用于新闻与传播学院相关学生。\n"
+                ("campus-agent-derived", annual.canonical_markdown_object_key): _canonical_markdown(
+                    "# 示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n第二条 本细则适用于示例传媒学院相关学生。\n"
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     seasonal_primary.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n第一条 为加强暑假期间实验室安全管理，制定本规定。\n第二条 暑假期间所有实验室须执行值班制度。\n"
+                    "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n第一条 为加强暑假期间实验室安全管理，制定本规定。\n第二条 暑假期间所有实验室须执行值班制度。\n"
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     seasonal_duplicate.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n第一条 为加强暑假期间实验室安全管理，制定本规定。\n第二条 暑假期间所有实验室须执行值班制度。\n"
+                    "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n第一条 为加强暑假期间实验室安全管理，制定本规定。\n第二条 暑假期间所有实验室须执行值班制度。\n"
                 ),
-                ("campus-rag-derived", annual.document_units_object_key): _document_units(
+                ("campus-agent-derived", annual.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": annual.document_id,
                             "version_id": annual.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "clean_text": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                             "source_url": annual.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -149,18 +149,21 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"
+                                "title": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", seasonal_primary.document_units_object_key): _document_units(
+                (
+                    "campus-agent-derived",
+                    seasonal_primary.document_units_object_key,
+                ): _document_units(
                     [
                         {
                             "doc_id": seasonal_primary.document_id,
                             "version_id": seasonal_primary.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "clean_text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                             "source_url": seasonal_primary.source_uri,
                             "page_start": 3,
                             "page_end": 4,
@@ -169,13 +172,13 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                                "title": "示例生命学院关于2021年暑假期间实验室安全管理规定"
                             },
                         }
                     ]
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     seasonal_duplicate.document_units_object_key,
                 ): _document_units(
                     [
@@ -183,7 +186,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "doc_id": seasonal_duplicate.document_id,
                             "version_id": seasonal_duplicate.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "clean_text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                             "source_url": seasonal_duplicate.source_uri,
                             "page_start": 5,
                             "page_end": 6,
@@ -192,7 +195,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                                "title": "示例生命学院关于2021年暑假期间实验室安全管理规定"
                             },
                         }
                     ]
@@ -220,8 +223,8 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",
@@ -263,13 +266,13 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         annual_rows = scoped_rows_by_nature["annual_cycle_rule"]
         annual_metadata = annual_rows[0]["metadata"]
         self.assertEqual(annual_metadata["cycle_year"], "2026")
-        self.assertEqual(annual_metadata["school_unit_name"], "新闻与传播学院")
+        self.assertEqual(annual_metadata["school_unit_name"], "示例传媒学院")
 
         seasonal_rows = scoped_rows_by_nature["time_bound_operational_rule"]
         seasonal_metadata = seasonal_rows[0]["metadata"]
         self.assertEqual(seasonal_metadata["document_nature"], "time_bound_operational_rule")
         self.assertEqual(seasonal_metadata["source_notice_ids"], ["191176", "191177"])
-        self.assertEqual(seasonal_metadata["school_unit_name"], "生命与环境科学学院")
+        self.assertEqual(seasonal_metadata["school_unit_name"], "示例生命学院")
 
     def test_materialize_scoped_rules_uses_projection_truth_without_rebuilding_promotion_manifest(
         self,
@@ -286,18 +289,18 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n"
+                    "# 示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n"
                 ),
-                ("campus-rag-derived", source_record.document_units_object_key): _document_units(
+                ("campus-agent-derived", source_record.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": source_record.document_id,
                             "version_id": source_record.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "clean_text": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                             "source_url": source_record.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -306,7 +309,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"
+                                "title": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则"
                             },
                         }
                     ]
@@ -323,8 +326,8 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_PROVIDER": "mock",
                     "EMBEDDING_MODEL": "mock-embedding-8d",
                     "SPARSE_PROVIDER": "mock",
@@ -380,7 +383,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="191176",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-01",
                 ),
             )
@@ -388,20 +391,23 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     seasonal_primary.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n"
+                    "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n"
                     "第一条 为加强暑假期间实验室安全管理，制定本规定。\n"
                     "第二条 暑假期间所有实验室须执行值班制度。\n"
                 ),
-                ("campus-rag-derived", seasonal_primary.document_units_object_key): _document_units(
+                (
+                    "campus-agent-derived",
+                    seasonal_primary.document_units_object_key,
+                ): _document_units(
                     [
                         {
                             "doc_id": seasonal_primary.document_id,
                             "version_id": seasonal_primary.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "clean_text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                             "source_url": seasonal_primary.source_uri,
                             "page_start": 3,
                             "page_end": 4,
@@ -410,7 +416,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                                "title": "示例生命学院关于2021年暑假期间实验室安全管理规定"
                             },
                         }
                     ]
@@ -429,8 +435,8 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
             "OBJECT_STORE_ACCESS_KEY": "minioadmin",
             "OBJECT_STORE_SECRET_KEY": "minioadmin",
-            "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+            "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
             "EMBEDDING_PROVIDER": "mock",
             "EMBEDDING_MODEL": "mock-embedding-8d",
             "SPARSE_PROVIDER": "mock",
@@ -460,27 +466,27 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="191177",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-01",
                 ),
             )
         )
         object_store.objects[
-            ("campus-rag-derived", seasonal_duplicate.canonical_markdown_object_key)
+            ("campus-agent-derived", seasonal_duplicate.canonical_markdown_object_key)
         ] = _canonical_markdown(
-            "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n"
+            "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n"
             "第一条 为加强暑假期间实验室安全管理，制定本规定。\n"
             "第二条 暑假期间所有实验室须执行值班制度。\n"
         )
         object_store.objects[
-            ("campus-rag-derived", seasonal_duplicate.document_units_object_key)
+            ("campus-agent-derived", seasonal_duplicate.document_units_object_key)
         ] = _document_units(
             [
                 {
                     "doc_id": seasonal_duplicate.document_id,
                     "version_id": seasonal_duplicate.version_id,
                     "chunk_id": "row-0001",
-                    "clean_text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    "clean_text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                     "source_url": seasonal_duplicate.source_uri,
                     "page_start": 5,
                     "page_end": 6,
@@ -488,7 +494,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                     "visibility_scope": "campus",
                     "visibility_level": "restricted",
                     "policy_projection_version": "phase1-authorization-projection-v1",
-                    "metadata": {"title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"},
+                    "metadata": {"title": "示例生命学院关于2021年暑假期间实验室安全管理规定"},
                 }
             ]
         )
@@ -524,7 +530,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         self.assertEqual(refreshed_metadata["source_notice_ids"], ["191176", "191177"])
         self.assertEqual(
             refreshed_metadata["duplicate_source_document_ids"],
-            ["notice:muc_internal_portal:191177"],
+            ["notice:example_internal_portal:191177"],
         )
 
     def test_selected_materialize_scoped_rules_removes_stale_target_record_when_projection_is_held(
@@ -548,7 +554,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             is_current=True,
         )
         stale_target = _target_scoped_rule_record(
-            document_id="institutional_regulation:muc:recommendation-rule:stale351907",
+            document_id="institutional_regulation:example:recommendation-rule:stale351907",
             document_units_key=(
                 "regulations/documents/scoped_rules/recommendation-rule/"
                 "source-faithful/2026/document-units.jsonl"
@@ -559,7 +565,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             ),
         )
         unrelated_target = _target_scoped_rule_record(
-            document_id="institutional_regulation:muc:summer-lab-rule:stable191176",
+            document_id="institutional_regulation:example:summer-lab-rule:stable191176",
             document_units_key=(
                 "regulations/documents/scoped_rules/summer-lab-rule/"
                 "source-faithful/2021/document-units.jsonl"
@@ -573,44 +579,44 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n"
+                    "# 示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则\n\n"
                     "本通知仅说明推荐工作安排，正文不作为 scoped rule 直接入库。\n"
                 ),
-                ("campus-rag-derived", source_record.document_units_object_key): _document_units(
+                ("campus-agent-derived", source_record.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": source_record.document_id,
                             "version_id": source_record.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "clean_text": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                             "source_url": source_record.source_uri,
                             "entitlement_groups": ["campus_members"],
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"
+                                "title": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", stale_target.document_units_object_key): _document_units(
+                ("campus-agent-derived", stale_target.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": stale_target.document_id,
                             "version_id": stale_target.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "clean_text": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                             "source_url": stale_target.source_uri,
                             "entitlement_groups": ["campus_members"],
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                                "title": "示例传媒学院推荐2026届本科生免试攻读研究生工作实施细则",
                                 "document_nature": "annual_cycle_rule",
                                 "source_notice_ids": ["351907"],
                                 "source_document_ids": [source_record.document_id],
@@ -619,24 +625,29 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                         }
                     ]
                 ),
-                ("campus-rag-derived", unrelated_target.document_units_object_key): _document_units(
+                (
+                    "campus-agent-derived",
+                    unrelated_target.document_units_object_key,
+                ): _document_units(
                     [
                         {
                             "doc_id": unrelated_target.document_id,
                             "version_id": unrelated_target.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "生命与环境科学学院暑假实验室安全管理规定",
+                            "clean_text": "示例生命学院暑假实验室安全管理规定",
                             "source_url": unrelated_target.source_uri,
                             "entitlement_groups": ["campus_members"],
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "生命与环境科学学院暑假实验室安全管理规定",
+                                "title": "示例生命学院暑假实验室安全管理规定",
                                 "document_nature": "time_bound_operational_rule",
                                 "source_notice_ids": ["191176"],
-                                "source_document_ids": ["notice:muc_internal_portal:191176"],
-                                "source_parent_document_ids": ["notice:muc_internal_portal:191176"],
+                                "source_document_ids": ["notice:example_internal_portal:191176"],
+                                "source_parent_document_ids": [
+                                    "notice:example_internal_portal:191176"
+                                ],
                             },
                         }
                     ]
@@ -648,7 +659,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             source_corpus="campus_notices",
             source_collection="internal_notice",
             source_notice_id="351907",
-            unit_id="notice_unit:muc_internal_portal:351907:annual_cycle_rule:held",
+            unit_id="notice_unit:example_internal_portal:351907:annual_cycle_rule:held",
             primary_role=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
             semantic_owner="notice_body",
             default_agent="rag",
@@ -670,8 +681,8 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",

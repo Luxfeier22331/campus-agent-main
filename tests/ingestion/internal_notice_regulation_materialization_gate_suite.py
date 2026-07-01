@@ -17,7 +17,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             return
 
         annual_parent = _record(
-            document_id="notice:muc_internal_portal:200005",
+            document_id="notice:example_internal_portal:200005",
             source_uri="https://portal.example.edu/notices/200005",
             canonical_key="campus_notices/documents/internal_notice/200005/canonical.md",
             units_key="campus_notices/documents/internal_notice/200005/document-units.jsonl",
@@ -25,7 +25,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             is_current=True,
         )
         temporary_parent = _record(
-            document_id="notice:muc_internal_portal:200003",
+            document_id="notice:example_internal_portal:200003",
             source_uri="https://portal.example.edu/notices/200003",
             canonical_key="campus_notices/documents/internal_notice/200003/canonical.md",
             units_key="campus_notices/documents/internal_notice/200003/document-units.jsonl",
@@ -39,12 +39,12 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="200005",
-                    notice_title="中央民族大学2026年“英才计划”硕博连读研究生招生实施细则",
+                    notice_title="示例大学2026年“英才计划”硕博连读研究生招生实施细则",
                     published_date="2025-12-16",
                 ),
                 _inventory_entry(
                     notice_id="200003",
-                    notice_title="中央民族大学丰台校区就医管理办法（暂行）",
+                    notice_title="示例大学丰台校区就医管理办法（暂行）",
                     published_date="2021-09-01",
                 ),
             )
@@ -52,28 +52,28 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     annual_parent.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 中央民族大学2026年“英才计划”硕博连读研究生招生实施细则\n\n"
+                    "# 示例大学2026年“英才计划”硕博连读研究生招生实施细则\n\n"
                     "第一条 为规范2026年“英才计划”硕博连读研究生招生工作，制定本细则。\n"
                     "第二条 报名时间为2025年12月10日至2026年1月10日。\n"
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     temporary_parent.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                    "# 示例大学丰台校区就医管理办法（暂行）\n\n"
                     "第一条 为规范丰台校区就医管理，制定本办法。\n"
                     "第二条 正式运营前由临时医疗点负责首诊，正式运营后取消本过渡安排。\n"
                 ),
-                ("campus-rag-derived", annual_parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", annual_parent.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": annual_parent.document_id,
                             "version_id": annual_parent.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则",
+                            "clean_text": "示例大学2026年“英才计划”硕博连读研究生招生实施细则",
                             "source_url": annual_parent.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -82,18 +82,21 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                             "metadata": {
-                                "title": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"
+                                "title": "示例大学2026年“英才计划”硕博连读研究生招生实施细则"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", temporary_parent.document_units_object_key): _document_units(
+                (
+                    "campus-agent-derived",
+                    temporary_parent.document_units_object_key,
+                ): _document_units(
                     [
                         {
                             "doc_id": temporary_parent.document_id,
                             "version_id": temporary_parent.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "中央民族大学丰台校区就医管理办法（暂行）",
+                            "clean_text": "示例大学丰台校区就医管理办法（暂行）",
                             "source_url": temporary_parent.source_uri,
                             "page_start": 3,
                             "page_end": 4,
@@ -101,7 +104,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学丰台校区就医管理办法（暂行）"},
+                            "metadata": {"title": "示例大学丰台校区就医管理办法（暂行）"},
                         }
                     ]
                 ),
@@ -113,8 +116,8 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",
@@ -144,7 +147,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             return
 
         parent = _record(
-            document_id="notice:muc_internal_portal:300001",
+            document_id="notice:example_internal_portal:300001",
             source_uri="https://portal.example.edu/notices/300001",
             canonical_key="campus_notices/documents/internal_notice/300001/canonical.md",
             units_key="campus_notices/documents/internal_notice/300001/document-units.jsonl",
@@ -158,25 +161,25 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="300001",
-                    notice_title="中央民族大学实验室安全管理规定",
+                    notice_title="示例大学实验室安全管理规定",
                     published_date="2026-04-20",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 中央民族大学实验室安全管理规定\n\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 示例大学实验室安全管理规定\n\n"
                     "第一条 为加强实验室安全管理，制定本规定。\n"
                     "第二条 实验室实行分级分类安全管理。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": parent.document_id,
                             "version_id": parent.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "中央民族大学实验室安全管理规定",
+                            "clean_text": "示例大学实验室安全管理规定",
                             "source_url": parent.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -184,7 +187,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学实验室安全管理规定"},
+                            "metadata": {"title": "示例大学实验室安全管理规定"},
                         }
                     ]
                 ),
@@ -195,7 +198,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             source_corpus="campus_notices",
             source_collection="internal_notice",
             source_notice_id="300001",
-            unit_id="notice_unit:muc_internal_portal:300001:attachment_rule_body:held",
+            unit_id="notice_unit:example_internal_portal:300001:attachment_rule_body:held",
             primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
             semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
             default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
@@ -214,8 +217,8 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",
@@ -235,7 +238,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:300101",
+            document_id="notice:example_internal_portal:300101",
             source_uri="https://portal.example.edu/notices/300101",
             canonical_key="campus_notices/documents/internal_notice/300101/canonical.md",
             units_key="campus_notices/documents/internal_notice/300101/document-units.jsonl",
@@ -245,16 +248,16 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
         registry = InMemoryDocumentRegistry((parent,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 中央民族大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 示例大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": parent.document_id,
                             "version_id": parent.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "中央民族大学实验室安全管理规定",
+                            "clean_text": "示例大学实验室安全管理规定",
                             "source_url": parent.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -262,7 +265,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学实验室安全管理规定"},
+                            "metadata": {"title": "示例大学实验室安全管理规定"},
                         }
                     ]
                 ),
@@ -289,8 +292,8 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_PROVIDER": "mock",
                     "EMBEDDING_MODEL": "mock-embedding-8d",
                     "SPARSE_PROVIDER": "mock",
@@ -312,7 +315,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:300201",
+            document_id="notice:example_internal_portal:300201",
             source_uri="https://portal.example.edu/notices/300201",
             canonical_key="campus_notices/documents/internal_notice/300201/canonical.md",
             units_key="campus_notices/documents/internal_notice/300201/document-units.jsonl",
@@ -322,16 +325,16 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
         registry = InMemoryDocumentRegistry((parent,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 中央民族大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 示例大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "doc_id": parent.document_id,
                             "version_id": parent.version_id,
                             "chunk_id": "row-0001",
-                            "clean_text": "中央民族大学实验室安全管理规定",
+                            "clean_text": "示例大学实验室安全管理规定",
                             "source_url": parent.source_uri,
                             "page_start": 1,
                             "page_end": 2,
@@ -339,7 +342,7 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学实验室安全管理规定"},
+                            "metadata": {"title": "示例大学实验室安全管理规定"},
                         }
                     ]
                 ),
@@ -351,8 +354,8 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-agent-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",

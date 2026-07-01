@@ -42,13 +42,13 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 }
 
 const runRecord = {
-	id: "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
-	runKey: "authenticated_notice_portal:notice:muc_internal_portal:20260428T181953007Z",
+	id: "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
+	runKey: "authenticated_notice_portal:notice:example_internal_portal:20260428T181953007Z",
 	sourceChannel: "authenticated_notice_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
+	siteId: "example_internal_portal",
 	collectorRunToken: "20260428T181953007Z",
-	runId: "muc_internal_portal:notice:20260428T181953007Z",
+	runId: "example_internal_portal:notice:20260428T181953007Z",
 	replayBatchId: "manual-smoke-20260501",
 	enqueueSource: "manual_replay",
 	lifecycleStatus: "mixed_terminal",
@@ -150,7 +150,7 @@ describe("authenticated notice run processing operator routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/authenticated-notices/run-processing?collectorRunToken=20260428T181953007Z&status=mixed_terminal&queueStatus=failed_terminal&siteId=muc_internal_portal&sourceSurface=notice&replayBatchId=manual-smoke-20260501&limit=10",
+				"https://app-api.internal/api/operator/authenticated-notices/run-processing?collectorRunToken=20260428T181953007Z&status=mixed_terminal&queueStatus=failed_terminal&siteId=example_internal_portal&sourceSurface=notice&replayBatchId=manual-smoke-20260501&limit=10",
 			),
 		);
 
@@ -170,7 +170,7 @@ describe("authenticated notice run processing operator routes", () => {
 				queueStatus: "failed_terminal",
 				replayBatchId: "manual-smoke-20260501",
 				runId: null,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceSurface: "notice",
 				status: "mixed_terminal",
 				updatedAfter: null,

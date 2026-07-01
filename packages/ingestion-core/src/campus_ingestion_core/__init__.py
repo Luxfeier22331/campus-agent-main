@@ -33,7 +33,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     build_authenticated_notice_source_truth_replay_documents,
     load_authenticated_notice_source_truth_replay_inventory,
 )
-from campus_ingestion_core.campusrag_ingestion_support import ImportReport
+from campus_ingestion_core.campus_agent_ingestion_support import ImportReport
 from campus_ingestion_core.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_POLICY_VERSION,

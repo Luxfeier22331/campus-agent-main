@@ -33,7 +33,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: `s3://campus-rag-source/${captureReleaseKey}`,
+		uri: `s3://campus-agent-source/${captureReleaseKey}`,
 	},
 	output_contract: "wechat_official_account_source_truth.v1",
 	idempotency_key:
@@ -71,7 +71,7 @@ describe("WeChat official account source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(manifestKey, {
 			schemaVersion: "wechat_official_account_article_manifest.v1",
 			sourceChannel: "wechat_official_account",
@@ -116,22 +116,22 @@ describe("WeChat official account source truth materialization", () => {
 		expect(result.task?.closeout?.artifact_refs).toEqual([
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${captureReleaseKey}`,
+				uri: `s3://campus-agent-source/${captureReleaseKey}`,
 				digest: `sha256:${objectStore.sha256For(captureReleaseKey)}`,
 			},
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${manifestKey}`,
+				uri: `s3://campus-agent-source/${manifestKey}`,
 				digest: `sha256:${objectStore.sha256For(manifestKey)}`,
 			},
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${contentBlocksKey}`,
+				uri: `s3://campus-agent-source/${contentBlocksKey}`,
 				digest: `sha256:${objectStore.sha256For(contentBlocksKey)}`,
 			},
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${mediaRefsKey}`,
+				uri: `s3://campus-agent-source/${mediaRefsKey}`,
 				digest: `sha256:${objectStore.sha256For(mediaRefsKey)}`,
 			},
 		]);
@@ -142,7 +142,7 @@ describe("WeChat official account source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(manifestKey, {
 			schemaVersion: "wechat_official_account_article_manifest.v1",
 			sourceChannel: "wechat_official_account",
@@ -181,7 +181,7 @@ describe("WeChat official account source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "wechat_official_account_capture_release.v1",
 			source_channel: "wechat_official_account",

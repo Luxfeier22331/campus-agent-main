@@ -33,10 +33,10 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 					collectorVersion: "official-web-collector@0.1.0",
 					configVersion: "git:abc1234",
 					crawlPolicyVersion: "2026-03-29",
-					hostSet: ["www.muc.edu.cn"],
+					hostSet: ["www.example.edu"],
 					runIntent: "baseline",
 					schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
-					seedSet: ["https://www.muc.edu.cn/"],
+					seedSet: ["https://www.example.edu/"],
 					siteId: "www_muc_edu_cn",
 					startedAt: "2026-03-29T08:00:01.000Z",
 					triggerType: "scheduled",
@@ -97,18 +97,18 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 							discoveryMethod: "seed",
 							disposition: "fetched",
 							etag: "etag-1",
-							finalUrl: "https://www.muc.edu.cn/admissions",
-							host: "www.muc.edu.cn",
+							finalUrl: "https://www.example.edu/admissions",
+							host: "www.example.edu",
 							httpStatus: 200,
 							lastModified: "Sat, 29 Mar 2026 08:00:00 GMT",
 							mainContentHash: "main-1",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+							normalizedCanonicalUrl: "https://www.example.edu/admissions",
 							observedAt: "2026-03-29T08:17:32.000Z",
 							pageFamily: "article_detail",
 							pageTitleNormalized: "Admissions",
 							rawAssetId: "raw_01",
 							rawVersionId: "rawv_01",
-							requestedUrl: "https://www.muc.edu.cn/admissions",
+							requestedUrl: "https://www.example.edu/admissions",
 							responseBodyHash: "body-1",
 						},
 					],
@@ -142,7 +142,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 				}),
 				pageChanges: [
 					expect.objectContaining({
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+						normalizedCanonicalUrl: "https://www.example.edu/admissions",
 					}),
 				],
 				run: expect.objectContaining({
@@ -172,14 +172,14 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 				deletedPages: [],
 				duePages: [
 					expect.objectContaining({
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+						normalizedCanonicalUrl: "https://www.example.edu/admissions",
 					}),
 				],
 				failedFetchPages: [],
 				hotPages: [
 					expect.objectContaining({
 						cadenceClass: "detail_recent",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+						normalizedCanonicalUrl: "https://www.example.edu/admissions",
 					}),
 				],
 			},
@@ -188,7 +188,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 			}),
 			recentPageChanges: [
 				expect.objectContaining({
-					normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+					normalizedCanonicalUrl: "https://www.example.edu/admissions",
 				}),
 			],
 			recentRuns: [
@@ -209,7 +209,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 			expect.objectContaining({
 				run_id: "owrun_01HQ",
 				input_ref: expect.objectContaining({
-					uri: "s3://campus-rag-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
+					uri: "s3://campus-agent-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
 				}),
 			}),
 		);

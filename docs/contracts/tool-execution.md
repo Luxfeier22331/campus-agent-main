@@ -98,7 +98,7 @@ internal execution seam 只接受 canonical `snake_case` JSON。
 - panel 只能消费 `app-api` 物化后的 sanitized request / workflow trace projection；即使 projection
   里误带 raw handoff/provider/prompt key，panel formatter 也必须 drop 这些字段
 
-这条规则由 `tests/fixtures/tool_execution_contract/` 的 valid / invalid
+这条规则由 `packages/contracts/fixtures/tool_execution_contract/` 的 valid / invalid
 fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 
 ## Versioning Policy

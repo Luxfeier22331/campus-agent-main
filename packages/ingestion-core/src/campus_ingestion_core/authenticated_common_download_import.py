@@ -20,7 +20,7 @@ from campus_ingestion_core.authenticated_notice_import import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.scope_catalog import assert_known_scope
 

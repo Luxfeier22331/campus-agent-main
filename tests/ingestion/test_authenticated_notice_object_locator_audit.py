@@ -51,7 +51,7 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -72,12 +72,12 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
                 "internal_notice",
             )[0]
             missing_key = inventory_entry.notice_manifest_key
-            object_store.delete_object(bucket="campus-rag-source", key=missing_key)
+            object_store.delete_object(bucket="campus-agent-source", key=missing_key)
             object_store.uploads.clear()
 
             report = audit_authenticated_notice_object_locators(
                 request=AuthenticatedNoticeObjectLocatorAuditRequest(
-                    source_bucket="campus-rag-source",
+                    source_bucket="campus-agent-source",
                     notice_ids=("355119",),
                 ),
                 object_store=object_store,
@@ -97,13 +97,13 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
         source_sha256 = hashlib.sha256(source_bytes).hexdigest()
         ready_record = _bundle_record(
             file_release_id=646,
-            filename="中央民族大学差旅费管理办法.pdf",
+            filename="示例大学差旅费管理办法.pdf",
             sha256=source_sha256,
         )
         ready_record["released_file"]["byte_size"] = len(source_bytes)
         missing_record = _bundle_record(
             file_release_id=647,
-            filename="中央民族大学合同管理办法.pdf",
+            filename="示例大学合同管理办法.pdf",
             object_key=(
                 "authenticated_notice_portal/file-release-647/2025/sha256-deadbeef/capture/file.pdf"
             ),
@@ -114,14 +114,14 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
                 inventory_entry_from_file_release_bundle_record(
                     record=ready_record,
                     export_scope="file-release-20260412T003300Z",
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     collector_contract_version="authenticated_notice_file_release_export_v1",
                 ),
                 inventory_entry_from_file_release_bundle_record(
                     record=missing_record,
                     export_scope="file-release-20260412T003300Z",
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     collector_contract_version="authenticated_notice_file_release_export_v1",
                 ),
@@ -138,7 +138,7 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
 
         report = audit_authenticated_notice_object_locators(
             request=AuthenticatedNoticeObjectLocatorAuditRequest(
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 include_notice=False,
                 file_release_ids=(646, 647),
             ),
@@ -162,7 +162,7 @@ class AuthenticatedNoticeObjectLocatorAuditTest(unittest.TestCase):
             report_path = Path(temp_dir) / "object-locator-audit.json"
             report = audit_authenticated_notice_object_locators(
                 request=AuthenticatedNoticeObjectLocatorAuditRequest(
-                    source_bucket="campus-rag-source",
+                    source_bucket="campus-agent-source",
                     output_path=report_path,
                 ),
                 object_store=_FakeObjectStore(),

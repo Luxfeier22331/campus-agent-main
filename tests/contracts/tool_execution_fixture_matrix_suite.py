@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-FIXTURE_DIR = Path("tests/fixtures/tool_execution_contract")
+FIXTURE_DIR = Path("packages/contracts/fixtures/tool_execution_contract")
 
 
 def load_fixture(name: str) -> dict[str, object]:

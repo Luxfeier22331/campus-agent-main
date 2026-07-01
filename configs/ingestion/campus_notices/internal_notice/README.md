@@ -23,7 +23,7 @@ handler.
 - `notice-family-classification.v1.json`
   - read-only family admission, route policy and attachment-processing policy
 - `routing-taxonomy-eval.v1.jsonl`
-  - deterministic taxonomy fixture
+  - deterministic synthetic taxonomy fixture
 - `promotion-routing.v1.json`
   - downstream regulation promotion scaffold
 - `consumption-layer-schema.sql`
@@ -55,8 +55,9 @@ adjudication paths.
 - `historical-batches/run14-policy-regulation-expanded.v1.json`
 - `historical-batches/run14-attachment-routing-probe.v1.json`
 
-These files are bounded replay/promotion probe inputs. They are not default live
-operator paths.
+These files are public repo synthetic replay/promotion probe inputs. Real
+authenticated-notice replay batches, source ids and portal-derived titles live
+outside the repository boundary and are not default live operator paths.
 
 ## References
 

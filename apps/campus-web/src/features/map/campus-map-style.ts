@@ -1,5 +1,5 @@
 import type { ExpressionSpecification, FilterSpecification, StyleSpecification } from "maplibre-gl";
-import type { CampusMapFeatureRef } from "./model";
+import type { CampusMapFeatureRef, CampusMapManifest } from "./model";
 
 const FENGTAI_CAMPUS_SOURCE_ID = "fengtai-campus";
 export const HAIDIAN_CAMPUS_NAME = "海淀校区";
@@ -16,6 +16,7 @@ const FENGTAI_CAMPUS_BOUNDS: [number, number, number, number] = [
 const HAIDIAN_CAMPUS_BOUNDS: [number, number, number, number] = [
 	116.3084827, 39.9444838, 116.3194888, 39.9556239,
 ];
+const DEMO_CAMPUS_MAP_VERSION = "v2026-06-30";
 
 export interface CampusMapProfile {
 	assetUrl: string | null;
@@ -45,7 +46,7 @@ export interface CampusMapStyleColors {
 
 const CAMPUS_MAP_PROFILES = [
 	createCampusMapProfile({
-		assetUrl: "/map-assets/fengtai-campus.geojson",
+		assetUrl: `/map-data/${DEMO_CAMPUS_MAP_VERSION}/geojson/fengtai-campus.geojson`,
 		bounds: FENGTAI_CAMPUS_BOUNDS,
 		campus: FENGTAI_CAMPUS_NAME,
 		initialZoom: 15.8,
@@ -54,7 +55,7 @@ const CAMPUS_MAP_PROFILES = [
 		sourceId: FENGTAI_CAMPUS_SOURCE_ID,
 	}),
 	createCampusMapProfile({
-		assetUrl: "/map-assets/haidian-campus.geojson",
+		assetUrl: `/map-data/${DEMO_CAMPUS_MAP_VERSION}/geojson/haidian-campus.geojson`,
 		bounds: HAIDIAN_CAMPUS_BOUNDS,
 		campus: HAIDIAN_CAMPUS_NAME,
 		initialZoom: 15.8,
@@ -63,6 +64,22 @@ const CAMPUS_MAP_PROFILES = [
 		sourceId: "haidian-campus",
 	}),
 ] as const satisfies CampusMapProfile[];
+
+export function createCampusMapProfilesFromManifest(
+	manifest: CampusMapManifest,
+): CampusMapProfile[] {
+	return Object.entries(manifest.campuses).map(([campusId, campus]) =>
+		createCampusMapProfile({
+			assetUrl: campus.geojsonUrl,
+			bounds: campus.bounds,
+			campus: campus.name,
+			initialZoom: 15.8,
+			maxZoom: 20.2,
+			minZoom: 12.8,
+			sourceId: `${campusId}-campus`,
+		}),
+	);
+}
 
 export function getCampusMapProfile(campus: string) {
 	const profile = CAMPUS_MAP_PROFILES.find((item) => item.campus === campus);

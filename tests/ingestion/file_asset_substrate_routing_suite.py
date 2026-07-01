@@ -4,7 +4,7 @@ from .file_asset_substrate_support import *
 class FileAssetRoutingSubstrateTest(unittest.TestCase):
     def test_infer_raw_asset_typed_metadata_classifies_pdf_as_document_pdf(self) -> None:
         result = infer_raw_asset_typed_metadata(
-            source_path=Path("中央民族大学培养方案.pdf"),
+            source_path=Path("示例大学培养方案.pdf"),
             file_bytes=b"%PDF-1.7 sample fixture",
         )
 

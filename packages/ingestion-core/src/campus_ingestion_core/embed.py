@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Protocol
 
 import httpx
-from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
-from llama_index.core.callbacks.base import CallbackManager
-from llama_index.core.embeddings.mock_embed_model import MockEmbedding
-from llama_index.embeddings.openai import OpenAIEmbedding
 from openai import AsyncOpenAI, OpenAI
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
@@ -17,6 +14,17 @@ DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 60.0
 DEFAULT_EMBED_BATCH_SIZE = 100
 DEFAULT_QWEN3_EMBEDDING_DIMENSIONS = 2560
+Embedding = list[float]
+
+
+class EmbeddingModel(Protocol):
+    model_name: str
+
+    def get_text_embedding(self, text: str) -> Embedding: ...
+
+    def get_text_embedding_batch(self, texts: list[str]) -> list[Embedding]: ...
+
+    def get_query_embedding(self, query: str) -> Embedding: ...
 
 
 def _build_openai_http_client(*, timeout_seconds: float) -> httpx.Client:
@@ -27,13 +35,7 @@ def _build_openai_async_http_client(*, timeout_seconds: float) -> httpx.AsyncCli
     return httpx.AsyncClient(timeout=timeout_seconds, trust_env=False)
 
 
-class OpenAICompatibleEmbedding(BaseEmbedding):
-    api_key: str = ""
-    api_base: str | None = None
-    dimensions: int | None = None
-    timeout_seconds: float = 60.0
-    max_retries: int = 10
-
+class OpenAICompatibleEmbedding:
     def __init__(
         self,
         *,
@@ -45,11 +47,8 @@ class OpenAICompatibleEmbedding(BaseEmbedding):
         embed_batch_size: int = 100,
         max_retries: int = 10,
     ) -> None:
-        super().__init__(
-            model_name=model,
-            embed_batch_size=embed_batch_size,
-            callback_manager=CallbackManager([]),
-        )
+        self.model_name = model
+        self.embed_batch_size = embed_batch_size
         self.api_key = api_key
         self.api_base = api_base
         self.dimensions = dimensions
@@ -97,18 +96,39 @@ class OpenAICompatibleEmbedding(BaseEmbedding):
             ]
         return [[float(item) for item in record.embedding] for record in response.data]
 
-    def _get_query_embedding(self, query: str) -> Embedding:
+    def get_query_embedding(self, query: str) -> Embedding:
         return self._create_embedding(query)
 
-    async def _aget_query_embedding(self, query: str) -> Embedding:
+    async def aget_query_embedding(self, query: str) -> Embedding:
         response = await self._aclient.embeddings.create(**self._build_payload([query]))
         return [float(item) for item in response.data[0].embedding]
 
-    def _get_text_embedding(self, text: str) -> Embedding:
+    def get_text_embedding(self, text: str) -> Embedding:
         return self._create_embedding(text)
 
-    def _get_text_embeddings(self, texts: list[str]) -> list[Embedding]:
-        return self._create_embeddings(texts)
+    def get_text_embedding_batch(self, texts: list[str]) -> list[Embedding]:
+        embeddings: list[Embedding] = []
+        for start_index in range(0, len(texts), self.embed_batch_size):
+            embeddings.extend(
+                self._create_embeddings(texts[start_index : start_index + self.embed_batch_size])
+            )
+        return embeddings
+
+
+class MockEmbedding:
+    def __init__(self, *, embed_dim: int, model_name: str = "mock-embedding") -> None:
+        self.embed_dim = embed_dim
+        self.model_name = model_name
+
+    def get_text_embedding(self, text: str) -> Embedding:
+        del text
+        return [0.0 for _ in range(self.embed_dim)]
+
+    def get_text_embedding_batch(self, texts: list[str]) -> list[Embedding]:
+        return [self.get_text_embedding(text) for text in texts]
+
+    def get_query_embedding(self, query: str) -> Embedding:
+        return self.get_text_embedding(query)
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,29 +227,9 @@ class MockEmbeddingSettings:
             raise ValueError("embed_dim must be greater than zero")
 
 
-def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
+def build_embedding_model(settings: EmbeddingSettings) -> EmbeddingModel:
     provider = settings.provider.strip().lower()
-    if provider == "openai":
-        sync_http_client = _build_openai_http_client(timeout_seconds=settings.timeout_seconds)
-        async_http_client = _build_openai_async_http_client(
-            timeout_seconds=settings.timeout_seconds
-        )
-        kwargs = {
-            "model": settings.model,
-            "api_key": settings.api_key or None,
-            "api_base": settings.api_base,
-            "timeout": settings.timeout_seconds,
-            "embed_batch_size": settings.embed_batch_size,
-            "model_name": settings.model,
-            "http_client": sync_http_client,
-            "async_http_client": async_http_client,
-        }
-        if settings.dimensions is not None:
-            kwargs["dimensions"] = settings.dimensions
-        return OpenAIEmbedding(
-            **kwargs,
-        )
-    if provider in {"gitee", "openai-compatible"}:
+    if provider in {"gitee", "openai", "openai-compatible"}:
         return OpenAICompatibleEmbedding(
             model=settings.model,
             api_key=settings.api_key,
@@ -243,7 +243,7 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
     raise ValueError(f"unsupported embedding provider: {settings.provider}")
 
 
-def build_mock_embedding_model(settings: MockEmbeddingSettings | None = None) -> BaseEmbedding:
+def build_mock_embedding_model(settings: MockEmbeddingSettings | None = None) -> EmbeddingModel:
     resolved = settings or MockEmbeddingSettings()
     return MockEmbedding(embed_dim=resolved.embed_dim, model_name=resolved.model_name)
 

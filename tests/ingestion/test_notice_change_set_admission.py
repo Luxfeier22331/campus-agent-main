@@ -134,7 +134,7 @@ def _entry(
         source_corpus="campus_notices",
         source_collection="internal_notice",
         source_notice_id="355122",
-        unit_id="notice_unit:muc_internal_portal:355122:transport_schedule",
+        unit_id="notice_unit:example_internal_portal:355122:transport_schedule",
         primary_role=NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE
         if target_surface == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
         else NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
@@ -145,8 +145,8 @@ def _entry(
         completeness_status=completeness_status,
         answerability=answerability,
         consumption_status=consumption_status,
-        source_notice_document_id="notice:muc_internal_portal:355122",
-        source_document_id="notice:muc_internal_portal:355122",
+        source_notice_document_id="notice:example_internal_portal:355122",
+        source_document_id="notice:example_internal_portal:355122",
         source_notice_release_time="2026-03-18T09:00:00+08:00",
         role_metadata=role_metadata
         if role_metadata is not None

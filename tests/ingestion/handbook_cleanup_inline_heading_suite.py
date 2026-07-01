@@ -12,7 +12,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     36,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -35,8 +35,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 36,
                 36,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -56,7 +56,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     40,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -73,8 +73,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 40,
                 40,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -90,7 +90,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     41,
                     "heading",
-                    "中央民族大学十佳大学生评选办法",
+                    "示例大学十佳大学生评选办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -98,14 +98,14 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     41,
                     "paragraph",
-                    "3. 候选人公示中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
+                    "3. 候选人公示示例大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
                 ),
             ],
             manifest_document=_manifest_document(
                 41,
                 41,
-                title="中央民族大学十佳大学生评选办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学十佳大学生评选办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -114,10 +114,10 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             row for row in result.document_units if row["unit_type"] == "article_body"
         )
         self.assertIn(
-            "3. 候选人公示\n中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
+            "3. 候选人公示\n示例大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
             article_unit["clean_text"],
         )
-        self.assertNotIn("候选人公示中央民族大学十佳大学生候选人", article_unit["clean_text"])
+        self.assertNotIn("候选人公示示例大学十佳大学生候选人", article_unit["clean_text"])
 
     def test_cleanup_deduplicates_boundary_overlap_after_short_heading_split(self) -> None:
         result = cleanup_handbook_document(
@@ -125,7 +125,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     42,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -139,8 +139,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 42,
                 42,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -160,7 +160,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     43,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -174,8 +174,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 43,
                 43,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -195,7 +195,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     44,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -209,8 +209,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 44,
                 44,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -230,7 +230,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     45,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -243,8 +243,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 45,
                 45,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -264,7 +264,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     46,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -274,8 +274,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 46,
                 46,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -295,7 +295,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     47,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -312,8 +312,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 47,
                 47,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -340,7 +340,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 _source_row(
                     48,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -355,8 +355,8 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 48,
                 48,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -384,7 +384,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
                 [
                     "2. 标准学制为四年的文科学生在校学习期间累计重修学分达 30 学分;",
                     "4. 非外语类本科专业学生未通过全国大学外语四级考试者;",
-                    "(一)参加留学项目学生的学籍在外留学期间仍属于中央民族大学。",
+                    "(一)参加留学项目学生的学籍在外留学期间仍属于示例大学。",
                     "(四) 所评学年未被学校认定为家庭经济困难的;",
                 ]
             )
@@ -392,7 +392,7 @@ class HandbookCleanupInlineHeadingTest(unittest.TestCase):
 
         self.assertIn("2. 标准学制为四年的文科学生在校学习期间累计重修学分达 30 学分;", normalized)
         self.assertIn("4. 非外语类本科专业学生未通过全国大学外语四级考试者;", normalized)
-        self.assertIn("(一)参加留学项目学生的学籍在外留学期间仍属于中央民族大学。", normalized)
+        self.assertIn("(一)参加留学项目学生的学籍在外留学期间仍属于示例大学。", normalized)
         self.assertIn("(四) 所评学年未被学校认定为家庭经济困难的;", normalized)
         self.assertNotIn("文科\n学生", normalized)
         self.assertNotIn("专业\n学生", normalized)

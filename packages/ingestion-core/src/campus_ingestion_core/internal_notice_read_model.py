@@ -17,9 +17,6 @@ from campus_ingestion_core.internal_notice_read_model_env import (
 from campus_ingestion_core.internal_notice_read_model_memory import (
     InMemoryInternalNoticeReadModelStore,
 )
-from campus_ingestion_core.internal_notice_read_model_postgres import (
-    PostgresInternalNoticeReadModelStore,
-)
 from campus_ingestion_core.internal_notice_read_model_shared import (
     DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
@@ -31,7 +28,6 @@ from campus_ingestion_core.internal_notice_read_model_shared import (
     InternalNoticeReadModelStore,
     normalize_notice_ids,
 )
-from campus_ingestion_core.registry import _postgres_connection
 
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS",
@@ -46,8 +42,6 @@ __all__ = [
     "InternalNoticeReadModelObjectStore",
     "InternalNoticeReadModelRepairReport",
     "InternalNoticeReadModelStore",
-    "PostgresInternalNoticeReadModelStore",
-    "_postgres_connection",
     "build_internal_notice_read_model_entries",
     "build_internal_notice_read_model_store_from_env",
     "check_internal_notice_read_model_consistency",

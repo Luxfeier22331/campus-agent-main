@@ -130,7 +130,7 @@ export function registerBootstrapExportCollectionPagesSuite(): void {
 			noticeTypes,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 3,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -305,7 +305,7 @@ export function registerBootstrapExportCollectionPagesSuite(): void {
 					noticeTypeName: "学工通知",
 				},
 			],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -414,7 +414,7 @@ export function registerBootstrapExportCollectionPagesSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 

@@ -6,8 +6,6 @@ import type { NoticeCollectionMode } from "./types.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(packageRoot, "../..");
-const REQUIRED_NO_PROXY_HOSTS = ["muc.edu.cn", ".muc.edu.cn", "my.muc.edu.cn", "ca.muc.edu.cn"];
-
 export interface CollectorConfig {
 	packageRoot: string;
 	repoRoot: string;
@@ -52,8 +50,8 @@ export function loadCollectorEnv(): void {
 export function applyCollectorNoProxyEnv(target: NodeJS.ProcessEnv): void {
 	const raw = target.NO_PROXY ?? target.no_proxy;
 	const merged = shouldBypassProxyForPortal(target.AUTHENTICATED_NOTICE_BYPASS_PROXY)
-		? mergeNoProxyValue(raw)
-		: removePortalNoProxyHosts(raw);
+		? mergeNoProxyValue(raw, target)
+		: removePortalNoProxyHosts(raw, target);
 	target.NO_PROXY = merged;
 	target.no_proxy = merged;
 }
@@ -64,9 +62,10 @@ export function resolveCollectorConfig(
 	const runtimeDir = path.resolve(
 		String(source.AUTHENTICATED_NOTICE_RUNTIME_DIR || path.join(packageRoot, "runtime")),
 	);
-	const portalBaseUrl = String(
-		source.AUTHENTICATED_NOTICE_BASE_URL || "https://my.muc.edu.cn",
-	).trim();
+	const portalBaseUrl = requireUrlEnv(
+		source.AUTHENTICATED_NOTICE_BASE_URL,
+		"AUTHENTICATED_NOTICE_BASE_URL",
+	);
 	const bypassProxyForPortal = shouldBypassProxyForPortal(source.AUTHENTICATED_NOTICE_BYPASS_PROXY);
 	return {
 		packageRoot,
@@ -121,13 +120,16 @@ export function resolveCollectorConfig(
 			),
 		),
 		portalBaseUrl,
-		portalPageUrl: String(
-			source.AUTHENTICATED_NOTICE_PAGE_URL || "https://my.muc.edu.cn/page/11#/",
-		).trim(),
-		sourceHomeUrl: String(source.AUTHENTICATED_NOTICE_SOURCE_HOME_URL || portalBaseUrl).trim(),
-		siteId:
-			String(source.AUTHENTICATED_NOTICE_SITE_ID || "muc_internal_portal").trim() ||
-			"muc_internal_portal",
+		portalPageUrl: requireUrlEnv(
+			source.AUTHENTICATED_NOTICE_PAGE_URL,
+			"AUTHENTICATED_NOTICE_PAGE_URL",
+		),
+		sourceHomeUrl:
+			normalizeOptionalUrlEnv(
+				source.AUTHENTICATED_NOTICE_SOURCE_HOME_URL,
+				"AUTHENTICATED_NOTICE_SOURCE_HOME_URL",
+			) ?? portalBaseUrl,
+		siteId: requireNonEmptyEnv(source.AUTHENTICATED_NOTICE_SITE_ID, "AUTHENTICATED_NOTICE_SITE_ID"),
 		writeLocalExports: parseBooleanFlag(source.AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS, false),
 		requestMaxRetries: parsePositiveInteger(source.AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES, 3),
 		requestBackoffBaseMs: parsePositiveInteger(
@@ -217,25 +219,53 @@ function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {
 	);
 }
 
-function mergeNoProxyValue(raw: string | undefined): string {
+function requireNonEmptyEnv(raw: string | undefined, envName: string): string {
+	const value = String(raw ?? "").trim();
+	if (!value) {
+		throw new Error(`${envName} is required`);
+	}
+	return value;
+}
+
+function requireUrlEnv(raw: string | undefined, envName: string): string {
+	const value = requireNonEmptyEnv(raw, envName);
+	try {
+		const parsed = new URL(value);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			throw new Error("unsupported protocol");
+		}
+		return value;
+	} catch {
+		throw new Error(`${envName} must be an absolute http(s) URL`);
+	}
+}
+
+function normalizeOptionalUrlEnv(raw: string | undefined, envName: string): string | null {
+	const value = String(raw ?? "").trim();
+	if (!value) {
+		return null;
+	}
+	return requireUrlEnv(value, envName);
+}
+
+function mergeNoProxyValue(raw: string | undefined, source: NodeJS.ProcessEnv): string {
 	const tokens = (raw || "")
 		.split(",")
 		.map((token) => token.trim())
 		.filter(Boolean);
 	const seen = new Set(tokens.map((token) => token.toLowerCase()));
-	for (const host of REQUIRED_NO_PROXY_HOSTS) {
+	for (const host of portalNoProxyHosts(source)) {
 		const normalized = host.toLowerCase();
-		if (seen.has(normalized)) {
-			continue;
+		if (!seen.has(normalized)) {
+			tokens.push(host);
+			seen.add(normalized);
 		}
-		tokens.push(host);
-		seen.add(normalized);
 	}
 	return tokens.join(",");
 }
 
-function removePortalNoProxyHosts(raw: string | undefined): string {
-	const portalHosts = new Set(REQUIRED_NO_PROXY_HOSTS.map((host) => host.toLowerCase()));
+function removePortalNoProxyHosts(raw: string | undefined, source: NodeJS.ProcessEnv): string {
+	const portalHosts = new Set(portalNoProxyHosts(source).map((host) => host.toLowerCase()));
 	return (raw || "")
 		.split(",")
 		.map((token) => token.trim())
@@ -252,6 +282,48 @@ function shouldBypassProxyForPortal(raw: string | undefined): boolean {
 		return true;
 	}
 	return !["0", "false", "no", "off"].includes(normalized);
+}
+
+function portalNoProxyHosts(
+	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): string[] {
+	const hosts = [
+		source.AUTHENTICATED_NOTICE_BASE_URL,
+		source.AUTHENTICATED_NOTICE_PAGE_URL,
+		source.AUTHENTICATED_NOTICE_SOURCE_HOME_URL,
+	]
+		.map((value) => normalizeUrlHostname(value))
+		.filter((value): value is string => Boolean(value));
+	const unique = new Set<string>();
+	for (const host of hosts) {
+		unique.add(host);
+		const registrable = deriveRegistrableDomain(host);
+		if (registrable) {
+			unique.add(registrable);
+			unique.add(`.${registrable}`);
+		}
+	}
+	return [...unique];
+}
+
+function normalizeUrlHostname(value: string | undefined): string | null {
+	const trimmed = String(value ?? "").trim();
+	if (!trimmed) {
+		return null;
+	}
+	try {
+		return new URL(trimmed).hostname.toLowerCase();
+	} catch {
+		return null;
+	}
+}
+
+function deriveRegistrableDomain(hostname: string): string | null {
+	const parts = hostname.split(".").filter(Boolean);
+	if (parts.length < 2 || parts.some((part) => part === "localhost")) {
+		return null;
+	}
+	return parts.slice(-2).join(".");
 }
 
 function resolvePortalProxyServer(

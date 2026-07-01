@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-06-01
+updated: 2026-06-30
 ---
 # ADR-0002 本地 MinIO 约束与迁移不变量
 
@@ -27,15 +27,19 @@ updated: 2026-06-01
 
 第一阶段固定至少两个 bucket：
 
-- `campus-rag-source`
-- `campus-rag-derived`
+- `campus-agent-source`
+- `campus-agent-derived`
 
 职责：
 
-- `campus-rag-source` 保存原始 PDF、Word、Markdown、HTML 等源文件，以及与来源强绑定、只需生产一次的
+- `campus-agent-source` 保存原始 PDF、Word、Markdown、HTML 等源文件，以及与来源强绑定、只需生产一次的
   OCR/provider 响应与 source-truth 产物
-- `campus-rag-derived` 保存按 collection 派生的 canonical 文档、结构化 metadata 和其他
+- `campus-agent-derived` 保存按 collection 派生的 canonical 文档、结构化 metadata 和其他
   downstream 中间产物
+
+新增功能域默认不得新增 bucket。功能、页面或窄能力的隔离通过 existing source / derived bucket 下的 object
+key prefix、manifest、registry 和权限投影表达；只有存在不同访问控制边界、生命周期 / 保留策略、合规隔离或
+独立运营主体时，才允许提出新增 bucket，并必须先更新本 ADR 或新增 ADR。
 
 第一阶段不新增第三个专门 chunk bucket；chunk 文本、向量与检索 payload 统一由 Qdrant 管理。对象存储只保留
 source-truth / document artifact、小型 index release manifest 与 operations evidence；不把
@@ -65,6 +69,8 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
     `{corpus}/backups/{collection}/{release_id}/{backup_id}/{artifact_filename}`
   - operation artifact:
     `{corpus}/operations/{operation}/{run_id}/{artifact_filename}`
+  - public product release artifact:
+    `{corpus}/releases/{release_family}/{release_id}/{artifact_filename}`
 - source bucket 中的 source-oriented artifact:
   - provider artifact: `{source_channel}/{source_asset_slug}/{year}/{raw_version
     _id}/provider/{model_slug}/{artifact_filename}`
@@ -95,6 +101,9 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
   }/reader-assets/asset-manifest.json`
 - `{corpus}/releases/{collection}/{release_id}/validation-summary.json`
 - `{corpus}/releases/{collection}/{release_id}/index-release.json`
+- `campus_navigation/releases/map_data/current/manifest.json`
+- `campus_navigation/releases/map_data/{release_id}/geojson/{artifact_filename}`
+- `campus_navigation/releases/map_data/{release_id}/tiles/{campus_slug}/{z}/{x}/{y}.png`
 - historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
 - historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_
   collection_name}.snapshot`
@@ -163,6 +172,8 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
 - `operations/` 前缀中的第四层固定为 `run_id`
 - object key 中不直接编码短期来源名、兼容层术语或一次性版本层级，例如 `tracks/`、`editions/`、`v1/`
 - raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
+- 不按功能域拆出地图、食堂等窄能力 bucket；除非先完成明确隔离决策，
+  这类内容必须进入现有 source / derived bucket 的稳定 prefix。
 
 禁止做法：
 

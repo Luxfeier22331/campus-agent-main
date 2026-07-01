@@ -32,7 +32,42 @@ from campus_ingestion_core.raw_ingestion_split_manifest import (
     _load_layout_elements_rows,
 )
 
-from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
+from campus_ingestion_core.split_manifest import (
+    SplitManifest,
+    SplitManifestDocument,
+    load_split_manifest,
+)
+from tests.ingestion._handbook_chunking_test_support import (
+    build_hermetic_curriculum_chunk_profile,
+)
+
+SYNTHETIC_PUBLIC_AFFAIRS_TITLE = "示例公共事务本科人才培养方案"
+SYNTHETIC_DATA_SYSTEMS_TITLE = "示例数据系统本科人才培养方案"
+SYNTHETIC_PUBLIC_AFFAIRS_ID = f"curriculum:{SYNTHETIC_PUBLIC_AFFAIRS_TITLE}"
+SYNTHETIC_DATA_SYSTEMS_ID = f"curriculum:{SYNTHETIC_DATA_SYSTEMS_TITLE}"
+
+
+def _synthetic_curriculum_split_manifest() -> SplitManifest:
+    return SplitManifest(
+        manifest_version="curriculum_plan_split_manifest_synthetic_fixture_v1",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        raw_asset_id="asset:synthetic-curriculum-plan",
+        documents=(
+            SplitManifestDocument(
+                document_id=SYNTHETIC_PUBLIC_AFFAIRS_ID,
+                title=SYNTHETIC_PUBLIC_AFFAIRS_TITLE,
+                page_start=278,
+                page_end=288,
+            ),
+            SplitManifestDocument(
+                document_id=SYNTHETIC_DATA_SYSTEMS_ID,
+                title=SYNTHETIC_DATA_SYSTEMS_TITLE,
+                page_start=289,
+                page_end=297,
+            ),
+        ),
+    )
 
 
 def _make_curriculum_record() -> DocumentRegistryRecord:
@@ -40,7 +75,7 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         document_id="curriculum:test-001",
         revision_track="source-faithful",
         version_id="sha256:test-001:split:test-001:abc123",
-        source_uri="campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21",
+        source_uri="campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/test/capture/pages/20-21",
         content_hash="sha256:test-001",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -69,7 +104,7 @@ def _make_public_curriculum_record() -> DocumentRegistryRecord:
         document_id="curriculum:test-public",
         revision_track="source-faithful",
         version_id="sha256:test-public:split:test-public:abc123",
-        source_uri="campusrag://source/curriculum/test-public/pages/1-1",
+        source_uri="campus-agent://source/curriculum/test-public/pages/1-1",
         content_hash="sha256:test-public",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -94,29 +129,27 @@ def _make_public_curriculum_record() -> DocumentRegistryRecord:
 def _build_real_curriculum_projection_chunks(
     document_id: str,
 ) -> tuple[DocumentRegistryRecord, tuple[object, ...]]:
-    manifest = load_split_manifest(
-        Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-        expected_corpus="curriculum",
-        expected_collection="curriculum_plan",
-    )
+    manifest = _synthetic_curriculum_split_manifest()
     layout_rows = _load_layout_elements_rows(
-        Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
+        Path(
+            "packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl"
+        ).read_bytes()
     )
     target_document = next(item for item in manifest.documents if item.document_id == document_id)
-    raw_version_id = "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67"
+    raw_version_id = "sha256:synthetic-curriculum-plan-fixture"
     document_input = _build_split_manifest_document_input(
         raw_asset_record=type(
             "RawAssetRecordProxy",
             (),
             {
-                "raw_asset_id": "asset:curriculum-plan-2022",
+                "raw_asset_id": "asset:synthetic-curriculum-plan",
                 "raw_version_id": raw_version_id,
                 "corpus": "curriculum",
                 "collection": "curriculum_plan",
-                "raw_source_uri": "file:///tmp/curriculum-plan-2022.pdf",
+                "raw_source_uri": "file:///tmp/synthetic-curriculum-plan.pdf",
                 "content_hash": raw_version_id.removeprefix("sha256:"),
-                "source_filename": "curriculum-plan-2022.pdf",
-                "object_key": "official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+                "source_filename": "synthetic-curriculum-plan.pdf",
+                "object_key": "official_pdf/curriculum-plan/synthetic/sha256/test/capture/synthetic-curriculum-plan.pdf",
                 "ingestion_timestamp": "2026-03-24T10:00:00+00:00",
                 "import_source": "raw_online_ocr",
             },
@@ -124,8 +157,8 @@ def _build_real_curriculum_projection_chunks(
         manifest_version=manifest.manifest_version,
         manifest_document=target_document,
         structured_rows=layout_rows,
-        provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl",
-        layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+        provider_response_key="official_pdf/curriculum-plan/synthetic/sha256/test/provider/vlm/provider-response.jsonl",
+        layout_elements_key="official_pdf/curriculum-plan/synthetic/sha256/test/source-truth/layout-elements.jsonl",
         default_visibility_scope="main",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -181,6 +214,7 @@ def _build_real_curriculum_runtime_chunks(
     chunks = build_indexable_chunks_from_jsonl(
         record=document.record,
         structured_jsonl_bytes=document.structured_jsonl_bytes,
+        chunk_profile=build_hermetic_curriculum_chunk_profile(),
     )
     return document.record, chunks
 

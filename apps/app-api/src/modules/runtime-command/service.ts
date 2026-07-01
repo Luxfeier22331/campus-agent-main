@@ -476,6 +476,7 @@ export function buildChatCommandService(
 		const assistantMessageId = generateId("msg");
 		const finalEventId = generateId("evt");
 		const finalized = buildFinalizedWrite({
+			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
 			assistantMessageId,
 			branchId: context.branchId,
 			completedAt,

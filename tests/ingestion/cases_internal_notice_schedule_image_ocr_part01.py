@@ -33,7 +33,7 @@ class InternalNoticeScheduleImageOcrTestPart01(unittest.TestCase):
         object_store = _NoWriteObjectStore(
             {
                 (
-                    "campus-rag-source",
+                    "campus-agent-source",
                     evidence.object_key,
                 ): b"schedule-image",
             }
@@ -59,7 +59,7 @@ class InternalNoticeScheduleImageOcrTestPart01(unittest.TestCase):
             report = run_schedule_image_ocr_dry_run(
                 evidence_entries=(evidence,),
                 object_store=object_store,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 provider=provider,
                 output_dir=Path(temp_dir),
                 run_id="dry-run-001",

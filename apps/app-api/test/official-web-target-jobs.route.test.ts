@@ -59,10 +59,10 @@ describe("official web target job operator route", () => {
 						candidateCount: 2,
 						consumerFamily: "academic_calendar_candidate",
 						createdAt: "2026-05-01T08:00:00.000Z",
-						declarationVersion: "muc_public_target_source_map_v2",
-						id: "owtarget_muc_public_calendar",
+						declarationVersion: "example_public_target_source_map_v2",
+						id: "owtarget_example_public_calendar",
 						idempotencyKey:
-							"muc_public:muc_public_target_source_map_v2:official-web-academic-calendar",
+							"example_public:example_public_target_source_map_v2:official-web-academic-calendar",
 						inventoryOnly: false,
 						latestRunId: null,
 						materializationPolicy: "candidate_only",
@@ -71,8 +71,8 @@ describe("official web target job operator route", () => {
 						retentionPolicy: "retain_source_truth",
 						reviewPolicy: "selected_write_requires_review",
 						selectedWriteTarget: "calendar/academic_calendar",
-						siteId: "muc_public",
-						sourceHosts: ["www.muc.edu.cn"],
+						siteId: "example_public",
+						sourceHosts: ["www.example.edu"],
 						status: "declared",
 						targetId: "official-web-academic-calendar",
 						titleHints: ["校历"],
@@ -106,7 +106,7 @@ describe("official web target job operator route", () => {
 						candidateId: "owcand_01",
 						completedAt: "2026-05-01T08:05:30.000Z",
 						httpStatus: 200,
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/calendar",
+						normalizedCanonicalUrl: "https://www.example.edu/calendar",
 						runId: "owrun_01",
 					},
 				],
@@ -115,9 +115,9 @@ describe("official web target job operator route", () => {
 						candidateId: "owcand_01",
 						createdAt: "2026-05-01T08:00:00.000Z",
 						eligibilityReason: "url_hint_match",
-						normalizedCandidateUrl: "https://www.muc.edu.cn/calendar",
+						normalizedCandidateUrl: "https://www.example.edu/calendar",
 						priorityScore: 90,
-						sourceHost: "www.muc.edu.cn",
+						sourceHost: "www.example.edu",
 						status: "eligible",
 						titleHint: "校历",
 						updatedAt: "2026-05-01T08:00:00.000Z",
@@ -136,10 +136,10 @@ describe("official web target job operator route", () => {
 					candidateCount: 2,
 					consumerFamily: "academic_calendar_candidate",
 					createdAt: "2026-05-01T08:00:00.000Z",
-					declarationVersion: "muc_public_target_source_map_v2",
-					id: "owtarget_muc_public_calendar",
+					declarationVersion: "example_public_target_source_map_v2",
+					id: "owtarget_example_public_calendar",
 					idempotencyKey:
-						"muc_public:muc_public_target_source_map_v2:official-web-academic-calendar",
+						"example_public:example_public_target_source_map_v2:official-web-academic-calendar",
 					inventoryOnly: false,
 					latestRunId: "owrun_01",
 					materializationPolicy: "candidate_only",
@@ -148,8 +148,8 @@ describe("official web target job operator route", () => {
 					retentionPolicy: "retain_source_truth",
 					reviewPolicy: "selected_write_requires_review",
 					selectedWriteTarget: "calendar/academic_calendar",
-					siteId: "muc_public",
-					sourceHosts: ["www.muc.edu.cn"],
+					siteId: "example_public",
+					sourceHosts: ["www.example.edu"],
 					status: "active",
 					targetId: "official-web-academic-calendar",
 					titleHints: ["校历"],
@@ -166,7 +166,7 @@ describe("official web target job operator route", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/target-jobs?siteId=muc_public&limit=5",
+				"https://app-api.internal/api/operator/official-web/target-jobs?siteId=example_public&limit=5",
 			),
 		);
 
@@ -187,7 +187,7 @@ describe("official web target job operator route", () => {
 			filters: {
 				cursor: null,
 				limit: 5,
-				siteId: "muc_public",
+				siteId: "example_public",
 				status: null,
 				targetId: null,
 			},
@@ -196,7 +196,7 @@ describe("official web target job operator route", () => {
 
 		const detailResponse = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/target-jobs/owtarget_muc_public_calendar",
+				"https://app-api.internal/api/operator/official-web/target-jobs/owtarget_example_public_calendar",
 			),
 		);
 
@@ -210,7 +210,7 @@ describe("official web target job operator route", () => {
 				],
 				candidates: [
 					expect.objectContaining({
-						normalizedCandidateUrl: "https://www.muc.edu.cn/calendar",
+						normalizedCandidateUrl: "https://www.example.edu/calendar",
 					}),
 				],
 				job: expect.objectContaining({
@@ -220,7 +220,7 @@ describe("official web target job operator route", () => {
 			}),
 		});
 		expect(service.getTargetJobById).toHaveBeenCalledWith({
-			jobId: "owtarget_muc_public_calendar",
+			jobId: "owtarget_example_public_calendar",
 			principal,
 		});
 	});

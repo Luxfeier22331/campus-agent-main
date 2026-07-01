@@ -50,7 +50,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                 raw_asset_id="owasset_article_attachment_tail_001",
                 raw_version_id="owver_article_attachment_tail_001",
                 normalized_canonical_url="https://xxgk.example.edu/info/1358/29241.htm",
-                page_title="中央民族大学公开招聘经济学院院长启事",
+                page_title="示例大学公开招聘经济学院院长启事",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -60,7 +60,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学公开招聘经济学院院长启事",
+                        text="示例大学公开招聘经济学院院长启事",
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -70,7 +70,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         block_order=1,
                         block_role="paragraph",
                         text="请于2026年6月30日前将以上材料电子版及扫描件发送至指定邮箱。",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -79,8 +79,8 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="paragraph",
-                        text="附件：中央民族大学公开招聘经济学院院长自荐表",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        text="附件：示例大学公开招聘经济学院院长自荐表",
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -89,8 +89,8 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=3,
                         block_order=3,
                         block_role="paragraph",
-                        text="中央民族大学",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        text="示例大学",
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -100,7 +100,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         block_order=4,
                         block_role="paragraph",
                         text="2026年4月24日",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -109,8 +109,8 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="list_item",
-                        text="附件【中央民族大学公开招聘经济学院院长自荐表.docx】已下载次",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        text="附件【示例大学公开招聘经济学院院长自荐表.docx】已下载次",
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                     _block(
                         raw_asset_id="owasset_article_attachment_tail_001",
@@ -119,8 +119,8 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=6,
                         block_order=6,
                         block_role="link",
-                        text="中央民族大学公开招聘经济学院院长自荐表.docx",
-                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                        text="示例大学公开招聘经济学院院长自荐表.docx",
+                        parent_heading_path=["示例大学公开招聘经济学院院长启事"],
                     ),
                 ],
             )
@@ -155,8 +155,8 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
             [True, False, False, False],
         )
         self.assertIn("请于2026年6月30日前", canonical)
-        self.assertNotIn("附件：中央民族大学公开招聘经济学院院长自荐表", canonical)
-        self.assertNotIn("中央民族大学公开招聘经济学院院长自荐表.docx", canonical)
+        self.assertNotIn("附件：示例大学公开招聘经济学院院长自荐表", canonical)
+        self.assertNotIn("示例大学公开招聘经济学院院长自荐表.docx", canonical)
 
     def test_article_projection_skips_leading_listing_noise_before_first_paragraph(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -248,7 +248,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="paragraph",
-                        text="中央民族大学是一所特色鲜明的高等院校。",
+                        text="示例大学是一所特色鲜明的高等院校。",
                         parent_heading_path=["学校概况", "学校简介"],
                     ),
                 ],
@@ -264,7 +264,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
             )
 
             self.assertIn("## 学校简介", canonical)
-            self.assertIn("中央民族大学是一所特色鲜明的高等院校。", canonical)
+            self.assertIn("示例大学是一所特色鲜明的高等院校。", canonical)
             self.assertNotIn("- 学校简介", canonical)
             self.assertEqual(canonical.count("学校简介"), 1)
 
@@ -331,7 +331,7 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="paragraph",
-                        text="中央民族大学是一所特色鲜明的高等院校。",
+                        text="示例大学是一所特色鲜明的高等院校。",
                         parent_heading_path=["学校概况", "学校简介"],
                     ),
                     _block(
@@ -387,13 +387,13 @@ class OfficialWebProjectionArticleUnitsTestPart01(unittest.TestCase):
             )
             self.assertLessEqual(max(len(unit["anchor"]["row_ids"]) for unit in units), 3)
             combined_text = "\n".join(unit["clean_text"] for unit in units)
-            self.assertIn("中央民族大学是一所特色鲜明的高等院校。", combined_text)
+            self.assertIn("示例大学是一所特色鲜明的高等院校。", combined_text)
             self.assertIn("学校坚持铸牢中华民族共同体意识主线。", combined_text)
             self.assertIn("现有海淀校区、丰台校区和海南校区。", combined_text)
             self.assertIn("学校形成了多学科协调发展的办学格局。", combined_text)
             self.assertFalse(
                 any(
-                    "中央民族大学是一所特色鲜明的高等院校。" in unit["clean_text"]
+                    "示例大学是一所特色鲜明的高等院校。" in unit["clean_text"]
                     and "学校形成了多学科协调发展的办学格局。" in unit["clean_text"]
                     for unit in units
                 )

@@ -18,7 +18,7 @@ describe("ingestion task contracts", () => {
 	it("exports the shared task envelope DTO used by runtime clients", () => {
 		const inputRef: IngestionArtifactRef = {
 			kind: "object_store",
-			uri: "s3://campus-rag-source/official_web/run/source-truth-bundle.json",
+			uri: "s3://campus-agent-source/official_web/run/source-truth-bundle.json",
 		};
 		const envelope: IngestionTaskEnvelope = {
 			schema_version: "ingestion_task_envelope.v1",

@@ -46,5 +46,14 @@
 		"editorconfig-checker": "^6.1.1",
 		"markdownlint-cli2": "^0.22.0",
 		"turbo": "^2.8.21"
+	},
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MUC-WIKI/campus-agent.git"
+	},
+	"homepage": "https://github.com/MUC-WIKI/campus-agent#readme",
+	"bugs": {
+		"url": "https://github.com/MUC-WIKI/campus-agent/issues"
 	}
 }

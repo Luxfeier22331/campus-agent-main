@@ -352,44 +352,83 @@ func transportStatusSourceRefs(refs []string, sourceURLByRef map[string]string) 
 }
 
 func (r transportReleaseNoticeRecord) normalizedSourceNoticeID() string {
+	_, noticeID := r.sourceNoticeIdentity()
+	return noticeID
+}
+
+func (r transportReleaseNoticeRecord) sourceNoticeIdentity() (string, string) {
+	sourceRefSiteID, sourceRefNoticeID := parseNoticeSourceRef(r.SourceRef)
+	sourceRef := strings.TrimSpace(r.SourceRef)
 	noticeID := strings.TrimSpace(r.SourceNoticeID)
 	if noticeID != "" {
-		return noticeID
+		return sourceRefSiteID, noticeID
 	}
-	sourceRef := strings.TrimSpace(r.SourceRef)
-	if strings.HasPrefix(sourceRef, "notice:muc_internal_portal:") {
-		return strings.TrimPrefix(sourceRef, "notice:muc_internal_portal:")
+	if sourceRef != "" {
+		return sourceRefSiteID, sourceRefNoticeID
 	}
-	return ""
+	return "", ""
 }
 
 func (r transportReleaseNoticeRecord) sourceRefs() []string {
-	noticeID := r.normalizedSourceNoticeID()
+	siteID, noticeID := r.sourceNoticeIdentity()
 	refs := []string{}
 	if ref := strings.TrimSpace(r.SourceRef); ref != "" {
 		refs = append(refs, ref)
 	}
-	if noticeID != "" {
-		refs = append(refs, "notice:muc_internal_portal:"+noticeID)
+	if siteID != "" && noticeID != "" {
+		refs = append(refs, "notice:"+siteID+":"+noticeID)
 	}
 	return refs
 }
 
-func uniqueTransportReleaseNoticeIDs(releaseNotices []transportReleaseNoticeRecord) []string {
-	ids := []string{}
+func parseNoticeSourceRef(sourceRef string) (string, string) {
+	parts := strings.Split(strings.TrimSpace(sourceRef), ":")
+	if len(parts) != 3 || parts[0] != "notice" {
+		return "", ""
+	}
+	siteID := strings.TrimSpace(parts[1])
+	noticeID := strings.TrimSpace(parts[2])
+	if siteID == "" || noticeID == "" {
+		return "", ""
+	}
+	return siteID, noticeID
+}
+
+type transportReleaseNoticeIdentity struct {
+	SiteID   string
+	NoticeID string
+}
+
+func transportReleaseNoticeURLKey(siteID string, noticeID string) string {
+	siteID = strings.TrimSpace(siteID)
+	noticeID = strings.TrimSpace(noticeID)
+	if siteID == "" || noticeID == "" {
+		return ""
+	}
+	return siteID + ":" + noticeID
+}
+
+func uniqueTransportReleaseNoticeIdentities(
+	releaseNotices []transportReleaseNoticeRecord,
+) []transportReleaseNoticeIdentity {
+	identities := []transportReleaseNoticeIdentity{}
 	seen := map[string]struct{}{}
 	for _, notice := range releaseNotices {
-		noticeID := notice.normalizedSourceNoticeID()
-		if noticeID == "" {
+		siteID, noticeID := notice.sourceNoticeIdentity()
+		key := transportReleaseNoticeURLKey(siteID, noticeID)
+		if key == "" {
 			continue
 		}
-		if _, ok := seen[noticeID]; ok {
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[noticeID] = struct{}{}
-		ids = append(ids, noticeID)
+		seen[key] = struct{}{}
+		identities = append(identities, transportReleaseNoticeIdentity{
+			SiteID:   siteID,
+			NoticeID: noticeID,
+		})
 	}
-	return ids
+	return identities
 }
 
 func transportReleaseNoticesHaveURLs(releaseNotices []transportReleaseNoticeRecord) bool {

@@ -17,7 +17,7 @@ func TestFinalizeAgentToolResponseDoesNotInferNoticeGetAsSelectedTool(t *testing
 			"result": map[string]any{
 				"notice_id":    "notice:muc-spring-break-2026",
 				"title":        "2026年春假安排通知",
-				"source_url":   "https://www.muc.edu.cn/info/2026-spring-break.htm",
+				"source_url":   "https://www.example.edu/info/2026-spring-break.htm",
 				"body_excerpt": "春假安排以官方链接为准。",
 			},
 		},
@@ -171,7 +171,7 @@ func TestFinalizeAgentToolResponseUsesRecordedNoticeMultiStepWorkflowRun(t *test
 				ResultStatus: "completed",
 			},
 			{
-                StepID:       "tool:knowledge_query:rag_request",
+				StepID:       "tool:knowledge_query:rag_request",
 				SpanKind:     "handoff",
 				ToolTarget:   "knowledge_query",
 				Outcome:      "completed",
@@ -180,9 +180,9 @@ func TestFinalizeAgentToolResponseUsesRecordedNoticeMultiStepWorkflowRun(t *test
 		},
 		ToolCallSummaries: []execution.ToolCallSummary{
 			{
-                ToolCallID:        "run-multi-001:tool:knowledge_query:rag_request",
-                WorkflowRunRef:    "run-multi-001",
-                StepID:            "tool:knowledge_query:rag_request",
+				ToolCallID:        "run-multi-001:tool:knowledge_query:rag_request",
+				WorkflowRunRef:    "run-multi-001",
+				StepID:            "tool:knowledge_query:rag_request",
 				LifecycleState:    "completed",
 				ResultProjection:  "bounded_summary",
 				RawResultIncluded: false,
@@ -252,7 +252,7 @@ func TestFinalizeAgentToolResponseUsesRecordedNoticeMultiStepWorkflowRun(t *test
 		t.Fatalf("tool_call_summaries = %#v, want one recorded tool summary", traceSummary["tool_call_summaries"])
 	}
 	if toolCallSummaries[0]["tool_name"] != "knowledge_query" ||
-            toolCallSummaries[0]["step_id"] != "tool:knowledge_query:rag_request" {
+		toolCallSummaries[0]["step_id"] != "tool:knowledge_query:rag_request" {
 		t.Fatalf("tool_call_summaries[0] = %#v, want recorded rag tool summary", toolCallSummaries[0])
 	}
 }

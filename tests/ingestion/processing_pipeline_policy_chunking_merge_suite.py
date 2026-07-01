@@ -244,7 +244,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
                             "page_end": 1,
                         },
                         metadata={
-                            "title": "中央民族大学学生申诉处理办法",
+                            "title": "示例大学学生申诉处理办法",
                             "content_role": "regulation_body",
                         },
                     ),
@@ -283,7 +283,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生管理规定",
+            "title": "示例大学学生管理规定",
             "policy_doc_no": "民大校发〔2024〕12号",
         }
         structured_payload = "\n".join(
@@ -381,7 +381,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生管理规定",
+            "title": "示例大学学生管理规定",
             "policy_doc_no": "民大校发〔2024〕12号",
         }
         structured_payload = "\n".join(
@@ -485,7 +485,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
                         clean_text="学生类别 | 管理要求\n本科生 | 按学期注册",
                         anchor={"section_path": ["第一章 总则"]},
                         metadata={
-                            "title": "中央民族大学学生管理规定",
+                            "title": "示例大学学生管理规定",
                             "table_header_line": "学生类别 | 管理要求",
                             "table_column_paths": ["学生类别", "管理要求"],
                             "table_row_lines": ["本科生 | 按学期注册"],
@@ -511,7 +511,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生管理规定",
+            "title": "示例大学学生管理规定",
             "policy_doc_no": "民大校发〔2024〕12号",
         }
         structured_payload = "\n".join(
@@ -589,7 +589,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生管理规定",
+            "title": "示例大学学生管理规定",
             "policy_doc_no": "民大校发〔2024〕12号",
         }
         structured_payload = "\n".join(

@@ -40,6 +40,9 @@ REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
 REQUIRED_WORKFLOW_CONCURRENCY = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
 MANUAL_ONLY_WORKFLOWS = (".github/workflows/eval-ragas-score.yml",)
 MANUAL_ONLY_IF_PRESENT_WORKFLOWS = (".github/workflows/public-docs-rolling-publish.yml",)
+INTERNAL_SECRET_WORKFLOW_ENVS = {
+    ".github/workflows/eval-ragas-score.yml": "eval-internal",
+}
 PATH_FILTERED_JOBS = {
     ".github/workflows/lint.yml": {
         "execution-control-go": "go",
@@ -100,6 +103,7 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
     issues.extend(_audit_workflow_script_calls(base))
     issues.extend(_audit_workflow_concurrency(base))
     issues.extend(_audit_manual_only_workflows(base))
+    issues.extend(_audit_secret_workflow_exposure(base))
     issues.extend(_audit_public_docs_publish_workflow(base))
     issues.extend(_audit_path_filtered_jobs(base))
     issues.extend(_audit_repo_static_lane_tooling(base))
@@ -255,6 +259,71 @@ def _audit_manual_only_workflow(
                 message=(
                     "manual-only workflow must not define automatic triggers: "
                     + ", ".join(automatic_triggers)
+                ),
+            )
+        )
+    return tuple(issues)
+
+
+def _audit_secret_workflow_exposure(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    workflows_dir = root / ".github/workflows"
+    if not workflows_dir.exists():
+        return ()
+    for workflow_path in sorted(workflows_dir.glob("*.yml")):
+        relpath = workflow_path.relative_to(root).as_posix()
+        workflow = _read_yaml(workflow_path)
+        text = workflow_path.read_text(encoding="utf-8")
+        if "secrets." not in text:
+            continue
+        triggers = _workflow_triggers(workflow)
+        automatic_triggers = sorted(
+            trigger for trigger in triggers if trigger != "workflow_dispatch"
+        )
+        if automatic_triggers:
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=relpath,
+                    message=(
+                        "workflow references secrets and must not define automatic triggers: "
+                        + ", ".join(automatic_triggers)
+                    ),
+                )
+            )
+        required_environment = INTERNAL_SECRET_WORKFLOW_ENVS.get(relpath)
+        if required_environment:
+            issues.extend(
+                _audit_workflow_jobs_environment(
+                    workflow,
+                    relpath=relpath,
+                    required_environment=required_environment,
+                )
+            )
+    return tuple(issues)
+
+
+def _audit_workflow_jobs_environment(
+    workflow: dict[str, Any],
+    *,
+    relpath: str,
+    required_environment: str,
+) -> tuple[CiWorkflowContractIssue, ...]:
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    issues: list[CiWorkflowContractIssue] = []
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        environment = job.get("environment")
+        if environment == required_environment:
+            continue
+        issues.append(
+            CiWorkflowContractIssue(
+                path=relpath,
+                message=(
+                    f"{job_name} must use protected environment {required_environment!r} "
+                    "because workflow references secrets"
                 ),
             )
         )

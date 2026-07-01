@@ -59,10 +59,10 @@ def _curriculum_document_units_bytes() -> bytes:
             "clean_text": "法学（民族实验班）本科人才培养方案",
             "html": None,
             "table_cells": None,
-            "source_pdf": "curriculum-plan-2022.pdf",
-            "source_url": "campusrag://source/curriculum/curriculum-plan-2022/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2",
+            "source_pdf": "synthetic-curriculum-plan.pdf",
+            "source_url": "campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2",
             "source": {
-                "id": "campusrag://source/curriculum/curriculum-plan-2022/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2"
+                "id": "campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2"
             },
             "page_start": 1,
             "page_end": 1,
@@ -92,10 +92,10 @@ def _curriculum_document_units_bytes() -> bytes:
                 "<tr><td>侵权责任法</td><td>4</td></tr></table>"
             ),
             "table_cells": [],
-            "source_pdf": "curriculum-plan-2022.pdf",
-            "source_url": "campusrag://source/curriculum/curriculum-plan-2022/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2",
+            "source_pdf": "synthetic-curriculum-plan.pdf",
+            "source_url": "campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2",
             "source": {
-                "id": "campusrag://source/curriculum/curriculum-plan-2022/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2"
+                "id": "campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/capture/pages/1-2"
             },
             "page_start": 1,
             "page_end": 2,
@@ -126,7 +126,7 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", source_key): _curriculum_document_units_bytes(),
+                ("campus-agent-derived", source_key): _curriculum_document_units_bytes(),
             }
         )
         registry = InMemoryDocumentRegistry(())
@@ -137,7 +137,7 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",
@@ -154,17 +154,17 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
                 ),
             ),
             raw_asset_record=RawAssetRecord(
-                raw_asset_id="asset:curriculum-plan-2022",
+                raw_asset_id="asset:synthetic-curriculum-plan",
                 raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
                 corpus="curriculum",
                 collection="curriculum_plan",
-                raw_source_uri="campusrag://source/curriculum/asset:curriculum-plan-2022/sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+                raw_source_uri="campus-agent://source/curriculum/asset:synthetic-curriculum-plan/sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
                 content_hash="0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
-                source_filename="curriculum-plan-2022.pdf",
+                source_filename="synthetic-curriculum-plan.pdf",
                 object_key=(
-                    "official_pdf/curriculum-plan-2022/2022/sha256/"
+                    "official_pdf/synthetic-curriculum-plan/2022/sha256/"
                     "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/"
-                    "capture/curriculum-plan-2022.pdf"
+                    "capture/synthetic-curriculum-plan.pdf"
                 ),
                 ingestion_timestamp="2026-04-04T04:40:27+00:00",
                 import_source="provider_response_replay",
@@ -178,7 +178,7 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
         self.assertEqual(report.materialized_document_count, 3)
         self.assertEqual(len(registry.list_by_scope("curriculum", "program_semester_facts")), 3)
         raw_record = raw_asset_registry.get(
-            "asset:curriculum-plan-2022",
+            "asset:synthetic-curriculum-plan",
             "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
         )
         self.assertIsNotNone(raw_record)
@@ -186,13 +186,13 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
         self.assertIn(
             "curriculum/documents/program_semester_facts/"
             "法学-民族实验班-本科人才培养方案-第一学期课程事实--semester-1/"
-            "source-faithful/2022/document-units.jsonl",
+            "source-faithful/undated/document-units.jsonl",
             uploaded_keys,
         )
         self.assertIn(
             "curriculum/documents/program_semester_facts/"
             "法学-民族实验班-本科人才培养方案-第四学期课程事实--semester-4/"
-            "source-faithful/2022/document-units.jsonl",
+            "source-faithful/undated/document-units.jsonl",
             uploaded_keys,
         )
 
@@ -220,8 +220,8 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", law_key): _curriculum_document_units_bytes(),
-                ("campus-rag-derived", history_key): _curriculum_document_units_bytes().replace(
+                ("campus-agent-derived", law_key): _curriculum_document_units_bytes(),
+                ("campus-agent-derived", history_key): _curriculum_document_units_bytes().replace(
                     "法学（民族实验班）本科人才培养方案".encode(),
                     "历史学（强基计划）本科人才培养方案".encode(),
                 ),
@@ -235,7 +235,7 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                 "EMBEDDING_PROVIDER": "mock",
                 "EMBEDDING_MODEL": "mock-embedding-8d",
                 "SPARSE_PROVIDER": "mock",
@@ -258,14 +258,14 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
                 ),
             ),
             raw_asset_record=RawAssetRecord(
-                raw_asset_id="asset:curriculum-plan-2022",
+                raw_asset_id="asset:synthetic-curriculum-plan",
                 raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
                 corpus="curriculum",
                 collection="curriculum_plan",
-                raw_source_uri="campusrag://source/curriculum/asset:curriculum-plan-2022/sha256:test",
+                raw_source_uri="campus-agent://source/curriculum/asset:synthetic-curriculum-plan/sha256:test",
                 content_hash="0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
-                source_filename="curriculum-plan-2022.pdf",
-                object_key="official_pdf/curriculum-plan-2022/provider-response.jsonl",
+                source_filename="synthetic-curriculum-plan.pdf",
+                object_key="official_pdf/synthetic-curriculum-plan/provider-response.jsonl",
                 ingestion_timestamp="2026-04-04T04:40:27+00:00",
                 import_source="provider_response_replay",
             ),

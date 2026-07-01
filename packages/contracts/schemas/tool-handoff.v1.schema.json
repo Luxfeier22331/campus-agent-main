@@ -25,6 +25,10 @@
 				"campus_notice_get"
 			]
 		},
+		"ModelVisibleToolName": {
+			"type": "string",
+			"enum": ["knowledge_query", "transport_schedule_lookup", "campus_notice_discover"]
+		},
 		"DelegateStatus": {
 			"type": "string",
 			"enum": ["completed", "needs_clarification", "no_answer", "error"]
@@ -111,7 +115,7 @@
 				"allowed_tools": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/$defs/ModelVisibleToolName"
 					}
 				}
 			}

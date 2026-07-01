@@ -10,7 +10,7 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:200010",
+            document_id="notice:example_internal_portal:200010",
             source_uri="https://portal.example.edu/notices/200010",
             canonical_key="campus_notices/documents/internal_notice/200010/canonical.md",
             units_key="campus_notices/documents/internal_notice/200010/document-units.jsonl",
@@ -22,30 +22,30 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
             (
                 _inventory_entry(
                     notice_id="200010",
-                    notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                    notice_title="关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                     published_date="2026-03-27",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n"
                     "各教学单位、各位同学：\n\n"
-                    "为了规范学生使用人工智能辅助开展学术活动的行为，教务处和研究生院联合编制了《中央民族大学关于学生使用人工智能的指导意见（2026版）》。请各单位通知本单位学生遵照执行。\n\n"
-                    "说明的具体格式参见《中央民族大学关于学生使用人工智能的指导意见（2026版）》附件。\n\n"
-                    "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n"
+                    "为了规范学生使用人工智能辅助开展学术活动的行为，教务处和研究生院联合编制了《示例大学关于学生使用人工智能的指导意见（2026版）》。请各单位通知本单位学生遵照执行。\n\n"
+                    "说明的具体格式参见《示例大学关于学生使用人工智能的指导意见（2026版）》附件。\n\n"
+                    "附件：示例大学关于学生使用人工智能的指导意见（2026版）\n\n"
                     "教务处、研究生院\n\n"
                     "2026年3月27日\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                            "text": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                             "metadata": {
-                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                                "title": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知"
                             },
                         }
                     ]
@@ -76,7 +76,7 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:200012",
+            document_id="notice:example_internal_portal:200012",
             source_uri="https://portal.example.edu/notices/200012",
             canonical_key="campus_notices/documents/internal_notice/200012/canonical.md",
             units_key="campus_notices/documents/internal_notice/200012/document-units.jsonl",
@@ -88,15 +88,15 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
             (
                 _inventory_entry(
                     notice_id="200012",
-                    notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                    notice_title="关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                     owner_expectations=(
                         {
                             "owner_expectation_id": "owner-expectation-0001",
                             "owner_kind": "attachment_document",
                             "relation_type": "attachment_ref",
                             "evidence_reason": "attachment_anchor_detected",
-                            "owner_title_hint": "中央民族大学关于学生使用人工智能的指导意见（2026版）",
-                            "evidence_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）",
+                            "owner_title_hint": "示例大学关于学生使用人工智能的指导意见（2026版）",
+                            "evidence_text": "附件：示例大学关于学生使用人工智能的指导意见（2026版）",
                         },
                     ),
                 ),
@@ -104,20 +104,20 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n"
                     "各教学单位、各位同学：\n\n"
-                    "现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n\n"
+                    "现将《示例大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n\n"
                     "具体正文详见附件。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                            "text": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                             "metadata": {
-                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                                "title": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知"
                             },
                         }
                     ]
@@ -143,7 +143,7 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:200011",
+            document_id="notice:example_internal_portal:200011",
             source_uri="https://portal.example.edu/notices/200011",
             canonical_key="campus_notices/documents/internal_notice/200011/canonical.md",
             units_key="campus_notices/documents/internal_notice/200011/document-units.jsonl",
@@ -155,30 +155,28 @@ class InternalNoticeRegulationPromotionManifestOwnerSourceTest(unittest.TestCase
             (
                 _inventory_entry(
                     notice_id="200011",
-                    notice_title="关于《中央民族大学差旅费管理办法》发布实施的通知",
+                    notice_title="关于《示例大学差旅费管理办法》发布实施的通知",
                     published_date="2025-07-09",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于《中央民族大学差旅费管理办法》发布实施的通知\n\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于《示例大学差旅费管理办法》发布实施的通知\n\n"
                     "各单位、各部门：\n\n"
-                    "为加强学校国内差旅费管理，学校对《中央民族大学差旅费管理办法》进行了修订，现已经审议通过，自2025年7月1日起实施。\n\n"
+                    "为加强学校国内差旅费管理，学校对《示例大学差旅费管理办法》进行了修订，现已经审议通过，自2025年7月1日起实施。\n\n"
                     "修订后的文件见信息门户-文件发布，请各单位自行下载参照执行。\n\n"
                     "财务处\n\n"
                     "2025年7月9日\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于《中央民族大学差旅费管理办法》发布实施的通知",
-                            "metadata": {
-                                "title": "关于《中央民族大学差旅费管理办法》发布实施的通知"
-                            },
+                            "text": "关于《示例大学差旅费管理办法》发布实施的通知",
+                            "metadata": {"title": "关于《示例大学差旅费管理办法》发布实施的通知"},
                         }
                     ]
                 ),

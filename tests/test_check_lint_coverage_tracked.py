@@ -51,8 +51,35 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             lint_families_for_path("apps/official-web-collector/README.md"),
             ("repo:static",),
         )
+        self.assertEqual(lint_families_for_path("SECURITY.md"), ("repo:static",))
+        self.assertEqual(lint_families_for_path("SUPPORT.md"), ("repo:static",))
+        self.assertEqual(lint_families_for_path("CODE_OF_CONDUCT.md"), ("repo:static",))
+        self.assertEqual(
+            lint_families_for_path(".github/ISSUE_TEMPLATE/bug_report.md"),
+            ("repo:static",),
+        )
         self.assertEqual(
             lint_families_for_path("tests/test_check_xml_tracked.py"),
+            ("repo:static",),
+        )
+        self.assertEqual(
+            lint_families_for_path("scripts/check_public_asset_source_clean.py"),
+            ("repo:static",),
+        )
+        self.assertEqual(
+            lint_families_for_path("scripts/check_public_source_tokens.py"),
+            ("repo:static",),
+        )
+        self.assertEqual(
+            lint_families_for_path("scripts/check_open_source_metadata.py"),
+            ("repo:static",),
+        )
+        self.assertEqual(
+            lint_families_for_path("scripts/check_dependency_license_policy.py"),
+            ("repo:static",),
+        )
+        self.assertEqual(
+            lint_families_for_path("scripts/check_object_store_bucket_policy.py"),
             ("repo:static",),
         )
         self.assertEqual(

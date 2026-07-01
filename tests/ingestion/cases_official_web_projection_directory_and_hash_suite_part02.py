@@ -171,14 +171,14 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                     "row_index": 0,
                     "block_order": 0,
                     "block_role": "title",
-                    "text": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                    "text": "示例大学与北京丰台人才集团共建就业实习实践基地",
                 },
                 {
                     "row_id": "p-1",
                     "row_index": 1,
                     "block_order": 1,
                     "block_role": "paragraph",
-                    "text": "中央民族大学与北京丰台人才集团共建就业实习实践基地。",
+                    "text": "示例大学与北京丰台人才集团共建就业实习实践基地。",
                 },
                 {
                     "row_id": "p-2",
@@ -195,7 +195,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                 raw_asset_id="owasset_article_news",
                 raw_version_id="owver_article_news",
                 normalized_canonical_url="https://news.example.edu/info/1.htm",
-                page_title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                page_title="示例大学与北京丰台人才集团共建就业实习实践基地",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -217,7 +217,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                 raw_asset_id="owasset_article_xxgk",
                 raw_version_id="owver_article_xxgk",
                 normalized_canonical_url="https://xxgk.example.edu/info/2.htm",
-                page_title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                page_title="示例大学与北京丰台人才集团共建就业实习实践基地",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -308,7 +308,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                     "row_index": 0,
                     "block_order": 0,
                     "block_role": "title",
-                    "text": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                    "text": "示例大学与北京丰台人才集团共建就业实习实践基地",
                 },
                 {
                     "row_id": "p-1",
@@ -322,7 +322,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                     "row_index": 2,
                     "block_order": 2,
                     "block_role": "paragraph",
-                    "text": "中央民族大学招生就业工作处与丰台人才集团将围绕就业见习、实践育人、人才输送等方面开展合作。",
+                    "text": "示例大学招生就业工作处与丰台人才集团将围绕就业见习、实践育人、人才输送等方面开展合作。",
                 },
             ]
             news_blocks = [
@@ -339,7 +339,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                     "row_index": 4,
                     "block_order": 4,
                     "block_role": "paragraph",
-                    "text": "① 凡本网未注明其他出处的作品，版权均属于中央民族大学新闻中心，转载、摘编或以其它方式使用本网作品的应注明“来源：中央民族大学新闻网”。违反上述声明者，本网将追究其相关法律责任。",
+                    "text": "① 凡本网未注明其他出处的作品，版权均属于示例大学新闻中心，转载、摘编或以其它方式使用本网作品的应注明“来源：示例大学新闻网”。违反上述声明者，本网将追究其相关法律责任。",
                 },
                 {
                     "row_id": "bp-3",
@@ -380,7 +380,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                 raw_asset_id="owasset_article_news_boilerplate",
                 raw_version_id="owver_article_news_boilerplate",
                 normalized_canonical_url="https://news.example.edu/info/61874.htm",
-                page_title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                page_title="示例大学与北京丰台人才集团共建就业实习实践基地",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -402,7 +402,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart02(unittest.TestCase):
                 raw_asset_id="owasset_article_xxgk_boilerplate",
                 raw_version_id="owver_article_xxgk_boilerplate",
                 normalized_canonical_url="https://xxgk.example.edu/info/28641.htm",
-                page_title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                page_title="示例大学与北京丰台人才集团共建就业实习实践基地",
                 page_family="article_detail",
                 blocks=[
                     _block(

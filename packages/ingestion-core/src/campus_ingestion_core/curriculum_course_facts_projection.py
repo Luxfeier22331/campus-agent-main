@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,
@@ -18,8 +18,8 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 _FAMILY_ID = "course_family:muc.ideological_political_theory"
 _FAMILY_TITLE = "思想政治理论课"
-_SOURCE_TITLE = "中央民族大学通识课程思想政治理论课教学计划"
-_SOURCE_DOCUMENT_ID = "curriculum:中央民族大学通识课程思想政治理论课教学计划"
+_SOURCE_TITLE = "示例大学通识课程思想政治理论课教学计划"
+_SOURCE_DOCUMENT_ID = "curriculum:示例大学通识课程思想政治理论课教学计划"
 _FAMILY_ALIASES = ("思政课", "思修课", "思政", "思政课程")
 _YEAR_RE = re.compile(r"(20[0-9]{2})")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -302,8 +302,10 @@ def _serialize_projection_row(
         "chunk_id": f"{document_id}:row-0001",
         "clean_text": projection.snippet,
         "source_pdf": source_pdf,
-        "source_url": f"campusrag://rag-data/canonical/curriculum_plan/docs/{_SOURCE_TITLE}.md",
-        "source": {"id": f"campusrag://rag-data/canonical/curriculum_plan/docs/{_SOURCE_TITLE}.md"},
+        "source_url": f"campus-agent://rag-data/canonical/curriculum_plan/docs/{_SOURCE_TITLE}.md",
+        "source": {
+            "id": f"campus-agent://rag-data/canonical/curriculum_plan/docs/{_SOURCE_TITLE}.md"
+        },
         "page_start": 22,
         "page_end": 26,
         "entitlement_groups": list(source_document.resolved_entitlement_groups()),

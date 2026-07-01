@@ -68,7 +68,7 @@ func (s *fakeTransportScheduleReadModelStore) EnrichTransportReleaseNoticeURLs(
 	}
 	for index := range bundle.TransportReleaseNotices {
 		if bundle.TransportReleaseNotices[index].normalizedSourceNoticeID() == "355867" {
-			bundle.TransportReleaseNotices[index].SourceURL = "https://my.muc.edu.cn/#/print?type=5&notice_id=355867&show_type=1"
+			bundle.TransportReleaseNotices[index].SourceURL = "https://portal.example.edu/#/print?type=5&notice_id=355867&show_type=1"
 		}
 	}
 	return bundle, nil

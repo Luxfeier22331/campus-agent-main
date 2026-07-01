@@ -9,7 +9,6 @@ from campus_ingestion_core.curriculum_budget_evaluation_shared import (
     _DEFAULT_LAYOUT_FIXTURE_PATH,
     _DEFAULT_RUNTIME_TITLES,
     _DEFAULT_SAMPLE_INDEX_PATH,
-    _DEFAULT_SPLIT_MANIFEST_PATH,
     _REPO_ROOT,
     CurriculumBudgetEvaluationDocument,
     CurriculumBudgetProbeCase,
@@ -24,7 +23,7 @@ from campus_ingestion_core.raw_ingestion_split_manifest import (
 from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
     CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
 )
-from campus_ingestion_core.split_manifest import load_split_manifest
+from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
 
 
 def load_runtime_curriculum_budget_evaluation_documents() -> tuple[
@@ -51,21 +50,36 @@ def load_default_curriculum_budget_evaluation_documents(
 
 
 def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
-    manifest = load_split_manifest(
-        _DEFAULT_SPLIT_MANIFEST_PATH,
-        expected_corpus="curriculum",
-        expected_collection="curriculum_plan",
+    manifest = SplitManifest(
+        manifest_version="curriculum_plan_split_manifest_synthetic_fixture_v1",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        raw_asset_id="asset:synthetic-curriculum-plan",
+        documents=(
+            SplitManifestDocument(
+                document_id="curriculum:示例公共事务本科人才培养方案",
+                title="示例公共事务本科人才培养方案",
+                page_start=278,
+                page_end=288,
+            ),
+            SplitManifestDocument(
+                document_id="curriculum:示例数据系统本科人才培养方案",
+                title="示例数据系统本科人才培养方案",
+                page_start=289,
+                page_end=297,
+            ),
+        ),
     )
     layout_rows = _load_layout_elements_rows(_DEFAULT_LAYOUT_FIXTURE_PATH.read_bytes())
     raw_asset_record = RawAssetRecord(
-        raw_asset_id="asset:curriculum-plan-2022",
-        raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+        raw_asset_id="asset:synthetic-curriculum-plan",
+        raw_version_id="sha256:synthetic-curriculum-plan-fixture",
         corpus="curriculum",
         collection="curriculum_plan",
-        raw_source_uri="file:///tmp/curriculum-plan-2022.pdf",
-        content_hash="0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
-        source_filename="curriculum-plan-2022.pdf",
-        object_key="official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+        raw_source_uri="file:///tmp/synthetic-curriculum-plan.pdf",
+        content_hash="synthetic-curriculum-plan-fixture",
+        source_filename="synthetic-curriculum-plan.pdf",
+        object_key="official_pdf/curriculum-plan/synthetic/sha256/test/capture/synthetic-curriculum-plan.pdf",
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -77,8 +91,8 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             manifest_version=manifest.manifest_version,
             manifest_document=manifest_document,
             structured_rows=layout_rows,
-            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl",
-            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            provider_response_key="official_pdf/curriculum-plan/synthetic/sha256/test/provider/vlm/provider-response.jsonl",
+            layout_elements_key="official_pdf/curriculum-plan/synthetic/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope=None,
             corpus="curriculum",
             collection="curriculum_plan",
@@ -179,38 +193,37 @@ def _load_historical_sample_documents() -> tuple[CurriculumBudgetEvaluationDocum
 
 
 def _default_runtime_probe_cases(title: str) -> tuple[CurriculumBudgetProbeCase, ...]:
-    if title == "国际经济与贸易本科人才培养方案":
+    if title == "示例公共事务本科人才培养方案":
         return (
             CurriculumBudgetProbeCase(
-                case_id="trade-elective-module",
-                query="国际贸易概论属于哪个模块",
-                expected_keywords=("国际贸易概论", "模块一:国际经贸类"),
-                required_headings=("五、课程设置和修读建议", "2. 专业选修课程"),
+                case_id="synthetic-public-affairs-core-course",
+                query="公共问题分析课程学分",
+                expected_keywords=("公共问题分析", "2"),
+                required_headings=("五、课程设置和修读建议", "2. 学科基础教育"),
                 preferred_unit_type="table_unit",
             ),
             CurriculumBudgetProbeCase(
-                case_id="trade-advanced-micro",
-                query="高级微观经济学在哪个建议课程清单里",
-                expected_keywords=("高级微观经济学", "建议课程清单"),
+                case_id="synthetic-public-affairs-advanced-course",
+                query="证据评估工作坊在哪个建议课程清单里",
+                expected_keywords=("证据评估工作坊", "建议课程清单"),
                 required_headings=("五、课程设置和修读建议", "(三)个性化培养"),
                 preferred_unit_type="table_unit",
             ),
         )
-    if title == "经济学拔尖人才创新班人才培养方案":
+    if title == "示例数据系统本科人才培养方案":
         return (
             CurriculumBudgetProbeCase(
-                case_id="economics-history-module",
-                query="中国近现代经济史属于哪个模块",
-                expected_keywords=("中国近现代经济史", "模块一:经济史及世界经济"),
-                required_headings=("五、课程设置和修读建议", "2. 专业选修课程"),
+                case_id="synthetic-data-systems-course",
+                query="数据系统专题12在哪个课程表里",
+                expected_keywords=("数据系统专题12", "课程号"),
                 preferred_unit_type="table_unit",
             ),
             CurriculumBudgetProbeCase(
-                case_id="economics-experimental",
-                query="实验经济学在哪个建议课程清单里",
-                expected_keywords=("实验经济学", "建议续深造学生选修期"),
-                required_headings=("五、课程设置和修读建议", "(三)个性化培养"),
-                preferred_unit_type="table_unit",
+                case_id="synthetic-data-systems-practice",
+                query="创新实践必修几学分",
+                expected_keywords=("创新实践", "2学分"),
+                required_headings=("3.创新创业实践",),
+                preferred_unit_type="section_text",
             ),
         )
     return ()
@@ -221,7 +234,7 @@ def _default_historical_probe_cases(
     title: str,
     label: str,
 ) -> tuple[CurriculumBudgetProbeCase, ...]:
-    if title == "中央民族大学通识课程综合素养课建设方案":
+    if title == "示例大学通识课程综合素养课建设方案":
         return (
             CurriculumBudgetProbeCase(
                 case_id="narrative-five-categories",
@@ -231,7 +244,7 @@ def _default_historical_probe_cases(
                 preferred_unit_type="section_text",
             ),
         )
-    if title == "中央民族大学通识课程思想政治理论课教学计划":
+    if title == "示例大学通识课程思想政治理论课教学计划":
         return (
             CurriculumBudgetProbeCase(
                 case_id="ideology-zhonghua-semester",

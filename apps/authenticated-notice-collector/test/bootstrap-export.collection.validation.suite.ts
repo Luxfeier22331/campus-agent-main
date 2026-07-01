@@ -39,7 +39,7 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 				],
 				requestBackoffBaseMs: 1,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu/home",
 			}),
 		).rejects.toThrow("selected_notice_ids_required");
@@ -82,7 +82,7 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 				],
 				requestBackoffBaseMs: 1,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu/home",
 			}),
 		).rejects.toThrow("enabled_notice_types_required");
@@ -166,7 +166,7 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -258,7 +258,7 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -346,7 +346,7 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 				],
 				requestBackoffBaseMs: 1,
 				requestMaxRetries: 1,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu/home",
 			}),
 		).rejects.toThrow("page_budget_exhausted");

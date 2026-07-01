@@ -268,7 +268,7 @@ func noticeSourceFamilyFromRef(ref string) string {
 	normalized := strings.ToLower(strings.TrimSpace(ref))
 	switch {
 	case strings.HasPrefix(normalized, "authenticated_notice:"),
-		strings.HasPrefix(normalized, "notice:muc_internal_portal:"),
+		strings.HasPrefix(normalized, "notice:internal_portal:"),
 		strings.HasPrefix(normalized, "notice:internal_notice_restricted:"):
 		return "internal_notice_restricted"
 	case strings.HasPrefix(normalized, "official_web:"),

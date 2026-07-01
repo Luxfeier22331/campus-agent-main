@@ -43,7 +43,7 @@ test.describe("federation browser flow", () => {
 			"/account/federation/consent?client_id=muc-wiki&redirect_uri=https%3A%2F%2Fwiki.mucwiki-edge.link%2Fcallback&response_type=code&scope=openid%20email%20profile&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256";
 		await page.goto(`/account/login?redirectTo=${encodeURIComponent(consentTarget)}`);
 
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByLabel("密码").fill("validpassword123");
 		await page.getByRole("button", { name: "登录校园问答" }).click();
 

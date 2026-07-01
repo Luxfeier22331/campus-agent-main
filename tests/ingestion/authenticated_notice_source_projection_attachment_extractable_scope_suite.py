@@ -29,7 +29,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -57,7 +57,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
             document_registry.upsert(
                 replace(
                     parent_record,
-                    document_id="notice_attachment:muc_internal_portal:355119:stale",
+                    document_id="notice_attachment:example_internal_portal:355119:stale",
                     version_id="sha256:stale",
                     content_hash="stale",
                     source_uri="https://portal.example.edu/files/stale.png",
@@ -100,16 +100,16 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
-                "notice_attachment:muc_internal_portal:355119:attachment-0002",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
+                "notice_attachment:example_internal_portal:355119:attachment-0002",
             },
         )
 
         parent = next(
             record
             for record in records
-            if record.document_id == "notice:muc_internal_portal:355119"
+            if record.document_id == "notice:example_internal_portal:355119"
         )
         parent_units = [
             json.loads(line)
@@ -125,14 +125,15 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
         docx_child = next(
             record
             for record in records
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0001"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0001"
         )
         docx_markdown = object_store.get_bytes(
             bucket=DERIVED_BUCKET,
             key=str(docx_child.canonical_markdown_object_key),
         ).decode("utf-8")
         self.assertIn("projection_name: internal_notice_attachment_documents", docx_markdown)
-        self.assertIn("parent_document_id: notice:muc_internal_portal:355119", docx_markdown)
+        self.assertIn("parent_document_id: notice:example_internal_portal:355119", docx_markdown)
         self.assertIn("报名表正文第一段", docx_markdown)
         self.assertIsNotNone(docx_child.provider_response_object_key)
         docx_payload = json.loads(
@@ -157,7 +158,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
         image_child = next(
             record
             for record in records
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0002"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0002"
         )
         image_markdown = object_store.get_bytes(
             bucket=DERIVED_BUCKET,
@@ -205,7 +207,7 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -262,7 +264,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableScopeTest(
         docx_child = next(
             record
             for record in document_registry.list_by_scope("campus_notices", "internal_notice")
-            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0001"
+            if record.document_id
+            == "notice_attachment:example_internal_portal:355119:attachment-0001"
         )
         docx_markdown = object_store.get_bytes(
             bucket=DERIVED_BUCKET,

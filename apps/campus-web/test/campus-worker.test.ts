@@ -368,7 +368,7 @@ describe("campus worker boundary", () => {
 
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/api/auth/sign-up/email", {
-				body: JSON.stringify({ email: "student@muc.edu.cn" }),
+				body: JSON.stringify({ email: "student@example.edu" }),
 				headers: {
 					"content-type": "application/json",
 					"x-campus-legal-accepted": "terms-and-privacy",
@@ -469,7 +469,7 @@ describe("campus worker boundary", () => {
 
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {
-				body: JSON.stringify({ email: "wrong@muc.edu.cn", password: "wrongpassword123" }),
+				body: JSON.stringify({ email: "wrong@example.edu", password: "wrongpassword123" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),
@@ -532,8 +532,9 @@ describe("campus worker boundary", () => {
 		const wranglerConfig = readTextFixture("wrangler.toml");
 
 		expect(wranglerConfig).toContain(
-			'run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/map-assets/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]',
+			'run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]',
 		);
+		expect(wranglerConfig).not.toContain("!/map-assets/*");
 		expect(wranglerConfig).not.toContain("!/static/*");
 		expect(wranglerConfig).not.toContain("!/_gated-docs/*");
 		expect(wranglerConfig).not.toContain("!/_gated-docs-search/*");

@@ -11,7 +11,7 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
         self.assertEqual(
             default_curriculum_provider_response_key(),
             (
-                "official_pdf/curriculum-plan/2022/sha256/"
+                "official_pdf/synthetic-curriculum-plan/2022/sha256/"
                 "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/"
                 "provider/vlm/provider-response.jsonl"
             ),

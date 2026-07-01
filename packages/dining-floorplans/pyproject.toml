@@ -2,6 +2,7 @@
 name = "campus-dining-floorplans"
 version = "0.1.0"
 description = "Versioned dining floorplan manifest and SVG anchor validation."
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

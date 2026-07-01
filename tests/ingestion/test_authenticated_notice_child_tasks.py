@@ -18,7 +18,7 @@ class AuthenticatedNoticeChildTasksTest(unittest.TestCase):
             task_kind="ocr_table_extraction",
             processor_profile_id="image_schedule_notice",
             state="completed",
-            source_unit_id="notice:muc_internal_portal:355867",
+            source_unit_id="notice:example_internal_portal:355867",
             media_ref_id="inline-image-1",
             attempt_ordinal=1,
             reason_code="ocr_table_rows_extracted",
@@ -31,7 +31,7 @@ class AuthenticatedNoticeChildTasksTest(unittest.TestCase):
             task_kind="ocr_table_extraction",
             processor_profile_id="image_schedule_notice",
             state="completed",
-            source_unit_id="notice:muc_internal_portal:355867",
+            source_unit_id="notice:example_internal_portal:355867",
             media_ref_id="inline-image-1",
             attempt_ordinal=1,
         )

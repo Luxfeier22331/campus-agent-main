@@ -51,13 +51,13 @@ describe("campus docs reader build prepare script", () => {
 			resolvePrepareDocsReaderBuildEnv({
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://localhost/app",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived",
+				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
 				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
 			}),
 		).toMatchObject({
 			APP_API_OPERATOR_DATABASE_URL: "postgresql://localhost/app",
-			OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived",
+			OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 			OBJECT_STORE_CREDENTIAL_MODE: "derived",
 			OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 		});

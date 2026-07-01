@@ -25,7 +25,7 @@ class ReviewedAttachmentOcrAdmissionTest(unittest.TestCase):
             byte_size=1526365,
             sha256="4ed7e142502d7141ff4551356310ef05c27e4fb10724ffb44c631a1e9faada95",
             object_key="authenticated_notice_portal/attachment-4ed7e142502d/2024/sha256/x/capture/file.pdf",
-            source_url="https://my.muc.edu.cn/comsys-portal-notice-web/download?id=x&notice_id=245272",
+            source_url="https://portal.example.edu/comsys-portal-notice-web/download?id=x&notice_id=245272",
         )
         result = ReviewedAttachmentOcrResult(
             provider="operator-reviewed-pdf",
@@ -47,7 +47,7 @@ class ReviewedAttachmentOcrAdmissionTest(unittest.TestCase):
         assert decision.document is not None
         self.assertEqual(
             decision.document.document_id,
-            "notice_attachment:muc_internal_portal:245272:attachment-0001",
+            "notice_attachment:example_internal_portal:245272:attachment-0001",
         )
         units = [
             json.loads(line)
@@ -69,7 +69,7 @@ class ReviewedAttachmentOcrAdmissionTest(unittest.TestCase):
         artifact_report = write_reviewed_attachment_ocr_artifacts(
             document=decision.document,
             object_store=object_store,
-            derived_bucket="campus-rag-derived",
+            derived_bucket="campus-agent-derived",
         )
         record = build_reviewed_attachment_ocr_registry_record(
             evidence=evidence,

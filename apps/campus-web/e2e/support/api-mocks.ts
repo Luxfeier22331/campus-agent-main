@@ -290,7 +290,7 @@ function routeMocks(input: {
 									userId: "user_e2e",
 								},
 								user: {
-									email: "student@muc.edu.cn",
+									email: "student@example.edu",
 									id: "user_e2e",
 									name: "测试用户",
 								},
@@ -571,7 +571,7 @@ function routeMocks(input: {
 											campusMapPlace({
 												campus: "海淀校区",
 												category: "building",
-												coordinates: [116.3211, 39.9524],
+												coordinates: [120.1234, 39.9524],
 												id: "library",
 												tags: ["学习", "教学"],
 												title: "图书馆",

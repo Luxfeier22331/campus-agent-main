@@ -2,7 +2,13 @@ import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
 import { type AppDependencies, createApp } from "./app";
-import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "./config";
+import {
+	type Env,
+	isDeployedEnvironment,
+	readPublicNoticeURLAllowlist,
+	resolveAppName,
+	resolveEnvironment,
+} from "./config";
 import { AppApiRouteError } from "./http";
 import { createPgChatConversationStore } from "./modules/chat";
 import {
@@ -178,6 +184,7 @@ export function createWorkerRuntime(
 			conversationStore: createPgChatConversationStore(env),
 			executionRuntime,
 			isExecutionRuntimeConfigured: Boolean(executionRuntime),
+			publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(env),
 			store: createPgChatCommandStore(env),
 			telemetry,
 		});

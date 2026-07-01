@@ -26,17 +26,8 @@ class HandbookSourceProjectionsTest(unittest.TestCase):
         )
 
         self.assertTrue(report["valid"], report["issues"])
-        self.assertEqual(
-            report["covered_projection_names"],
-            [
-                "handbook_form_template_documents",
-                "handbook_navigation_leaf_documents",
-                "handbook_navigation_service_catalog",
-                "handbook_phone_directory",
-                "handbook_tabular_appendix_documents",
-            ],
-        )
-        self.assertEqual(report["deferred_projection_names"], ["handbook_appendix_documents"])
+        self.assertEqual(report["covered_projection_names"], [])
+        self.assertEqual(report["deferred_projection_names"], [])
 
     def test_source_projection_coverage_rejects_undeclared_wildcard_gap(self) -> None:
         payload = _projection_config_payload()
@@ -115,7 +106,7 @@ class HandbookSourceProjectionsTest(unittest.TestCase):
                     _source_row(
                         165,
                         "heading",
-                        "中央民族大学补办学生证申请表",
+                        "示例大学补办学生证申请表",
                         block_role="title",
                         title_candidate_score=1.0,
                     ),
@@ -131,14 +122,14 @@ class HandbookSourceProjectionsTest(unittest.TestCase):
                 split_manifest_documents=(
                     SplitManifestDocument(
                         document_id=_STUDENT_CARD_PARENT_DOCUMENT_ID,
-                        title="中央民族大学本科(预科)学生证管理办法",
+                        title="示例大学本科(预科)学生证管理办法",
                         page_start=163,
                         page_end=165,
                         source_uri=(
                             "campus-agent://regulations/student_rules/docs/"
                             f"{_STUDENT_CARD_PARENT_DOCUMENT_ID}"
                         ),
-                        handbook_section="中央民族大学学生日常管理规定",
+                        handbook_section="示例大学学生日常管理规定",
                     ),
                 ),
             )
@@ -154,7 +145,7 @@ class HandbookSourceProjectionsTest(unittest.TestCase):
         self.assertEqual(document.metadata["attachment_kind"], "form_template")
         self.assertEqual(document.metadata["attachment_role"], "standalone_form_document")
         self.assertEqual(document.metadata["parent_document_id"], _STUDENT_CARD_PARENT_DOCUMENT_ID)
-        self.assertIn("中央民族大学补办学生证申请表", document.canonical_markdown_bytes.decode())
+        self.assertIn("示例大学补办学生证申请表", document.canonical_markdown_bytes.decode())
         self.assertTrue(
             any(
                 "regulations/documents/student_rules/" in key
@@ -173,7 +164,7 @@ def _projection_config_payload() -> dict[str, object]:
         "schema_version": "student_rules_source_projections_v1",
         "source_corpus": "regulations",
         "source_collection": "student_rules",
-        "raw_asset_id": "asset:student-handbook-pdf",
+        "raw_asset_id": "asset:synthetic-student-handbook",
         "projections": [
             {
                 "projection_name": "student_rules_primary_documents",
@@ -198,13 +189,13 @@ def _projection_config_payload() -> dict[str, object]:
                 "derived_from": "source_truth",
                 "derived_from_document_id": None,
                 "parent_document_id": _STUDENT_CARD_PARENT_DOCUMENT_ID,
-                "source_title": "中央民族大学补办学生证申请表",
-                "source_handbook_section": "中央民族大学学生日常管理规定",
+                "source_title": "示例大学补办学生证申请表",
+                "source_handbook_section": "示例大学学生日常管理规定",
                 "source_page_start": 165,
                 "source_page_end": 165,
                 "attachment_kind": "form_template",
                 "attachment_role": "standalone_form_document",
-                "target_title": "中央民族大学补办学生证申请表",
+                "target_title": "示例大学补办学生证申请表",
                 "migration_reason": "handbook_form_template_projection",
             }
         ],
@@ -226,14 +217,14 @@ def _projection_config_payload() -> dict[str, object]:
 
 def _raw_asset_record() -> RawAssetRecord:
     return RawAssetRecord(
-        raw_asset_id="asset:student-handbook-pdf",
-        raw_version_id="sha256:student-handbook-test",
+        raw_asset_id="asset:synthetic-student-handbook",
+        raw_version_id="sha256:synthetic-student-handbook-test",
         corpus="regulations",
         collection="student_rules",
-        raw_source_uri="s3://campus-rag-source/student-handbook.pdf",
-        content_hash="student-handbook-test",
-        source_filename="学生手册_2018.pdf",
-        object_key="official_pdf/student-handbook/2018/source.pdf",
+        raw_source_uri="s3://campus-agent-source/synthetic-student-handbook.pdf",
+        content_hash="synthetic-student-handbook-test",
+        source_filename="synthetic-student-handbook.pdf",
+        object_key="official_pdf/student-handbook/synthetic/source.pdf",
         ingestion_timestamp="2026-04-25T10:00:00+08:00",
         import_source="provider_response_replay",
         content_type="application/pdf",

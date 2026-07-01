@@ -137,7 +137,7 @@ func transportProjectionFixtureWithOperationalNotice() string {
 				"snapshot_id":"snapshot:bus:2026-01-01",
 				"published_at":"2026-01-01T08:00:00+08:00",
 				"effective_from":"2026-01-01T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:baseline",
+				"source_ref":"notice:example_internal_portal:baseline",
 				"is_current":true,
 				"schedule_scope":"baseline_revision"
 			}
@@ -162,7 +162,7 @@ func transportProjectionFixtureWithOperationalNotice() string {
 		"transport_operational_notices":[
 			{
 				"notice_id":"353903",
-				"source_ref":"notice:muc_internal_portal:353903",
+				"source_ref":"notice:example_internal_portal:353903",
 				"notice_kind":"boarding_point_change",
 				"route_ids":["route:fengtai-to-haidian"],
 				"effective_from":"2026-01-01T00:00:00+08:00",
@@ -181,7 +181,7 @@ func transportProjectionFixtureWithConflictingExceptions() string {
 				"snapshot_id":"snapshot:bus:2026-04-20",
 				"published_at":"2026-04-20T18:00:00+08:00",
 				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:baseline",
+				"source_ref":"notice:example_internal_portal:baseline",
 				"is_current":true
 			}
 		],
@@ -208,14 +208,14 @@ func transportProjectionFixtureWithConflictingExceptions() string {
 				"route_id":"route:subway-shuttle",
 				"service_date":"2026-04-24",
 				"service_status":"temporarily_suspended",
-				"related_notice_refs":["notice:muc_internal_portal:metro-suspended"]
+				"related_notice_refs":["notice:example_internal_portal:metro-suspended"]
 			},
 			{
 				"snapshot_id":"snapshot:bus:2026-04-20",
 				"route_id":"route:subway-shuttle",
 				"service_date":"2026-04-24",
 				"service_status":"running",
-				"related_notice_refs":["notice:muc_internal_portal:metro-running"]
+				"related_notice_refs":["notice:example_internal_portal:metro-running"]
 			}
 		]
 	}`
@@ -229,7 +229,7 @@ func transportProjectionFixtureWithDuplicateExceptions() string {
 				"snapshot_id":"snapshot:bus:2026-04-20",
 				"published_at":"2026-04-20T18:00:00+08:00",
 				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:baseline",
+				"source_ref":"notice:example_internal_portal:baseline",
 				"is_current":true
 			}
 		],
@@ -257,7 +257,7 @@ func transportProjectionFixtureWithDuplicateExceptions() string {
 				"service_date":"2026-04-24",
 				"service_status":"temporarily_suspended",
 				"operational_comment":"地铁接驳车今日暂停运行",
-				"related_notice_refs":["notice:muc_internal_portal:metro-suspended-a"]
+				"related_notice_refs":["notice:example_internal_portal:metro-suspended-a"]
 			},
 			{
 				"snapshot_id":"snapshot:bus:2026-04-20",
@@ -265,7 +265,7 @@ func transportProjectionFixtureWithDuplicateExceptions() string {
 				"service_date":"2026-04-24",
 				"service_status":"temporarily_suspended",
 				"operational_comment":"地铁接驳车今日暂停运行",
-				"related_notice_refs":["notice:muc_internal_portal:metro-suspended-b"]
+				"related_notice_refs":["notice:example_internal_portal:metro-suspended-b"]
 			}
 		]
 	}`
@@ -279,7 +279,7 @@ func transportProjectionFixtureWithExplicitNoServiceDateRange() string {
 				"snapshot_id":"snapshot:bus:2026-04-20",
 				"published_at":"2026-04-20T18:00:00+08:00",
 				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:baseline",
+				"source_ref":"notice:example_internal_portal:baseline",
 				"is_current":true,
 				"service_date_ranges":[
 					{"start_date":"2026-04-24","end_date":"2026-04-26"}
@@ -315,7 +315,7 @@ func transportProjectionFixtureWithTemporaryOverlay() string {
 				"snapshot_id":"snapshot:transport-schedule:2026-03-02:baseline",
 				"published_at":"2026-03-02T08:00:00+08:00",
 				"effective_from":"2026-03-02T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:baseline",
+				"source_ref":"notice:example_internal_portal:baseline",
 				"is_current":true,
 				"schedule_scope":"baseline_revision",
 				"service_date_ranges":[],
@@ -326,7 +326,7 @@ func transportProjectionFixtureWithTemporaryOverlay() string {
 				"published_at":"2026-01-21T17:00:00+08:00",
 				"effective_from":"2026-01-23T00:00:00+08:00",
 				"effective_until":"2026-03-02T00:00:00+08:00",
-				"source_ref":"notice:muc_internal_portal:354578",
+				"source_ref":"notice:example_internal_portal:354578",
 				"is_current":false,
 				"schedule_scope":"temporary_period_revision",
 				"service_date_ranges":[

@@ -7,15 +7,15 @@ import {
 
 describe("federation OIDC claims", () => {
 	it("derives a stable preferred_username from the verified email local part", () => {
-		expect(resolveFederationPreferredUsername("Jane.Doe@muc.edu.cn")).toBe("jane.doe");
-		expect(resolveFederationPreferredUsername(" 用户 @muc.edu.cn")).toBe("用户");
+		expect(resolveFederationPreferredUsername("Jane.Doe@example.edu")).toBe("jane.doe");
+		expect(resolveFederationPreferredUsername(" 用户 @example.edu")).toBe("用户");
 	});
 
 	it("returns only the allowed custom claim set for userinfo and id tokens", () => {
 		const claims = buildFederationProviderClaimSet({
 			user: {
 				createdAt: new Date("2026-06-01T00:00:00.000Z"),
-				email: "Jane.Doe@muc.edu.cn",
+				email: "Jane.Doe@example.edu",
 				id: "user_01HQ",
 				name: "Jane Doe",
 				profileMemory: {
@@ -48,7 +48,7 @@ describe("federation OIDC claims", () => {
 		expect(() =>
 			buildFederationProviderClaimSet({
 				user: {
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					updatedAt: null,
 				},
 			}),

@@ -257,7 +257,7 @@ func TestToolHandoffPayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 	scheduleProjection, ok := NewScheduleBaselineProjection(
-        "tool:transport_schedule_lookup:transport_schedule_lookup",
+		"tool:transport_schedule_lookup:transport_schedule_lookup",
 		"route:intercampus:student",
 		"两校区学生通勤班车",
 		"intercampus_commute",

@@ -57,14 +57,14 @@ const releaseTaskRecord = {
 	maxAttempts: 3,
 	inputSummary: {
 		sourceObjectCount: 1,
-		sourceUrls: ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+		sourceUrls: ["https://www.example.edu/ggfw/mdxl.htm"],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: ["中央民族大学校历"],
+		fullImpactDisplayNames: ["示例大学校历"],
 		fullRecordCount: 2,
 		recordCount: 1,
 		releaseId: "release_calendar",
-		taskScopeDisplayNames: ["中央民族大学校历"],
+		taskScopeDisplayNames: ["示例大学校历"],
 	},
 	timeline: [
 		{
@@ -99,16 +99,16 @@ const serviceGuideReleaseTaskRecord = {
 	inputSummary: {
 		sourceObjectCount: 2,
 		sourceUrls: [
-			"https://xxgk.muc.edu.cn/info/1198/4101.htm",
-			"https://xxgk.muc.edu.cn/info/1198/4051.htm",
+			"https://info.example.edu/info/1198/4101.htm",
+			"https://info.example.edu/info/1198/4051.htm",
 		],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: ["中央民族大学学术委员会章程", "中央民族大学教职工代表大会规程"],
+		fullImpactDisplayNames: ["示例大学学术委员会章程", "示例大学教职工代表大会规程"],
 		fullRecordCount: 2,
 		recordCount: 1,
 		releaseId: "release_regulation",
-		taskScopeDisplayNames: ["中央民族大学学术委员会章程"],
+		taskScopeDisplayNames: ["示例大学学术委员会章程"],
 	},
 };
 

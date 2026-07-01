@@ -6,7 +6,7 @@ from .curriculum_course_map_multimodal_probe_test_support import *
 
 
 class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
-    def test_run_probe_reuses_resume_checkpoint_without_new_probe_request(self) -> None:
+    def test_run_probe_fails_closed_after_pdf_rendering_probe_retirement(self) -> None:
         split_manifest = {
             "manifest_version": "curriculum_plan_split_manifest_v1",
             "documents": [
@@ -58,20 +58,8 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
             ],
         }
 
-        try:
-            import fitz
-        except ImportError:  # pragma: no cover
-            self.skipTest("pymupdf not installed")
-            return
-
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
-            pdf_path = tmp_path / "course-map.pdf"
-            with fitz.open() as document:
-                page = document.new_page(width=600, height=800)
-                page.draw_rect((60, 120, 360, 420), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
-                document.save(pdf_path)
-
             split_manifest_path = tmp_path / "split.json"
             sample_manifest_path = tmp_path / "samples.json"
             gold_manifest_path = tmp_path / "gold.json"
@@ -95,7 +83,7 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
                         "prompt_runs": 1,
                         "max_inflight_pages": 3,
                         "max_request_attempts": 3,
-                        "source_bucket": "campus-rag-source",
+                        "source_bucket": "campus-agent-source",
                         "source_pdf_key": "source.pdf",
                         "provider_response_key": "provider-response.jsonl",
                         "layout_elements_key": "layout-elements.jsonl",
@@ -156,21 +144,24 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with patch.object(
-                _probe_module,
-                "_probe_curriculum_course_map_page_async",
-                side_effect=AssertionError("resume should skip remote probe"),
+            with (
+                patch.object(
+                    _probe_module,
+                    "_probe_curriculum_course_map_page_async",
+                    side_effect=AssertionError("retired renderer must fail before remote probe"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "PDF rendering probe is retired"),
             ):
-                report = run_curriculum_course_map_multimodal_probe(
+                run_curriculum_course_map_multimodal_probe(
                     source={
                         "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test",
                         "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
                     },
-                    source_bucket="campus-rag-source",
+                    source_bucket="campus-agent-source",
                     split_manifest_path=split_manifest_path,
                     sample_manifest_path=sample_manifest_path,
                     gold_manifest_path=gold_manifest_path,
-                    pdf_bytes=pdf_path.read_bytes(),
+                    pdf_bytes=b"%PDF-fixture%",
                     provider_response_bytes=_provider_response_bytes(
                         page_count=1, page_height=1600
                     ),
@@ -185,7 +176,3 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
                     prompt_transport="chat_completions",
                     resume=True,
                 )
-
-            self.assertEqual(report.run_count, 1)
-            self.assertEqual(report.gold.pass_rate, 1.0)
-            self.assertTrue((output_dir / "progress.json").exists())

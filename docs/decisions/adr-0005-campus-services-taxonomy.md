@@ -17,7 +17,7 @@ updated: 2026-03-27
 - 首批 collection 固定为：
   - `service_catalog`
   - `contact_directory`
-- `中央民族大学校内常用电话` 不再属于 `regulations/student_rules` 的逻辑文档真相
+- `示例大学校内常用电话` 不再属于 `regulations/student_rules` 的逻辑文档真相
 - handbook 电话页后续作为 `campus_services/contact_directory` 的派生输入，而不是继续留在
   `regulations` 查询面
 - 历史原型中的 `service_portal` 只作为迁移输入与历史来源参考，不作为
@@ -70,7 +70,7 @@ new serving design and owner contract instead of reopening this ADR directly.
 ## 对现有 handbook truth 的影响
 
 - `configs/ingestion/regulations/student_rules/split-manifest.v1.json` 移除
-  `中央民族大学校内常用电话`
+  `示例大学校内常用电话`
 - handbook cleanup 中的电话表结构化逻辑保留，作为未来 `contact_directory` 派生处理的实现基础
 - `student_rules` 继续表示规章导向的 handbook 逻辑文档集合，而不是整本手册中所有页面的无差别投影
 - handbook 到 `campus_services` 的 projection 选择器不再要求保留旧 `regulations`

@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
+from campus_ingestion_core.campus_agent_ingestion_artifacts import ProcessedArtifactInput
 from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
     ServiceNavigationFlow,
     ServiceNavigationFlowGraph,
@@ -74,7 +74,7 @@ class _FakeResponsesClient:
             request=httpx.Request("POST", f"https://example.invalid{path}"),
             json={
                 "output_parsed": {
-                    "document_title": "中央民族大学学生公寓管理工作流程",
+                    "document_title": "示例大学学生公寓管理工作流程",
                     "page_findings": [
                         {
                             "source_page": 252,
@@ -125,7 +125,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                 source_page_end=252,
             )
 
-        self.assertEqual(graph.document_title, "中央民族大学学生公寓管理工作流程")
+        self.assertEqual(graph.document_title, "示例大学学生公寓管理工作流程")
         self.assertEqual(len(fake_client.posts), 1)
         payload = fake_client.posts[0]["json"]
         self.assertIsInstance(payload, dict)
@@ -182,7 +182,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
     def test_build_hybrid_document_materializes_flow_graph_and_lineage_artifacts(self) -> None:
         reader = _FakeReader(b"%PDF-fake%")
         raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:test-raw-version",
             corpus="regulations",
             collection="student_rules",
@@ -194,7 +194,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             import_source="raw_online_ocr",
         )
         flow_graph = ServiceNavigationFlowGraph(
-            document_title="中央民族大学学生公寓管理工作流程",
+            document_title="示例大学学生公寓管理工作流程",
             page_findings=(
                 ServiceNavigationPageFinding(
                     source_page=252,
@@ -256,13 +256,13 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             document = build_handbook_service_navigation_hybrid_document(
                 source={},
                 reader=reader,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 raw_asset_record=raw_asset_record,
                 source_document_id="handbook:source-001",
                 source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+                source_handbook_section="示例大学公寓及公费医疗管理规定",
                 target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
+                target_title="示例大学学生公寓管理工作流程",
                 projection_name="handbook_navigation_service_catalog",
                 derived_from="source_truth",
                 parent_document_id="handbook:source-001",
@@ -286,9 +286,9 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
 
         self.assertEqual(
             reader.reads,
-            [("campus-rag-source", raw_asset_record.object_key)],
+            [("campus-agent-source", raw_asset_record.object_key)],
         )
-        self.assertEqual(document.title, "中央民族大学学生公寓管理工作流程")
+        self.assertEqual(document.title, "示例大学学生公寓管理工作流程")
         self.assertIn(
             "official_pdf/student-handbook/2018/sha256/test-raw-version/source-truth/layout-elements.jsonl",
             document.additional_processed_object_keys,
@@ -310,7 +310,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             parsed_flow_graph["target_document_id"], "campus_services:service_catalog:test-001"
         )
         self.assertEqual(
-            parsed_flow_graph["flow_graph"]["document_title"], "中央民族大学学生公寓管理工作流程"
+            parsed_flow_graph["flow_graph"]["document_title"], "示例大学学生公寓管理工作流程"
         )
         self.assertEqual(
             [page["source_page"] for page in parsed_flow_graph["flow_graph"]["page_findings"]],
@@ -329,7 +329,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
         )
         self.assertEqual(rows[0]["metadata"]["derived_from_document_id"], "handbook:source-001")
         self.assertEqual(
-            rows[0]["metadata"]["derived_from_raw_asset_id"], "asset:student-handbook-pdf"
+            rows[0]["metadata"]["derived_from_raw_asset_id"], "asset:synthetic-student-handbook"
         )
         self.assertEqual(rows[0]["metadata"]["attachment_role"], "service_navigation_document")
         self.assertEqual(rows[0]["entitlement_groups"], ["students"])
@@ -341,7 +341,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
     ) -> None:
         reader = _FakeReader(b"%PDF-fake%")
         raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:test-raw-version",
             corpus="regulations",
             collection="student_rules",
@@ -353,7 +353,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             import_source="raw_online_ocr",
         )
         flow_graph = ServiceNavigationFlowGraph(
-            document_title="中央民族大学学生公寓管理工作流程",
+            document_title="示例大学学生公寓管理工作流程",
             page_findings=(
                 ServiceNavigationPageFinding(
                     source_page=252,
@@ -411,13 +411,13 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             build_handbook_service_navigation_hybrid_document(
                 source={},
                 reader=reader,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 raw_asset_record=raw_asset_record,
                 source_document_id="handbook:source-001",
                 source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+                source_handbook_section="示例大学公寓及公费医疗管理规定",
                 target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
+                target_title="示例大学学生公寓管理工作流程",
                 projection_name="handbook_navigation_service_catalog",
                 derived_from="source_truth",
                 parent_document_id="handbook:source-001",
@@ -442,21 +442,21 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                     {
                         "schema_version": "handbook_service_navigation_projection_v1",
                         "projection_name": "handbook_navigation_service_catalog",
-                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_asset_id": "asset:synthetic-student-handbook",
                         "raw_version_id": "sha256:test-raw-version",
                         "source_document_id": "handbook:source-001",
                         "source_uri": "campus-agent://regulations/student_rules/docs/handbook:source-001",
-                        "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                        "source_handbook_section": "示例大学公寓及公费医疗管理规定",
                         "source_page_start": 252,
                         "source_page_end": 255,
                         "target_document_id": "campus_services:service_catalog:test-001",
-                        "target_title": "中央民族大学学生公寓管理工作流程",
+                        "target_title": "示例大学学生公寓管理工作流程",
                         "extractor_runtime": {
                             "kind": "handbook_service_navigation",
                             "model": "gpt-test",
                         },
                         "flow_graph": {
-                            "document_title": "中央民族大学学生公寓管理工作流程",
+                            "document_title": "示例大学学生公寓管理工作流程",
                             "global_manual_review_required": True,
                             "page_findings": [
                                 {
@@ -501,7 +501,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             ).encode("utf-8")
         )
         raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:test-raw-version",
             corpus="regulations",
             collection="student_rules",
@@ -516,7 +516,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "manual review"):
             build_handbook_service_navigation_hybrid_document_from_projection_artifact(
                 reader=reader,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 projection_artifact_key=(
                     "official_pdf/student-handbook/2018/sha256/test-raw-version/"
                     "projection/handbook_navigation_service_catalog/flow-graph.json"
@@ -524,9 +524,9 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                 raw_asset_record=raw_asset_record,
                 source_document_id="handbook:source-001",
                 source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+                source_handbook_section="示例大学公寓及公费医疗管理规定",
                 target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
+                target_title="示例大学学生公寓管理工作流程",
                 projection_name="handbook_navigation_service_catalog",
                 derived_from="source_truth",
                 parent_document_id="handbook:source-001",
@@ -551,21 +551,21 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                     {
                         "schema_version": "handbook_service_navigation_projection_v1",
                         "projection_name": "handbook_navigation_service_catalog",
-                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_asset_id": "asset:synthetic-student-handbook",
                         "raw_version_id": "sha256:test-raw-version",
                         "source_document_id": "handbook:source-001",
                         "source_uri": "campus-agent://regulations/student_rules/docs/handbook:source-001",
-                        "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                        "source_handbook_section": "示例大学公寓及公费医疗管理规定",
                         "source_page_start": 252,
                         "source_page_end": 255,
                         "target_document_id": "campus_services:service_catalog:test-001",
-                        "target_title": "中央民族大学学生公寓管理工作流程",
+                        "target_title": "示例大学学生公寓管理工作流程",
                         "extractor_runtime": {
                             "kind": "handbook_service_navigation",
                             "mode": "captured",
                         },
                         "flow_graph": {
-                            "document_title": "中央民族大学学生公寓管理工作流程",
+                            "document_title": "示例大学学生公寓管理工作流程",
                             "global_manual_review_required": False,
                             "page_findings": [
                                 {
@@ -615,7 +615,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             ).encode("utf-8")
         )
         raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:test-raw-version",
             corpus="regulations",
             collection="student_rules",
@@ -629,7 +629,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
 
         document = build_handbook_service_navigation_hybrid_document_from_projection_artifact(
             reader=reader,
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             projection_artifact_key=(
                 "official_pdf/student-handbook/2018/sha256/test-raw-version/"
                 "projection/handbook_navigation_service_catalog/flow-graph.json"
@@ -637,9 +637,9 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             raw_asset_record=raw_asset_record,
             source_document_id="handbook:source-001",
             source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-            source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+            source_handbook_section="示例大学公寓及公费医疗管理规定",
             target_document_id="campus_services:service_catalog:test-001",
-            target_title="中央民族大学学生公寓管理工作流程",
+            target_title="示例大学学生公寓管理工作流程",
             projection_name="handbook_navigation_service_catalog",
             derived_from="source_truth",
             parent_document_id="handbook:source-001",
@@ -665,7 +665,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             reader.reads,
             [
                 (
-                    "campus-rag-source",
+                    "campus-agent-source",
                     "official_pdf/student-handbook/2018/sha256/test-raw-version/"
                     "projection/handbook_navigation_service_catalog/flow-graph.json",
                 )
@@ -681,7 +681,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
     def test_build_hybrid_document_fails_closed_when_graph_has_no_body_bearing_steps(self) -> None:
         reader = _FakeReader(b"%PDF-fake%")
         raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
+            raw_asset_id="asset:synthetic-student-handbook",
             raw_version_id="sha256:test-raw-version",
             corpus="regulations",
             collection="student_rules",
@@ -693,7 +693,7 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             import_source="raw_online_ocr",
         )
         flow_graph = ServiceNavigationFlowGraph(
-            document_title="中央民族大学学生公寓管理工作流程",
+            document_title="示例大学学生公寓管理工作流程",
             page_findings=(
                 ServiceNavigationPageFinding(
                     source_page=252,
@@ -738,13 +738,13 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             build_handbook_service_navigation_hybrid_document(
                 source={},
                 reader=reader,
-                source_bucket="campus-rag-source",
+                source_bucket="campus-agent-source",
                 raw_asset_record=raw_asset_record,
                 source_document_id="handbook:source-001",
                 source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+                source_handbook_section="示例大学公寓及公费医疗管理规定",
                 target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
+                target_title="示例大学学生公寓管理工作流程",
                 projection_name="handbook_navigation_service_catalog",
                 derived_from="source_truth",
                 parent_document_id="handbook:source-001",

@@ -40,7 +40,7 @@ class NoticeDerivedContactCandidateTest(unittest.TestCase):
             projection_entries=(entry,),
             registry=registry,
             object_store=object_store,
-            derived_bucket="campus-rag-derived",
+            derived_bucket="campus-agent-derived",
             generated_at="2026-04-27T11:00:00+08:00",
         )
 
@@ -64,7 +64,7 @@ class NoticeDerivedContactCandidateTest(unittest.TestCase):
             projection_entries=(entry,),
             registry=registry,
             object_store=object_store,
-            derived_bucket="campus-rag-derived",
+            derived_bucket="campus-agent-derived",
             generated_at="2026-04-27T11:00:00+08:00",
         )
 
@@ -88,7 +88,9 @@ def _runtime(*, notice_id: str, notice_title: str, body: str):
     registry = InMemoryDocumentRegistry((record,))
     object_store = _FakeObjectStore(
         objects={
-            ("campus-rag-derived", record.canonical_markdown_object_key): _canonical_markdown(body),
+            ("campus-agent-derived", record.canonical_markdown_object_key): _canonical_markdown(
+                body
+            ),
         }
     )
     entry = NoticeConsumptionProjectionEntry(
@@ -96,7 +98,7 @@ def _runtime(*, notice_id: str, notice_title: str, body: str):
         source_corpus="campus_notices",
         source_collection="internal_notice",
         source_notice_id=notice_id,
-        unit_id=f"notice_unit:notice:muc_internal_portal:{notice_id}:stable_contact_update",
+        unit_id=f"notice_unit:notice:example_internal_portal:{notice_id}:stable_contact_update",
         primary_role=NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
         default_agent=NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
@@ -105,12 +107,12 @@ def _runtime(*, notice_id: str, notice_title: str, body: str):
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
         consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
         source_notice_release_time="2026-04-27 09:00",
         role_metadata={
             "notice_title": notice_title,
-            "site_id": "muc_internal_portal",
+            "site_id": "example_internal_portal",
         },
     )
     return registry, object_store, entry

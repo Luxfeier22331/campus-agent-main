@@ -266,8 +266,8 @@ def _entry(
         completeness_status="complete",
         answerability="answerable",
         consumption_status=consumption_status,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
         role_metadata=role_metadata,
     )
 

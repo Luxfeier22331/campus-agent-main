@@ -181,7 +181,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -281,7 +281,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学本科学生综合奖励评审办法"},
+                    metadata={"title": "示例大学本科学生综合奖励评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -312,7 +312,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         )
 
     def test_student_rules_category_members_get_registry_overview_chunks(self) -> None:
-        document_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
+        document_id = "handbook:synthetic-scholarship-rule"
         record = _registry_record_for_document(document_id)
         structured_payload = (
             json.dumps(
@@ -321,8 +321,8 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                     version_id=record.version_id,
                     unit_type="article_body",
                     root_unit_id="article-001",
-                    clean_text="第一条 国家奖学金每学年评审一次。",
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    clean_text="Article 1 Scholarship review runs once per academic year.",
+                    metadata={"title": "Synthetic scholarship review rule"},
                 ),
                 ensure_ascii=False,
             )
@@ -344,7 +344,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         self.assertEqual(overview.metadata["content_role"], "policy_list")
         self.assertEqual(overview.metadata["category_id"], "scholarship")
         self.assertEqual(overview.metadata["answer_role"], "category_overview")
-        self.assertEqual(overview.metadata["category_audience"], "本科生")
+        self.assertEqual(overview.metadata["category_audience"], "students")
         self.assertEqual(
             overview.metadata["parent_unit_id"],
             f"{document_id}:category-overview:scholarship",
@@ -361,21 +361,17 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
             overview.metadata["condition_group_id"],
             f"{document_id}:category-overview:scholarship:audience_scope",
         )
-        self.assertGreaterEqual(len(overview.metadata["category_member_document_ids"]), 5)
-        self.assertIn("本科生奖学金相关制度", overview.metadata["display_text"])
-        self.assertIn("中央民族大学本科学生国家奖学金评审办法", overview.metadata["display_text"])
-        self.assertIn(
-            "中央民族大学本科学生国家励志奖学金评审办法",
-            overview.metadata["display_text"],
+        self.assertEqual(
+            tuple(overview.metadata["category_member_document_ids"]),
+            ("handbook:synthetic-scholarship-rule",),
         )
-        self.assertIn("中央民族大学本科学生专业奖学金评定办法", overview.metadata["display_text"])
-        self.assertIn("中央民族大学本科学生专项奖学金评定办法", overview.metadata["display_text"])
-        self.assertIn("中央民族大学社会奖助学金管理办法", overview.metadata["display_text"])
+        self.assertIn("studentsScholarship相关制度", overview.metadata["display_text"])
+        self.assertIn("Synthetic scholarship review rule", overview.metadata["display_text"])
         self.assertEqual(overview.metadata["answer_ready_contract_validation_status"], "passed")
         self.assertEqual(overview.metadata["answer_ready_contract_validation_issues"], ())
 
     def test_student_rules_category_overview_is_not_duplicated_for_every_member(self) -> None:
-        document_id = "handbook:1f17ba6234c15963648b3d74656d78621cad77a7"
+        document_id = "handbook:synthetic-student-card-rule"
         record = _registry_record_for_document(document_id)
         structured_payload = (
             json.dumps(
@@ -384,8 +380,8 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                     version_id=record.version_id,
                     unit_type="article_body",
                     root_unit_id="article-001",
-                    clean_text="第一条 国家励志奖学金每学年评审一次。",
-                    metadata={"title": "中央民族大学本科学生国家励志奖学金评审办法"},
+                    clean_text="Article 1 Student card replacement requires an application.",
+                    metadata={"title": "Synthetic student card rule"},
                 ),
                 ensure_ascii=False,
             )
@@ -446,7 +442,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         self.assertIn("成员制度二", overview.piece.text)
 
     def test_student_rules_document_can_emit_multiple_category_overviews(self) -> None:
-        record = _registry_record_for_document("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389")
+        record = _registry_record_for_document("handbook:synthetic-student-status-rule")
 
         overviews = build_student_rules_category_overview_candidates(
             record=record,
@@ -464,7 +460,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         )
 
     def test_institutional_rules_category_members_get_registry_overview_chunks(self) -> None:
-        document_id = "official_web_regulation:0a420e3fe367027c"
+        document_id = "official_web_regulation:synthetic-network-policy"
         record = _institutional_registry_record(document_id)
         structured_payload = (
             json.dumps(
@@ -473,13 +469,13 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                     version_id=record.version_id,
                     unit_type="regulation_body",
                     root_unit_id=f"{document_id}:unit-0001",
-                    clean_text="第一条 为了推进和规范学校信息公开工作，制定本细则。",
+                    clean_text="Article 1 This policy defines campus network service usage.",
                     anchor={
                         "section_path": ["第一章 总则"],
                         "provision_label": "第一条",
                     },
                     metadata={
-                        "title": "中央民族大学信息公开实施细则",
+                        "title": "Synthetic campus network policy",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -522,10 +518,12 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
             overview.metadata["condition_group_id"],
             f"{document_id}:category-overview:public_service:audience_scope",
         )
-        self.assertGreaterEqual(len(overview.metadata["category_member_document_ids"]), 5)
-        self.assertIn("校园成员校园服务制度相关制度", overview.metadata["display_text"])
-        self.assertIn("中央民族大学信息公开实施细则", overview.metadata["display_text"])
-        self.assertIn("中央民族大学信息门户运行管理办法（试行）", overview.metadata["display_text"])
+        self.assertEqual(
+            tuple(overview.metadata["category_member_document_ids"]),
+            ("official_web_regulation:synthetic-network-policy",),
+        )
+        self.assertIn("校园成员Public Service Policies相关制度", overview.metadata["display_text"])
+        self.assertIn("Synthetic campus network policy", overview.metadata["display_text"])
         self.assertEqual(overview.metadata["answer_ready_contract_validation_status"], "passed")
         self.assertEqual(overview.metadata["answer_ready_contract_validation_issues"], ())
 
@@ -594,7 +592,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                     root_unit_id="article-004",
                     clean_text="1. 申请人提交申请材料。",
                     anchor={"section_path": ["第四章 办理程序"]},
-                    metadata={"title": "中央民族大学校级事项办理办法"},
+                    metadata={"title": "示例大学校级事项办理办法"},
                 ),
                 ensure_ascii=False,
             )

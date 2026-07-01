@@ -30,20 +30,20 @@ describe("authenticated notice collector file release artifacts", () => {
 					detail: {
 						filecode: "民大校发〔2026〕39号",
 						filedepartment: "教务处",
-						filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+						filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 						filetime: "2026-03-31 13:51:11",
 						filetypeid: 18,
 						fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
 						id: 646,
 						state: 1,
-						upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+						upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
 					},
 					downloadUrl: "/comsys-prompt-portlet-web/file/sample.pdf",
 					fileTypeNameById: new Map([[18, "教学管理"]]),
 					item: {
 						filecode: "民大校发〔2026〕39号",
 						filedepartment: "教务处",
-						filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+						filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 						filetime: "2026-03-31 13:51:11",
 						id: 646,
 						typename: "教学管理",
@@ -98,7 +98,7 @@ describe("authenticated notice collector file release artifacts", () => {
 					status: "success",
 				},
 				schema_version: "authenticated_notice_file_release_export_v1",
-				site_id: "muc_internal_portal",
+				site_id: "example_internal_portal",
 				source_channel: "authenticated_notice_portal",
 				source_home_url: "https://portal.example.edu",
 				source_surface: "file_release",
@@ -139,7 +139,7 @@ describe("authenticated notice collector file release artifacts", () => {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						byteSize: data.byteLength,
 						contentSha256: "sha256",
 						etag: '"etag"',
@@ -151,7 +151,7 @@ describe("authenticated notice collector file release artifacts", () => {
 			bundleRecords,
 			exportedAt: "2026-04-12T00:30:00.000Z",
 			exportManifest,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 		});
 
 		const expectedBundleBytes = `${JSON.stringify(bundleRecords, null, 2)}\n`;
@@ -160,39 +160,39 @@ describe("authenticated notice collector file release artifacts", () => {
 			bundleByteSize: Buffer.byteLength(expectedBundleBytes),
 			bundleContentSha256: "sha256",
 			bundleObjectKey:
-				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				"authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-bundle.json",
 			bundleRef: {
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				byteSize: Buffer.byteLength(expectedBundleBytes),
 				contentSha256: "sha256",
 				etag: '"etag"',
 				objectKey:
-					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+					"authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-bundle.json",
 				versionId: null,
 			},
 			manifestByteSize: Buffer.byteLength(expectedManifestBytes),
 			manifestContentSha256: "sha256",
 			manifestObjectKey:
-				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				"authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-manifest.json",
 			manifestRef: {
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				byteSize: Buffer.byteLength(expectedManifestBytes),
 				contentSha256: "sha256",
 				etag: '"etag"',
 				objectKey:
-					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+					"authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-manifest.json",
 				versionId: null,
 			},
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 		expect(storedObjects).toEqual([
 			{
 				contentType: "application/json",
 				data: expectedBundleBytes,
-				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				key: "authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-bundle.json",
 				metadata: {
 					artifact_kind: "file_release_bundle",
-					site_id: "muc_internal_portal",
+					site_id: "example_internal_portal",
 					source_channel: "authenticated_notice_portal",
 					source_surface: "file_release",
 				},
@@ -200,10 +200,10 @@ describe("authenticated notice collector file release artifacts", () => {
 			{
 				contentType: "application/json",
 				data: expectedManifestBytes,
-				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				key: "authenticated_notice_portal/runs/example_internal_portal/20260412T003000Z/file-releases-manifest.json",
 				metadata: {
 					artifact_kind: "file_release_manifest",
-					site_id: "muc_internal_portal",
+					site_id: "example_internal_portal",
 					source_channel: "authenticated_notice_portal",
 					source_surface: "file_release",
 				},
@@ -227,7 +227,7 @@ describe("authenticated notice collector file release artifacts", () => {
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

@@ -28,11 +28,11 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key or "",
                 ): _canonical_markdown(
-                    "# 历史文化学院2021年硕博连读博士研究生 招生实施细则\n\n"
-                    "根据教育部有关文件精神及《中央民族大学2021年硕博连读博士研究生招生工作》要求，"
+                    "# 示例历史学院2021年硕博连读博士研究生 招生实施细则\n\n"
+                    "根据教育部有关文件精神及《示例大学2021年硕博连读博士研究生招生工作》要求，"
                     "我院在2021年博士研究生招生中继续实行硕博连读招生。\n"
                 ),
             }
@@ -40,9 +40,9 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         report = InternalNoticeRegulationPromotionDocumentReport(
             document_id=source_record.document_id,
             notice_id="187004",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_kind="parent_notice",
-            source_title="历史文化学院2021年硕博连读博士研究生 招生实施细则",
+            source_title="示例历史学院2021年硕博连读博士研究生 招生实施细则",
             input_lane="notice_body",
             revision_track="source-faithful",
             version_id=source_record.version_id,
@@ -52,8 +52,8 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             semantic_owner_kind="notice_body",
             target_corpus="regulations",
             target_collection="scoped_rules",
-            regulation_title_normalized="中央民族大学2021年硕博连读博士研究生招生工作",
-            issuing_org="中央民族大学",
+            regulation_title_normalized="示例大学2021年硕博连读博士研究生招生工作",
+            issuing_org="示例大学",
             effective_date="2021年1月8日",
             revision_signal=None,
             source_notice_release_time="2021-01-07 16:30",
@@ -73,20 +73,20 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             source_record=source_record,
             inventory_entry=_inventory_entry(
                 notice_id="187004",
-                notice_title="历史文化学院2021年硕博连读博士研究生 招生实施细则",
+                notice_title="示例历史学院2021年硕博连读博士研究生 招生实施细则",
                 published_date="2021-01-07 16:30",
             ),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
             document_nature="annual_cycle_rule",
         )
 
         self.assertEqual(
             candidate.title,
-            "历史文化学院2021年硕博连读博士研究生 招生实施细则",
+            "示例历史学院2021年硕博连读博士研究生 招生实施细则",
         )
         self.assertEqual(candidate.cycle_year, "2021")
-        self.assertEqual(candidate.school_unit_name, "历史文化学院")
+        self.assertEqual(candidate.school_unit_name, "示例历史学院")
 
     def test_build_scoped_rule_candidate_normalizes_school_unit_name_without_institution_prefix(
         self,
@@ -102,10 +102,10 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key or "",
                 ): _canonical_markdown(
-                    "# 中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则\n\n"
+                    "# 示例大学示例社会学院2021年硕博连读博士研究生招生实施细则\n\n"
                     "根据教育部有关文件精神，我院开展硕博连读招生。\n"
                 ),
             }
@@ -113,9 +113,9 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         report = InternalNoticeRegulationPromotionDocumentReport(
             document_id=source_record.document_id,
             notice_id="186957",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_kind="parent_notice",
-            source_title="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+            source_title="示例大学示例社会学院2021年硕博连读博士研究生招生实施细则",
             input_lane="notice_body",
             revision_track="source-faithful",
             version_id=source_record.version_id,
@@ -125,8 +125,8 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             semantic_owner_kind="notice_body",
             target_corpus="regulations",
             target_collection="scoped_rules",
-            regulation_title_normalized="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
-            issuing_org="中央民族大学",
+            regulation_title_normalized="示例大学示例社会学院2021年硕博连读博士研究生招生实施细则",
+            issuing_org="示例大学",
             effective_date="2021年1月6日",
             revision_signal=None,
             source_notice_release_time="2021-01-05 14:59",
@@ -146,28 +146,28 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             source_record=source_record,
             inventory_entry=_inventory_entry(
                 notice_id="186957",
-                notice_title="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+                notice_title="示例大学示例社会学院2021年硕博连读博士研究生招生实施细则",
                 published_date="2021-01-05 14:59",
             ),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
             document_nature="annual_cycle_rule",
         )
 
-        self.assertEqual(candidate.school_unit_name, "民族学与社会学学院")
+        self.assertEqual(candidate.school_unit_name, "示例社会学院")
 
     def test_school_unit_extraction_accepts_single_character_college_names(self) -> None:
         self.assertEqual(
             scoped_materialization._extract_school_unit_name(
-                "药学院2021年硕博连读博士研究生招生实施细则"
+                "甲学院2021年硕博连读博士研究生招生实施细则"
             ),
-            "药学院",
+            "甲学院",
         )
         self.assertEqual(
             scoped_materialization._extract_school_unit_name(
-                "中央民族大学药学院2021年硕博连读博士研究生招生实施细则"
+                "示例大学甲学院2021年硕博连读博士研究生招生实施细则"
             ),
-            "药学院",
+            "甲学院",
         )
 
     def test_build_scoped_rule_candidate_prefers_source_title_for_time_bound_rule(self) -> None:
@@ -182,10 +182,10 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key or "",
                 ): _canonical_markdown(
-                    "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                    "# 示例大学丰台校区就医管理办法（暂行）\n\n"
                     "校医院正式运营前，由临时医疗点承担校区基础门诊服务。\n"
                 ),
             }
@@ -193,9 +193,9 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         report = InternalNoticeRegulationPromotionDocumentReport(
             document_id=source_record.document_id,
             notice_id="191705",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_kind="parent_notice",
-            source_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+            source_title="重要通知--示例大学丰台校区就医管理办法（暂行）",
             input_lane="notice_body",
             revision_track="source-faithful",
             version_id=source_record.version_id,
@@ -205,8 +205,8 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             semantic_owner_kind="notice_body",
             target_corpus="regulations",
             target_collection="scoped_rules",
-            regulation_title_normalized="中央民族大学丰台校区医疗服务说明",
-            issuing_org="中央民族大学",
+            regulation_title_normalized="示例大学丰台校区医疗服务说明",
+            issuing_org="示例大学",
             effective_date=None,
             revision_signal=None,
             source_notice_release_time="2021-06-30 10:00",
@@ -226,19 +226,19 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             source_record=source_record,
             inventory_entry=_inventory_entry(
                 notice_id="191705",
-                notice_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+                notice_title="重要通知--示例大学丰台校区就医管理办法（暂行）",
                 published_date="2021-06-30 10:00",
             ),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
             document_nature="time_bound_operational_rule",
         )
 
         self.assertEqual(
             candidate.title,
-            "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+            "重要通知--示例大学丰台校区就医管理办法（暂行）",
         )
-        self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
+        self.assertEqual(candidate.campus_site, "示例大学丰台校区")
         self.assertEqual(candidate.force_status, "provisional_in_force")
 
     def test_build_scoped_rule_candidate_fails_closed_for_body_phrase_in_annual_rule(self) -> None:
@@ -253,11 +253,11 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key or "",
                 ): _canonical_markdown(
-                    "# 中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法\n\n"
-                    "严格按照《中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法》执行。\n"
+                    "# 示例大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法\n\n"
+                    "严格按照《示例大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法》执行。\n"
                     "其中，综合成绩按百分制计算，由学业成绩和综合素质成绩两部分组成。\n"
                 ),
             }
@@ -265,9 +265,9 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         report = InternalNoticeRegulationPromotionDocumentReport(
             document_id=source_record.document_id,
             notice_id="351907",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_kind="parent_notice",
-            source_title="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+            source_title="示例大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
             input_lane="notice_body",
             revision_track="source-faithful",
             version_id=source_record.version_id,
@@ -277,8 +277,8 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             semantic_owner_kind="notice_body",
             target_corpus="regulations",
             target_collection="scoped_rules",
-            regulation_title_normalized="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
-            issuing_org="中央民族大学",
+            regulation_title_normalized="示例大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+            issuing_org="示例大学",
             effective_date=None,
             revision_signal=None,
             source_notice_release_time="2025-09-06 11:52",
@@ -298,11 +298,11 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             source_record=source_record,
             inventory_entry=_inventory_entry(
                 notice_id="351907",
-                notice_title="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+                notice_title="示例大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
                 published_date="2025-09-06 11:52",
             ),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
             document_nature="annual_cycle_rule",
         )
 
@@ -323,10 +323,10 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     source_record.canonical_markdown_object_key or "",
                 ): _canonical_markdown(
-                    "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                    "# 示例大学丰台校区就医管理办法（暂行）\n\n"
                     "校医院正式运营前，由临时医疗点承担校区基础门诊服务。\n"
                     "学校增设丰台区王佐镇社区卫生服务中心，为丰台校区师生提供医保转诊服务。\n"
                 ),
@@ -335,9 +335,9 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
         report = InternalNoticeRegulationPromotionDocumentReport(
             document_id=source_record.document_id,
             notice_id="191706",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_kind="parent_notice",
-            source_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+            source_title="重要通知--示例大学丰台校区就医管理办法（暂行）",
             input_lane="notice_body",
             revision_track="source-faithful",
             version_id=source_record.version_id,
@@ -347,8 +347,8 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             semantic_owner_kind="notice_body",
             target_corpus="regulations",
             target_collection="scoped_rules",
-            regulation_title_normalized="中央民族大学丰台校区就医管理办法（暂行）",
-            issuing_org="中央民族大学",
+            regulation_title_normalized="示例大学丰台校区就医管理办法（暂行）",
+            issuing_org="示例大学",
             effective_date=None,
             revision_signal=None,
             source_notice_release_time="2021-09-10 16:32",
@@ -368,14 +368,14 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
             source_record=source_record,
             inventory_entry=_inventory_entry(
                 notice_id="191706",
-                notice_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+                notice_title="重要通知--示例大学丰台校区就医管理办法（暂行）",
                 published_date="2021-09-10 16:32",
             ),
             object_store=object_store,
-            bucket_derived="campus-rag-derived",
+            bucket_derived="campus-agent-derived",
             document_nature="time_bound_operational_rule",
         )
 
-        self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
+        self.assertEqual(candidate.campus_site, "示例大学丰台校区")
         self.assertIsNone(candidate.school_unit_name)
         self.assertEqual(candidate.force_status, "provisional_in_force")

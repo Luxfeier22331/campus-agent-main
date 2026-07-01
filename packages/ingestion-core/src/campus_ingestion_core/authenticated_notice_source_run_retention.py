@@ -447,8 +447,8 @@ def _list_runtime_objects(
 
 def _bucket_settings_from_env(env: Mapping[str, str]) -> ObjectStoreBucketSettings:
     return ObjectStoreBucketSettings(
-        bucket_source=(env.get("OBJECT_STORE_BUCKET_SOURCE") or "campus-rag-source").strip(),
-        bucket_derived=(env.get("OBJECT_STORE_BUCKET_DERIVED") or "campus-rag-derived").strip(),
+        bucket_source=(env.get("OBJECT_STORE_BUCKET_SOURCE") or "campus-agent-source").strip(),
+        bucket_derived=(env.get("OBJECT_STORE_BUCKET_DERIVED") or "campus-agent-derived").strip(),
     )
 
 

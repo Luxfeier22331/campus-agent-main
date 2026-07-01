@@ -13,7 +13,7 @@ import {
 
 describe("FeedWe capture", () => {
 	it("normalizes account names into stable source-bucket asset slugs", () => {
-		expect(normalizeWeChatAccountSlug("中央民族大学学生会")).toBe("中央民族大学学生会");
+		expect(normalizeWeChatAccountSlug("示例大学学生会")).toBe("示例大学学生会");
 	});
 
 	it("fails closed when FeedWe returns invalid JSON for a successful provider response", async () => {
@@ -37,7 +37,7 @@ describe("FeedWe capture", () => {
 
 		await expect(
 			captureFeedWeHistory({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				artifactStore,
 				fetchImplementation,
 				maxArticles: 1,
@@ -95,7 +95,7 @@ describe("FeedWe capture", () => {
 								wechatAccount: {
 									alias: "MUC_xiaohui",
 									id: "account-1",
-									name: "中央民族大学学生会",
+									name: "示例大学学生会",
 								},
 							},
 						],
@@ -219,7 +219,7 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
-			accountName: "中央民族大学学生会",
+			accountName: "示例大学学生会",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -298,38 +298,38 @@ describe("FeedWe capture", () => {
 		expect(objectKeys).toEqual(
 			expect.arrayContaining([
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/raw_[a-f0-9]{16}\/provider\/feedwe\/provider-response\.jsonl$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/raw_[a-f0-9]{16}\/provider\/feedwe\/provider-response\.jsonl$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/raw_[a-f0-9]{16}\/capture\/feedwe-request-summary\.json$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/raw_[a-f0-9]{16}\/capture\/feedwe-request-summary\.json$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/article-manifest\.json$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/article-manifest\.json$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/content-blocks\.jsonl$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/content-blocks\.jsonl$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/media-refs\.jsonl$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/media-refs\.jsonl$/,
 				),
 			]),
 		);
 		expect(objectKeys).toEqual(
 			expect.arrayContaining([
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/provider\/wechat-page-parser\/page-extraction\.json$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/provider\/wechat-page-parser\/page-extraction\.json$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/original\.(jpg|png)$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/original\.(jpg|png)$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/fetch-metadata\.json$/,
+					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/fetch-metadata\.json$/,
 				),
 			]),
 		);
@@ -395,7 +395,7 @@ describe("FeedWe capture", () => {
 								wechatAccount: {
 									alias: "MUC_xiaohui",
 									id: "account-1",
-									name: "中央民族大学学生会",
+									name: "示例大学学生会",
 								},
 							},
 						],
@@ -452,7 +452,7 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
-			accountName: "中央民族大学学生会",
+			accountName: "示例大学学生会",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -503,7 +503,7 @@ describe("FeedWe capture", () => {
 								wechatAccount: {
 									alias: "MUC_xiaohui",
 									id: "account-1",
-									name: "中央民族大学学生会",
+									name: "示例大学学生会",
 								},
 							},
 						],
@@ -556,7 +556,7 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
-			accountName: "中央民族大学学生会",
+			accountName: "示例大学学生会",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -635,7 +635,7 @@ describe("FeedWe capture", () => {
 
 		await expect(
 			runCaptureCli(
-				["--account", "中央民族大学学生会"],
+				["--account", "示例大学学生会"],
 				{
 					FEEDWE_EMAIL: "collector@example.com",
 					FEEDWE_PASSWORD: password,
@@ -658,8 +658,8 @@ describe("FeedWe capture", () => {
 
 		expect(startRun).toHaveBeenCalledWith(
 			expect.objectContaining({
-				accountName: "中央民族大学学生会",
-				accountSlug: "中央民族大学学生会",
+				accountName: "示例大学学生会",
+				accountSlug: "示例大学学生会",
 				providerBaseUrl: "https://www.feedwe.top",
 			}),
 		);
@@ -699,7 +699,7 @@ describe("FeedWe capture", () => {
 
 		await expect(
 			runCaptureCli(
-				["--account", "中央民族大学学生会", "--require-control-plane"],
+				["--account", "示例大学学生会", "--require-control-plane"],
 				{
 					FEEDWE_EMAIL: "collector@example.com",
 					FEEDWE_PASSWORD: "feedwe-live-password",

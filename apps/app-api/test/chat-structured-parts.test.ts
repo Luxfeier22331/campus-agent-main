@@ -155,10 +155,10 @@ describe("chat structured parts", () => {
 							{
 								primaryAction: {
 									external: true,
-									href: "https://www.muc.edu.cn/info/1041/12345.htm",
+									href: "https://www.example.edu/info/1041/12345.htm",
 									label: "打开原通知",
 								},
-								publisherLabel: "中央民族大学新闻网",
+								publisherLabel: "示例大学新闻网",
 								sourceKind: "notice",
 								targetKind: "public_notice_url",
 								title: "关于校园开放日安排的通知",
@@ -221,7 +221,7 @@ describe("chat structured parts", () => {
 						},
 						{
 							primaryAction: {
-								href: "https://www.muc.edu.cn/info/1041/12345.htm",
+								href: "https://www.example.edu/info/1041/12345.htm",
 								label: "打开原通知",
 							},
 							targetKind: "public_notice_url",
@@ -275,7 +275,7 @@ describe("chat structured parts", () => {
 								sourceId: "campus-agent://regulations/student_rules/docs/student-handbook",
 								sourceKind: "regulation",
 								targetKind: "canonical_reader",
-								title: "中央民族大学学生手册",
+								title: "示例大学学生手册",
 								versionId: "span://student-handbook/student-handbook:chunk-001",
 							},
 						],
@@ -344,7 +344,7 @@ describe("chat structured parts", () => {
 							},
 							sourceId: "campus-agent://regulations/student_rules/docs/student-handbook",
 							targetKind: "canonical_reader",
-							title: "中央民族大学学生手册",
+							title: "示例大学学生手册",
 							versionId: "span://student-handbook/student-handbook:chunk-001",
 						},
 					],
@@ -363,7 +363,7 @@ describe("chat structured parts", () => {
 							chunk_id: "handbook:scholarship:chunk-0019",
 							doc_id: "handbook:scholarship",
 							source_ref: "campus-agent://regulations/student_rules/docs/handbook:scholarship",
-							source_title: "中央民族大学本科学生国家奖学金评审办法",
+							source_title: "示例大学本科学生国家奖学金评审办法",
 							structural_ref: "span://handbook:scholarship/handbook:scholarship:chunk-0019",
 						},
 					],
@@ -388,6 +388,49 @@ describe("chat structured parts", () => {
 			],
 			type: "source_items",
 		});
+	});
+
+	it("requires an explicit allowlist for public notice URL source cards", () => {
+		const result = {
+			evidence: {
+				sources: [
+					{
+						original_url: "https://www.example.edu/info/1041/12345.htm",
+						source_kind: "notice",
+						source_title: "关于校园开放日安排的通知",
+						target_kind: "public_notice_url",
+					},
+				],
+			},
+		};
+
+		expect(
+			normalizeSourceItemsPart({
+				result,
+				selectedTool: "knowledge_query",
+				status: "completed",
+			}),
+		).toEqual([]);
+		expect(
+			normalizeSourceItemsPart({
+				allowedPublicNoticeHosts: ["www.example.edu"],
+				result,
+				selectedTool: "knowledge_query",
+				status: "completed",
+			}),
+		).toMatchObject([
+			{
+				sourceItems: [
+					{
+						primaryAction: {
+							href: "https://www.example.edu/info/1041/12345.htm",
+						},
+						targetKind: "public_notice_url",
+					},
+				],
+				type: "source_items",
+			},
+		]);
 	});
 
 	it("drops legacy source_cards instead of normalizing them into typed source items", async () => {
@@ -421,7 +464,7 @@ describe("chat structured parts", () => {
 								pageLabel: "原文第 12 页",
 								sectionTitle: "第一条",
 								snippet: "学生应遵守学校管理规定。",
-								title: "中央民族大学学生管理规定",
+								title: "示例大学学生管理规定",
 								versionLabel: "现行版",
 							},
 						],

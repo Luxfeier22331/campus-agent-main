@@ -35,7 +35,7 @@ function createRunSource(
 		crawlPolicyVersion: "2026-03-29",
 		failureCount: 0,
 		finishedAt: "2026-03-29T08:17:32.000Z",
-		hostSet: ["www.muc.edu.cn"],
+		hostSet: ["www.example.edu"],
 		ingestionDispatchRef: null,
 		ingestionDispatchStatus: "queued",
 		ingestionExecutionErrorCode: null,
@@ -48,7 +48,7 @@ function createRunSource(
 		runId: "owrun_01HQ",
 		runIntent: "baseline",
 		schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
-		seedSet: ["https://www.muc.edu.cn/"],
+		seedSet: ["https://www.example.edu/"],
 		siteId: "www_muc_edu_cn",
 		startedAt: "2026-03-29T08:00:01.000Z",
 		status: "completed",
@@ -68,7 +68,7 @@ function createSiteSource(
 ): OfficialWebSiteProjectionSource {
 	return {
 		displayName: "Www Muc Edu Cn",
-		hostRoots: ["www.muc.edu.cn"],
+		hostRoots: ["www.example.edu"],
 		lastFailureAt: null,
 		lastSuccessAt: "2026-03-29T08:17:32.000Z",
 		latestCollectorVersion: "official-web-collector@0.1.0",
@@ -105,7 +105,7 @@ function createPendingEvent(
 			pageChanges: [
 				{
 					changeStatus: "new",
-					normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+					normalizedCanonicalUrl: "https://www.example.edu/admissions",
 					observedAt: "2026-03-29T08:17:32.000Z",
 					pageFamily: "article_detail",
 					rawAssetId: "raw_01",
@@ -143,7 +143,7 @@ describe("official web projection projector", () => {
 		const projector = buildOfficialWebProjectionProjector({
 			ingestionTasks,
 			now: () => new Date("2026-03-29T08:17:33.000Z"),
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 			store,
 		});
 
@@ -166,7 +166,7 @@ describe("official web projection projector", () => {
 			task_kind: "source_truth_materialize",
 			input_ref: {
 				kind: "object_store",
-				uri: "s3://campus-rag-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
+				uri: "s3://campus-agent-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
 				digest: "sha256:def456",
 			},
 			output_contract: "official_web_stable_reference_source_truth.v1",
@@ -219,7 +219,7 @@ describe("official web projection projector", () => {
 						pageChanges: [
 							{
 								changeStatus: "deleted",
-								normalizedCanonicalUrl: "https://www.muc.edu.cn/service/deleted",
+								normalizedCanonicalUrl: "https://www.example.edu/service/deleted",
 								observedAt: "2026-03-29T08:17:32.000Z",
 								pageFamily: "article_detail",
 								rawAssetId: null,
@@ -249,7 +249,7 @@ describe("official web projection projector", () => {
 		const projector = buildOfficialWebProjectionProjector({
 			ingestionTasks,
 			now: () => new Date("2026-03-29T08:17:33.000Z"),
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 			store,
 		});
 
@@ -474,7 +474,7 @@ describe("official web projection projector", () => {
 		const projector = buildOfficialWebProjectionProjector({
 			ingestionTasks,
 			now: () => new Date("2026-03-29T08:17:33.000Z"),
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 			store,
 		});
 

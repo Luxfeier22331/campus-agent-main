@@ -26,7 +26,7 @@ def _bundle_record(
     filename: str,
     upfilename: str | None = None,
     storage_provider: str = "object_store",
-    bucket: str | None = "campus-rag-source",
+    bucket: str | None = "campus-agent-source",
     object_key: str
     | None = "authenticated_notice_portal/file-release-646/2025/sha256-deadbeef/capture/file.pdf",
     sha256: str | None = "deadbeef" * 8,
@@ -90,7 +90,7 @@ def _export_manifest() -> dict[str, object]:
         "export_scope": "file-release-20260412T003300Z",
         "source_channel": "authenticated_notice_portal",
         "source_surface": "file_release",
-        "site_id": "muc_internal_portal",
+        "site_id": "example_internal_portal",
         "source_home_url": "https://portal.example.edu/",
         "collector": {
             "runtime_shell": "repo_local_node",
@@ -125,7 +125,7 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
         bundle = [
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+                filename="示例大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
             )
         ]
         manifest = _export_manifest()
@@ -145,16 +145,16 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
             )
 
         self.assertEqual(export.export_scope, "file-release-20260412T003300Z")
-        self.assertEqual(export.site_id, "muc_internal_portal")
+        self.assertEqual(export.site_id, "example_internal_portal")
         self.assertEqual(len(export.bundle_records), 1)
 
     def test_resolve_readiness_marks_materialized_match_as_ready(self) -> None:
         report = resolve_file_release_owner_recovery_readiness(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             bundle_records=(
                 _bundle_record(
                     file_release_id=646,
-                    filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+                    filename="示例大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
                 ),
             ),
             export_manifest=_export_manifest(),
@@ -165,15 +165,15 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
         self.assertEqual(report.match_count, 1)
         self.assertEqual(report.selected_match.file_release_id, 646)
         self.assertEqual(report.selected_match.match_strategy, "owner_hint_contained_in_candidate")
-        self.assertEqual(report.selected_match.released_file.bucket, "campus-rag-source")
+        self.assertEqual(report.selected_match.released_file.bucket, "campus-agent-source")
 
     def test_resolve_readiness_marks_reference_only_match_as_missing_source_bytes(self) -> None:
         report = resolve_file_release_owner_recovery_readiness(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             bundle_records=(
                 _bundle_record(
                     file_release_id=646,
-                    filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+                    filename="示例大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
                     storage_provider="reference_only",
                     bucket=None,
                     object_key=None,
@@ -191,11 +191,11 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
 
     def test_resolve_readiness_marks_missing_capture_when_no_file_release_matches(self) -> None:
         report = resolve_file_release_owner_recovery_readiness(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             bundle_records=(
                 _bundle_record(
                     file_release_id=701,
-                    filename="中央民族大学合同管理办法.pdf",
+                    filename="示例大学合同管理办法.pdf",
                 ),
             ),
             export_manifest=_export_manifest(),
@@ -208,15 +208,15 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
 
     def test_resolve_readiness_marks_ambiguous_when_multiple_top_matches_exist(self) -> None:
         report = resolve_file_release_owner_recovery_readiness(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             bundle_records=(
                 _bundle_record(
                     file_release_id=646,
-                    filename="中央民族大学差旅费管理办法.pdf",
+                    filename="示例大学差旅费管理办法.pdf",
                 ),
                 _bundle_record(
                     file_release_id=647,
-                    filename="中央民族大学差旅费管理办法.docx",
+                    filename="示例大学差旅费管理办法.docx",
                 ),
             ),
             export_manifest=_export_manifest(),
@@ -232,10 +232,10 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
         entry = inventory_entry_from_file_release_bundle_record(
             record=_bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
             export_scope="file-release-20260412T003300Z",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_home_url="https://portal.example.edu/",
             collector_contract_version="authenticated_notice_file_release_export_v1",
         )
@@ -243,23 +243,23 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
         payload = inventory_entry_to_file_release_bundle_record(entry)
 
         self.assertEqual(payload["file_release_id"], 646)
-        self.assertEqual(payload["file_release"]["filename"], "中央民族大学差旅费管理办法.pdf")
+        self.assertEqual(payload["file_release"]["filename"], "示例大学差旅费管理办法.pdf")
         self.assertEqual(payload["released_file"]["storage_provider"], "object_store")
 
     def test_resolve_readiness_from_inventory_entries_matches_file_based_contract(self) -> None:
         entry = inventory_entry_from_file_release_bundle_record(
             record=_bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+                filename="示例大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
             ),
             export_scope="file-release-20260412T003300Z",
-            site_id="muc_internal_portal",
+            site_id="example_internal_portal",
             source_home_url="https://portal.example.edu/",
             collector_contract_version="authenticated_notice_file_release_export_v1",
         )
 
         report = resolve_file_release_owner_recovery_readiness_from_inventory_entries(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             inventory_entries=(entry,),
         )
 
@@ -276,10 +276,10 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
                 inventory_entry_from_file_release_bundle_record(
                     record=_bundle_record(
                         file_release_id=646,
-                        filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+                        filename="示例大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
                     ),
                     export_scope="file-release-20260412T003300Z",
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     collector_contract_version="authenticated_notice_file_release_export_v1",
                 ),
@@ -287,7 +287,7 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
         )
 
         report = resolve_file_release_owner_recovery_readiness_from_inventory_store(
-            owner_title_hint="中央民族大学差旅费管理办法",
+            owner_title_hint="示例大学差旅费管理办法",
             inventory_store=inventory_store,
             corpus="campus_notices",
             collection="file_release_capture",

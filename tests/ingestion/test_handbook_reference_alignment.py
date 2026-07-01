@@ -4,7 +4,6 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-from campus_ingestion_core.handbook_cleanup import build_handbook_doc_id
 from campus_ingestion_core.split_manifest import load_split_manifest
 
 MANIFEST_PATH = (
@@ -17,80 +16,65 @@ MANIFEST_PATH = (
 )
 
 REFERENCE_DOCS = {
-    "普通高等学校学生管理规定": {
-        "document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
-        "handbook_section": "国家高等教育管理有关规定",
-        "page_start": 2,
-        "page_end": 17,
+    "Synthetic student status rule": {
+        "document_id": "handbook:synthetic-student-status-rule",
+        "handbook_section": "Synthetic student rules",
+        "page_start": 1,
+        "page_end": 2,
     },
-    "高等学校学生行为准则": {
-        "document_id": "handbook:1a45ef1bc4be11e74514b0bf6e3365ada8a07bbd",
-        "handbook_section": "国家高等教育管理有关规定",
-        "page_start": 18,
-        "page_end": 19,
+    "Synthetic scholarship review rule": {
+        "document_id": "handbook:synthetic-scholarship-rule",
+        "handbook_section": "Synthetic student rules",
+        "page_start": 3,
+        "page_end": 4,
     },
-    "高等学校校园秩序管理若干规定": {
-        "document_id": "handbook:6d77f946c626910853345180b95700217078b1a1",
-        "handbook_section": "国家高等教育管理有关规定",
-        "page_start": 20,
-        "page_end": 23,
+    "Synthetic student card rule": {
+        "document_id": "handbook:synthetic-student-card-rule",
+        "handbook_section": "Synthetic student rules",
+        "page_start": 5,
+        "page_end": 5,
     },
-    "中央民族大学优秀本科毕业生评选办法": {
-        "document_id": "handbook:0f8b6739e24d38d9d2d274f1566623f019c79747",
-        "handbook_section": "中央民族大学学生奖励管理规定",
-        "page_start": 200,
-        "page_end": 203,
+    "Synthetic appeal procedure": {
+        "document_id": "handbook:synthetic-appeal-procedure",
+        "handbook_section": "Synthetic student procedures",
+        "page_start": 6,
+        "page_end": 6,
     },
-    "中央民族大学关于学生宿舍照明的管理规定": {
-        "document_id": "handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
-        "handbook_section": "中央民族大学公寓及公费医疗管理规定",
-        "page_start": 256,
-        "page_end": 256,
-    },
-    "中央民族大学关于加强学生宿舍电器使用管理的规定": {
-        "document_id": "handbook:a633b4ce84d8d92e1d98f97c57491ec24e8be834",
-        "handbook_section": "中央民族大学公寓及公费医疗管理规定",
-        "page_start": 257,
-        "page_end": 258,
-    },
-    "中央民族大学学生公费医疗管理办法": {
-        "document_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
-        "handbook_section": "中央民族大学公寓及公费医疗管理规定",
-        "page_start": 259,
-        "page_end": 260,
+    "Synthetic dormitory management rule": {
+        "document_id": "handbook:synthetic-dormitory-rule",
+        "handbook_section": "Synthetic student rules",
+        "page_start": 7,
+        "page_end": 7,
     },
 }
 
 REFERENCE_SECTION_COUNTS = {
-    "国家高等教育管理有关规定": 4,
-    "中央民族大学学生教学管理规定": 10,
-    "中央民族大学学生日常管理规定": 12,
-    "中央民族大学学生奖励管理规定": 8,
-    "中央民族大学学生资助管理规定": 9,
-    "中央民族大学公寓及公费医疗管理规定": 3,
+    "Synthetic student rules": 4,
+    "Synthetic student procedures": 1,
 }
 
 
 class HandbookReferenceAlignmentTest(unittest.TestCase):
-    def test_student_handbook_manifest_matches_reference_page_ranges(self) -> None:
+    def test_student_handbook_manifest_matches_public_synthetic_reference_shape(self) -> None:
         manifest = load_split_manifest(
             MANIFEST_PATH,
             expected_corpus="regulations",
             expected_collection="student_rules",
         )
 
-        self.assertEqual(len(manifest.documents), 46)
+        self.assertEqual(len(manifest.documents), 5)
         by_title = {document.title: document for document in manifest.documents}
-        self.assertEqual(set(REFERENCE_DOCS), set(REFERENCE_DOCS) & set(by_title))
+        self.assertEqual(set(REFERENCE_DOCS), set(by_title))
         for title, expected in REFERENCE_DOCS.items():
             document = by_title[title]
             self.assertEqual(document.document_id, expected["document_id"])
             self.assertEqual(document.handbook_section, expected["handbook_section"])
             self.assertEqual(document.page_start, expected["page_start"])
             self.assertEqual(document.page_end, expected["page_end"])
-            self.assertEqual(document.document_id, build_handbook_doc_id(title))
 
-    def test_student_handbook_manifest_preserves_reference_section_distribution(self) -> None:
+    def test_student_handbook_manifest_preserves_public_synthetic_section_distribution(
+        self,
+    ) -> None:
         manifest = load_split_manifest(
             MANIFEST_PATH,
             expected_corpus="regulations",
@@ -101,12 +85,12 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
             Counter(document.handbook_section for document in manifest.documents),
             Counter(REFERENCE_SECTION_COUNTS),
         )
-        self.assertEqual(manifest.documents[0].page_start, 2)
-        self.assertEqual(manifest.documents[-1].page_end, 260)
+        self.assertEqual(manifest.documents[0].page_start, 1)
+        self.assertEqual(manifest.documents[-1].page_end, 7)
         self.assertTrue(
             all(
                 document.source_uri
-                == f"campus-agent://regulations/student_rules/docs/{document.document_id}"
+                == f"campus-agent://synthetic/regulations/student_rules/docs/{document.document_id.removeprefix('handbook:')}"
                 for document in manifest.documents
             )
         )

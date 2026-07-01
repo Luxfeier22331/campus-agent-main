@@ -37,7 +37,7 @@ class InternalNoticeConsumptionProjectionMultimodalTest(unittest.TestCase):
     ) -> None:
         registry, inventory_store, object_store = _build_runtime()
         machine_processing_report = _machine_processing_report(
-            document_id="notice:muc_internal_portal:351907",
+            document_id="notice:example_internal_portal:351907",
             notice_id="351907",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
             reasons=("promotion_class_ambiguous",),
@@ -105,7 +105,7 @@ class InternalNoticeConsumptionProjectionMultimodalTest(unittest.TestCase):
             )
         )
         machine_processing_report = _machine_processing_report(
-            document_id="notice:muc_internal_portal:355546",
+            document_id="notice:example_internal_portal:355546",
             notice_id="355546",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
             reasons=("promotion_class_ambiguous",),
@@ -196,7 +196,7 @@ class InternalNoticeConsumptionProjectionMultimodalTest(unittest.TestCase):
             )
         )
         machine_processing_report = _machine_processing_report(
-            document_id="notice:muc_internal_portal:355403",
+            document_id="notice:example_internal_portal:355403",
             notice_id="355403",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
             reasons=("promotion_class_ambiguous",),
@@ -235,7 +235,7 @@ class InternalNoticeConsumptionProjectionMultimodalTest(unittest.TestCase):
     ) -> None:
         registry, inventory_store, object_store = _build_runtime()
         machine_processing_report = _machine_processing_report(
-            document_id="notice:muc_internal_portal:351907",
+            document_id="notice:example_internal_portal:351907",
             notice_id="351907",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
             reasons=("input_lane_not_admitted",),

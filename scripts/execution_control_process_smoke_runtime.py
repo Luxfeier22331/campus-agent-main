@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import time
@@ -8,12 +7,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
-
-from campus_ingestion_core.postgres_runtime import close_persistent_postgres_pools
-from campus_ingestion_core.structured_projection_postgres import (
-    build_structured_projection_publisher_from_env,
-    projection_artifact_checksum,
-)
 
 from scripts.execution_control_process_smoke_models import (
     ProcessCommandSpec,
@@ -168,48 +161,11 @@ def _postgres_url_with_database(database_url: str, database_name: str) -> str:
 
 
 def _create_temporary_postgres_database(management_url: str, database_name: str):
-    try:
-        import psycopg
-        from psycopg import sql
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("psycopg is required for tool read-model process smoke") from exc
-
-    with (
-        psycopg.connect(management_url, autocommit=True) as connection,
-        connection.cursor() as cursor,
-    ):
-        _drop_temporary_postgres_database(cursor, database_name, sql)
-        cursor.execute(sql.SQL("create database {}").format(sql.Identifier(database_name)))
-
-    cleaned = False
-
-    def cleanup() -> None:
-        nonlocal cleaned
-        if cleaned:
-            return
-        cleaned = True
-        try:
-            with (
-                psycopg.connect(management_url, autocommit=True) as connection,
-                connection.cursor() as cursor,
-            ):
-                _drop_temporary_postgres_database(cursor, database_name, sql)
-        except Exception:
-            return
-
-    return cleanup
-
-
-def _drop_temporary_postgres_database(cursor: object, database_name: str, sql: object) -> None:
-    cursor.execute(
-        """
-        select pg_terminate_backend(pid)
-        from pg_stat_activity
-        where datname = %s and pid <> pg_backend_pid()
-        """,
-        (database_name,),
+    del management_url, database_name
+    raise RuntimeError(
+        "Python temporary Postgres process-smoke bootstrap is retired; use the "
+        "TS/Go database owner or a pre-provisioned process-smoke database instead"
     )
-    cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database_name)))
 
 
 def _seed_tool_read_model_projection_smoke(
@@ -221,62 +177,10 @@ def _seed_tool_read_model_projection_smoke(
     collections: Sequence[str],
     generated_at: str,
 ) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    publisher = build_structured_projection_publisher_from_env(
-        {"CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
-        bootstrap_collections=collections,
-    )
-    if publisher is None:
-        raise ValueError("CAMPUS_SHARED_POSTGRES_URL is required")
-    reports = {}
-    try:
-        for collection in collections:
-            bundle = _tool_read_model_projection_smoke_bundles()[collection]
-            corpus = "calendar" if collection == "academic_calendar" else "campus_services"
-            release_id = f"execution-control-process-smoke-{collection.replace('_', '-')}"
-            report = publisher.publish_release(
-                corpus=corpus,
-                collection=collection,
-                release_id=release_id,
-                generated_at=generated_at,
-                schema_version=str(bundle["schema_version"]),
-                artifact_object_key=(
-                    f"campus_services/releases/{collection}/"
-                    f"{release_id}/tool-read-model-projection-smoke.json"
-                ),
-                artifact_checksum=projection_artifact_checksum(bundle),
-                bundle=bundle,
-                validation_status="smoke_valid",
-            )
-            current_release_id = publisher.get_current_release(
-                corpus=corpus,
-                collection=collection,
-            )
-            if current_release_id != release_id:
-                raise RuntimeError(
-                    f"{collection} tool read-model projection smoke current release = "
-                    f"{current_release_id}, want {release_id}"
-                )
-            reports[collection] = {
-                "release_id": report.release_id,
-                "counts": report.counts,
-            }
-    finally:
-        close_persistent_postgres_pools()
-    log_path.write_text(
-        json.dumps(
-            {
-                "status": "ok",
-                "corpus": "campus_services",
-                "collections": list(collections),
-                "releases": reports,
-            },
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    del repo_root, runtime_database_url, log_path, timeout_seconds, collections, generated_at
+    raise RuntimeError(
+        "Python tool read-model projection process-smoke seed is retired; use the "
+        "TS/Go database owner or pre-provisioned smoke data instead"
     )
 
 
@@ -384,113 +288,10 @@ def _seed_notice_read_model_smoke(
     runtime_database_url: str,
     log_path: Path,
 ) -> None:
-    from campus_ingestion_core.internal_notice_read_model import (
-        InternalNoticeReadModelEntry,
-        PostgresInternalNoticeReadModelStore,
-    )
-
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    store = PostgresInternalNoticeReadModelStore(runtime_database_url)
-    record = InternalNoticeReadModelEntry(
-        source_family="wechat_public_notice",
-        source_corpus="campus_notices",
-        source_collection="internal_notice",
-        source_notice_id="notice:smoke:001",
-        unit_id="notice_unit:smoke:001:body",
-        primary_role="notice_window",
-        target_surface="notice_level_query",
-        consumption_status="ready",
-        queryable=True,
-        title="烟雾测试通知",
-        visibility_level="public",
-        entitlement_groups=(),
-        policy_projection_version="phase1-authorization-projection-v1",
-        published_at="2026-04-24T20:00:00+08:00",
-        source_url="https://example.invalid/notices/smoke",
-        canonical_url="https://example.invalid/notices/smoke",
-        canonical_document_id="doc:smoke-notice",
-        canonical_markdown_object_key=(
-            "campus_notices/documents/wechat_public_notice/smoke/canonical.md"
-        ),
-        body_excerpt="烟雾测试通知正文摘要。",
-        search_text="烟雾测试通知 通知详情 原文",
-        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-    )
-    restricted_record = InternalNoticeReadModelEntry(
-        source_family="internal_notice_restricted",
-        source_corpus="campus_notices",
-        source_collection="internal_notice",
-        source_notice_id="notice:transport:355122",
-        unit_id="notice_unit:transport:355122:body",
-        primary_role="notice_window",
-        target_surface="notice_level_query",
-        consumption_status="ready",
-        queryable=True,
-        title="关于两校区学生通勤班车增加班次的通知",
-        visibility_level="restricted",
-        entitlement_groups=("students",),
-        policy_projection_version="phase1-authorization-projection-v1",
-        published_at="2026-03-18T08:00:00+08:00",
-        source_url="https://example.invalid/notices/355122",
-        canonical_url="https://example.invalid/notices/355122",
-        canonical_document_id="doc:transport-notice-355122",
-        canonical_markdown_object_key=(
-            "campus_notices/documents/internal_notice/355122/canonical.md"
-        ),
-        body_excerpt="自 3 月 18 日起增加若干学生通勤班车班次。",
-        search_text="两校区学生通勤班车 增加班次 班车通知 355122",
-        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-    )
-    transport_override_record = InternalNoticeReadModelEntry(
-        source_family="internal_notice_restricted",
-        source_corpus="campus_notices",
-        source_collection="internal_notice",
-        source_notice_id="353903",
-        unit_id="notice_unit:transport:353903:body",
-        primary_role="notice_window",
-        target_surface="campus_services/service_status_candidate",
-        consumption_status="ready",
-        queryable=True,
-        title="关于通勤班车丰台校区乘车点调整的通知",
-        visibility_level="restricted",
-        entitlement_groups=("students",),
-        policy_projection_version="phase1-authorization-projection-v1",
-        published_at="2026-01-01T08:00:00+08:00",
-        source_url="https://portal.example.edu/notices/353903",
-        canonical_url="https://portal.example.edu/notices/353903",
-        canonical_document_id="doc:transport-notice-353903",
-        canonical_markdown_object_key=(
-            "campus_notices/documents/internal_notice/353903/canonical.md"
-        ),
-        body_excerpt="通勤班车丰台校区乘车点调整至南门外停车区。",
-        search_text="丰台到海淀通勤车 乘车点 调整 丰台校区 南门外停车区 353903",
-        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
-    )
-    store.upsert_many((record, restricted_record, transport_override_record))
-    log_path.write_text(
-        json.dumps(
-            {
-                "status": "ok",
-                "table": store.table_name,
-                "notice_ids": [
-                    record.source_notice_id,
-                    restricted_record.source_notice_id,
-                    transport_override_record.source_notice_id,
-                ],
-                "source_families": [
-                    record.source_family,
-                    restricted_record.source_family,
-                    transport_override_record.source_family,
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    del runtime_database_url, log_path
+    raise RuntimeError(
+        "Python notice read-model process-smoke seed is retired; use the "
+        "TS/Go database owner or pre-provisioned smoke data instead"
     )
 
 

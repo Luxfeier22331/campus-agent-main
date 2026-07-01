@@ -20,7 +20,7 @@ VALID_STAGING_ENV = textwrap.dedent(
     STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@example/campus_agent
     STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@example/campus_agent
     STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com
-    STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+    STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived-staging
     STAGING_INGESTION_OBJECT_STORE_REGION=auto
     STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=access
     STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=secret
@@ -59,8 +59,8 @@ LOCAL_MINIO_STAGING_ENV = (
         "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=http://127.0.0.1:9000",
     )
     .replace(
-        "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
-        "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived",
+        "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived-staging",
+        "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived",
     )
     .replace(
         "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
@@ -186,8 +186,8 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
 
     def test_rejects_ambiguous_object_store_profile(self) -> None:
         invalid_env = LOCAL_MINIO_STAGING_ENV.replace(
-            "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived",
-            "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+            "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived",
+            "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived-staging",
         )
         result = run_preflight(
             {
@@ -207,8 +207,8 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                 "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
                 "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=worker-1",
             ).replace(
-                "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
-                "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived",
+                "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived-staging",
+                "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived",
             )
             + "\nEXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062\n"
         )

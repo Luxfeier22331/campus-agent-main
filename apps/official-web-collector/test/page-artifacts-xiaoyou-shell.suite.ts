@@ -43,7 +43,7 @@ export function registerPageArtifactsXiaoyouShellSuite() {
 			(item) =>
 				item.isMainContent &&
 				((item.textNormalized ?? "").includes("010-68932500") ||
-					(item.textNormalized ?? "").includes("2013027@muc.edu.cn")),
+					(item.textNormalized ?? "").includes("alumni@example.edu")),
 		);
 
 		expect(leakedSidebarBlocks).toHaveLength(0);
@@ -52,7 +52,7 @@ export function registerPageArtifactsXiaoyouShellSuite() {
 				(item) =>
 					item.blockRole === "list_item" &&
 					item.isMainContent &&
-					(item.textNormalized ?? "").includes("全国两会上民大人声音"),
+					(item.textNormalized ?? "").includes("示例校友两会建言"),
 			),
 		).toBe(true);
 	});
@@ -85,38 +85,34 @@ export function registerPageArtifactsXiaoyouShellSuite() {
 				item.blockRole === "link" &&
 				item.isMainContent &&
 				[
-					"https://mp.weixin.qq.com/s/kHOaEpryJ9oy_A6NXNAhGw",
-					"https://mp.weixin.qq.com/s/xtybxO4eKRzImzIreOLSRg",
-					"https://mp.weixin.qq.com/s/6ZpX2byjb5j8UJ5XYiR5OA",
-					"https://mp.weixin.qq.com/s/7ZwKk37lvAnOGJcU89j2dg",
-					"https://mp.weixin.qq.com/s/nkWA_2jlmS-e9yTfbEfmyw",
+					"https://mp.weixin.qq.com/s/example-alumni-001",
+					"https://mp.weixin.qq.com/s/example-alumni-002",
+					"https://mp.weixin.qq.com/s/example-alumni-003",
+					"https://mp.weixin.qq.com/s/example-alumni-004",
+					"https://mp.weixin.qq.com/s/example-foundation-001",
 				].includes(item.linkTarget ?? ""),
 		);
 		const retainedAnchorText = pageArtifacts.contentBlocks.find(
 			(item) =>
 				item.blockRole === "link" &&
-				item.linkTarget === "https://mp.weixin.qq.com/s/xtybxO4eKRzImzIreOLSRg",
+				item.linkTarget === "https://mp.weixin.qq.com/s/example-alumni-002",
 		);
 		const acceptedLeadingNameItem = xiaoyouSectionItems.find((item) =>
 			(item ?? "").includes("优秀履职奖"),
 		);
 
 		expect(xiaoyouSectionItems).toEqual([
-			"全国两会上民大人声音 2026-03-20",
-			"全国政协委员们发延：让民族团结之花在中华大地常开长盛 2026-03-20",
-			"们发延校友荣获2025年度“全国政协委员优秀履职奖” 2026-03-09",
-			"“溪州铜柱”背后的故事：湖南校友会这样讲铸牢中华民族共同体 2026-03-09",
+			"示例校友两会建言 2026-03-20",
+			"示例政协委员校友：让团结之花常开长盛 2026-03-20",
+			"示例校友荣获2025年度优秀履职奖 2026-03-09",
+			"示例校友会开展主题讲座 2026-03-09",
 		]);
 		expect(foundationItem?.textNormalized).toBe(
-			"奖教励学 法育英才 | 京师律师教育基金奖教（学）金典礼顺利举行 2025-12-29",
+			"奖教励学 法育英才 | 示例基金奖教金典礼顺利举行 2025-12-29",
 		);
 		expect(duplicatedMainLinks).toHaveLength(0);
-		expect(acceptedLeadingNameItem).toBe(
-			"们发延校友荣获2025年度“全国政协委员优秀履职奖” 2026-03-09",
-		);
-		expect(retainedAnchorText?.textNormalized).toBe(
-			"全国政协委员们发延：让民族团结之花在中华大地常开长盛",
-		);
+		expect(acceptedLeadingNameItem).toBe("示例校友荣获2025年度优秀履职奖 2026-03-09");
+		expect(retainedAnchorText?.textNormalized).toBe("示例政协委员校友：让团结之花常开长盛");
 	});
 
 	it("does not treat javascript pseudo-links like 手机版 as main content on shell pages", () => {
@@ -241,21 +237,21 @@ export function registerPageArtifactsXiaoyouShellSuite() {
 		const tableBlock = pageArtifacts.contentBlocks.find(
 			(item) =>
 				item.blockRole === "table" &&
-				(item.textNormalized ?? "").includes("全国两会上民大人声音") &&
+				(item.textNormalized ?? "").includes("示例校友两会建言") &&
 				(item.textNormalized ?? "").includes("2026年03月20日"),
 		);
 		const contentLink = pageArtifacts.contentBlocks.find(
 			(item) =>
 				item.blockRole === "link" &&
 				item.isMainContent &&
-				item.linkTarget === "https://mp.weixin.qq.com/s/kHOaEpryJ9oy_A6NXNAhGw",
+				item.linkTarget === "https://mp.weixin.qq.com/s/example-alumni-001",
 		);
 		const leakedSidebarBlocks = pageArtifacts.contentBlocks.filter(
 			(item) => item.isMainContent && (item.textNormalized ?? "").includes("010-68932500"),
 		);
 
 		expect(tableBlock?.isMainContent).toBe(false);
-		expect(contentLink?.textNormalized).toBe("全国两会上民大人声音");
+		expect(contentLink?.textNormalized).toBe("示例校友两会建言");
 		expect(leakedSidebarBlocks).toHaveLength(0);
 	});
 }

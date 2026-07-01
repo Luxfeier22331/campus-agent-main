@@ -12,12 +12,6 @@ from campus_ingestion_core.models import (
     RawAssetRef,
     SourceObservation,
 )
-from campus_ingestion_core.postgres_runtime import (
-    normalize_postgres_connection_url,
-    open_postgres_connection,
-    validate_operator_postgres_url,
-    validate_persistent_postgres_runtime_url,
-)
 
 DEFAULT_REGISTRY_SCHEMA = "ingestion_registry"
 DEFAULT_DOCUMENT_REGISTRY_BASENAME = "document_registry_records"
@@ -28,68 +22,12 @@ DEFAULT_RAW_ASSET_REGISTRY_TABLE = (
 )
 DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE = 256
 DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE = 256
-_INITIALIZED_DOCUMENT_TABLES: set[tuple[str, str]] = set()
-_INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
-_SCHEMA_BOOTSTRAP_LOCK_KEY = 174901
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 SHARED_POSTGRES_OPERATOR_ENV_KEY = "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
 DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
 DOCUMENT_REGISTRY_OPERATOR_ENV_KEY = "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"
 RAW_ASSET_REGISTRY_ENV_KEY = "RAW_ASSET_REGISTRY_DATABASE_URL"
 RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY = "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"
-_IDENTIFIER = "abcdefghijklmnopqrstuvwxyz_0123456789"
-
-
-def _assert_identifier(label: str, value: str) -> str:
-    normalized = value.strip()
-    if not normalized:
-        raise ValueError(f"{label} is required")
-    if normalized[0] not in "abcdefghijklmnopqrstuvwxyz_":
-        raise ValueError(f"{label} must be a lowercase PostgreSQL identifier")
-    if any(character not in _IDENTIFIER for character in normalized):
-        raise ValueError(f"{label} must be a lowercase PostgreSQL identifier")
-    return normalized
-
-
-def _parse_table_name(table_name: str) -> tuple[str | None, str]:
-    parts = [part.strip() for part in table_name.split(".")]
-    if len(parts) == 1:
-        return None, _assert_identifier("table name", parts[0])
-    if len(parts) == 2:
-        return (
-            _assert_identifier("schema name", parts[0]),
-            _assert_identifier("table name", parts[1]),
-        )
-    raise ValueError(f"table name must be <table> or <schema>.<table>: {table_name}")
-
-
-def _qualified_table_sql(table_name: str) -> str:
-    schema_name, relation_name = _parse_table_name(table_name)
-    if schema_name is None:
-        return f'"{relation_name}"'
-    return f'"{schema_name}"."{relation_name}"'
-
-
-def _table_index_suffix(table_name: str) -> str:
-    _, relation_name = _parse_table_name(table_name)
-    return relation_name
-
-
-def _ensure_table_schema(cursor, *, table_name: str) -> None:
-    schema_name, _ = _parse_table_name(table_name)
-    if schema_name is None:
-        return
-    cursor.execute(
-        "select pg_advisory_lock(%s, hashtext(%s))",
-        (_SCHEMA_BOOTSTRAP_LOCK_KEY, schema_name),
-    )
-    try:
-        cursor.execute(f'create schema if not exists "{schema_name}"')
-    finally:
-        cursor.execute(
-            "select pg_advisory_unlock(%s, hashtext(%s))",
-            (_SCHEMA_BOOTSTRAP_LOCK_KEY, schema_name),
-        )
 
 
 class DocumentRegistry(Protocol):
@@ -169,66 +107,6 @@ class RawAssetRegistry(Protocol):
         collection: str | None,
         records: tuple[RawAssetRecord, ...],
     ) -> None: ...
-
-
-def _required_document_registry_database_url(source: dict[str, str]) -> str:
-    database_url = (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip() or (
-        source.get(SHARED_POSTGRES_ENV_KEY) or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required")
-    return validate_persistent_postgres_runtime_url(database_url)
-
-
-def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
-    database_url = (source.get(RAW_ASSET_REGISTRY_ENV_KEY) or "").strip() or (
-        source.get(SHARED_POSTGRES_ENV_KEY) or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(f"{RAW_ASSET_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required")
-    return validate_persistent_postgres_runtime_url(database_url)
-
-
-def _optional_document_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = (source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY) or "").strip() or (
-        source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or ""
-    ).strip()
-    if not database_url:
-        return ""
-    return validate_operator_postgres_url(database_url)
-
-
-def _required_document_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = _optional_document_registry_operator_database_url(source)
-    if not database_url:
-        raise ValueError(
-            f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
-        )
-    return database_url
-
-
-def _optional_raw_asset_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = (source.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY) or "").strip() or (
-        source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or ""
-    ).strip()
-    if not database_url:
-        return ""
-    return validate_operator_postgres_url(database_url)
-
-
-def _required_raw_asset_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = _optional_raw_asset_registry_operator_database_url(source)
-    if not database_url:
-        raise ValueError(
-            f"{RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY} or "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
-        )
-    return database_url
-
-
-def _postgres_connection(database_url: str, *, autocommit: bool = True):
-    return open_postgres_connection(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -529,26 +407,13 @@ __all__ = [
     "RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY",
     "SHARED_POSTGRES_ENV_KEY",
     "SHARED_POSTGRES_OPERATOR_ENV_KEY",
-    "_INITIALIZED_DOCUMENT_TABLES",
-    "_INITIALIZED_RAW_ASSET_TABLES",
     "DocumentRegistry",
     "RawAssetRegistry",
     "_coerce_json_payload",
     "_document_record_from_dict",
     "_document_record_from_persisted_payload",
     "_document_registry_scope_scan_key",
-    "_ensure_table_schema",
-    "_optional_document_registry_operator_database_url",
-    "_optional_raw_asset_registry_operator_database_url",
     "_parse_timestamp",
-    "_postgres_connection",
-    "_qualified_table_sql",
     "_raw_asset_record_from_dict",
     "_raw_asset_registry_scope_scan_key",
-    "_required_document_registry_database_url",
-    "_required_document_registry_operator_database_url",
-    "_required_raw_asset_registry_database_url",
-    "_required_raw_asset_registry_operator_database_url",
-    "_table_index_suffix",
-    "normalize_postgres_connection_url",
 ]

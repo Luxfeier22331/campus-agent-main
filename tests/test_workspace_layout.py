@@ -16,7 +16,6 @@ EXPECTED_WORKSPACES = {
     "packages/contracts",
     "packages/eval-langfuse",
     "packages/ingestion-core",
-    "packages/navigation-tool",
     "packages/official-web-core",
     "packages/ragas-runner",
     "packages/shared",
@@ -41,6 +40,16 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
     def test_legacy_evals_package_is_retired(self) -> None:
         self.assertFalse((ROOT / "packages/evals").exists())
+
+    def test_navigation_tool_package_is_not_model_visible(self) -> None:
+        self.assertTrue((ROOT / "packages/navigation-tool").exists())
+        tool_registry = (ROOT / "configs" / "runtime" / "tools.v4.json").read_text(encoding="utf-8")
+        tool_function_schemas = (
+            ROOT / "configs" / "runtime" / "tool-function-schemas.v1.json"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn('"place_lookup"', tool_registry)
+        self.assertNotIn('"place_lookup"', tool_function_schemas)
 
     def test_contract_surface_exposes_generic_tool_request(self) -> None:
         request = ToolRequest(

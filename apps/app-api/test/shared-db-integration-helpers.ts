@@ -121,7 +121,7 @@ export function buildSharedDbIntegrationEnv(input: {
 		APP_API_INTERNAL_SHARED_SECRET:
 			process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:
-			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "muc.edu.cn",
+			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "example.edu",
 		APP_API_OPERATOR_DATABASE_URL: input.managementConnectionString,
 		APP_API_OPERATOR_EMAIL_ALLOWLIST:
 			process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",

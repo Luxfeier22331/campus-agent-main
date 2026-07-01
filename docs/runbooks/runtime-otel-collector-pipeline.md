@@ -273,7 +273,7 @@ Boundary guard:
 
 ```bash
 rg -n "opentelemetry|go\\.opentelemetry|@opentelemetry|OTel|Sentry|Axiom" \
-  packages/ingestion-core packages/navigation-tool packages/contracts \
+  packages/ingestion-core packages/contracts \
   -g '!**/__pycache__/**' \
   -g '!**/*.md'
 ```

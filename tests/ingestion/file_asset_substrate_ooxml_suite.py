@@ -38,7 +38,7 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
 
         buffer = BytesIO()
         document = Document()
-        document.add_heading("中央民族大学附件标题", level=1)
+        document.add_heading("示例大学附件标题", level=1)
         document.add_paragraph("第一段正文")
         document.add_paragraph("第二段正文")
         table = document.add_table(rows=2, cols=2)
@@ -62,7 +62,7 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
 
         self.assertEqual(rows[0]["row_type"], "heading")
         self.assertEqual(rows[0]["heading_level"], 1)
-        self.assertEqual(rows[0]["text_normalized"], "中央民族大学附件标题")
+        self.assertEqual(rows[0]["text_normalized"], "示例大学附件标题")
         self.assertEqual(rows[1]["row_type"], "paragraph")
         self.assertEqual(rows[1]["text_normalized"], "第一段正文")
         self.assertEqual(rows[-1]["row_type"], "table")
@@ -75,7 +75,7 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
 
         buffer = BytesIO()
         document = Document()
-        document.add_paragraph("中央民族大学2021年高校新任辅导员专题网络培训教学计划")
+        document.add_paragraph("示例大学2021年高校新任辅导员专题网络培训教学计划")
         document.add_paragraph(
             "为深入学习贯彻习近平新时代中国特色社会主义思想，现将教学计划制定如下："
         )
@@ -120,7 +120,7 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
         self.assertEqual(rows[0]["row_type"], "heading")
         self.assertEqual(rows[0]["text_normalized"], "本科")
         self.assertEqual(rows[1]["row_type"], "heading")
-        self.assertEqual(rows[1]["text_normalized"], "中央民族大学2019-2020学年第2学期")
+        self.assertEqual(rows[1]["text_normalized"], "示例大学2019-2020学年第2学期")
         self.assertEqual(rows[2]["row_type"], "table")
         self.assertEqual(rows[2]["sheet_name"], "本科")
         self.assertEqual(rows[2]["table_row_count"], 3)

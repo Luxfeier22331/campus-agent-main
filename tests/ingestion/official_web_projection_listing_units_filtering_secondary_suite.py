@@ -40,7 +40,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                 raw_asset_id="owasset_listing_004d",
                 raw_version_id="owver_listing_004d",
                 normalized_canonical_url="https://www.example.edu/news/trailing-tabs/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -50,7 +50,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004d",
@@ -68,7 +68,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                         row_index=2,
                         block_order=2,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                         parent_heading_path=["校长强世功接受“统战新语”专访 解读民族团结进步促进法"],
                     ),
                     _block(
@@ -108,7 +108,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                         row_index=6,
                         block_order=6,
                         block_role="heading",
-                        text="中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+                        text="示例大学举办中国历史研究院2025年度重大招标项目开题论证会",
                         parent_heading_path=["校长强世功接受“统战新语”专访 解读民族团结进步促进法"],
                     ),
                     _block(
@@ -118,10 +118,10 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                         row_index=7,
                         block_order=7,
                         block_role="link",
-                        text="中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+                        text="示例大学举办中国历史研究院2025年度重大招标项目开题论证会",
                         parent_heading_path=[
                             "校长强世功接受“统战新语”专访 解读民族团结进步促进法",
-                            "中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+                            "示例大学举办中国历史研究院2025年度重大招标项目开题论证会",
                         ],
                     ),
                 ],
@@ -136,10 +136,8 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                 encoding="utf-8"
             )
 
-            self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
-            self.assertIn(
-                "- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical
-            )
+            self.assertIn("- 示例大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
+            self.assertIn("- 示例大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical)
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("校园经纬", canonical)
             self.assertNotIn("全球合作", canonical)
@@ -176,7 +174,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                 raw_asset_id="owasset_listing_004e",
                 raw_version_id="owver_listing_004e",
                 normalized_canonical_url="https://www.example.edu/news/special-topics/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -186,7 +184,7 @@ class OfficialWebProjectionListingUnitsFilteringSecondaryTest(unittest.TestCase)
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004e",

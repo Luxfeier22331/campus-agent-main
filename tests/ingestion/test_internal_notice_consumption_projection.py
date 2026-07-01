@@ -12,14 +12,10 @@ from tests.ingestion.internal_notice_consumption_projection_routing_suite import
 from tests.ingestion.internal_notice_consumption_projection_status_suite import (
     InternalNoticeConsumptionProjectionStatusTest,
 )
-from tests.ingestion.internal_notice_consumption_projection_store_suite import (
-    NoticeConsumptionProjectionPostgresStoreTest,
-)
 
 __all__ = [
     "InternalNoticeConsumptionProjectionCoreTest",
     "InternalNoticeConsumptionProjectionMultimodalTest",
     "InternalNoticeConsumptionProjectionRoutingTest",
     "InternalNoticeConsumptionProjectionStatusTest",
-    "NoticeConsumptionProjectionPostgresStoreTest",
 ]

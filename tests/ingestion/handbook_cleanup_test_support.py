@@ -16,7 +16,13 @@ from campus_ingestion_core.handbook_provider_normalize import normalize_handbook
 
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
+FIXTURE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "ingestion-core"
+    / "testdata"
+    / "student_handbook"
+)
 
 SOURCE_ROW_SEQUENCE = count(1)
 
@@ -26,7 +32,7 @@ def _manifest_document(
     page_end: int,
     *,
     title: str = "制度标题",
-    handbook_section: str = "中央民族大学学生日常管理规定",
+    handbook_section: str = "示例大学学生日常管理规定",
 ) -> SplitManifestDocument:
     return SplitManifestDocument(
         document_id="manifest:placeholder",

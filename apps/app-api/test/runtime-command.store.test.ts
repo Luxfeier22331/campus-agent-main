@@ -34,7 +34,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			turnSequence: 1,
 		},
 		contextSummary: "国家奖学金每学年评审一次。",
-		conversationTitle: "中央民族大学本科学生国家奖学金评审办法",
+		conversationTitle: "示例大学本科学生国家奖学金评审办法",
 		ownerUserId: "user_01HQ",
 		outboxEvent: {
 			attemptCount: 0,
@@ -66,7 +66,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			idempotencyKey: null,
 			principalLabel: "Jane Doe",
 			principalType: "student",
-			questionPreview: "中央民族大学本科学生国家奖学金评审办法",
+			questionPreview: "示例大学本科学生国家奖学金评审办法",
 			requestedTool: "knowledge_query",
 			requestedScope: null,
 			requestFingerprintSha256: null,
@@ -328,7 +328,7 @@ describe("pg chat command store", () => {
 				createdAt: new Date("2026-06-04T01:02:00.000Z"),
 				id: "conv_01HQ",
 				ownerUserId: "user_01HQ",
-				title: "中央民族大学本科学生国家奖学金评审办法",
+				title: "示例大学本科学生国家奖学金评审办法",
 				updatedAt: new Date("2026-06-04T01:02:10.000Z"),
 			},
 		]);

@@ -75,7 +75,7 @@ async function fulfillSignIn(
 					token: "session_token_e2e",
 					url: null,
 					user: {
-						email: "student@muc.edu.cn",
+						email: "student@example.edu",
 						id: "user_e2e",
 						name: "测试用户",
 					},
@@ -125,7 +125,7 @@ async function fulfillSignUp(route: Route, mode: NonNullable<AuthMockOptions["si
 				redirect: false,
 				token: null,
 				user: {
-					email: "student@muc.edu.cn",
+					email: "student@example.edu",
 					id: "user_e2e",
 					name: "测试用户",
 				},

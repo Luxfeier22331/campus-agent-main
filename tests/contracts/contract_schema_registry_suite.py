@@ -16,7 +16,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
     def test_campus_services_result_fixture_matrix_has_positive_and_negative_cases(
         self,
     ) -> None:
-        fixture_dir = Path("tests/fixtures/campus_services_tool_result")
+        fixture_dir = Path("packages/contracts/fixtures/campus_services_tool_result")
 
         self.assertGreaterEqual(len(tuple(fixture_dir.glob("*.valid.json"))), 2)
         self.assertGreaterEqual(len(tuple(fixture_dir.glob("*.invalid.json"))), 5)
@@ -63,9 +63,9 @@ class ContractSchemaRegistryTest(unittest.TestCase):
         for entry_id, fixture_path in (
             (
                 "campus-services-tool-contracts.v1",
-                "tests/fixtures/campus_services_tool_contracts",
+                "packages/contracts/fixtures/campus_services_tool_contracts",
             ),
-            ("notice-tool-contracts.v1", "tests/fixtures/notice_tool_contracts"),
+            ("notice-tool-contracts.v1", "packages/contracts/fixtures/notice_tool_contracts"),
         ):
             with self.subTest(entry_id=entry_id):
                 self.assertIn(entry_id, entries)

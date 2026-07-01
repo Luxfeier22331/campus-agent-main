@@ -384,7 +384,7 @@ class RegulationSemanticRegistryIntroWorkflowSuite:
 
     def test_shared_procedure_action_resolution_supports_material_list_item(self) -> None:
         assignment = resolve_regulation_procedure_action(
-            text="（一）《中央民族大学接收推荐免试攻读研究生申请表》。",
+            text="（一）《示例大学接收推荐免试攻读研究生申请表》。",
             actor="applicant",
         )
 

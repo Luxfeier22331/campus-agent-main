@@ -12,7 +12,7 @@ _SUBSECTION_HEADING_RE = re.compile(
 _SUBSECTION_LABEL_RE = re.compile(r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?")
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
 _PUBLICATION_IMPRINT_RE = re.compile(
-    r"^(?:中央民族大学[^\n。；：:]{0,40}(?:办公室|学院|研究院|中心)|"
+    r"^(?:示例大学[^\n。；：:]{0,40}(?:办公室|学院|研究院|中心)|"
     r"\d{4}年\d{1,2}月\d{1,2}日(?:印发|发布)?)$",
     re.MULTILINE,
 )

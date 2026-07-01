@@ -17,7 +17,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "chunk_prepare",
 	input_ref: {
 		kind: "object_store",
-		uri: "s3://campus-rag-derived/curriculum/curriculum_plan/document-units.jsonl",
+		uri: "s3://campus-agent-derived/curriculum/curriculum_plan/document-units.jsonl",
 	},
 	output_contract: "ingestion_chunk_set.v1",
 	idempotency_key: "curriculum/curriculum_plan/chunk_prepare/document-units-v1",

@@ -31,21 +31,21 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
         record = _make_record()
         store = _FakeObjectStore(
             {
-                ("campus-rag-derived", record.document_units_object_key or ""): _units(
+                ("campus-agent-derived", record.document_units_object_key or ""): _units(
                     record=record,
-                    title="中央民族大学丰台校区就医管理办法（暂行）",
+                    title="示例大学丰台校区就医管理办法（暂行）",
                     body=("第一条 医疗服务保障由校医院负责。", "第二条 学生应按规定就医。"),
                 )
             }
         )
 
         report = backfill_missing_canonical_markdown_from_document_units(
-            bucket="campus-rag-derived",
+            bucket="campus-agent-derived",
             object_store=store,
             records=(record,),
         )
 
-        target = ("campus-rag-derived", record.canonical_markdown_object_key or "")
+        target = ("campus-agent-derived", record.canonical_markdown_object_key or "")
         self.assertEqual(report.selected_record_count, 1)
         self.assertEqual(report.backfilled_count, 1)
         self.assertEqual(report.skipped_existing_count, 0)
@@ -53,7 +53,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
         self.assertEqual(content_type, "text/markdown; charset=utf-8")
         self.assertEqual(
             payload.decode("utf-8"),
-            "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+            "# 示例大学丰台校区就医管理办法（暂行）\n\n"
             "第一条 医疗服务保障由校医院负责。\n\n"
             "第二条 学生应按规定就医。\n",
         )
@@ -62,19 +62,19 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
         record = _make_record()
         store = _FakeObjectStore(
             {
-                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                ("campus-agent-derived", record.canonical_markdown_object_key or ""): (
                     "# 已存在\n\n正文。\n"
                 ).encode(),
-                ("campus-rag-derived", record.document_units_object_key or ""): _units(
+                ("campus-agent-derived", record.document_units_object_key or ""): _units(
                     record=record,
-                    title="中央民族大学丰台校区就医管理办法（暂行）",
+                    title="示例大学丰台校区就医管理办法（暂行）",
                     body=("第一条 正文。",),
                 ),
             }
         )
 
         report = backfill_missing_canonical_markdown_from_document_units(
-            bucket="campus-rag-derived",
+            bucket="campus-agent-derived",
             object_store=store,
             records=(record,),
         )
@@ -90,7 +90,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
         )
         store = _FakeObjectStore(
             {
-                ("campus-rag-derived", valid_record.document_units_object_key or ""): _units(
+                ("campus-agent-derived", valid_record.document_units_object_key or ""): _units(
                     record=valid_record,
                     title="有效制度",
                     body=("第一条 有效正文。",),
@@ -100,7 +100,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "canonical_markdown_object_key is required"):
             backfill_missing_canonical_markdown_from_document_units(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 object_store=store,
                 records=(valid_record, invalid_record),
             )
@@ -113,7 +113,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "document_units_object missing"):
             backfill_missing_canonical_markdown_from_document_units(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 object_store=store,
                 records=(record,),
             )
@@ -124,7 +124,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
         record = _make_record()
         store = _FakeObjectStore(
             {
-                ("campus-rag-derived", record.document_units_object_key or ""): _units(
+                ("campus-agent-derived", record.document_units_object_key or ""): _units(
                     record=record,
                     title="只有标题",
                     body=(),
@@ -134,7 +134,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "no canonical body units"):
             backfill_missing_canonical_markdown_from_document_units(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 object_store=store,
                 records=(record,),
             )
@@ -144,7 +144,7 @@ class DocumentCanonicalMarkdownBackfillTest(unittest.TestCase):
 
 def _make_record(document_id_suffix: str = "ff711d1185f9") -> DocumentRegistryRecord:
     document_id = (
-        f"institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:{document_id_suffix}"
+        f"institutional_regulation:example:示例大学丰台校区就医管理办法-暂行:{document_id_suffix}"
     )
     return DocumentRegistryRecord(
         document_id=document_id,
@@ -165,12 +165,12 @@ def _make_record(document_id_suffix: str = "ff711d1185f9") -> DocumentRegistryRe
         is_current=True,
         document_units_object_key=(
             "regulations/documents/institutional_rules/"
-            f"中央民族大学丰台校区就医管理办法-暂行--{document_id_suffix[:8]}/"
+            f"示例大学丰台校区就医管理办法-暂行--{document_id_suffix[:8]}/"
             "current-effective/undated/document-units.jsonl"
         ),
         canonical_markdown_object_key=(
             "regulations/documents/institutional_rules/"
-            f"中央民族大学丰台校区就医管理办法-暂行--{document_id_suffix[:8]}/"
+            f"示例大学丰台校区就医管理办法-暂行--{document_id_suffix[:8]}/"
             "current-effective/undated/canonical.md"
         ),
         import_source="index_release_registry_restore",

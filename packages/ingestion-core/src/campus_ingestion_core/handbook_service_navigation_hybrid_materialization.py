@@ -7,8 +7,8 @@ from typing import Protocol
 
 import httpx
 
-from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_artifacts import ProcessedArtifactInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.handbook_service_navigation_projection_support import (
     _build_handbook_service_navigation_hybrid_document_from_projection_bytes,
     _resolve_projection_extractor_runtime,
@@ -338,21 +338,10 @@ def _render_declared_pdf_pages_to_pngs(
     page_start: int,
     page_end: int,
 ) -> tuple[tuple[int, bytes], ...]:
-    try:
-        import fitz
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("pymupdf is required for service navigation page rendering") from exc
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
-        if page_end > document.page_count:
-            raise ValueError(
-                f"declared page range {page_start}-{page_end} exceeds PDF page_count {document.page_count}"
-            )
-        rendered: list[tuple[int, bytes]] = []
-        for page_number in range(page_start, page_end + 1):
-            page = document.load_page(page_number - 1)
-            pixmap = page.get_pixmap(dpi=DEFAULT_RENDER_DPI, alpha=False)
-            rendered.append((page_number, pixmap.tobytes("png")))
-        return tuple(rendered)
+    raise RuntimeError(
+        "handbook service navigation PDF rendering probe is retired; "
+        "materialize from a captured projection artifact instead"
+    )
 
 
 def _extract_service_navigation_flow_graph(

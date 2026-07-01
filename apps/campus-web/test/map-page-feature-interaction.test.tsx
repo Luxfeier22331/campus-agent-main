@@ -25,8 +25,10 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/features/map/api", async () => {
+	const { mapPageManifest } = await import("./fixtures/map-manifest");
 	const { featureInteractionMapPlaces } = await import("./fixtures/map-page-data");
 	return {
+		getCampusMapManifest: vi.fn().mockResolvedValue(mapPageManifest),
 		getCampusMapPlaces: vi.fn().mockResolvedValue({
 			campus: {
 				defaultCenter: [116.3216, 39.9519],
@@ -167,8 +169,8 @@ describe("campus map feature interactions", () => {
 
 		act(() => emitMapEvent("click", { x: 180, y: 240 }));
 
-		expect(await screen.findByRole("dialog", { name: "聚雅食堂" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=fengtai-juya-canteen");
+		expect(await screen.findByRole("dialog", { name: "示例一食堂" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-canteen-a");
 		expect(maplibreRuntimeMock.queryRenderedFeatures).toHaveBeenCalledWith(
 			[
 				[172, 232],
@@ -194,8 +196,8 @@ describe("campus map feature interactions", () => {
 
 		act(() => emitMapEvent("click", { x: 120, y: 220 }));
 
-		expect(await screen.findByRole("dialog", { name: "荟贤食堂" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=fengtai-huixian-canteen");
+		expect(await screen.findByRole("dialog", { name: "示例二食堂" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-canteen-b");
 	});
 
 	it("selects Fengtai sport places by clicking bound sport polygons", async () => {
@@ -209,8 +211,8 @@ describe("campus map feature interactions", () => {
 
 		act(() => emitMapEvent("click", { x: 140, y: 260 }));
 
-		expect(await screen.findByRole("dialog", { name: "篮球场" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=fengtai-basketball-court");
+		expect(await screen.findByRole("dialog", { name: "示例运动场" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-sport-field");
 		expect(maplibreRuntimeMock.queryRenderedFeatures).toHaveBeenCalledWith(
 			[
 				[132, 252],
@@ -236,8 +238,8 @@ describe("campus map feature interactions", () => {
 
 		act(() => emitMapEvent("click", { x: 160, y: 210 }));
 
-		expect(await screen.findByRole("dialog", { name: "博雅楼" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=fengtai-boya-building");
+		expect(await screen.findByRole("dialog", { name: "示例教学楼" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-teaching-building");
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
 			"all",
 			["==", ["get", "layer"], "building"],
@@ -256,8 +258,8 @@ describe("campus map feature interactions", () => {
 
 		act(() => emitMapEvent("click", { x: 190, y: 290 }));
 
-		expect(await screen.findByRole("dialog", { name: "丰台南门" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=fengtai-main-gate");
+		expect(await screen.findByRole("dialog", { name: "示例南门" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-south-gate");
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
 			"any",
 			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 60]],
@@ -273,21 +275,21 @@ describe("campus map feature interactions", () => {
 		await waitForMapClickListener();
 		maplibreRuntimeMock.queryRenderedFeatures.mockReturnValueOnce([
 			renderedFeature({
-				fid: 849087992,
+				fid: 101,
 				layer: "building",
-				name: "民大图书馆",
+				name: "无关名称",
 				source: "haidian-campus",
 			}),
 		]);
 
 		act(() => emitMapEvent("click", { x: 180, y: 240 }));
 
-		expect(await screen.findByRole("dialog", { name: "图书馆" })).toBeInTheDocument();
-		expect(window.location.search).toContain("place=library");
+		expect(await screen.findByRole("dialog", { name: "示例图书馆" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=sample-library");
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
 			"all",
 			["==", ["get", "layer"], "building"],
-			["==", ["get", "fid"], 849087992],
+			["==", ["get", "fid"], 101],
 		]);
 	});
 
@@ -297,12 +299,12 @@ describe("campus map feature interactions", () => {
 		expect(await screen.findByRole("region", { name: "校园地图" })).toBeInTheDocument();
 		await waitForMapClickListener();
 		maplibreRuntimeMock.queryRenderedFeatures.mockReturnValueOnce([
-			renderedFeature({ fid: 999, layer: "building", name: "聚雅食堂" }),
+			renderedFeature({ fid: 999, layer: "building", name: "示例一食堂" }),
 		]);
 
 		act(() => emitMapEvent("click", { x: 180, y: 240 }));
 
-		expect(screen.queryByRole("dialog", { name: "聚雅食堂" })).toBeNull();
+		expect(screen.queryByRole("dialog", { name: "示例一食堂" })).toBeNull();
 		expect(window.location.search).not.toContain("place=");
 	});
 

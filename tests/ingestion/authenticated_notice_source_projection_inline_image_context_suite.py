@@ -40,7 +40,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -119,7 +119,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -198,7 +198,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -253,7 +253,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
             png_bytes=png_bytes,
             notice_content=(
                 "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
-                "<p>共同开展第六届“用英语讲中国故事大会”中央民族大学专场活动。</p>"
+                "<p>共同开展第六届“用英语讲中国故事大会”示例大学专场活动。</p>"
                 '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
                 "<p>“用英语讲中国故事大会”活动旨在为青年学生搭建深入理解中华文化、与世界文明对话的桥梁。</p>"
             ),
@@ -277,7 +277,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -331,8 +331,8 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
             docx_bytes=docx_bytes,
             png_bytes=png_bytes,
             notice_content=(
-                "<h1>关于开展“知行中华”铸魂育人工程——中央民族大学2026年大学生寒假社会实践活动的通知</h1>"
-                "<p>学校拟于2026年1月-3月组织开展“知行中华”铸魂育人工程——中央民族大学2026年大学生寒假社会实践活动。</p>"
+                "<h1>关于开展“知行中华”铸魂育人工程——示例大学2026年大学生寒假社会实践活动的通知</h1>"
+                "<p>学校拟于2026年1月-3月组织开展“知行中华”铸魂育人工程——示例大学2026年大学生寒假社会实践活动。</p>"
                 '<p><img src="https://portal.example.edu/files/notice.png" alt="3.png" /></p>'
                 "<p>一、活动主题</p>"
                 "<p>青春返乡行，奋进新时代</p>"
@@ -360,7 +360,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -441,7 +441,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",

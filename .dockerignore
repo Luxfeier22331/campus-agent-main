@@ -26,14 +26,6 @@
 !configs/runtime/workflow-artifacts.v2.json
 !infra/local/hindsight-api-openai-default-headers/
 !infra/local/hindsight-api-openai-default-headers/**
-!tests/
-!tests/fixtures/
-!tests/fixtures/tool_execution_contract/
-!tests/fixtures/tool_execution_contract/**
-!tests/fixtures/tool_execution_contract/
-!tests/fixtures/tool_execution_contract/**
-!tests/fixtures/supervisor_execution_contract/
-!tests/fixtures/supervisor_execution_contract/**
 !packages/campus-services-tool/
 !packages/campus-services-tool/**
 !packages/contracts/

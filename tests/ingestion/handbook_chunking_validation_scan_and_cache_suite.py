@@ -38,7 +38,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "healthcheck failed"):
                 scan_student_handbook_chunking(
                     env={
-                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                         "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     registry=_FakeRegistry(record),
@@ -132,7 +132,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             )
             guardrail_text = "甲" * 1400
             objects = {
-                ("campus-rag-derived", plain_record.document_units_object_key): (
+                ("campus-agent-derived", plain_record.document_units_object_key): (
                     json.dumps(
                         {
                             **_structured_row(
@@ -154,7 +154,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
                     )
                     + "\n"
                 ).encode("utf-8"),
-                ("campus-rag-derived", policy_record.document_units_object_key): (
+                ("campus-agent-derived", policy_record.document_units_object_key): (
                     json.dumps(
                         {
                             **_structured_row(
@@ -175,7 +175,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
                     )
                     + "\n"
                 ).encode("utf-8"),
-                ("campus-rag-derived", table_record.document_units_object_key): (
+                ("campus-agent-derived", table_record.document_units_object_key): (
                     "\n".join(
                         [
                             json.dumps(
@@ -226,7 +226,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
                     )
                     + "\n"
                 ).encode("utf-8"),
-                ("campus-rag-derived", structure_record.document_units_object_key): (
+                ("campus-agent-derived", structure_record.document_units_object_key): (
                     json.dumps(
                         {
                             **_structured_row(
@@ -248,7 +248,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
                     )
                     + "\n"
                 ).encode("utf-8"),
-                ("campus-rag-derived", guardrail_record.document_units_object_key): (
+                ("campus-agent-derived", guardrail_record.document_units_object_key): (
                     json.dumps(
                         {
                             **_structured_row(
@@ -274,7 +274,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
 
             scan_result = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(
@@ -297,7 +297,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             )
 
             self.assertEqual(len(object_store.get_bytes_calls), 5)
-            self.assertEqual(object_store.healthcheck_calls, ["campus-rag-derived"])
+            self.assertEqual(object_store.healthcheck_calls, ["campus-agent-derived"])
 
     def test_scan_uses_local_artifact_cache_before_object_store(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -349,13 +349,13 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             ).encode("utf-8")
             object_store = _CountingObjectStore(
                 {
-                    ("campus-rag-derived", record.document_units_object_key): payload,
+                    ("campus-agent-derived", record.document_units_object_key): payload,
                 }
             )
 
             first_scan = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "HANDBOOK_VALIDATION_CACHE_DIR": str(cache_dir),
                 },
@@ -370,7 +370,7 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             object_store.get_bytes_calls.clear()
             second_scan = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "HANDBOOK_VALIDATION_CACHE_DIR": str(cache_dir),
                 },
@@ -539,13 +539,13 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             ).encode("utf-8")
             object_store = _CountingObjectStore(
                 {
-                    ("campus-rag-derived", first_record.document_units_object_key): first_payload,
+                    ("campus-agent-derived", first_record.document_units_object_key): first_payload,
                 }
             )
 
             first_scan = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "HANDBOOK_VALIDATION_CACHE_DIR": str(cache_dir),
                 },
@@ -558,13 +558,13 @@ class HandbookChunkingValidationScanAndCacheTest(unittest.TestCase):
             self.assertEqual(len(object_store.get_bytes_calls), 1)
 
             object_store.objects[
-                ("campus-rag-derived", second_record.document_units_object_key)
+                ("campus-agent-derived", second_record.document_units_object_key)
             ] = second_payload
             object_store.get_bytes_calls.clear()
 
             second_scan = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "HANDBOOK_VALIDATION_CACHE_DIR": str(cache_dir),
                 },

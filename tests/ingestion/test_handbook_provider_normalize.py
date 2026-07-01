@@ -451,7 +451,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
                     ),
                     _provider_parsing_block(
                         "paragraph_title",
-                        "中央民族大学校内常用电话",
+                        "示例大学校内常用电话",
                         block_id="p1-title",
                         block_order=3,
                     ),

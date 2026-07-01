@@ -38,7 +38,7 @@ func TestLoadFromEnvUsesSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNot
 	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
 	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
 	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived")
+	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-agent-derived")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {

@@ -49,11 +49,7 @@ function collectRagFixturePaths(root: string): string[] {
 			continue;
 		}
 		const name = basename(path);
-		if (
-			name === "retrieval_qrels.json" ||
-			name === "golden_retrieval_qrels.v1.json" ||
-			name === "answer_quality_cases.v1.json"
-		) {
+		if (name === "retrieval_qrels.json" || name === "answer_quality_cases.v1.json") {
 			paths.push(path);
 		}
 	}
@@ -100,9 +96,6 @@ function fixtureKind(fixtureName: string): string {
 function datasetSuffix(fixtureName: string): string {
 	if (fixtureName === "answer_quality_cases.v1.json") {
 		return "answer-quality";
-	}
-	if (fixtureName === "golden_retrieval_qrels.v1.json") {
-		return "golden-qrels";
 	}
 	return "qrels";
 }

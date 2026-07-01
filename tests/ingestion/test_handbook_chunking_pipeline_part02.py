@@ -26,7 +26,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                     root_unit_id="article-explicit-condition-subject",
                     clean_text="申请人应当热爱社会主义祖国，拥护中国共产党的领导。",
                     metadata={
-                        "title": "中央民族大学本科学生国家奖学金评审办法",
+                        "title": "示例大学本科学生国家奖学金评审办法",
                         "answer_role": "eligibility_condition",
                         "condition_subject": "general_eligibility",
                         "role_confidence": "high",
@@ -79,7 +79,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "（四）",
                     },
                     metadata={
-                        "title": "中央民族大学信息公开实施细则",
+                        "title": "示例大学信息公开实施细则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -141,7 +141,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "(三)",
                     },
                     metadata={
-                        "title": "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法",
+                        "title": "示例大学毕业生学费和国家助学贷款代偿暂行实施办法",
                     },
                 ),
                 ensure_ascii=False,
@@ -190,7 +190,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                     clean_text="二、评选条件",
                     anchor={"section_path": ["二、评选条件"]},
                     metadata={
-                        "title": "中央民族大学研究生宝钢优秀学生奖评选实施办法（试行）",
+                        "title": "示例大学研究生宝钢优秀学生奖评选实施办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -242,7 +242,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "（四）",
                     },
                     metadata={
-                        "title": "中央民族大学信息公开实施细则",
+                        "title": "示例大学信息公开实施细则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -303,7 +303,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "（四）",
                     },
                     metadata={
-                        "title": "中央民族大学信息公开实施细则",
+                        "title": "示例大学信息公开实施细则",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -362,7 +362,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "article_label": "第十条",
                     },
                     metadata={
-                        "title": "中央民族大学学生申诉处理办法",
+                        "title": "示例大学学生申诉处理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -416,7 +416,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "（一）",
                     },
                     metadata={
-                        "title": "中央民族大学学生申诉处理办法",
+                        "title": "示例大学学生申诉处理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -456,7 +456,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "provision_label": "（二）",
                     },
                     metadata={
-                        "title": "中央民族大学学生申诉处理办法",
+                        "title": "示例大学学生申诉处理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -501,7 +501,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生申诉处理办法"},
+                    metadata={"title": "示例大学学生申诉处理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -572,7 +572,7 @@ class HandbookChunkingPipelinePart02Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生申诉处理办法"},
+                    metadata={"title": "示例大学学生申诉处理办法"},
                 ),
                 ensure_ascii=False,
             )

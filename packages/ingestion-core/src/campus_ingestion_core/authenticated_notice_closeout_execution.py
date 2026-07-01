@@ -38,7 +38,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     AuthenticatedNoticeSourceTruthReplayRequest,
     build_authenticated_notice_source_truth_replay_documents,
 )
-from campus_ingestion_core.campusrag_ingestion_artifacts import (
+from campus_ingestion_core.campus_agent_ingestion_artifacts import (
     build_document_processed_object_keys,
     resolve_document_artifact_keys,
     serialize_document_import_stub,

@@ -10,7 +10,7 @@ func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleTraceRe
 			"subject_query":        "丰台校区通勤班车在哪里上车",
 			"outcome":              "resolved_current",
 			"related_notice_refs":  []any{"authenticated_notice:355122"},
-			"override_source_refs": []any{"notice:muc_internal_portal:353903"},
+			"override_source_refs": []any{"notice:example_internal_portal:353903"},
 		},
 		"transport_schedule_lookup",
 	)

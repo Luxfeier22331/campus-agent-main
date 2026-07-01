@@ -44,8 +44,12 @@ _JS_LIKE_SUFFIXES = {
 _MARKDOWN_ROOT_FILES = {
     ".github/pull_request_template.md",
     "AGENTS.md",
+    "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "README.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    "THIRD_PARTY_NOTICES.md",
 }
 _ROOT_BIOME_FILES = {
     ".markdownlint-cli2.jsonc",
@@ -173,6 +177,15 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
         families.append("repo:static")
     if path.endswith(".jsonl"):
         families.append("repo:static")
+    if path in {
+        "scripts/check_dependency_license_policy.py",
+        "scripts/check_object_store_bucket_policy.py",
+        "scripts/check_open_source_metadata.py",
+        "scripts/check_public_asset_source_clean.py",
+        "scripts/check_public_fixture_source_clean.py",
+        "scripts/check_public_source_tokens.py",
+    }:
+        families.append("repo:static")
     if _is_legacy_office_java_tracked_file(path):
         families.append("repo:static")
     if path.endswith(".sql") or path in _ROOT_SQL_LINT_FILES:
@@ -212,6 +225,8 @@ def _is_biome_tracked_file(path: str) -> bool:
 def _is_markdown_tracked_file(path: str) -> bool:
     if path in _MARKDOWN_ROOT_FILES:
         return True
+    if path.startswith(".github/ISSUE_TEMPLATE/"):
+        return path.endswith(".md")
     if path.startswith("docs/"):
         return path.endswith(".md") and "/archive/" not in path
     if path.startswith(("apps/", "packages/", "configs/", "infra/")):

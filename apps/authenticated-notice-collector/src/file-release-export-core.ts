@@ -216,7 +216,7 @@ export function buildFileReleaseRecord(input: {
 			version_id: null,
 			origin_url_scheme: normalizeUrlScheme(resolvedDownloadUrl),
 			origin_host: normalizeUrlHost(resolvedDownloadUrl),
-			origin_scope: classifyOriginScope(resolvedDownloadUrl),
+			origin_scope: classifyOriginScope(resolvedDownloadUrl, input.sourceHomeUrl),
 			provenance_status: "reference_only",
 			ingest_status: "reference_only",
 			local_path: null,

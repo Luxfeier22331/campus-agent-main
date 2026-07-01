@@ -8,13 +8,13 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     162,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(162, "paragraph", "附件1:"),
                 _source_row(
-                    162, "paragraph", "中央民族大学本(预)科生基本情况周查月报表报送时间:年 月 日"
+                    162, "paragraph", "示例大学本(预)科生基本情况周查月报表报送时间:年 月 日"
                 ),
                 _source_row(
                     162,
@@ -33,7 +33,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 ),
             ],
             manifest_document=_manifest_document(
-                162, 162, title="中央民族大学学院(系)学生基本情况周查月报制度"
+                162, 162, title="示例大学学院(系)学生基本情况周查月报制度"
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -60,7 +60,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科生国家助学金评审办法",
+                    "示例大学本科生国家助学金评审办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -77,9 +77,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科生国家助学金评审办法"
-            ),
+            manifest_document=_manifest_document(22, 22, title="示例大学本科生国家助学金评审办法"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -92,7 +90,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科(预科)学生证管理办法",
+                    "示例大学本科(预科)学生证管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -110,9 +108,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科(预科)学生证管理办法"
-            ),
+            manifest_document=_manifest_document(22, 22, title="示例大学本科(预科)学生证管理办法"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -125,12 +121,12 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(22, "paragraph", "附件一:"),
-                _source_row(22, "paragraph", "中央民族大学本科生家庭经济困难学生认定申请表"),
+                _source_row(22, "paragraph", "示例大学本科生家庭经济困难学生认定申请表"),
                 _source_row(
                     22,
                     "table",
@@ -223,7 +219,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 ),
             ],
             manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科生家庭经济困难学生认定管理办法"
+                22, 22, title="示例大学本科生家庭经济困难学生认定管理办法"
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -237,12 +233,12 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(22, "paragraph", "附件三:"),
-                _source_row(22, "paragraph", "中央民族大学家庭经济困难学生认定统计表"),
+                _source_row(22, "paragraph", "示例大学家庭经济困难学生认定统计表"),
                 _source_row(
                     22,
                     "table",
@@ -269,7 +265,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 ),
             ],
             manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科生家庭经济困难学生认定管理办法"
+                22, 22, title="示例大学本科生家庭经济困难学生认定管理办法"
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -283,12 +279,12 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(22, "paragraph", "附件三:"),
-                _source_row(22, "paragraph", "中央民族大学家庭经济困难学生认定统计表"),
+                _source_row(22, "paragraph", "示例大学家庭经济困难学生认定统计表"),
                 _source_row(
                     22,
                     "table",
@@ -317,7 +313,7 @@ class HandbookCleanupFormTableSkipTest(HandbookCleanupFormAndHeaderFilterBaseTes
                 ),
             ],
             manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科生家庭经济困难学生认定管理办法"
+                22, 22, title="示例大学本科生家庭经济困难学生认定管理办法"
             ),
             source_doc="学生手册_2018.pdf",
         )

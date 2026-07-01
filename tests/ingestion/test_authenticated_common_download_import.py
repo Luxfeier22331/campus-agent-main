@@ -71,7 +71,7 @@ class AuthenticatedCommonDownloadImportTest(unittest.TestCase):
             AuthenticatedCommonDownloadImportRequest(
                 bundle_path=Path("/tmp/notices-bundle.json"),
                 manifest_path=Path("/tmp/export-manifest.json"),
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/",
                 corpus="campus_notices",
                 collection="internal_notice",
@@ -101,7 +101,7 @@ class AuthenticatedCommonDownloadImportTest(unittest.TestCase):
                     request=AuthenticatedCommonDownloadImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                     ),
                     env={
@@ -149,7 +149,7 @@ class AuthenticatedCommonDownloadImportTest(unittest.TestCase):
                 request=AuthenticatedCommonDownloadImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     mode="admit_and_materialize",
                 ),
@@ -167,7 +167,7 @@ class AuthenticatedCommonDownloadImportTest(unittest.TestCase):
         self.assertEqual(report["selected_notice_ids"], [])
         self.assertEqual(
             report["created_document_ids"],
-            ["notice:muc_internal_portal:355119"],
+            ["notice:example_internal_portal:355119"],
         )
         entries = inventory_store.list_by_scope("authenticated_documents", "common_download_source")
         self.assertEqual(len(entries), 1)

@@ -159,7 +159,7 @@ class RegulationSemanticRegistryProcedureCoreSuite:
                 "积极推进学校治理体系和治理能力现代化，完善内部治理结构，"
                 "不断提升办学质量和服务水平。"
             ),
-            prefix_text="中央民族大学事业发展“十三五”规划",
+            prefix_text="示例大学事业发展“十三五”规划",
         )
 
         self.assertEqual(assignment.value, "supporting_detail")

@@ -49,7 +49,11 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 "README.md",
                 "AGENTS.md",
                 "CONTRIBUTING.md",
+                "CODE_OF_CONDUCT.md",
+                "SECURITY.md",
+                "SUPPORT.md",
                 ".github/pull_request_template.md",
+                ".github/ISSUE_TEMPLATE",
                 "docs",
                 "apps",
                 "packages",
@@ -80,6 +84,8 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         self.assertIn("apps/app-api/README.md", relative_paths)
         self.assertIn("apps/official-web-collector/README.md", relative_paths)
         self.assertIn("infra/otel/README.md", relative_paths)
+        self.assertIn("SECURITY.md", relative_paths)
+        self.assertIn(".github/ISSUE_TEMPLATE/bug_report.md", relative_paths)
         self.assertNotIn("apps/public-docs/docs/index.md", relative_paths)
         self.assertNotIn(
             "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
@@ -154,8 +160,18 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         if "/archive/" in path:
             return False
         return path.endswith(".md")
-    if path in {"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"}:
+    if path in {
+        "README.md",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "SECURITY.md",
+        "SUPPORT.md",
+        ".github/pull_request_template.md",
+    }:
         return True
+    if path.startswith(".github/ISSUE_TEMPLATE/"):
+        return path.endswith(".md")
     if path.startswith(("apps/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False

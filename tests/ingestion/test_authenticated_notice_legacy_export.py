@@ -20,7 +20,7 @@ def _sample_bundle() -> list[dict[str, object]]:
             "notice_id": 355282,
             "notice": {
                 "notice_id": 355282,
-                "notice_title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                "notice_title": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                 "notice_content": "<p>指导意见正文</p>",
                 "categories": [
                     {
@@ -37,7 +37,7 @@ def _sample_bundle() -> list[dict[str, object]]:
             "notice_id": 351119,
             "notice": {
                 "notice_id": 351119,
-                "notice_title": "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
+                "notice_title": "关于《<示例大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
                 "notice_content": "<p>管理办法正文</p>",
                 "categories": [
                     {
@@ -104,8 +104,8 @@ class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
         result = normalize_authenticated_notice_legacy_export(
             bundle_records=_sample_bundle(),
             legacy_manifest=_sample_manifest(),
-            site_id="muc_internal_portal",
-            source_home_url="https://my.muc.edu.cn",
+            site_id="example_internal_portal",
+            source_home_url="https://portal.example.edu",
             selected_notice_ids=("355282",),
             notice_type_policy=notice_type_policy,
             export_scope="run14-policy-regulation-core",
@@ -117,7 +117,7 @@ class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
         self.assertEqual(len(result.bundle_records), 1)
         self.assertEqual(
             result.bundle_records[0]["notice"]["notice_title"],
-            "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+            "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
         )
 
         manifest = result.normalized_manifest
@@ -126,7 +126,7 @@ class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
             AUTHENTICATED_NOTICE_LEGACY_NORMALIZED_SCHEMA,
         )
         self.assertEqual(manifest["source_channel"], "authenticated_notice_portal")
-        self.assertEqual(manifest["site_id"], "muc_internal_portal")
+        self.assertEqual(manifest["site_id"], "example_internal_portal")
         self.assertEqual(
             manifest["collector"]["export_contract_version"],
             AUTHENTICATED_NOTICE_LEGACY_EXPORT_CONTRACT_VERSION,
@@ -142,8 +142,8 @@ class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
             normalize_authenticated_notice_legacy_export(
                 bundle_records=_sample_bundle(),
                 legacy_manifest={},
-                site_id="muc_internal_portal",
-                source_home_url="https://my.muc.edu.cn",
+                site_id="example_internal_portal",
+                source_home_url="https://portal.example.edu",
             )
 
     def test_load_selected_notice_ids_from_json_batch_file(self) -> None:

@@ -33,7 +33,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						},
 						source_refs: [
 							"seed:campus_navigation/place_catalog.v1",
-							"https://www.muc.edu.cn/xxgk1/xydt.htm",
+							"campus-map:private-source:official-map",
 						],
 					},
 					query_text: "民族博物馆在哪里",

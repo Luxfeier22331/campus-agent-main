@@ -23,7 +23,7 @@ def _record(
         document_id="handbook:test-001",
         revision_track=revision_track,
         version_id=version_id,
-        source_uri="campusrag://canonical/regulations/student_rules/docs/test-001.md",
+        source_uri="campus-agent://canonical/regulations/student_rules/docs/test-001.md",
         content_hash=f"sha256:{version_id}",
         corpus="regulations",
         collection="student_rules",

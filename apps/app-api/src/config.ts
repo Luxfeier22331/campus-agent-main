@@ -31,6 +31,7 @@ export interface Env {
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
 	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
 	APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
+	APP_API_PUBLIC_NOTICE_URL_ALLOWLIST?: string;
 	APP_API_OPERATOR_SERVICE_ID_ALLOWLIST?: string;
 	APP_API_OPERATOR_ISSUE_LINK_TEMPLATE?: string;
 	APP_API_OPERATOR_TRACE_LINK_TEMPLATE?: string;
@@ -157,6 +158,12 @@ export function parseCsvList(value?: string): string[] {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+}
+
+export function readPublicNoticeURLAllowlist(
+	env: Pick<Env, "APP_API_PUBLIC_NOTICE_URL_ALLOWLIST">,
+): string[] {
+	return parseCsvList(env.APP_API_PUBLIC_NOTICE_URL_ALLOWLIST).map((item) => item.toLowerCase());
 }
 
 export function parsePositiveInteger(value: string | undefined, defaultValue: number): number {

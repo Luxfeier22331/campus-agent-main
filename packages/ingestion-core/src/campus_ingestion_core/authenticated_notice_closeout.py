@@ -28,7 +28,6 @@ from campus_ingestion_core.authenticated_notice_closeout_service import (
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     InMemoryCloseoutStore,
-    PostgresAuthenticatedNoticeCloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
 from campus_ingestion_core.authenticated_notice_closeout_verification import (
@@ -62,6 +61,5 @@ __all__ = [
     "CloseoutWorker",
     "CloseoutWorkerState",
     "InMemoryCloseoutStore",
-    "PostgresAuthenticatedNoticeCloseoutStore",
     "build_authenticated_notice_closeout_store_from_env",
 ]

@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,

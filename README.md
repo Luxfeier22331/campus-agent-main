@@ -58,6 +58,26 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 当前项目处于验收收口与上线前硬化阶段。
 
+## Public Repository Boundary
+
+This repository is intended to publish code, contracts, validators, public docs
+and synthetic examples. It does not publish private deployment state, real
+source-derived school corpora, raw notices, collected web pages, canonical docs
+artifacts, object-store publication outputs, credentials or current serving
+truth.
+
+Local development and public CI use synthetic fixtures. Features that depend on
+provider keys, object storage, operator databases or private content packs need
+the corresponding internal runtime configuration and are not expected to run
+from a public clone alone.
+
+See:
+
+- [public-source-data policy](./docs/policies/public-source-data.md)
+- [open-source data inventory](./docs/reference/open-source-data.md)
+- [SECURITY.md](./SECURITY.md)
+- [SUPPORT.md](./SUPPORT.md)
+
 项目级当前工作地图与 pending work signals 见：
 
 - [.planning/PROJECT.md](./.planning/PROJECT.md)
@@ -129,6 +149,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 仓库协作规则见：
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 - [AGENTS.md](./AGENTS.md)
 - [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md)
 
@@ -141,7 +162,7 @@ uv sync --all-packages --dev
 pnpm install
 ```
 
-常用验证入口：
+Public clone 默认验证入口：
 
 ```bash
 pnpm repo:guard
@@ -151,10 +172,20 @@ uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
+```
+
+内部 / full lane 需要对应 runtime 配置：
+
+```bash
 pnpm web:test:integration
 pnpm web:build
 pnpm ci:web-graph:full
 ```
+
+- `pnpm web:test:integration` 需要 shared DB / Hyperdrive local connection env。
+- `pnpm web:build` 与 `pnpm ci:web-graph:full` 会构建文档站，需要已有
+  docs read-model sync manifest，或可访问 app-api operator database 的
+  `APP_API_OPERATOR_DATABASE_URL` 等内部配置。
 
 ## Seed Data Handoff
 
@@ -217,3 +248,14 @@ repo 不再维护 tracked phase tree、本地 lease、heartbeat、hook 注入或
 artifact。详细流程见
 [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md) 和
 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
+## License
+
+Repo-owned source code, tests, configuration and documentation are licensed under
+the [Apache License, Version 2.0](./LICENSE).
+
+Third-party dependencies, source-derived fixtures, campus website/document
+samples, OpenStreetMap-derived data and branding materials remain under their
+respective upstream ownership and license terms. See [NOTICE](./NOTICE) and
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) before redistributing source
+data, generated artifacts or release packages.

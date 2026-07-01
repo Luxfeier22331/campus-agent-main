@@ -20,11 +20,11 @@ const SAMPLE_ACADEMIC_CALENDAR_PAGE_HTML = `
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <title>民大校历 - 中央民族大学</title>
+    <title>示例校历 - 示例大学</title>
   </head>
   <body>
     <main>
-      <h1>民大校历</h1>
+      <h1>示例校历</h1>
       <p>2026-2027学年秋季学期教学周安排。</p>
       <p>第1教学周：9月1日至9月7日。</p>
       <p>国庆放假安排及补课安排另见校历标注。</p>
@@ -37,11 +37,11 @@ const SAMPLE_STUDENT_RULE_PAGE_HTML = `
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <title>中央民族大学学生奖学金评定办法 - Campus public</title>
+    <title>示例大学学生奖学金评定办法 - Campus public</title>
   </head>
   <body>
     <main>
-      <h1>中央民族大学学生奖学金评定办法</h1>
+      <h1>示例大学学生奖学金评定办法</h1>
       <p>第一条 为规范学生奖学金评定工作，制定本办法。</p>
       <p>第二条 本办法适用于全日制在校学生。</p>
     </main>

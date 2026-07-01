@@ -53,14 +53,20 @@ updated: 2026-06-29
 
 ## Repo-Tracked Automated Baseline
 
-当前已冻结的自动化基线包括：
+当前 repo-tracked public automated baseline 只保留 source-clean synthetic
+examples，用于验证 fixture schema、Langfuse dataset manifest、qrels-only
+projection 和 answer-quality contract 形状。真实 release denominator 不在公开
+repo fixture 中发布。
+
+当前公开合成基线包括：
 
 - retrieval qrels：`packages/eval-langfuse/fixtures/rag/curriculum_plan/retrieval_qrels.json`
-  - total cases：`25`
-  - `smoke = 16`
-  - `regression_locked = 9`
-- answer-quality cases：
-  `packages/eval-langfuse/fixtures/rag/curriculum_plan/answer_quality_cases.v1.json`
+  - total cases：`6`
+  - `smoke = 3`
+  - `curated = 1`
+  - `regression = 2`
+- answer-quality public fixture：不在 repo 中保留；真实 answer-quality
+  denominator 通过私有 fixture root 或 Langfuse dataset 进入。
 
 Historical hybrid query and release acceptance fixtures were removed from the
 active eval package. Their denominator counts below are retained only as
@@ -102,7 +108,7 @@ baseline interpretation, not as current file paths.
 
 当前对 curriculum baseline 的 repo-tracked 解释固定为：
 
-- automated baseline 已具备，并由测试覆盖
+- automated synthetic fixture baseline 已具备，并由测试覆盖
 - live acceptance artifact contract 已稳定
 - `course_facts` 相关 deterministic truth 修复已经落地：
   - `reference_context_ids` 改到 internal `course_facts:*` doc ids
@@ -153,10 +159,10 @@ baseline interpretation, not as current file paths.
 
 ## Verification Notes
 
-旧 Python `campus_evals` verification commands 已退役。当前稳定 truth 是
-`packages/eval-langfuse/fixtures` 中的 qrels / answer-quality fixtures；fresh
-runtime evidence 由 Go/TS runtime owner 产出 sanitized artifact 后，再进入
-Langfuse datasets / Ragas scoring。
+旧 Python `campus_evals` verification commands 已退役。公开仓库中的
+`packages/eval-langfuse/fixtures` 只承载 synthetic qrels / answer-quality
+examples；fresh runtime evidence 和真实 gold truth 由 Go/TS runtime owner 产出
+sanitized artifact 或私有 Langfuse dataset 后，再进入 Langfuse / Ragas scoring。
 
 旧 Go first-stage candidate runner 已退役。Retrieval / RAG 评价应从 Langfuse /
 OTel safe projection 取得 retrieved context ids，并把 qrels / golden truth 投影为
@@ -168,7 +174,7 @@ OTel safe projection 取得 retrieved context ids，并把 qrels / golden truth 
 - 这份文档只保存稳定分母、主题清单、artifact contract 和解释边界
 - 一次性 acceptance/rerun 历史、补救过程和 `.tmp` 目录不再长期挂在本文
 - 只有在以下情况才更新这里：
-  - qrels denominator 改变
+  - public synthetic qrels denominator 改变
   - hybrid fixture denominator 改变
   - runtime-owner status / error evidence 分母改变
   - curriculum baseline 的 accepted interpretation 改变

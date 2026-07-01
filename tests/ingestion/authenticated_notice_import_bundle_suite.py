@@ -34,7 +34,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -80,7 +80,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -90,7 +90,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
         self.assertEqual(len(result.notice_imports), 1)
         imported = result.notice_imports[0]
         self.assertEqual(
-            imported.raw_asset_id, "asset:authenticated-notice:muc_internal_portal:355119"
+            imported.raw_asset_id, "asset:authenticated-notice:example_internal_portal:355119"
         )
 
         version_payload = json.dumps(
@@ -116,7 +116,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
             imported.source_truth_artifacts["source-truth/notice-manifest.json"].decode("utf-8")
         )
         self.assertEqual(manifest["source_channel"], "authenticated_notice_portal")
-        self.assertEqual(manifest["site_id"], "muc_internal_portal")
+        self.assertEqual(manifest["site_id"], "example_internal_portal")
         self.assertEqual(manifest["notice_id"], "355119")
         self.assertEqual(manifest["raw_asset_id"], imported.raw_asset_id)
         self.assertEqual(manifest["raw_version_id"], imported.raw_version_id)
@@ -181,7 +181,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
         self.assertEqual(document.revision_track, "source-faithful")
         self.assertEqual(document.raw_asset_id, imported.raw_asset_id)
         self.assertEqual(document.raw_version_id, imported.raw_version_id)
-        self.assertEqual(document.metadata["document_id"], "notice:muc_internal_portal:355119")
+        self.assertEqual(document.metadata["document_id"], "notice:example_internal_portal:355119")
         self.assertEqual(document.metadata["version_id"], imported.raw_version_id)
         self.assertEqual(document.metadata["visibility_level"], "restricted")
         self.assertEqual(document.metadata["visibility_scope"], "campus")
@@ -241,7 +241,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -253,19 +253,19 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
             )
 
         self.assertEqual(report["notice_count"], 1)
-        self.assertEqual(report["created_document_ids"], ["notice:muc_internal_portal:355119"])
+        self.assertEqual(report["created_document_ids"], ["notice:example_internal_portal:355119"])
         self.assertEqual(report["errors"], [])
 
         raw_records = raw_asset_registry.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(raw_records), 1)
         self.assertEqual(
-            raw_records[0].raw_asset_id, "asset:authenticated-notice:muc_internal_portal:355119"
+            raw_records[0].raw_asset_id, "asset:authenticated-notice:example_internal_portal:355119"
         )
         self.assertEqual(raw_records[0].object_key.split("/")[-1], "detail-response.json")
 
         document_records = document_registry.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(document_records), 1)
-        self.assertEqual(document_records[0].document_id, "notice:muc_internal_portal:355119")
+        self.assertEqual(document_records[0].document_id, "notice:example_internal_portal:355119")
         self.assertEqual(document_records[0].source_channel, "authenticated_notice_portal")
         self.assertEqual(document_records[0].visibility_level, "restricted")
         self.assertEqual(document_records[0].entitlement_groups, ("campus_members",))
@@ -321,7 +321,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 ),

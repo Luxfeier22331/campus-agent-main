@@ -14,7 +14,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 )
 
 _TARGET_SCOPE = ("regulations", "institutional_rules")
-_SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
+_SOURCE_URL_PREFIX = "campus-agent://promotion/synthetic_notice"
 _HEADING_RE = re.compile(r"^\s*#+\s*")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s*(?P<marks>#+)\s*(?P<text>.+?)\s*$")
 _ARTICLE_LABEL_RE = re.compile(r"^(?P<label>第[一二三四五六七八九十百千万〇零两0-9]+条)")
@@ -76,7 +76,7 @@ def build_internal_notice_regulation_projected_document(
     document_id = build_institutional_regulation_document_id(
         regulation_title_normalized=candidate_document.regulation_title_normalized,
         regulation_work_title=candidate_document.regulation_work_title,
-        issuing_org=candidate_document.issuing_org or "中央民族大学",
+        issuing_org=candidate_document.issuing_org or "示例大学",
     )
     version_id = build_institutional_regulation_version_id(
         semantic_content_hash=semantic_content_hash,
@@ -136,7 +136,7 @@ def build_institutional_regulation_document_id(
             )
         ).encode("utf-8")
     ).hexdigest()[:12]
-    return f"institutional_regulation:muc:{title_slug}:{digest}"
+    return f"institutional_regulation:example:{title_slug}:{digest}"
 
 
 def build_institutional_regulation_version_id(

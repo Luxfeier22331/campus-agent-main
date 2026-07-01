@@ -24,7 +24,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     18,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=0.92,
                     classification_confidence=0.98,
@@ -36,7 +36,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             source_doc="学生手册_2018.pdf",
         )
 
-        self.assertEqual(result.metadata["title"], "中央民族大学本科生境外留学管理办法")
+        self.assertEqual(result.metadata["title"], "示例大学本科生境外留学管理办法")
 
     def test_normalize_handbook_body_text_strips_inline_ocr_reference_markers(self) -> None:
         normalized = normalize_handbook_body_text(
@@ -58,7 +58,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "学院(系)审核通过后,进入下一环节。",
                     "总评成绩=平时考核(30%)+期中考核(30%)+期末考核(40%); 1.平时考核。",
                     "A.家庭经济特别困难。",
-                    "远程修习(具体要求参照《中央民族大学关于本科生交流出国(境)留学期间思想政治理论课研修实施办法》)。",
+                    "远程修习(具体要求参照《示例大学关于本科生交流出国(境)留学期间思想政治理论课研修实施办法》)。",
                     "2. 夏翠翠。大学生心理健康教育[M].人民邮电出版社，2019.",
                 ]
             )
@@ -72,7 +72,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         )
         self.assertIn("A. 家庭经济特别困难。", normalized)
         self.assertIn(
-            "远程修习（具体要求参照《中央民族大学关于本科生交流出国（境）留学期间思想政治理论课研修实施办法》）。",
+            "远程修习（具体要求参照《示例大学关于本科生交流出国（境）留学期间思想政治理论课研修实施办法》）。",
             normalized,
         )
         self.assertIn("2. 夏翠翠。大学生心理健康教育[M]. 人民邮电出版社，2019.", normalized)
@@ -88,14 +88,14 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             "\n".join(
                 [
                     "发表一般文章、专著奖励标准准",
-                    "备注：学校官方微信即中央民族大学微信公众号",
+                    "备注：学校官方微信即示例大学微信公众号",
                 ]
             )
         )
 
         self.assertEqual(
             normalized,
-            "发表一般文章、专著奖励标准\n备注:学校官方微信即中央民族大学微信公众号",
+            "发表一般文章、专著奖励标准\n备注:学校官方微信即示例大学微信公众号",
         )
         self.assertNotIn("准备注:", normalized)
 
@@ -107,14 +107,14 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 [
                     "2. 发表一般文章奖励。学年内在各级媒体发表一般文章(非学术论文)、出版专著(非学术专著)的,按以下标准给予奖励;",
                     "发表一般文章、专著奖励标准准",
-                    "备注：学校官方微信即中央民族大学微信公众号",
+                    "备注：学校官方微信即示例大学微信公众号",
                     "(1)同一作品同时在多个媒体平台发表,按最高项加分;",
                 ]
             )
         )
 
         self.assertIn("发表一般文章、专著奖励标准", normalized)
-        self.assertIn("备注:学校官方微信即中央民族大学微信公众号", normalized)
+        self.assertIn("备注:学校官方微信即示例大学微信公众号", normalized)
         self.assertNotIn("发表一般文章、专著奖励标准准", normalized)
         self.assertNotIn("准备注:", normalized)
 
@@ -136,7 +136,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     96,
                     "heading",
-                    "中央民族大学学生管理规定",
+                    "示例大学学生管理规定",
                     block_role="title",
                     title_candidate_score=0.98,
                     classification_confidence=0.98,
@@ -151,7 +151,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "第六条 按国家招生规定录取的新生,须持录取通知书办理入学手续。",
                 ),
             ],
-            manifest_document=_manifest_document(96, 96, title="中央民族大学学生管理规定"),
+            manifest_document=_manifest_document(96, 96, title="示例大学学生管理规定"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -286,7 +286,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
     ) -> None:
         normalized = normalize_handbook_body_text(
             "为认真贯彻中央《关于进一步加强和改进大学生思想政治教育的意见》(中发〔2004〕16号文件),"
-            "深入落实《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
+            "深入落实《示例大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
             "(民大党发〔2009〕41号的精神,引导学生共同进步。"
         )
 
@@ -537,7 +537,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     30,
                     "heading",
-                    "中央民族大学本科学分制实施办法",
+                    "示例大学本科学分制实施办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -569,8 +569,8 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 30,
                 30,
-                title="中央民族大学本科学分制实施办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学分制实施办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -586,7 +586,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     18,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -594,15 +594,15 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     18,
                     "paragraph",
-                    "1. 成绩认定采用对应原则,百分制成绩、成绩等级及学分绩点的对应关系根据《中央民族大学本科学生学籍管理规定》(民大校发",
+                    "1. 成绩认定采用对应原则,百分制成绩、成绩等级及学分绩点的对应关系根据《示例大学本科学生学籍管理规定》(民大校发",
                 ),
                 _source_row(18, "paragraph", "[2009]89号)规定执行。"),
             ],
             manifest_document=_manifest_document(
                 18,
                 18,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -618,7 +618,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     184,
                     "heading",
-                    "中央民族大学十佳大学生评选办法",
+                    "示例大学十佳大学生评选办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -628,15 +628,15 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     184,
                     "paragraph",
                     "第一条 为认真贯彻中央《关于进一步加强和改进大学生思想政治教育的意见》(中发〔2004〕16号文件),"
-                    "深入落实《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
+                    "深入落实《示例大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
                     "(民大党发〔2009〕41号的精神,引导学生德、智、体全面发展,特制定本办法。",
                 ),
             ],
             manifest_document=_manifest_document(
                 184,
                 184,
-                title="中央民族大学十佳大学生评选办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学十佳大学生评选办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -652,7 +652,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 _source_row(
                     30,
                     "heading",
-                    "中央民族大学本科学生专业奖学金评定办法",
+                    "示例大学本科学生专业奖学金评定办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -665,8 +665,8 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 30,
                 30,
-                title="中央民族大学本科学生专业奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学本科学生专业奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )

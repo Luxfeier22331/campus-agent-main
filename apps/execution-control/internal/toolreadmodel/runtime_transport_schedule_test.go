@@ -697,8 +697,8 @@ func TestLookupTransportScheduleMergesDuplicateServiceExceptionRefs(t *testing.T
 		t.Fatalf("service_status = %q, want temporarily_suspended", result.ServiceStatus)
 	}
 	if len(result.RelatedNoticeRefs) != 2 ||
-		result.RelatedNoticeRefs[0] != "notice:muc_internal_portal:metro-suspended-a" ||
-		result.RelatedNoticeRefs[1] != "notice:muc_internal_portal:metro-suspended-b" {
+		result.RelatedNoticeRefs[0] != "notice:example_internal_portal:metro-suspended-a" ||
+		result.RelatedNoticeRefs[1] != "notice:example_internal_portal:metro-suspended-b" {
 		t.Fatalf("related_notice_refs = %#v", result.RelatedNoticeRefs)
 	}
 }
@@ -736,7 +736,7 @@ func TestLookupTransportScheduleIncludesOperationalNoticeForRoute(t *testing.T) 
 		t.Fatalf("operational_comment = %q", notice.OperationalComment)
 	}
 	if len(result.RelatedNoticeRefs) != 1 ||
-		result.RelatedNoticeRefs[0] != "notice:muc_internal_portal:353903" {
+		result.RelatedNoticeRefs[0] != "notice:example_internal_portal:353903" {
 		t.Fatalf("related_notice_refs = %#v", result.RelatedNoticeRefs)
 	}
 }

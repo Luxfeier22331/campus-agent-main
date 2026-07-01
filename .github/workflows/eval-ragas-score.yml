@@ -57,6 +57,7 @@ permissions:
 jobs:
   eval-ragas-score:
     runs-on: ubuntu-latest
+    environment: eval-internal
     env:
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}

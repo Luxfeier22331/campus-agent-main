@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: python-boundaries
 status: active
 created: 2026-04-26
-updated: 2026-06-14
+updated: 2026-06-30
 ---
 # Python Boundary
 
@@ -62,6 +62,10 @@ LlamaIndex 不是架构层，也不得进入 contracts、execution-control、pan
 truth。长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter +
 sanitized query activity projection。
 
+当前 active workspace 中，`packages/ingestion-core` 不再通过 LlamaIndex 表达 embedding
+model、mock embedding 或 chunk node payload。ingestion chunk / embedding seam 使用
+repo-owned protocol / DTO；后续不得为了便利重新引入 LlamaIndex runtime coupling。
+
 当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与 profile-gated rerank
 interface；未发现线上 cross-encoder、torch、ONNX 或 sentence-transformers rerank 作为 current
 serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 CPU hotspot 为前提。
@@ -77,6 +81,32 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 ## Data-Plane Boundary
 
 `packages/ingestion-core` 继续拥有 ingestion / projection / materialization data plane。
+
+Python data-plane code no longer owns default relational database
+connectivity. It may keep pure URL validation / normalization helpers and
+SQL-shape unit tests, but active Postgres connection ownership belongs to the
+TS/Go database owner surfaces. Python registry / projection connection
+entrypoints must fail closed unless they are rebuilt as an explicitly admitted
+adapter boundary.
+
+Python data-plane code is also being removed from default provider and tokenizer
+runtime ownership. Qwen3 chunk budgeting now uses the local `tokenizer.json`
+through Hugging Face `tokenizers`; it must not import `transformers` or perform
+runtime network download. Online OCR / MinerU adapter calls use the existing
+`httpx` dependency and remain adapter-island behavior, not a general provider
+runtime.
+
+Python Qdrant and S3-compatible object-store clients remain temporary data-plane
+migration residues where active ingestion tests still cover legacy index /
+artifact operations. They are not target ownership. New collection lifecycle,
+Qdrant alias publish, index mutation, object-store runtime client creation and
+audit closeout must move to admitted TS/Go owners or an explicit Python adapter
+boundary before those Python dependencies can be removed.
+
+PDF page counting / splitting may use a permissive lightweight parser for
+local file kernel work. PDF page rendering probes are retired from the default
+workspace; future rendering must be admitted as an explicit adapter runtime
+instead of reintroducing a default native rendering dependency.
 
 内部拆分规则：
 

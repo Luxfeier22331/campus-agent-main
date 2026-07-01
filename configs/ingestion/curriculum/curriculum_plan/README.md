@@ -4,15 +4,16 @@ This directory holds the repo-tracked config scaffolding for the
 `curriculum_plan` collection within the `curriculum` corpus.
 
 - `runtime-profile.json`: canonical runtime truth for ingestion/query gating
-- `split-manifest.v1.json`: static page-range truth for splitting one master PDF
-  into logical documents
-- `split-manifest.candidate.v1.json`: review companion manifest generated from
-  the same reviewed source
+- `split-manifest.v1.json`: public repo synthetic page-range truth for
+  splitting a master PDF into logical documents
+- `split-manifest.candidate.v1.json`: review companion manifest with the same
+  synthetic document inventory
 - `split-manifest.candidate.gaps.json`: audit summary for unmatched or retired
   legacy canonical documents
 - `chunk-profile.json`: chunking/runtime profile record for this collection
 - `retrieval-profile.json`: retrieval/runtime profile record for this collection
-- `samples/`: real document-level sample outputs for chunking and manual review
+- `samples/`: synthetic document-level sample outputs for chunking and manual
+  review
 
 Current runtime truth:
 
@@ -52,8 +53,9 @@ or Rust kernel bridge and the matching registry entry in the same change.
 
 Notes:
 
-- `split-manifest.v1.json` is the formal repo-tracked split truth for the
-  reviewed `asset:curriculum-plan-2022` source.
+- `split-manifest.v1.json` is the repo-tracked synthetic split truth for the
+  public repository. Real curriculum source truth and reviewed split manifests
+  live in the private data/artifact boundary.
 - Current `source-truth/layout-elements.jsonl` rows use
   `schema_version=curriculum_layout_elements_v3`.
 - `curriculum_layout_elements_v3` keeps curriculum-specific attachment /
@@ -86,11 +88,8 @@ Notes:
   metadata only. Curriculum document `source_uri` is derived during ingestion
   from `raw_asset_id + raw_version_id + page_start/page_end`.
 - `split-manifest.candidate.v1.json` remains as a review companion artifact and
-  should keep the same document inventory as the formal manifest.
-- `split-manifest.candidate.gaps.json` retains the machine-readable audit
-  summary for unmatched / retired legacy canonical documents. Human triage notes
-  for the old umbrella-title gap have been removed from branch tip; the stable
-  retained conclusion is that `各类课程教学计划` is a retired synthetic umbrella
-  label and must not re-enter the formal split manifest.
+  should keep the same synthetic document inventory as the formal manifest.
+- `split-manifest.candidate.gaps.json` retains the machine-readable public repo
+  audit summary for unmatched / retired legacy canonical documents.
 - `samples/index.json` is inspection-only metadata; it should point to the moved
   `configs/ingestion/curriculum/curriculum_plan/samples/...` paths.

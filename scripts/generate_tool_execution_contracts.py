@@ -101,6 +101,7 @@ def _contract_meta(contract: dict[str, Any]) -> dict[str, str]:
 def _generate_ts(contract: dict[str, Any]) -> str:
     meta = _contract_meta(contract)
     tool_ids = _enum(contract, "ToolID")
+    model_visible_tool_names = _enum(contract, "ModelVisibleToolName")
     requested_tools = _enum(contract, "RequestedTool")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
@@ -118,6 +119,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         f"\tworkflowTraceSummaryVersion: {_ts_quote(meta['workflow_trace_summary_version'])},\n"
         "} as const;\n\n"
         + _ts_const_array("TOOL_IDS", tool_ids)
+        + _ts_const_array("MODEL_VISIBLE_TOOL_NAMES", model_visible_tool_names)
         + _ts_const_array("REQUESTED_TOOLS", requested_tools)
         + _ts_const_array("CONFIDENCE_LEVELS", confidence_levels)
         + _ts_const_array("DELEGATE_STATUSES", delegate_statuses)
@@ -126,6 +128,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         + _ts_const_array("STEP_OUTPUT_PROJECTION_KINDS", projection_kinds)
         + "\n"
         "export type ToolID = (typeof TOOL_IDS)[number];\n"
+        "export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];\n"
         "export type RequestedTool = (typeof REQUESTED_TOOLS)[number];\n"
         "export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];\n"
         "export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];\n"
@@ -295,7 +298,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tcontext?: SafeRecord;\n"
         "\tworkflow_context?: WorkflowToolContextWire;\n"
         "\tpayload: { kind: string; payload: SafeRecord };\n"
-        "\tallowed_tools: string[];\n"
+        "\tallowed_tools: ModelVisibleToolName[];\n"
         "}\n\n"
         "export interface ToolExecutionWorkflowTraceSummaryWire {\n"
         "\trouting_frame: SafeRecord;\n"
@@ -337,6 +340,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
 def _generate_go(contract: dict[str, Any]) -> str:
     meta = _contract_meta(contract)
     tool_ids = _enum(contract, "ToolID")
+    model_visible_tool_names = _enum(contract, "ModelVisibleToolName")
     requested_tools = _enum(contract, "RequestedTool")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
@@ -362,6 +366,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         f"\tWorkflowTraceSummaryVersion = {_go_quote(meta['workflow_trace_summary_version'])}\n"
         ")\n\n"
         + _go_string_type("ToolID", tool_ids)
+        + _go_string_type("ModelVisibleToolName", model_visible_tool_names)
         + _go_string_type("RequestedTool", requested_tools)
         + _go_string_type("ConfidenceLevel", confidence_levels)
         + _go_string_type("DelegateStatus", delegate_statuses)
@@ -527,7 +532,7 @@ type ToolRequestWire struct {
 \tContext map[string]any `json:"context,omitempty"`
 \tWorkflowContext *WorkflowToolContextWire `json:"workflow_context,omitempty"`
 \tPayload map[string]any `json:"payload"`
-\tAllowedTools []string `json:"allowed_tools"`
+\tAllowedTools []ModelVisibleToolName `json:"allowed_tools"`
 }
 
 type WorkflowTraceSummaryWire struct {

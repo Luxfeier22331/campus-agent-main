@@ -45,7 +45,7 @@ def _json_bytes(payload: object) -> bytes:
 class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
     def test_notice_import_plan_loads_bundle_and_manifest_from_object_refs(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -66,7 +66,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 source_bucket=bucket,
                 bundle_object_key=bundle_key,
                 manifest_object_key=manifest_key,
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/home",
                 mode="plan",
             ),
@@ -78,17 +78,17 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_plan_loads_bundle_and_manifest_from_capture_release_ref(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = (
-            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "authenticated_notice_portal/runs/example_internal_portal/"
             "20260404T012345Z/notices-bundle.json"
         )
         manifest_key = (
-            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "authenticated_notice_portal/runs/example_internal_portal/"
             "20260404T012345Z/export-manifest.json"
         )
         release_key = (
-            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "authenticated_notice_portal/runs/example_internal_portal/"
             "20260404T012345Z/capture-release.json"
         )
         bundle_bytes = _json_bytes(_sample_notice_bundle())
@@ -113,8 +113,8 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     "schema_version": "authenticated_notice_capture_release.v1",
                     "source_channel": "authenticated_notice_portal",
                     "source_surface": "notice",
-                    "site_id": "muc_internal_portal",
-                    "capture_id": "capture:muc_internal_portal:notice:20260404T012345Z",
+                    "site_id": "example_internal_portal",
+                    "capture_id": "capture:example_internal_portal:notice:20260404T012345Z",
                     "exported_at": "2026-04-04T01:23:45.000Z",
                     "bundle_ref": {
                         "bucket": bucket,
@@ -137,7 +137,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
             request=AuthenticatedNoticeImportRequest(
                 source_bucket=bucket,
                 capture_release_object_key=release_key,
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/home",
                 mode="plan",
             ),
@@ -149,7 +149,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_rejects_missing_bundle_object_with_reason_code(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -165,7 +165,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     source_bucket=bucket,
                     bundle_object_key=bundle_key,
                     manifest_object_key=manifest_key,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="plan",
                 ),
@@ -174,7 +174,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_rejects_missing_manifest_object_with_reason_code(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -190,7 +190,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     source_bucket=bucket,
                     bundle_object_key=bundle_key,
                     manifest_object_key=manifest_key,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="plan",
                 ),
@@ -199,7 +199,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_rejects_bundle_checksum_mismatch_with_reason_code(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -222,7 +222,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     bundle_object_key=bundle_key,
                     manifest_object_key=manifest_key,
                     bundle_content_sha256="0" * 64,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="plan",
                 ),
@@ -231,7 +231,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_rejects_manifest_size_mismatch_with_reason_code(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         manifest_bytes = _json_bytes(_sample_export_manifest())
@@ -255,7 +255,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     bundle_object_key=bundle_key,
                     manifest_object_key=manifest_key,
                     manifest_byte_size=len(manifest_bytes) + 1,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="plan",
                 ),
@@ -264,7 +264,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_missing_bundle_object_leaves_injected_stores_unwritten(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -286,7 +286,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     source_bucket=bucket,
                     bundle_object_key=bundle_key,
                     manifest_object_key=manifest_key,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="admit_and_materialize",
                 ),
@@ -322,7 +322,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
 
     def test_notice_import_plan_does_not_write_injected_stores(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/exports/run-1/notices-bundle.json"
         manifest_key = "authenticated_notice/exports/run-1/export-manifest.json"
         object_store.put_bytes(
@@ -349,7 +349,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 source_bucket=bucket,
                 bundle_object_key=bundle_key,
                 manifest_object_key=manifest_key,
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/home",
                 mode="plan",
             ),
@@ -396,21 +396,21 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                 )
 
     def test_notice_request_rejects_run_id_as_active_input(self) -> None:
         with self.assertRaisesRegex(ValueError, "capture release object refs"):
             AuthenticatedNoticeImportRequest(
-                run_id="muc_internal_portal:notice:20260404T012345Z",
-                site_id="muc_internal_portal",
+                run_id="example_internal_portal:notice:20260404T012345Z",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/home",
             )
 
     def test_file_release_import_plan_loads_bundle_and_manifest_from_object_refs(self) -> None:
         object_store = _FakeObjectStore()
-        bucket = "campus-rag-source"
+        bucket = "campus-agent-source"
         bundle_key = "authenticated_notice/file_release_exports/run-1/bundle.json"
         manifest_key = "authenticated_notice/file_release_exports/run-1/manifest.json"
         manifest = _export_manifest()
@@ -422,7 +422,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 [
                     _bundle_record(
                         file_release_id=646,
-                        filename="中央民族大学差旅费管理办法.pdf",
+                        filename="示例大学差旅费管理办法.pdf",
                     )
                 ]
             ),
@@ -440,7 +440,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 source_bucket=bucket,
                 bundle_object_key=bundle_key,
                 manifest_object_key=manifest_key,
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/",
                 mode="plan",
             ),
@@ -460,7 +460,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 [
                     _bundle_record(
                         file_release_id=646,
-                        filename="中央民族大学差旅费管理办法.pdf",
+                        filename="示例大学差旅费管理办法.pdf",
                     )
                 ],
             )
@@ -470,7 +470,7 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                 )
 

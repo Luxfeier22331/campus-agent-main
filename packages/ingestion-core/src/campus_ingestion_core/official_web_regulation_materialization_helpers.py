@@ -5,7 +5,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-from campus_ingestion_core.campusrag_ingestion_support import ObjectStoreWriter
+from campus_ingestion_core.campus_agent_ingestion_support import ObjectStoreWriter
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.registry import DocumentRegistry
 

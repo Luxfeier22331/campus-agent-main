@@ -34,7 +34,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                             "（2）在体育竞赛中取得显著成绩。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -76,7 +76,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                             "（二）学习成绩排名超出前10%,但位于前30%,且在学术研究上取得显著成绩。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -132,7 +132,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                             "（二）学习成绩排名超出前10%,但位于前30%,且在学术研究上取得显著成绩,在体育竞赛中取得显著成绩。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -199,7 +199,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学本科学生综合奖励评审办法"},
+                    metadata={"title": "示例大学本科学生综合奖励评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -277,7 +277,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "page_end": 1,
                     },
                     metadata={
-                        "title": "中央民族大学信息系统管理办法",
+                        "title": "示例大学信息系统管理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -385,7 +385,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                             "（二）学习成绩排名位于前10%。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -443,7 +443,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学本科学生综合奖励评审办法"},
+                    metadata={"title": "示例大学本科学生综合奖励评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -505,7 +505,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生管理规定"},
+                    metadata={"title": "示例大学学生管理规定"},
                 ),
                 ensure_ascii=False,
             )
@@ -560,7 +560,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生管理规定"},
+                    metadata={"title": "示例大学学生管理规定"},
                 ),
                 ensure_ascii=False,
             )
@@ -607,7 +607,7 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                         "table_context": "专业奖学金等级和金额",
                     },
                     metadata={
-                        "title": "中央民族大学本科学生专业奖学金评定办法",
+                        "title": "示例大学本科学生专业奖学金评定办法",
                         "caption_lines": ["专业奖学金等级和金额"],
                         "table_header_line": "奖学金等级 | 奖励金额 | 名额",
                         "table_row_lines": ["一等奖 | 3000元 | 10人", "二等奖 | 1500元 | 20人"],

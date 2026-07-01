@@ -4,8 +4,8 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-DEFAULT_BUCKET_SOURCE = "campus-rag-source"
-DEFAULT_BUCKET_DERIVED = "campus-rag-derived"
+DEFAULT_BUCKET_SOURCE = "campus-agent-source"
+DEFAULT_BUCKET_DERIVED = "campus-agent-derived"
 
 
 def resolve_object_store_bucket_names(env: dict[str, str] | None = None) -> tuple[str, str]:

@@ -10,7 +10,7 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     32,
                     "heading",
-                    "中央民族大学本科学分制实施办法",
+                    "示例大学本科学分制实施办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -49,8 +49,8 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 32,
                 33,
-                title="中央民族大学本科学分制实施办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学分制实施办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -90,17 +90,17 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     162,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(162, "paragraph", "民大校发[2016]201号"),
                 _source_row(162, "paragraph", "附件1:"),
-                _source_row(162, "paragraph", "1:《中央民族大学本(预)科生基本情况周查月报表》"),
+                _source_row(162, "paragraph", "1:《示例大学本(预)科生基本情况周查月报表》"),
                 _source_row(
                     162,
                     "paragraph",
-                    "学生手册中央民族大学本(预)科生基本情况周查月报表报送时间:年 月 日",
+                    "学生手册示例大学本(预)科生基本情况周查月报表报送时间:年 月 日",
                 ),
                 _source_row(
                     162,
@@ -114,8 +114,8 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 162,
                 162,
-                title="中央民族大学学院(系)学生基本情况周查月报制度",
-                handbook_section="中央民族大学学生管理制度",
+                title="示例大学学院(系)学生基本情况周查月报制度",
+                handbook_section="示例大学学生管理制度",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -132,7 +132,7 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     160,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -149,8 +149,8 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 160,
                 160,
-                title="中央民族大学学院(系)学生基本情况周查月报制度",
-                handbook_section="中央民族大学学生日常管理规定",
+                title="示例大学学院(系)学生基本情况周查月报制度",
+                handbook_section="示例大学学生日常管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -175,14 +175,14 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     162,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(162, "paragraph", "民大校发[2016]201号"),
                 _source_row(162, "paragraph", "四、相关说明"),
                 _source_row(162, "paragraph", "附件1:"),
-                _source_row(162, "paragraph", "1:《中央民族大学本(预)科生基本情况周查月报表》"),
+                _source_row(162, "paragraph", "1:《示例大学本(预)科生基本情况周查月报表》"),
                 _source_row(
                     162,
                     "table",
@@ -195,23 +195,21 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 162,
                 162,
-                title="中央民族大学学院(系)学生基本情况周查月报制度",
-                handbook_section="中央民族大学学生管理制度",
+                title="示例大学学院(系)学生基本情况周查月报制度",
+                handbook_section="示例大学学生管理制度",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
         self.assertIn(
-            "## 附件1：中央民族大学本（预）科生基本情况周查月报表",
+            "## 附件1：示例大学本（预）科生基本情况周查月报表",
             result.canonical_markdown,
         )
-        self.assertNotIn(
-            "## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown
-        )
+        self.assertNotIn("## 1:《示例大学本(预)科生基本情况周查月报表》", result.canonical_markdown)
         table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
             table_unit["anchor"]["section_path"],
-            ["四、相关说明", "附件1:中央民族大学本(预)科生基本情况周查月报表"],
+            ["四、相关说明", "附件1:示例大学本(预)科生基本情况周查月报表"],
         )
 
     def test_cleanup_deduplicates_weekly_report_inline_and_repeated_appendix_cover(
@@ -222,15 +220,15 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     161,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(161, "paragraph", "民大校发[2016]201号"),
                 _source_row(161, "paragraph", "四、相关说明"),
-                _source_row(161, "paragraph", "附件1:《中央民族大学本(预)科生基本情况周查月报表》"),
+                _source_row(161, "paragraph", "附件1:《示例大学本(预)科生基本情况周查月报表》"),
                 _source_row(162, "paragraph", "附表1:"),
-                _source_row(162, "heading", "中央民族大学本(预)科生基本情况周查月报表"),
+                _source_row(162, "heading", "示例大学本(预)科生基本情况周查月报表"),
                 _source_row(162, "paragraph", "学生手册"),
                 _source_row(
                     162,
@@ -244,27 +242,25 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 161,
                 162,
-                title="中央民族大学学院(系)学生基本情况周查月报制度",
-                handbook_section="中央民族大学学生管理制度",
+                title="示例大学学院(系)学生基本情况周查月报制度",
+                handbook_section="示例大学学生管理制度",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
         self.assertEqual(
-            result.canonical_markdown.count("## 附件1：中央民族大学本（预）科生基本情况周查月报表"),
+            result.canonical_markdown.count("## 附件1：示例大学本（预）科生基本情况周查月报表"),
             1,
         )
+        self.assertNotIn("## 1:《示例大学本(预)科生基本情况周查月报表》", result.canonical_markdown)
         self.assertNotIn(
-            "## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown
-        )
-        self.assertNotIn(
-            "## 附表1:中央民族大学本(预)科生基本情况周查月报表",
+            "## 附表1:示例大学本(预)科生基本情况周查月报表",
             result.canonical_markdown,
         )
         table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
             table_unit["anchor"]["section_path"],
-            ["四、相关说明", "附件1:中央民族大学本(预)科生基本情况周查月报表"],
+            ["四、相关说明", "附件1:示例大学本(预)科生基本情况周查月报表"],
         )
 
     def test_cleanup_binds_consecutive_appendix_form_titles_to_following_tables(
@@ -275,18 +271,18 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     213,
                     "heading",
-                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    "示例大学本科生家庭经济困难学生认定管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(213, "paragraph", "民大校发[2019]1号"),
                 _source_row(213, "paragraph", "第五章 附则"),
                 _source_row(213, "paragraph", "附表一:"),
-                _source_row(213, "paragraph", "《中央民族大学本科生家庭经济困难学生认定申请表》"),
+                _source_row(213, "paragraph", "《示例大学本科生家庭经济困难学生认定申请表》"),
                 _source_row(213, "paragraph", "附表二:"),
-                _source_row(213, "paragraph", "《中央民族大学本科学生及家庭情况调查表》"),
+                _source_row(213, "paragraph", "《示例大学本科学生及家庭情况调查表》"),
                 _source_row(213, "paragraph", "附表三:"),
-                _source_row(213, "paragraph", "《中央民族大学本科生家庭经济困难学生认定统计表》"),
+                _source_row(213, "paragraph", "《示例大学本科生家庭经济困难学生认定统计表》"),
                 _source_row(
                     214,
                     "table",
@@ -315,22 +311,18 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 213,
                 216,
-                title="中央民族大学本科生家庭经济困难学生认定管理办法",
-                handbook_section="中央民族大学学生资助管理规定",
+                title="示例大学本科生家庭经济困难学生认定管理办法",
+                handbook_section="示例大学学生资助管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
 
         canonical = result.canonical_markdown
-        first_heading_index = canonical.index(
-            "## 附表一：中央民族大学本科生家庭经济困难学生认定申请表"
-        )
+        first_heading_index = canonical.index("## 附表一：示例大学本科生家庭经济困难学生认定申请表")
         first_table_index = canonical.index("学生陈述申请认定理由")
-        second_heading_index = canonical.index("## 附表二：中央民族大学本科学生及家庭情况调查表")
+        second_heading_index = canonical.index("## 附表二：示例大学本科学生及家庭情况调查表")
         second_table_index = canonical.index("家庭成员情况")
-        third_heading_index = canonical.index(
-            "## 附表三：中央民族大学本科生家庭经济困难学生认定统计表"
-        )
+        third_heading_index = canonical.index("## 附表三：示例大学本科生家庭经济困难学生认定统计表")
         third_table_index = canonical.index("序号")
         self.assertLess(first_heading_index, first_table_index)
         self.assertLess(first_table_index, second_heading_index)
@@ -342,9 +334,9 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
         self.assertEqual(
             [row["anchor"]["section_path"][-1] for row in table_rows],
             [
-                "附表一:中央民族大学本科生家庭经济困难学生认定申请表",
-                "附表二:中央民族大学本科学生及家庭情况调查表",
-                "附表三:中央民族大学本科生家庭经济困难学生认定统计表",
+                "附表一:示例大学本科生家庭经济困难学生认定申请表",
+                "附表二:示例大学本科学生及家庭情况调查表",
+                "附表三:示例大学本科生家庭经济困难学生认定统计表",
             ],
         )
 
@@ -356,14 +348,14 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
                 _source_row(
                     162,
                     "heading",
-                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    "示例大学学院(系)学生基本情况周查月报制度",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
                 _source_row(162, "paragraph", "民大校发[2016]201号"),
                 _source_row(162, "paragraph", "四、相关说明"),
-                _source_row(162, "paragraph", "1:《中央民族大学本(预)科生基本情况周查月报表》"),
-                _source_row(162, "paragraph", "学生手册中央民族大学本(预)科生基本情况周查月报表"),
+                _source_row(162, "paragraph", "1:《示例大学本(预)科生基本情况周查月报表》"),
+                _source_row(162, "paragraph", "学生手册示例大学本(预)科生基本情况周查月报表"),
                 _source_row(
                     162,
                     "table",
@@ -376,8 +368,8 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
             manifest_document=_manifest_document(
                 162,
                 162,
-                title="中央民族大学学院(系)学生基本情况周查月报制度",
-                handbook_section="中央民族大学学生管理制度",
+                title="示例大学学院(系)学生基本情况周查月报制度",
+                handbook_section="示例大学学生管理制度",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -386,8 +378,6 @@ class HandbookCleanupFormAppendixTest(HandbookCleanupFormAndHeaderFilterBaseTest
         table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
             table_unit["anchor"]["section_path"],
-            ["四、相关说明", "1:《中央民族大学本(预)科生基本情况周查月报表》"],
+            ["四、相关说明", "1:《示例大学本(预)科生基本情况周查月报表》"],
         )
-        self.assertNotIn(
-            "学生手册中央民族大学本(预)科生基本情况周查月报表", result.canonical_markdown
-        )
+        self.assertNotIn("学生手册示例大学本(预)科生基本情况周查月报表", result.canonical_markdown)

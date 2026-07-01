@@ -12,7 +12,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     12,
                     "heading",
-                    "中央民族大学奖学金评定办法",
+                    "示例大学奖学金评定办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -29,8 +29,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 12,
                 12,
-                title="中央民族大学奖学金评定办法",
-                handbook_section="中央民族大学学生奖励管理规定",
+                title="示例大学奖学金评定办法",
+                handbook_section="示例大学学生奖励管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -49,7 +49,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     20,
                     "heading",
-                    "中央民族大学校内常用电话",
+                    "示例大学校内常用电话",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -72,7 +72,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(20, 20, title="中央民族大学校内常用电话"),
+            manifest_document=_manifest_document(20, 20, title="示例大学校内常用电话"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -91,7 +91,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     21,
                     "heading",
-                    "中央民族大学校内常用电话",
+                    "示例大学校内常用电话",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -106,7 +106,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(21, 21, title="中央民族大学校内常用电话"),
+            manifest_document=_manifest_document(21, 21, title="示例大学校内常用电话"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -122,7 +122,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科学生综合素质测评办法",
+                    "示例大学本科学生综合素质测评办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -138,9 +138,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科学生综合素质测评办法"
-            ),
+            manifest_document=_manifest_document(22, 22, title="示例大学本科学生综合素质测评办法"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -157,7 +155,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     22,
                     "heading",
-                    "中央民族大学本科学生综合素质测评办法",
+                    "示例大学本科学生综合素质测评办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -173,9 +171,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(
-                22, 22, title="中央民族大学本科学生综合素质测评办法"
-            ),
+            manifest_document=_manifest_document(22, 22, title="示例大学本科学生综合素质测评办法"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -189,7 +185,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     23,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -220,8 +216,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 23,
                 23,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -238,7 +234,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     24,
                     "heading",
-                    "中央民族大学本科学生学籍管理办法",
+                    "示例大学本科学生学籍管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -269,8 +265,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 24,
                 24,
-                title="中央民族大学本科学生学籍管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科学生学籍管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -285,7 +281,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     79,
                     "heading",
-                    "中央民族大学本科生境外留学管理办法",
+                    "示例大学本科生境外留学管理办法",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -332,8 +328,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 79,
                 80,
-                title="中央民族大学本科生境外留学管理办法",
-                handbook_section="中央民族大学学生教学管理规定",
+                title="示例大学本科生境外留学管理办法",
+                handbook_section="示例大学学生教学管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -354,7 +350,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     261,
                     "heading",
-                    "中央民族大学校内常用电话",
+                    "示例大学校内常用电话",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -378,8 +374,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 261,
                 261,
-                title="中央民族大学校内常用电话",
-                handbook_section="中央民族大学公寓及公费医疗管理规定",
+                title="示例大学校内常用电话",
+                handbook_section="示例大学公寓及公费医疗管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )
@@ -402,7 +398,7 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
                 _source_row(
                     261,
                     "heading",
-                    "中央民族大学校内常用电话",
+                    "示例大学校内常用电话",
                     block_role="title",
                     title_candidate_score=1.0,
                 ),
@@ -421,8 +417,8 @@ class HandbookCleanupTableStructureTest(unittest.TestCase):
             manifest_document=_manifest_document(
                 261,
                 261,
-                title="中央民族大学校内常用电话",
-                handbook_section="中央民族大学公寓及公费医疗管理规定",
+                title="示例大学校内常用电话",
+                handbook_section="示例大学公寓及公费医疗管理规定",
             ),
             source_doc="学生手册_2018.pdf",
         )

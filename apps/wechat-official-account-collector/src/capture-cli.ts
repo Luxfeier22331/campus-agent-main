@@ -146,7 +146,7 @@ export async function runCaptureCli(
 			provider: { baseUrl, email, password },
 			size,
 		});
-		const sourceBucket = env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-rag-source";
+		const sourceBucket = env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source";
 		const captureReleaseRef =
 			run && result.summary.sourceTruthArtifacts > 0
 				? await writeCaptureRelease({

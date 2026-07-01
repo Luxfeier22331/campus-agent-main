@@ -217,7 +217,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
             bundle_records=(
                 _bundle_record(
                     notice_id="procurement",
-                    title="中央民族大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
+                    title="示例大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
                 ),
                 _bundle_record(
                     notice_id="lecture",
@@ -227,7 +227,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
                 ),
                 _bundle_record(
                     notice_id="activity",
-                    title="关于举办中央民族大学第二十届心理文化节的通知",
+                    title="关于举办示例大学第二十届心理文化节的通知",
                     notice_type="32",
                     notice_type_name="学工通知",
                 ),
@@ -331,7 +331,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
     ) -> None:
         inventory = _inventory_entry(
             notice_id="199724",
-            notice_title="中央民族大学财务事项问答手册",
+            notice_title="示例大学财务事项问答手册",
         )
         inventory = replace(
             inventory,

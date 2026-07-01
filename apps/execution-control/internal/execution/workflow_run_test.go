@@ -44,9 +44,9 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 		},
 		ToolInvocations: []ToolInvocation{
 			{
-                    InvocationID:   "tool-invocation:knowledge_query:1",
-                    WorkflowRunRef: "run-001",
-                    StepID:         "tool:knowledge_query:rag_request",
+				InvocationID:   "tool-invocation:knowledge_query:1",
+				WorkflowRunRef: "run-001",
+				StepID:         "tool:knowledge_query:rag_request",
 				ToolTarget:     "knowledge_query",
 				Status:         "completed",
 				AllowedTools:   []string{"knowledge_query"},

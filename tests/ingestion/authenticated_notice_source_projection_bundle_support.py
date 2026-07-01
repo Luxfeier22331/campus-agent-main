@@ -278,7 +278,9 @@ def _sample_notice_bundle_with_decorative_gif(
     )
     gif_sha256 = hashlib.sha256(gif_bytes).hexdigest()
     gif_key = _attachment_object_key(gif_sha256, "spacer.gif")
-    decorative_url = "https://my.muc.edu.cn/static/index/UEditor/themes/default/images/spacer.gif"
+    decorative_url = (
+        "https://portal.example.edu/static/index/UEditor/themes/default/images/spacer.gif"
+    )
 
     notice = bundle[0]["notice"]
     assert isinstance(notice, dict)
@@ -313,7 +315,7 @@ def _sample_notice_bundle_with_decorative_gif(
     attachment["byte_size"] = len(gif_bytes)
     attachment["sha256"] = gif_sha256
     attachment["object_key"] = gif_key
-    attachment["origin_host"] = "my.muc.edu.cn"
+    attachment["origin_host"] = "portal.example.edu"
     return bundle
 
 

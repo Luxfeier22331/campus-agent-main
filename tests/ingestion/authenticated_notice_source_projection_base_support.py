@@ -55,9 +55,9 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-SOURCE_BUCKET = "campus-rag-source"
+SOURCE_BUCKET = "campus-agent-source"
 
-DERIVED_BUCKET = "campus-rag-derived"
+DERIVED_BUCKET = "campus-agent-derived"
 
 
 class _FakeObjectStore:
@@ -83,7 +83,7 @@ def _build_mineru_archive_bytes() -> bytes:
     content_items = [
         {
             "type": "text",
-            "text": "中央民族大学附件 OCR 标题",
+            "text": "示例大学附件 OCR 标题",
             "text_level": 1,
             "bbox": [10, 20, 300, 80],
             "page_idx": 0,
@@ -110,7 +110,7 @@ def _build_mineru_archive_bytes() -> bytes:
         archive.writestr("sample_content_list.json", json.dumps(content_items, ensure_ascii=False))
         archive.writestr(
             "full.md",
-            "# 中央民族大学附件 OCR 标题\n\n图片附件 OCR 正文 第一行\n\n| 字段 | 值 |\n| --- | --- |\n| 校区 | 丰台校区 |\n",
+            "# 示例大学附件 OCR 标题\n\n图片附件 OCR 正文 第一行\n\n| 字段 | 值 |\n| --- | --- |\n| 校区 | 丰台校区 |\n",
         )
     return buffer.getvalue()
 

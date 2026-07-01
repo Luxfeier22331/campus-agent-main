@@ -41,7 +41,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生申诉处理办法"},
+                    metadata={"title": "示例大学学生申诉处理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -123,7 +123,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学学生申诉处理办法"},
+                    metadata={"title": "示例大学学生申诉处理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -196,7 +196,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                             "2. 学院进行审核并公示。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生专业奖学金评定办法"},
+                    metadata={"title": "示例大学本科学生专业奖学金评定办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -267,7 +267,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "section_path": ["第二章 奖学金评定", "申请条件"],
                         "article_label": "第六条",
                     },
-                    metadata={"title": "中央民族大学本科学生专业奖学金评定办法"},
+                    metadata={"title": "示例大学本科学生专业奖学金评定办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -304,7 +304,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                             "2. 审核学生提交的结题材料。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科创新教育实施办法"},
+                    metadata={"title": "示例大学本科创新教育实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -357,7 +357,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                             "2. 对项目结题材料进行审核。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科创新教育实施办法"},
+                    metadata={"title": "示例大学本科创新教育实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -401,7 +401,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                             "2. 导师双向选择。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科创新教育实施办法"},
+                    metadata={"title": "示例大学本科创新教育实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -443,7 +443,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "article_label": "第八条",
                         "provision_label": "2.",
                     },
-                    metadata={"title": "中央民族大学本科创新教育实施办法"},
+                    metadata={"title": "示例大学本科创新教育实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -479,7 +479,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "(三)休学、保留学籍期满,逾期二周末提出复学申请或者二次休学后的复学申请经审查不合格的;"
                     ),
                     metadata={
-                        "title": "中央民族大学学生管理规定",
+                        "title": "示例大学学生管理规定",
                     },
                 ),
                 ensure_ascii=False,
@@ -520,7 +520,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                         "公告送达的公告期为10天。"
                     ),
                     metadata={
-                        "title": "中央民族大学学生听证实施办法",
+                        "title": "示例大学学生听证实施办法",
                     },
                 ),
                 ensure_ascii=False,
@@ -582,7 +582,7 @@ class HandbookChunkingPipelinePart03Test(unittest.TestCase):
                             "2. 学院进行审核并公示。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生专业奖学金评定办法"},
+                    metadata={"title": "示例大学本科学生专业奖学金评定办法"},
                 ),
                 ensure_ascii=False,
             )

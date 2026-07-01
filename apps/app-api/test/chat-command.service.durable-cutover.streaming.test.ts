@@ -57,7 +57,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const response = await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -123,7 +123,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -306,7 +306,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const response = await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -425,7 +425,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
@@ -598,7 +598,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				prompt: "示例大学本科学生国家奖学金评审办法",
 				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),

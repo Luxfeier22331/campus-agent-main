@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
-    from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+    from campus_ingestion_core.campus_agent_ingestion_support import S3ObjectStoreWriter
 
 
 def _assert_attachment_blob_root_precondition(

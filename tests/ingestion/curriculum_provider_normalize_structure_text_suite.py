@@ -84,7 +84,7 @@ class CurriculumProviderNormalizeStructureTextTest(CurriculumProviderNormalizeSt
                             "parsing_res_list": [
                                 {
                                     "block_label": "text",
-                                    "block_content": "中央民族大学教务处",
+                                    "block_content": "示例大学教务处",
                                     "block_id": 11,
                                     "block_order": 1,
                                     "block_bbox": [20, 920, 220, 950],
@@ -99,7 +99,7 @@ class CurriculumProviderNormalizeStructureTextTest(CurriculumProviderNormalizeSt
                             "parsing_res_list": [
                                 {
                                     "block_label": "text",
-                                    "block_content": "中央民族大学教务处",
+                                    "block_content": "示例大学教务处",
                                     "block_id": 21,
                                     "block_order": 1,
                                     "block_bbox": [20, 920, 220, 950],

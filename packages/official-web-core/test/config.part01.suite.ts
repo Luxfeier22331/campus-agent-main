@@ -56,10 +56,10 @@ export function registerOfficialWebConfigPart01() {
 
 		expect(config.site.siteId).toBe("muc_public");
 		expect(config.site.sourceChannel).toBe("official_web");
-		expect(config.site.allowedHosts).not.toContain("my.muc.edu.cn");
-		expect(config.site.allowedHosts).not.toContain("service.muc.edu.cn");
-		expect(config.hosts.hosts.filter((item) => item.enabled)).toHaveLength(34);
-		expect(config.seeds.seeds).toHaveLength(34);
+		expect(config.site.entryHost).toBe("www.example.edu");
+		expect(config.site.allowedHosts).toEqual(["www.example.edu"]);
+		expect(config.hosts.hosts.filter((item) => item.enabled)).toHaveLength(1);
+		expect(config.seeds.seeds).toHaveLength(1);
 		expect(config.projectionDeclarations.declarations.length).toBeGreaterThan(0);
 		expect(
 			config.projectionDeclarations.declarations.find(
@@ -68,13 +68,13 @@ export function registerOfficialWebConfigPart01() {
 		).toMatchObject({
 			action: "manual_review",
 		});
-		expect(config.qcPolicy.qcPolicyVersion).toBe("muc_public_qc_v1");
+		expect(config.qcPolicy.qcPolicyVersion).toBe("muc_public_synthetic_qc_v1");
 		expect(config.qcPolicy.allowedReviewIssueCodes).toContain(
 			"shell_family_requires_manual_review",
 		);
 		expect(config.qcPolicy.allowedReviewPageFamilies).toContain("dynamic_shell_page");
-		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
-		expect(config.targetSourceMap.mapVersion).toBe("muc_public_target_source_map_v2");
+		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_synthetic_scheduler_v1");
+		expect(config.targetSourceMap.mapVersion).toBe("muc_public_synthetic_target_source_map_v2");
 		expect(config.targetSourceMap.targets.map((target) => target.targetId)).toEqual([
 			"official-web-academic-calendar",
 			"official-web-stable-reference",
@@ -90,7 +90,7 @@ export function registerOfficialWebConfigPart01() {
 			retentionPolicy: "retain_source_truth",
 			reviewPolicy: "selected_write_requires_review",
 			selectedWriteTarget: "calendar/academic_calendar",
-			sourceHosts: ["www.muc.edu.cn"],
+			sourceHosts: ["www.example.edu"],
 		});
 		expect(config.targetSourceMap.targets[2]).toMatchObject({
 			consumerFamily: "regulation_candidate",
@@ -100,7 +100,7 @@ export function registerOfficialWebConfigPart01() {
 			retentionPolicy: "retain_source_truth",
 			reviewPolicy: "release_gate_required",
 			selectedWriteTarget: "regulations/institutional_rules",
-			sourceHosts: ["xxgk.muc.edu.cn", "met.muc.edu.cn"],
+			sourceHosts: ["www.example.edu"],
 		});
 		expect(config.targetSourceMap.targets[3]).toMatchObject({
 			consumerFamily: "student_regulation_candidate",
@@ -110,7 +110,7 @@ export function registerOfficialWebConfigPart01() {
 			retentionPolicy: "retain_source_truth",
 			reviewPolicy: "release_gate_required",
 			selectedWriteTarget: "regulations/student_rules",
-			sourceHosts: ["xxgk.muc.edu.cn"],
+			sourceHosts: ["www.example.edu"],
 		});
 		expect(config.targetSourceMap.targets[4]).toMatchObject({
 			consumerFamily: "notice_news_candidate",
@@ -120,31 +120,14 @@ export function registerOfficialWebConfigPart01() {
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
 		});
-		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v14");
+		expect(config.targetInventory.inventoryVersion).toBe(
+			"muc_public_synthetic_target_inventory_v1",
+		);
 		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
-			"muc-public-academic-calendar",
-			"muc-information-disclosure-regulation-reference",
-			"muc-it-email-policy-reference",
-			"muc-it-information-system-management-policy-reference",
-			"muc-it-network-security-policy-reference",
-			"muc-it-campus-network-account-policy-reference",
-			"muc-it-campus-card-policy-reference",
-			"muc-it-information-portal-policy-reference",
-			"muc-it-office-automation-policy-reference",
-			"muc-it-secondary-website-policy-reference",
-			"muc-it-campus-network-access-policy-reference",
-			"muc-academic-committee-charter",
-			"muc-staff-congress-procedure",
-			"muc-student-status-management-rule",
-			"muc-student-financial-aid-rule",
-			"muc-student-degree-rule",
-			"muc-student-reward-discipline-rule",
-			"muc-school-introduction-reference",
-			"muc-administrative-offices-reference",
-			"muc-teaching-research-units-reference",
-			"muc-library-reference",
-			"muc-museum-reference",
-			"muc-fee-disclosure-reference",
+			"synthetic-academic-calendar",
+			"synthetic-stable-reference",
+			"synthetic-institutional-rule",
+			"synthetic-student-rule",
 		]);
 		expect(config.targetInventory.entries.map((entry) => entry.consumerFamily)).not.toContain(
 			"service_guide_candidate",
@@ -153,111 +136,73 @@ export function registerOfficialWebConfigPart01() {
 			"contact_directory_candidate",
 		);
 		expect(config.sourcePackManifest.sourcePackId).toBe("tool-driven-first-slice.v1");
-		expect(config.sourcePackManifest.entries.length).toBeGreaterThan(0);
+		expect(config.sourcePackManifest.entries.map((entry) => entry.entryId)).toEqual([
+			"synthetic-academic-calendar",
+			"synthetic-stable-reference",
+			"synthetic-institutional-rule",
+			"synthetic-institutional-rules-column",
+			"synthetic-student-rules-column",
+		]);
 		expect(config.sourcePackManifest.entries[0]?.capturePolicy).toBe("one_time");
 		expect(
 			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-information-disclosure-regulation-reference",
+				(entry) => entry.inventoryId === "synthetic-institutional-rule",
 			),
 		).toMatchObject({
 			admissionTargetId: "official-web-institutional-rules",
 			consumerFamily: "regulation_candidate",
 			requiredEvidence: ["regulation_text"],
-			sourceHosts: ["xxgk.muc.edu.cn"],
-			sourceUrls: ["https://xxgk.muc.edu.cn/info/1005/1107.htm"],
+			sourceHosts: ["www.example.edu"],
+			sourceUrls: ["https://www.example.edu/rules/policy-a"],
 		});
 		expect(
 			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-student-status-management-rule",
+				(entry) => entry.inventoryId === "synthetic-student-rule",
 			),
 		).toMatchObject({
 			admissionTargetId: "official-web-student-rules",
 			consumerFamily: "student_regulation_candidate",
 			requiredEvidence: ["regulation_text"],
-			sourceHosts: ["xxgk.muc.edu.cn"],
-			sourceUrls: ["https://xxgk.muc.edu.cn/xsgz/jwgl.htm"],
+			sourceHosts: ["www.example.edu"],
+			sourceUrls: ["https://www.example.edu/students/rule-a"],
 		});
 		expect(
 			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-public-academic-calendar",
+				(entry) => entry.inventoryId === "synthetic-academic-calendar",
 			),
 		).toMatchObject({
 			admissionTargetId: "official-web-academic-calendar",
 			consumerFamily: "academic_calendar_candidate",
 			requiredEvidence: ["calendar_arrangement"],
-			sourceHosts: ["www.muc.edu.cn"],
-			sourceUrls: ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+			sourceHosts: ["www.example.edu"],
+			sourceUrls: ["https://www.example.edu/calendar"],
 		});
 		expect(
 			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-it-email-policy-reference",
+				(entry) => entry.inventoryId === "synthetic-stable-reference",
 			),
-		).toMatchObject({
-			admissionTargetId: "official-web-institutional-rules",
-			consumerFamily: "regulation_candidate",
-			requiredEvidence: ["regulation_text"],
-			sourceHosts: ["met.muc.edu.cn"],
-			sourceUrls: ["https://met.muc.edu.cn/info/1024/1090.htm"],
-		});
-		expect(
-			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-it-information-system-management-policy-reference",
-			),
-		).toMatchObject({
-			admissionTargetId: "official-web-institutional-rules",
-			consumerFamily: "regulation_candidate",
-			requiredEvidence: ["regulation_text"],
-			sourceUrls: ["https://met.muc.edu.cn/info/1024/1085.htm"],
-		});
-		expect(
-			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-it-network-security-policy-reference",
-			),
-		).toMatchObject({
-			admissionTargetId: "official-web-institutional-rules",
-			consumerFamily: "regulation_candidate",
-			requiredEvidence: ["regulation_text"],
-			sourceUrls: ["https://met.muc.edu.cn/info/1024/1188.htm"],
-		});
-		expect(
-			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-it-information-portal-policy-reference",
-			),
-		).toMatchObject({
-			admissionTargetId: "official-web-institutional-rules",
-			consumerFamily: "regulation_candidate",
-			requiredEvidence: ["regulation_text"],
-			sourceUrls: ["https://met.muc.edu.cn/info/1024/1088.htm"],
-		});
-		expect(
-			config.targetInventory.entries.find((entry) => entry.inventoryId === "muc-library-reference"),
 		).toMatchObject({
 			admissionTargetId: "official-web-stable-reference",
 			consumerFamily: "stable_reference_candidate",
 			requiredEvidence: ["stable_reference"],
-			sourceHosts: ["www.muc.edu.cn"],
-			sourceUrls: ["https://www.muc.edu.cn/ggfw/tsg.htm"],
+			sourceHosts: ["www.example.edu"],
+			sourceUrls: ["https://www.example.edu/about"],
 		});
-		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
+		expect(config.hosts.hosts.find((item) => item.host === "www.example.edu")).toMatchObject({
 			hostGroup: "university_core",
-			ownerLabel: "学校主页",
+			ownerLabel: "Synthetic campus homepage",
 			rolloutOrder: 10,
-		});
-		expect(config.hosts.hosts.find((item) => item.host === "law.muc.edu.cn")).toMatchObject({
-			hostGroup: "college",
-			ownerLabel: "法学院",
-			rolloutOrder: 140,
 		});
 		expect(plan.crawlRunId).toBe("muc_public-TEST");
 		expect(plan.runIntent).toBe("baseline");
-		expect(plan.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
-		expect(plan.enabledHosts).toHaveLength(34);
-		expect(plan.enabledHosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
+		expect(plan.schedulerPolicyVersion).toBe("muc_public_synthetic_scheduler_v1");
+		expect(plan.enabledHosts).toHaveLength(1);
+		expect(plan.enabledHosts.find((item) => item.host === "www.example.edu")).toMatchObject({
 			hostGroup: "university_core",
-			ownerLabel: "学校主页",
+			ownerLabel: "Synthetic campus homepage",
 			rolloutOrder: 10,
 		});
-		expect(plan.seeds).toHaveLength(34);
+		expect(plan.seeds).toHaveLength(1);
 		expect(plan.requiredArtifacts).toEqual([
 			"crawl-run.json",
 			"host-summary.json",
@@ -265,19 +210,19 @@ export function registerOfficialWebConfigPart01() {
 			"failures.jsonl",
 		]);
 		expect(schedulerPlan.siteId).toBe("muc_public");
-		expect(schedulerPlan.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
+		expect(schedulerPlan.schedulerPolicyVersion).toBe("muc_public_synthetic_scheduler_v1");
 		expect(schedulerPlan.timezone).toBe("Asia/Shanghai");
-		expect(schedulerPlan.lanes).toHaveLength(5);
+		expect(schedulerPlan.lanes).toHaveLength(3);
 		expect(schedulerPlan.lanes[0]).toMatchObject({
-			laneId: "consumer-candidate-hot",
+			laneId: "synthetic-hot",
 			runIntent: "hot",
-			schedulerRunKeyPattern: "muc_public:consumer-candidate-hot:{scheduled-at-iso}",
+			schedulerRunKeyPattern: "muc_public:synthetic-hot:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
 		expect(schedulerPlan.lanes[1]).toMatchObject({
-			laneId: "consumer-stable-baseline",
+			laneId: "synthetic-baseline",
 			runIntent: "baseline",
-			schedulerRunKeyPattern: "muc_public:consumer-stable-baseline:{scheduled-at-iso}",
+			schedulerRunKeyPattern: "muc_public:synthetic-baseline:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
 		expect(
@@ -294,11 +239,7 @@ export function registerOfficialWebConfigPart01() {
 
 		const baselineLanes = schedulerPlan.lanes.filter((lane) => lane.runIntent === "baseline");
 
-		expect(baselineLanes.map((lane) => lane.laneId)).toEqual([
-			"consumer-stable-baseline",
-			"college-single-host-baseline",
-			"topic-single-host-baseline",
-		]);
+		expect(baselineLanes.map((lane) => lane.laneId)).toEqual(["synthetic-baseline"]);
 		expect(new Set(schedulerPlan.lanes.map((lane) => lane.laneId)).size).toBe(
 			schedulerPlan.lanes.length,
 		);

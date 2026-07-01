@@ -40,7 +40,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
             AuthenticatedNoticeFileReleaseImportRequest(
                 bundle_path=Path("/tmp/file-releases-bundle.json"),
                 manifest_path=Path("/tmp/file-releases-manifest.json"),
-                site_id="muc_internal_portal",
+                site_id="example_internal_portal",
                 source_home_url="https://portal.example.edu/",
                 allow_local_fixture_import=True,
                 corpus="campus_notices",
@@ -55,7 +55,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256=source_sha256,
             ),
         )
@@ -94,7 +94,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                 request=AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -110,7 +110,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         self.assertEqual(report["file_release_count"], 1)
         self.assertEqual(
             report["created_document_ids"],
-            ["file-release:muc_internal_portal:646"],
+            ["file-release:example_internal_portal:646"],
         )
         raw_records = raw_asset_registry.list_by_scope(
             "authenticated_documents", "file_release_source"
@@ -132,7 +132,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
         )
         manifest = _export_manifest()
@@ -154,7 +154,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeFileReleaseImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -191,7 +191,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256="0" * 64,
             ),
         )
@@ -222,7 +222,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeFileReleaseImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -259,7 +259,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256=hashlib.sha256(source_bytes).hexdigest(),
             ),
         )
@@ -290,7 +290,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeFileReleaseImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -324,7 +324,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
         )
         manifest = _export_manifest()
@@ -341,7 +341,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                 request=AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     allow_local_fixture_import=True,
                     mode="plan",
@@ -356,7 +356,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
             ),
         )
         manifest = _export_manifest()
@@ -373,7 +373,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                 request=AuthenticatedNoticeFileReleaseImportRequest(
                     bundle_path=bundle_path,
                     manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/",
                     allow_local_fixture_import=True,
                     mode="plan",
@@ -390,7 +390,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 sha256=source_sha256,
             ),
         )
@@ -436,7 +436,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeFileReleaseImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -459,7 +459,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         bundle = (
             _bundle_record(
                 file_release_id=646,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 storage_provider="reference_only",
                 bucket=None,
                 object_key=None,
@@ -483,7 +483,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     request=AuthenticatedNoticeFileReleaseImportRequest(
                         bundle_path=bundle_path,
                         manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",

@@ -488,23 +488,23 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
 
         _purge_course_map_docs_surface_assets(
             object_store=store,
-            bucket="campus-rag-derived",
+            bucket="campus-agent-derived",
             surface_object_key=surface_key,
         )
 
         self.assertEqual(
             store.deleted_prefixes,
             [
-                ("campus-rag-derived", surface_key),
+                ("campus-agent-derived", surface_key),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     "curriculum/documents/curriculum_plan/example/current-effective/2022/docs-surfaces/course-maps/",
                 ),
             ],
         )
         self.assertNotIn(
             (
-                "campus-rag-derived",
+                "campus-agent-derived",
                 "curriculum/documents/curriculum_plan/example/current-effective/2022/reader-assets",
             ),
             store.deleted_prefixes,

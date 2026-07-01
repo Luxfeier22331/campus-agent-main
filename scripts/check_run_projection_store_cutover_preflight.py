@@ -96,13 +96,13 @@ RETIRED_STAGING_ENV_KEYS = [
 OBJECT_STORE_PROFILES = {
     "local_minio_isolated_proof": {
         "endpoint_hosts": {"127.0.0.1", "localhost"},
-        "bucket": "campus-rag-derived",
+        "bucket": "campus-agent-derived",
         "region": "us-east-1",
         "schemes": {"http"},
     },
     "r2_public_staging": {
         "endpoint_host_suffix": ".r2.cloudflarestorage.com",
-        "bucket": "campus-rag-derived-staging",
+        "bucket": "campus-agent-derived-staging",
         "region": "auto",
         "schemes": {"https"},
     },

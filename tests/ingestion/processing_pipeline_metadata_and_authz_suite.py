@@ -120,11 +120,15 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record,
-            structured_jsonl_bytes=structured_payload,
-            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-        )
+        with patch(
+            "campus_ingestion_core.chunking_tokenizers.count_tokens_with_local_tokenizer",
+            return_value=12,
+        ):
+            chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_payload,
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(

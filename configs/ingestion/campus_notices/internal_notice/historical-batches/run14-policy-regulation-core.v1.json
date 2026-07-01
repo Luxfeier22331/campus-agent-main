@@ -3,90 +3,34 @@
 	"corpus": "campus_notices",
 	"collection": "internal_notice",
 	"source_channel": "authenticated_notice_portal",
-	"batch_id": "run14-policy-regulation-core-v1",
+	"batch_id": "synthetic-policy-regulation-core-v1",
 	"selection_basis": {
 		"family": "policy_regulation",
-		"strategy": "manual_curated_subset_for_first_historical_intake",
-		"bundle_path": "/home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json",
-		"family_report_path": ".tmp/reports/run14-notice-family-report-tightened.json"
+		"strategy": "synthetic_public_repo_policy_regulation_replay_fixture",
+		"selection_notes": [
+			"keeps historical-batch schema coverage without publishing source-derived notice titles, ids, paths or body text"
+		]
 	},
-	"selected_notice_ids": [
-		"355282",
-		"351704",
-		"351699",
-		"351119",
-		"191705",
-		"191177",
-		"191176",
-		"187233",
-		"177880"
-	],
+	"selected_notice_ids": ["synthetic-policy-001", "synthetic-policy-002"],
 	"notices": [
 		{
-			"notice_id": "355282",
-			"notice_title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+			"notice_id": "synthetic-policy-001",
+			"notice_title": "关于发布《学生学籍管理办法》的通知",
 			"decision": "include",
-			"reason": "recent governance guidance with stable long-term institutional value"
+			"reason": "stable synthetic student-governance rule wrapper"
 		},
 		{
-			"notice_id": "351704",
-			"notice_title": "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+			"notice_id": "synthetic-policy-002",
+			"notice_title": "关于印发《实验室安全管理规定》的通知",
 			"decision": "include",
-			"reason": "recent stable institutional handbook; keep source-level duplicate for category variance"
-		},
-		{
-			"notice_id": "351699",
-			"notice_title": "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
-			"decision": "include",
-			"reason": "same stable handbook as sibling notice; preserve distinct notice identity in first-batch intake"
-		},
-		{
-			"notice_id": "351119",
-			"notice_title": "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
-			"decision": "include",
-			"reason": "recent management policy with clear long-term procedural value"
-		},
-		{
-			"notice_id": "191705",
-			"notice_title": "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
-			"decision": "include",
-			"reason": "stable campus operational policy rather than event, publicity, or roster content"
-		},
-		{
-			"notice_id": "191177",
-			"notice_title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
-			"decision": "include",
-			"reason": "clear safety management rule; keep source-level duplicate when the portal carried multiple category copies"
-		},
-		{
-			"notice_id": "191176",
-			"notice_title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
-			"decision": "include",
-			"reason": "same stable safety rule as sibling notice; preserve distinct notice identity in donor intake"
-		},
-		{
-			"notice_id": "187233",
-			"notice_title": "关于修订《中央民族大学采购工作管理办法》的通知",
-			"decision": "include",
-			"reason": "formal revised management policy with durable institutional scope"
-		},
-		{
-			"notice_id": "177880",
-			"notice_title": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
-			"decision": "include",
-			"reason": "formal management rule with direct governance value"
+			"reason": "stable synthetic safety-rule wrapper"
 		}
 	],
 	"excluded_examples": [
 		{
-			"notice_id": "354011",
-			"notice_title": "中央民族大学民族学与社会学学院2026年“英才计划”硕博连读研究生招生实施细则",
-			"reason": "phase-specific admission rule; defer after first governance baseline"
-		},
-		{
-			"notice_id": "187467",
-			"notice_title": "关于公开征求《中央民族大学关于推荐应届本科毕业生免试攻读硕士学位研究生管理办法(修订)》（征求意见稿）》意见的通知",
-			"reason": "draft consultation notice; not part of the first stable policy core batch"
+			"notice_id": "synthetic-policy-draft",
+			"notice_title": "关于公开征求《学生事务管理办法》意见的通知",
+			"reason": "draft consultation notice rather than finalized policy text"
 		}
 	]
 }

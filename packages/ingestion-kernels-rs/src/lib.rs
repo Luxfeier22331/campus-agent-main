@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::error::Error;
+use std::path::Path;
+use tokenizers::Tokenizer;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentUnitsValidationReport {
@@ -211,6 +214,15 @@ pub fn validate_release_manifest_json(input: &str) -> ReleaseManifestValidationR
     }
 }
 
+pub fn count_tokens_from_tokenizer_json(
+    tokenizer_json_path: impl AsRef<Path>,
+    text: &str,
+) -> Result<usize, Box<dyn Error + Send + Sync>> {
+    let tokenizer = Tokenizer::from_file(tokenizer_json_path)?;
+    let encoding = tokenizer.encode(text, false)?;
+    Ok(encoding.len())
+}
+
 fn merged_text_len_with(current_texts: &[String], next_text: &str) -> usize {
     let current_len: usize = current_texts.iter().map(|text| text.chars().count()).sum();
     let separators = current_texts.len();
@@ -234,8 +246,10 @@ fn push_chunk(
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_document_units_jsonl, validate_document_units_jsonl, validate_release_manifest_json,
+        chunk_document_units_jsonl, count_tokens_from_tokenizer_json, validate_document_units_jsonl,
+        validate_release_manifest_json,
     };
+    use std::fs;
 
     #[test]
     fn validates_document_units_jsonl_and_reports_missing_required_fields() {
@@ -291,5 +305,54 @@ mod tests {
         );
         assert_eq!(report.error_count, 1);
         assert_eq!(report.errors, vec!["missing required field: corpus"]);
+    }
+
+    #[test]
+    fn counts_tokens_with_local_tokenizer_json_without_special_tokens() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "campus-tokenizer-test-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let tokenizer_path = temp_dir.join("tokenizer.json");
+        fs::write(
+            &tokenizer_path,
+            r#"{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {"id": 2, "content": "[CLS]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true}
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {"type": "Whitespace"},
+  "post_processor": {
+    "type": "TemplateProcessing",
+    "single": [{"SpecialToken": {"id": "[CLS]", "type_id": 0}}, {"Sequence": {"id": "A", "type_id": 0}}],
+    "pair": [{"SpecialToken": {"id": "[CLS]", "type_id": 0}}, {"Sequence": {"id": "A", "type_id": 0}}, {"Sequence": {"id": "B", "type_id": 0}}],
+    "special_tokens": {"[CLS]": {"id": "[CLS]", "ids": [2], "tokens": ["[CLS]"]}}
+  },
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {"hello": 0, "world": 1, "[CLS]": 2, "[UNK]": 3},
+    "unk_token": "[UNK]"
+  }
+}"#,
+        )
+        .unwrap();
+
+        let count = count_tokens_from_tokenizer_json(&tokenizer_path, "hello world").unwrap();
+
+        assert_eq!(count, 2);
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn fails_closed_when_tokenizer_json_is_missing() {
+        let error = count_tokens_from_tokenizer_json("/missing/tokenizer.json", "hello")
+            .expect_err("missing tokenizer file should fail");
+
+        assert!(!error.to_string().is_empty());
     }
 }

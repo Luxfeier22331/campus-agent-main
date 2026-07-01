@@ -47,7 +47,7 @@ class InternalNoticeScheduleImageOcrTestPart03(unittest.TestCase):
         self.assertEqual(decision.document.document_units[0]["unit_type"], "table_unit")
         self.assertEqual(
             decision.document.document_id,
-            "notice_attachment:muc_internal_portal:355122:attachment-0001:schedule-ocr",
+            "notice_attachment:example_internal_portal:355122:attachment-0001:schedule-ocr",
         )
 
     def test_admission_accepts_recurring_weekday_schedule_table_without_date(
@@ -214,7 +214,7 @@ class InternalNoticeScheduleImageOcrTestPart03(unittest.TestCase):
         report = write_schedule_image_ocr_child_document_artifacts(
             document=decision.document,
             object_store=object_store,
-            derived_bucket="campus-rag-derived",
+            derived_bucket="campus-agent-derived",
             year="2026",
         )
         record = build_schedule_image_ocr_child_document_registry_record(

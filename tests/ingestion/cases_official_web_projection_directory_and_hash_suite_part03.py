@@ -62,7 +62,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                 raw_asset_id="owasset_directory_portal_001",
                 raw_version_id="owver_directory_portal_001",
                 normalized_canonical_url="https://www.example.edu/",
-                page_title="中央民族大学",
+                page_title="示例大学",
                 page_family="directory_page",
                 blocks=[
                     _block(
@@ -72,7 +72,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学",
+                        text="示例大学",
                     ),
                     _block(
                         raw_asset_id="owasset_directory_portal_001",
@@ -81,7 +81,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="heading",
-                        text="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                        text="示例大学与北京丰台人才集团共建就业实习实践基地",
                     ),
                     _block(
                         raw_asset_id="owasset_directory_portal_001",
@@ -91,7 +91,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                         block_order=2,
                         block_role="paragraph",
                         text="2026.03.27",
-                        parent_heading_path=["中央民族大学与北京丰台人才集团共建就业实习实践基地"],
+                        parent_heading_path=["示例大学与北京丰台人才集团共建就业实习实践基地"],
                     ),
                     _block(
                         raw_asset_id="owasset_directory_portal_001",
@@ -129,7 +129,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                         row_index=6,
                         block_order=6,
                         block_role="heading",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                     ),
                     _block(
                         raw_asset_id="owasset_directory_portal_001",
@@ -139,9 +139,7 @@ class OfficialWebProjectionDirectoryAndHashTestPart03(unittest.TestCase):
                         block_order=7,
                         block_role="paragraph",
                         text="2026.03.26",
-                        parent_heading_path=[
-                            "中央民族大学党委举办树立和践行正确政绩观学习教育读书班"
-                        ],
+                        parent_heading_path=["示例大学党委举办树立和践行正确政绩观学习教育读书班"],
                     ),
                 ],
             )

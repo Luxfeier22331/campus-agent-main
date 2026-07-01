@@ -16,7 +16,7 @@ describe("official-web artifact store", () => {
 			send: vi.fn().mockResolvedValue({}),
 		};
 		const store = new S3ArtifactStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client,
 		});
 		const data = new TextEncoder().encode('{"schemaVersion":"official_web_crawl_run.v1"}');
@@ -31,7 +31,7 @@ describe("official-web artifact store", () => {
 		expect(client.send).toHaveBeenCalledTimes(1);
 		const command = client.send.mock.calls[0]?.[0];
 		expect(command?.input).toMatchObject({
-			Bucket: "campus-rag-source",
+			Bucket: "campus-agent-source",
 			Key: "official_web/campus_public/runs/owrun_01JQTEST/crawl-run.json",
 			Body: data,
 			ContentType: "application/json",
@@ -51,7 +51,7 @@ describe("official-web artifact store", () => {
 			send: vi.fn().mockRejectedValue(error),
 		};
 		const store = new S3ArtifactStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client,
 		});
 		const data = new TextEncoder().encode(
@@ -91,7 +91,7 @@ describe("official-web artifact store", () => {
 				OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
 				OBJECT_STORE_SOURCE_SECRET_KEY: "source-sk",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			} as never),
 		).not.toThrow();
 	});

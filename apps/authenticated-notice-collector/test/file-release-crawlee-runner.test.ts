@@ -8,10 +8,10 @@ import {
 
 describe("authenticated notice file-release Crawlee runner", () => {
 	it("builds stable file-release Crawlee request identities", () => {
-		expect(buildFileReleaseTypesRequest({ siteId: "muc_internal_portal" })).toMatchObject({
+		expect(buildFileReleaseTypesRequest({ siteId: "example_internal_portal" })).toMatchObject({
 			label: "types",
 			method: "POST",
-			uniqueKey: "file_release_types:muc_internal_portal",
+			uniqueKey: "file_release_types:example_internal_portal",
 			url: "https://collector.local/authenticated-notice/file-release/types",
 			userData: { type: "types" },
 		});
@@ -19,12 +19,12 @@ describe("authenticated notice file-release Crawlee runner", () => {
 			buildFileReleasePageRequest({
 				currentPage: 2,
 				pageSize: 20,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 			}),
 		).toMatchObject({
 			label: "page",
 			method: "POST",
-			uniqueKey: "file_release_page:muc_internal_portal:2:20",
+			uniqueKey: "file_release_page:example_internal_portal:2:20",
 			url: "https://collector.local/authenticated-notice/file-release/page",
 			userData: {
 				currentPage: 2,
@@ -128,15 +128,15 @@ describe("authenticated notice file-release Crawlee runner", () => {
 			maxPages: 1,
 			pageSize: 20,
 			requestMaxRetries: 2,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			targetFileReleaseId: null,
 		});
 
 		expect(handledKeys).toEqual([
-			"file_release_types:muc_internal_portal",
-			"file_release_page:muc_internal_portal:1:20",
-			"file_release_detail:muc_internal_portal:646",
-			"file_release_download_url:muc_internal_portal:646",
+			"file_release_types:example_internal_portal",
+			"file_release_page:example_internal_portal:1:20",
+			"file_release_detail:example_internal_portal:646",
+			"file_release_download_url:example_internal_portal:646",
 		]);
 		expect(fetchFileReleaseTypes).toHaveBeenCalledTimes(1);
 		expect(fetchFileReleaseCodeTypes).toHaveBeenCalledTimes(1);

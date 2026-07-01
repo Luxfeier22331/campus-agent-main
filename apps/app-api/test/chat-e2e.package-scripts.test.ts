@@ -101,7 +101,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain('"--restart-executionClient-runtime"');
 		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"go_provider_synthesis_completed"');
-		expect(scriptSource).toContain("中央民族大学本科学生国家奖学金评审办法");
+		expect(scriptSource).toContain("示例大学本科学生国家奖学金评审办法");
 		expect(scriptSource).not.toContain("process.kill(process.pid, signal)");
 		expect(scriptSource).not.toContain("agents_sdk_notice_discover_e2e_smoke");
 		expect(scriptSource).not.toContain("notice_discover");

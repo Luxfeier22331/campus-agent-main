@@ -283,7 +283,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							rewritten_query: "思修课包括哪些课",
 						},
 						evidence: {
-							sources: [{ doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划" }],
+							sources: [{ doc_id: "curriculum:示例大学通识课程思想政治理论课教学计划" }],
 						},
 					},
 					selectedTool: "knowledge_query",

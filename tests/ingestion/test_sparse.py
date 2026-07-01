@@ -5,11 +5,12 @@ import unittest
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
+    SparseDocumentData,
     SparseEmbeddingSettings,
+    SparseVectorData,
     build_mock_sparse_embedding_model,
     build_sparse_embedding_model,
 )
-from qdrant_client.http import models as qdrant_models
 
 
 class SparseEmbeddingModelTest(unittest.TestCase):
@@ -39,20 +40,18 @@ class SparseEmbeddingModelTest(unittest.TestCase):
         document = model.build_document("学生奖学金评定办法")
         query = model.build_query("奖学金办法")
 
-        self.assertIsInstance(document, qdrant_models.Document)
+        self.assertIsInstance(document, SparseDocumentData)
         self.assertEqual(document.text, "学生奖学金评定办法")
         self.assertEqual(document.model, "qdrant/bm25")
-        self.assertIsInstance(document.options, qdrant_models.Bm25Config)
-        self.assertEqual(document.options.tokenizer, qdrant_models.TokenizerType.MULTILINGUAL)
-        self.assertEqual(document.options.language, "none")
-        self.assertTrue(document.options.lowercase)
-        self.assertFalse(document.options.ascii_folding)
-        self.assertIsInstance(query, qdrant_models.Document)
+        self.assertEqual(document.tokenizer, "multilingual")
+        self.assertEqual(document.language, "none")
+        self.assertTrue(document.lowercase)
+        self.assertFalse(document.ascii_folding)
+        self.assertIsInstance(query, SparseDocumentData)
         self.assertEqual(query.text, "奖学金办法")
         self.assertEqual(query.model, "qdrant/bm25")
-        self.assertIsInstance(query.options, qdrant_models.Bm25Config)
-        self.assertEqual(query.options.tokenizer, qdrant_models.TokenizerType.MULTILINGUAL)
-        self.assertEqual(query.options.language, "none")
+        self.assertEqual(query.tokenizer, "multilingual")
+        self.assertEqual(query.language, "none")
 
     def test_qdrant_sparse_model_returns_none_for_blank_query(self) -> None:
         model = build_sparse_embedding_model(SparseEmbeddingSettings())
@@ -65,10 +64,10 @@ class SparseEmbeddingModelTest(unittest.TestCase):
         document = model.build_document("学生奖学金评定办法")
         query = model.build_query("奖学金办法")
 
-        self.assertIsInstance(document, qdrant_models.SparseVector)
+        self.assertIsInstance(document, SparseVectorData)
         self.assertTrue(bool(document.indices))
         self.assertEqual(len(document.indices), len(document.values))
-        self.assertIsInstance(query, qdrant_models.SparseVector)
+        self.assertIsInstance(query, SparseVectorData)
         self.assertTrue(bool(query.indices))
         self.assertEqual(len(query.indices), len(query.values))
 

@@ -73,11 +73,11 @@ raw logs。
 {
   "snapshots": [
     {
-      "id": "authenticated_notice_portal:notice:muc_internal_portal:355867:run-001:job-001",
-      "noticeKey": "authenticated_notice_portal:notice:muc_internal_portal:355867",
+      "id": "authenticated_notice_portal:notice:example_internal_portal:355867:run-001:job-001",
+      "noticeKey": "authenticated_notice_portal:notice:example_internal_portal:355867",
       "sourceChannel": "authenticated_notice_portal",
       "sourceSurface": "notice",
-      "siteId": "muc_internal_portal",
+      "siteId": "example_internal_portal",
       "noticeId": "355867",
       "title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
       "runId": "run-001",
@@ -249,14 +249,14 @@ query filters：
 {
   "snapshots": [
     {
-      "id": "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
-      "runKey": "authenticated_notice_portal:notice:muc_internal_portal:20260428T181953007Z",
+      "id": "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
+      "runKey": "authenticated_notice_portal:notice:example_internal_portal:20260428T181953007Z",
       "sourceChannel": "authenticated_notice_portal",
       "sourceSurface": "notice",
-      "siteId": "muc_internal_portal",
+      "siteId": "example_internal_portal",
       "collectorRunToken": "20260428T181953007Z",
-      "runId": "muc_internal_portal:notice:20260428T181953007Z",
-      "replayBatchId": "authenticated-notice-smoke:muc_internal_portal:notice:20260428T181953007Z",
+      "runId": "example_internal_portal:notice:20260428T181953007Z",
+      "replayBatchId": "authenticated-notice-smoke:example_internal_portal:notice:20260428T181953007Z",
       "enqueueSource": "manual_replay",
       "lifecycleStatus": "succeeded",
       "latestStage": "succeeded",
@@ -351,7 +351,7 @@ query filters：
 ```json
 {
   "run": {
-    "id": "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
+    "id": "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
     "collectorRunToken": "20260428T181953007Z",
     "lifecycleStatus": "succeeded",
     "latestQueueStatus": "succeeded",

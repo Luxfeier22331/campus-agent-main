@@ -11,7 +11,7 @@ test.describe("account browser flow", () => {
 		await mockAuthApi(page, { signIn: "invalid" });
 		await page.goto("/account/login");
 
-		await page.getByLabel("邮箱").fill("wrong@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("wrong@example.edu");
 		await page.getByLabel("密码").fill("wrongpassword123");
 		await page.getByRole("button", { name: "登录校园问答" }).click();
 
@@ -24,7 +24,7 @@ test.describe("account browser flow", () => {
 		await mockAuthApi(page, { signIn: "success" });
 		await page.goto("/account/login?redirectTo=/map");
 
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByLabel("密码").fill("validpassword123");
 		await page.getByRole("button", { name: "登录校园问答" }).click();
 
@@ -40,7 +40,7 @@ test.describe("account browser flow", () => {
 		await page.goto("/account/register");
 
 		await page.getByLabel("姓名").fill("测试用户");
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
 		await page.getByRole("textbox", { name: "确认密码" }).fill("validpassword123");
 		await page.getByRole("button", { name: "创建账号" }).click();
@@ -49,7 +49,7 @@ test.describe("account browser flow", () => {
 
 		await page.goto("/account/register");
 		await page.getByLabel("姓名").fill("测试用户");
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
 		await page.getByRole("textbox", { name: "确认密码" }).fill("validpassword123");
 		await page.getByRole("switch", { name: "我已阅读并同意用户服务协议和隐私政策。" }).focus();
@@ -75,7 +75,7 @@ test.describe("account browser flow", () => {
 		await page.goto("/account/register");
 
 		await page.getByLabel("姓名").fill("测试用户");
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
 		await page.getByRole("textbox", { name: "确认密码" }).fill("validpassword123");
 		await page.getByRole("switch", { name: "我已阅读并同意用户服务协议和隐私政策。" }).focus();
@@ -91,7 +91,7 @@ test.describe("account browser flow", () => {
 		const authRequests = await mockAuthApi(page);
 		await page.goto("/account/forgot-password");
 
-		await page.getByLabel("邮箱").fill("student@muc.edu.cn");
+		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("button", { name: "发送重置链接" }).click();
 
 		await expect(page.getByText("密码重置邮件已发送")).toBeVisible();
@@ -101,7 +101,7 @@ test.describe("account browser flow", () => {
 					authRequests.find((request) => request.path === "/api/auth/request-password-reset")
 						?.postData,
 			)
-			.toMatchObject({ email: "student@muc.edu.cn" });
+			.toMatchObject({ email: "student@example.edu" });
 	});
 
 	test("sets a new password with the reset token", async ({ page }) => {

@@ -2,6 +2,7 @@
 name = "campus-navigation-tool"
 version = "0.1.0"
 description = "Navigation tool runtime for campus-agent v2."
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

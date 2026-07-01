@@ -72,7 +72,7 @@ export const SAMPLE_VISIBLE_CONTENT_DYNAMIC_PAGE_HTML = `
       </div>
       <div class="detail-shell">
         <div class="hq-p">
-          中央民族大学研究生教育始于上世纪五十年代，始终坚持厚基础、宽视野、重创新的人才培养理念，全面深化研究生教育综合改革。
+          示例大学研究生教育始于上世纪五十年代，始终坚持厚基础、宽视野、重创新的人才培养理念，全面深化研究生教育综合改革。
         </div>
         <div class="hq-p">
           学校围绕学科建设、队伍建设、人才培养和科学研究等目标制定专项计划，持续提升学生创新能力与国际化能力。
@@ -117,7 +117,7 @@ export const SAMPLE_VISIBLE_CONTENT_PANEL_PAGE_HTML = `
         <div class="notice-panel">
           <div class="panel-title">通知公告</div>
           <div class="notice-card">
-            <a href="/info/1063/6543.htm">中央民族大学体育学院2026年体育硕士招生调剂方案</a>
+            <a href="/info/1063/6543.htm">示例大学体育学院2026年体育硕士招生调剂方案</a>
             <div class="summary">根据上级和学校有关规定，体育学院拟接受 2026 年体育硕士专业学位调剂生。</div>
             <div class="publish-date">2026-03-30</div>
           </div>

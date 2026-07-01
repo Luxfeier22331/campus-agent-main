@@ -24,6 +24,13 @@
 - [ ] 改变了接口、数据结构或配置约定，并已更新 `docs/contracts/` 或 `docs/data/`
 - [ ] 改变了运维、发布或验证步骤，并已更新 `docs/runbooks/`
 
+## Public Source / Data Boundary
+
+- [ ] 未新增真实 secret、私有 URL、原始通知、source-derived documents 或内部日志
+- [ ] 新增 fixture 或示例均为合成、自有，或具备明确再分发权利
+- [ ] No internal publish/deploy workflow is exposed as a public PR automatic path
+- [ ] 改动 fixture、eval 数据、source config 或资产时，已检查公开 source/data 策略
+
 ## 验证记录
 
 ```bash

@@ -19,7 +19,7 @@ node --experimental-strip-types apps/official-web-collector/src/plan.ts \
 
 node --experimental-strip-types apps/official-web-collector/src/crawl.ts \
   --site-id muc_public --crawl-run-id manual-001 \
-  --host <www.muc.edu.cn> --max-pages-per-host 5
+  --host <www.example.edu> --max-pages-per-host 5
 
 node --experimental-strip-types apps/official-web-collector/src/validate.ts \
   --output-dir .tmp/official-web/muc_public/manual-001

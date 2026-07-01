@@ -10,35 +10,35 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         parent_1 = _record(
-            document_id="notice:muc_internal_portal:100001",
+            document_id="notice:example_internal_portal:100001",
             source_uri="https://portal.example.edu/notices/100001",
             canonical_key="campus_notices/documents/internal_notice/100001/canonical.md",
             units_key="campus_notices/documents/internal_notice/100001/document-units.jsonl",
             content_hash="sha256:parent-100001",
         )
         attachment_1 = _record(
-            document_id="notice_attachment:muc_internal_portal:100001:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:100001:attachment-0001",
             source_uri="https://portal.example.edu/files/100001.docx",
             canonical_key="campus_notices/documents/internal_notice/100001-attachment-1/canonical.md",
             units_key="campus_notices/documents/internal_notice/100001-attachment-1/document-units.jsonl",
             content_hash="sha256:attachment-guideline",
         )
         attachment_2 = _record(
-            document_id="notice_attachment:muc_internal_portal:100002:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:100002:attachment-0001",
             source_uri="https://portal.example.edu/files/100002.docx",
             canonical_key="campus_notices/documents/internal_notice/100002-attachment-1/canonical.md",
             units_key="campus_notices/documents/internal_notice/100002-attachment-1/document-units.jsonl",
             content_hash="sha256:attachment-guideline-copy",
         )
         parent_2 = _record(
-            document_id="notice:muc_internal_portal:100002",
+            document_id="notice:example_internal_portal:100002",
             source_uri="https://portal.example.edu/notices/100002",
             canonical_key="campus_notices/documents/internal_notice/100002/canonical.md",
             units_key="campus_notices/documents/internal_notice/100002/document-units.jsonl",
             content_hash="sha256:parent-100002",
         )
         parent_3 = _record(
-            document_id="notice:muc_internal_portal:100003",
+            document_id="notice:example_internal_portal:100003",
             source_uri="https://portal.example.edu/notices/100003",
             canonical_key="campus_notices/documents/internal_notice/100003/canonical.md",
             units_key="campus_notices/documents/internal_notice/100003/document-units.jsonl",
@@ -53,7 +53,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="100001",
-                    notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                    notice_title="关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                     attachment_projection_plans=(
                         {
                             "attachment_ref_id": "attachment-0001",
@@ -66,7 +66,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
                 ),
                 _inventory_entry(
                     notice_id="100002",
-                    notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）",
+                    notice_title="关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）",
                     attachment_projection_plans=(
                         {
                             "attachment_ref_id": "attachment-0001",
@@ -79,85 +79,94 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
                 ),
                 _inventory_entry(
                     notice_id="100003",
-                    notice_title="中央民族大学实验室安全管理规定（2026年修订）",
+                    notice_title="示例大学实验室安全管理规定（2026年修订）",
                     published_date="2026-02-01",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent_1.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n"
+                (
+                    "campus-agent-derived",
+                    parent_1.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n现将《示例大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n"
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     attachment_1.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
-                ),
-                ("campus-rag-derived", parent_2.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）\n\n请相关单位参照附件执行。\n"
+                    "# 示例大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
+                    parent_2.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）\n\n请相关单位参照附件执行。\n"
+                ),
+                (
+                    "campus-agent-derived",
                     attachment_2.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
+                    "# 示例大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
-                ("campus-rag-derived", parent_3.canonical_markdown_object_key): _canonical_markdown(
-                    "# 中央民族大学实验室安全管理规定（2026年修订）\n\n2026年2月1日起施行。\n\n第一条 为加强实验室安全管理，制定本规定。\n第二条 实验室实行分级分类安全管理。\n第三条 各实验室应建立日常巡检制度。\n"
+                (
+                    "campus-agent-derived",
+                    parent_3.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 示例大学实验室安全管理规定（2026年修订）\n\n2026年2月1日起施行。\n\n第一条 为加强实验室安全管理，制定本规定。\n第二条 实验室实行分级分类安全管理。\n第三条 各实验室应建立日常巡检制度。\n"
                 ),
-                ("campus-rag-derived", parent_1.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent_1.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                            "text": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                             "metadata": {
-                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                                "title": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", attachment_1.document_units_object_key): _document_units(
+                ("campus-agent-derived", attachment_1.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "attachment_title",
-                            "text": "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+                            "text": "示例大学关于学生使用人工智能的指导意见（2026版）",
                             "metadata": {"extraction_class": "text_extractable"},
                         }
                     ]
                 ),
-                ("campus-rag-derived", parent_2.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent_2.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）",
+                            "text": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）",
                             "metadata": {
-                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"
+                                "title": "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", attachment_2.document_units_object_key): _document_units(
+                ("campus-agent-derived", attachment_2.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "attachment_title",
-                            "text": "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+                            "text": "示例大学关于学生使用人工智能的指导意见（2026版）",
                             "metadata": {"extraction_class": "text_extractable"},
                         }
                     ]
                 ),
-                ("campus-rag-derived", parent_3.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent_3.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "中央民族大学实验室安全管理规定（2026年修订）",
-                            "metadata": {"title": "中央民族大学实验室安全管理规定（2026年修订）"},
+                            "text": "示例大学实验室安全管理规定（2026年修订）",
+                            "metadata": {"title": "示例大学实验室安全管理规定（2026年修订）"},
                         }
                     ]
                 ),
@@ -188,19 +197,19 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self.assertEqual(primary_attachment.input_lane, "attachment_text_extractable")
         self.assertEqual(
             primary_attachment.regulation_title_normalized,
-            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+            "示例大学关于学生使用人工智能的指导意见（2026版）",
         )
         self.assertEqual(
-            primary_attachment.regulation_work_title, "中央民族大学关于学生使用人工智能的指导意见"
+            primary_attachment.regulation_work_title, "示例大学关于学生使用人工智能的指导意见"
         )
         self.assertEqual(primary_attachment.regulation_edition_label, "2026版")
         self.assertEqual(
             primary_attachment.regulation_display_title,
-            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+            "示例大学关于学生使用人工智能的指导意见 / 2026版",
         )
         self.assertEqual(
             primary_attachment.source_title_literal,
-            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+            "示例大学关于学生使用人工智能的指导意见（2026版）",
         )
         self.assertIn("duplicate_check_passed", primary_attachment.quality_gates_passed)
 
@@ -220,12 +229,12 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self.assertNotIn("source_attachment_sha256", manual_parent.missing_required_metadata)
         self.assertEqual(
             manual_parent.regulation_title_normalized,
-            "中央民族大学实验室安全管理规定（2026年修订）",
+            "示例大学实验室安全管理规定（2026年修订）",
         )
-        self.assertEqual(manual_parent.regulation_work_title, "中央民族大学实验室安全管理规定")
+        self.assertEqual(manual_parent.regulation_work_title, "示例大学实验室安全管理规定")
         self.assertEqual(manual_parent.regulation_edition_label, "2026年修订")
         self.assertEqual(
-            manual_parent.regulation_display_title, "中央民族大学实验室安全管理规定 / 2026年修订"
+            manual_parent.regulation_display_title, "示例大学实验室安全管理规定 / 2026年修订"
         )
         self.assertEqual(manual_parent.effective_date, "2026年2月1日")
         self.assertEqual(manual_parent.revision_signal, "修订")
@@ -234,7 +243,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:310001",
+            document_id="notice:example_internal_portal:310001",
             source_uri="https://portal.example.edu/notices/310001",
             canonical_key="campus_notices/documents/internal_notice/310001/canonical.md",
             units_key="campus_notices/documents/internal_notice/310001/document-units.jsonl",
@@ -253,16 +262,16 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于2025-2026学年第一学期本科生网上选课的通知\n\n"
                     "各学院、各位同学：\n\n"
-                    "为全面落实《中央民族大学本科专业人才培养方案（2022版）》和《中央民族大学关于全面加强通识教育课程建设的意见》等相关文件精神，现将2025-2026学年第一学期本科生网上选课有关事项通知如下。\n\n"
+                    "为全面落实《示例大学本科专业人才培养方案（2022版）》和《示例大学关于全面加强通识教育课程建设的意见》等相关文件精神，现将2025-2026学年第一学期本科生网上选课有关事项通知如下。\n\n"
                     "一、选课范围\n\n"
                     "2023级、2024级本科生均可参加本轮选课。\n\n"
                     "二、选课时间\n\n"
                     "学生应在规定时段登录系统完成选课。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
@@ -293,7 +302,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         attachment = _record(
-            document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:355282:attachment-0001",
             source_uri="https://portal.example.edu/files/355282.docx",
             canonical_key="campus_notices/documents/internal_notice/355282-attachment-1/canonical.md",
             units_key="campus_notices/documents/internal_notice/355282-attachment-1/document-units.jsonl",
@@ -305,7 +314,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="355282",
-                    notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+                    notice_title="关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知",
                     attachment_projection_plans=(
                         {
                             "attachment_ref_id": "attachment-0001",
@@ -320,23 +329,23 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     attachment.canonical_markdown_object_key,
                 ): _canonical_markdown(
-                    "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n"
+                    "# 示例大学关于学生使用人工智能的指导意见（2026版）\n\n"
                     "第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
-                ("campus-rag-derived", attachment.document_units_object_key): _document_units(
+                ("campus-agent-derived", attachment.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "attachment_title",
-                            "text": "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+                            "text": "示例大学关于学生使用人工智能的指导意见（2026版）",
                             "metadata": {"extraction_class": "text_extractable"},
                         }
                     ]
                 ),
-                ("campus-rag-source", "source/355282/attachment-refs.jsonl"): (
+                ("campus-agent-source", "source/355282/attachment-refs.jsonl"): (
                     json.dumps(
                         {
                             "notice_id": "355282",
@@ -369,14 +378,14 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         parent_1 = _record(
-            document_id="notice:muc_internal_portal:210001",
+            document_id="notice:example_internal_portal:210001",
             source_uri="https://portal.example.edu/notices/210001",
             canonical_key="campus_notices/documents/internal_notice/210001/canonical.md",
             units_key="campus_notices/documents/internal_notice/210001/document-units.jsonl",
             content_hash="sha256:parent-210001",
         )
         parent_2 = _record(
-            document_id="notice:muc_internal_portal:210002",
+            document_id="notice:example_internal_portal:210002",
             source_uri="https://portal.example.edu/notices/210002",
             canonical_key="campus_notices/documents/internal_notice/210002/canonical.md",
             units_key="campus_notices/documents/internal_notice/210002/document-units.jsonl",
@@ -388,20 +397,23 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="210001",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-12",
                 ),
                 _inventory_entry(
                     notice_id="210002",
-                    notice_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                    notice_title="示例生命学院关于2021年暑假期间实验室安全管理规定",
                     published_date="2021-07-13",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent_1.canonical_markdown_object_key): _canonical_markdown(
-                    "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n"
+                (
+                    "campus-agent-derived",
+                    parent_1.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n"
                     "生环实发【2021】02号\n\n"
                     "根据学校近期关于加强暑假期间安全稳定的有关指示精神，现将2021年暑假期间实验室安全管理规定如下：\n\n"
                     "一、基本要求\n\n"
@@ -410,11 +422,14 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
                     "二、安全责任\n\n"
                     "1. 实验室负责人应在放假前完成危险源排查并做好记录。\n\n"
                     "2. 值班教师应保持通讯畅通，发现异常情况立即上报。\n\n"
-                    "生命与环境科学学院\n\n"
+                    "示例生命学院\n\n"
                     "2021年7月12日\n"
                 ),
-                ("campus-rag-derived", parent_2.canonical_markdown_object_key): _canonical_markdown(
-                    "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n"
+                (
+                    "campus-agent-derived",
+                    parent_2.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 示例生命学院关于2021年暑假期间实验室安全管理规定\n\n"
                     "生环实发【2021】03号\n\n"
                     "根据学校近期关于加强暑假期间安全稳定的有关指示精神，现将2021年暑假期间实验室安全管理规定如下：\n\n"
                     "一、基本要求\n\n"
@@ -423,29 +438,29 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
                     "二、安全责任\n\n"
                     "1. 实验室负责人应在放假前完成危险源排查并做好记录。\n\n"
                     "2. 值班教师应保持通讯畅通，发现异常情况立即上报。\n\n"
-                    "生命与环境科学学院\n\n"
+                    "示例生命学院\n\n"
                     "2021年7月12日\n"
                 ),
-                ("campus-rag-derived", parent_1.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent_1.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                             "metadata": {
-                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                                "title": "示例生命学院关于2021年暑假期间实验室安全管理规定"
                             },
                         }
                     ]
                 ),
-                ("campus-rag-derived", parent_2.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent_2.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "text": "示例生命学院关于2021年暑假期间实验室安全管理规定",
                             "metadata": {
-                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                                "title": "示例生命学院关于2021年暑假期间实验室安全管理规定"
                             },
                         }
                     ]
@@ -482,7 +497,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:200001",
+            document_id="notice:example_internal_portal:200001",
             source_uri="https://portal.example.edu/notices/200001",
             canonical_key="campus_notices/documents/internal_notice/200001/canonical.md",
             units_key="campus_notices/documents/internal_notice/200001/document-units.jsonl",
@@ -494,12 +509,12 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="200001",
-                    notice_title="关于发布《中央民族大学本科生综合测评办法》的通知",
+                    notice_title="关于发布《示例大学本科生综合测评办法》的通知",
                     attachment_projection_plans=(
                         {
                             "attachment_ref_id": "attachment-0001",
                             "classification": "text_extractable",
-                            "document_id": "notice_attachment:muc_internal_portal:200001:attachment-0001",
+                            "document_id": "notice_attachment:example_internal_portal:200001:attachment-0001",
                             "materialization_policy": "required_document",
                             "attachment_content_sha256": "sha256-measure",
                         },
@@ -509,18 +524,16 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于发布《中央民族大学本科生综合测评办法》的通知\n\n现将《中央民族大学本科生综合测评办法》予以发布，请遵照执行。\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于发布《示例大学本科生综合测评办法》的通知\n\n现将《示例大学本科生综合测评办法》予以发布，请遵照执行。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于发布《中央民族大学本科生综合测评办法》的通知",
-                            "metadata": {
-                                "title": "关于发布《中央民族大学本科生综合测评办法》的通知"
-                            },
+                            "text": "关于发布《示例大学本科生综合测评办法》的通知",
+                            "metadata": {"title": "关于发布《示例大学本科生综合测评办法》的通知"},
                         }
                     ]
                 ),
@@ -547,7 +560,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         self,
     ) -> None:
         parent = _record(
-            document_id="notice:muc_internal_portal:200002",
+            document_id="notice:example_internal_portal:200002",
             source_uri="https://portal.example.edu/notices/200002",
             canonical_key="campus_notices/documents/internal_notice/200002/canonical.md",
             units_key="campus_notices/documents/internal_notice/200002/document-units.jsonl",
@@ -559,25 +572,23 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
             (
                 _inventory_entry(
                     notice_id="200002",
-                    notice_title="关于印发实施《中央民族大学学生申诉管理办法》的通知",
+                    notice_title="关于印发实施《示例大学学生申诉管理办法》的通知",
                     published_date="2020-01-07",
                 ),
             )
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
-                    "# 关于印发实施《中央民族大学学生申诉管理办法》的通知\n\n各学院：\n\n《中央民族大学学生申诉管理办法》已经审议通过，自2020年1月1日起施行。本办法调整了学校学生申诉处理委员会成员构成。\n\n特此通知，请遵照执行。\n"
+                ("campus-agent-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于印发实施《示例大学学生申诉管理办法》的通知\n\n各学院：\n\n《示例大学学生申诉管理办法》已经审议通过，自2020年1月1日起施行。本办法调整了学校学生申诉处理委员会成员构成。\n\n特此通知，请遵照执行。\n"
                 ),
-                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                ("campus-agent-derived", parent.document_units_object_key): _document_units(
                     [
                         {
                             "chunk_id": "title",
                             "unit_type": "policy_page",
-                            "text": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
-                            "metadata": {
-                                "title": "关于印发实施《中央民族大学学生申诉管理办法》的通知"
-                            },
+                            "text": "关于印发实施《示例大学学生申诉管理办法》的通知",
+                            "metadata": {"title": "关于印发实施《示例大学学生申诉管理办法》的通知"},
                         }
                     ]
                 ),

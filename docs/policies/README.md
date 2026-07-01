@@ -14,6 +14,7 @@ updated: 2026-04-12
 
 - `official-web-crawl-policy.md`
 - `official-web-cleaning-and-chunking-policy.md`
+- `public-source-data.md`
 - `student-handbook-chunking-and-validation-policy.md`
 - `student-handbook-judge-gate-policy.md`
 

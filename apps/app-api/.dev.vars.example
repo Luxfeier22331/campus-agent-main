@@ -13,9 +13,11 @@ APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 AUTH_SHELL_ORIGIN=https://campus.example.com
 # Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
 # Matches exact domains and subdomains, case-insensitively.
-APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn
+APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=example.edu
 # Optional exact email exceptions for end-user sign-up/sign-in.
 APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
+# Comma-separated exact public notice hosts admitted into browser-facing source links.
+APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
@@ -43,7 +45,7 @@ APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN=
 # ingestion-control. Set OBJECT_STORE_BUCKET_SOURCE to the same source bucket
 # used by the collector when this is enabled.
 INGESTION_CONTROL_BASE_URL=
-OBJECT_STORE_BUCKET_SOURCE=campus-rag-source
+OBJECT_STORE_BUCKET_SOURCE=campus-agent-source
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local

@@ -62,15 +62,15 @@ class ChunkingPolicyTableTest(_ChunkingPolicyTestCase):
         unit = StructuredUnitChunkInput(
             unit_type="table_unit",
             root_unit_id="table-fees",
-            text="中央民族大学大学教育收费公示表\n"
+            text="示例大学大学教育收费公示表\n"
             "收费项目 | 计费单位 | 收费标准 | 收费范围 收费对象 | 批准收费的机关及文号\n"
             + "\n".join(row_lines),
-            anchor={"table_context": "中央民族大学大学教育收费公示表"},
+            anchor={"table_context": "示例大学大学教育收费公示表"},
             metadata={
-                "title": "中央民族大学大学教育收费公示表",
+                "title": "示例大学大学教育收费公示表",
                 "page_family": "directory_page",
                 "serving_intent": "promotable",
-                "caption_lines": ["中央民族大学大学教育收费公示表"],
+                "caption_lines": ["示例大学大学教育收费公示表"],
                 "table_header_line": "收费项目 | 计费单位 | 收费标准 | 收费范围 收费对象 | 批准收费的机关及文号",
                 "table_row_lines": row_lines,
             },

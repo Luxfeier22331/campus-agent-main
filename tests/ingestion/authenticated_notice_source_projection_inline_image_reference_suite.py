@@ -34,7 +34,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -85,8 +85,8 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
             },
         )
 
@@ -115,7 +115,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -164,8 +164,8 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
             },
         )
 
@@ -194,7 +194,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -243,8 +243,8 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
             },
         )
 
@@ -273,7 +273,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -322,8 +322,8 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(
             {record.document_id for record in records},
             {
-                "notice:muc_internal_portal:355119",
-                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice:example_internal_portal:355119",
+                "notice_attachment:example_internal_portal:355119:attachment-0001",
             },
         )
 
@@ -361,7 +361,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -440,7 +440,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -519,7 +519,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",

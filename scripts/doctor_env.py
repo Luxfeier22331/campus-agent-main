@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from campus_shared import (
@@ -11,7 +11,6 @@ from campus_shared import (
     load_repo_env,
     reset_repo_env_bootstrap_state,
 )
-from campus_shared.provider_config import ProviderConfigResolutionError
 
 from scripts.doctor_env_surface_specs import SURFACE_SPECS
 from scripts.env_sync import parse_env_file
@@ -44,7 +43,6 @@ def _collect_env_doctor_status(
                 provider_name: _collect_provider_status(
                     env=current_env,
                     checked_keys=provider_spec["checked_keys"],
-                    resolver=provider_spec["resolver"],
                     surface_name=provider_spec["surface_name"],
                 )
                 for provider_name, provider_spec in spec["providers"].items()
@@ -217,34 +215,15 @@ def _collect_shared_postgres_status(
 
 
 def _probe_postgres_connectivity(database_url: str) -> dict[str, object]:
-    try:
-        import psycopg
-    except ImportError as exc:  # pragma: no cover
-        return {
-            "checked": True,
-            "ok": False,
-            "error": str(exc),
-            "error_class": exc.__class__.__name__,
-        }
-    try:
-        with (
-            psycopg.connect(database_url, autocommit=True, connect_timeout=3) as conn,
-            conn.cursor() as cursor,
-        ):
-            cursor.execute("select 1")
-            cursor.fetchone()
-    except Exception as exc:  # pragma: no cover - exercised by local doctor, not unit tests.
-        return {
-            "checked": True,
-            "ok": False,
-            "error": str(exc),
-            "error_class": exc.__class__.__name__,
-        }
+    del database_url
     return {
         "checked": True,
-        "ok": True,
-        "error": None,
-        "error_class": None,
+        "ok": False,
+        "error": (
+            "Python Postgres connectivity probe is retired; use the TS/Go database owner "
+            "readiness checks instead"
+        ),
+        "error_class": "PythonPostgresProbeRetired",
     }
 
 
@@ -461,24 +440,25 @@ def _collect_provider_status(
     env: dict[str, str],
     surface_name: str,
     checked_keys: tuple[str, ...],
-    resolver: Callable[..., object],
 ) -> dict[str, object]:
-    try:
-        resolved = resolver(surface_name, env=env)
-    except ProviderConfigResolutionError as exc:
+    resolved_key = next((key for key in checked_keys if env.get(key, "").strip()), None)
+    if resolved_key is None:
         return {
             "present": False,
             "surface_name": surface_name,
-            "checked_keys": list(exc.checked_keys),
+            "checked_keys": list(checked_keys),
             "resolved_key": None,
-            "error": str(exc),
+            "error": (
+                f"missing provider api key for surface {surface_name}; checked "
+                + " > ".join(checked_keys)
+            ),
         }
 
     return {
         "present": True,
         "surface_name": surface_name,
         "checked_keys": list(checked_keys),
-        "resolved_key": getattr(resolved, "api_key_source", None),
+        "resolved_key": resolved_key,
         "error": None,
     }
 
@@ -604,8 +584,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--check-postgres-connectivity",
         action="store_true",
         help=(
-            "Connect to CAMPUS_SHARED_POSTGRES_URL after repo env bootstrap and include the "
-            "result in readiness."
+            "Report retired Python Postgres probe status after repo env bootstrap. This no "
+            "longer opens a Python database connection."
         ),
     )
     return parser.parse_args(argv)

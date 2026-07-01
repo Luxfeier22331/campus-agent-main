@@ -18,9 +18,9 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
     return InternalNoticeRegulationCandidateArtifactDocument(
         candidate_id="0425aed278c86fda",
-        source_document_id="notice:muc_internal_portal:187233",
+        source_document_id="notice:example_internal_portal:187233",
         notice_id="187233",
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         source_kind="parent_notice",
         input_lane="notice_body",
         revision_track="source-faithful",
@@ -30,12 +30,12 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         semantic_owner_kind="notice_body",
         target_corpus="regulations",
         target_collection="institutional_rules",
-        regulation_title_normalized="中央民族大学采购工作管理办法",
-        issuing_org="中央民族大学",
+        regulation_title_normalized="示例大学采购工作管理办法",
+        issuing_org="示例大学",
         effective_date="2021年3月1日",
         revision_signal="修订",
         source_notice_release_time="2021-02-28 16:09",
-        source_parent_document_id="notice:muc_internal_portal:187233",
+        source_parent_document_id="notice:example_internal_portal:187233",
         source_attachment_ref_id=None,
         source_attachment_sha256=None,
         source_uri="https://portal.example.edu/notices/187233",
@@ -68,7 +68,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
             "2.填报采购申请：校内集中采购项目在服务门户的采购申请模块中填报采购需求；\n\n"
             "3.采购申请受理：资产管理处（招标采购中心）受理采购申请，组织采购。"
         ),
-        artifact_markdown_path="candidates/中央民族大学采购工作管理办法--0425aed278c86fda/canonical.md",
+        artifact_markdown_path="candidates/示例大学采购工作管理办法--0425aed278c86fda/canonical.md",
         artifact_body_sha256="ba2650d0594638552323b13693d065765ac9746a4229cf4ca47b959c61843ef4",
     )
 
@@ -125,11 +125,11 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertEqual(rows[0]["metadata"]["source_notice_ids"], ["187233"])
             self.assertEqual(
                 rows[0]["metadata"]["source_notice_document_id"],
-                "notice:muc_internal_portal:187233",
+                "notice:example_internal_portal:187233",
             )
             self.assertEqual(
                 rows[0]["metadata"]["semantic_owner_document_id"],
-                "notice:muc_internal_portal:187233",
+                "notice:example_internal_portal:187233",
             )
 
             chunks_path = output_dir / document_report["chunk_catalog_path"]

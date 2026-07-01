@@ -135,7 +135,7 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 				CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
 				BodyExcerpt:                "家具采购项目摘要",
 				AttachmentRefs:             []string{"attachment:355222:1"},
-				ProvenanceRefs:             []string{"notice:muc_internal_portal:355222"},
+				ProvenanceRefs:             []string{"notice:example_internal_portal:355222"},
 			},
 		},
 	}
@@ -660,7 +660,7 @@ func TestLookupCampusNoticeGetReturnsSourceCardWithoutCanonicalBody(t *testing.T
 			CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
 			BodyExcerpt:                "家具采购项目摘要。",
 			AttachmentRefs:             []string{"attachment:355222:1"},
-			ProvenanceRefs:             []string{"notice:muc_internal_portal:355222"},
+			ProvenanceRefs:             []string{"notice:example_internal_portal:355222"},
 		},
 	}
 	bodyStore := &fakeNoticeBodyStore{

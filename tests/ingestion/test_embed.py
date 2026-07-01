@@ -87,10 +87,17 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
 
         self.assertEqual(len(model.get_text_embedding("测试正文")), 8)
 
-    @patch("campus_ingestion_core.embed.OpenAIEmbedding")
-    def test_build_embedding_model_uses_openai_embedding_for_official_provider(
-        self, openai_embedding
+    @patch("campus_ingestion_core.embed.OpenAI")
+    @patch("campus_ingestion_core.embed.AsyncOpenAI")
+    def test_build_embedding_model_uses_openai_client_for_official_provider(
+        self,
+        async_openai,
+        openai_client,
     ) -> None:
+        sync_client = Mock()
+        sync_client.embeddings.create.return_value = Mock(data=[Mock(embedding=[0.1, 0.2])])
+        openai_client.return_value = sync_client
+        async_openai.return_value = Mock()
         settings = EmbeddingSettings(
             provider="openai",
             model="Qwen3-Embedding-4B",
@@ -103,23 +110,22 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
 
         model = build_embedding_model(settings)
 
-        self.assertIs(model, openai_embedding.return_value)
-        openai_embedding.assert_called_once_with(
-            model="Qwen3-Embedding-4B",
+        self.assertEqual(model.get_text_embedding("正文"), [0.1, 0.2])
+        openai_client.assert_called_once_with(
             api_key="test-key",
-            api_base="https://example.invalid/v1",
-            dimensions=2560,
+            base_url="https://example.invalid/v1",
             timeout=15.0,
-            embed_batch_size=32,
-            model_name="Qwen3-Embedding-4B",
+            max_retries=10,
             http_client=unittest.mock.ANY,
-            async_http_client=unittest.mock.ANY,
         )
-        _, kwargs = openai_embedding.call_args
-        self.assertIsInstance(kwargs["http_client"], httpx.Client)
-        self.assertFalse(kwargs["http_client"]._trust_env)
-        self.assertIsInstance(kwargs["async_http_client"], httpx.AsyncClient)
-        self.assertFalse(kwargs["async_http_client"]._trust_env)
+        _, sync_kwargs = openai_client.call_args
+        self.assertIsInstance(sync_kwargs["http_client"], httpx.Client)
+        self.assertFalse(sync_kwargs["http_client"]._trust_env)
+        sync_client.embeddings.create.assert_called_once_with(
+            input=["正文"],
+            model="Qwen3-Embedding-4B",
+            dimensions=2560,
+        )
 
     @patch("campus_ingestion_core.embed.OpenAI")
     @patch("campus_ingestion_core.embed.AsyncOpenAI")
@@ -211,6 +217,47 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
             input=["手册正文", "学生管理规定"],
             model="Qwen3-Embedding-4B",
             dimensions=2560,
+        )
+
+    @patch("campus_ingestion_core.embed.OpenAI")
+    @patch("campus_ingestion_core.embed.AsyncOpenAI")
+    def test_gitee_embedding_respects_configured_batch_size(
+        self,
+        async_openai,
+        openai_client,
+    ) -> None:
+        sync_client = Mock()
+        sync_client.embeddings.create.side_effect = [
+            Mock(
+                data=[
+                    Mock(embedding=[0.1]),
+                    Mock(embedding=[0.2]),
+                ]
+            ),
+            Mock(data=[Mock(embedding=[0.3])]),
+        ]
+        openai_client.return_value = sync_client
+        async_openai.return_value = Mock()
+        settings = EmbeddingSettings(
+            provider="gitee",
+            model="Qwen3-Embedding-4B",
+            api_key="test-key",
+            api_base="https://example.invalid/v1",
+            timeout_seconds=15.0,
+            embed_batch_size=2,
+        )
+
+        model = build_embedding_model(settings)
+        result = model.get_text_embedding_batch(["甲", "乙", "丙"])
+
+        self.assertEqual(result, [[0.1], [0.2], [0.3]])
+        self.assertEqual(
+            sync_client.embeddings.create.call_args_list[0].kwargs,
+            {"input": ["甲", "乙"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
+        )
+        self.assertEqual(
+            sync_client.embeddings.create.call_args_list[1].kwargs,
+            {"input": ["丙"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
         )
 
     @patch("campus_ingestion_core.embed.OpenAI")

@@ -23,7 +23,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "d87f7e0c1f261e2237e6f9f43e927d2d00f455e387f8a0b0165ee25c526fe6d3",
 						byteSize: data.byteLength,
@@ -108,7 +108,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -123,7 +123,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			resource_role: "inline_image",
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 11,
 			ingest_status: "uploaded",
 			mime_type: "image/webp",
@@ -170,7 +170,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d",
 						byteSize: data.byteLength,
@@ -246,7 +246,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -271,7 +271,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			link_scope: "external",
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 12,
 			ingest_status: "uploaded",
 			mime_type: "image/jpeg",
@@ -329,7 +329,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 						metadata,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						objectKey,
 						contentSha256: "a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d",
 						byteSize: data.byteLength,
@@ -411,7 +411,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -438,7 +438,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			link_scope: "external",
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			byte_size: 12,
 			ingest_status: "uploaded",
 			mime_type: "image/jpeg",
@@ -495,7 +495,7 @@ function createExternalVisualCrawlerFactory(
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

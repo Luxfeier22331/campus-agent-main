@@ -38,7 +38,7 @@ class FakeCleanupObjectStore:
 
 def _object(run_id: str, suffix: str, size: int) -> AuthenticatedNoticeCloseoutOperationObject:
     return AuthenticatedNoticeCloseoutOperationObject(
-        bucket="campus-rag-derived",
+        bucket="campus-agent-derived",
         object_key=f"{AUTHENTICATED_NOTICE_CLOSEOUT_OPERATIONS_PREFIX}{run_id}/{suffix}",
         byte_size=size,
         last_modified="2026-04-06T00:00:00+00:00",
@@ -139,7 +139,7 @@ class AuthenticatedNoticeCloseoutOperationsRetentionTests(unittest.TestCase):
             candidate_path.write_text(
                 json.dumps(
                     {
-                        "bucket": "campus-rag-derived",
+                        "bucket": "campus-agent-derived",
                         "object_key": object_key,
                         "run_id": "delete-run",
                         "byte_size": 20,
@@ -160,7 +160,7 @@ class AuthenticatedNoticeCloseoutOperationsRetentionTests(unittest.TestCase):
                     output_dir=output_dir / "delete",
                     dry_run=False,
                 ),
-                env={"OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived"},
+                env={"OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived"},
                 object_store=object_store,
             )
 
@@ -175,7 +175,7 @@ class AuthenticatedNoticeCloseoutOperationsRetentionTests(unittest.TestCase):
             candidate_path.write_text(
                 json.dumps(
                     {
-                        "bucket": "campus-rag-derived",
+                        "bucket": "campus-agent-derived",
                         "object_key": (
                             f"{AUTHENTICATED_NOTICE_CLOSEOUT_OPERATIONS_PREFIX}"
                             "keep-run/run-manifest.json"
@@ -197,7 +197,7 @@ class AuthenticatedNoticeCloseoutOperationsRetentionTests(unittest.TestCase):
                         output_dir=output_dir / "delete",
                         dry_run=True,
                     ),
-                    env={"OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived"},
+                    env={"OBJECT_STORE_BUCKET_DERIVED": "campus-agent-derived"},
                     object_store=FakeCleanupObjectStore({}),
                 )
 

@@ -92,7 +92,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 					status: "success",
 				},
 				schema_version: "authenticated_notice_collector_export_v2",
-				site_id: "muc_internal_portal",
+				site_id: "example_internal_portal",
 				source_channel: "authenticated_notice_portal",
 				source_home_url: "https://portal.example.edu/home",
 				source_surface: "notice",
@@ -105,7 +105,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 		expect(path.basename(written.manifestPath)).toBe("export-manifest-20260404T012345Z.json");
 		expect(JSON.parse(fs.readFileSync(written.bundlePath, "utf-8"))).toHaveLength(1);
 		expect(JSON.parse(fs.readFileSync(written.manifestPath, "utf-8")).site_id).toBe(
-			"muc_internal_portal",
+			"example_internal_portal",
 		);
 	});
 
@@ -131,7 +131,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 						objectKey,
 					});
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						byteSize: data.byteLength,
 						contentSha256: "a".repeat(64),
 						etag: '"etag"',
@@ -143,7 +143,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			bundleRecords,
 			exportedAt: "2026-04-04T01:23:45.000Z",
 			exportManifest,
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 		});
 
 		const expectedBundleBytes = `${JSON.stringify(bundleRecords, null, 2)}\n`;
@@ -152,33 +152,33 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			schema_version: "authenticated_notice_capture_release.v1",
 			source_channel: "authenticated_notice_portal",
 			source_surface: "notice",
-			site_id: "muc_internal_portal",
-			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			site_id: "example_internal_portal",
+			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: {
-				bucket: "campus-rag-source",
-				key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				bucket: "campus-agent-source",
+				key: "authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json",
 				content_sha256: "a".repeat(64),
 				byte_size: Buffer.byteLength(expectedBundleBytes),
 			},
 			export_manifest_ref: {
-				bucket: "campus-rag-source",
-				key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				bucket: "campus-agent-source",
+				key: "authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json",
 				content_sha256: "a".repeat(64),
 				byte_size: Buffer.byteLength(expectedManifestBytes),
 			},
 			source_object_refs: [
 				{
 					role: "notices_bundle",
-					bucket: "campus-rag-source",
-					key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+					bucket: "campus-agent-source",
+					key: "authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json",
 					content_sha256: "a".repeat(64),
 					byte_size: Buffer.byteLength(expectedBundleBytes),
 				},
 				{
 					role: "export_manifest",
-					bucket: "campus-rag-source",
-					key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+					bucket: "campus-agent-source",
+					key: "authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json",
 					content_sha256: "a".repeat(64),
 					byte_size: Buffer.byteLength(expectedManifestBytes),
 				},
@@ -189,43 +189,43 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			bundleByteSize: Buffer.byteLength(expectedBundleBytes),
 			bundleContentSha256: "a".repeat(64),
 			bundleObjectKey:
-				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json",
 			bundleRef: {
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				byteSize: Buffer.byteLength(expectedBundleBytes),
 				contentSha256: "a".repeat(64),
 				etag: '"etag"',
 				objectKey:
-					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+					"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json",
 				versionId: null,
 			},
 			captureReleaseByteSize: Buffer.byteLength(expectedCaptureReleaseBytes),
 			captureReleaseContentSha256: "a".repeat(64),
 			captureReleaseObjectKey:
-				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/capture-release.json",
+				"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/capture-release.json",
 			captureReleaseRef: {
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				byteSize: Buffer.byteLength(expectedCaptureReleaseBytes),
 				contentSha256: "a".repeat(64),
 				etag: '"etag"',
 				objectKey:
-					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/capture-release.json",
+					"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/capture-release.json",
 				versionId: null,
 			},
 			manifestByteSize: Buffer.byteLength(expectedManifestBytes),
 			manifestContentSha256: "a".repeat(64),
 			manifestObjectKey:
-				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json",
 			manifestRef: {
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				byteSize: Buffer.byteLength(expectedManifestBytes),
 				contentSha256: "a".repeat(64),
 				etag: '"etag"',
 				objectKey:
-					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+					"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json",
 				versionId: null,
 			},
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 		expect(uploaded.map((item) => item.data)).toEqual([
 			expectedBundleBytes,
@@ -239,11 +239,11 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 		]);
 		expect(uploaded[0].metadata).toMatchObject({
 			artifact_kind: "notices_bundle",
-			site_id: "muc_internal_portal",
+			site_id: "example_internal_portal",
 		});
 		expect(uploaded[2].metadata).toMatchObject({
 			artifact_kind: "capture_release",
-			site_id: "muc_internal_portal",
+			site_id: "example_internal_portal",
 		});
 	});
 
@@ -277,7 +277,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 					},
 				},
 				exportedAt: "2026-04-04T01:23:45.000Z",
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 				sourceHomeUrl: "https://portal.example.edu/home",
 				writeLocalArtifacts: false,
 			}),
@@ -308,7 +308,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				async putObject({ objectKey, data }) {
 					return {
-						bucket: "campus-rag-source",
+						bucket: "campus-agent-source",
 						byteSize: data.byteLength,
 						contentSha256: "a".repeat(64),
 						etag: '"etag"',
@@ -334,7 +334,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				},
 			},
 			exportedAt: "2026-04-04T01:23:45.000Z",
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 			verifiedRunEnqueue: async ({ ledgerRecord }) => {
 				enqueuedRunIds.push(ledgerRecord.runId);
@@ -383,7 +383,7 @@ function sampleBootstrapManifest(): BootstrapExportManifest {
 			status: "success",
 		},
 		schema_version: "authenticated_notice_collector_export_v2",
-		site_id: "muc_internal_portal",
+		site_id: "example_internal_portal",
 		source_channel: "authenticated_notice_portal",
 		source_home_url: "https://portal.example.edu/home",
 		source_surface: "notice",
@@ -392,7 +392,7 @@ function sampleBootstrapManifest(): BootstrapExportManifest {
 
 function fakeArtifactHead(objectKey: string) {
 	return {
-		bucket: "campus-rag-source",
+		bucket: "campus-agent-source",
 		objectKey,
 		contentSha256: null,
 		byteSize: null,

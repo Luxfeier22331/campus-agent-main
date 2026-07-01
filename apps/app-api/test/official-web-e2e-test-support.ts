@@ -51,7 +51,7 @@ export const OFFICIAL_WEB_E2E_ENV = {
 	APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED: "true",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
-	OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+	OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {

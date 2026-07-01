@@ -4,6 +4,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from campus_ingestion_core.curriculum_budget_evaluation import (
     CurriculumBudgetCandidate,
@@ -17,6 +18,10 @@ from campus_ingestion_core.curriculum_budget_evaluation import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 
+from tests.ingestion._handbook_chunking_test_support import (
+    build_hermetic_curriculum_chunk_profile,
+)
+
 
 def _make_curriculum_record(
     *, document_id: str, version_id: str, title: str
@@ -25,7 +30,7 @@ def _make_curriculum_record(
         document_id=document_id,
         revision_track="source-faithful",
         version_id=version_id,
-        source_uri=f"campusrag://rag-data/canonical/curriculum_plan/docs/{title}.md",
+        source_uri=f"campus-agent://rag-data/canonical/curriculum_plan/docs/{title}.md",
         content_hash=f"sha256:{document_id}",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -306,8 +311,8 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
         runtime_titles = {document.title for document in documents if document.tier == "runtime"}
 
         self.assertEqual(len(runtime_titles), 2)
-        self.assertIn("国际经济与贸易本科人才培养方案", runtime_titles)
-        self.assertIn("经济学拔尖人才创新班人才培养方案", runtime_titles)
+        self.assertIn("示例公共事务本科人才培养方案", runtime_titles)
+        self.assertIn("示例数据系统本科人才培养方案", runtime_titles)
         self.assertTrue(all(document.probe_cases for document in documents))
         self.assertTrue(all(document.tier == "runtime" for document in documents))
         self.assertTrue(all(document.record.visibility_level == "public" for document in documents))
@@ -321,14 +326,7 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
 
         self.assertEqual(
             historical_labels,
-            {
-                "narrative",
-                "requirement-like",
-                "table-heavy",
-                "mixed",
-                "title-boundary",
-                "normalized-title",
-            },
+            {"synthetic-narrative"},
         )
 
     def test_baseline_candidate_clears_runtime_fixture_oversize_and_structure_failures(
@@ -345,7 +343,13 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             if document.tier == "runtime"
         )
 
-        with TemporaryDirectory() as temp_dir:
+        with (
+            TemporaryDirectory() as temp_dir,
+            patch(
+                "campus_ingestion_core.curriculum_budget_evaluation_probe.build_curriculum_chunk_profile",
+                return_value=build_hermetic_curriculum_chunk_profile(),
+            ),
+        ):
             report = evaluate_curriculum_budget_candidates(
                 output_dir=Path(temp_dir),
                 candidates=(baseline,),
@@ -356,7 +360,7 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
         by_title = {document.title: document for document in report.candidates[0].documents}
         self.assertEqual(
             set(by_title),
-            {"国际经济与贸易本科人才培养方案", "经济学拔尖人才创新班人才培养方案"},
+            {"示例公共事务本科人才培养方案", "示例数据系统本科人才培养方案"},
         )
         for document in by_title.values():
             self.assertEqual(document.oversize_chunk_count, 0, document.title)
@@ -370,7 +374,13 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             if candidate.name == "baseline-uniform"
         )
 
-        with TemporaryDirectory() as temp_dir:
+        with (
+            TemporaryDirectory() as temp_dir,
+            patch(
+                "campus_ingestion_core.curriculum_budget_evaluation_probe.build_curriculum_chunk_profile",
+                return_value=build_hermetic_curriculum_chunk_profile(),
+            ),
+        ):
             report = evaluate_curriculum_budget_candidates(
                 output_dir=Path(temp_dir),
                 candidates=(baseline,),
@@ -381,9 +391,9 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
 
         self.assertEqual(len(report.candidates), 1)
         aggregate = report.candidates[0].aggregate.probe_summary
-        self.assertEqual(aggregate.total_cases, 10)
-        self.assertEqual(aggregate.complete_hit_at_1_count, 10)
-        self.assertEqual(aggregate.complete_hit_at_3_count, 10)
+        self.assertEqual(aggregate.total_cases, 4)
+        self.assertEqual(aggregate.complete_hit_at_1_count, 4)
+        self.assertEqual(aggregate.complete_hit_at_3_count, 4)
 
 
 if __name__ == "__main__":

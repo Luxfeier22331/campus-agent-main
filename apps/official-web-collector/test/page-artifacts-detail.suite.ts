@@ -12,14 +12,14 @@ const SAMPLE_ENGINE2_PARAGRAPH_HEAVY_DETAIL_WITH_LINKS_HTML = `
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <title>关于举办中央民族大学第四届学生信息素养大赛的通知</title>
+    <title>关于举办示例大学第四届学生信息素养大赛的通知</title>
   </head>
   <body>
     <header class="nav">
       <a href="/engine2/general/more?appId=537849&websiteId=64168&wfwfid=24149&pageId=87948&typeId=3049665&currentBranch=0">数字资源</a>
     </header>
     <main id="vsb_content">
-      <h1>关于举办中央民族大学第四届学生信息素养大赛的通知</h1>
+      <h1>关于举办示例大学第四届学生信息素养大赛的通知</h1>
       <p>各学院、各单位：</p>
       <p>为提升学生信息素养与人工智能应用能力，学校将组织开展第四届学生信息素养大赛校内选拔赛。</p>
       <p>一、参赛对象：全体在校本科生、研究生。</p>
@@ -38,7 +38,7 @@ const SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML = `
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <title>中央民族大学学术委员会章程-中央民族大学信息公开</title>
+    <title>示例大学学术委员会章程-示例大学信息公开</title>
   </head>
   <body>
     <div class="top-nav">
@@ -48,7 +48,7 @@ const SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML = `
     <form name="_newscontent_fromname">
       <div class="gcontent">
         <center>
-          <h1 align="center">中央民族大学学术委员会章程</h1>
+          <h1 align="center">示例大学学术委员会章程</h1>
         </center>
         <center>
           <span>作者：admin 来源：未知更新时间：14-11-06 17:56</span>
@@ -58,8 +58,8 @@ const SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML = `
             民大校发〔2013〕140号<br />
             第一章 总 则<br />
             第一条 为进一步提高我校科研水平和服务社会能力，努力把我校建设成为特色鲜明、国际知名的高水平研究型大学，根据《中华人民共和国高等教育法》，特制定本章程。<br />
-            第二条 中央民族大学学术委员会是由本校专家学者代表组成的学术评议、审议和学术决策、咨询机构。<br />
-            第三条 中央民族大学学术工作的重要决策一般须经校学术委员会审议通过后，由学校发布实施。<br />
+            第二条 示例大学学术委员会是由本校专家学者代表组成的学术评议、审议和学术决策、咨询机构。<br />
+            第三条 示例大学学术工作的重要决策一般须经校学术委员会审议通过后，由学校发布实施。<br />
             第二章 组织机构<br />
             第四条 校学术委员会由学术造诣高、学风端正的具有正高级专业技术职称人员组成。<br />
             第五条 校学术委员会设主任1名，由校长担任。<br />
@@ -87,7 +87,7 @@ export function registerPageArtifactsDetailSuite() {
 		});
 
 		expect(pageArtifacts.pageManifest.pageTitleNormalized).toBe(
-			"中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+			"示例大学举办示例研究中心2025年度重大招标项目开题论证会",
 		);
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
 		expect(pageArtifacts.pageManifest.publishedAt).toBe("2026-03-25T00:00:00+08:00");

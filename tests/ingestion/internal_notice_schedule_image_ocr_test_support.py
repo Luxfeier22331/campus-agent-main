@@ -92,37 +92,3 @@ class _FakeHttpResponse:
 
     def json(self) -> dict[str, object]:
         return self.payload
-
-
-class _FakeConnectionContextManager:
-    def __init__(self, cursor: _PagedCursor) -> None:
-        self.cursor_obj = cursor
-
-    def __enter__(self) -> _FakeConnectionContextManager:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-    def cursor(self) -> _PagedCursor:
-        return self.cursor_obj
-
-
-class _PagedCursor:
-    def __init__(self, pages: list[list[tuple[object, ...]]]) -> None:
-        self.pages = pages
-        self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
-
-    def __enter__(self) -> _PagedCursor:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-    def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
-        self.execute_calls.append((" ".join(query.split()), params))
-
-    def fetchall(self) -> list[tuple[object, ...]]:
-        if not self.pages:
-            return []
-        return self.pages.pop(0)

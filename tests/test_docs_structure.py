@@ -126,6 +126,19 @@ class DocsStructureTest(unittest.TestCase):
         self.assertIn("runbooks/README.md", docs_index)
         self.assertIn("environment/README.md", docs_index)
         self.assertIn("domains/README.md", docs_index)
+        self.assertIn("policies/public-source-data.md", docs_index)
+
+    def test_public_source_data_policy_defines_provenance_classes(self) -> None:
+        policy = (DOCS_ROOT / "policies" / "public-source-data.md").read_text(encoding="utf-8")
+
+        for token in (
+            "synthetic",
+            "self-authored",
+            "source-derived-publicly-redistributable",
+            "internal-only-not-for-public-repo",
+            "Runtime content is not read from git",
+        ):
+            self.assertIn(token, policy)
 
     def test_contracts_index_lists_eval_ingress_contract(self) -> None:
         contracts_index = (DOCS_ROOT / "contracts" / "README.md").read_text(encoding="utf-8")

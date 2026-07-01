@@ -109,7 +109,7 @@ test.describe("support page browser flows", () => {
 		await page.getByRole("combobox", { name: "问题类型" }).click();
 		await page.getByRole("option", { name: "地图问题" }).click();
 		await page.getByLabel("问题描述").fill("地图点位需要更新。");
-		await page.getByLabel("联系方式（可选）").fill("  student@muc.edu.cn  ");
+		await page.getByLabel("联系方式（可选）").fill("  student@example.edu  ");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
 		await expect(page.getByText("已收到：feedback_category_e2e")).toBeVisible();
@@ -118,7 +118,7 @@ test.describe("support page browser flows", () => {
 		expect(submittedBody).toMatchObject({
 			body: "地图点位需要更新。",
 			category: "map_issue",
-			contact: "student@muc.edu.cn",
+			contact: "student@example.edu",
 		});
 	});
 
@@ -147,14 +147,14 @@ test.describe("support page browser flows", () => {
 		await page.getByRole("combobox", { name: "问题类型" }).click();
 		await page.getByRole("option", { name: "内容问题" }).click();
 		await page.getByLabel("问题描述").fill("移动端反馈表单需要保持可用。");
-		await page.getByLabel("联系方式（可选）").fill("  mobile@muc.edu.cn  ");
+		await page.getByLabel("联系方式（可选）").fill("  mobile@example.edu  ");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
 		await expect(page.getByText("已收到：feedback_mobile_e2e")).toBeVisible();
 		expect(submittedBody).toMatchObject({
 			body: "移动端反馈表单需要保持可用。",
 			category: "content_issue",
-			contact: "mobile@muc.edu.cn",
+			contact: "mobile@example.edu",
 			routeContext: "/feedback?source=mobile",
 		});
 	});

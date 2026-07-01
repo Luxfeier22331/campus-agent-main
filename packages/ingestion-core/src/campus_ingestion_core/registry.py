@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import os
 
-from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
-from campus_ingestion_core.registry_document_postgres import PostgresDocumentRegistry
-from campus_ingestion_core.registry_raw_asset_postgres import PostgresRawAssetRegistry
+from campus_ingestion_core.python_db_runtime import raise_python_db_runtime_retired
 from campus_ingestion_core.registry_shared import (
     DEFAULT_DOCUMENT_REGISTRY_BASENAME,
     DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE,
@@ -23,17 +21,7 @@ from campus_ingestion_core.registry_shared import (
     RawAssetRegistry,
     _coerce_json_payload,
     _document_record_from_dict,
-    _ensure_table_schema,
-    _optional_document_registry_operator_database_url,
-    _optional_raw_asset_registry_operator_database_url,
-    _postgres_connection,
-    _qualified_table_sql,
     _raw_asset_record_from_dict,
-    _required_document_registry_database_url,
-    _required_document_registry_operator_database_url,
-    _required_raw_asset_registry_database_url,
-    _required_raw_asset_registry_operator_database_url,
-    _table_index_suffix,
 )
 
 
@@ -42,14 +30,10 @@ def build_document_registry_from_env(
     *,
     prefer_operator: bool = False,
 ) -> DocumentRegistry:
-    source = env if env is not None else os.environ
-    if prefer_operator:
-        return PostgresDocumentRegistry(
-            build_operator_postgres_connection_url(
-                _required_document_registry_operator_database_url(source)
-            )
-        )
-    return PostgresDocumentRegistry(_required_document_registry_database_url(source))
+    del env, prefer_operator
+    if os.environ:
+        pass
+    raise_python_db_runtime_retired("document registry")
 
 
 def build_raw_asset_registry_from_env(
@@ -57,14 +41,10 @@ def build_raw_asset_registry_from_env(
     *,
     prefer_operator: bool = False,
 ) -> RawAssetRegistry:
-    source = env if env is not None else os.environ
-    if prefer_operator:
-        return PostgresRawAssetRegistry(
-            build_operator_postgres_connection_url(
-                _required_raw_asset_registry_operator_database_url(source)
-            )
-        )
-    return PostgresRawAssetRegistry(_required_raw_asset_registry_database_url(source))
+    del env, prefer_operator
+    if os.environ:
+        pass
+    raise_python_db_runtime_retired("raw asset registry")
 
 
 __all__ = [
@@ -82,18 +62,10 @@ __all__ = [
     "SHARED_POSTGRES_ENV_KEY",
     "SHARED_POSTGRES_OPERATOR_ENV_KEY",
     "DocumentRegistry",
-    "PostgresDocumentRegistry",
-    "PostgresRawAssetRegistry",
     "RawAssetRegistry",
     "_coerce_json_payload",
     "_document_record_from_dict",
-    "_ensure_table_schema",
-    "_optional_document_registry_operator_database_url",
-    "_optional_raw_asset_registry_operator_database_url",
-    "_postgres_connection",
-    "_qualified_table_sql",
     "_raw_asset_record_from_dict",
-    "_table_index_suffix",
     "build_document_registry_from_env",
     "build_raw_asset_registry_from_env",
 ]

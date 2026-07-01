@@ -106,10 +106,10 @@ def _inventory_entry(
     published_date: str = "2026-04-10",
     notice_release_time: str | None = None,
 ) -> AuthenticatedNoticeSourceTruthInventoryEntry:
-    parent_document_id = f"notice:muc_internal_portal:{notice_id}"
+    parent_document_id = f"notice:example_internal_portal:{notice_id}"
     parent_snapshot = {
         "notice_id": notice_id,
-        "site_id": "muc_internal_portal",
+        "site_id": "example_internal_portal",
         "document_id": parent_document_id,
         "notice_title": notice_title,
         "notice_release_time": notice_release_time or published_date,
@@ -123,7 +123,7 @@ def _inventory_entry(
         corpus="campus_notices",
         collection="internal_notice",
         notice_id=notice_id,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         document_id=parent_document_id,
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:inventory",
@@ -165,7 +165,7 @@ def _regulation_record(document_id: str) -> DocumentRegistryRecord:
         document_id=document_id,
         revision_track="source-faithful",
         version_id="sha256:stale-regulation-v1",
-        source_uri=f"campusrag://promotion/{document_id}",
+        source_uri=f"campus-agent://promotion/{document_id}",
         content_hash="stale-regulation-hash",
         corpus="regulations",
         collection="institutional_rules",
@@ -203,7 +203,7 @@ def _target_regulation_record(
     document_id: str,
     document_units_key: str,
     canonical_key: str,
-    source_uri: str = "campusrag://promotion/internal_notice/stale-target",
+    source_uri: str = "campus-agent://promotion/synthetic_notice/stale-target",
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
@@ -275,7 +275,7 @@ def _ready_institutional_projection_entry(
         completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
         answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
         consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
         source_document_id=source_document_id,
     )
 

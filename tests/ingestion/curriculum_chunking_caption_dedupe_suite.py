@@ -193,7 +193,9 @@ class CurriculumChunkingCaptionDedupeTest(unittest.TestCase):
         ).encode("utf-8")
 
         chunks = build_indexable_chunks_from_jsonl(
-            record=record, structured_jsonl_bytes=structured_payload
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_curriculum_chunk_profile(),
         )
 
         target_table_chunk = next(
@@ -305,7 +307,9 @@ class CurriculumChunkingCaptionDedupeTest(unittest.TestCase):
         ).encode("utf-8")
 
         chunks = build_indexable_chunks_from_jsonl(
-            record=record, structured_jsonl_bytes=structured_payload
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_curriculum_chunk_profile(),
         )
 
         self.assertEqual(len(chunks), 1)

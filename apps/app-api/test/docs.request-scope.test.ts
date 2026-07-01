@@ -35,7 +35,7 @@ const docsModuleMock = vi.hoisted(() => {
 					documentSlug: "student-attendance-management",
 					entitlementGroups: [],
 					isCurrent: true,
-					title: "中央民族大学学生考勤管理办法",
+					title: "示例大学学生考勤管理办法",
 					updatedAt: "2026-04-23T08:00:00.000Z",
 					versionId: "ver_2018_current",
 					versionSlug: "2018-current",
@@ -109,10 +109,10 @@ describe("docs request scope", () => {
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance-management",
 				documentSlug: "student-attendance-management",
-				displayTitle: "学生考勤管理办法",
+				displayTitle: "示例大学学生考勤管理办法",
 				isCurrent: true,
 				kind: "document",
-				title: "中央民族大学学生考勤管理办法",
+				title: "示例大学学生考勤管理办法",
 			},
 		]);
 	});

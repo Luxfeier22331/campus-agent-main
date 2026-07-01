@@ -17,7 +17,7 @@ from campus_ingestion_core.authenticated_notice_file_release_owner_recovery impo
     AuthenticatedNoticeFileReleaseExport,
     load_authenticated_notice_file_release_export,
 )
-from campus_ingestion_core.campusrag_ingestion_support import utc_now
+from campus_ingestion_core.campus_agent_ingestion_support import utc_now
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.registry import RawAssetRegistry, build_raw_asset_registry_from_env
 

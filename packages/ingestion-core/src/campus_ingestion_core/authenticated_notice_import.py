@@ -97,7 +97,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
     inventory_entry_from_parent_snapshot,
 )
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,

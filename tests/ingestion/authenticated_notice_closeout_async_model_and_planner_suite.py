@@ -120,7 +120,7 @@ class CloseoutStoreTest(unittest.TestCase):
                         "notice_id": "355119",
                         "raw_asset_id": "asset:1",
                         "raw_version_id": "sha256:1",
-                        "document_id": "notice:muc_internal_portal:355119",
+                        "document_id": "notice:example_internal_portal:355119",
                     },
                     "raw_record": {
                         "raw_asset_id": "asset:1",
@@ -128,7 +128,7 @@ class CloseoutStoreTest(unittest.TestCase):
                     },
                     "source_artifact_keys": {"source-truth/notice-manifest.json": "source.json"},
                     "document": {
-                        "document_id": "notice:muc_internal_portal:355119",
+                        "document_id": "notice:example_internal_portal:355119",
                         "revision_track": "source-faithful",
                         "version_id": "sha256:1",
                     },

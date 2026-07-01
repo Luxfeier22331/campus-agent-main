@@ -12,9 +12,9 @@ describe("official-web-collector plan shell", () => {
 		expect(plan.siteId).toBe("muc_public");
 		expect(plan.crawlRunId).toBe("muc_public-TEST");
 		expect(plan.runIntent).toBe("baseline");
-		expect(plan.enabledHosts).toHaveLength(34);
-		expect(plan.seeds).toHaveLength(34);
-		expect(plan.entryHost).toBe("www.muc.edu.cn");
+		expect(plan.enabledHosts).toHaveLength(1);
+		expect(plan.seeds).toHaveLength(1);
+		expect(plan.entryHost).toBe("www.example.edu");
 	});
 
 	it("prints plan json from the CLI entrypoint", () => {

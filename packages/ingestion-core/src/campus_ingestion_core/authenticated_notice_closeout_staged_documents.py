@@ -8,7 +8,7 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
     utc_now,
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
-from campus_ingestion_core.campusrag_ingestion_stage_payload import (
+from campus_ingestion_core.campus_agent_ingestion_stage_payload import (
     build_registry_record_from_stage_payload,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord

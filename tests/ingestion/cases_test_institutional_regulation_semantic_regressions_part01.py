@@ -32,7 +32,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "article_label": "第十三条",
                     },
                     metadata={
-                        "title": "中央民族大学学生申诉处理办法",
+                        "title": "示例大学学生申诉处理办法",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -93,7 +93,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "article_label": "第十四条",
                     },
                     metadata={
-                        "title": "中央民族大学学生申诉处理办法",
+                        "title": "示例大学学生申诉处理办法",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -158,7 +158,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                     ),
                     section_path=("第三章 申诉程序", "申诉材料"),
                     article_label="第十三条",
-                    title="中央民族大学学生申诉处理办法",
+                    title="示例大学学生申诉处理办法",
                 ),
                 self._row(
                     document_id=document_id,
@@ -172,7 +172,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                     ),
                     section_path=("第三章 申诉程序", "申诉期限"),
                     article_label="第十四条",
-                    title="中央民族大学学生申诉处理办法",
+                    title="示例大学学生申诉处理办法",
                 ),
             ),
         )
@@ -249,7 +249,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                     clean_text="校园卡业务由相关部门按制度办理。",
                     section_path=("校园服务制度",),
                     article_label="第一条",
-                    title="中央民族大学校园卡管理办法",
+                    title="示例大学校园卡管理办法",
                     promotion_class="formal_regulation",
                 ),
             ),
@@ -302,7 +302,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（二）",
                     },
                     metadata={
-                        "title": "中央民族大学研究生涉密学位论文管理办法（试行）",
+                        "title": "示例大学研究生涉密学位论文管理办法（试行）",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -343,7 +343,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "1.",
                     },
                     metadata={
-                        "title": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+                        "title": "示例大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -383,7 +383,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（四）",
                     },
                     metadata={
-                        "title": "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
+                        "title": "示例大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -420,7 +420,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（五）",
                     },
                     metadata={
-                        "title": "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+                        "title": "示例大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -464,7 +464,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（一）",
                     },
                     metadata={
-                        "title": "中央民族大学研究生涉密学位论文管理办法（试行）",
+                        "title": "示例大学研究生涉密学位论文管理办法（试行）",
                         "content_role": "regulation_body",
                     },
                 ),
@@ -521,7 +521,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                     clean_text=(
                         "（一）涉密学位论文的申请应在论文开题之前进行。"
                         "研究生与其导师共同提出定密申请，提供可作为学位论文定密依据的相关证明材料，"
-                        "填写《中央民族大学涉密研究生学位论文申请表》（以下简称《涉密论文申请表》）。"
+                        "填写《示例大学涉密研究生学位论文申请表》（以下简称《涉密论文申请表》）。"
                     ),
                     anchor={
                         "section_path": [
@@ -531,7 +531,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（一）",
                     },
                     metadata={
-                        "title": "中央民族大学研究生涉密学位论文管理办法（试行）",
+                        "title": "示例大学研究生涉密学位论文管理办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -570,7 +570,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "provision_label": "（四）",
                     },
                     metadata={
-                        "title": "中央民族大学教职工考核办法（试行）",
+                        "title": "示例大学教职工考核办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },
@@ -606,7 +606,7 @@ class InstitutionalRegulationSemanticRegressionsTestPart01(
                         "article_label": "第九条",
                     },
                     metadata={
-                        "title": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+                        "title": "示例大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                     },

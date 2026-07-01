@@ -17,7 +17,7 @@ function createRunSource(): OfficialWebRunProjectionSource {
 		crawlPolicyVersion: "2026-05-01",
 		failureCount: 0,
 		finishedAt: "2026-05-01T08:00:00.000Z",
-		hostSet: ["www.muc.edu.cn"],
+		hostSet: ["www.example.edu"],
 		ingestionDispatchRef: "dispatch_01",
 		ingestionDispatchStatus: "dispatched",
 		ingestionExecutionErrorCode: null,
@@ -29,8 +29,8 @@ function createRunSource(): OfficialWebRunProjectionSource {
 		runId: "owrun_field_review",
 		runIntent: "repair",
 		schedulerRunKey: "manual",
-		seedSet: ["https://www.muc.edu.cn/"],
-		siteId: "muc_public",
+		seedSet: ["https://www.example.edu/"],
+		siteId: "example_public",
 		startedAt: "2026-05-01T08:00:00.000Z",
 		status: "completed",
 		summary: null,
@@ -41,7 +41,7 @@ function createRunSource(): OfficialWebRunProjectionSource {
 function createSiteSource(): OfficialWebSiteProjectionSource {
 	return {
 		displayName: "MUC Public",
-		hostRoots: ["www.muc.edu.cn"],
+		hostRoots: ["www.example.edu"],
 		lastFailureAt: null,
 		lastSuccessAt: "2026-05-01T08:00:00.000Z",
 		latestCollectorVersion: "official-web-collector@0.1.0",
@@ -52,7 +52,7 @@ function createSiteSource(): OfficialWebSiteProjectionSource {
 		latestIngestionExecutionUpdatedAt: "2026-05-01T08:05:00.000Z",
 		latestRunId: "owrun_field_review",
 		latestRunStatus: "completed",
-		siteId: "muc_public",
+		siteId: "example_public",
 	};
 }
 
@@ -82,7 +82,7 @@ describe("official web execution status service", () => {
 				targetFieldReviews: [
 					{
 						canonicalVerification: false,
-						jobId: "owtarget_muc_public_service",
+						jobId: "owtarget_example_public_service",
 						runId: "owrun_field_review",
 						sourceHandoffId: null,
 						status: "blocked_fields",
@@ -104,7 +104,7 @@ describe("official web execution status service", () => {
 		expect(store.upsertTargetArtifactVerificationSummaries).toHaveBeenCalledWith([
 			{
 				canonicalVerification: false,
-				jobId: "owtarget_muc_public_service",
+				jobId: "owtarget_example_public_service",
 				objectVerificationId: null,
 				runId: "owrun_field_review",
 				sourceHandoffId: null,
@@ -117,7 +117,7 @@ describe("official web execution status service", () => {
 					inventoryId: "muc-information-disclosure-application-process",
 					schemaVersion: "official_web_target_field_review.v1",
 				},
-				summaryId: "owtargetsummary_owtarget_muc_public_service_owrun_field_review",
+				summaryId: "owtargetsummary_owtarget_example_public_service_owrun_field_review",
 				updatedAt: "2026-05-01T08:05:00.000Z",
 			},
 		]);
@@ -147,7 +147,7 @@ describe("official web execution status service", () => {
 				status: "staged",
 				targetFieldReviews: [
 					{
-						jobId: "owtarget_muc_public_service",
+						jobId: "owtarget_example_public_service",
 						runId: "owrun_field_review",
 						status: "ready_for_selected_write",
 						summary: {
@@ -159,7 +159,7 @@ describe("official web execution status service", () => {
 						},
 					},
 					{
-						jobId: "owtarget_muc_public_service",
+						jobId: "owtarget_example_public_service",
 						runId: "owrun_field_review",
 						status: "selected_write_review_required",
 						summary: {
@@ -179,7 +179,7 @@ describe("official web execution status service", () => {
 		expect(store.upsertTargetArtifactVerificationSummaries).toHaveBeenCalledWith([
 			{
 				canonicalVerification: false,
-				jobId: "owtarget_muc_public_service",
+				jobId: "owtarget_example_public_service",
 				objectVerificationId: null,
 				runId: "owrun_field_review",
 				sourceHandoffId: null,
@@ -206,7 +206,7 @@ describe("official web execution status service", () => {
 					],
 					schemaVersion: "official_web_target_field_review_rollup.v1",
 				},
-				summaryId: "owtargetsummary_owtarget_muc_public_service_owrun_field_review",
+				summaryId: "owtargetsummary_owtarget_example_public_service_owrun_field_review",
 				updatedAt: "2026-05-01T08:05:00.000Z",
 			},
 		]);

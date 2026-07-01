@@ -65,7 +65,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="paragraph",
-                        text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                        text="示例大学召开专题工作会议，部署本学期重点任务。",
                     ),
                 ],
             )
@@ -200,7 +200,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="paragraph",
-                        text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                        text="示例大学召开专题工作会议，部署本学期重点任务。",
                     ),
                 ],
             )
@@ -264,7 +264,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                 raw_asset_id="owasset_notice_001",
                 raw_version_id="owver_notice_001",
                 normalized_canonical_url="https://xxgk.example.edu/info/1297/5711.htm",
-                page_title="中央民族大学公开招聘及公示信息",
+                page_title="示例大学公开招聘及公示信息",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -274,7 +274,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学公开招聘及公示信息",
+                        text="示例大学公开招聘及公示信息",
                     ),
                     _block(
                         raw_asset_id="owasset_notice_001",
@@ -283,7 +283,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="paragraph",
-                        text="现发布中央民族大学公开招聘及公示信息，请查阅附件和后续说明。",
+                        text="现发布示例大学公开招聘及公示信息，请查阅附件和后续说明。",
                     ),
                 ],
             )
@@ -294,7 +294,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                 raw_asset_id="owasset_notice_002",
                 raw_version_id="owver_notice_002",
                 normalized_canonical_url="https://xxgk.example.edu/info/1358/28711.htm",
-                page_title="中央民族大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
+                page_title="示例大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
                 page_family="article_detail",
                 blocks=[
                     _block(
@@ -304,7 +304,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
+                        text="示例大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
                     ),
                     _block(
                         raw_asset_id="owasset_notice_002",
@@ -326,8 +326,8 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
 
             documents_by_title = {document["title"]: document for document in report.documents}
             for title in (
-                "中央民族大学公开招聘及公示信息",
-                "中央民族大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
+                "示例大学公开招聘及公示信息",
+                "示例大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示",
             ):
                 document = documents_by_title[title]
                 units = [
@@ -398,7 +398,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="paragraph",
-                        text="中央民族大学召开专题工作会议。",
+                        text="示例大学召开专题工作会议。",
                     ),
                 ],
             )
@@ -449,7 +449,7 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                             "normalized_canonical_url": "https://www.example.edu/rules",
                             "raw_asset_id": "owasset_rules",
                             "raw_version_id": "owver_rules",
-                            "title": "中央民族大学测试办法",
+                            "title": "示例大学测试办法",
                             "matched_evidence": [],
                             "selected_write_target": "",
                             "review_policy": "selected_write_requires_review",

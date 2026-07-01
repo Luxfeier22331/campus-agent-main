@@ -37,7 +37,7 @@ const env = {
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_ENVIRONMENT: "test" as const,
@@ -61,7 +61,7 @@ function createCampusPrincipal() {
 		},
 		principal: {
 			displayName: "Jane Doe",
-			email: "jane@muc.edu.cn",
+			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "campus_member" as const,
 		},
@@ -142,7 +142,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).toContain(
 			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
-		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
+		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"');
 		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_BASE_URL");
 		expect(stagingVarsBlock).toContain(
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
@@ -284,7 +284,7 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"',
+			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"',
 		);
 		expect(localSmokeWranglerConfig).toContain(
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"',

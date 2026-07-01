@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.curriculum_chunk_units_shared import (
     _looks_like_curriculum_page_marker_line,
 )

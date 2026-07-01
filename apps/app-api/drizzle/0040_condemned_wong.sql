@@ -10,7 +10,7 @@ CREATE TABLE "dining"."floorplan_assets" (
     "floorplan_asset_id" text PRIMARY KEY NOT NULL,
     "hall_id" text NOT NULL,
     "floor_id" text NOT NULL,
-    "bucket" text DEFAULT 'campus-rag-derived' NOT NULL,
+    "bucket" text DEFAULT 'campus-agent-derived' NOT NULL,
     "content_type" text DEFAULT 'image/svg+xml' NOT NULL,
     "byte_size" integer DEFAULT 0 NOT NULL,
     "object_key" text NOT NULL,

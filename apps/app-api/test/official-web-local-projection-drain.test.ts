@@ -25,7 +25,7 @@ describe("official web local projection drain helper", () => {
 			APP_API_ENVIRONMENT: "development",
 			CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: "postgres://runtime-db",
 			INGESTION_CONTROL_BASE_URL: "https://ingestion-control.example.internal",
-			OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 		});
 
 		expect(runtime).toEqual({
@@ -36,7 +36,7 @@ describe("official web local projection drain helper", () => {
 				},
 				APP_API_ENVIRONMENT: "development",
 				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.example.internal",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			},
 			ingestionControlConfigured: true,
 		});

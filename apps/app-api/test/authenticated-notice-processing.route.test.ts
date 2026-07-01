@@ -42,11 +42,11 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 }
 
 const processingRecord = {
-	id: "authenticated_notice_portal:notice:muc_internal_portal:355867:run_20260427:job_01",
-	noticeKey: "authenticated_notice_portal:notice:muc_internal_portal:355867",
+	id: "authenticated_notice_portal:notice:example_internal_portal:355867:run_20260427:job_01",
+	noticeKey: "authenticated_notice_portal:notice:example_internal_portal:355867",
 	sourceChannel: "authenticated_notice_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
+	siteId: "example_internal_portal",
 	noticeId: "355867",
 	title: "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
 	runId: "run_20260427",

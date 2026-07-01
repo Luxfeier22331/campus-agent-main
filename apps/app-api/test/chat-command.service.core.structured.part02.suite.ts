@@ -29,7 +29,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				forbidden: [
 					"transport_schedule_release",
 					"authenticated_notice:354777",
-					"notice:muc_internal_portal:354777",
+					"notice:example_internal_portal:354777",
 				],
 				prompt: "今天地铁接驳车最早几点",
 				result: {
@@ -38,7 +38,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 						operational_notices: [
 							{
 								operational_comment: "今日接驳车候车点调整至海淀东门。",
-								source_ref: "notice:muc_internal_portal:354777",
+								source_ref: "notice:example_internal_portal:354777",
 							},
 						],
 						related_notice_refs: ["authenticated_notice:354777"],

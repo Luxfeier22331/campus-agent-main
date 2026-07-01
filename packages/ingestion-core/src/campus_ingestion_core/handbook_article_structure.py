@@ -89,7 +89,7 @@ INLINE_HEADING_ALLOWLIST = {
     "认定程序",
 }
 INLINE_HEADING_BODY_STARTERS = (
-    "中央民族大学",
+    "示例大学",
     "党委学生工作部、学生处",
     "国家民族事务委员会",
     "本科学生",

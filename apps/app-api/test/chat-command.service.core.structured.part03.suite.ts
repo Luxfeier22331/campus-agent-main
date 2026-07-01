@@ -8,6 +8,7 @@ import {
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	type FinalizeRequestWrite,
+	PUBLIC_NOTICE_URL_ALLOWLIST,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -59,6 +60,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
+			publicNoticeURLAllowlist: PUBLIC_NOTICE_URL_ALLOWLIST,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
@@ -108,6 +110,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
+			publicNoticeURLAllowlist: PUBLIC_NOTICE_URL_ALLOWLIST,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
@@ -169,9 +172,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 									version_id: "version_private",
 								},
 								{
-									original_url: "https://www.muc.edu.cn/info/1041/12345.htm",
+									original_url: "https://www.example.edu/info/1041/12345.htm",
 									published_at: "2026-04-20",
-									publisher_label: "中央民族大学新闻网",
+									publisher_label: "示例大学新闻网",
 									snippet: "学校发布最新公开通知。",
 									source_kind: "notice",
 									source_title: "关于校园开放日安排的通知",
@@ -187,7 +190,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 									canonical_url: "/docs/official_web/fresh_news/open-day-notice",
 									original_url: "https://mp.weixin.qq.com/s/public-notice-example",
 									published_at: "2026-04-21",
-									publisher_label: "中央民族大学公众号",
+									publisher_label: "示例大学公众号",
 									snippet: "整理版通知保留公开原通知链接。",
 									source_kind: "notice",
 									source_title: "校园开放日安排整理版",
@@ -195,7 +198,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 								{
 									internal_notice_id: "355122",
 									portal_url:
-										"https://my.muc.edu.cn/comsys-portal-notice-web/download?id=private&notice_id=355122",
+										"https://portal.example.edu/comsys-portal-notice-web/download?id=private&notice_id=355122",
 									published_at: "2026-04-22",
 									publisher_label: "校内通知",
 									snippet: "该来源需要登录后查看。",
@@ -205,7 +208,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 								},
 								{
 									original_url:
-										"https://my.muc.edu.cn/comsys-portal-notice-web/download?id=private&notice_id=355122",
+										"https://portal.example.edu/comsys-portal-notice-web/download?id=private&notice_id=355122",
 									snippet: "内部通知不能向公开聊天暴露原始链接。",
 									source_kind: "notice",
 									source_title: "校内内部通知",
@@ -260,11 +263,11 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				expect.objectContaining({
 					primaryAction: expect.objectContaining({
 						external: true,
-						href: "https://www.muc.edu.cn/info/1041/12345.htm",
+						href: "https://www.example.edu/info/1041/12345.htm",
 						label: "打开原通知",
 					}),
 					publishedAt: "2026-04-20",
-					publisherLabel: "中央民族大学新闻网",
+					publisherLabel: "示例大学新闻网",
 					snippet: "学校发布最新公开通知。",
 					sourceKind: "notice",
 					targetKind: "public_notice_url",
@@ -308,7 +311,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 		expect(browserFacingPayload).not.toContain("source_unit_key");
 		expect(browserFacingPayload).not.toContain("sourceUnitKey");
 		expect(browserFacingPayload).not.toContain("s3://");
-		expect(browserFacingPayload).not.toContain("my.muc.edu.cn");
+		expect(browserFacingPayload).not.toContain("portal.example.edu");
 		expect(browserFacingPayload).not.toContain("notice_id=355122");
 		expect(browserFacingPayload).not.toContain("internal_notice_id");
 		expect(browserFacingPayload).not.toContain("portal_url");

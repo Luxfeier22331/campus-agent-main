@@ -200,7 +200,7 @@ def _service_procedure_group_seed(
         return "email"
     if "校园卡" in f"{title}{target_label}" or "一卡通" in f"{title}{target_label}":
         return "campus_card"
-    if "认证" in f"{title}{target_label}" or "rz.muc.edu.cn" in combined:
+    if "认证" in f"{title}{target_label}" or "rz.example.edu" in combined:
         return "network_auth"
     path_tail = normalized_canonical_url.rstrip("/").rsplit("/", 1)[-1]
     normalized_tail = re.sub(r"[^a-z0-9]+", "-", path_tail.lower()).strip("-")

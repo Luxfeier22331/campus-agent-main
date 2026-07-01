@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createCampusMapStyle, getCampusMapProfile } from "../src/features/map/campus-map-style";
+import {
+	createCampusMapProfilesFromManifest,
+	createCampusMapStyle,
+	getCampusMapProfile,
+} from "../src/features/map/campus-map-style";
 
 describe("campus map style", () => {
 	it("keeps campus building labels local to the MapLibre style", () => {
@@ -11,7 +15,7 @@ describe("campus map style", () => {
 
 		expect(style.glyphs).toBeUndefined();
 		expect(haidianStyle.sources?.["haidian-campus"]).toEqual({
-			data: "/map-assets/haidian-campus.geojson",
+			data: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
 			type: "geojson",
 		});
 		expect(style.layers?.find((layer) => layer.id === "campus-building-labels")).toEqual(
@@ -68,6 +72,30 @@ describe("campus map style", () => {
 				}),
 			}),
 		);
+	});
+
+	it("creates campus profiles from the runtime map manifest", () => {
+		const profiles = createCampusMapProfilesFromManifest({
+			attribution: ["Synthetic map contributors"],
+			campuses: {
+				fengtai: {
+					bounds: [120, 30, 120.1, 30.1],
+					geojsonUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+					name: "丰台校区",
+					tileUrlTemplate: "/map-data/v2026-06-30/tiles/fengtai/{z}/{x}/{y}.png",
+				},
+			},
+			licenseBoundary: "External map data",
+			version: "v2026-06-30",
+		});
+
+		expect(profiles).toHaveLength(1);
+		expect(profiles[0]).toMatchObject({
+			assetUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+			campus: "丰台校区",
+			sourceId: "fengtai-campus",
+		});
+		expect(profiles[0]?.center).toEqual([120.05, 30.05]);
 	});
 });
 

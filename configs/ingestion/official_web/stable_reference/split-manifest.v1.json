@@ -2,32 +2,14 @@
 	"manifest_version": "official_web_stable_reference_split_manifest_v1",
 	"corpus": "official_web",
 	"collection": "stable_reference",
-	"raw_asset_id": "asset:official-web-stable-reference-target-inventory-admission-20260514",
+	"raw_asset_id": "asset:synthetic-official-web-stable-reference",
 	"documents": [
 		{
-			"document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-			"title": "学校简介",
+			"document_id": "official_web:synthetic_public:article_detail:campus-overview",
+			"title": "Synthetic campus overview page",
 			"page_start": 1,
 			"page_end": 1,
-			"source_uri": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
-			"acl_groups": [],
-			"status": "active"
-		},
-		{
-			"document_id": "official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
-			"title": "教学和科研单位",
-			"page_start": 2,
-			"page_end": 2,
-			"source_uri": "https://www.muc.edu.cn/zzjg/jxhkydw1.htm",
-			"acl_groups": [],
-			"status": "active"
-		},
-		{
-			"document_id": "official_web:muc_public:directory_page:9d7917bb1eb39649f02c6285c51280d811790cae",
-			"title": "中央民族大学大学教育收费公示表",
-			"page_start": 3,
-			"page_end": 3,
-			"source_uri": "https://xxgk.muc.edu.cn/info/1302/1393.htm",
+			"source_uri": "https://www.example.edu/about",
 			"acl_groups": [],
 			"status": "active"
 		}

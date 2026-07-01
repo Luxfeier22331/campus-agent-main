@@ -44,7 +44,6 @@ export const STATIC_DINING_REVIEW_SEED: DiningReview[] = [
 		dishName: "金汤鱼粉",
 		hallId: "haidian-canteen-1",
 		hallName: "海淀一食堂",
-		images: [reviewImage("rec27DpktN6uQn", "金汤鱼粉")],
 		paidPriceLabel: "12 元",
 		rating: 4,
 		sourceRecordId: "rec27DpktN6uQn",
@@ -57,7 +56,6 @@ export const STATIC_DINING_REVIEW_SEED: DiningReview[] = [
 		dishName: "螺蛳粉（不加炸蛋）",
 		hallId: "haidian-canteen-1",
 		hallName: "海淀一食堂",
-		images: [reviewImage("rec27DJv88QQlY", "螺蛳粉（不加炸蛋）")],
 		paidPriceLabel: "12 元",
 		rating: 4,
 		sourceRecordId: "rec27DJv88QQlY",
@@ -70,7 +68,6 @@ export const STATIC_DINING_REVIEW_SEED: DiningReview[] = [
 		dishName: "土耳其鸡肉炒饭",
 		hallId: "haidian-canteen-4",
 		hallName: "海淀四食堂",
-		images: [reviewImage("rec27DJMSZYogx", "土耳其鸡肉炒饭")],
 		paidPriceLabel: "14 元",
 		rating: 4,
 		sourceRecordId: "rec27DJMSZYogx",
@@ -87,13 +84,5 @@ function createReview(
 		...input,
 		images: input.images ?? [],
 		reviewId: `dining-review:${input.sourceRecordId}`,
-	};
-}
-
-function reviewImage(recordId: string, dishName: string): DiningReview["images"][number] {
-	return {
-		alt: `${dishName}评价图片`,
-		imageId: `dining-review-image:${recordId}:1`,
-		url: `/assets/dining/reviews/${recordId}.jpg`,
 	};
 }

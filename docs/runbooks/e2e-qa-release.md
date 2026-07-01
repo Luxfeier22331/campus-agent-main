@@ -118,7 +118,7 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-alias-campus-network.json"
 
 pnpm --dir apps/app-api chat:e2e:staging -- \
-  --prompt "中央民族大学本科学生国家奖学金评审办法" \
+  --prompt "示例大学本科学生国家奖学金评审办法" \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 

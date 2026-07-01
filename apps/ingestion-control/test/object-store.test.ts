@@ -21,20 +21,20 @@ describe("ingestion-control object store adapter", () => {
 			},
 		};
 		const store = createS3IngestionObjectStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client,
 		});
 
 		await expect(
 			store.getObject({
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				key: "runs/capture-release.json",
 			}),
 		).resolves.toEqual(new Uint8Array([1, 2, 3]));
 		const body = Buffer.from("materialized", "utf8");
 		await expect(
 			store.putObject({
-				bucket: "campus-rag-source",
+				bucket: "campus-agent-source",
 				key: "source-truth/notice-manifest.json",
 				body,
 				contentType: "application/json",
@@ -46,11 +46,11 @@ describe("ingestion-control object store adapter", () => {
 
 		expect(sentInputs).toMatchObject([
 			{
-				Bucket: "campus-rag-source",
+				Bucket: "campus-agent-source",
 				Key: "runs/capture-release.json",
 			},
 			{
-				Bucket: "campus-rag-source",
+				Bucket: "campus-agent-source",
 				Key: "source-truth/notice-manifest.json",
 				ContentLength: body.byteLength,
 				ContentType: "application/json",
@@ -63,7 +63,7 @@ describe("ingestion-control object store adapter", () => {
 
 	it("fails closed when a task references a different bucket", async () => {
 		const store = createS3IngestionObjectStore({
-			bucket: "campus-rag-source",
+			bucket: "campus-agent-source",
 			client: {
 				async send(): Promise<unknown> {
 					throw new Error("send should not be called");
@@ -91,7 +91,7 @@ describe("ingestion-control object store adapter", () => {
 		);
 		expect(
 			createS3IngestionObjectStoreFromEnv({
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 				OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "minio",
 				OBJECT_STORE_SOURCE_SECRET_KEY: "minio-secret",

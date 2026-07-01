@@ -1,79 +1,19 @@
 {
 	"manifest_version": "curriculum_course_map_probe_samples_v1",
-	"raw_asset_id": "asset:curriculum-plan-2022",
-	"raw_version_id": "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+	"raw_asset_id": "asset:synthetic-curriculum-plan",
+	"raw_version_id": "sha256:synthetic-curriculum-plan",
 	"entries": [
 		{
-			"sample_id": "course-map-p207",
-			"page_number": 207,
-			"document_id": "curriculum:英语本科人才培养方案",
-			"document_title": "英语本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p277",
-			"page_number": 277,
-			"document_id": "curriculum:金融学本科人才培养方案",
-			"document_title": "金融学本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p287",
+			"sample_id": "course-map-synthetic-public-affairs",
 			"page_number": 287,
-			"document_id": "curriculum:国际经济与贸易本科人才培养方案",
-			"document_title": "国际经济与贸易本科人才培养方案"
+			"document_id": "curriculum:synthetic-public-affairs-plan",
+			"document_title": "Synthetic public affairs curriculum plan"
 		},
 		{
-			"sample_id": "course-map-p297",
+			"sample_id": "course-map-synthetic-data-systems",
 			"page_number": 297,
-			"document_id": "curriculum:经济学拔尖人才创新班人才培养方案",
-			"document_title": "经济学拔尖人才创新班人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p349",
-			"page_number": 349,
-			"document_id": "curriculum:法学（民族实验班）本科人才培养方案",
-			"document_title": "法学（民族实验班）本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p409",
-			"page_number": 409,
-			"document_id": "curriculum:信息与计算科学本科人才培养方案",
-			"document_title": "信息与计算科学本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p429",
-			"page_number": 429,
-			"document_id": "curriculum:光电信息科学与工程本科人才培养方案",
-			"document_title": "光电信息科学与工程本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p513",
-			"page_number": 513,
-			"document_id": "curriculum:计算机类本科人才培养方案",
-			"document_title": "计算机类本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p514",
-			"page_number": 514,
-			"document_id": "curriculum:计算机类本科人才培养方案",
-			"document_title": "计算机类本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p547",
-			"page_number": 547,
-			"document_id": "curriculum:音乐与舞蹈学类（音乐类专业）本科人才培养方案",
-			"document_title": "音乐与舞蹈学类（音乐类专业）本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p550",
-			"page_number": 550,
-			"document_id": "curriculum:音乐与舞蹈学类（音乐类专业）本科人才培养方案",
-			"document_title": "音乐与舞蹈学类（音乐类专业）本科人才培养方案"
-		},
-		{
-			"sample_id": "course-map-p601",
-			"page_number": 601,
-			"document_id": "curriculum:设计学类本科人才培养方案",
-			"document_title": "设计学类本科人才培养方案"
+			"document_id": "curriculum:synthetic-data-systems-plan",
+			"document_title": "Synthetic data systems curriculum plan"
 		}
 	]
 }

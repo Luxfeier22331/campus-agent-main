@@ -46,7 +46,7 @@ describe("campus worker public app-api cache", () => {
 						release: {
 							publishedAt: "2026-03-20T00:00:00+08:00",
 							releaseId: "snapshot:bus:2026-03-20",
-							sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+							sourceRefs: ["https://portal.example.edu/notice/123"],
 						},
 						pathname: url.pathname,
 						search: url.search,

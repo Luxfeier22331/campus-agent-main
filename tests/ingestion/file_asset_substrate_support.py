@@ -169,7 +169,7 @@ def _build_merged_heading_xlsx_bytes() -> bytes:
     shared_strings = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="8" uniqueCount="8">
   <si><t>本科</t></si>
-  <si><t>中央民族大学2019-2020学年第2学期</t></si>
+  <si><t>示例大学2019-2020学年第2学期</t></si>
   <si><t>课程名称</t></si>
   <si><t>专业班级</t></si>
   <si><t>总计</t></si>

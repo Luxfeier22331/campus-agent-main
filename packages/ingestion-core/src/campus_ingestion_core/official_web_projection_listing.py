@@ -508,9 +508,9 @@ def _looks_like_portal_directory_page(
     normalized_title = " ".join(title.split()).strip()
     normalized_url = str(manifest.get("normalizedCanonicalUrl") or "").strip().rstrip("/")
     if (
-        normalized_title not in {"首页", "中央民族大学"}
+        normalized_title not in {"首页", "示例大学"}
         and not normalized_url.endswith("://www.example.edu")
-        and not normalized_url.endswith("://www.muc.edu.cn")
+        and not normalized_url.endswith("://www.example.edu")
         and normalized_title != "门户首页"
     ):
         return False

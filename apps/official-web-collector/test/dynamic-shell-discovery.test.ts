@@ -28,23 +28,23 @@ describe("official-web-collector dynamic shell discovery", () => {
 			networkObservationTimeoutMs: 1500,
 			maxPromotedUrls: 10,
 			allowedRequestUrlPatterns: [
-				"^https://lib\\.muc\\.edu\\.cn/engine2/api/data/general/",
-				"^https://lib\\.muc\\.edu\\.cn/page/\\d+/all-request",
+				"^https://www\\.example\\.edu/engine2/api/data/general/",
+				"^https://www\\.example\\.edu/page/\\d+/all-request",
 			],
 			ignoredRequestUrlPatterns: [
-				"^https://lib\\.muc\\.edu\\.cn/assets/",
+				"^https://www\\.example\\.edu/assets/",
 				"^https://p\\.ananas\\.chaoxing\\.com/",
 			],
 			promotedUrlPatterns: [
-				"^https://lib\\.muc\\.edu\\.cn/engine2/general-rest/\\d+/proxy-detail-url",
-				"^https://lib\\.muc\\.edu\\.cn/db/detail",
+				"^https://www\\.example\\.edu/engine2/general-rest/\\d+/proxy-detail-url",
+				"^https://www\\.example\\.edu/db/detail",
 			],
 			waitForResponseUrlPatterns: [],
 			waitForSelectorPatterns: [],
 		};
 		const captures: DynamicShellNetworkCapture[] = [
 			{
-				url: "https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=1e90148874955111ed88bf78afbbbef7afd6",
+				url: "https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=1e90148874955111ed88bf78afbbbef7afd6",
 				status: 200,
 				contentType: "application/json;charset=UTF-8",
 				bodyText: JSON.stringify({
@@ -53,12 +53,12 @@ describe("official-web-collector dynamic shell discovery", () => {
 						map: {
 							"3047868": [
 								{
-									url: "/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=http://lib.muc.edu.cn&pageId=87948&engineInstanceId=699558",
+									url: "/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=https://www.example.edu&pageId=87948&engineInstanceId=699558",
 								},
 							],
 							"3049665": [
 								{
-									url: "https://lib.muc.edu.cn/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
+									url: "https://www.example.edu/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
 								},
 							],
 							"3049666": [
@@ -71,11 +71,11 @@ describe("official-web-collector dynamic shell discovery", () => {
 				}),
 			},
 			{
-				url: "https://lib.muc.edu.cn/assets/js/index_page.min.js?v=2023030202",
+				url: "https://www.example.edu/assets/js/index_page.min.js?v=2023030202",
 				status: 200,
 				contentType: "application/javascript",
 				bodyText:
-					"const ignored = 'https://lib.muc.edu.cn/db/detail?id=999&pageId=87948&wfwfid=24149&websiteId=64168';",
+					"const ignored = 'https://www.example.edu/db/detail?id=999&pageId=87948&wfwfid=24149&websiteId=64168';",
 			},
 			{
 				url: "https://p.ananas.chaoxing.com/star3/origin/foo.png",
@@ -86,14 +86,14 @@ describe("official-web-collector dynamic shell discovery", () => {
 		];
 
 		const promotedUrls = extractPromotedUrlsFromNetworkCaptures({
-			baseUrl: "https://lib.muc.edu.cn/",
+			baseUrl: "https://www.example.edu/",
 			captures,
 			policy,
 		});
 
 		expect(promotedUrls).toEqual([
-			"https://lib.muc.edu.cn/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=http://lib.muc.edu.cn&pageId=87948&engineInstanceId=699558",
-			"https://lib.muc.edu.cn/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
+			"https://www.example.edu/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=https://www.example.edu&pageId=87948&engineInstanceId=699558",
+			"https://www.example.edu/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
 		]);
 	});
 
@@ -105,8 +105,8 @@ describe("official-web-collector dynamic shell discovery", () => {
 
 		const resolvedUrls = await resolvePromotedUrlsWithHtmlRedirects({
 			urls: [
-				"https://lib.muc.edu.cn/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=http://lib.muc.edu.cn&pageId=87948&engineInstanceId=699558",
-				"https://lib.muc.edu.cn/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
+				"https://www.example.edu/engine2/general-rest/9285452/proxy-detail-url?pageType=1&typeId=&dataTypeId=3047868&withDomain=false&domain=https://www.example.edu&pageId=87948&engineInstanceId=699558",
+				"https://www.example.edu/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
 			],
 			userAgent: "collector-test/1.0",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -114,8 +114,8 @@ describe("official-web-collector dynamic shell discovery", () => {
 
 		expect(fetchImpl).toHaveBeenCalledTimes(1);
 		expect(resolvedUrls).toEqual([
-			"https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948&websiteId=64168",
-			"https://lib.muc.edu.cn/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
+			"https://www.example.edu/engine2/d/9285452/699558/0?p=87948&websiteId=64168",
+			"https://www.example.edu/db/detail?id=389&pageId=87948&wfwfid=24149&websiteId=64168",
 		]);
 	});
 
@@ -124,11 +124,11 @@ describe("official-web-collector dynamic shell discovery", () => {
 			"../src/official-web-core"
 		);
 		const bundle = loadOfficialWebConfig("muc_public");
-		const hostPolicy = findOfficialWebHostPolicy(bundle, "lib.muc.edu.cn");
+		const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
 
 		expect(hostPolicy?.dynamicShellDiscovery).not.toBeNull();
 		if (!hostPolicy?.dynamicShellDiscovery) {
-			throw new Error("expected lib.muc.edu.cn dynamic shell policy");
+			throw new Error("expected www.example.edu dynamic shell policy");
 		}
 		const policy = hostPolicy.dynamicShellDiscovery;
 
@@ -138,7 +138,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 				...hostPolicy,
 				dynamicShellDiscovery: {
 					...policy,
-					waitForResponseUrlPatterns: ["^https://lib\\.muc\\.edu\\.cn/engine2/api/data/general/"],
+					waitForResponseUrlPatterns: ["^https://www\\.example\\.edu/engine2/api/data/general/"],
 					waitForSelectorPatterns: ["#app-ready"],
 					networkObservationTimeoutMs: 1200,
 				},
@@ -146,7 +146,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 			captureNetwork: async () => ({
 				captures: [
 					{
-						url: "https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+						url: "https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 						status: 200,
 						contentType: "application/json;charset=UTF-8",
 						bodyText: JSON.stringify({
@@ -154,7 +154,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 							data: {
 								items: [
 									{
-										url: "https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+										url: "https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 									},
 								],
 							},
@@ -165,7 +165,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 					waitAfterLoadMs: policy.waitAfterLoadMs,
 					networkObservationTimeoutMs: 1200,
 					matchedResponseUrl:
-						"https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+						"https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 					matchedSelector: "#app-ready",
 					usedNetworkIdleWait: false,
 					usedFixedDelayWait: false,
@@ -173,29 +173,29 @@ describe("official-web-collector dynamic shell discovery", () => {
 			}),
 			page: {
 				pageManifest: {
-					finalUrl: "https://lib.muc.edu.cn/",
-					normalizedCanonicalUrl: "https://lib.muc.edu.cn/",
+					finalUrl: "https://www.example.edu/",
+					normalizedCanonicalUrl: "https://www.example.edu/",
 				},
 			} as never,
 		});
 
 		expect(result.promotedUrls).toEqual([
-			"https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+			"https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 		]);
 		expect(result.audit.wait.matchedResponseUrl).toContain("/engine2/api/data/general/");
 		expect(result.audit.wait.matchedSelector).toBe("#app-ready");
 		expect(result.audit.promotedUrls).toEqual([
-			"https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+			"https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 		]);
 		expect(result.audit.extractedUrls).toContain(
-			"https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+			"https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 		);
 	});
 
 	it("captures dynamic shell responses through a Crawlee PlaywrightCrawler boundary", async () => {
 		const waitForResponse = vi.fn(async () => ({
 			url: () =>
-				"https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+				"https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 		}));
 		const waitForSelector = vi.fn(async () => ({ selector: "#app-ready" }));
 		const waitForLoadState = vi.fn(async () => undefined);
@@ -217,8 +217,8 @@ describe("official-web-collector dynamic shell discovery", () => {
 			) => {
 				expect(requests).toEqual([
 					{
-						uniqueKey: "dynamic_shell:https://lib.muc.edu.cn/",
-						url: "https://lib.muc.edu.cn/",
+						uniqueKey: "dynamic_shell:https://www.example.edu/",
+						url: "https://www.example.edu/",
 					},
 				]);
 				await requestHandler({
@@ -239,7 +239,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 						goto: async () => {
 							const response = {
 								url: () =>
-									"https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+									"https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 								status: () => 200,
 								headers: () => ({
 									"content-type": "application/json;charset=UTF-8",
@@ -250,7 +250,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 										data: {
 											items: [
 												{
-													url: "https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+													url: "https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 												},
 											],
 										},
@@ -271,7 +271,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 		let requestHandler: Parameters<DynamicShellCrawlerFactory>[0]["requestHandler"];
 
 		const result = await captureDynamicShellNetwork({
-			url: "https://lib.muc.edu.cn/",
+			url: "https://www.example.edu/",
 			policy: {
 				enabled: true,
 				engine: "playwright",
@@ -281,7 +281,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 				allowedRequestUrlPatterns: [],
 				ignoredRequestUrlPatterns: [],
 				promotedUrlPatterns: [],
-				waitForResponseUrlPatterns: ["^https://lib\\.muc\\.edu\\.cn/engine2/api/data/general/"],
+				waitForResponseUrlPatterns: ["^https://www\\.example\\.edu/engine2/api/data/general/"],
 				waitForSelectorPatterns: ["#app-ready"],
 			},
 			crawlerFactory: (input: Parameters<DynamicShellCrawlerFactory>[0]) => {
@@ -303,14 +303,14 @@ describe("official-web-collector dynamic shell discovery", () => {
 			waitAfterLoadMs: 1500,
 			networkObservationTimeoutMs: 1200,
 			matchedResponseUrl:
-				"https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+				"https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 			matchedSelector: "#app-ready",
 			usedNetworkIdleWait: false,
 			usedFixedDelayWait: false,
 		});
 		expect(result.captures).toEqual([
 			{
-				url: "https://lib.muc.edu.cn/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
+				url: "https://www.example.edu/engine2/api/data/general/537849/list-tree-types-and-datas?engineInstanceId=test",
 				status: 200,
 				contentType: "application/json;charset=utf-8",
 				bodyText: JSON.stringify({
@@ -318,7 +318,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 					data: {
 						items: [
 							{
-								url: "https://lib.muc.edu.cn/engine2/d/9285452/699558/0?p=87948",
+								url: "https://www.example.edu/engine2/d/9285452/699558/0?p=87948",
 							},
 						],
 					},
@@ -339,7 +339,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 		> = [];
 
 		const result = await observeDynamicShellPage({
-			url: "https://lib.muc.edu.cn/",
+			url: "https://www.example.edu/",
 			policy: {
 				enabled: true,
 				engine: "playwright",
@@ -349,7 +349,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 				allowedRequestUrlPatterns: [],
 				ignoredRequestUrlPatterns: [],
 				promotedUrlPatterns: [],
-				waitForResponseUrlPatterns: ["^https://lib\\.muc\\.edu\\.cn/api/ready"],
+				waitForResponseUrlPatterns: ["^https://www\\.example\\.edu/api/ready"],
 				waitForSelectorPatterns: ["#app-ready"],
 			},
 			page: {
@@ -361,7 +361,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 					events.push(`goto:${url}`);
 					for (const listener of responseListeners) {
 						listener({
-							url: () => "https://lib.muc.edu.cn/api/data",
+							url: () => "https://www.example.edu/api/data",
 							status: () => 200,
 							headers: () => ({ "content-type": "application/json" }),
 							text: async () => '{"ok":true}',
@@ -390,7 +390,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 			"waitForResponse",
 			"waitForSelector",
 			"on:response",
-			"goto:https://lib.muc.edu.cn/",
+			"goto:https://www.example.edu/",
 			"waitForLoadState:networkidle:750",
 			"waitForTimeout:750",
 		]);
@@ -404,7 +404,7 @@ describe("official-web-collector dynamic shell discovery", () => {
 		});
 		expect(result.captures).toEqual([
 			{
-				url: "https://lib.muc.edu.cn/api/data",
+				url: "https://www.example.edu/api/data",
 				status: 200,
 				contentType: "application/json",
 				bodyText: '{"ok":true}',

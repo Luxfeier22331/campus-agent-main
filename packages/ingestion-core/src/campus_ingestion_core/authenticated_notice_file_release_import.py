@@ -50,7 +50,7 @@ from campus_ingestion_core.authenticated_notice_import_assets import _content_ty
 from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 )
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,

@@ -17,6 +17,11 @@ export const TOOL_IDS = [
 	"campus_notice_period_summary",
 	"campus_notice_get",
 ] as const;
+export const MODEL_VISIBLE_TOOL_NAMES = [
+	"knowledge_query",
+	"transport_schedule_lookup",
+	"campus_notice_discover",
+] as const;
 export const REQUESTED_TOOLS = [
 	"knowledge_query",
 	"place_lookup",
@@ -51,6 +56,7 @@ export const STEP_OUTPUT_PROJECTION_KINDS = [
 ] as const;
 
 export type ToolID = (typeof TOOL_IDS)[number];
+export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
 export type RequestedTool = (typeof REQUESTED_TOOLS)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];
@@ -236,7 +242,7 @@ export interface ToolRequestWire {
 	context?: SafeRecord;
 	workflow_context?: WorkflowToolContextWire;
 	payload: { kind: string; payload: SafeRecord };
-	allowed_tools: string[];
+	allowed_tools: ModelVisibleToolName[];
 }
 
 export interface ToolExecutionWorkflowTraceSummaryWire {

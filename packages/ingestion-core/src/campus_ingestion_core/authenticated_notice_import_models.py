@@ -18,7 +18,7 @@ from campus_ingestion_core.authenticated_notice_import_support import (
 from campus_ingestion_core.authenticated_notice_import_support import (
     normalize_import_mode as _normalize_import_mode,
 )
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.scope_catalog import assert_known_scope
 

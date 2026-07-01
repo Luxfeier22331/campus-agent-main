@@ -17,21 +17,21 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             attachment_ref={
                 "attachment_ref_id": "attachment-0001",
                 "final_url": (
-                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "https://portal.example.edu/comsys-portal-notice-web/download"
                     "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                 ),
                 "source_url": (
-                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "https://portal.example.edu/comsys-portal-notice-web/download"
                     "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                 ),
                 "normalized_source_url": (
-                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "https://portal.example.edu/comsys-portal-notice-web/download"
                     "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                 ),
-                "anchor_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+                "anchor_text": "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx",
                 "object_key": (
                     "attachments/1d/1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735/"
-                    "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx"
+                    "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx"
                 ),
                 "content_sha256": "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
                 "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -114,26 +114,26 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
         )
         plans = build_authenticated_notice_attachment_projection_plans(
-            parent_document_id="notice:muc_internal_portal:355282",
+            parent_document_id="notice:example_internal_portal:355282",
             attachment_refs=(
                 {
                     "attachment_ref_id": "attachment-0001",
                     "final_url": (
-                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "https://portal.example.edu/comsys-portal-notice-web/download"
                         "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                     ),
                     "source_url": (
-                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "https://portal.example.edu/comsys-portal-notice-web/download"
                         "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                     ),
                     "normalized_source_url": (
-                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "https://portal.example.edu/comsys-portal-notice-web/download"
                         "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
                     ),
-                    "anchor_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+                    "anchor_text": "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx",
                     "object_key": (
                         "attachments/1d/1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735/"
-                        "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx"
+                        "附件：示例大学关于学生使用人工智能的指导意见（2026版）.docx"
                     ),
                     "content_sha256": "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
                     "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -158,7 +158,7 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
         )
 
         plans = build_authenticated_notice_attachment_projection_plans(
-            parent_document_id="notice:muc_internal_portal:355282",
+            parent_document_id="notice:example_internal_portal:355282",
             attachment_refs=(
                 {
                     "attachment_ref_id": "attachment-0009",

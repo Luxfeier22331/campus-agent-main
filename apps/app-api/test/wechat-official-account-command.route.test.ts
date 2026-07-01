@@ -43,7 +43,7 @@ describe("wechat official-account collector routes", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/wechat-official-account/runs", {
 				body: JSON.stringify({
-					accountName: "中央民族大学学生会",
+					accountName: "示例大学学生会",
 					accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 					collectorVersion: "wechat-official-account-collector@0.1.0",
 					provider: "feedwe",
@@ -68,7 +68,7 @@ describe("wechat official-account collector routes", () => {
 		expect(response.status).toBe(200);
 		expect(service.start).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				provider: "feedwe",
 			}),
 			principal: {
@@ -104,7 +104,7 @@ describe("wechat official-account collector routes", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/wechat-official-account/runs", {
 				body: JSON.stringify({
-					accountName: "中央民族大学学生会",
+					accountName: "示例大学学生会",
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -125,7 +125,7 @@ describe("wechat official-account collector routes", () => {
 			listRuns: vi.fn().mockResolvedValue({
 				runs: [
 					{
-						accountName: "中央民族大学学生会",
+						accountName: "示例大学学生会",
 						accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 						artifactCount: 2,
 						finishedAt: "2026-04-27T08:01:00.000Z",
@@ -192,7 +192,7 @@ describe("wechat official-account collector routes", () => {
 		const service: WeChatOfficialAccountCommandService = {
 			finalize: vi.fn(),
 			getRun: vi.fn().mockResolvedValue({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 				artifacts: [
 					{

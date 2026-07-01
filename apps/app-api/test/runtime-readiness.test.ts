@@ -33,7 +33,7 @@ const env = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
@@ -113,7 +113,7 @@ describe("runtime readiness", () => {
 			defaultRuntimeReadinessProbe({
 				...env,
 				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.internal",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			}),
 		).resolves.toMatchObject({
 			dependencies: {

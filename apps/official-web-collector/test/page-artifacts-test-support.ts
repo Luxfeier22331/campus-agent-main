@@ -211,7 +211,7 @@ export const SAMPLE_NEWS_PORTAL_AGGREGATE_PAGE_HTML = `
 <!doctype html>
 <html lang="zh-cn">
   <head>
-    <title>中央民族大学新闻网</title>
+    <title>示例大学新闻网</title>
   </head>
   <body>
     <header>
@@ -223,22 +223,22 @@ export const SAMPLE_NEWS_PORTAL_AGGREGATE_PAGE_HTML = `
     <main>
       <section class="hero">
         <h2>校长强世功接受“统战新语”专访 解读民族团结进步促进法</h2>
-        <p>从北京到边疆，从课堂到田野，一场关于“铸牢”教育的系统探索，正在中央民族大学稳步开展。</p>
+        <p>从北京到边疆，从课堂到田野，一场关于“铸牢”教育的系统探索，正在示例大学稳步开展。</p>
         <div class="tabs">
           <span>教学科研</span>
           <span>校园经纬</span>
           <span>全球合作</span>
         </div>
         <div class="card">
-          <h3><a href="/info/1.htm">中央民族大学党委举办树立和践行正确政绩观学习教育读书班</a></h3>
+          <h3><a href="/info/1.htm">示例大学党委举办树立和践行正确政绩观学习教育读书班</a></h3>
         </div>
         <div class="card">
-          <h3><a href="/info/2.htm">中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破</a></h3>
+          <h3><a href="/info/2.htm">示例大学唐鑫团队在红外高光谱成像系统研究获重大突破</a></h3>
         </div>
         <div class="card">
           <h3><a href="/info/3.htm">《学习时报》孔新峰：政德何以重要</a></h3>
           <p>
-            新闻网讯 3月23日，《学习时报》刊发中央民族大学马克思主义学院党委书记、院长孔新峰教授撰写的理论文章《政德何以重要》，文章指出：新时代新征程对干部治理能力提出更高要求，政德建设成为干部队伍建设的关键抓手。政德作为党员干部从政履职的根本道德准则，是中华传统政治文明一脉相承的精神内核，唯有筑牢政德底...
+            新闻网讯 3月23日，《学习时报》刊发示例大学马克思主义学院党委书记、院长孔新峰教授撰写的理论文章《政德何以重要》，文章指出：新时代新征程对干部治理能力提出更高要求，政德建设成为干部队伍建设的关键抓手。政德作为党员干部从政履职的根本道德准则，是中华传统政治文明一脉相承的精神内核，唯有筑牢政德底...
           </p>
         </div>
         <div class="card">
@@ -255,18 +255,18 @@ export const SAMPLE_INFORMATION_DISCLOSURE_REGULATION_PAGE_HTML = `
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>中央民族大学信息公开实施细则 - 中央民族大学信息公开</title>
+    <title>示例大学信息公开实施细则 - 示例大学信息公开</title>
   </head>
   <body>
     <main>
-      <h1>中央民族大学信息公开实施细则</h1>
+      <h1>示例大学信息公开实施细则</h1>
       <p>
         第一条 为进一步推进依法治校，完善民主管理和民主监督的工作机制，保障学校师生员工和公民、
         法人和其他组织依法获取学校信息，结合学校实际，制定本实施细则。
       </p>
       <p>
         第二条 学校信息公开坚持依法公开、及时准确、便民服务和促进学校事业发展的原则。信息公开
-        办公室设在学校办公室，联系电话：010-68933186，电子邮箱：xxgk@muc.edu.cn。
+        办公室设在学校办公室，联系电话：010-68933186，电子邮箱：disclosure@example.edu。
       </p>
     </main>
   </body>
@@ -383,7 +383,7 @@ export const SAMPLE_MIXED_AGGREGATE_CARD_LISTING_PAGE_HTML = `
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>欢迎光临中央民族大学历史文化学院网站</title>
+    <title>欢迎光临示例大学示例历史学院网站</title>
   </head>
   <body>
     <main class="page-main">
@@ -410,7 +410,7 @@ export const SAMPLE_MIXED_AGGREGATE_CARD_LISTING_PAGE_HTML = `
             </li>
             <li class="news-card">
               <a href="/info/1001/3.htm">
-                <p class="summary">历史文化学院教师裴艾琳的学术专著于2025年10月由上海古籍出版社出版发行。</p>
+                <p class="summary">示例历史学院教师裴艾琳的学术专著于2025年10月由上海古籍出版社出版发行。</p>
                 <p class="meta">2025-12-24</p>
                 <h3 class="p_bt">我院教师裴艾琳学术专著《遐迩同风：宋代南方族群治理转型研究》出版发行</h3>
               </a>

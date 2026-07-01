@@ -10,14 +10,14 @@ import type { MapPlaceView } from "../src/features/map/view-model";
 
 const places = [
 	createPlaceView({
-		id: "fengtai-juya-canteen",
+		id: "sample-canteen-a",
 		mapFeatureRefs: [{ fid: 40, layer: "building", sourceId: "fengtai-campus" }],
-		title: "聚雅食堂",
+		title: "示例一食堂",
 	}),
 	createPlaceView({
-		id: "fengtai-huixian-canteen",
+		id: "sample-canteen-b",
 		mapFeatureRefs: [{ fid: 41, layer: "building", sourceId: "fengtai-campus" }],
-		title: "荟贤食堂",
+		title: "示例二食堂",
 	}),
 ];
 
@@ -33,19 +33,19 @@ describe("campus map feature selection", () => {
 
 		expect(
 			findPlaceForRenderedFeature(index, {
-				properties: { fid: 40, layer: "building", name: "聚雅食堂" },
+				properties: { fid: 40, layer: "building", name: "示例一食堂" },
 				source: "fengtai-campus",
 			}),
-		).toBe("fengtai-juya-canteen");
+		).toBe("sample-canteen-a");
 		expect(
 			findPlaceForRenderedFeature(index, {
-				properties: { fid: 999, layer: "building", name: "聚雅食堂" },
+				properties: { fid: 999, layer: "building", name: "示例一食堂" },
 				source: "fengtai-campus",
 			}),
 		).toBeNull();
 		expect(
 			findPlaceForRenderedFeature(index, {
-				properties: { fid: 40, layer: "green", name: "聚雅食堂" },
+				properties: { fid: 40, layer: "green", name: "示例一食堂" },
 				source: "fengtai-campus",
 			}),
 		).toBeNull();
@@ -67,7 +67,7 @@ function createPlaceView(input: {
 	return {
 		category: "building",
 		categoryLabel: "建筑",
-		coordinates: [116.108483, 39.8104219],
+		coordinates: [120.0001, 30.0001],
 		detailRows: [],
 		displayTags: ["建筑"],
 		featureRefs: input.mapFeatureRefs,
@@ -78,7 +78,7 @@ function createPlaceView(input: {
 			category: "building",
 			description: input.title,
 			geojson: {
-				geometry: { coordinates: [116.108483, 39.8104219], type: "Point" },
+				geometry: { coordinates: [120.0001, 30.0001], type: "Point" },
 				properties: { category: "building", placeId: input.id, title: input.title },
 				type: "Feature",
 			},

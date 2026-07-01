@@ -60,13 +60,7 @@ export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
 								dishName: "金汤鱼粉",
 								hallId: "haidian-canteen-1",
 								hallName: "海淀一食堂",
-								images: [
-									{
-										alt: "金汤鱼粉评价图片",
-										imageId: "dining-review-image:rec27DpktN6uQn:1",
-										url: "/assets/dining/reviews/rec27DpktN6uQn.jpg",
-									},
-								],
+								images: [],
 								paidPriceLabel: "12 元",
 								rating: 4,
 								reviewId: "dining-review:rec27DpktN6uQn",

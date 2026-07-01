@@ -30,7 +30,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         "article_label": "第四条",
                         "provision_label": "（一）",
                     },
-                    metadata={"title": "中央民族大学学生申诉处理办法"},
+                    metadata={"title": "示例大学学生申诉处理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -67,7 +67,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                     root_unit_id="article-contract-validation-failure",
                     clean_text="参评学生应符合下列条件之一:",
                     metadata={
-                        "title": "中央民族大学本科学生国家奖学金评审办法",
+                        "title": "示例大学本科学生国家奖学金评审办法",
                         "answer_role": "eligibility_intro",
                         "role_confidence": "high",
                     },
@@ -109,7 +109,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                     unit_type="policy_page",
                     root_unit_id="policy-page-0002",
                     clean_text=(
-                        "(2)学生根据认定结果填写“中央民族大学交换学生课程学分成绩认定申请表”,"
+                        "(2)学生根据认定结果填写“示例大学交换学生课程学分成绩认定申请表”,"
                         "并将填好后的表交给所在院系主管教学院长(主任)审查、签字,并加盖院系公章。"
                     ),
                     anchor={
@@ -121,7 +121,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         ],
                         "provision_label": "(2)",
                     },
-                    metadata={"title": "中央民族大学本科生境外留学管理办法"},
+                    metadata={"title": "示例大学本科生境外留学管理办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -158,7 +158,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         "provision_label": "（二）",
                     },
                     metadata={
-                        "title": "中央民族大学研究生宝钢优秀学生奖评选实施办法（试行）",
+                        "title": "示例大学研究生宝钢优秀学生奖评选实施办法（试行）",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -198,7 +198,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
     ) -> None:
         decision = decide_answer_role(
             text=(
-                "(2)学生根据认定结果填写“中央民族大学交换学生课程学分成绩认定申请表”,"
+                "(2)学生根据认定结果填写“示例大学交换学生课程学分成绩认定申请表”,"
                 "并将填好后的表交给所在院系主管教学院长(主任)审查、签字,并加盖院系公章。"
             ),
             prefix_text="认定程序",
@@ -229,7 +229,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                 "section_path": ["第四章 专业方向调整"],
                 "article_label": "第十五条",
             },
-            metadata={"title": "中央民族大学本科生专业调整实施办法"},
+            metadata={"title": "示例大学本科生专业调整实施办法"},
             text=(
                 "专业方向调整程序\n"
                 "一、院系在学校开展转专业的时间内开展本单位内的专业方向调整工作,"
@@ -254,7 +254,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                 "article_label": "第十七条",
                 "provision_label": "(1)",
             },
-            metadata={"title": "中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法"},
+            metadata={"title": "示例大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法"},
             text="(1)符合条件的申请人数不多于当年公布的名额数,审核无误后,向全校进行公示。",
         )
 
@@ -274,7 +274,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                 "section_path": ["第四章 违规行为处理程序"],
                 "article_label": "第十二条",
             },
-            metadata={"title": "中央民族大学学生考试违规认定与处理办法"},
+            metadata={"title": "示例大学学生考试违规认定与处理办法"},
             text=(
                 "学生在考试过程中实施违纪、作弊行为的,考试工作人员应及时予以纠正并如实记录,"
                 "对学生用于作弊的材料、工具等,应予暂扣,并按如下程序办理:"
@@ -298,7 +298,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                 "article_label": "第一条",
             },
             metadata={
-                "title": "中央民族大学关于学生使用人工智能的指导意见",
+                "title": "示例大学关于学生使用人工智能的指导意见",
                 "content_role": "regulation_body",
             },
             text="为规范学生使用人工智能，制定本指导意见。",
@@ -317,10 +317,10 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                     root_unit_id="article-single-procedure",
                     clean_text="1. 学生本人提交解除处分申请材料。",
                     anchor={
-                        "section_path": ["中央民族大学解除学生纪律处分实施办法", "解除程序"],
+                        "section_path": ["示例大学解除学生纪律处分实施办法", "解除程序"],
                         "article_label": "第三条",
                     },
-                    metadata={"title": "中央民族大学解除学生纪律处分实施办法"},
+                    metadata={"title": "示例大学解除学生纪律处分实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -360,7 +360,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         "section_path": ["解除程序"],
                         "article_label": "第三条",
                     },
-                    metadata={"title": "中央民族大学解除学生纪律处分实施办法"},
+                    metadata={"title": "示例大学解除学生纪律处分实施办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -401,7 +401,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                             "2. 公示期应不少于7天。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+                    metadata={"title": "示例大学本科学生国家奖学金评审办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -445,7 +445,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         "provision_label": "（一）",
                     },
                     metadata={
-                        "title": "中央民族大学信息系统管理办法",
+                        "title": "示例大学信息系统管理办法",
                         "content_role": "regulation_body",
                         "promotion_class": "formal_regulation",
                         "source_channel": "official_web",
@@ -501,7 +501,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                             "2. 学习态度认真。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学本科学生专项奖学金评定办法"},
+                    metadata={"title": "示例大学本科学生专项奖学金评定办法"},
                 ),
                 ensure_ascii=False,
             )
@@ -545,7 +545,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                             "2. 申请人应当品行端正。",
                         ]
                     ),
-                    metadata={"title": "中央民族大学学生管理规定"},
+                    metadata={"title": "示例大学学生管理规定"},
                 ),
                 ensure_ascii=False,
             )
@@ -585,7 +585,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
                         "page_start": 1,
                         "page_end": 1,
                     },
-                    metadata={"title": "中央民族大学本科创新教育实施办法"},
+                    metadata={"title": "示例大学本科创新教育实施办法"},
                 ),
                 ensure_ascii=False,
             )

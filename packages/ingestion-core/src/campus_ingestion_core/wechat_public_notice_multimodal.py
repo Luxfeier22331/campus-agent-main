@@ -20,15 +20,11 @@ from campus_ingestion_core.wechat_public_notice_multimodal_constants import (
     WeChatPublicNoticeImageStatus,
     WeChatPublicNoticeMultimodalConfidence,
 )
-from campus_ingestion_core.wechat_public_notice_multimodal_db import (
-    InMemoryWeChatPublicNoticeMultimodalAttemptStore,
-    PostgresWeChatPublicNoticeMultimodalAttemptStore,
-    build_wechat_public_notice_multimodal_attempt_store_from_env,
-)
 from campus_ingestion_core.wechat_public_notice_multimodal_images import (
     fetched_image_object_key,
 )
 from campus_ingestion_core.wechat_public_notice_multimodal_models import (
+    InMemoryWeChatPublicNoticeMultimodalAttemptStore,
     WeChatPublicNoticeDocumentRegistry,
     WeChatPublicNoticeFetchedInlineImage,
     WeChatPublicNoticeInlineImageArtifactKeys,
@@ -55,6 +51,9 @@ from campus_ingestion_core.wechat_public_notice_multimodal_registry import (
 from campus_ingestion_core.wechat_public_notice_multimodal_selection import (
     select_wechat_public_notice_pending_multimodal_notice_ids,
 )
+from campus_ingestion_core.wechat_public_notice_multimodal_store import (
+    build_wechat_public_notice_multimodal_attempt_store_from_env,
+)
 
 __all__ = [
     "DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY",
@@ -68,7 +67,6 @@ __all__ = [
     "WECHAT_PUBLIC_NOTICE_MULTIMODAL_PARSER_VERSION",
     "ChatCompletionsWeChatPublicNoticeMultimodalProvider",
     "InMemoryWeChatPublicNoticeMultimodalAttemptStore",
-    "PostgresWeChatPublicNoticeMultimodalAttemptStore",
     "WeChatPublicNoticeDocumentRegistry",
     "WeChatPublicNoticeFetchedInlineImage",
     "WeChatPublicNoticeImageStatus",

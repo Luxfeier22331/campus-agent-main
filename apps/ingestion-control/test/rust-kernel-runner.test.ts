@@ -23,7 +23,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "document_units_validate",
 	input_ref: {
 		kind: "object_store",
-		uri: `s3://campus-rag-source/${inputKey}`,
+		uri: `s3://campus-agent-source/${inputKey}`,
 	},
 	output_contract: "document_units_validation_report.v1",
 	idempotency_key: "regulations/student_rules/document_units_validate/release-001",
@@ -61,7 +61,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			now: () => new Date("2026-06-30T00:00:00Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(
 			inputKey,
 			'{"unit_id":"u1","document_id":"doc1","text":"hello","metadata":{}}\n',
@@ -109,7 +109,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 		const artifact = result.task?.closeout?.artifact_refs[0];
 		expect(artifact).toEqual({
 			kind: "object_store",
-			uri: "s3://campus-rag-source/ingestion-kernels/regulations/student_rules/run_student_rules_20260630/task_student_rules_document_units_validate_001/validate-document-units.json",
+			uri: "s3://campus-agent-source/ingestion-kernels/regulations/student_rules/run_student_rules_20260630/task_student_rules_document_units_validate_001/validate-document-units.json",
 			digest: `sha256:${sha256(objectStore.getRequiredObjectFromUri(requiredString(artifact?.uri)))}`,
 		});
 		const stored = JSON.parse(
@@ -153,7 +153,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			now: () => new Date("2026-06-30T00:00:00Z"),
 		});
 		store.admitTask(chunkTask);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(
 			inputKey,
 			'{"unit_id":"u1","document_id":"doc1","text":"hello","metadata":{}}\n',
@@ -198,7 +198,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			now: () => new Date("2026-06-30T00:00:00Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(inputKey, '{"bad":true}\n');
 
 		const result = await runRegistryTaskOnce({
@@ -232,7 +232,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			now: () => new Date("2026-06-30T00:00:00Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(inputKey, '{"bad":true}\n');
 
 		const result = await runRegistryTaskOnce({

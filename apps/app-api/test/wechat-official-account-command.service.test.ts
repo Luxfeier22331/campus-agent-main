@@ -19,7 +19,7 @@ function createStoredRun(
 	overrides: Partial<StoredWeChatOfficialAccountRun> = {},
 ): StoredWeChatOfficialAccountRun {
 	return {
-		accountName: "中央民族大学学生会",
+		accountName: "示例大学学生会",
 		accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 		collectorVersion: "wechat-official-account-collector@0.1.0",
 		finishedAt: null,
@@ -66,7 +66,7 @@ describe("wechat official-account command service", () => {
 
 		const response = await service.start({
 			payload: {
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 				collectorVersion: "wechat-official-account-collector@0.1.0",
 				provider: "feedwe",
@@ -95,7 +95,7 @@ describe("wechat official-account command service", () => {
 		});
 		expect(store.acceptRun).toHaveBeenCalledWith({
 			run: expect.objectContaining({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 				provider: "feedwe",
 				requestSummary: {

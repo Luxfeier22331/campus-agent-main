@@ -65,7 +65,7 @@ class LinkWorktreeAppLocalEnvTest(unittest.TestCase):
                 encoding="utf-8",
             )
             source_campus_web_env.write_text(
-                "OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived\n",
+                "OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived\n",
                 encoding="utf-8",
             )
             source_campus_web_dev_vars.write_text(
@@ -81,7 +81,7 @@ class LinkWorktreeAppLocalEnvTest(unittest.TestCase):
                 encoding="utf-8",
             )
             source_docs_reader_env.write_text(
-                "OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived\n",
+                "OBJECT_STORE_BUCKET_DERIVED=campus-agent-derived\n",
                 encoding="utf-8",
             )
             source_generated_runtime_env.write_text(

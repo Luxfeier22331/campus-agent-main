@@ -31,7 +31,7 @@ _OFFICIAL_WEB_ATTACHMENT_REFERENCE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _OFFICIAL_WEB_TERMINAL_SIGNATURE_PATTERN = re.compile(
-    r"^中央民族大学(?:[\u4e00-\u9fff（）()、]{0,24})?$"
+    r"^示例大学(?:[\u4e00-\u9fff（）()、]{0,24})?$"
 )
 _OFFICIAL_WEB_CHINESE_DATE_LINE_PATTERN = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日$")
 _OFFICIAL_WEB_SUPPORT_ONLY_CONTENT_ROLES = frozenset(

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
-from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_artifacts import ProcessedArtifactInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import infer_year_label
 

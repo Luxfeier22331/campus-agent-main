@@ -3,16 +3,16 @@
 	"target_corpus": "calendar",
 	"target_collection": "academic_calendar",
 	"upstream_source_channel": "official_web",
-	"release_id_prefix": "academic-calendar-muc-2025-2026",
-	"expected_ready_records": 51,
+	"release_id_prefix": "academic-calendar-synthetic-2026",
+	"expected_ready_records": 2,
 	"curated_academic_calendars": [
 		{
-			"path": "curated-academic-calendars/central-minzu-2025-2026.v1.json"
+			"path": "curated-academic-calendars/synthetic-2026.v1.json"
 		}
 	],
 	"notice_calendar_arrangements": [
 		{
-			"path": "notice-calendar-arrangements/central-minzu-2026-labor-social-practice-course-adjustment.v1.json"
+			"path": "notice-calendar-arrangements/synthetic-course-adjustment.v1.json"
 		}
 	]
 }

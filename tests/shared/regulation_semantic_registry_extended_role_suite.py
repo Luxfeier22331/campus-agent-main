@@ -15,7 +15,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         self,
     ) -> None:
         assignment = resolve_regulation_answer_role(
-            text="（一）《中央民族大学接收推荐免试攻读研究生申请表》。",
+            text="（一）《示例大学接收推荐免试攻读研究生申请表》。",
             prefix_text="第七条 申请材料",
             role_hint="procedure_step",
         )
@@ -28,7 +28,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         assignment = resolve_regulation_answer_role(
             text=(
                 "（三）分别由2名所报考学科专业领域内的教授（或相当专业技术职称的专家）"
-                "填写签字的《中央民族大学接收推荐免试研究生专家推荐信》。"
+                "填写签字的《示例大学接收推荐免试研究生专家推荐信》。"
             ),
             prefix_text="申请程序",
         )
@@ -118,7 +118,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
             text="（二）在同一学年内,申请国家助学金的家庭经济困难学生可同时申请并获得国家奖学金或国家励志奖学金。",
             answer_role="eligibility_condition",
             section_path=("四、评审要求与程序",),
-            document_title="中央民族大学国家助学金评审办法",
+            document_title="示例大学国家助学金评审办法",
         )
 
         self.assertEqual(assignment.value, "generic_condition")
@@ -221,7 +221,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
     def test_shared_answer_role_resolution_supports_procedure_scope_single_step(self) -> None:
         assignment = resolve_regulation_answer_role(
             text=(
-                "(2)学生根据认定结果填写“中央民族大学交换学生课程学分成绩认定申请表”,"
+                "(2)学生根据认定结果填写“示例大学交换学生课程学分成绩认定申请表”,"
                 "并将填好后的表交给所在院系主管教学院长(主任)审查、签字,并加盖院系公章。"
             ),
             prefix_text="认定程序",

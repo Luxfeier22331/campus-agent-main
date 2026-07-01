@@ -2,6 +2,7 @@
 name = "campus-legacy-office-conversion-service"
 version = "0.1.0"
 description = "Java-based self-hosted legacy Office conversion runtime scaffold."
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

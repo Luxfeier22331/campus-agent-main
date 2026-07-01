@@ -41,6 +41,34 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("shell tracked files", (py, "-m", "scripts.check_shell_tracked")),
         StaticCheck("xml tracked files", (py, "-m", "scripts.check_xml_tracked")),
         StaticCheck("jsonl tracked files", (py, "-m", "scripts.check_jsonl_tracked")),
+        StaticCheck(
+            "public fixture source cleanliness",
+            (py, "-m", "scripts.check_public_fixture_source_clean"),
+        ),
+        StaticCheck(
+            "public asset source cleanliness",
+            (py, "-m", "scripts.check_public_asset_source_clean"),
+        ),
+        StaticCheck(
+            "source-derived config cleanliness",
+            (py, "-m", "scripts.check_source_derived_config_clean"),
+        ),
+        StaticCheck(
+            "public source-token cleanliness",
+            (py, "-m", "scripts.check_public_source_tokens"),
+        ),
+        StaticCheck(
+            "open-source metadata",
+            (py, "-m", "scripts.check_open_source_metadata"),
+        ),
+        StaticCheck(
+            "dependency license policy",
+            (py, "-m", "scripts.check_dependency_license_policy"),
+        ),
+        StaticCheck(
+            "object-store bucket policy",
+            (py, "-m", "scripts.check_object_store_bucket_policy"),
+        ),
         StaticCheck("sql tracked files", (py, "-m", "scripts.check_sql_tracked")),
         StaticCheck("docker tracked files", (py, "-m", "scripts.check_dockerfile_tracked")),
         StaticCheck("pnpm lock", (py, "-m", "scripts.check_pnpm_lock_tracked")),
@@ -48,6 +76,10 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck(
             "ingestion task executability",
             (py, "-m", "scripts.check_ingestion_task_executability"),
+        ),
+        StaticCheck(
+            "retired dependency tokens",
+            (py, "-m", "scripts.check_retired_dependency_tokens"),
         ),
         StaticCheck("ruff check", ("ruff", "check", ".")),
         StaticCheck("ruff format", ("ruff", "format", ".", "--check")),

@@ -11,7 +11,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 			attachmentUrl: "https://portal.example.edu/download?id=1&notice_id=355120",
 			cacheKey: "portal_internal:https://portal.example.edu/download?id=1&notice_id=355120",
 			fetchMode: "portal_internal",
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 		});
 
 		expect(request).toMatchObject({
@@ -20,7 +20,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 			url: "https://collector.local/authenticated-notice/download/portal_internal",
 		});
 		expect(request.uniqueKey).toBe(
-			"attachment_download:muc_internal_portal:portal_internal:1e1cd1d63094a394",
+			"attachment_download:example_internal_portal:portal_internal:1e1cd1d63094a394",
 		);
 		expect(request.url).not.toContain("download?id=1");
 		expect(request.userData).toMatchObject({
@@ -69,7 +69,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 					attachmentUrl: "https://portal.example.edu/download?id=1",
 					cacheKey: "portal:1",
 					fetchMode: "portal_internal",
-					siteId: "muc_internal_portal",
+					siteId: "example_internal_portal",
 				},
 			],
 		});
@@ -129,7 +129,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 					attachmentUrl: "https://mmbiz.qpic.cn/image.jpg",
 					cacheKey: "external:1",
 					fetchMode: "trusted_external_visual",
-					siteId: "muc_internal_portal",
+					siteId: "example_internal_portal",
 				},
 			],
 		});
@@ -184,7 +184,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 						attachmentUrl: "https://mmbiz.qpic.cn/not-image",
 						cacheKey: "external:bad",
 						fetchMode: "trusted_external_visual",
-						siteId: "muc_internal_portal",
+						siteId: "example_internal_portal",
 					},
 				],
 			}),

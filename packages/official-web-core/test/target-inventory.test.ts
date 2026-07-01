@@ -15,10 +15,10 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 23,
+			candidate: 4,
 		});
 		expect(report.entries[0]).toMatchObject({
-			inventoryId: "muc-public-academic-calendar",
+			inventoryId: "synthetic-academic-calendar",
 			reviewState: "candidate",
 			releaseBlockers: expect.arrayContaining(["no_preview_evidence"]),
 		});
@@ -30,7 +30,7 @@ describe("official web target inventory report", () => {
 			appApiRunId: "owrun_01",
 			currentTruthImportWasNull: true,
 			ingestionStatus: "staged",
-			inventoryId: "muc-public-academic-calendar",
+			inventoryId: "synthetic-academic-calendar",
 			promotionDecision: "staged",
 			rawAssetId: "",
 			rawVersionId: "owver_01",
@@ -44,7 +44,7 @@ describe("official web target inventory report", () => {
 		});
 
 		expect(report.entries[0]).toMatchObject({
-			inventoryId: "muc-public-academic-calendar",
+			inventoryId: "synthetic-academic-calendar",
 			reviewState: "blocked_lineage",
 			releaseBlockers: expect.arrayContaining(["missing_raw_asset_id"]),
 		});
@@ -56,7 +56,7 @@ describe("official web target inventory report", () => {
 			appApiRunId: "owrun_01",
 			currentTruthImportWasNull: true,
 			ingestionStatus: "staged",
-			inventoryId: "muc-public-academic-calendar",
+			inventoryId: "synthetic-academic-calendar",
 			promotionDecision: "staged",
 			rawAssetId: "owasset_01",
 			rawVersionId: "owver_01",
@@ -67,7 +67,7 @@ describe("official web target inventory report", () => {
 
 		const report = buildOfficialWebTargetInventoryReport(config, {
 			fieldStatusByInventoryId: {
-				"muc-public-academic-calendar": {
+				"synthetic-academic-calendar": {
 					academic_year_label: "present",
 					calendar_arrangement: "present",
 					date_range: "present",
@@ -83,7 +83,7 @@ describe("official web target inventory report", () => {
 			fieldStatus: expect.objectContaining({
 				calendar_arrangement: "present",
 			}),
-			inventoryId: "muc-public-academic-calendar",
+			inventoryId: "synthetic-academic-calendar",
 			optionalEvidence: [],
 			optionalFields: ["holiday_name", "week_index", "class_day_pattern"],
 			requiredEvidence: ["calendar_arrangement"],
@@ -111,8 +111,8 @@ describe("official web target inventory report", () => {
 					required_evidence: ["calendar_arrangement"],
 					required_fields: ["academic_year_label", "source_url", "source_version_evidence"],
 					selected_write_target: "calendar/academic_calendar",
-					source_hosts: ["www.muc.edu.cn"],
-					source_urls: ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+					source_hosts: ["www.example.edu"],
+					source_urls: ["https://www.example.edu/calendar"],
 					target_label: "校历测试",
 				},
 			],
@@ -160,7 +160,7 @@ describe("official web target inventory report", () => {
 			appApiRunId: "owrun_school_intro",
 			currentTruthImportWasNull: true,
 			ingestionStatus: "staged",
-			inventoryId: "muc-school-introduction-reference",
+			inventoryId: "synthetic-stable-reference",
 			promotionDecision: "staged",
 			rawAssetId: "owasset_school_intro",
 			rawVersionId: "owver_school_intro",
@@ -173,7 +173,7 @@ describe("official web target inventory report", () => {
 
 		const report = buildOfficialWebTargetInventoryReport(config, {
 			fieldStatusByInventoryId: {
-				"muc-school-introduction-reference": {
+				"synthetic-stable-reference": {
 					authoritative_source_url: "present",
 					normalized_content_summary: "present",
 					reference_title: "present",
@@ -185,15 +185,15 @@ describe("official web target inventory report", () => {
 		});
 
 		const stableReferenceEntry = report.entries.find(
-			(entry) => entry.inventoryId === "muc-school-introduction-reference",
+			(entry) => entry.inventoryId === "synthetic-stable-reference",
 		);
 		expect(stableReferenceEntry).toMatchObject({
-			inventoryId: "muc-school-introduction-reference",
+			inventoryId: "synthetic-stable-reference",
 			releaseBlockers: ["release_gate_not_reviewed"],
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 22,
+			candidate: 3,
 			previewed: 1,
 		});
 	});
@@ -204,7 +204,7 @@ describe("official web target inventory report", () => {
 			appApiRunId: "owrun_rules",
 			currentTruthImportWasNull: true,
 			ingestionStatus: "staged",
-			inventoryId: "muc-academic-committee-charter",
+			inventoryId: "synthetic-institutional-rule",
 			promotionDecision: "staged",
 			rawAssetId: "owasset_rules",
 			rawVersionId: "owver_rules",
@@ -215,7 +215,7 @@ describe("official web target inventory report", () => {
 
 		const report = buildOfficialWebTargetInventoryReport(config, {
 			fieldStatusByInventoryId: {
-				"muc-academic-committee-charter": {
+				"synthetic-institutional-rule": {
 					authoritative_source_url: "present",
 					normalized_content_summary: "present",
 					reference_title: "present",
@@ -227,10 +227,10 @@ describe("official web target inventory report", () => {
 		});
 
 		const regulationEntry = report.entries.find(
-			(entry) => entry.inventoryId === "muc-academic-committee-charter",
+			(entry) => entry.inventoryId === "synthetic-institutional-rule",
 		);
 		expect(regulationEntry).toMatchObject({
-			inventoryId: "muc-academic-committee-charter",
+			inventoryId: "synthetic-institutional-rule",
 			releaseBlockers: [],
 			reviewState: "ready_for_selected_write",
 		});
@@ -242,27 +242,10 @@ describe("official web target inventory report", () => {
 
 		expect(inventoryIds).toEqual(
 			expect.arrayContaining([
-				"muc-public-academic-calendar",
-				"muc-it-email-policy-reference",
-				"muc-it-information-system-management-policy-reference",
-				"muc-it-network-security-policy-reference",
-				"muc-it-campus-network-account-policy-reference",
-				"muc-it-campus-card-policy-reference",
-				"muc-it-information-portal-policy-reference",
-				"muc-it-office-automation-policy-reference",
-				"muc-student-status-management-rule",
-				"muc-student-financial-aid-rule",
-				"muc-student-degree-rule",
-				"muc-student-reward-discipline-rule",
-				"muc-it-secondary-website-policy-reference",
-				"muc-it-campus-network-access-policy-reference",
-				"muc-academic-committee-charter",
-				"muc-staff-congress-procedure",
-				"muc-administrative-offices-reference",
-				"muc-teaching-research-units-reference",
-				"muc-library-reference",
-				"muc-museum-reference",
-				"muc-fee-disclosure-reference",
+				"synthetic-academic-calendar",
+				"synthetic-stable-reference",
+				"synthetic-institutional-rule",
+				"synthetic-student-rule",
 			]),
 		);
 		expect(inventoryIds).not.toContain("muc-it-network-auth-service-guide");
@@ -288,8 +271,8 @@ describe("official web target inventory report", () => {
 					required_evidence: ["calendar_arrangement"],
 					required_fields: ["academic_year_label"],
 					selected_write_target: "calendar/academic_calendar",
-					source_hosts: ["www.muc.edu.cn"],
-					source_urls: ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+					source_hosts: ["www.example.edu"],
+					source_urls: ["https://www.example.edu/calendar"],
 					target_label: "测试校历",
 				},
 			],

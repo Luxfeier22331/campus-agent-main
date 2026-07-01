@@ -236,7 +236,9 @@ describe("RAG dataset manifest builder", () => {
 			fixturePath,
 			sourceGitHead: "test-head",
 		});
-		const item = items.find((candidate) => metadataCaseId(candidate) === "policy-title-medical");
+		const item = items.find(
+			(candidate) => metadataCaseId(candidate) === "synthetic-policy-title-medical",
+		);
 
 		expect(item).toMatchObject({
 			datasetName: "campus/rag/student_rules/qrels",
@@ -246,16 +248,16 @@ describe("RAG dataset manifest builder", () => {
 					id_context_precision: true,
 					id_context_recall: true,
 				},
-				reference_context_ids: ["handbook:b85de1cb327a26dc63488e247403ae3126d524be"],
+				reference_context_ids: ["handbook:synthetic-medical-policy"],
 			},
 			input: {
-				case_id: "policy-title-medical",
-				question: "中央民族大学学生公费医疗管理办法",
+				case_id: "synthetic-policy-title-medical",
+				question: "示例学生医疗报销管理办法",
 				surface_key: "regulations/student_rules",
-				user_input: "中央民族大学学生公费医疗管理办法",
+				user_input: "示例学生医疗报销管理办法",
 			},
 			metadata: {
-				case_id: "policy-title-medical",
+				case_id: "synthetic-policy-title-medical",
 				fixture_hash: "fixture-hash",
 				source_git_head: "test-head",
 			},
@@ -354,14 +356,14 @@ describe("Ragas Langfuse official pipeline", () => {
 		const requests: Array<{ body: unknown; url: string }> = [];
 		const writtenSamples: unknown[] = [];
 		const result = await runRagasDatasetScoring({
-			datasetName: "campus-rag-golden",
+			datasetName: "campus-agent-golden",
 			environment: "staging",
 			fetchImpl: async (input, init) => {
 				const url = String(input);
 				if (init?.body) {
 					requests.push({ body: JSON.parse(String(init.body)), url });
 				}
-				if (url.includes("/api/public/datasets/campus-rag-golden")) {
+				if (url.includes("/api/public/datasets/campus-agent-golden")) {
 					return new Response(
 						JSON.stringify({
 							items: [
@@ -461,7 +463,7 @@ describe("Ragas Langfuse official pipeline", () => {
 	it("fails closed when dataset qrels are not materialized into Ragas inputs", async () => {
 		await expect(
 			runRagasDatasetScoring({
-				datasetName: "campus-rag-qrels",
+				datasetName: "campus-agent-qrels",
 				environment: "staging",
 				fetchImpl: async () =>
 					new Response(
@@ -473,11 +475,11 @@ describe("Ragas Langfuse official pipeline", () => {
 									},
 									id: "dataset-item-qrels",
 									input: {
-										case_id: "policy-title-medical",
-										question: "中央民族大学学生公费医疗管理办法",
+										case_id: "synthetic-policy-title-medical",
+										question: "示例学生医疗报销管理办法",
 									},
 									metadata: {
-										case_id: "policy-title-medical",
+										case_id: "synthetic-policy-title-medical",
 									},
 								},
 							],
@@ -494,18 +496,18 @@ describe("Ragas Langfuse official pipeline", () => {
 				},
 			}),
 		).rejects.toThrow(
-			"policy-title-medical is not materialized for Ragas scoring; missing trace_id, answer, retrieved_contexts",
+			"synthetic-policy-title-medical is not materialized for Ragas scoring; missing trace_id, answer, retrieved_contexts",
 		);
 	});
 
 	it("fails closed when a materialized dataset item points to a missing observation", async () => {
 		await expect(
 			runRagasDatasetScoring({
-				datasetName: "campus-rag-golden",
+				datasetName: "campus-agent-golden",
 				environment: "staging",
 				fetchImpl: async (input) => {
 					const url = String(input);
-					if (url.includes("/api/public/datasets/campus-rag-golden")) {
+					if (url.includes("/api/public/datasets/campus-agent-golden")) {
 						return new Response(
 							JSON.stringify({
 								items: [

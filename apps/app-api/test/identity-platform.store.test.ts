@@ -22,7 +22,7 @@ function createOverview(): IdentityPlatformOverview {
 		account: {
 			accountId: "user_01HQ",
 			displayName: "Jane Doe",
-			email: "jane@muc.edu.cn",
+			email: "jane@example.edu",
 			status: "active",
 		},
 		session: {
@@ -122,7 +122,7 @@ describe("identity platform store", () => {
 		expect(writes[0].values).toMatchObject({
 			accountId: "user_01HQ",
 			displayName: "Jane Doe",
-			primaryEmail: "jane@muc.edu.cn",
+			primaryEmail: "jane@example.edu",
 			status: "active",
 		});
 		expect(writes[2].values).toMatchObject({
@@ -168,7 +168,7 @@ describe("identity platform store", () => {
 		expect(writes[1].values).toMatchObject({
 			accountId: "user_01HQ",
 			displayName: "Jane Doe",
-			primaryEmail: "jane@muc.edu.cn",
+			primaryEmail: "jane@example.edu",
 			status: "active",
 		});
 		expect(writes[2].values).toMatchObject({

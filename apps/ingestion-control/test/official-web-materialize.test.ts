@@ -28,7 +28,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: `s3://campus-rag-source/${sourceTruthBundleKey}`,
+		uri: `s3://campus-agent-source/${sourceTruthBundleKey}`,
 		digest: `sha256:${sourceTruthBundleDigest}`,
 	},
 	output_contract: "official_web_stable_reference_source_truth.v1",
@@ -66,7 +66,7 @@ describe("official web source truth materialization", () => {
 			now: () => new Date("2026-03-29T08:17:33.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(
 			pageManifestKey,
 			JSON.stringify({ schemaVersion: "official_web_page_manifest.v1" }),
@@ -88,16 +88,16 @@ describe("official web source truth materialization", () => {
 		expect(result.task?.closeout?.artifact_refs).toEqual([
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${sourceTruthBundleKey}`,
+				uri: `s3://campus-agent-source/${sourceTruthBundleKey}`,
 				digest: `sha256:${objectStore.sha256For(sourceTruthBundleKey)}`,
 			},
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${pageManifestKey}`,
+				uri: `s3://campus-agent-source/${pageManifestKey}`,
 			},
 			{
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${contentBlocksKey}`,
+				uri: `s3://campus-agent-source/${contentBlocksKey}`,
 			},
 		]);
 	});
@@ -110,10 +110,10 @@ describe("official web source truth materialization", () => {
 			...task,
 			input_ref: {
 				kind: "object_store",
-				uri: `s3://campus-rag-source/${sourceTruthBundleKey}`,
+				uri: `s3://campus-agent-source/${sourceTruthBundleKey}`,
 			},
 		});
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, sourceTruthBundleBody);
 
 		const result = await runRegistryTaskOnce({
@@ -144,7 +144,7 @@ describe("official web source truth materialization", () => {
 				digest: "sha256:bad-digest",
 			},
 		});
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, sourceTruthBundleBody);
 
 		const result = await runRegistryTaskOnce({
@@ -180,7 +180,7 @@ describe("official web source truth materialization", () => {
 				digest: `sha256:${sha256(Buffer.from(mismatchedBundleBody, "utf8"))}`,
 			},
 		});
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, mismatchedBundleBody);
 
 		const result = await runRegistryTaskOnce({
@@ -285,7 +285,7 @@ function sourceTruthBundleFixture(): Record<string, unknown> {
 			{
 				rawAssetId: "owasset_01",
 				rawVersionId: "owver_01",
-				normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+				normalizedCanonicalUrl: "https://www.example.edu/admissions",
 				pageFamily: "detail",
 				pageManifestObjectKey: pageManifestKey,
 				contentBlocksObjectKey: contentBlocksKey,

@@ -23,7 +23,7 @@ from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     AuthenticatedNoticeFileReleaseInventoryEntry,
 )
 from campus_ingestion_core.authenticated_notice_import import AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.campus_agent_ingestion_support import DocumentImportInput
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.scope_catalog import assert_known_scope
 

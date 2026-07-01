@@ -22,10 +22,10 @@ const noticeTypes: NoticeTypeConfig[] = [
 
 describe("notice Crawlee runner", () => {
 	it("builds stable POST request identities for selects, list pages, and details", () => {
-		expect(buildNoticeSelectsRequest({ siteId: "muc_internal_portal" })).toMatchObject({
+		expect(buildNoticeSelectsRequest({ siteId: "example_internal_portal" })).toMatchObject({
 			label: "selects",
 			method: "POST",
-			uniqueKey: "selects:muc_internal_portal",
+			uniqueKey: "selects:example_internal_portal",
 			url: "https://collector.local/authenticated-notice/selects",
 		});
 		expect(
@@ -33,12 +33,12 @@ describe("notice Crawlee runner", () => {
 				currentPage: 2,
 				noticeType: "5",
 				pageSize: 20,
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 			}),
 		).toMatchObject({
 			label: "list_page",
 			method: "POST",
-			uniqueKey: "list_page:muc_internal_portal:5:2:20",
+			uniqueKey: "list_page:example_internal_portal:5:2:20",
 			url: "https://collector.local/authenticated-notice/list-page",
 			userData: {
 				currentPage: 2,
@@ -51,12 +51,12 @@ describe("notice Crawlee runner", () => {
 			buildNoticeDetailRequest({
 				noticeId: 355119,
 				noticeType: "5",
-				siteId: "muc_internal_portal",
+				siteId: "example_internal_portal",
 			}),
 		).toMatchObject({
 			label: "detail",
 			method: "POST",
-			uniqueKey: "detail:muc_internal_portal:355119:5",
+			uniqueKey: "detail:example_internal_portal:355119:5",
 			url: "https://collector.local/authenticated-notice/detail",
 			userData: {
 				noticeId: 355119,
@@ -118,7 +118,7 @@ describe("notice Crawlee runner", () => {
 			noticeTypes,
 			requestMaxRetries: 1,
 			selectedNotices: [{ noticeId: 355119, noticeType: "5", noticeTypeName: "办公通知" }],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
@@ -211,14 +211,14 @@ describe("notice Crawlee runner", () => {
 			noticeTypes,
 			requestMaxRetries: 1,
 			selectedNotices: [],
-			siteId: "muc_internal_portal",
+			siteId: "example_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
-		expect(handledKeys).toContain("list_page:muc_internal_portal:5:1:2");
-		expect(handledKeys.filter((key) => key === "detail:muc_internal_portal:355119:5")).toHaveLength(
-			1,
-		);
+		expect(handledKeys).toContain("list_page:example_internal_portal:5:1:2");
+		expect(
+			handledKeys.filter((key) => key === "detail:example_internal_portal:355119:5"),
+		).toHaveLength(1);
 		expect(result.bundleRecords).toHaveLength(1);
 		expect(result.stats.itemsSeen).toBe(2);
 		expect(result.stats.pagesFetched).toBe(1);

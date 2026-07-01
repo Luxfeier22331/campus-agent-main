@@ -38,7 +38,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_shared import
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     collect_import_document_stats,
 )

@@ -157,8 +157,8 @@ function deriveRuntimeEnv(env, input) {
 	setDefault(env, "OBJECT_STORE_ACCESS_KEY", "minioadmin");
 	setDefault(env, "OBJECT_STORE_SECRET_KEY", "minioadmin");
 	setDefault(env, "OBJECT_STORE_REGION", "us-east-1");
-	setDefault(env, "OBJECT_STORE_BUCKET_SOURCE", "campus-rag-source");
-	setDefault(env, "OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived");
+	setDefault(env, "OBJECT_STORE_BUCKET_SOURCE", "campus-agent-source");
+	setDefault(env, "OBJECT_STORE_BUCKET_DERIVED", "campus-agent-derived");
 
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "180000");

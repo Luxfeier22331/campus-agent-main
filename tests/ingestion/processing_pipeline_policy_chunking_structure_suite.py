@@ -16,7 +16,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
             document_id="official_web_regulation:context-budget",
             revision_track="current-effective",
             version_id="owregver:context-budget",
-            source_uri="https://xxgk.muc.edu.cn/info/1198/6451.htm",
+            source_uri="https://info.example.edu/info/1198/6451.htm",
             content_hash="sha256:context-budget",
             corpus="regulations",
             collection="institutional_rules",
@@ -29,8 +29,8 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
             import_source="official_web_regulation_source_truth_materialization",
         )
         metadata = {
-            "title": "中央民族大学事业发展“十三五”规划",
-            "title_base": "中央民族大学事业发展“十三五”规划",
+            "title": "示例大学事业发展“十三五”规划",
+            "title_base": "示例大学事业发展“十三五”规划",
             "promotion_class": "formal_regulation",
             "content_role": "regulation_body",
             "source_channel": "official_web",
@@ -81,7 +81,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         base_metadata = {
-            "title": "中央民族大学学生资助管理工作暂行办法",
+            "title": "示例大学学生资助管理工作暂行办法",
             "policy_doc_no": "民大校发〔2012〕357号",
         }
         structured_payload = "\n".join(
@@ -156,7 +156,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生志愿服务管理办法",
+            "title": "示例大学学生志愿服务管理办法",
             "policy_doc_no": "民大团发〔2010〕14号",
         }
         structured_payload = "\n".join(
@@ -202,7 +202,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
                         chunk_id="legacy-012",
                         unit_type="policy_page",
                         root_unit_id="policy-012",
-                        clean_text="共青团中央民族大学委员会(青年志愿者工作部)。",
+                        clean_text="共青团示例大学委员会(青年志愿者工作部)。",
                         anchor={
                             "section_path": ["第二章 分则", "第二部分 认证", "三、认证程序"],
                             "page_start": 3,
@@ -238,18 +238,16 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
             "(一)每学年第一学期,针对全体注册志愿者开展志愿服务认证。",
             chunk.metadata["display_text"],
         )
-        self.assertIn(
-            "共青团中央民族大学委员会(青年志愿者工作部)。", chunk.metadata["display_text"]
-        )
+        self.assertIn("共青团示例大学委员会(青年志愿者工作部)。", chunk.metadata["display_text"])
         self.assertNotIn("一、认证时间 (一)每学年第一学期", chunk.metadata["display_text"])
-        self.assertNotIn("三、认证程序 共青团中央民族大学委员会", chunk.metadata["display_text"])
+        self.assertNotIn("三、认证程序 共青团示例大学委员会", chunk.metadata["display_text"])
 
     def test_build_indexable_chunks_does_not_repeat_policy_section_heading_inside_display_text(
         self,
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+            "title": "示例大学学生课堂行为规范及课堂秩序管理办法",
             "policy_doc_no": "民大校发[2007]282号",
         }
         structured_payload = "\n".join(
@@ -318,7 +316,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
     ) -> None:
         record = _make_registry_record()
         metadata = {
-            "title": "中央民族大学全日制本科学生学士学位授予规定",
+            "title": "示例大学全日制本科学生学士学位授予规定",
             "policy_doc_no": "民大校发[2009]90号",
         }
         structured_payload = "\n".join(
@@ -466,7 +464,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
                             "page_start": 12,
                             "page_end": 12,
                         },
-                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                        metadata={"title": "示例大学学生宿舍管理规定"},
                     ),
                     ensure_ascii=False,
                 )
@@ -507,7 +505,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
                             "page_start": 12,
                             "page_end": 12,
                         },
-                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                        metadata={"title": "示例大学学生宿舍管理规定"},
                     ),
                     ensure_ascii=False,
                 )

@@ -17,13 +17,13 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
     def test_scoped_rule_chunks_use_structural_list_boundaries_without_overlap(self) -> None:
         chunks = _build_scoped_rule_chunks(
             canonical_markdown=(
-                "# 药学院2021年硕博连读博士研究生招生实施细则\n\n"
+                "# 甲学院2021年硕博连读博士研究生招生实施细则\n\n"
                 "三、申请条件\n\n"
                 "（四）、硕士研究生培养阶段至少须有一项高水平科研成果，包括已发表的学术论文、资政报告或科研成果奖励等。科研成果至少满足下列要求中的一项：\n"
                 "1. 在中文核心及以上期刊至少发表1篇学术论文，正式发表或在线（ONLINE）发表均可；\n"
                 "2. 至少获得1项省部级及以上科研成果（申请人排名前8名），或国家一级协会或学会一等奖及以上奖项（申请人排名前5名），或国家一级协会或学会一等奖以下奖项（申请人排名前3名），教学类奖项和学科竞赛类奖项不属于科研获奖；\n"
                 "3. 以排名前3发明人获得至少1项授权专利，或以排名前2发明人申请至少1项专利；\n"
-                "4. 经药学院研究生招生领导小组审议的被第三方认可的其他科研成果至少1项。"
+                "4. 经甲学院研究生招生领导小组审议的被第三方认可的其他科研成果至少1项。"
             )
         )
 
@@ -56,7 +56,7 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
     def test_scoped_rule_chunks_label_multi_item_segments_by_item_range(self) -> None:
         chunks = _build_scoped_rule_chunks(
             canonical_markdown=(
-                "# 中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则\n\n"
+                "# 示例大学示例传媒学院 2026年“英才计划”硕博连读研究生招生实施细则\n\n"
                 "三、申请条件\n\n"
                 "（一）基本条件\n\n"
                 "1. 坚定对伟大祖国、中华民族、中华文化、中国共产党、中国特色社会主义的高度认同，维护祖国统一和民族团结，遵纪守法，品行端正，无任何违法违纪受处分记录，诚实守信，学风端正。\n"
@@ -92,7 +92,7 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
     def test_short_scoped_rule_subject_value_is_contextualized_in_display_text(self) -> None:
         chunks = _build_scoped_rule_chunks(
             canonical_markdown=(
-                "# 中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则\n\n"
+                "# 示例大学示例传媒学院 2026年“英才计划”硕博连读研究生招生实施细则\n\n"
                 "一、招生专业\n\n"
                 "新闻传播学"
             )
@@ -113,7 +113,7 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
 
 
 def _build_scoped_rule_chunks(*, canonical_markdown: str):
-    document_id = "institutional_regulation:muc:test-scoped-rule"
+    document_id = "institutional_regulation:example:test-scoped-rule"
     version_id = f"{document_id}@2025-12-16"
     title = canonical_markdown.splitlines()[0].removeprefix("# ").strip()
     document_units_bytes = serialize_regulation_document_units(
@@ -122,19 +122,19 @@ def _build_scoped_rule_chunks(*, canonical_markdown: str):
         version_id=version_id,
         title=title,
         canonical_markdown=canonical_markdown,
-        source_url="campusrag://authenticated-notice/353963",
+        source_url="campus-agent://authenticated-notice/353963",
         visibility_level="restricted",
         visibility_scope="campus",
         entitlement_groups=["campus_members"],
         common_metadata={
             "source_notice_ids": ["353963"],
-            "source_document_ids": ["notice:muc_internal_portal:353963"],
+            "source_document_ids": ["notice:example_internal_portal:353963"],
             "source_channel": "authenticated_notice_portal",
             "source_surface": "notice_body",
             "source_notice_release_time": "2025-12-16 11:15",
             "document_nature": "time_bound_operational_rule",
             "cycle_year": "2025",
-            "school_unit_name": "新闻与传播学院",
+            "school_unit_name": "示例传媒学院",
             "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
             "normalization_quality": "passed",
         },
@@ -144,7 +144,7 @@ def _build_scoped_rule_chunks(*, canonical_markdown: str):
         document_id=document_id,
         revision_track="source-faithful",
         version_id=version_id,
-        source_uri="campusrag://authenticated-notice/353963",
+        source_uri="campus-agent://authenticated-notice/353963",
         content_hash="test-scoped-rule-hash",
         corpus="regulations",
         collection=SCOPED_TARGET_COLLECTION,

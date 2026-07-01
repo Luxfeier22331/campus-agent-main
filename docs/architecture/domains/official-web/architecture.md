@@ -133,7 +133,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   admission 或 selected-write
 - news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或 `news_archive`
 - 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
-  包括 `met.muc.edu.cn`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
+  包括 `dept.example.edu`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
   host-wide broad crawl。
 
 ### Legacy Broad Crawl Cleanup

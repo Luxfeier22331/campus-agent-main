@@ -39,7 +39,7 @@ function createCampusPrincipal() {
 		},
 		principal: {
 			displayName: "Jane Doe",
-			email: "jane@muc.edu.cn",
+			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "student" as const,
 		},
@@ -144,7 +144,7 @@ export function registerApiMeSuite() {
 					},
 					principal: {
 						displayName: "Jane Doe",
-						email: "jane@muc.edu.cn",
+						email: "jane@example.edu",
 						principalId: "user_01HQ",
 						type: "campus_member",
 					},
@@ -168,7 +168,7 @@ export function registerApiMeSuite() {
 				},
 				principal: {
 					displayName: "Jane Doe",
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					principalId: "user_01HQ",
 					type: "campus_member",
 				},
@@ -314,7 +314,7 @@ export function registerApiMeSuite() {
 				account: {
 					accountId: "user_01HQ",
 					displayName: "Jane Doe",
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					status: "active",
 				},
 				session: {
@@ -363,7 +363,7 @@ export function registerApiMeSuite() {
 					projection: expect.objectContaining({
 						account: expect.objectContaining({
 							accountId: "user_01HQ",
-							email: "jane@muc.edu.cn",
+							email: "jane@example.edu",
 						}),
 						preferences: {
 							profileMemoryEnabled: true,
@@ -669,7 +669,7 @@ export function registerApiMeSuite() {
 					overview: expect.objectContaining({
 						account: expect.objectContaining({
 							accountId: "user_01HQ",
-							email: "jane@muc.edu.cn",
+							email: "jane@example.edu",
 						}),
 						preferences: {
 							profileMemoryEnabled: false,

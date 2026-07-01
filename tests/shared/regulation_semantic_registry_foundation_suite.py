@@ -79,7 +79,7 @@ class RegulationSemanticRegistryFoundationSuite:
                     expected,
                 )
 
-    def test_shared_student_rules_registry_covers_non_scholarship_categories(self) -> None:
+    def test_shared_student_rules_registry_covers_public_synthetic_categories(self) -> None:
         discovery = load_student_rules_discovery_config()
         categories_by_id = {category.category_id: category for category in discovery.categories}
 
@@ -89,17 +89,17 @@ class RegulationSemanticRegistryFoundationSuite:
         self.assertIn("student_card_affairs", categories_by_id)
         self.assertIn("dormitory_management", categories_by_id)
 
-        self.assertEqual(categories_by_id["student_status"].audience, "本科生")
-        self.assertEqual(categories_by_id["discipline"].audience, "学生")
+        self.assertEqual(categories_by_id["student_status"].audience, "students")
+        self.assertEqual(categories_by_id["discipline"].audience, "students")
         self.assertEqual(
             categories_by_id["student_card_affairs"].overview_document_id,
-            "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+            "handbook:synthetic-student-status-rule",
         )
 
     def test_single_document_can_belong_to_multiple_category_overviews(self) -> None:
         categories = regulation_categories_for_document(
             collection="student_rules",
-            document_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+            document_id="handbook:synthetic-student-status-rule",
         )
 
         self.assertEqual(
@@ -133,15 +133,15 @@ class RegulationSemanticRegistryFoundationSuite:
 
         self.assertEqual(
             discovery.policy_titles_by_document_id[
-                "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+                "institutional_regulation:example:示例大学毕业生就业奖励办法:f16e569519f7"
             ],
-            "中央民族大学毕业生就业奖励办法",
+            "示例大学毕业生就业奖励办法",
         )
         self.assertTrue(
             any(
                 policy.document_id
-                == "institutional_regulation:muc:中央民族大学本科毕业论文-设计-工作管理办法:a7716c82cbe1"
-                and policy.title == "中央民族大学本科毕业论文（设计）工作管理办法"
+                == "institutional_regulation:example:示例大学本科毕业论文-设计-工作管理办法:a7716c82cbe1"
+                and policy.title == "示例大学本科毕业论文（设计）工作管理办法"
                 for policy in discovery.policy_objects
             )
         )
@@ -389,7 +389,7 @@ class RegulationSemanticRegistryFoundationSuite:
         assignment = resolve_regulation_action_type(
             text="学生本人提交申请材料。",
             section_path=("解除程序",),
-            document_title="中央民族大学解除学生纪律处分实施办法",
+            document_title="示例大学解除学生纪律处分实施办法",
         )
 
         self.assertEqual(assignment.value, "lift_discipline")
@@ -412,7 +412,7 @@ class RegulationSemanticRegistryFoundationSuite:
             text="考察期未满。",
             answer_role="exclusion_rule",
             section_path=("解除程序",),
-            document_title="中央民族大学解除学生纪律处分实施办法",
+            document_title="示例大学解除学生纪律处分实施办法",
         )
 
         self.assertEqual(assignment.value, "discipline_relief_exclusion")
@@ -426,7 +426,7 @@ class RegulationSemanticRegistryFoundationSuite:
     ) -> None:
         assignment = resolve_regulation_condition_subject(
             text=(
-                "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法 / "
+                "示例大学毕业生学费和国家助学贷款代偿暂行实施办法 / "
                 "一、学费和国家助学贷款代偿资助的基本内容 / 第二条 "
                 "本办法中的毕业生是指我校全日制本专科生、研究生、第二学士学位应届毕业生。"
                 "定向、委培以及在校期间已享受免除学费政策的学生除外。"

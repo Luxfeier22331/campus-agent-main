@@ -3,13 +3,21 @@ import { describe, expect, it } from "vitest";
 import { applyCollectorNoProxyEnv, resolveCollectorConfig } from "../src/config.js";
 
 describe("authenticated notice collector config", () => {
-	it("uses repo-local runtime defaults and authenticated portal semantics", () => {
-		const config = resolveCollectorConfig({});
+	it("fails closed without an explicit authenticated portal URL", () => {
+		expect(() => resolveCollectorConfig({})).toThrow("AUTHENTICATED_NOTICE_BASE_URL is required");
+	});
 
-		expect(config.portalBaseUrl).toBe("https://my.muc.edu.cn");
-		expect(config.portalPageUrl).toBe("https://my.muc.edu.cn/page/11#/");
-		expect(config.sourceHomeUrl).toBe("https://my.muc.edu.cn");
-		expect(config.siteId).toBe("muc_internal_portal");
+	it("uses repo-local runtime defaults with explicit authenticated portal semantics", () => {
+		const config = resolveCollectorConfig({
+			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
+			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
+			AUTHENTICATED_NOTICE_SITE_ID: "example_internal_portal",
+		});
+
+		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
+		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/11#/");
+		expect(config.sourceHomeUrl).toBe("https://portal.example.edu");
+		expect(config.siteId).toBe("example_internal_portal");
 		expect(
 			config.noticeTypesPath.endsWith(
 				"apps/authenticated-notice-collector/config/notice-types.json",
@@ -44,6 +52,7 @@ describe("authenticated notice collector config", () => {
 		const config = resolveCollectorConfig({
 			AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE: "6",
 			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
+			AUTHENTICATED_NOTICE_SITE_ID: "example_internal_portal",
 			AUTHENTICATED_NOTICE_JSESSIONID: "session-2",
 			AUTHENTICATED_NOTICE_NGINX: "sticky-2",
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
@@ -100,8 +109,11 @@ describe("authenticated notice collector config", () => {
 
 	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {
 		const config = resolveCollectorConfig({
+			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
 			AUTHENTICATED_NOTICE_PROXY_SERVER: "http://127.0.0.1:10808",
+			AUTHENTICATED_NOTICE_SITE_ID: "example_internal_portal",
 		});
 
 		expect(config.bypassProxyForPortal).toBe(false);
@@ -111,8 +123,11 @@ describe("authenticated notice collector config", () => {
 	it("requires an explicit portal proxy server when proxy bypass is disabled", () => {
 		expect(() =>
 			resolveCollectorConfig({
+				AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 				AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+				AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
 				AUTHENTICATED_NOTICE_PROXY_SERVER: "",
+				AUTHENTICATED_NOTICE_SITE_ID: "example_internal_portal",
 				HTTP_PROXY: "http://127.0.0.1:10808",
 			}),
 		).toThrow(
@@ -120,34 +135,38 @@ describe("authenticated notice collector config", () => {
 		);
 	});
 
-	it("appends muc portal hosts into no_proxy and preserves existing entries", () => {
+	it("appends configured portal hosts into no_proxy and preserves existing entries", () => {
 		const env = {
+			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
+			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
 			NO_PROXY: "localhost,127.0.0.1",
 		} as NodeJS.ProcessEnv;
 
 		applyCollectorNoProxyEnv(env);
 
-		expect(env.NO_PROXY).toBe(
-			"localhost,127.0.0.1,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn,ca.muc.edu.cn",
-		);
+		expect(env.NO_PROXY).toBe("localhost,127.0.0.1,portal.example.edu,example.edu,.example.edu");
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
 
-	it("does not duplicate muc portal hosts when no_proxy already contains them", () => {
+	it("does not duplicate configured portal hosts when no_proxy already contains them", () => {
 		const env = {
-			no_proxy: "localhost,.muc.edu.cn,my.muc.edu.cn",
+			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
+			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
+			no_proxy: "localhost,.example.edu,portal.example.edu",
 		} as NodeJS.ProcessEnv;
 
 		applyCollectorNoProxyEnv(env);
 
-		expect(env.NO_PROXY).toBe("localhost,.muc.edu.cn,my.muc.edu.cn,muc.edu.cn,ca.muc.edu.cn");
+		expect(env.NO_PROXY).toBe("localhost,.example.edu,portal.example.edu,example.edu");
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
 
-	it("removes muc portal hosts from no_proxy when proxy bypass is disabled", () => {
+	it("removes configured portal hosts from no_proxy when proxy bypass is disabled", () => {
 		const env = {
+			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
-			NO_PROXY: "localhost,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn,ca.muc.edu.cn,127.0.0.1",
+			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/11#/",
+			NO_PROXY: "localhost,example.edu,.example.edu,portal.example.edu,127.0.0.1",
 		} as NodeJS.ProcessEnv;
 
 		applyCollectorNoProxyEnv(env);

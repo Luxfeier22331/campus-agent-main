@@ -30,9 +30,9 @@ class _FakeObjectStore:
 def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
     return InternalNoticeRegulationCandidateArtifactDocument(
         candidate_id="candidate-355282",
-        source_document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
+        source_document_id="notice_attachment:example_internal_portal:355282:attachment-0001",
         notice_id="355282",
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         source_kind="attachment_document",
         input_lane="attachment_text_extractable",
         revision_track="source-faithful",
@@ -42,19 +42,19 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
         target_collection="institutional_rules",
-        regulation_title_normalized="中央民族大学关于学生使用人工智能的指导意见（2026版）",
-        regulation_work_title="中央民族大学关于学生使用人工智能的指导意见",
+        regulation_title_normalized="示例大学关于学生使用人工智能的指导意见（2026版）",
+        regulation_work_title="示例大学关于学生使用人工智能的指导意见",
         regulation_edition_label="2026版",
-        regulation_display_title="中央民族大学关于学生使用人工智能的指导意见 / 2026版",
-        source_title_literal="中央民族大学关于学生使用人工智能的指导意见（2026版）",
-        issuing_org="中央民族大学",
+        regulation_display_title="示例大学关于学生使用人工智能的指导意见 / 2026版",
+        source_title_literal="示例大学关于学生使用人工智能的指导意见（2026版）",
+        issuing_org="示例大学",
         effective_date=None,
         revision_signal=None,
         source_notice_release_time="2026-03-27 15:15",
-        source_parent_document_id="notice:muc_internal_portal:355282",
-        source_notice_document_id="notice:muc_internal_portal:355282",
-        semantic_owner_document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
-        source_attachment_document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
+        source_parent_document_id="notice:example_internal_portal:355282",
+        source_notice_document_id="notice:example_internal_portal:355282",
+        semantic_owner_document_id="notice_attachment:example_internal_portal:355282:attachment-0001",
+        source_attachment_document_id="notice_attachment:example_internal_portal:355282:attachment-0001",
         source_attachment_ref_id="attachment-0001",
         source_attachment_sha256="sha256:attachment-355282",
         source_uri="https://portal.example.edu/files/355282.docx",
@@ -70,7 +70,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
             "第二条 本指导意见适用于全体在校学生。\n\n"
             "附件：关于使用AI工具情况的说明"
         ),
-        artifact_markdown_path="candidates/中央民族大学关于学生使用人工智能的指导意见--candidate-355282/canonical.md",
+        artifact_markdown_path="candidates/示例大学关于学生使用人工智能的指导意见--candidate-355282/canonical.md",
         artifact_body_sha256="sha256:body-355282",
     )
 
@@ -113,7 +113,7 @@ def _record(
 
 def _source_notice_record(*, notice_id: str) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
-        document_id=f"notice:muc_internal_portal:{notice_id}",
+        document_id=f"notice:example_internal_portal:{notice_id}",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
         source_uri=f"https://portal.example.edu/notices/{notice_id}",
@@ -229,7 +229,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         object_store = _FakeObjectStore(
             objects={
                 (
-                    "campus-rag-derived",
+                    "campus-agent-derived",
                     record.document_units_object_key or "",
                 ): projected.document_units_bytes,
             }
@@ -281,7 +281,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
             self.assertTrue(
                 any(
                     chunk["metadata"].get("regulation_display_title")
-                    == "中央民族大学关于学生使用人工智能的指导意见 / 2026版"
+                    == "示例大学关于学生使用人工智能的指导意见 / 2026版"
                     for chunk in chunks
                 )
             )
@@ -299,7 +299,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
             self.assertEqual(len(title_chunks), 1)
             self.assertEqual(
                 title_chunks[0]["text"],
-                "中央民族大学关于学生使用人工智能的指导意见",
+                "示例大学关于学生使用人工智能的指导意见",
             )
             self.assertTrue(all("标题：" not in chunk["text"] for chunk in title_chunks))
 
@@ -320,7 +320,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key or ""): polluted_payload,
+                ("campus-agent-derived", record.document_units_object_key or ""): polluted_payload,
             }
         )
 
@@ -365,7 +365,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key or ""): polluted_payload,
+                ("campus-agent-derived", record.document_units_object_key or ""): polluted_payload,
             }
         )
 
@@ -409,7 +409,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key or ""): polluted_payload,
+                ("campus-agent-derived", record.document_units_object_key or ""): polluted_payload,
             }
         )
 
@@ -435,8 +435,8 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         payload = _override_first_row_metadata(
             projected.document_units_bytes,
             updates={
-                "semantic_owner_document_id": "notice:muc_internal_portal:355282",
-                "semantic_owner_document_ids": ["notice:muc_internal_portal:355282"],
+                "semantic_owner_document_id": "notice:example_internal_portal:355282",
+                "semantic_owner_document_ids": ["notice:example_internal_portal:355282"],
                 "source_attachment_document_id": "",
                 "source_attachment_document_ids": [],
             },
@@ -450,7 +450,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key or ""): payload,
+                ("campus-agent-derived", record.document_units_object_key or ""): payload,
             }
         )
 

@@ -40,16 +40,16 @@ const restrictedDoc = {
 
 const restrictedRegulationDoc = {
 	canonicalUrl:
-		"/docs/regulations/scoped_rules/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+		"/docs/regulations/scoped_rules/示例大学示例共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
 	collection: "scoped_rules",
 	corpus: "regulations",
 	currentVersionId: "ver_scoped_rule",
 	currentVersionSlug: "2026-current",
 	deliveryMode: "gated_asset" as const,
-	docId: "institutional_regulation:muc:scoped-rule",
-	documentSlug: "中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+	docId: "institutional_regulation:example:scoped-rule",
+	documentSlug: "示例大学示例共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
 	entitlementGroups: ["campus_members"],
-	title: "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+	title: "示例大学示例共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
 	updatedAt: "2026-04-28T12:53:09.490Z",
 	versionId: "ver_scoped_rule",
 	versionSlug: "2026-current",
@@ -94,7 +94,7 @@ function createStore(): DocsReadModelStore {
 			return {
 				...publicDoc,
 				objectStoreKey: "reader-assets/private/reader.json",
-				rawSourceLocator: "s3://campus-rag-derived/private/raw-source.json",
+				rawSourceLocator: "s3://campus-agent-derived/private/raw-source.json",
 			};
 		},
 		async getReaderAsset(input) {
@@ -151,7 +151,7 @@ function createStore(): DocsReadModelStore {
 				objectStoreKey: "reader-assets/private/reader.json",
 				outlineUrl:
 					"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/outline.json",
-				rawSourceLocator: "s3://campus-rag-derived/private/raw-source.json",
+				rawSourceLocator: "s3://campus-agent-derived/private/raw-source.json",
 			};
 		},
 		async listCollectionDocuments(input) {
@@ -226,7 +226,7 @@ function createStudentPrincipal(): ResolvedAppPrincipal {
 		},
 		principal: {
 			displayName: "学生用户",
-			email: "student@muc.edu.cn",
+			email: "student@example.edu",
 			principalId: "user_student",
 			type: "student",
 		},
@@ -386,7 +386,7 @@ describe("docs service", () => {
 			{
 				canonicalUrl: restrictedRegulationDoc.canonicalUrl,
 				documentSlug: restrictedRegulationDoc.documentSlug,
-				displayTitle: "中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+				displayTitle: "示例大学示例共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
 				isCurrent: true,
 				kind: "document",
 				title: restrictedRegulationDoc.title,

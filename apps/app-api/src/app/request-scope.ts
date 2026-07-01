@@ -1,4 +1,9 @@
-import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
+import {
+	type Env,
+	isDeployedEnvironment,
+	readPublicNoticeURLAllowlist,
+	resolveEnvironment,
+} from "../config";
 import {
 	buildAuthenticatedNoticeProcessingCommandService,
 	createPgAuthenticatedNoticeProcessingCommandStore,
@@ -242,6 +247,7 @@ export function createRequestScopeFactory(input: {
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
+					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					executionRuntime,

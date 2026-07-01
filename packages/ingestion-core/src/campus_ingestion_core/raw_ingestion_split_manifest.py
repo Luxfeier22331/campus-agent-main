@@ -9,7 +9,7 @@ from pathlib import Path
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.artifacts import LAYOUT_ELEMENTS_FILENAME, PROVIDER_RESPONSE_FILENAME
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     ObjectStoreWriter,
     apply_authorization_projection_metadata,
@@ -311,7 +311,7 @@ def _build_manifest_document_source_uri(
 ) -> str:
     raw_asset_slug = _split_document_slug(raw_asset_id)
     raw_version_path = "/".join(part.strip() for part in raw_version_id.split(":") if part.strip())
-    return f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/capture/pages/{page_start}-{page_end}"
+    return f"campus-agent://source/{corpus}/{raw_asset_slug}/{raw_version_path}/capture/pages/{page_start}-{page_end}"
 
 
 def _slice_structured_rows_for_manifest_document(

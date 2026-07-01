@@ -177,7 +177,7 @@ def _parse_generated_at(generated_at: str) -> None:
 
 
 def _source_ref(entry: NoticeConsumptionProjectionEntry) -> str:
-    site_id = str(entry.role_metadata.get("site_id") or "muc_internal_portal").strip()
+    site_id = str(entry.role_metadata.get("site_id") or "example_internal_portal").strip()
     return f"notice:{site_id}:{entry.source_notice_id}"
 
 

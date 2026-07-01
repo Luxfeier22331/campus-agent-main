@@ -45,7 +45,7 @@ def _write_consumer_manifest(
         admission_run_id="consumer-admission-test",
         selection_source="bundle_dry_run",
         selection_path=selection_path,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         created_at="2026-04-27T00:00:00+00:00",
     )
     write_internal_notice_consumer_admission_manifest(path, manifest)

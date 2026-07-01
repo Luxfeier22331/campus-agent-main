@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from campus_ingestion_core.campusrag_ingestion_support import (
+from campus_ingestion_core.campus_agent_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,

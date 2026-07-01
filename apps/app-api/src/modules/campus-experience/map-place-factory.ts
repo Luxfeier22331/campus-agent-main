@@ -1,8 +1,7 @@
 import type { CampusMapFeatureRef, CampusMapPlace, CampusMapPlaceCategory } from "./types";
 
-const MUC_CAMPUS_MAP_URL = "https://www.muc.edu.cn/xxgk1/xydt.htm";
-const MUC_HAIDIAN_CAMPUS_MAP_IMAGE_URL =
-	"https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png";
+const CAMPUS_MAP_SOURCE_REF = "campus-map:private-source:official-map";
+const HAIDIAN_CAMPUS_MAP_IMAGE_SOURCE_REF = "campus-map:private-source:haidian-map-image";
 
 function createPointFeature(
 	placeId: string,
@@ -66,8 +65,8 @@ export function createOfficialHaidianMapPlace(input: {
 		id: input.id,
 		...(input.mapFeatureRefs ? { mapFeatureRefs: input.mapFeatureRefs } : {}),
 		sourceRefs: [
-			MUC_CAMPUS_MAP_URL,
-			MUC_HAIDIAN_CAMPUS_MAP_IMAGE_URL,
+			CAMPUS_MAP_SOURCE_REF,
+			HAIDIAN_CAMPUS_MAP_IMAGE_SOURCE_REF,
 			`campus-map:projection:${input.id}`,
 		],
 		tags: input.tags,

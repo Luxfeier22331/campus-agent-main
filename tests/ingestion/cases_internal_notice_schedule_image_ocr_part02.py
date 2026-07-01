@@ -285,7 +285,7 @@ class InternalNoticeScheduleImageOcrTestPart02(unittest.TestCase):
             evidence=evidence,
             result=result,
             object_store=object_store,
-            source_bucket="campus-rag-source",
+            source_bucket="campus-agent-source",
             attempt_store=attempt_store,
             admission_batch_id="schedule-ocr-batch-001",
             run_id="run-001",

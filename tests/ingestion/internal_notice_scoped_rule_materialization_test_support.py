@@ -71,7 +71,7 @@ def _record(
     is_current: bool = False,
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
-        document_id=f"notice:muc_internal_portal:{notice_id}",
+        document_id=f"notice:example_internal_portal:{notice_id}",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
         source_uri=f"https://portal.example.edu/notices/{notice_id}",
@@ -101,7 +101,7 @@ def _target_scoped_rule_record(
     document_id: str,
     document_units_key: str,
     canonical_key: str,
-    source_uri: str = "campusrag://promotion/internal_notice_scoped_rules/stale-target",
+    source_uri: str = "campus-agent://promotion/synthetic_notice_scoped_rules/stale-target",
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
@@ -135,10 +135,10 @@ def _inventory_entry(
     notice_title: str,
     published_date: str = "2026-04-10",
 ) -> AuthenticatedNoticeSourceTruthInventoryEntry:
-    parent_document_id = f"notice:muc_internal_portal:{notice_id}"
+    parent_document_id = f"notice:example_internal_portal:{notice_id}"
     parent_snapshot = {
         "notice_id": notice_id,
-        "site_id": "muc_internal_portal",
+        "site_id": "example_internal_portal",
         "document_id": parent_document_id,
         "notice_title": notice_title,
         "notice_release_time": published_date,
@@ -152,7 +152,7 @@ def _inventory_entry(
         corpus="campus_notices",
         collection="internal_notice",
         notice_id=notice_id,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         document_id=parent_document_id,
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:inventory",
@@ -200,7 +200,7 @@ def _ready_scoped_projection_entry(
         source_corpus="campus_notices",
         source_collection="internal_notice",
         source_notice_id=notice_id,
-        unit_id=f"notice_unit:muc_internal_portal:{notice_id}:{primary_role}",
+        unit_id=f"notice_unit:example_internal_portal:{notice_id}:{primary_role}",
         primary_role=primary_role,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
         default_agent=NOTICE_DEFAULT_AGENT_RAG,
@@ -209,8 +209,8 @@ def _ready_scoped_projection_entry(
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
         consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
-        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_notice_document_id=f"notice:example_internal_portal:{notice_id}",
+        source_document_id=f"notice:example_internal_portal:{notice_id}",
     )
 
 

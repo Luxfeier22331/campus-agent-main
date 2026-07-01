@@ -19,7 +19,7 @@ describe("campus services page", () => {
 			release: {
 				publishedAt: "2026-03-20T00:00:00+08:00",
 				releaseId: "snapshot:bus:2026-03-20",
-				sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+				sourceRefs: ["https://portal.example.edu/notice/123"],
 			},
 			groups: [
 				{
@@ -30,14 +30,14 @@ describe("campus services page", () => {
 								{
 									departureTime: "07:00",
 									kind: "teacher",
-									sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+									sourceRefs: ["https://portal.example.edu/notice/123"],
 									status: "normal",
 								},
 								{
 									departureTime: "12:10",
 									kind: "student",
 									note: "新增班次",
-									sourceRefs: ["https://portal.muc.edu.cn/notice/456"],
+									sourceRefs: ["https://portal.example.edu/notice/456"],
 									status: "added",
 								},
 							],
@@ -69,11 +69,11 @@ describe("campus services page", () => {
 		expect(screen.getByText("加开")).toBeInTheDocument();
 		expect(screen.getByText("新增班次")).toBeInTheDocument();
 		expect(
-			screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/123" }),
-		).toHaveAttribute("href", "https://portal.muc.edu.cn/notice/123");
+			screen.getByRole("link", { name: "https://portal.example.edu/notice/123" }),
+		).toHaveAttribute("href", "https://portal.example.edu/notice/123");
 		expect(
-			screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/456" }),
-		).toHaveAttribute("href", "https://portal.muc.edu.cn/notice/456");
+			screen.getByRole("link", { name: "https://portal.example.edu/notice/456" }),
+		).toHaveAttribute("href", "https://portal.example.edu/notice/456");
 		expect(screen.queryByText("医保窗口")).toBeNull();
 		expect(screen.queryByText("operator")).toBeNull();
 		expect(campusServicesApiMock.getCampusTransportStatus).toHaveBeenCalledWith();
@@ -92,7 +92,7 @@ describe("campus services page", () => {
 			release: {
 				publishedAt: "2026-03-20T00:00:00+08:00",
 				releaseId: "snapshot:bus:2026-03-20",
-				sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+				sourceRefs: ["https://portal.example.edu/notice/123"],
 			},
 		});
 		const { unmount } = render(<ServicesPage />);

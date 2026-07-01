@@ -31,7 +31,7 @@ class AuthenticatedNoticeBrowserUrlBackfillTest(unittest.TestCase):
 
         result = backfill_authenticated_notice_browser_urls(
             bundle_records=records,
-            source_home_url="https://my.muc.edu.cn/page/11",
+            source_home_url="https://portal.example.edu/page/11",
         )
 
         self.assertEqual(result.summary["records_seen"], 1)
@@ -39,7 +39,7 @@ class AuthenticatedNoticeBrowserUrlBackfillTest(unittest.TestCase):
         notice = result.bundle_records[0]["notice"]
         self.assertEqual(
             notice["portal_print_url"],
-            "https://my.muc.edu.cn/#/print?type=9980&notice_id=351117&show_type=1",
+            "https://portal.example.edu/#/print?type=9980&notice_id=351117&show_type=1",
         )
         self.assertEqual(notice["notice_browser_url"], notice["portal_print_url"])
         self.assertEqual(notice["notice_browser_url_source"], "portal_print_route")
@@ -70,7 +70,7 @@ class AuthenticatedNoticeBrowserUrlBackfillTest(unittest.TestCase):
 
         result = backfill_authenticated_notice_browser_urls(
             bundle_records=records,
-            source_home_url="https://my.muc.edu.cn",
+            source_home_url="https://portal.example.edu",
         )
 
         self.assertEqual(result.summary["missing_notice_type_count"], 2)

@@ -12,11 +12,11 @@ describe("official web smoke seed helper", () => {
 		expect(parseOfficialWebSmokeSeedArgs([])).toEqual({
 			siteId: "www_muc_edu_cn",
 		});
-		expect(parseOfficialWebSmokeSeedArgs(["--", "--site-id", "muc_public"])).toEqual({
-			siteId: "muc_public",
+		expect(parseOfficialWebSmokeSeedArgs(["--", "--site-id", "example_public"])).toEqual({
+			siteId: "example_public",
 		});
-		expect(parseOfficialWebSmokeSeedArgs(["--site-id", "muc_public"])).toEqual({
-			siteId: "muc_public",
+		expect(parseOfficialWebSmokeSeedArgs(["--site-id", "example_public"])).toEqual({
+			siteId: "example_public",
 		});
 	});
 
@@ -29,7 +29,7 @@ describe("official web smoke seed helper", () => {
 				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "collector-token",
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com,help_bot@outlook.com",
 				CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: "postgres://runtime-db",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			}),
 		).toEqual({
 			collectorToken: "collector-token",
@@ -41,12 +41,12 @@ describe("official web smoke seed helper", () => {
 				APP_API_ENVIRONMENT: "development",
 				APP_API_INTERNAL_SHARED_SECRET: "internal-secret",
 				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "collector-token",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 				APP_API_OPERATOR_DATABASE_URL: undefined,
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com,help_bot@outlook.com",
 			},
 			operatorEmail: "ops@example.com",
-			sourceBucket: "campus-rag-source",
+			sourceBucket: "campus-agent-source",
 		});
 	});
 });

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from tests.ingestion._handbook_chunking_test_support import (
+    build_hermetic_handbook_v3_chunk_profile,
+)
+
 from .chunking_policy_test_support import *
 
 
@@ -198,10 +202,7 @@ class ChunkingPolicyStructureTest(_ChunkingPolicyTestCase):
                 root_unit_id="article-010",
                 text="\n".join(lines),
             ),
-            chunk_profile=build_student_handbook_chunk_profile(
-                profile_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
-                model_name="Qwen3-Embedding-4B",
-            ),
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
         )
 
         self.assertGreaterEqual(len(pieces), 2)
@@ -209,7 +210,10 @@ class ChunkingPolicyStructureTest(_ChunkingPolicyTestCase):
         self.assertTrue(all(piece.boundary_rule == "article_structure_block" for piece in pieces))
         self.assertTrue(
             any(
-                piece.text.startswith("转专业程序\n(五)考核及确定名单\n3. 确定面试名单的原则")
+                "转专业程序" in piece.text
+                and "(五)考核及确定名单" in piece.text
+                and "3. 确定面试名单的原则" in piece.text
+                and "(2)确定面试名单时" in piece.text
                 for piece in pieces
             )
         )
@@ -479,7 +483,7 @@ class ChunkingPolicyStructureTest(_ChunkingPolicyTestCase):
                 "article_label": "第十六条",
             },
             metadata={
-                "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                "title": "示例大学学生课堂行为规范及课堂秩序管理办法",
                 "policy_doc_no": "民大校发〔2007〕282号",
             },
         )

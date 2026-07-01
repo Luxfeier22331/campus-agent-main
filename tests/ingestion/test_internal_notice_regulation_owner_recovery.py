@@ -32,16 +32,16 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             (
                 _inventory(
                     notice_id="300004",
-                    title="关于发布《中央民族大学关于学生使用人工智能的指导意见》的通知",
+                    title="关于发布《示例大学关于学生使用人工智能的指导意见》的通知",
                     owner_kind="attachment_document",
                     relation_type="attachment_ref",
-                    owner_title_hint="中央民族大学关于学生使用人工智能的指导意见",
+                    owner_title_hint="示例大学关于学生使用人工智能的指导意见",
                     attachment_ref_id="attachment-0001",
                 ),
             )
         )
         attachment = _source_record(
-            document_id="notice_attachment:muc_internal_portal:300004:attachment-0001",
+            document_id="notice_attachment:example_internal_portal:300004:attachment-0001",
             source_uri="https://portal.example.edu/notices/300004/attachments/1",
             corpus="campus_notices",
             collection="internal_notice",
@@ -51,7 +51,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
         file_release_store = _file_release_store(
             _file_release_entry(
                 file_release_id=646,
-                filename="中央民族大学关于学生使用人工智能的指导意见.pdf",
+                filename="示例大学关于学生使用人工智能的指导意见.pdf",
                 object_key="file-release/646/source.pdf",
                 sha256="sha256:file-release-646",
             )
@@ -61,7 +61,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             audit_report=_audit_report(
                 _audit_row(
                     notice_id="300004",
-                    title="关于发布《中央民族大学关于学生使用人工智能的指导意见》的通知",
+                    title="关于发布《示例大学关于学生使用人工智能的指导意见》的通知",
                     classification="attachment_owner_candidate",
                     stable_reason="attachment_backed_regulation_body_missing",
                 )
@@ -70,9 +70,9 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             registry=InMemoryDocumentRegistry((attachment,)),
             object_store=_FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", attachment.canonical_markdown_object_key): (
+                    ("campus-agent-derived", attachment.canonical_markdown_object_key): (
                         _canonical_markdown(
-                            "# 中央民族大学关于学生使用人工智能的指导意见\n\n"
+                            "# 示例大学关于学生使用人工智能的指导意见\n\n"
                             "第一条 为规范学生使用人工智能，制定本指导意见。"
                         )
                     )
@@ -87,7 +87,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
         self.assertEqual(row.selected_source_kind, "captured_attachment")
         self.assertEqual(
             row.selected_source_document_id,
-            "notice_attachment:muc_internal_portal:300004:attachment-0001",
+            "notice_attachment:example_internal_portal:300004:attachment-0001",
         )
         self.assertTrue(row.source_backed_candidate)
         self.assertTrue(row.notice_card_preserved)
@@ -102,17 +102,17 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             (
                 _inventory(
                     notice_id="300011",
-                    title="关于《中央民族大学差旅费管理办法》发布实施的通知",
+                    title="关于《示例大学差旅费管理办法》发布实施的通知",
                     owner_kind="file_release_document",
                     relation_type="file_release_ref",
-                    owner_title_hint="中央民族大学差旅费管理办法",
+                    owner_title_hint="示例大学差旅费管理办法",
                 ),
             )
         )
         file_release_store = _file_release_store(
             _file_release_entry(
                 file_release_id=647,
-                filename="中央民族大学差旅费管理办法.pdf",
+                filename="示例大学差旅费管理办法.pdf",
                 object_key="file-release/647/source.pdf",
                 sha256="sha256:file-release-647",
             )
@@ -122,7 +122,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             audit_report=_audit_report(
                 _audit_row(
                     notice_id="300011",
-                    title="关于《中央民族大学差旅费管理办法》发布实施的通知",
+                    title="关于《示例大学差旅费管理办法》发布实施的通知",
                     classification="file_release_owner_candidate",
                     stable_reason="file_release_backed_regulation_body_missing",
                 )
@@ -135,7 +135,9 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
         row = report.rows[0]
         self.assertEqual(row.status, "ready")
         self.assertEqual(row.selected_source_kind, "authenticated_file_release")
-        self.assertEqual(row.selected_source_document_id, "file_release:muc_internal_portal:647")
+        self.assertEqual(
+            row.selected_source_document_id, "file_release:example_internal_portal:647"
+        )
         self.assertEqual(row.selected_source_uri, "https://portal.example.edu/files/647/download")
         self.assertEqual(row.attempts[0].reason, "captured_attachment_not_found")
         self.assertEqual(row.attempts[1].evidence["file_release_id"], 647)
@@ -146,16 +148,16 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             (
                 _inventory(
                     notice_id="300012",
-                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    title="关于发布《示例大学科研经费管理办法》的通知",
                     owner_kind="official_web_document",
                     relation_type="official_web_ref",
-                    owner_title_hint="中央民族大学科研经费管理办法",
+                    owner_title_hint="示例大学科研经费管理办法",
                 ),
             )
         )
         official_record = _source_record(
-            document_id="official_web:muc_public_pages:article_detail:research-fund-rule",
-            source_uri="https://www.muc.edu.cn/info/research-fund-rule.htm",
+            document_id="official_web:example_public_pages:article_detail:research-fund-rule",
+            source_uri="https://www.example.edu/info/research-fund-rule.htm",
             corpus="official_web",
             collection="muc_public_pages",
             canonical_key="official_web/documents/research-fund-rule/canonical.md",
@@ -163,8 +165,8 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             source_channel="official_web",
         )
         existing_record = _source_record(
-            document_id="institutional_regulation:muc:科研经费管理办法:existing",
-            source_uri="campusrag://regulations/institutional_rules/research-fund-rule",
+            document_id="institutional_regulation:example:科研经费管理办法:existing",
+            source_uri="campus-agent://regulations/institutional_rules/research-fund-rule",
             corpus="regulations",
             collection="institutional_rules",
             canonical_key="regulations/documents/institutional_rules/research-fund-rule/canonical.md",
@@ -176,7 +178,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             audit_report=_audit_report(
                 _audit_row(
                     notice_id="300012",
-                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    title="关于发布《示例大学科研经费管理办法》的通知",
                     classification="official_web_owner_candidate",
                     stable_reason="official_web_backed_regulation_body_missing",
                 )
@@ -185,16 +187,14 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             registry=InMemoryDocumentRegistry((official_record, existing_record)),
             object_store=_FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", official_record.canonical_markdown_object_key): (
+                    ("campus-agent-derived", official_record.canonical_markdown_object_key): (
                         _canonical_markdown(
-                            "# 中央民族大学科研经费管理办法\n\n"
-                            "第一条 为规范科研经费管理，制定本办法。"
+                            "# 示例大学科研经费管理办法\n\n第一条 为规范科研经费管理，制定本办法。"
                         )
                     ),
-                    ("campus-rag-derived", existing_record.canonical_markdown_object_key): (
+                    ("campus-agent-derived", existing_record.canonical_markdown_object_key): (
                         _canonical_markdown(
-                            "# 中央民族大学科研经费管理办法\n\n"
-                            "第一条 为规范科研经费管理，制定本办法。"
+                            "# 示例大学科研经费管理办法\n\n第一条 为规范科研经费管理，制定本办法。"
                         )
                     ),
                 }
@@ -221,10 +221,10 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             (
                 _inventory(
                     notice_id="187233",
-                    title="关于修订《中央民族大学采购工作管理办法》的通知",
+                    title="关于修订《示例大学采购工作管理办法》的通知",
                     owner_kind="file_release_document",
                     relation_type="file_release_ref",
-                    owner_title_hint="中央民族大学采购工作管理办法",
+                    owner_title_hint="示例大学采购工作管理办法",
                 ),
             )
         )
@@ -233,7 +233,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             audit_report=_audit_report(
                 _audit_row(
                     notice_id="187233",
-                    title="关于修订《中央民族大学采购工作管理办法》的通知",
+                    title="关于修订《示例大学采购工作管理办法》的通知",
                     classification="file_release_owner_candidate",
                     stable_reason="file_release_backed_regulation_body_missing",
                 )
@@ -258,16 +258,16 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
             (
                 _inventory(
                     notice_id="300012",
-                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    title="关于发布《示例大学科研经费管理办法》的通知",
                     owner_kind="official_web_document",
                     relation_type="official_web_ref",
-                    owner_title_hint="中央民族大学科研经费管理办法",
+                    owner_title_hint="示例大学科研经费管理办法",
                 ),
             )
         )
         official_record = _source_record(
-            document_id="official_web:muc_public_pages:article_detail:research-fund-rule",
-            source_uri="https://www.muc.edu.cn/info/research-fund-rule.htm",
+            document_id="official_web:example_public_pages:article_detail:research-fund-rule",
+            source_uri="https://www.example.edu/info/research-fund-rule.htm",
             corpus="official_web",
             collection="muc_public_pages",
             canonical_key="official_web/documents/research-fund-rule/canonical.md",
@@ -280,7 +280,7 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
                 audit_report=_audit_report(
                     _audit_row(
                         notice_id="300012",
-                        title="关于发布《中央民族大学科研经费管理办法》的通知",
+                        title="关于发布《示例大学科研经费管理办法》的通知",
                         classification="official_web_owner_candidate",
                         stable_reason="official_web_backed_regulation_body_missing",
                     )
@@ -352,7 +352,7 @@ def _audit_row(
         owner_expectation_kinds=("file_release_document",),
         target_surfaces=("notice_level_query",),
         consumption_statuses=("retained_for_notice_query",),
-        source_document_ids=(f"notice:muc_internal_portal:{notice_id}",),
+        source_document_ids=(f"notice:example_internal_portal:{notice_id}",),
         classification=classification,
         target_recommendation="owner_recovery",
         stable_reason=stable_reason,
@@ -415,7 +415,7 @@ def _file_release_entry(
         corpus="campus_notices",
         collection="file_release_capture",
         file_release_id=file_release_id,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         export_scope="latest",
         collector_contract_version="authenticated_notice_file_release_export_v1",
         source_home_url="https://portal.example.edu",
@@ -429,7 +429,7 @@ def _file_release_entry(
         file_type_name="制度文件",
         resolved_download_url=f"https://portal.example.edu/files/{file_release_id}/download",
         released_file_storage_provider="object_store",
-        released_file_bucket="campus-rag-source",
+        released_file_bucket="campus-agent-source",
         released_file_object_key=object_key,
         released_file_sha256=sha256,
         released_file_byte_size=1024,

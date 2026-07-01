@@ -14,14 +14,14 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 def _raw_asset_record() -> RawAssetRecord:
     return RawAssetRecord(
-        raw_asset_id="asset:curriculum-plan-2022",
+        raw_asset_id="asset:synthetic-curriculum-plan",
         raw_version_id="sha256:test",
         corpus="curriculum",
         collection="curriculum_plan",
-        raw_source_uri="file:///tmp/curriculum-plan-2022.pdf",
+        raw_source_uri="file:///tmp/synthetic-curriculum-plan.pdf",
         content_hash="test",
-        source_filename="curriculum-plan-2022.pdf",
-        object_key="official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+        source_filename="synthetic-curriculum-plan.pdf",
+        object_key="official_pdf/curriculum-plan/2022/sha256/test/capture/synthetic-curriculum-plan.pdf",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         import_source="raw_online_ocr",
     )

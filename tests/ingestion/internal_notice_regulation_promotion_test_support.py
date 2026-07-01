@@ -82,10 +82,10 @@ def _inventory_entry(
     published_date: str = "2026-04-10",
     notice_release_time: str | None = None,
 ) -> AuthenticatedNoticeSourceTruthInventoryEntry:
-    parent_document_id = f"notice:muc_internal_portal:{notice_id}"
+    parent_document_id = f"notice:example_internal_portal:{notice_id}"
     parent_snapshot = {
         "notice_id": notice_id,
-        "site_id": "muc_internal_portal",
+        "site_id": "example_internal_portal",
         "document_id": parent_document_id,
         "notice_title": notice_title,
         "notice_release_time": notice_release_time or published_date,
@@ -101,7 +101,7 @@ def _inventory_entry(
         corpus="campus_notices",
         collection="internal_notice",
         notice_id=notice_id,
-        site_id="muc_internal_portal",
+        site_id="example_internal_portal",
         document_id=parent_document_id,
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:inventory",

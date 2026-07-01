@@ -16,13 +16,13 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
     ) -> None:
         bundle = _sample_notice_bundle()
         bundle[0]["notice"]["notice_title"] = (
-            "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+            "关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知"
         )
         bundle[0]["notice"]["notice_content"] = (
-            "<h1>关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知</h1>"
+            "<h1>关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知</h1>"
             "<p>各教学单位、各位同学：</p>"
-            "<p>现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。</p>"
-            "<p>附件：中央民族大学关于学生使用人工智能的指导意见（2026版）</p>"
+            "<p>现将《示例大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。</p>"
+            "<p>附件：示例大学关于学生使用人工智能的指导意见（2026版）</p>"
         )
         bundle[0]["links"] = []
         bundle[0]["notice_attachments"] = []
@@ -39,7 +39,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -57,10 +57,10 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         self.assertEqual(owner_expectation["relation_type"], "attachment_ref")
         self.assertEqual(
             owner_expectation["owner_title_hint"],
-            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+            "示例大学关于学生使用人工智能的指导意见（2026版）",
         )
         self.assertIn(
-            "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）",
+            "附件：示例大学关于学生使用人工智能的指导意见（2026版）",
             owner_expectation["evidence_text"],
         )
 
@@ -68,10 +68,10 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         self,
     ) -> None:
         bundle = _sample_notice_bundle()
-        bundle[0]["notice"]["notice_title"] = "关于《中央民族大学差旅费管理办法》发布实施的通知"
+        bundle[0]["notice"]["notice_title"] = "关于《示例大学差旅费管理办法》发布实施的通知"
         bundle[0]["notice"]["notice_content"] = (
             "<p>各单位、各部门：</p>"
-            "<p>为加强学校国内差旅费管理，学校对《中央民族大学差旅费管理办法》进行了修订，现已经审议通过，自2025年7月1日起实施。</p>"
+            "<p>为加强学校国内差旅费管理，学校对《示例大学差旅费管理办法》进行了修订，现已经审议通过，自2025年7月1日起实施。</p>"
             "<p>修订后的文件见信息门户-文件发布，请各单位自行下载参照执行。</p>"
         )
         bundle[0]["links"] = []
@@ -103,7 +103,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -123,7 +123,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         owner_expectation = entries[0].parent_snapshot["owner_expectations"][0]
         self.assertEqual(owner_expectation["owner_kind"], "file_release_document")
         self.assertEqual(owner_expectation["relation_type"], "file_release_ref")
-        self.assertEqual(owner_expectation["owner_title_hint"], "中央民族大学差旅费管理办法")
+        self.assertEqual(owner_expectation["owner_title_hint"], "示例大学差旅费管理办法")
         self.assertIn("信息门户-文件发布", owner_expectation["evidence_text"])
 
     def test_import_authenticated_notice_export_builds_inventory_store_from_management_env(
@@ -167,7 +167,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                     request=AuthenticatedNoticeImportRequest(
                         bundle_path=bundle_path,
                         export_manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
+                        site_id="example_internal_portal",
                         source_home_url="https://portal.example.edu/home",
                         allow_local_fixture_import=True,
                         mode="admit_and_materialize",
@@ -207,7 +207,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -308,7 +308,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -357,7 +357,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         bundle[0]["attachments"][0]["original_filename"] = "external.png"
         bundle[0]["attachments"][0]["mime_type"] = "image/png"
         bundle[0]["attachments"][0]["storage_provider"] = "object_store"
-        bundle[0]["attachments"][0]["bucket"] = "campus-rag-source"
+        bundle[0]["attachments"][0]["bucket"] = "campus-agent-source"
         bundle[0]["attachments"][0]["object_key"] = external_key
         bundle[0]["attachments"][0]["origin_host"] = "mmbiz.qpic.cn"
         bundle[0]["attachments"][0]["origin_scope"] = "external"
@@ -374,7 +374,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -437,7 +437,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -510,7 +510,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",
@@ -545,14 +545,14 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         bundle[0]["notice"]["notice_title"] = "关于两校区学生通勤班车增加班次的通知"
         bundle[0]["notice"]["notice_content"] = (
             "<p>具体见下表：</p>"
-            '<p><img src="http://my.muc.edu.cn:80/comsys-portal-notice-web/upload/'
+            '<p><img src="http://portal.example.edu:80/comsys-portal-notice-web/upload/'
             'ueditor/2026318/schedule.jpg" alt="班次表.jpg"/></p>'
         )
         bundle[0]["links"][0]["url"] = (
-            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+            "http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
         )
         bundle[0]["links"][0]["final_url"] = (
-            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+            "http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
         )
         bundle[0]["links"][0]["link_text"] = "班次表.jpg"
         bundle[0]["links"][0]["content_kind"] = "inline_image"
@@ -560,13 +560,13 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         bundle[0]["notice_attachments"][0]["resource_role"] = "inline_image"
         bundle[0]["notice_attachments"][0]["anchor_text"] = "班次表.jpg"
         bundle[0]["attachments"][0]["source_url"] = (
-            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+            "http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
         )
         bundle[0]["attachments"][0]["normalized_source_url"] = (
-            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+            "http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
         )
         bundle[0]["attachments"][0]["final_url"] = (
-            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+            "http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
         )
         bundle[0]["attachments"][0]["original_filename"] = "schedule.jpg"
         bundle[0]["attachments"][0]["mime_type"] = "image/jpeg"
@@ -582,7 +582,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                 )
@@ -655,7 +655,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
+                    site_id="example_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     allow_local_fixture_import=True,
                     mode="admit_and_materialize",

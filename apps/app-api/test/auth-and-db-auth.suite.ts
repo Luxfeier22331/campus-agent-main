@@ -33,7 +33,7 @@ export function registerAppApiAuthConfigSuite() {
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
@@ -119,7 +119,7 @@ export function registerAppApiAuthConfigSuite() {
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
@@ -138,21 +138,21 @@ export function registerAppApiAuthConfigSuite() {
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 				onIdentityUserCreated,
 			} as never);
 
 			await config.databaseHooks?.user?.create?.after?.({
-				email: "jane@muc.edu.cn",
+				email: "jane@example.edu",
 				id: "user_01HQ",
 				name: "Jane Doe",
 			});
 
 			expect(onIdentityUserCreated).toHaveBeenCalledWith({
 				displayName: "Jane Doe",
-				email: "jane@muc.edu.cn",
+				email: "jane@example.edu",
 				userId: "user_01HQ",
 			});
 		});
@@ -176,7 +176,7 @@ export function registerAppApiAuthConfigSuite() {
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
@@ -184,14 +184,14 @@ export function registerAppApiAuthConfigSuite() {
 			await config.emailAndPassword.sendResetPassword?.({
 				token: "reset_token_01HQ",
 				user: {
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					name: "Jane Doe",
 				},
 			});
 
 			await config.emailAndPassword.onPasswordReset?.({
 				user: {
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					name: "Jane Doe",
 				},
 			});
@@ -219,7 +219,7 @@ export function registerAppApiAuthConfigSuite() {
 				from: "Campus Agent <auth@example.com>",
 				reply_to: "support@example.com",
 				subject: "Reset your Campus Agent password",
-				to: ["jane@muc.edu.cn"],
+				to: ["jane@example.edu"],
 			});
 			expect(firstPayload.html).toContain(
 				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
@@ -235,7 +235,7 @@ export function registerAppApiAuthConfigSuite() {
 			};
 			expect(secondPayload).toMatchObject({
 				subject: "Your Campus Agent password was changed",
-				to: ["jane@muc.edu.cn"],
+				to: ["jane@example.edu"],
 			});
 		});
 
@@ -342,21 +342,21 @@ export function registerAppApiAuthConfigSuite() {
 
 		it("admits campus-domain and explicitly allowlisted end-user emails for email/password auth", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: [" muc.edu.cn ", "@students.muc.edu.cn"],
+				endUserEmailDomainAllowlist: [" example.edu ", "@students.example.edu"],
 				endUserEmailAllowlist: [" Help_Bot@Outlook.com "],
 			});
 
-			expect(isEndUserEmailAllowedForAuth("student@muc.edu.cn", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("student@sub.muc.edu.cn", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("freshman@students.muc.edu.cn", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("student@example.edu", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("student@sub.example.edu", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("freshman@students.example.edu", policy)).toBe(true);
 			expect(isEndUserEmailAllowedForAuth("help_bot@outlook.com", policy)).toBe(true);
 			expect(isEndUserEmailAllowedForAuth("student@example.com", policy)).toBe(false);
-			expect(isEndUserEmailAllowedForAuth("student@badmuc.edu.cn", policy)).toBe(false);
+			expect(isEndUserEmailAllowedForAuth("student@badexample.edu", policy)).toBe(false);
 		});
 
 		it("rejects non-campus emails on email/password auth routes, including password reset requests", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 			});
 
@@ -385,7 +385,7 @@ export function registerAppApiAuthConfigSuite() {
 
 		it("does not apply end-user email admission checks to unrelated auth routes", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: [],
 			});
 

@@ -36,7 +36,7 @@ class WeChatPublicNoticeProjectionStoreConfigTest(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(ValueError, "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL"):
+        with self.assertRaisesRegex(RuntimeError, "Python database runtime is retired"):
             rebuild_wechat_public_notice_projection(
                 request=WeChatPublicNoticeProjectionRequest(artifact_refs=(refs,)),
                 env={},

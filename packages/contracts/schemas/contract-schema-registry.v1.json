@@ -35,7 +35,7 @@
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "tests/fixtures/campus_services_tool_result",
+					"path": "packages/contracts/fixtures/campus_services_tool_result",
 					"valid_glob": "*.valid.json",
 					"invalid_glob": "*.invalid.json"
 				}
@@ -50,7 +50,7 @@
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "tests/fixtures/campus_services_tool_contracts",
+					"path": "packages/contracts/fixtures/campus_services_tool_contracts",
 					"valid_glob": "*.valid.json",
 					"invalid_glob": "*.invalid.json"
 				}
@@ -65,7 +65,7 @@
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "tests/fixtures/transport_status",
+					"path": "packages/contracts/fixtures/transport_status",
 					"valid_glob": "*.valid.json",
 					"invalid_glob": "*.invalid.json"
 				}
@@ -80,7 +80,7 @@
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "tests/fixtures/notice_tool_contracts",
+					"path": "packages/contracts/fixtures/notice_tool_contracts",
 					"valid_glob": "*.valid.json",
 					"invalid_glob": "*.invalid.json"
 				}

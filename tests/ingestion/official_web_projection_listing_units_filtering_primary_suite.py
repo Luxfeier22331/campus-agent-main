@@ -254,7 +254,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_002",
                 raw_version_id="owver_listing_002",
                 normalized_canonical_url="https://www.example.edu/history/",
-                page_title="历史文化学院首页",
+                page_title="示例历史学院首页",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -264,7 +264,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="历史文化学院首页",
+                        text="示例历史学院首页",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_002",
@@ -491,7 +491,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=2,
                         block_order=2,
                         block_role="list_item",
-                        text="中山大学历史系 南开大学历史学院 东北师范大学历史文化学院",
+                        text="中山大学历史系 南开大学历史学院 东北师范大学示例历史学院",
                         parent_heading_path=["快速链接"],
                     ),
                     _block(
@@ -521,7 +521,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="link",
-                        text="东北师范大学历史文化学院",
+                        text="东北师范大学示例历史学院",
                         parent_heading_path=["快速链接"],
                     ),
                 ],
@@ -537,11 +537,11 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
             )
 
             self.assertNotIn(
-                "- 中山大学历史系 南开大学历史学院 东北师范大学历史文化学院", canonical
+                "- 中山大学历史系 南开大学历史学院 东北师范大学示例历史学院", canonical
             )
             self.assertIn("- 中山大学历史系", canonical)
             self.assertIn("- 南开大学历史学院", canonical)
-            self.assertIn("- 东北师范大学历史文化学院", canonical)
+            self.assertIn("- 东北师范大学示例历史学院", canonical)
 
     def test_listing_projection_skips_navigation_short_label_rows(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -575,7 +575,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_004b",
                 raw_version_id="owver_listing_004b",
                 normalized_canonical_url="https://www.example.edu/news/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -585,7 +585,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004b",
@@ -594,7 +594,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004b",
@@ -653,7 +653,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                 encoding="utf-8"
             )
 
-            self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
+            self.assertIn("- 示例大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
             self.assertIn("- 《学习时报》孔新峰：政德何以重要", canonical)
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("校园经纬", canonical)
@@ -691,7 +691,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                 raw_asset_id="owasset_listing_004c",
                 raw_version_id="owver_listing_004c",
                 normalized_canonical_url="https://www.example.edu/news/interstitial/",
-                page_title="中央民族大学新闻网",
+                page_title="示例大学新闻网",
                 page_family="listing_page",
                 blocks=[
                     _block(
@@ -701,7 +701,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=0,
                         block_order=0,
                         block_role="title",
-                        text="中央民族大学新闻网",
+                        text="示例大学新闻网",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004c",
@@ -710,7 +710,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=1,
                         block_order=1,
                         block_role="link",
-                        text="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+                        text="示例大学党委举办树立和践行正确政绩观学习教育读书班",
                     ),
                     _block(
                         raw_asset_id="owasset_listing_004c",
@@ -746,7 +746,7 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                         row_index=5,
                         block_order=5,
                         block_role="link",
-                        text="中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+                        text="示例大学举办中国历史研究院2025年度重大招标项目开题论证会",
                     ),
                 ],
             )
@@ -760,10 +760,8 @@ class OfficialWebProjectionListingUnitsFilteringPrimaryTest(unittest.TestCase):
                 encoding="utf-8"
             )
 
-            self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
-            self.assertIn(
-                "- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical
-            )
+            self.assertIn("- 示例大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
+            self.assertIn("- 示例大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical)
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("校园经纬", canonical)
             self.assertNotIn("全球合作", canonical)

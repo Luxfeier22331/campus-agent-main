@@ -49,14 +49,14 @@ describe("official web target inventory service", () => {
 						requiredEvidence: ["regulation_text"],
 						requiredFields: ["reference_title", "authoritative_source_url"],
 						selectedWriteTarget: "regulations/institutional_rules",
-						sourceHosts: ["xxgk.muc.edu.cn"],
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
+						sourceHosts: ["info.example.edu"],
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
 						targetLabel: "测试公开规章",
 					},
 				],
 				inventoryVersion: "test_inventory_v1",
 				schemaVersion: "official_web_target_inventory.v1",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 		});
 
@@ -65,7 +65,7 @@ describe("official web target inventory service", () => {
 				consumerFamily: null,
 				ownerSurface: "regulations/institutional_rules",
 				reviewState: null,
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -88,7 +88,7 @@ describe("official web target inventory service", () => {
 			summary: {
 				countsByReviewState: { candidate: 1 },
 				inventoryVersion: "test_inventory_v1",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 		});
 	});
@@ -106,7 +106,7 @@ describe("official web target inventory service", () => {
 						rawAssetId: "owasset_preview",
 						rawVersionId: "owver_preview",
 						sourceObjectKeys: [
-							"official_web/muc_public/runs/owrun_preview/source-truth-bundle.json",
+							"official_web/example_public/runs/owrun_preview/source-truth-bundle.json",
 						],
 						targetAttemptId: "owattempt_preview",
 						targetJobId: "owtarget_preview",
@@ -131,14 +131,14 @@ describe("official web target inventory service", () => {
 						requiredEvidence: ["regulation_text"],
 						requiredFields: ["reference_title", "authoritative_source_url"],
 						selectedWriteTarget: "regulations/institutional_rules",
-						sourceHosts: ["xxgk.muc.edu.cn"],
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
+						sourceHosts: ["info.example.edu"],
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
 						targetLabel: "测试公开规章",
 					},
 				],
 				inventoryVersion: "test_inventory_v1",
 				schemaVersion: "official_web_target_inventory.v1",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 		});
 
@@ -147,7 +147,7 @@ describe("official web target inventory service", () => {
 				consumerFamily: null,
 				ownerSurface: null,
 				reviewState: null,
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -185,7 +185,7 @@ describe("official web target inventory service", () => {
 						rawAssetId: "owasset_preview",
 						rawVersionId: "owver_preview",
 						sourceObjectKeys: [
-							"official_web/muc_public/runs/owrun_preview/source-truth-bundle.json",
+							"official_web/example_public/runs/owrun_preview/source-truth-bundle.json",
 						],
 						targetAttemptId: "owattempt_preview",
 						targetJobId: "owtarget_preview",
@@ -210,14 +210,14 @@ describe("official web target inventory service", () => {
 						requiredEvidence: ["regulation_text"],
 						requiredFields: ["reference_title", "authoritative_source_url"],
 						selectedWriteTarget: "regulations/institutional_rules",
-						sourceHosts: ["xxgk.muc.edu.cn"],
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
+						sourceHosts: ["info.example.edu"],
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
 						targetLabel: "测试公开规章",
 					},
 				],
 				inventoryVersion: "test_inventory_v1",
 				schemaVersion: "official_web_target_inventory.v1",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 		});
 
@@ -226,7 +226,7 @@ describe("official web target inventory service", () => {
 				consumerFamily: null,
 				ownerSurface: null,
 				reviewState: "ready_for_selected_write",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -270,7 +270,7 @@ describe("official web target inventory service", () => {
 						rawAssetId: "owasset_preview",
 						rawVersionId: "owver_preview",
 						sourceObjectKeys: [
-							"official_web/muc_public/runs/owrun_preview/source-truth-bundle.json",
+							"official_web/example_public/runs/owrun_preview/source-truth-bundle.json",
 						],
 						targetAttemptId: "owattempt_preview",
 						targetJobId: "owtarget_preview",
@@ -301,14 +301,14 @@ describe("official web target inventory service", () => {
 							"source_version_evidence",
 						],
 						selectedWriteTarget: "regulations/institutional_rules",
-						sourceHosts: ["xxgk.muc.edu.cn"],
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
+						sourceHosts: ["info.example.edu"],
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
 						targetLabel: "测试公开规章",
 					},
 				],
 				inventoryVersion: "test_inventory_v1",
 				schemaVersion: "official_web_target_inventory.v1",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 		});
 
@@ -317,7 +317,7 @@ describe("official web target inventory service", () => {
 				consumerFamily: "regulation_candidate",
 				ownerSurface: "regulations/institutional_rules",
 				reviewState: "ready_for_selected_write",
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal: createOperatorPrincipal(),
 		});

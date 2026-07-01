@@ -28,7 +28,7 @@ describe("public campus services transport status route", () => {
 						release: {
 							releaseId: "transport-release-current",
 							publishedAt: "2026-04-20T18:00:00+08:00",
-							sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+							sourceRefs: ["https://portal.example.edu/notice/123"],
 						},
 						groups: [
 							{
@@ -42,14 +42,14 @@ describe("public campus services transport status route", () => {
 												departureTime: "07:00",
 												kind: "teacher",
 												status: "normal",
-												sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+												sourceRefs: ["https://portal.example.edu/notice/123"],
 											},
 											{
 												departureTime: "12:10",
 												kind: "student",
 												status: "changed",
 												note: "该班次临时改至南门上车",
-												sourceRefs: ["https://portal.muc.edu.cn/notice/456"],
+												sourceRefs: ["https://portal.example.edu/notice/456"],
 											},
 										],
 									},
@@ -81,7 +81,7 @@ describe("public campus services transport status route", () => {
 			release: {
 				releaseId: "transport-release-current",
 				publishedAt: "2026-04-20T18:00:00+08:00",
-				sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+				sourceRefs: ["https://portal.example.edu/notice/123"],
 			},
 			groups: [
 				{
@@ -95,14 +95,14 @@ describe("public campus services transport status route", () => {
 									departureTime: "07:00",
 									kind: "teacher",
 									status: "normal",
-									sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+									sourceRefs: ["https://portal.example.edu/notice/123"],
 								},
 								{
 									departureTime: "12:10",
 									kind: "student",
 									status: "changed",
 									note: "该班次临时改至南门上车",
-									sourceRefs: ["https://portal.muc.edu.cn/notice/456"],
+									sourceRefs: ["https://portal.example.edu/notice/456"],
 								},
 							],
 						},
@@ -120,7 +120,7 @@ describe("public campus services transport status route", () => {
 					release: {
 						releaseId: "transport-release-current",
 						publishedAt: "2026-04-20T18:00:00+08:00",
-						sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+						sourceRefs: ["https://portal.example.edu/notice/123"],
 					},
 					groups: [
 						{
@@ -134,7 +134,7 @@ describe("public campus services transport status route", () => {
 											departureTime: "07:00",
 											kind: "teacher",
 											status: "silently_normalized",
-											sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+											sourceRefs: ["https://portal.example.edu/notice/123"],
 										},
 									],
 								},

@@ -11,11 +11,11 @@ import {
 } from "../src/index.ts";
 
 const captureReleaseKey =
-	"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/capture-release.json";
+	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/capture-release.json";
 const bundleKey =
-	"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json";
+	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json";
 const manifestKey =
-	"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json";
+	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json";
 
 const task: IngestionTaskEnvelope = {
 	schema_version: "ingestion_task_envelope.v1",
@@ -28,7 +28,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: `s3://campus-rag-source/${captureReleaseKey}`,
+		uri: `s3://campus-agent-source/${captureReleaseKey}`,
 	},
 	output_contract: "authenticated_notice_source_truth.v1",
 	idempotency_key: "campus_notices/internal_notice/source_truth_materialize/run-001",
@@ -65,7 +65,7 @@ describe("authenticated notice source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		const bundleRecords = [sampleBundleRecord()];
 		const manifest = sampleManifest();
 		objectStore.putJson(bundleKey, bundleRecords);
@@ -74,8 +74,8 @@ describe("authenticated notice source truth materialization", () => {
 			schema_version: "authenticated_notice_capture_release.v1",
 			source_channel: "authenticated_notice_portal",
 			source_surface: "notice",
-			site_id: "muc_internal_portal",
-			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			site_id: "example_internal_portal",
+			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
@@ -94,14 +94,14 @@ describe("authenticated notice source truth materialization", () => {
 		expect(artifactRefs).toHaveLength(3);
 		expect(artifactRefs.every((ref) => ref.kind === "object_store")).toBe(true);
 		const manifestRef = artifactRefs.find((ref) => ref.uri.endsWith("/notice-manifest.json"));
-		expect(manifestRef?.uri).toContain("s3://campus-rag-source/authenticated_notice_portal/");
+		expect(manifestRef?.uri).toContain("s3://campus-agent-source/authenticated_notice_portal/");
 		const materializedManifest = JSON.parse(
 			objectStore.getTextFromUri(requiredString(manifestRef?.uri)),
 		) as Record<string, unknown>;
 		expect(materializedManifest).toMatchObject({
 			schema_version: "authenticated_notice_manifest_v1",
 			source_channel: "authenticated_notice_portal",
-			site_id: "muc_internal_portal",
+			site_id: "example_internal_portal",
 			notice_id: "355119",
 			notice_title_normalized: "通知标题",
 		});
@@ -119,15 +119,15 @@ describe("authenticated notice source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
 			source_channel: "authenticated_notice_portal",
 			source_surface: "notice",
-			site_id: "muc_internal_portal",
-			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			site_id: "example_internal_portal",
+			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
@@ -176,14 +176,14 @@ describe("authenticated notice source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
 			source_channel: "authenticated_notice_portal",
 			source_surface: "notice",
-			site_id: "muc_internal_portal",
-			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			site_id: "example_internal_portal",
+			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: { bucket: "other-bucket", key: bundleKey },
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
@@ -209,15 +209,15 @@ describe("authenticated notice source truth materialization", () => {
 			now: () => new Date("2026-04-04T01:25:00.000Z"),
 		});
 		store.admitTask(task);
-		const objectStore = new InMemoryObjectStore("campus-rag-source");
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecord(), "bad-record"]);
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
 			source_channel: "authenticated_notice_portal",
 			source_surface: "notice",
-			site_id: "muc_internal_portal",
-			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			site_id: "example_internal_portal",
+			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
@@ -344,7 +344,7 @@ function sampleManifest(): Record<string, unknown> {
 		exported_at: "2026-04-04T01:23:45.000Z",
 		source_channel: "authenticated_notice_portal",
 		source_surface: "notice",
-		site_id: "muc_internal_portal",
+		site_id: "example_internal_portal",
 		source_home_url: "https://portal.example.edu",
 		collector: {
 			runtime_shell: "repo_local_node",

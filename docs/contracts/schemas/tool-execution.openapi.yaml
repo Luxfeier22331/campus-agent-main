@@ -500,6 +500,12 @@ components:
         - campus_notice_change_set_lookup
         - campus_notice_period_summary
         - campus_notice_get
+    ModelVisibleToolName:
+      type: string
+      enum:
+        - knowledge_query
+        - transport_schedule_lookup
+        - campus_notice_discover
     RequestedTool:
       type: string
       enum:
@@ -1204,7 +1210,7 @@ components:
         allowed_tools:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/ModelVisibleToolName"
     ToolResponse:
       type: object
       additionalProperties: false

@@ -9,13 +9,18 @@ from campus_ingestion_core.file_asset_routing import (
     adapt_mineru_archive_to_canonical_provider_payload,
     select_online_ocr_routing,
 )
+from campus_ingestion_core.raw_ingestion_online_ocr import (
+    _read_pdf_page_count,
+    _split_pdf_bytes,
+)
+from pypdf import PdfWriter
 
 
 def _build_mineru_archive_bytes() -> bytes:
     content_items = [
         {
             "type": "text",
-            "text": "中央民族大学课程安排说明",
+            "text": "示例大学课程安排说明",
             "text_level": 1,
             "bbox": [10, 20, 300, 80],
             "page_idx": 0,
@@ -32,7 +37,7 @@ def _build_mineru_archive_bytes() -> bytes:
         archive.writestr("sample_content_list.json", json.dumps(content_items, ensure_ascii=False))
         archive.writestr(
             "full.md",
-            "# 中央民族大学课程安排说明\n\n<table><tr><td>课程</td><td>时间</td></tr></table>\n",
+            "# 示例大学课程安排说明\n\n<table><tr><td>课程</td><td>时间</td></tr></table>\n",
         )
     return buffer.getvalue()
 
@@ -41,7 +46,7 @@ def _build_mineru_archive_with_page_marker_bytes() -> bytes:
     content_items = [
         {
             "type": "text",
-            "text": "中央民族大学课程安排说明",
+            "text": "示例大学课程安排说明",
             "text_level": 1,
             "bbox": [10, 20, 300, 80],
             "page_idx": 0,
@@ -59,7 +64,7 @@ def _build_mineru_archive_with_page_marker_bytes() -> bytes:
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("sample_content_list.json", json.dumps(content_items, ensure_ascii=False))
-        archive.writestr("full.md", "# 中央民族大学课程安排说明\n\n476\n")
+        archive.writestr("full.md", "# 示例大学课程安排说明\n\n476\n")
     return buffer.getvalue()
 
 
@@ -279,6 +284,15 @@ def _build_mineru_archive_with_paginated_content_list_v2_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _build_pdf_bytes(page_count: int) -> bytes:
+    writer = PdfWriter()
+    for _ in range(page_count):
+        writer.add_blank_page(width=72, height=72)
+    buffer = BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
 class OnlineOcrRoutingTest(unittest.TestCase):
     def test_select_online_ocr_routing_prefers_mineru_for_pdf_when_available(self) -> None:
         decision = select_online_ocr_routing(
@@ -360,7 +374,7 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         page_payload = result["layoutParsingResults"][0]
         blocks = page_payload["prunedResult"]["parsing_res_list"]
         self.assertEqual(blocks[0]["block_label"], "doc_title")
-        self.assertEqual(blocks[0]["block_content"], "中央民族大学课程安排说明")
+        self.assertEqual(blocks[0]["block_content"], "示例大学课程安排说明")
         self.assertEqual(blocks[1]["block_label"], "table")
         self.assertIn("<table>", blocks[1]["block_content"])
 
@@ -461,6 +475,20 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertEqual(first_page_blocks[0]["mineru_page_idx"], 0)
         self.assertEqual(second_page_blocks[0]["block_content"], "第二页正文")
         self.assertEqual(second_page_blocks[0]["mineru_page_idx"], 1)
+
+    def test_split_pdf_bytes_preserves_page_ranges_with_permissive_pdf_runtime(self) -> None:
+        pdf_bytes = _build_pdf_bytes(5)
+
+        segments = _split_pdf_bytes(file_bytes=pdf_bytes, max_pages=2)
+
+        self.assertEqual(
+            [(item["page_start"], item["page_end"]) for item in segments],
+            [(1, 2), (3, 4), (5, 5)],
+        )
+        self.assertEqual(
+            [_read_pdf_page_count(item["file_bytes"]) for item in segments],
+            [2, 2, 1],
+        )
 
 
 if __name__ == "__main__":

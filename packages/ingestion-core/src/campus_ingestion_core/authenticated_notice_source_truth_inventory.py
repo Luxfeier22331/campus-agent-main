@@ -5,12 +5,9 @@ import os
 from campus_ingestion_core.authenticated_notice_source_truth_inventory_memory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_inventory_postgres import (
-    PostgresAuthenticatedNoticeSourceTruthInventoryStore,
+from campus_ingestion_core.authenticated_notice_source_truth_inventory_rebuild import (
     _list_document_registry_scope_records_for_inventory,
     _list_raw_asset_registry_scope_records_for_inventory,
-)
-from campus_ingestion_core.authenticated_notice_source_truth_inventory_rebuild import (
     _select_latest_authenticated_notice_parent_records_for_inventory,
     build_authenticated_notice_source_truth_inventory_entries,
     build_authenticated_notice_source_truth_parent_snapshot,
@@ -38,47 +35,18 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory_shared im
     _aggregate_notice_risk_counts,
     _derive_notice_risk_label,
 )
-from campus_ingestion_core.postgres_runtime import (
-    build_operator_postgres_connection_url,
-)
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-    _postgres_connection,
-)
+from campus_ingestion_core.python_db_runtime import raise_python_db_runtime_retired
 
 
 def build_authenticated_notice_source_truth_inventory_store_from_env(
     env: dict[str, str] | None = None,
     *,
     prefer_operator: bool = False,
-) -> PostgresAuthenticatedNoticeSourceTruthInventoryStore:
-    source = env if env is not None else dict(os.environ)
-    if prefer_operator:
-        operator_database_url = (
-            source.get(DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or ""
-        ).strip()
-        if not operator_database_url:
-            raise ValueError(
-                f"{DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when "
-                "prefer_operator=True"
-            )
-        return PostgresAuthenticatedNoticeSourceTruthInventoryStore(
-            database_url=build_operator_postgres_connection_url(operator_database_url)
-        )
-    database_url = (
-        source.get(DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY)
-        or source.get(SHARED_POSTGRES_ENV_KEY)
-        or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(
-            f"{DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
-        )
-    return PostgresAuthenticatedNoticeSourceTruthInventoryStore(database_url=database_url)
+) -> AuthenticatedNoticeSourceTruthInventoryStore:
+    del env, prefer_operator
+    if os.environ:
+        pass
+    raise_python_db_runtime_retired("authenticated notice source truth inventory")
 
 
 __all__ = [
@@ -98,12 +66,10 @@ __all__ = [
     "AuthenticatedNoticeSourceTruthInventoryObjectStore",
     "AuthenticatedNoticeSourceTruthInventoryStore",
     "InMemoryAuthenticatedNoticeSourceTruthInventoryStore",
-    "PostgresAuthenticatedNoticeSourceTruthInventoryStore",
     "_aggregate_notice_risk_counts",
     "_derive_notice_risk_label",
     "_list_document_registry_scope_records_for_inventory",
     "_list_raw_asset_registry_scope_records_for_inventory",
-    "_postgres_connection",
     "_select_latest_authenticated_notice_parent_records_for_inventory",
     "build_authenticated_notice_source_truth_inventory_entries",
     "build_authenticated_notice_source_truth_inventory_store_from_env",

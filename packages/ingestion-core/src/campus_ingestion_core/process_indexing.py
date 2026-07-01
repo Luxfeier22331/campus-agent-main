@@ -11,8 +11,10 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.process_chunking import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.process_shared import IndexableChunk, ProcessArtifactReader
 from campus_ingestion_core.sparse import (
+    SparseDocumentData,
     SparseEmbeddingModel,
     SparseEmbeddingSettings,
+    SparseVectorData,
     build_sparse_embedding_model,
 )
 
@@ -364,7 +366,24 @@ def resolve_sparse_vector(
         return qdrant_models.SparseVector(
             indices=list(chunk.sparse_indices), values=list(chunk.sparse_values)
         )
-    return sparse_embedding_model.build_document(chunk.text)
+    return _to_qdrant_sparse_embedding(sparse_embedding_model.build_document(chunk.text))
+
+
+def _to_qdrant_sparse_embedding(
+    value: SparseDocumentData | SparseVectorData,
+) -> qdrant_models.Document | qdrant_models.SparseVector:
+    if isinstance(value, SparseVectorData):
+        return qdrant_models.SparseVector(indices=list(value.indices), values=list(value.values))
+    return qdrant_models.Document(
+        text=value.text,
+        model=value.model,
+        options=qdrant_models.Bm25Config(
+            tokenizer=qdrant_models.TokenizerType(value.tokenizer),
+            language=value.language,
+            lowercase=value.lowercase,
+            ascii_folding=value.ascii_folding,
+        ),
+    )
 
 
 def resolve_dense_vector_size(chunks: Sequence[IndexableChunk]) -> int:

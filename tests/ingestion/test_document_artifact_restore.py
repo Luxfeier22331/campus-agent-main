@@ -32,11 +32,11 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             record = _record(
-                document_id="institutional_regulation:muc:中央民族大学本科教学事故认定与处理办法:9ff43316b979",
+                document_id="institutional_regulation:example:示例大学本科教学事故认定与处理办法:9ff43316b979",
                 version_id="sha256:d1c5e76658bdd5ce035190a6be8b61a22a711a6cb945742c7b9f137c279a76de:effective-undated:revision-none",
                 units_key=(
                     "regulations/documents/institutional_rules/"
-                    "中央民族大学本科教学事故认定与处理办法--9ff43316/"
+                    "示例大学本科教学事故认定与处理办法--9ff43316/"
                     "current-effective/undated/document-units.jsonl"
                 ),
             )
@@ -46,7 +46,7 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             object_store = FakeObjectStore()
 
             report = restore_document_units_artifacts_from_local_evidence(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 evidence_roots=(root,),
                 object_store=object_store,
                 records=(record,),
@@ -60,7 +60,9 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             self.assertEqual(report.missing_source_count, 0)
             self.assertEqual(report.restored_object_keys, (record.document_units_object_key,))
             self.assertEqual(
-                object_store.writes[("campus-rag-derived", record.document_units_object_key or "")],
+                object_store.writes[
+                    ("campus-agent-derived", record.document_units_object_key or "")
+                ],
                 source_path.read_bytes(),
             )
 
@@ -68,11 +70,11 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             record = _record(
-                document_id="institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9",
+                document_id="institutional_regulation:example:示例大学丰台校区就医管理办法-暂行:ff711d1185f9",
                 version_id="sha256:2162cb0d7461352edce991fd4a2dbff029a7f39f6ff9593d5ac87eb9a1d32ce0:effective-undated:revision-none",
                 units_key=(
                     "regulations/documents/institutional_rules/"
-                    "中央民族大学丰台校区就医管理办法-暂行--ff711d11/"
+                    "示例大学丰台校区就医管理办法-暂行--ff711d11/"
                     "current-effective/undated/document-units.jsonl"
                 ),
             )
@@ -84,7 +86,7 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             mirror_path = (
                 root
                 / "object-store"
-                / "campus-rag-derived"
+                / "campus-agent-derived"
                 / (record.document_units_object_key or "")
             )
             mirror_path.parent.mkdir(parents=True)
@@ -92,7 +94,7 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             object_store = FakeObjectStore()
 
             report = restore_document_units_artifacts_from_local_evidence(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 evidence_roots=(root,),
                 object_store=object_store,
                 records=(record,),
@@ -102,7 +104,9 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             self.assertEqual(report.restored_count, 1)
             self.assertEqual(report.source_artifact_paths, (str(mirror_path),))
             self.assertEqual(
-                object_store.writes[("campus-rag-derived", record.document_units_object_key or "")],
+                object_store.writes[
+                    ("campus-agent-derived", record.document_units_object_key or "")
+                ],
                 mirror_path.read_bytes(),
             )
 
@@ -110,12 +114,12 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             missing_record = _record(
-                document_id="institutional_regulation:muc:missing:1234",
+                document_id="institutional_regulation:example:missing:1234",
                 version_id="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:effective-undated:revision-none",
                 units_key="regulations/documents/institutional_rules/missing/document-units.jsonl",
             )
             existing_record = _record(
-                document_id="institutional_regulation:muc:existing:1234",
+                document_id="institutional_regulation:example:existing:1234",
                 version_id="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:effective-undated:revision-none",
                 units_key="regulations/documents/institutional_rules/existing/document-units.jsonl",
             )
@@ -123,11 +127,16 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             source_path.parent.mkdir(parents=True)
             source_path.write_text(_document_units_jsonl(missing_record), encoding="utf-8")
             object_store = FakeObjectStore(
-                {("campus-rag-derived", existing_record.document_units_object_key or ""): b"exists"}
+                {
+                    (
+                        "campus-agent-derived",
+                        existing_record.document_units_object_key or "",
+                    ): b"exists"
+                }
             )
 
             report = restore_document_units_artifacts_from_local_evidence(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 evidence_roots=(root,),
                 object_store=object_store,
                 records=(missing_record, existing_record),
@@ -141,7 +150,7 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
 
     def test_restore_fails_closed_when_missing_source_artifact(self) -> None:
         record = _record(
-            document_id="institutional_regulation:muc:missing:1234",
+            document_id="institutional_regulation:example:missing:1234",
             version_id="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:effective-undated:revision-none",
             units_key="regulations/documents/institutional_rules/missing/document-units.jsonl",
         )
@@ -151,7 +160,7 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             self.assertRaisesRegex(ValueError, "missing local document-units evidence"),
         ):
             restore_document_units_artifacts_from_local_evidence(
-                bucket="campus-rag-derived",
+                bucket="campus-agent-derived",
                 evidence_roots=(Path(tmpdir),),
                 object_store=FakeObjectStore(),
                 records=(record,),
@@ -164,7 +173,7 @@ def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentReg
         document_id=document_id,
         revision_track="current-effective",
         version_id=version_id,
-        source_uri="https://my.muc.edu.cn/comsys-prompt-portlet-web/file/test.pdf",
+        source_uri="https://portal.example.edu/comsys-prompt-portlet-web/file/test.pdf",
         content_hash=version_id.split(":", 2)[1],
         corpus="regulations",
         collection="institutional_rules",

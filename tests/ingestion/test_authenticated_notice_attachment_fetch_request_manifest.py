@@ -11,9 +11,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_metadata_only_attachment_refs_are_omitted(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "355929",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355929",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:355929",
                 "raw_version_id": "sha256:notice-version",
             },
             attachment_refs=(
@@ -37,9 +37,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_includes_only_fetch_required_attachment_refs(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "355867",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355867",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:355867",
                 "raw_version_id": "sha256:schedule-version",
             },
             attachment_refs=(
@@ -112,9 +112,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_omits_fetch_policy_refs_when_bytes_are_already_uploaded(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "355867",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355867",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:355867",
                 "raw_version_id": "sha256:schedule-version",
             },
             attachment_refs=(
@@ -142,9 +142,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_stale_object_ref_without_upload_state_still_requires_fetch(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "355867",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355867",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:355867",
                 "raw_version_id": "sha256:schedule-version",
             },
             attachment_refs=(
@@ -166,9 +166,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_terminal_unavailable_refs_never_generate_fetch_requests(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "186977",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:186977",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:186977",
                 "raw_version_id": "sha256:terminal-version",
             },
             attachment_refs=(
@@ -191,9 +191,9 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
     def test_required_source_policy_without_bytes_or_fetch_flag_is_reported_invalid(self) -> None:
         manifest = build_authenticated_notice_attachment_fetch_request_manifest(
             notice_manifest={
-                "site_id": "muc_internal_portal",
+                "site_id": "example_internal_portal",
                 "notice_id": "477",
-                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:477",
+                "raw_asset_id": "asset:authenticated-notice:example_internal_portal:477",
                 "raw_version_id": "sha256:required-missing",
             },
             attachment_refs=(

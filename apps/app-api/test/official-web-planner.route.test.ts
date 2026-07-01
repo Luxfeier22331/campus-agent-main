@@ -28,14 +28,14 @@ describe("official web planner route", () => {
 							cadenceClass: "listing_hot",
 							consumerFamily: "notice_news_candidate",
 							contentType: "text/html",
-							discoveredFromUrl: "https://www.muc.edu.cn/news/",
+							discoveredFromUrl: "https://www.example.edu/news/",
 							discoveryMethod: "navigation",
 							etag: '"etag-1"',
 							fetchProfile: "target_candidate_fetch",
-							host: "www.muc.edu.cn",
+							host: "www.example.edu",
 							hostPolicy: {
-								host: "www.muc.edu.cn",
-								sourceHost: "www.muc.edu.cn",
+								host: "www.example.edu",
+								sourceHost: "www.example.edu",
 							},
 							inventoryOnly: true,
 							lastChangeReason: "main_content_changed",
@@ -48,7 +48,7 @@ describe("official web planner route", () => {
 							lastSuccessfulRunId: "owrun_prev",
 							mainContentHash: "main-1",
 							nextEligibleFetchAt: "2026-03-30T08:30:00.000Z",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+							normalizedCanonicalUrl: "https://www.example.edu/news/",
 							pageFamily: "listing_page",
 							pageTitleNormalized: "News",
 							priorityScore: 90,
@@ -58,13 +58,13 @@ describe("official web planner route", () => {
 							selectedWriteTarget: "",
 							siteId: "www_muc_edu_cn",
 							targetCandidateId: "owcand_news",
-							targetDeclarationVersion: "muc_public_target_source_map_v2",
+							targetDeclarationVersion: "example_public_target_source_map_v2",
 							targetId: "official-web-notice-news-inventory",
 							targetJobId: "owtarget_news",
 							worksetReason: "target_candidate_due",
 						},
 					],
-					hostFilter: ["www.muc.edu.cn"],
+					hostFilter: ["www.example.edu"],
 					maxPagesPerHost: 10,
 					maxTotalPages: 40,
 					resolvedAt: "2026-03-30T09:00:00.000Z",
@@ -89,7 +89,7 @@ describe("official web planner route", () => {
 		const unauthorized = await app.fetch(
 			new Request("https://app-api.internal/api/official-web/plans:resolve", {
 				body: JSON.stringify({
-					hostFilter: ["www.muc.edu.cn"],
+					hostFilter: ["www.example.edu"],
 					maxPagesPerHost: 10,
 					maxTotalPages: 40,
 					runIntent: "hot",
@@ -106,7 +106,7 @@ describe("official web planner route", () => {
 		const authorized = await app.fetch(
 			new Request("https://app-api.internal/api/official-web/plans:resolve", {
 				body: JSON.stringify({
-					hostFilter: ["www.muc.edu.cn"],
+					hostFilter: ["www.example.edu"],
 					maxPagesPerHost: 10,
 					maxTotalPages: 40,
 					now: "2026-03-30T09:00:00.000Z",
@@ -128,7 +128,7 @@ describe("official web planner route", () => {
 				duePages: [
 					expect.objectContaining({
 						cadenceClass: "listing_hot",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+						normalizedCanonicalUrl: "https://www.example.edu/news/",
 					}),
 				],
 				runIntent: "hot",
@@ -137,7 +137,7 @@ describe("official web planner route", () => {
 		});
 		expect(service.resolve).toHaveBeenCalledWith({
 			payload: {
-				hostFilter: ["www.muc.edu.cn"],
+				hostFilter: ["www.example.edu"],
 				maxPagesPerHost: 10,
 				maxTotalPages: 40,
 				now: "2026-03-30T09:00:00.000Z",

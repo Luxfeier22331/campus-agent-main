@@ -18,7 +18,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: "s3://campus-rag-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
+		uri: "s3://campus-agent-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
 		digest: "sha256:def456",
 	},
 	output_contract: "official_web_stable_reference_source_truth.v1",

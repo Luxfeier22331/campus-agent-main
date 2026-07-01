@@ -320,7 +320,7 @@ def _persisted_attachment_record(
     notice_id: str = "355119",
     attachment_ref_id: str = "attachment-0001",
 ) -> DocumentRegistryRecord:
-    document_id = f"notice_attachment:muc_internal_portal:{notice_id}:{attachment_ref_id}"
+    document_id = f"notice_attachment:example_internal_portal:{notice_id}:{attachment_ref_id}"
     version_id = f"sha256:{attachment_ref_id}"
     document_units_key = (
         "campus_notices/documents/internal_notice/"
@@ -345,7 +345,7 @@ def _persisted_attachment_record(
         embedding_model="Qwen3-Embedding-4B",
         source_channel="authenticated_notice_portal",
         raw_asset=RawAssetRef(
-            raw_asset_id=f"asset:authenticated-notice:muc_internal_portal:{notice_id}:{attachment_ref_id}",
+            raw_asset_id=f"asset:authenticated-notice:example_internal_portal:{notice_id}:{attachment_ref_id}",
             raw_version_id=version_id,
         ),
         document_units_object_key=document_units_key,

@@ -17,27 +17,35 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument, load_spl
 
 def _curriculum_raw_asset_record(*, raw_version_id: str) -> RawAssetRecord:
     return RawAssetRecord(
-        raw_asset_id="asset:curriculum-plan-2022",
+        raw_asset_id="asset:synthetic-curriculum-plan",
         raw_version_id=raw_version_id,
         corpus="curriculum",
         collection="curriculum_plan",
-        raw_source_uri="file:///tmp/curriculum-plan-2022.pdf",
+        raw_source_uri="file:///tmp/synthetic-curriculum-plan.pdf",
         content_hash=raw_version_id.removeprefix("sha256:"),
-        source_filename="curriculum-plan-2022.pdf",
-        object_key="official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+        source_filename="synthetic-curriculum-plan.pdf",
+        object_key=(
+            "official_pdf/curriculum-plan/synthetic/sha256/test/capture/"
+            "synthetic-curriculum-plan.pdf"
+        ),
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
 
 
+def _unit_test_manifest_document() -> SplitManifestDocument:
+    return SplitManifestDocument(
+        document_id="curriculum:synthetic-unit-test-plan",
+        title="Synthetic unit test curriculum plan",
+        page_start=20,
+        page_end=21,
+    )
+
+
 class SplitManifestDocumentInputTest(unittest.TestCase):
     def test_build_split_manifest_document_input_preserves_table_projection_fields(self) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        manifest_document = manifest.documents[0]
+        manifest_version = "curriculum_plan_split_manifest_unit_test_v1"
+        manifest_document = _unit_test_manifest_document()
         structured_rows = [
             {
                 "row_id": "page-0020-block-0001",
@@ -117,7 +125,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
         ]
         document_input = _build_split_manifest_document_input(
             raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
-            manifest_version=manifest.manifest_version,
+            manifest_version=manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
@@ -135,9 +143,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             for line in document_input.document_units_bytes.decode("utf-8").splitlines()
             if line.strip()
         ]
-        expected_source_uri = (
-            "campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21"
-        )
+        expected_source_uri = "campus-agent://source/curriculum/synthetic-curriculum-plan/sha256/test/capture/pages/20-21"
 
         self.assertEqual(len(projected_rows), 3)
         self.assertTrue(
@@ -157,12 +163,8 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
         self.assertEqual(projected_rows[1]["source"]["id"], expected_source_uri)
 
     def test_build_split_manifest_document_input_preserves_heading_structure_fields(self) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        manifest_document = manifest.documents[0]
+        manifest_version = "curriculum_plan_split_manifest_unit_test_v1"
+        manifest_document = _unit_test_manifest_document()
         structured_rows = [
             {
                 "row_id": "page-0020-block-0001",
@@ -210,7 +212,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
         ]
         document_input = _build_split_manifest_document_input(
             raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
-            manifest_version=manifest.manifest_version,
+            manifest_version=manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
@@ -240,12 +242,8 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
     def test_build_split_manifest_document_input_drops_page_markers_and_merges_cross_page_paragraphs(
         self,
     ) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        manifest_document = manifest.documents[0]
+        manifest_version = "curriculum_plan_split_manifest_unit_test_v1"
+        manifest_document = _unit_test_manifest_document()
         structured_rows = [
             {
                 "row_id": "page-0020-body",
@@ -284,8 +282,8 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                 "row_type": "footer",
                 "row_index": 13,
                 "reading_order": 3,
-                "text_raw": "中央民族大学教务处",
-                "text_normalized": "中央民族大学教务处",
+                "text_raw": "示例大学教务处",
+                "text_normalized": "示例大学教务处",
                 "page_start": 21,
                 "page_end": 21,
             },
@@ -293,7 +291,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
 
         document_input = _build_split_manifest_document_input(
             raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
-            manifest_version=manifest.manifest_version,
+            manifest_version=manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
@@ -321,12 +319,8 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
     def test_build_split_manifest_document_input_keeps_repeated_structural_headings(
         self,
     ) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        manifest_document = manifest.documents[0]
+        manifest_version = "curriculum_plan_split_manifest_unit_test_v1"
+        manifest_document = _unit_test_manifest_document()
         structured_rows = [
             {
                 "row_id": "page-0020-section-three",
@@ -389,7 +383,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
 
         document_input = _build_split_manifest_document_input(
             raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
-            manifest_version=manifest.manifest_version,
+            manifest_version=manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
@@ -423,12 +417,8 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
     def test_build_split_manifest_document_input_keeps_repeated_table_continuations(
         self,
     ) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        manifest_document = manifest.documents[0]
+        manifest_version = "curriculum_plan_split_manifest_unit_test_v1"
+        manifest_document = _unit_test_manifest_document()
         structured_rows = [
             {
                 "row_id": "page-0020-table",
@@ -461,7 +451,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
 
         document_input = _build_split_manifest_document_input(
             raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
-            manifest_version=manifest.manifest_version,
+            manifest_version=manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
@@ -496,7 +486,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                         "manifest_version": "curriculum_plan_split_manifest_v1",
                         "corpus": "curriculum",
                         "collection": "curriculum_plan",
-                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "raw_asset_id": "asset:synthetic-curriculum-plan",
                         "documents": [
                             {
                                 "document_id": "curriculum:plan-001",
@@ -528,7 +518,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
 
             self.assertEqual(manifest.corpus, "curriculum")
             self.assertEqual(manifest.collection, "curriculum_plan")
-            self.assertEqual(manifest.raw_asset_id, "asset:curriculum-plan-2022")
+            self.assertEqual(manifest.raw_asset_id, "asset:synthetic-curriculum-plan")
             self.assertEqual(len(manifest.documents), 2)
             self.assertEqual(manifest.documents[1].entitlement_groups, ("students",))
             self.assertEqual(manifest.documents[1].visibility_scope, "main")
@@ -543,7 +533,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                         "manifest_version": "curriculum_plan_split_manifest_v1",
                         "corpus": "curriculum",
                         "collection": "curriculum_plan",
-                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "raw_asset_id": "asset:synthetic-curriculum-plan",
                         "documents": [
                             {
                                 "document_id": "curriculum:plan-001",
@@ -580,7 +570,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                         "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
                         "collection": "student_rules",
-                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_asset_id": "asset:synthetic-student-handbook",
                         "documents": [
                             {
                                 "document_id": "handbook:test-001",
@@ -613,7 +603,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                         "manifest_version": "curriculum_plan_split_manifest_v1",
                         "corpus": "curriculum",
                         "collection": "curriculum_plan",
-                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "raw_asset_id": "asset:synthetic-curriculum-plan",
                         "documents": [
                             {
                                 "document_id": "curriculum:plan-001",

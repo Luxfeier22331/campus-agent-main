@@ -111,9 +111,19 @@ function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookie
 	}
 	const ssoToken = extractSsoTgcToken(config.authSsoTgcToken);
 	if (ssoToken) {
-		seededCookies.push(buildPortalCookie(".muc.edu.cn", SSO_TGC_COOKIE_NAME, ssoToken));
+		seededCookies.push(
+			buildPortalCookie(resolveParentCookieDomain(portalHost), SSO_TGC_COOKIE_NAME, ssoToken),
+		);
 	}
 	return seededCookies;
+}
+
+function resolveParentCookieDomain(hostname: string): string {
+	const parts = hostname.split(".").filter(Boolean);
+	if (parts.length < 2 || hostname === "localhost") {
+		return hostname;
+	}
+	return `.${parts.slice(-2).join(".")}`;
 }
 
 function buildPortalCookie(
