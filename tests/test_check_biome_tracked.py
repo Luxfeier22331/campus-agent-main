@@ -25,6 +25,7 @@ class CheckBiomeTrackedTest(unittest.TestCase):
                 "package.json",
                 "turbo.json",
                 "apps",
+                "jobs",
                 "packages",
                 "configs",
                 "docs/reference/eval",

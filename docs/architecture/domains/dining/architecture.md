@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-06-14
+updated: 2026-07-02
 ---
 # Dining Domain Architecture
 
@@ -17,6 +17,8 @@ updated: 2026-06-14
 - dining floor/window/stall/menu truth 属于哪个领域
 - draft、release candidate、release、published projection 如何分层
 - `campus-web` 与 Operator Console dining workspace 分别消费什么
+- Feishu/Lark 来源同步如何进入发布投影
+- 未来问答链路如何只读消费食堂发布投影
 - dining 与 navigation spatial truth 如何区分
 
 它不负责：
@@ -35,11 +37,42 @@ student dining experience.
 Primary read/write split:
 
 ```text
-Operator Console dining workspace (current: operator-console-web)
-  -> app-api /api/ops/dining/* -> dining draft
-  -> release candidate -> published release snapshot
+Feishu/Lark catalog source + manual collection
+  -> jobs/dining-sync catalog-observations
+  -> dining.source_observations(source_type=feishu_catalog)
+  -> jobs/dining-sync publish-catalog OR publish-catalog-from-observations
+  -> dining catalog/release tables
+
+Feishu/Lark review source + manual collection
+  -> jobs/dining-sync sync-all / CronJob
+  -> shape validation + content moderation + attachment materialization
+  -> dining.source_observations(source_type=feishu_review)
+  -> dining.review_projections
+
 campus-web -> app-api /api/dining/* -> latest published release snapshot
+
+future dining_lookup tool -> same published projection
 ```
+
+`app-api` owns the HTTP reader/writer facade and Worker PG adapter. It does not
+own dining catalog source truth, source sync, or Feishu/Lark access. It must
+not call Feishu/Lark or shell out to `lark-cli` from online request handlers.
+
+`packages/dining-domain` keeps repo-owned floorplan scaffold and a minimal
+local/dev validation seed. Production catalog content comes from Feishu/Lark
+source tables, enters `dining.source_observations`, then is published from
+active PG observations. `publish-catalog` refreshes Feishu/Lark and publishes in
+one command; `publish-catalog-from-observations` replays the already-landed PG
+observations without accessing Feishu/Lark. The current publisher maps Feishu
+catalog rows onto the existing repo floorplan scaffold when available because
+Feishu does not provide SVG anchors or floorplan geometry.
+
+Floorplan scaffold/SVG presence is not student visibility truth. A hall becomes
+visible in `campus-web` only after it is present in the latest published dining
+snapshot served by `app-api`. Local development must prove that path by running
+shared-product migrations, importing the local dev seed, and checking the
+published snapshot; checking only `dining-floorplans` assets or scaffold entries
+is insufficient.
 
 ## Domain Objects
 
@@ -119,7 +152,7 @@ Each accepted SVG has a generated manifest entry containing:
 object storage. A release candidate freezes the manifest reference, checksum,
 anchor inventory and `windowId <-> svgAnchorId` bindings used by the candidate.
 Publish writes the immutable dining snapshot and latest pointer; it does not
-copy SVG objects or synthesize seed SVG bytes.
+copy SVG objects or synthesize fixture SVG bytes.
 
 `campus-web` and Operator Console dining workspace render the sanitized SVG
 inline so they can select, highlight and center a specific anchor. Rendering SVG
@@ -194,21 +227,27 @@ They return published hall summaries, floor projections and current read-only
 review projection suitable for
 `campus-web`:
 
-- hall summary includes only campus, hall identity and floor selector fields;
+- hall summary includes only campus, hall identity and map selector fields;
   it does not expose collection statistics, stall count, offering count, tag
   summaries or hall-level price ranges
 - floor projection includes versioned floorplan metadata/markup, SVG anchors,
   windows, assignment, stall profile, offerings and API-provided filter tags
+- 单地图食堂只使用一张地图投影，不展示学生端楼层切换；多地图食堂可以展示
+  "一层" / "二层" 这类地图标签
+- 海淀二食堂、海淀四食堂的学生端模型仍是两个食堂各自一张地图。参考图中
+  "一层是四食堂、二层是二食堂" 只作为结构重建来源事实，不新增 building
+  模型，也不要求学生端理解楼层关系
 - window/stall is one student-facing "档口" concept; `svgAnchorId` is rendered
   as the primary floorplan selection anchor, not as navigation spatial truth
 - offerings are nested under assignment, not physical window
-- hall reviews are static seed projection for the current first slice; they
-  preserve submitted stall and dish names as free text and do not bind reviews
-  to `windowId`, `menuItemId` or `offeringId`
+- hall reviews read from `dining.review_projections`; review records bind to the
+  current published `stallProfileId` and `windowId`, while preserving submitted
+  stall and dish names as free text. Dish names do not bind to `menuItemId` or
+  `offeringId`
 - `campus-web` consumes hall reviews under the selected map stall and selected
   dish context; review cards show reviewer name, rating, paid price, comment
-  and images, and do not repeat stall or dish names already supplied by the
-  parent context
+  and image preview entry points, and do not repeat stall or dish names already
+  supplied by the parent context
 - review images are served as local static assets and public API responses
   never expose Lark / Feishu file tokens
 - inconsistent campus/hall submissions are not guessed into another hall
@@ -229,10 +268,132 @@ They do not expose:
 - dish alias merge, ranking, likes, replies or review submission workflow
 
 If no published release exists, the student route must return explicit empty or
-typed not-found behavior. It must not silently fall back to in-memory seed data.
+typed not-found behavior. It must not silently fall back to in-memory fixture
+data.
 If a published snapshot is missing required floorplan, stall profile or menu item
 projection fields, the route must fail closed rather than synthesize placeholder
 food, price, geometry or tags.
+
+## Source Sync Boundary
+
+Dining source sync is an offline/runtime task, not an app-api request path.
+
+Allowed shapes:
+
+- local one-shot validation through `lark-cli` or `jobs/dining-sync`
+- Docker one-shot sync for local/staging proof
+- Kubernetes `Job` for manual rerun
+- Kubernetes `CronJob` for scheduled production sync
+
+Forbidden shapes:
+
+- `app-api` online handler queries Feishu/Lark directly
+- `app-api` online handler shells out to `lark-cli`
+- app-api owns catalog source/import scripts or writes current dining business
+  content as production truth
+- frontend or model runtime consumes raw Feishu/Lark rows or file tokens
+
+Production sync uses a project-specific Feishu/Lark application identity, not a
+personal login token. The app must be granted the target Base and the minimum
+Base/media read scopes documented in `docs/environment/providers.md`.
+
+Default scheduling posture:
+
+- production: hourly CronJob, `concurrencyPolicy: Forbid`,
+  `timeZone: Asia/Shanghai`
+- staging: same manifest shape, default suspended until explicit one-shot proof
+- local: explicit one-shot command only. For student-surface validation, run the
+  current-worktree app-api local env wrapper with
+  `node ./scripts/prepare-local-dining.mjs`; it executes shared-product
+  migrations, imports the local dev seed and verifies the published dining
+  snapshot contains the committed validation floorplans.
+
+Catalog sync output must be deterministic and fail closed. Catalog publish and
+dev seed import closeout must report the visible hall/floor set so missing
+published maps are visible before browser smoke. A catalog record is
+publishable only after required source links and display fields validate.
+上线 closeout 应再执行 `jobs/dining-sync verify-published`。该命令只读 latest
+published snapshot 和 review projection，不访问 Feishu/Lark、不写 DB，用于确认学生端
+可见 hall/floor/window/assignment/menu 计数、placeholder floor 计数和 review image
+projection 没有 source-provider token 泄漏。
+Formal floorplan SVG completeness is not catalog admission. During the current
+bootstrap stage, catalog rows with valid source relationships are published even
+when the formal repo floorplan scaffold is incomplete:
+
+- hall must have a campus link and display name
+- stall/window must belong to an accepted hall and have a display name
+- dish/menu offering must reference at least one accepted stall/window
+- missing formal floorplan geometry produces explicit placeholder floor/window
+  projection, not a blocked source observation
+
+`campus-web` 对 placeholder floorplan 显示明确的“地图待补充”状态，同时仍使用
+projection 中的 `windows[].geometry` 绘制可点击档口。该状态表示正式地图资产尚未补齐，
+不是 app-api 兜底生成业务内容。
+
+Rows that fail these checks are stored as blocked
+`dining.source_observations` with deterministic `blockReason` values such as
+`campus_not_found`, `hall_not_found`, `stall_not_found`, `stall_name_missing`
+or `dish_name_missing`. They must not be silently accepted and then disappear
+during publish.
+
+Review records are publishable only after source shape validation, current
+catalog stall/window resolution, content moderation and attachment
+materialization all pass. Accepted and blocked review records are landed as
+`dining.source_observations(source_type=feishu_review)`; only active accepted
+review observations are materialized into `dining.review_projections`.
+
+Catalog tables currently required from Feishu/Lark Base:
+
+- campus table: campus display name and sort order
+- hall table: hall display name, campus link and sort order
+- stall table: stall/window display name, hall link, sort order and tags
+- dish table: dish display name, stall links, optional display price and tags
+
+`menu_offerings.price_label` is nullable. Missing price is a known source fact,
+not a frontend error; student UI hides the price chip rather than inventing a
+placeholder.
+
+`jobs/dining-sync` owns content moderation through an OpenAI-compatible Gitee AI
+moderation endpoint configured by `DINING_MODERATION_*`. Text review fields
+(`dishName`, `stallName`, `contributorName`, `comment`) are checked by
+`Security-semantic-filtering` by default. Downloaded review images are first
+written to a non-projected moderation object prefix, checked by
+`nsfw-classifier` through a provider-fetchable HTTPS object URL, then copied to
+the public review image prefix only after passing moderation. The paid
+`moark-text-moderation` model may be selected through env override when the free
+text gate is not good enough. `nonescape-v0` is not a dining safety moderation
+model and must not be used as the default review image gate. Deterministic
+record-level moderation results such as flagged or uncertain text, or image
+moderation rejection, block that source record and keep the rest of the batch
+processing. Provider HTTP errors, invalid provider responses, missing config,
+object-store failures or DB failures are runtime failures and must fail closed
+for the whole sync run.
+These models are content moderation gates for Feishu/Lark review records and
+attachments; they are not retrieval embedding models and must not enter app-api
+online provider-config or model-visible tool catalogs.
+
+## Tool Consumption Boundary
+
+The future model-visible food tool should be a read-only typed tool such as
+`dining_lookup`.
+
+It may read:
+
+- latest published dining projection
+- public review projection fields
+- public image URLs
+
+It must not read:
+
+- Feishu/Lark Base tables
+- raw `record-list` JSON
+- Feishu/Lark file tokens or temporary download URLs
+- app-api-owned dev seed state as source truth
+- navigation graph, service status or live opening exceptions
+
+Questions that require current time, opening status or temporary closure must
+compose with a separate service-status tool. Dining must not absorb that source
+truth.
 
 ## Ops Projection
 
@@ -248,11 +409,40 @@ launcher surfaces. The current implementation surface is `apps/operator-console-
 
 ## Source Observation Boundary
 
-Source observation is a reserved storage boundary for possible collected or
-manually observed dining facts. It is not part of the current implemented route
-surface or current planned development cycle.
+Source observation is now the implemented landing zone for Feishu/Lark catalog
+facts. It remains an offline data-plane boundary and is not exposed through
+student or operator HTTP routes in the current scope.
 
-If source observation is reintroduced later, its lifecycle must be explicitly
+Implemented catalog path:
+
+```text
+Feishu/Lark catalog tables
+-> jobs/dining-sync catalog-observations
+-> dining.source_observations(source_type=feishu_catalog)
+-> jobs/dining-sync publish-catalog OR publish-catalog-from-observations
+-> published dining release snapshot
+```
+
+Implemented review path:
+
+```text
+Feishu/Lark review table
+-> jobs/dining-sync sync-all
+-> shape validation + current catalog resolver
+-> content moderation + S3-compatible attachment materialization
+-> dining.source_observations(source_type=feishu_review)
+-> dining.review_projections
+```
+
+`dining.source_observations` is an idempotent PG landing table for catalog and
+review observations. Sync uses
+`observation_id` upsert and marks observations missing from the newest run as
+stale instead of deleting rows. Publishing consumes active observations
+(`stale_at IS NULL`) only. Raw Feishu/Lark catalog/review archives are not
+written to object storage in the current scope; object storage is used for
+review image attachment materialization.
+
+Future operator review/apply workflows, if accepted later, must be explicitly
 designed before implementation:
 
 ```text
@@ -263,10 +453,10 @@ observation captured
 -> optional publish
 ```
 
-Observation does not become student-visible data until a future explicit
-operator command writes draft data and a release is explicitly published. The
-current implementation does not expose observation listing, apply, or reject
-routes.
+Observation rows do not become student-visible data by themselves. Only the
+publish job may materialize accepted catalog observations into catalog tables
+and the latest published release snapshot. The current implementation does not
+expose observation listing, apply or reject routes.
 
 ## Navigation Boundary
 
@@ -285,21 +475,23 @@ Forbidden relationship:
 - do not let dining publish alter campus place catalog without a navigation
   domain contract
 
-## Current Initial Scope
+## Current Catalog Scope
 
-The initial release covers:
+The current catalog scope is the Feishu/Lark Base dining collection mapped onto
+the repo-owned floorplan scaffold:
 
-- 海淀校区 1-5 食堂，每个单层
-- 丰台校区 荟贤、聚雅，每个两层
-- 每层至少 5 个窗口
-- 部分窗口包含多个 offering，用于验证一个档口多个菜品/价格参考的学生端体验
+- campus, hall, stall/window and dish rows come from Feishu/Lark catalog tables
+- price is optional and remains a display label when present
+- hall/floor SVG anchors come from repo-owned floorplan assets
+- source rows that map to a known floorplan scaffold use repo-owned window
+  anchors; rows without a formal scaffold use explicit placeholder floor/window
+  projection instead of blocking catalog publish
+- unmapped or inconsistent source links are blocked instead of guessed
 
-This is a seeded initial release, not a claim that all real dining data
-collection is complete.
-
-Initial release seed ownership lives in the dining operations domain, not
-`campus-experience`. `campus-experience` keeps map and feedback ownership and
-does not own dining floorplan/menu seed data.
+The dev seed in `packages/dining-domain` is not production source truth. It
+remains useful for local development and initializing a dev database before
+Feishu sync is configured. Floorplan scaffold remains map structure only and
+must not carry menu, price or review truth.
 
 ## Non-Goals
 
@@ -313,5 +505,5 @@ development cycle:
 
 Current worktree scope also does not include:
 
-- automatic source observation apply
 - dining data quality evaluation pipeline
+- model-visible `dining_lookup` registration

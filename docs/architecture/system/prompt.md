@@ -9,8 +9,6 @@ updated: 2026-06-28
 
 # Prompt And Instruction Architecture
 
-<!-- markdownlint-disable MD013 -->
-
 ## Document Boundary
 
 This document owns prompt and instruction supporting architecture for

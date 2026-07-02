@@ -48,9 +48,5 @@ export function appendOperatorAggregateFilters(
 ) {
 	query.set("window", resolveOperatorWindow(filter?.window));
 	appendOptionalQueryParam(query, "surface", filter?.surface);
-	appendOptionalQueryParam(query, "selectedTool", filter?.selectedTool);
-	appendOptionalQueryParam(query, "requestedTool", filter?.requestedTool);
 	appendOptionalQueryParam(query, "principalType", filter?.principalType);
-	appendOptionalQueryParam(query, "collection", filter?.collection);
-	appendOptionalQueryParam(query, "modelName", filter?.modelName);
 }

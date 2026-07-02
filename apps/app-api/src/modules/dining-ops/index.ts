@@ -1,35 +1,10 @@
 export type {
+	DiningAuditEvent,
 	DiningDraftVersion,
 	DiningFloorplanManifestRef,
 	DiningFloorplanRef,
-	DiningReleaseCandidate,
-	DiningReleaseCandidateEnvelope,
-	DiningReleaseCandidateStatus,
-	DiningReleaseCandidateValidationReport,
-	DiningReleaseLatestPointer,
-	DiningReleaseScheduleJob,
-	DiningReleaseValidationIssue,
-	DiningReleaseValidationStatus,
-	DiningSvgAnchor,
-} from "./release-types";
-export {
-	buildDiningOperationsService,
-	createInitialDiningOperationsState,
-	createInMemoryDiningOperationsStore,
-	createProcessDiningOperationsStore,
-	DINING_CANVAS,
-	DINING_SOURCE,
-	INITIAL_DINING_HALL_SEEDS,
-} from "./service";
-export {
-	createPgDiningOperationsStore,
-	ensureInitialDiningOperationsRelease,
-} from "./store";
-export type {
-	DiningAuditEvent,
 	DiningMenuItem,
 	DiningMenuOffering,
-	DiningOperationsService,
 	DiningOperationsState,
 	DiningOperationsStore,
 	DiningOpsActor,
@@ -37,9 +12,39 @@ export type {
 	DiningOpsHall,
 	DiningPublishedSnapshot,
 	DiningRelease,
+	DiningReleaseCandidate,
+	DiningReleaseCandidateEnvelope,
+	DiningReleaseCandidateStatus,
+	DiningReleaseCandidateValidationReport,
+	DiningReleaseLatestPointer,
+	DiningReleaseScheduleJob,
 	DiningReleaseStatus,
+	DiningReleaseValidationIssue,
+	DiningReleaseValidationStatus,
+	DiningReview,
+	DiningReviewImage,
 	DiningStallProfile,
+	DiningSvgAnchor,
 	DiningWindow,
 	DiningWindowAssignment,
 	DiningWindowStatus,
-} from "./types";
+} from "dining-domain";
+export {
+	createDevDiningOperationsState,
+	createDiningFloorplanScaffoldState,
+	createEmptyDiningOperationsState,
+	DINING_CANVAS,
+	DINING_SYSTEM_SOURCE,
+	listDiningFloorScaffold,
+	listDiningHallScaffold,
+	listDiningWindowScaffold,
+	resolveDiningFloorScaffold,
+	resolveDiningHallScaffold,
+} from "dining-domain";
+export type { DiningOperationsService } from "./service";
+export {
+	buildDiningOperationsService,
+	createInMemoryDiningOperationsStore,
+	createProcessDiningOperationsStore,
+} from "./service";
+export { createPgDiningOperationsStore } from "./store";

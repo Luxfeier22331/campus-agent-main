@@ -147,16 +147,6 @@ export interface ChatCommandServiceDependencies {
 	durableEventPolling?: DurableEventPollingPolicy;
 	executionRuntime?: ExecutionControlRuntimeClient;
 	telemetry?: AppTelemetry;
-	traceBacklinkRecorder?: {
-		record(input: {
-			errorCode?: string | null;
-			requestId: string;
-			selectedTool?: string | null;
-			status?: string | null;
-			surface?: string | null;
-			traceId: string;
-		}): Promise<void>;
-	};
 }
 
 export interface ValidatedChatCommandPayload {

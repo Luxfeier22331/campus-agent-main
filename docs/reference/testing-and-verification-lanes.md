@@ -26,7 +26,10 @@ configuration.
   - The lane is based on tracked + current worktree files selected by the repo
     checker; untracked 文件 are not proof of branch-tip compliance until they
     are intentionally added.
-  - PowerShell 继续保留为 supplemental lane; it is 不并入默认 `pnpm repo:static`.
+  - The HTML checker validates tracked + untracked 文件 matched by the live
+    HTML pathspecs; it is part of repo static structure proof, not browser
+    runtime proof.
+  - PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`。
   - Not a typecheck, unit test, integration test or E2E proof.
 - `pnpm repo:static:affected`
   - Local changed-file static lane against `origin/develop`.

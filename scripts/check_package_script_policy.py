@@ -185,7 +185,9 @@ def _audit_package_scripts(root: Path, package_path: Path) -> tuple[PackageScrip
 
 def _package_paths(root: Path) -> tuple[Path, ...]:
     return tuple(
-        sorted(root.glob("apps/*/package.json")) + sorted(root.glob("packages/*/package.json"))
+        sorted(root.glob("apps/*/package.json"))
+        + sorted(root.glob("jobs/*/package.json"))
+        + sorted(root.glob("packages/*/package.json"))
     )
 
 

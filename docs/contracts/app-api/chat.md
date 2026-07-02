@@ -230,8 +230,10 @@ Rules:
 - Feedback routes stay session-principal gated and fail closed for missing
   login, cross-user conversations, non-assistant messages, `kind=error` messages
   or messages without `requestId`.
-- Existing feedback can still be returned in conversation detail and consumed by
-  operator quality summary / eval candidate export.
+- Existing feedback can still be returned in conversation detail.
+- Using feedback for offline analysis or Langfuse / eval import requires a
+  separate explicit contract; it is not an implicit Operator Console quality or
+  release-evidence surface.
 - Rollback should close the browser UI or worker route proxy first, not remove
   the app-api schema or clear existing feedback rows.
 

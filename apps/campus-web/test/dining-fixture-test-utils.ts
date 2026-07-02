@@ -19,7 +19,7 @@ export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
 		halls: [
 			{
 				campus: "海淀校区",
-				floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
+				floors: [{ floorId: "haidian-canteen-1-1f", label: "地图" }],
 				hallId: "haidian-canteen-1",
 				name: "海淀一食堂",
 			},
@@ -39,7 +39,7 @@ export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
 			const projections = {
 				"fengtai-huixian-canteen:fengtai-huixian-canteen-1f": "荟贤食堂一层",
 				"fengtai-huixian-canteen:fengtai-huixian-canteen-2f": "荟贤食堂二层",
-				"haidian-canteen-1:haidian-canteen-1-1f": "海淀一食堂一层",
+				"haidian-canteen-1:haidian-canteen-1-1f": "海淀一食堂",
 			} as const;
 			const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
 			if (!label) {
@@ -60,12 +60,36 @@ export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
 								dishName: "金汤鱼粉",
 								hallId: "haidian-canteen-1",
 								hallName: "海淀一食堂",
-								images: [],
+								images: [
+									{
+										alt: "金汤鱼粉评价图片",
+										imageId: "dining-review-image:rec27DpktN6uQn:1",
+										url: "/assets/dining/reviews/rec27DpktN6uQn-1.jpg",
+									},
+								],
 								paidPriceLabel: "12 元",
 								rating: 4,
 								reviewId: "dining-review:rec27DpktN6uQn",
 								sourceRecordId: "rec27DpktN6uQn",
 								stallName: "鱼粉",
+								stallProfileId: "stall:rice",
+								windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-01",
+							},
+							{
+								campus: "海淀校区",
+								comment: "汤底清爽。",
+								contributorName: "小满",
+								dishName: "鱼粉招牌菜",
+								hallId: "haidian-canteen-1",
+								hallName: "海淀一食堂",
+								images: [],
+								paidPriceLabel: null,
+								rating: null,
+								reviewId: "dining-review:rec-fish-special",
+								sourceRecordId: "rec-fish-special",
+								stallName: "鱼粉",
+								stallProfileId: "stall:rice",
+								windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-01",
 							},
 						]
 					: [],
@@ -85,7 +109,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 			svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
 		},
 		source: {
-			label: "校园食堂平面图整理",
 			updatedAt: "2026-06-08T00:00:00.000Z",
 		},
 		windows: [
@@ -104,7 +127,14 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 							menuItemId: "menu:rice:2",
 							name: "鱼粉招牌菜",
 							offeringId: "offering:rice:2",
-							priceLabel: "16 元",
+							priceLabel: null,
+							tags: ["粉面"],
+						},
+						{
+							menuItemId: "menu:rice:3",
+							name: "清淡鱼粉",
+							offeringId: "offering:rice:3",
+							priceLabel: null,
 							tags: ["粉面"],
 						},
 					],
@@ -157,9 +187,9 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 function toDiningFloorplanRef(input: { floorId: string; hallId: string }) {
 	const shaByFloor = {
 		"fengtai-huixian-canteen-1f":
-			"sha256:1f02bf778c9c11ec7c9ce0426fa63bfff0ba1ec6dc9dc0be20b26a9a6a5b710a",
+			"sha256:d5af2f44ac03d509f549efdb689c665b9f4dc54541dbd14c842f3ca839f016d6",
 		"fengtai-huixian-canteen-2f":
-			"sha256:2641cf62e78b00690f4a03d265d161613fd475bef5c86ecb3bd139728ec3c3e2",
+			"sha256:25ba425130f907bf36f9e9057cf2509f77657ee299ccc38e2b724777680e54bf",
 		"haidian-canteen-1-1f":
 			"sha256:c55f08aa63157e174970361c07811678f54727179b317901c20b1b2f25df6929",
 	} as const;

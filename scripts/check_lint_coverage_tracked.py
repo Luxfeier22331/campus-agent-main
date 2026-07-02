@@ -93,6 +93,7 @@ _WEB_LINT_PREFIXES = (
     "configs/",
     "docs/reference/eval/",
     "infra/local/scripts/",
+    "jobs/",
     "packages/",
     "scripts/",
     "tests/",
@@ -229,7 +230,7 @@ def _is_markdown_tracked_file(path: str) -> bool:
         return path.endswith(".md")
     if path.startswith("docs/"):
         return path.endswith(".md") and "/archive/" not in path
-    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
+    if path.startswith(("apps/", "jobs/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
 

@@ -93,7 +93,8 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingBrowserE2ESource).toContain(
 			"temporal|execution-control|sentry|axiom|postgres|pg",
 		);
-		expect(stagingBrowserE2ESource).toContain("/observability/overview");
+		expect(stagingBrowserE2ESource).toContain("/requests");
+		expect(stagingBrowserE2ESource).not.toContain("/observability/overview");
 		expect(packageManifest.devDependencies?.playwright).toBeTruthy();
 		expect(packageManifest.scripts?.["browser:e2e:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["browser:smoke:staging"]).toBeUndefined();

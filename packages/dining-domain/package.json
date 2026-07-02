@@ -1,0 +1,22 @@
+{
+	"name": "dining-domain",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Dining catalog, release, and student projection domain logic.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"dining-floorplans": "file:../dining-floorplans"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.0",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.0"
+	}
+}

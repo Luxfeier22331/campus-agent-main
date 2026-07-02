@@ -83,6 +83,21 @@ function mockProfileList(profiles: ProviderConfigProfile[]) {
 	});
 }
 
+async function findProfileRow(container: HTMLElement, label: string): Promise<HTMLTableRowElement> {
+	let row: HTMLTableRowElement | undefined;
+	await waitFor(() => {
+		const renderedRow = Array.from(container.querySelectorAll("tbody tr")).find((candidate) =>
+			candidate.textContent?.includes(label),
+		);
+		expect(renderedRow).toBeInstanceOf(HTMLTableRowElement);
+		row = renderedRow as HTMLTableRowElement;
+	});
+	if (row === undefined) {
+		throw new Error(`Profile row was not rendered for ${label}.`);
+	}
+	return row;
+}
+
 describe("provider config UI", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -197,9 +212,9 @@ describe("provider config UI", () => {
 				),
 			);
 
-		renderWithQueryClient(<ProviderConfigPage />);
+		const { container } = renderWithQueryClient(<ProviderConfigPage />);
 
-		const row = await screen.findByRole("row", { name: /知识问答生成/ });
+		const row = await findProfileRow(container, "知识问答生成");
 		fireEvent.click(within(row).getByRole("button", { name: "校验" }));
 
 		await waitFor(() => {

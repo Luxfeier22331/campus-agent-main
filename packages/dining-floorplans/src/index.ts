@@ -1,5 +1,9 @@
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 
+import { haidianErSiFloorplanInput } from "./haidian-er-si-floorplans";
+import { huixianFloorplanInput } from "./huixian-floorplans";
+import { juyaFloorplanInput } from "./juya-floorplans";
+
 export type DiningFloorplanAnchorRole = "window" | "region" | "entrance" | "seat" | "service";
 
 export interface DiningFloorplanAnchor {
@@ -60,54 +64,46 @@ const STANDARD_DINING_FLOORPLAN_INPUTS: DiningFloorplanManifestInput[] = [
 		"海淀一食堂一层",
 		"sha256:c55f08aa63157e174970361c07811678f54727179b317901c20b1b2f25df6929",
 	),
-	standardFloorplanInput(
-		"haidian-canteen-2",
-		"haidian-canteen-2-1f",
-		"海淀二食堂一层",
-		"sha256:1d8cf980ef7d9f0382ae98aee3790e686e0f87def9d4b2d13563bcfa6f9f4de3",
-	),
+	haidianErSiFloorplanInput({
+		floorId: "haidian-canteen-2",
+		sha256: "sha256:e89bcd21875064f370b99b3caac118164b07582240852204e2b60647ca558660",
+	}),
 	standardFloorplanInput(
 		"haidian-canteen-3",
 		"haidian-canteen-3-1f",
 		"海淀三食堂一层",
 		"sha256:101f5eb0c47e57eb5e9ba66911b1be8a899385bbe98a96054fdfc1fd1443ca92",
 	),
-	standardFloorplanInput(
-		"haidian-canteen-4",
-		"haidian-canteen-4-1f",
-		"海淀四食堂一层",
-		"sha256:bb50f56c0723a11bc6deab4d2354c76de578ab51ec3978dfffafb3457024374a",
-	),
+	haidianErSiFloorplanInput({
+		floorId: "haidian-canteen-4",
+		sha256: "sha256:a1464e58196fc309cdb285a9192e9de4a1552850c3c8a129bb6e119d8382d160",
+	}),
 	standardFloorplanInput(
 		"haidian-canteen-5",
 		"haidian-canteen-5-1f",
 		"海淀五食堂一层",
 		"sha256:03a9147730d2a50216ff088a16aa004777def77e499074d375d9d0e56fcff158",
 	),
-	standardFloorplanInput(
-		"fengtai-huixian-canteen",
-		"fengtai-huixian-canteen-1f",
-		"荟贤食堂一层",
-		"sha256:1f02bf778c9c11ec7c9ce0426fa63bfff0ba1ec6dc9dc0be20b26a9a6a5b710a",
-	),
-	standardFloorplanInput(
-		"fengtai-huixian-canteen",
-		"fengtai-huixian-canteen-2f",
-		"荟贤食堂二层",
-		"sha256:2641cf62e78b00690f4a03d265d161613fd475bef5c86ecb3bd139728ec3c3e2",
-	),
-	standardFloorplanInput(
-		"fengtai-juya-canteen",
-		"fengtai-juya-canteen-1f",
-		"聚雅食堂一层",
-		"sha256:60fe92aff6cba1163cfab12603df6c185ad831b15c72ed447233e1caaa87c1cf",
-	),
-	standardFloorplanInput(
-		"fengtai-juya-canteen",
-		"fengtai-juya-canteen-2f",
-		"聚雅食堂二层",
-		"sha256:ab7ffbdb5f959c033867b0552c955cc99e0f7ac13eb5482da4897959e5c7a4af",
-	),
+	huixianFloorplanInput({
+		floorId: "fengtai-huixian-canteen-1f",
+		label: "荟贤食堂一层",
+		sha256: "sha256:d5af2f44ac03d509f549efdb689c665b9f4dc54541dbd14c842f3ca839f016d6",
+	}),
+	huixianFloorplanInput({
+		floorId: "fengtai-huixian-canteen-2f",
+		label: "荟贤食堂二层",
+		sha256: "sha256:25ba425130f907bf36f9e9057cf2509f77657ee299ccc38e2b724777680e54bf",
+	}),
+	juyaFloorplanInput({
+		floorId: "fengtai-juya-canteen-1f",
+		label: "聚雅食堂一层",
+		sha256: "sha256:ebd31eb18c4e2fcb369e62dcec60839739d0fea057ebe33a73fedf504dac71dc",
+	}),
+	juyaFloorplanInput({
+		floorId: "fengtai-juya-canteen-2f",
+		label: "聚雅食堂二层",
+		sha256: "sha256:3d4addafb614b95f11714d1356fbc8312aa960fdf3ea34e1576d5cc4a78ee72a",
+	}),
 ];
 
 export const DINING_FLOORPLAN_MANIFEST = [

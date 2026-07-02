@@ -143,9 +143,10 @@ The old app-api eval coverage projection is retired. Do not recreate:
 - app-api Ragas low-score diagnostic candidate projections
 
 Coverage and score state now belongs to Langfuse datasets/runs/scores plus the
-`packages/eval-langfuse` audit output. Operator-facing runtime quality intake
-remains under `GET /api/operator/quality/eval-candidates`, but it only exposes
-runtime monitor badcases and negative feedback candidates.
+`packages/eval-langfuse` audit output. The old app-api
+`GET /api/operator/quality/eval-candidates` intake is not part of the current
+Ops Index target; future operator-facing review intake must use a new explicit
+curated-summary contract if it returns to the product surface.
 
 ## Deleted Self-Built Policy Artifacts
 

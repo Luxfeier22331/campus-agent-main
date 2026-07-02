@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { bootstrapSharedProductDatabase } from "./shared-product-database-bootstrap.mjs";
+
+const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(appDir, "../..");
 
 const result = await bootstrapSharedProductDatabase(process.env);
 
@@ -10,12 +16,21 @@ for (const migrationFile of result.migrationFiles) {
 	console.log(`- ${migrationFile}`);
 }
 
-await run("pnpm", ["exec", "tsx", "./scripts/seed-initial-dining-release.ts"]);
+await run("pnpm", ["--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "import-dev-seed"], {
+	cwd: repoRoot,
+});
 
-function run(command, args) {
+function run(command, args, input = {}) {
 	return new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
-			env: process.env,
+			cwd: input.cwd,
+			env: {
+				...process.env,
+				DATABASE_URL:
+					process.env.DATABASE_URL?.trim() ||
+					process.env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+					process.env.DATABASE_URL,
+			},
 			shell: process.platform === "win32",
 			stdio: "inherit",
 		});

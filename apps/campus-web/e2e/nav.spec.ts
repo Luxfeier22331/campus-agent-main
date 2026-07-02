@@ -22,7 +22,7 @@ test.describe("product navigation browser flow", () => {
 			.getByRole("link", { name: "食堂" })
 			.click();
 		await expect(page).toHaveURL("/dining");
-		await expect(page.getByRole("heading", { name: "食堂" })).toBeVisible();
+		await expect(page.getByRole("heading", { exact: true, name: "食堂" })).toBeVisible();
 
 		await page
 			.getByRole("navigation", { name: "产品导航" })
@@ -40,7 +40,7 @@ test.describe("product navigation browser flow", () => {
 		await page.getByRole("menuitem", { name: "食堂" }).click();
 
 		await expect(page).toHaveURL("/dining");
-		await expect(page.getByRole("heading", { name: "食堂" })).toBeVisible();
+		await expect(page.getByRole("heading", { exact: true, name: "食堂" })).toBeVisible();
 	});
 
 	test("exposes the canonical docs reader entry without opening it in the Vite lane", async ({

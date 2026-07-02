@@ -320,19 +320,6 @@ export function registerInternalRoutes(input: {
 		}
 	});
 
-	input.app.post("/api/internal/operator/quality/grades", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestGrades({
-				payload: await readJsonRequestBody(c.req.raw),
-			}),
-		);
-	});
-
 	input.app.post("/api/internal/operator/authenticated-notices/processing-snapshots", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
@@ -571,19 +558,6 @@ export function registerInternalRoutes(input: {
 			await input.officialWebExecutionStatusService.updateRunExecutionStatus({
 				payload: await readJsonRequestBody(c.req.raw),
 				runId: c.req.param("runId"),
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/operator/trace-backlinks", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestTraceBacklinks({
-				payload: await readJsonRequestBody(c.req.raw),
 			}),
 		);
 	});

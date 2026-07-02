@@ -264,7 +264,7 @@ human operator browser E2E。
 使用 admitted human operator 登录后，至少检查当前 domain matrix：
 
 - Shell：panel shell loads after Cloudflare Access login
-- Overview：`/observability/overview` loads and calls `/api/operator/overview`
+- Overview：root dashboard loads and calls `/api/operator/overview`
 - Runtime Health：overview runtime card calls `/api/operator/runtime/health`
 - Requests：`/requests` loads and calls `/api/requests`
 - Provider Config：`/operations/provider-config` loads and calls
@@ -272,9 +272,12 @@ human operator browser E2E。
 - Official Web：`/officialWebSites` loads and calls `/api/official-web/sites`
 - Authenticated Notices：`/authenticatedNoticeProcessing` loads and calls
   `/api/authenticated-notices/processing`
-- Dining Operations：`/operations/dining` loads and calls `/api/ops/dining/halls`
-  or shows `食堂运营状态未初始化或持久化状态不完整。` when the staging dining seed has
-  not been applied
+- Dining Operations：current minimal Operator Console does not claim dining
+  operations readiness. If a historical `/operations/dining` smoke is run, it
+  may call `/api/ops/dining/halls` or show `食堂运营状态未初始化或持久化状态不完整。`
+  when transitional dining seed state has not been applied. This is not target
+  production data readiness; target dining data readiness requires dining sync
+  Job/CronJob evidence and a published projection.
 
 以上证据可以是 browser automation report、network capture 摘要或截图加对应
 HTTP status 记录；不能用 service-token smoke 代替。

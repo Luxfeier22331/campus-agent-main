@@ -3,15 +3,8 @@ import {
 	normalizeTemporalTaskQueueRuntimePayload,
 	type TemporalTaskQueueRuntimePayload,
 } from "../operator-runtime-observability";
-import type {
-	ExecutionAuditEventWrite,
-	OperatorObservabilityCommandStore,
-	QualityGradeProjectionWrite,
-	TraceBacklinkProjectionWrite,
-} from "./store";
+import type { ExecutionAuditEventWrite, OperatorObservabilityCommandStore } from "./store";
 
-const ALLOWED_GRADE_DOMAINS = new Set(["grounding", "citation", "policy", "intent"]);
-const ALLOWED_GRADE_VERDICTS = new Set(["pass", "fail", "needs_review"]);
 const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
 	"execution.admission_rejected",
 	"execution.cancel_requested",
@@ -34,27 +27,6 @@ const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
 	"transcript",
 	"user_goal",
 ]);
-const SAFE_EXTERNAL_LINK_PROTOCOLS = new Set(["http:", "https:"]);
-
-export interface OperatorQualityGradePayloadItem {
-	requestId?: unknown;
-	traceId?: unknown;
-	gradeSource?: unknown;
-	gradeDomain?: unknown;
-	verdict?: unknown;
-	score?: unknown;
-	graderVersion?: unknown;
-	sampledAt?: unknown;
-	rationaleSummary?: unknown;
-}
-
-export interface OperatorTraceBacklinkPayloadItem {
-	requestId?: unknown;
-	traceId?: unknown;
-	traceLink?: unknown;
-	issueLink?: unknown;
-	issueFingerprint?: unknown;
-}
 
 export interface OperatorExecutionAuditEventPayloadItem {
 	activity_duration_ms?: unknown;
@@ -74,25 +46,13 @@ export interface OperatorExecutionAuditEventPayloadItem {
 	[key: string]: unknown;
 }
 
-export interface OperatorQualityGradesPayload {
-	grades?: unknown;
-}
-
 export interface OperatorExecutionAuditEventsPayload {
 	events?: unknown;
-}
-
-export interface OperatorTraceBacklinksPayload {
-	backlinks?: unknown;
 }
 
 export interface OperatorObservabilityCommandService {
 	ingestExecutionAuditEvents(input: {
 		payload: OperatorExecutionAuditEventsPayload;
-	}): Promise<{ accepted: number }>;
-	ingestGrades(input: { payload: OperatorQualityGradesPayload }): Promise<{ accepted: number }>;
-	ingestTraceBacklinks(input: {
-		payload: OperatorTraceBacklinksPayload;
 	}): Promise<{ accepted: number }>;
 	ingestTemporalTaskQueueSnapshots(input: {
 		payload: TemporalTaskQueueRuntimePayload;
@@ -125,26 +85,6 @@ export interface OperatorObservabilityCommandServiceDependencies {
 			surface: string;
 			traceId: string;
 		}): Promise<void>;
-		recordQualitySampledGrade(input: {
-			collection: string | null;
-			gradeDomain: "grounding" | "citation" | "policy" | "intent";
-			gradeId: string;
-			gradeSource: string;
-			graderVersion: string;
-			modelName: string | null;
-			principalType: string;
-			rationaleSummary: string | null;
-			requestId: string;
-			requestStartedAt: string;
-			requestedTool: string | null;
-			requestedScopeSummary: string | null;
-			sampledAt: string;
-			scoreMilli: number | null;
-			selectedTool: string | null;
-			surface: string;
-			traceId: string;
-			verdict: "pass" | "fail" | "needs_review";
-		}): Promise<void>;
 	};
 }
 
@@ -155,30 +95,6 @@ function normalizeString(value: unknown): string {
 function normalizeNullableString(value: unknown): string | null {
 	const normalized = normalizeString(value);
 	return normalized || null;
-}
-
-function normalizeNullableSafeExternalLink(value: unknown, field: string): string | null {
-	const normalized = normalizeNullableString(value);
-	if (!normalized) {
-		return null;
-	}
-
-	try {
-		const parsed = new URL(normalized);
-		if (SAFE_EXTERNAL_LINK_PROTOCOLS.has(parsed.protocol)) {
-			return parsed.toString();
-		}
-	} catch {
-		// Fall through to a uniform validation error.
-	}
-
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field },
-		message: `${field} must be an http(s) URL.`,
-		retryable: false,
-		status: 422,
-	});
 }
 
 function normalizeNullableBoolean(value: unknown, field: string): boolean | null {
@@ -259,32 +175,6 @@ function normalizeRequiredString(value: unknown, field: string): string {
 	return normalized;
 }
 
-function normalizeScore(
-	value: unknown,
-	field: string,
-): {
-	score: number | null;
-	scoreMilli: number | null;
-} {
-	if (value === null || value === undefined || value === "") {
-		return { score: null, scoreMilli: null };
-	}
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be a number between 0 and 1.`,
-			retryable: false,
-			status: 422,
-		});
-	}
-
-	return {
-		score: value,
-		scoreMilli: Math.round(value * 1000),
-	};
-}
-
 function ensureArray<T>(value: unknown, field: string): T[] {
 	if (!Array.isArray(value)) {
 		throw new AppApiRouteError({
@@ -297,47 +187,6 @@ function ensureArray<T>(value: unknown, field: string): T[] {
 	}
 
 	return value as T[];
-}
-
-function normalizeGradeDomain(
-	value: unknown,
-	field: string,
-): "grounding" | "citation" | "policy" | "intent" {
-	const normalized = normalizeRequiredString(value, field);
-	if (!ALLOWED_GRADE_DOMAINS.has(normalized)) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be one of grounding, citation, policy, intent.`,
-			retryable: false,
-			status: 422,
-		});
-	}
-
-	return normalized as "grounding" | "citation" | "policy" | "intent";
-}
-
-function normalizeGradeVerdict(value: unknown, field: string): "pass" | "fail" | "needs_review" {
-	const normalized = normalizeRequiredString(value, field);
-	if (!ALLOWED_GRADE_VERDICTS.has(normalized)) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be one of pass, fail, needs_review.`,
-			retryable: false,
-			status: 422,
-		});
-	}
-
-	return normalized as "pass" | "fail" | "needs_review";
-}
-
-function buildGradeId(input: {
-	requestId: string;
-	gradeSource: string;
-	gradeDomain: string;
-}): string {
-	return `${input.requestId}:${input.gradeSource}:${input.gradeDomain}`;
 }
 
 function normalizeExecutionAuditEventType(value: unknown, field: string): string {
@@ -484,141 +333,6 @@ export function buildOperatorObservabilityCommandService(
 			for (const event of telemetryEvents) {
 				await dependencies.telemetry?.recordExecutionAuditEvent?.(event);
 			}
-			return { accepted: writes.length };
-		},
-
-		async ingestGrades(input) {
-			const grades = ensureArray<OperatorQualityGradePayloadItem>(input.payload.grades, "grades");
-			const writes: QualityGradeProjectionWrite[] = [];
-
-			for (let index = 0; index < grades.length; index += 1) {
-				const item = grades[index] ?? {};
-				const prefix = `grades[${index}]`;
-				const requestId = normalizeRequiredString(item.requestId, `${prefix}.requestId`);
-				const traceId = normalizeRequiredString(item.traceId, `${prefix}.traceId`);
-				const gradeSource = normalizeRequiredString(item.gradeSource, `${prefix}.gradeSource`);
-				const gradeDomain = normalizeGradeDomain(item.gradeDomain, `${prefix}.gradeDomain`);
-				const verdict = normalizeGradeVerdict(item.verdict, `${prefix}.verdict`);
-				const graderVersion = normalizeRequiredString(
-					item.graderVersion,
-					`${prefix}.graderVersion`,
-				);
-				const sampledAt = normalizeIsoTimestamp(item.sampledAt, `${prefix}.sampledAt`);
-				const rationaleSummary = normalizeNullableString(item.rationaleSummary);
-				const score = normalizeScore(item.score, `${prefix}.score`);
-
-				const seed = await dependencies.store.getRequestObservabilitySeed(requestId);
-				if (!seed) {
-					throw new AppApiRouteError({
-						code: "request_not_found",
-						details: { requestId },
-						message: "Request observability seed not found.",
-						retryable: false,
-						status: 404,
-					});
-				}
-				if (seed.traceId !== traceId) {
-					throw new AppApiRouteError({
-						code: "validation_failed",
-						details: { field: `${prefix}.traceId`, requestId },
-						message: `${prefix}.traceId must match the request-scoped traceId.`,
-						retryable: false,
-						status: 422,
-					});
-				}
-
-				writes.push({
-					collection: seed.collection,
-					gradeDomain,
-					gradeId: buildGradeId({ gradeDomain, gradeSource, requestId }),
-					gradeSource,
-					graderVersion,
-					modelName: seed.modelName,
-					principalType: seed.principalType,
-					projectedAt: now().toISOString(),
-					rationaleSummary,
-					requestId,
-					requestStartedAt: seed.requestStartedAt,
-					requestedTool: seed.requestedTool,
-					requestedScopeSummary: seed.requestedScopeSummary,
-					sampledAt,
-					scoreMilli: score.scoreMilli,
-					selectedTool: seed.selectedTool,
-					surface: seed.surface,
-					traceId,
-					verdict,
-				});
-			}
-
-			await dependencies.store.upsertQualityGrades({ grades: writes });
-			for (const grade of writes) {
-				await dependencies.telemetry?.recordQualitySampledGrade({
-					collection: grade.collection,
-					gradeDomain: grade.gradeDomain,
-					gradeId: grade.gradeId,
-					gradeSource: grade.gradeSource,
-					graderVersion: grade.graderVersion,
-					modelName: grade.modelName,
-					principalType: grade.principalType,
-					rationaleSummary: grade.rationaleSummary,
-					requestId: grade.requestId,
-					requestStartedAt: grade.requestStartedAt,
-					requestedTool: grade.requestedTool,
-					requestedScopeSummary: grade.requestedScopeSummary,
-					sampledAt: grade.sampledAt,
-					scoreMilli: grade.scoreMilli,
-					selectedTool: grade.selectedTool,
-					surface: grade.surface,
-					traceId: grade.traceId,
-					verdict: grade.verdict,
-				});
-			}
-			return { accepted: writes.length };
-		},
-
-		async ingestTraceBacklinks(input) {
-			const backlinks = ensureArray<OperatorTraceBacklinkPayloadItem>(
-				input.payload.backlinks,
-				"backlinks",
-			);
-			const writes: TraceBacklinkProjectionWrite[] = [];
-
-			for (let index = 0; index < backlinks.length; index += 1) {
-				const item = backlinks[index] ?? {};
-				const prefix = `backlinks[${index}]`;
-				const requestId = normalizeRequiredString(item.requestId, `${prefix}.requestId`);
-				const traceId = normalizeRequiredString(item.traceId, `${prefix}.traceId`);
-				const seed = await dependencies.store.getRequestObservabilitySeed(requestId);
-				if (!seed) {
-					throw new AppApiRouteError({
-						code: "request_not_found",
-						details: { requestId },
-						message: "Request observability seed not found.",
-						retryable: false,
-						status: 404,
-					});
-				}
-				if (seed.traceId !== traceId) {
-					throw new AppApiRouteError({
-						code: "validation_failed",
-						details: { field: `${prefix}.traceId`, requestId },
-						message: `${prefix}.traceId must match the request-scoped traceId.`,
-						retryable: false,
-						status: 422,
-					});
-				}
-
-				writes.push({
-					issueFingerprint: normalizeNullableString(item.issueFingerprint),
-					issueLink: normalizeNullableSafeExternalLink(item.issueLink, `${prefix}.issueLink`),
-					projectedAt: now().toISOString(),
-					requestId,
-					traceId,
-					traceLink: normalizeNullableSafeExternalLink(item.traceLink, `${prefix}.traceLink`),
-				});
-			}
-
-			await dependencies.store.upsertTraceBacklinks({ backlinks: writes });
 			return { accepted: writes.length };
 		},
 

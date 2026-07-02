@@ -3,11 +3,7 @@ export type OperatorOverviewWindow = "15m" | "1h" | "24h" | "7d" | "30d";
 export type OperatorTimeseriesGranularity = "5m" | "15m" | "1h" | "1d";
 
 export interface OperatorAggregateFilterInput {
-	collection?: string | null;
-	modelName?: string | null;
 	principalType?: string | null;
-	requestedTool?: string | null;
-	selectedTool?: string | null;
 	surface?: string | null;
 	window?: OperatorOverviewWindow | null;
 }
@@ -28,42 +24,15 @@ export interface RawOperatorResultWindow {
 
 export type OperatorResultWindow = RawOperatorResultWindow;
 
-export interface RawOperatorOverviewAlert {
-	alertId: string;
-	code: string;
-	domain: string;
-	incidentBackfill: {
-		mode: "incident_backfill" | null;
-		required: boolean;
-	};
-	requestCount: number;
-	severity: string;
-	startedAt: string;
-	status: string;
-}
-
-export interface OperatorOverviewAlert extends RawOperatorOverviewAlert {
-	id: string;
-}
-
 export interface RawOperatorOverviewRecord {
-	alerts: RawOperatorOverviewAlert[];
 	asOf: string;
 	overview: {
-		aclAnomalyRate: RawOperatorMetricRatio;
-		citationMissRate: RawOperatorMetricRatio;
-		emptyRecallRate: RawOperatorMetricRatio;
-		estimatedCost: {
-			currency: "USD";
-			microusd: number;
-		};
 		failureRate: RawOperatorMetricRatio;
 		latency: {
 			p50Ms: number | null;
 			p95Ms: number | null;
 			p99Ms: number | null;
 		};
-		refusalRate: RawOperatorMetricRatio;
 		requestVolume: {
 			accepted: number;
 			completed: number;
@@ -80,9 +49,7 @@ export interface RawOperatorOverviewRecord {
 	window: RawOperatorResultWindow;
 }
 
-export interface OperatorOverviewRecord extends Omit<RawOperatorOverviewRecord, "alerts"> {
-	alerts: OperatorOverviewAlert[];
-}
+export type OperatorOverviewRecord = RawOperatorOverviewRecord;
 
 export type OperatorRuntimeReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
 
@@ -128,15 +95,6 @@ export function normalizeOperatorRuntimeHealthRecord(
 	return input;
 }
 
-export function normalizeOperatorOverviewAlert(
-	input: RawOperatorOverviewAlert,
-): OperatorOverviewAlert {
-	return {
-		...input,
-		id: input.alertId,
-	};
-}
-
 export function normalizeOperatorOverviewRecord(
 	input: RawOperatorOverviewRecord,
 ): OperatorOverviewRecord {
@@ -150,7 +108,6 @@ export function normalizeOperatorOverviewRecord(
 
 	return {
 		...input,
-		alerts: input.alerts.map(normalizeOperatorOverviewAlert),
 		overview: {
 			...input.overview,
 			sinkHealth: {

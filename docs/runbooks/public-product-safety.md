@@ -10,8 +10,11 @@ updated: 2026-04-19
 
 ## Purpose
 
-在 `app-api` 的 public/product-path 上执行最小安全运营闭环：确认 abuse throttle、查看 operator
-safety alerts，并把需要的事件回灌成 `incident_backfill`。
+在 `app-api` 的 public/product-path 上执行最小安全运营闭环：确认 abuse throttle，
+并用受控请求事实定位需要人工跟进的异常模式。
+
+本 runbook 不定义 Operator Console 的安全 dashboard、alert 页面或独立 safety read
+model；当前 Operator Console 只展示最小 Ops Index。
 
 ## Canonical Signal Sources
 
@@ -28,7 +31,7 @@ safety alerts，并把需要的事件回灌成 `incident_backfill`。
 - temporary throttle window:
   - any `rate_limit_exceeded` hit keeps the same `safety_identifier` throttled
     for `5m`
-- safety alerts:
+- safety event patterns:
   - `safety.rate_limit_exceeded`: same `safety_identifier` reaches `>= 3`
     rate-limit hits in `15m`
   - `safety.remote_content_suspicion_spike`: same `safety_identifier` reaches
@@ -38,17 +41,17 @@ safety alerts，并把需要的事件回灌成 `incident_backfill`。
 
 ## Operator Steps
 
-1. Open `GET /api/operator/overview?window=24h` and inspect `alerts[]`.
+1. Open Operator Console Requests and filter recent failed / rejected requests.
+   Use `/api/operator/overview` only for minimal request/runtime summary.
 1. If `code=safety.rate_limit_exceeded`:
    - confirm recent requests show `status=rejected` and
      `error_code=rate_limit_exceeded`
    - no automatic `incident_backfill` is required
-   - keep the alert in abuse-monitoring notes only
+   - keep the pattern in abuse-monitoring notes only
 1. If `code=safety.remote_content_suspicion_spike` or
    `code=safety.provider_content_filter_spike`:
-   - inspect the recent request detail / observability entries tied to the same
-     window
-   - collect only sanitized request identifiers, trace identifiers, alert code,
+   - inspect recent request detail tied to the same window
+   - collect only sanitized request identifiers, trace identifiers, pattern code,
      and observed diagnostics
    - open follow-up work in the golden governance lane as `incident_backfill`
 1. Close the incident only after the `incident_backfill` target has been created
@@ -56,7 +59,7 @@ safety alerts，并把需要的事件回灌成 `incident_backfill`。
 
 ## Evidence Boundaries
 
-- Use `requestId`, `traceId`, alert code, and operator-visible diagnostics.
+- Use `requestId`, `traceId`, pattern code, and operator-visible diagnostics.
 - Do not copy raw auth material, raw session secrets, or sink-side unowned
   payloads into the incident note.
 - For remote-content incidents, use the sanitized suspicion summary rather than

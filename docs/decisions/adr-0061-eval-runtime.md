@@ -129,9 +129,9 @@ RAGAS execution island.
 - No new Python eval profile is accepted without an explicit migration reason.
 - New Langfuse-bound payloads must stay sanitized and fail closed on missing
   identity, denominator drift, missing configuration or forbidden fields.
-- Operator Console must not query Langfuse directly. Any drill-down link or
-  review result consumed by operator surfaces must pass through app-api-owned
-  sanitized projection.
+- Operator Console must not query Langfuse directly. Any drill-down link
+  consumed by operator surfaces must pass through the minimal app-api Ops Index
+  or safe link template; app-api must not copy Langfuse observations or scores.
 - Python `scripts.eval_gate accept`, `campus_evals.profile_registry` and
   direct-process live-smoke profile automation are retired from active release
   automation. Replacement lanes must produce repo-owned artifacts and

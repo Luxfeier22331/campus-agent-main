@@ -6,8 +6,9 @@
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
 Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
-受保护运营面、共享 `app-api`、内部 `execution-control`，以及按 tool / retrieval /
-ingestion boundary 拆分的 packages。
+受保护运营面、共享 `app-api`、内部 `execution-control`、按 one-shot /
+scheduled runtime 拆分的 jobs，以及按 tool / retrieval / ingestion boundary 拆分的
+packages。
 
 当前 merged truth 的主路径为：
 
@@ -91,12 +92,14 @@ See:
 
 ## Repository Layout
 
-仓库按 runtime boundary 与 tool boundary 组织：
+仓库按 runtime boundary、job runtime boundary 与 tool boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `campus-web`、
+  - 长驻 runtime shell 与 transport boundary，例如 `campus-web`、
     `operator-console-web`、`app-api`、`execution-control`、
     `ingestion-worker`
+- [`jobs/`](./jobs/)
+  - 一次性或定时 deployable runtime，例如 `dining-sync`
 - [`packages/`](./packages/)
   - 稳定边界，例如
     `ingestion-core`、`contracts`、`regulation-semantics`、`notice-tool`、
@@ -117,6 +120,7 @@ See:
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
+- [`jobs/dining-sync`](./jobs/dining-sync/)
 - [`packages/ingestion-core`](./packages/ingestion-core/)
 
 ## Documentation

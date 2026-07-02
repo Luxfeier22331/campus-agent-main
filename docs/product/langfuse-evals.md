@@ -97,8 +97,11 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 ### 5.5 Operator-Safe Projection
 
 - Operator Console does not directly query Langfuse.
-- App-api may expose runtime quality badcases, negative feedback candidates and
-  safe trace links through owned contracts.
+- App-api does not expose runtime quality badcases, negative feedback candidates,
+  Langfuse score state or trace backlink queues through the current Operator
+  Console surface.
+- App-api may expose only request-level safe correlation fields owned by the Ops
+  Index contract.
 - The retired eval coverage / diagnostic-badcase / Langfuse backlink projection
   paths must not be restored as product requirements.
 

@@ -9,7 +9,7 @@ import html5lib
 
 from scripts.worktree_file_discovery import worktree_paths
 
-_HTML_TRACKED_PATHS = ("*.html", "apps/**/*.html")
+_HTML_TRACKED_PATHS = ("*.html", "apps/**/*.html", "jobs/**/*.html")
 _HTML_EXCLUDE_PREFIXES = (".planning/", ".tmp/", ".worktrees/")
 _HTML_EXCLUDE_SEGMENTS = ("/vendor/", "/node_modules/")
 

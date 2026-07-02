@@ -24,7 +24,8 @@
   `official_web/stable_reference` 四条默认 query-enabled surface，以及 `campus-web`、
   `operator-console-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
-- `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定 tool/domain 边界
+- `apps/` 表示长驻 transport/runtime boundary，`jobs/` 表示一次性或定时 deployable
+  runtime boundary，`packages/` 表示稳定 tool/domain 边界
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/agent-runtime =
   OpenAI Agents SDK primary agent runtime`，`apps/execution-control =
   Go-owned internal execution-control service`，Temporal 是 execution
@@ -382,7 +383,8 @@
 ### Nested AGENTS Convention
 
 - 根 `AGENTS.md` 提供整个 monorepo 的默认规则
-- 如果某个 `apps/*` 或 `packages/*` 需要特殊工作流，可在对应目录新增更细粒度的 `AGENTS.md`
+- 如果某个 `apps/*`、`jobs/*` 或 `packages/*` 需要特殊工作流，可在对应目录新增更细粒度的
+  `AGENTS.md`
 - 子目录 `AGENTS.md` 只补充局部差异，不重复根文件的通用规则
 - 指令应尽量靠近实际工作目录，保持文件短小、可扫读、可覆盖
 
@@ -486,6 +488,10 @@ TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concur
 - `apps/ingestion-worker`: Python extraction adapter island；当前只保留 env
   bootstrap 与 legacy Office normalization，不拥有 collection lifecycle、task
   executor、release 或 alias publish truth
+- `jobs/dining-sync`: dining data write Job/CronJob；负责导入
+  `packages/dining-domain` 的 initial catalog fixture、读取授权 Base 评价记录、
+  物化附件到 S3-compatible object storage，并写入 dining catalog/release tables 与
+  `dining.review_projections`；不属于 app-api 在线请求路径或 Operator Console 控制面
 - provider-facing online model execution 由 app/runtime boundary 通过 app-api
   provider-config active profiles 与 Go-owned execution path 承接；不得通过
   `packages/shared` 重新导出 provider transport code

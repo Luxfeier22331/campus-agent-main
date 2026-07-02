@@ -6,6 +6,7 @@ import { createApp } from "../src/app";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import {
 	buildDiningOperationsService,
+	createDevDiningOperationsState,
 	createInMemoryDiningOperationsStore,
 } from "../src/modules/dining-ops";
 
@@ -24,8 +25,6 @@ const HAIDIAN_CANTEEN_1_FLOOR_PATH =
 	"https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
 const HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH =
 	"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
-const FENGTAI_OUTDOOR_DINING_PUBLIC_FLOOR_PATH =
-	"https://app-api.internal/api/dining/halls/fengtai-outdoor-dining-zone/floors/fengtai-outdoor-dining-zone-ground";
 
 function principal(input: { operator: boolean; type?: ResolvedAppPrincipal["principal"]["type"] }) {
 	return {
@@ -96,7 +95,7 @@ describe("dining operations routes", () => {
 	it("allows operator principals to edit draft and publish dining projections", async () => {
 		const app = createApp(env, {
 			diningOperationsService: buildDiningOperationsService({
-				store: createInMemoryDiningOperationsStore(),
+				store: createInMemoryDiningOperationsStore(createDevDiningOperationsState()),
 			}),
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: true })),
 		});
@@ -229,7 +228,7 @@ describe("dining operations routes", () => {
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
 			floor: { floorplan: { sha256: string } };
-			source: { label: string; updatedAt: string };
+			source: { updatedAt: string };
 			windows: Array<{
 				assignment: null | {
 					offerings: Array<{ name: string; priceLabel: string }>;
@@ -239,7 +238,6 @@ describe("dining operations routes", () => {
 			}>;
 		};
 		expect(publicFloorBody.floor.floorplan.sha256).toMatch(/^sha256:/);
-		expect(publicFloorBody.source.label).toBe("校园食堂平面图整理");
 		expect(publicFloorBody.source.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 		expect(JSON.stringify(publicFloorBody)).not.toContain("releaseId");
 		expect(JSON.stringify(publicFloorBody)).not.toContain("specLabel");
@@ -262,42 +260,12 @@ describe("dining operations routes", () => {
 				}),
 			]),
 		);
-
-		const outdoorFloor = await app.fetch(new Request(FENGTAI_OUTDOOR_DINING_PUBLIC_FLOOR_PATH));
-		expect(outdoorFloor.status).toBe(200);
-		const outdoorFloorBody = (await outdoorFloor.json()) as {
-			floor: { floorplan: { anchorInventory: Array<{ anchorId: string; role: string }> } };
-			windows: Array<{
-				assignment: null | {
-					offerings: Array<{ name: string; priceLabel: string }>;
-					stallProfile: { displayName: string };
-				};
-				svgAnchorId: string | null;
-			}>;
-		};
-		expect(outdoorFloorBody.floor.floorplan.anchorInventory).toHaveLength(11);
-		expect(JSON.stringify(outdoorFloorBody)).not.toContain("mock");
-		expect(JSON.stringify(outdoorFloorBody)).not.toContain("specLabel");
-		expect(JSON.stringify(outdoorFloorBody)).not.toContain("saleStatus");
-		expect(outdoorFloorBody.windows.map((window) => window.svgAnchorId)).toEqual([
-			"shop-01-maituanxiong",
-			"shop-02-zuozuoxiang",
-			"shop-03-tastien",
-			"shop-04-huihan-zhachuan",
-			"shop-05-luckin-jixiang-huntun",
-			"shop-06-lage-lamei",
-			"shop-07-ice-snacks",
-			"shop-08-guizhou-snacks",
-			"stall-water-bar",
-			"stall-fruit",
-			"stall-light-food",
-		]);
 	});
 
 	it("allows operator principals to patch dining draft objects independently", async () => {
 		const app = createApp(env, {
 			diningOperationsService: buildDiningOperationsService({
-				store: createInMemoryDiningOperationsStore(),
+				store: createInMemoryDiningOperationsStore(createDevDiningOperationsState()),
 			}),
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: true })),
 		});

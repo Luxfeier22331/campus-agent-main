@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
 	DiningOfferingReviews,
+	type DiningReviewGroup,
 	HallSelector,
 	InteractiveFloorplan,
 	StallDetail,
@@ -103,6 +104,7 @@ export function DiningPage() {
 
 	const campuses = useMemo(() => uniqueStrings(halls.map((hall) => hall.campus)), [halls]);
 	const selectedHall = halls.find((hall) => hall.hallId === selectedHallId) ?? null;
+	const selectedHallHasMultipleMaps = (selectedHall?.floors.length ?? 0) > 1;
 	const campusHalls = halls.filter((hall) => !selectedCampus || hall.campus === selectedCampus);
 	const filteredWindows = useMemo(
 		() =>
@@ -127,8 +129,15 @@ export function DiningPage() {
 	const selectedStallName = selectedWindow
 		? (selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label)
 		: null;
+	const selectedStallProfileId = selectedWindow?.assignment?.stallProfile.stallProfileId ?? null;
+	const selectedWindowIdForReviews = selectedWindow?.windowId ?? null;
 	const selectedStallReviews = selectedStallName
-		? reviews.filter((review) => review.stallName === selectedStallName)
+		? reviews.filter((review) =>
+				selectedStallProfileId
+					? review.stallProfileId === selectedStallProfileId
+					: review.windowId === selectedWindowIdForReviews ||
+						review.stallName === selectedStallName,
+			)
 		: [];
 	const defaultOffering = resolveDefaultDiningOffering({
 		offerings: selectedOfferings,
@@ -140,6 +149,18 @@ export function DiningPage() {
 	const selectedOfferingReviews = selectedOffering
 		? selectedStallReviews.filter((review) => review.dishName === selectedOffering.name)
 		: [];
+	const reviewPanel =
+		selectedOffering && selectedOfferingReviews.length > 0
+			? {
+					groups: [{ reviews: selectedOfferingReviews, title: null }],
+					label: `${selectedOffering.name}评价`,
+					reviews: selectedOfferingReviews,
+				}
+			: {
+					groups: groupDiningReviewsByDish(selectedStallReviews),
+					label: selectedStallName ? `${selectedStallName}评价` : "菜品评价",
+					reviews: selectedStallReviews,
+				};
 	const selectedHallMatchesLoadedFloor =
 		query.trim().length > 0 &&
 		selectedHall !== null &&
@@ -260,10 +281,9 @@ export function DiningPage() {
 				/>
 			) : null}
 			{floorError ? <Alert variant="destructive">{floorError}</Alert> : null}
-			{reviewsError ? <Alert variant="destructive">{reviewsError}</Alert> : null}
 			{isLoadingHalls && !hallsError ? (
 				<SurfaceState
-					description="正在读取已发布的食堂、楼层和窗口数据。"
+					description="正在读取已发布的食堂、地图和档口数据。"
 					kind="loading"
 					title="正在读取食堂数据"
 				/>
@@ -304,37 +324,38 @@ export function DiningPage() {
 											<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 												<div>
 													<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
-														{floor.floor.label}
+														{selectedHallHasMultipleMaps ? floor.floor.label : selectedHall.name}
 													</p>
 													<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-														{floor.source.label} ·{" "}
-														{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
+														更新于 {new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
 													</p>
 												</div>
-												<ToggleGroup
-													aria-label="楼层"
-													onValueChange={(floorId) => {
-														if (floorId) {
-															setSelectedFloorId(floorId);
-														}
-													}}
-													type="single"
-													value={selectedFloorId}
-												>
-													{selectedHall.floors.map((item) => (
-														<ToggleGroupItem
-															className={cn(
-																"min-h-9 text-[var(--sys-text-muted)]",
-																selectedFloorId === item.floorId &&
-																	"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
-															)}
-															key={item.floorId}
-															value={item.floorId}
-														>
-															{item.label}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
+												{selectedHallHasMultipleMaps ? (
+													<ToggleGroup
+														aria-label="楼层"
+														onValueChange={(floorId) => {
+															if (floorId) {
+																setSelectedFloorId(floorId);
+															}
+														}}
+														type="single"
+														value={selectedFloorId}
+													>
+														{selectedHall.floors.map((item) => (
+															<ToggleGroupItem
+																className={cn(
+																	"min-h-9 text-[var(--sys-text-muted)]",
+																	selectedFloorId === item.floorId &&
+																		"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
+																)}
+																key={item.floorId}
+																value={item.floorId}
+															>
+																{item.label}
+															</ToggleGroupItem>
+														))}
+													</ToggleGroup>
+												) : null}
 											</div>
 											<TagFilters
 												onSelectTag={setSelectedTag}
@@ -365,8 +386,10 @@ export function DiningPage() {
 										</div>
 									</div>
 									<DiningOfferingReviews
-										label={selectedOffering ? `${selectedOffering.name}评价` : "菜品评价"}
-										reviews={selectedOfferingReviews}
+										error={reviewsError}
+										groups={reviewPanel.groups}
+										label={reviewPanel.label}
+										reviews={reviewPanel.reviews}
 									/>
 								</motion.div>
 							) : (
@@ -374,7 +397,7 @@ export function DiningPage() {
 									<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
 										<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
 										<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-											当前没有已发布的食堂楼层数据。
+											当前没有已发布的食堂地图数据。
 										</p>
 									</Card>
 								</motion.div>
@@ -445,11 +468,21 @@ function windowMatchesQuery(window: DiningWindowProjection, query: string): bool
 		...window.tags,
 		...(window.assignment?.offerings.flatMap((offering) => [
 			offering.name,
-			offering.priceLabel,
+			...(offering.priceLabel ? [offering.priceLabel] : []),
 			...offering.tags,
 		]) ?? []),
 	];
 	return values.some((value) => value.toLowerCase().includes(normalized));
+}
+
+function groupDiningReviewsByDish(reviews: DiningReview[]): DiningReviewGroup[] {
+	const groups = new Map<string, DiningReview[]>();
+	for (const review of reviews) {
+		const group = groups.get(review.dishName) ?? [];
+		group.push(review);
+		groups.set(review.dishName, group);
+	}
+	return [...groups].map(([title, group]) => ({ reviews: group, title }));
 }
 
 function uniqueStrings(values: string[]): string[] {

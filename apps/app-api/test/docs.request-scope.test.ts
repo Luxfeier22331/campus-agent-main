@@ -79,7 +79,6 @@ function createTelemetry(): AppTelemetry {
 		recordIdentityEndpoint: vi.fn(async () => undefined),
 		recordProjectionDrain: vi.fn(async () => undefined),
 		recordProjectionEnqueued: vi.fn(async () => undefined),
-		recordQualitySampledGrade: vi.fn(async () => undefined),
 		recordRequestAccepted: vi.fn(async () => undefined),
 		recordRequestFinalized: vi.fn(async () => undefined),
 		recordRequestTransportError: vi.fn(async () => undefined),

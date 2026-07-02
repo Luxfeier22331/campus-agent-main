@@ -6,8 +6,6 @@ status: active
 created: 2026-05-01
 updated: 2026-05-01
 ---
-<!-- markdownlint-disable MD013 -->
-
 # Runtime OTel Collector Pipeline
 
 This runbook defines how the repo-owned runtime telemetry pipeline is validated and operated.

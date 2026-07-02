@@ -13,6 +13,7 @@ EXPECTED_WORKSPACES = {
     "apps/official-web-collector",
     "apps/operator-console-web",
     "apps/execution-control",
+    "jobs/dining-sync",
     "packages/contracts",
     "packages/eval-langfuse",
     "packages/ingestion-core",

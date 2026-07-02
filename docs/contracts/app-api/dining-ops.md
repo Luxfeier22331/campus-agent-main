@@ -113,7 +113,7 @@ navigation route graph truth.
 {
   "displayName": "盖饭窗口",
   "stallProfileId": "stall:haidian-canteen-1:haidian-canteen-1-1f:rice",
-  "stallType": "seeded_food_window",
+  "stallType": "food_window",
   "status": "active",
   "tags": ["主食"]
 }

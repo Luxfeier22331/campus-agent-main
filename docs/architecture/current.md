@@ -16,7 +16,7 @@ updated: 2026-06-30
 
 - 当前前向产品拓扑是什么
 - 当前哪些 serving surface 已开放
-- 当前 `apps/*` 与 `packages/*` 的责任边界是什么
+- 当前 `apps/*`、`jobs/*` 与 `packages/*` 的责任边界是什么
 - 当前哪些文档负责目标架构与 supporting architecture
 
 它不负责：
@@ -53,6 +53,16 @@ ingestion-control-api task admission`
 
 `ingestion-control-executor registry-aware execution -> source truth /
 projection / document/index release`
+
+`Feishu/Lark Base catalog tables -> jobs/dining-sync catalog-observations ->
+dining.source_observations(source_type=feishu_catalog) ->
+jobs/dining-sync publish-catalog / publish-catalog-from-observations ->
+dining catalog/release tables ->
+app-api /api/dining/* reader`
+
+`Feishu/Lark Base review table -> jobs/dining-sync Job/CronJob -> current
+catalog resolver -> content moderation -> dining.source_observations(source_type=feishu_review) ->
+dining.review_projections -> app-api /api/dining/* reader`
 
 关键约束：
 
@@ -135,6 +145,8 @@ projection / document/index release`
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
   claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
   `apps/ingestion-control` 的 task lifecycle 与 registry-aware executor
+- `jobs/*` 只承载一次性或定时 deployable runtime；不得把长驻 product backend、
+  browser surface、shared package 逻辑或 online request handler 塞进 job
 - `apps/ingestion-control` 是 self-hosted internal ingestion control-plane package，不是
   Cloudflare Worker。HTTP control-plane surface 与后台 executor worker process 是不同
   runtime role，不得藏进 `apps/app-api` 或 collector 进程。
@@ -353,6 +365,26 @@ projection / document/index release`
 - official web collector runtime
 - 上报 crawl run lifecycle 与 artifact refs
 - 不拥有 operator ledger、request projection 或 ingestion truth
+
+## 当前 Job 边界
+
+### `jobs/dining-sync`
+
+- dining data write runtime
+- 通过 Feishu/Lark OpenAPI 读取已授权 Base catalog 记录，写入
+  `dining.source_observations(source_type=feishu_catalog)`，并发布 catalog/release
+  snapshot
+- 可从 `packages/dining-domain` 导入 repo-owned bootstrap/dev catalog fixture；
+  fixture 不是生产 catalog source truth
+- 通过 Feishu/Lark OpenAPI 读取已授权 Base 评价记录
+- 校验记录形状，通过 Gitee AI moderation endpoint 审核评价文本和图片；图片先进入对象存储
+  moderation 前缀，审核通过后才物化到公开 review 前缀
+- 写入 dining catalog/release tables、
+  `dining.source_observations(source_type=feishu_catalog|feishu_review)` 与
+  `dining.review_projections`
+- 可作为 local one-shot、Docker one-shot、Kubernetes Job 或 CronJob 运行
+- 不属于 `apps/app-api` 在线请求路径，不提供 browser route，不承载 Operator Console
+  控制面，不公开 raw Feishu/Lark row、file token 或临时下载 URL
 
 ## 当前 Package / Runtime 边界
 

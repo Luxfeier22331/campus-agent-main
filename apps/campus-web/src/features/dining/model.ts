@@ -29,6 +29,8 @@ export interface DiningReview {
 	reviewId: string;
 	sourceRecordId: string;
 	stallName: string;
+	stallProfileId: string;
+	windowId: string;
 }
 
 export interface DiningReviewImage {
@@ -64,7 +66,6 @@ export interface DiningFloorResponse {
 		svgAssetUrl: string;
 	};
 	source: {
-		label: string;
 		updatedAt: string;
 	};
 	windows: DiningWindowProjection[];
@@ -99,6 +100,6 @@ export interface DiningOfferingProjection {
 	menuItemId: string;
 	name: string;
 	offeringId: string;
-	priceLabel: string;
+	priceLabel: string | null;
 	tags: string[];
 }

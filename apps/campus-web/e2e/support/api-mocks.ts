@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import { fulfillDiningFloor } from "./dining-mocks";
+import { fulfillDiningFloor, fulfillDiningReviews } from "./dining-mocks";
 import { installMapLibreMock } from "./maplibre-mock";
 
 const now = "2026-06-30T08:00:00.000Z";
@@ -93,6 +93,7 @@ interface CampusApiMockOptions {
 		reviewsFailure?: boolean;
 	};
 	emptyDiningHalls?: boolean;
+	includePlaceholderDiningHall?: boolean;
 	emptyMapPlaces?: boolean;
 	mapPlacesFailure?: boolean;
 	requests?: CampusApiRequestRecord[];
@@ -623,9 +624,21 @@ function routeMocks(input: {
 									: [
 											{
 												campus: "海淀校区",
-												floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
+												floors: [{ floorId: "haidian-canteen-1-1f", label: "地图" }],
 												hallId: "haidian-canteen-1",
 												name: "海淀一食堂",
+											},
+											{
+												campus: "海淀校区",
+												floors: [{ floorId: "haidian-canteen-2", label: "地图" }],
+												hallId: "haidian-canteen-2",
+												name: "海淀二食堂",
+											},
+											{
+												campus: "海淀校区",
+												floors: [{ floorId: "haidian-canteen-4", label: "地图" }],
+												hallId: "haidian-canteen-4",
+												name: "海淀四食堂",
 											},
 											{
 												campus: "丰台校区",
@@ -636,6 +649,16 @@ function routeMocks(input: {
 												hallId: "fengtai-huixian-canteen",
 												name: "荟贤食堂",
 											},
+											...(options.includePlaceholderDiningHall
+												? [
+														{
+															campus: "丰台校区",
+															floors: [{ floorId: "fengtai-pending-canteen", label: "地图" }],
+															hallId: "fengtai-pending-canteen",
+															name: "待补充食堂",
+														},
+													]
+												: []),
 										],
 							},
 							status: 200,
@@ -663,28 +686,7 @@ function routeMocks(input: {
 							json: { error: { code: "reviews_unavailable", message: "unavailable" } },
 							status: 500,
 						})
-					: route.fulfill({
-							contentType: "application/json",
-							json: {
-								reviews: [
-									{
-										campus: "海淀校区",
-										comment: "汤底稳定，午餐时段排队较短。",
-										contributorName: "测试同学",
-										dishName: "金汤鱼粉",
-										hallId: "haidian-canteen-1",
-										hallName: "海淀一食堂",
-										images: [],
-										paidPriceLabel: "18 元",
-										rating: 4,
-										reviewId: "review_fish",
-										sourceRecordId: "source_review_fish",
-										stallName: "鱼粉",
-									},
-								],
-							},
-							status: 200,
-						}),
+					: fulfillDiningReviews(route),
 		},
 	];
 }

@@ -52,22 +52,23 @@ Operator diagnosis 从 repo-owned projection 开始：
 
 ```text
 Operator Console
-  -> app-api operator request detail / observability detail
-  -> request projection + request observability fact + run / step projection
-  -> safe backlinks:
+  -> app-api Ops Index
+  -> request projection + minimal runtime health / correlation fields
+  -> safe links:
        Sentry trace / issue
        Axiom query
        Temporal workflow identity
        Langfuse trace / eval backlink
 ```
 
-Sink 是 drill-down destination，不是 request state 的第一查询路径。
+Sink 是 drill-down destination，不是 request state 的第一查询路径，也不是 app-api
+需要复制的 dashboard 数据源。
 
 ## 6. 功能要求
 
 ### 6.1 Role Ownership
 
-- Operator request list/detail 读取 app-api / Postgres sanitized projection。
+- Operator request list/detail 读取 app-api / Postgres sanitized Ops Index。
 - Sentry 负责 error issue、trace / performance drill-down 和 release regression。
 - Axiom 负责 runtime log/event query、dashboard 和 alert。
 - Temporal 负责 workflow history、activity attempt、retry、timeout、cancel 和 visibility。

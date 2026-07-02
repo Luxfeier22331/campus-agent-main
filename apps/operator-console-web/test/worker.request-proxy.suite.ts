@@ -87,7 +87,7 @@ export function registerWorkerRequestProxySuite() {
 		);
 	});
 
-	it("proxies request detail and observability routes to app-api", async () => {
+	it("proxies request detail routes to app-api and keeps retired observability detail closed", async () => {
 		await withAccessAssertion(
 			{
 				accessTeamDomain: "https://team-request-detail.cloudflareaccess.com",
@@ -111,22 +111,26 @@ export function registerWorkerRequestProxySuite() {
 					OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				};
 
-				for (const path of ["/api/requests/req_01HQ", "/api/requests/req_01HQ/observability"]) {
-					const response = await worker.fetch(
-						new Request(`https://operator-console.example.com${path}`, {
-							headers: {
-								"cf-access-jwt-assertion": token,
-							},
-						}),
-						workerEnv,
-					);
+				const detailResponse = await worker.fetch(
+					new Request("https://operator-console.example.com/api/requests/req_01HQ", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					workerEnv,
+				);
+				expect(detailResponse.status).toBe(200);
 
-					expect(response.status, path).toBe(200);
-				}
-				expect(forwarded).toEqual([
-					"https://app-api.internal/api/operator/requests/req_01HQ",
-					"https://app-api.internal/api/operator/requests/req_01HQ/observability",
-				]);
+				const observabilityResponse = await worker.fetch(
+					new Request("https://operator-console.example.com/api/requests/req_01HQ/observability", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					workerEnv,
+				);
+				expect(observabilityResponse.status).toBe(404);
+				expect(forwarded).toEqual(["https://app-api.internal/api/operator/requests/req_01HQ"]);
 			},
 		);
 	});

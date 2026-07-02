@@ -110,9 +110,9 @@ RunStep(synthesis) -> RunStep(grounding) -> source card / reader permalink`
 - 它必须能按 `routing / planning / tool / retrieval / rerank / selection /
   synthesis / grounding / finalization` 归因；不能只把失败归到最终 answer
   quality
-- operator quality badcase 与 eval-candidate 读取以 `diagnosisStage` 暴露上述归因；
-  legacy `causeClass` 仍是具体症状标签，但诊断主线以 step trajectory /
-  `diagnosisStage` 为准
+- `diagnosisStage` 是 retrieval 运行摘要的归因字段；如果未来导入 Langfuse / eval
+  平台或人工分析流程，必须通过独立 contract 显式消费，不能隐式恢复旧 operator quality
+  badcase 或 eval-candidate 在线面板
 
 ## Logical Objects
 

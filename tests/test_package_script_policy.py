@@ -236,6 +236,30 @@ class PackageScriptPolicyTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_covers_job_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            _write_package(root / "package.json", {"repo:guard": "true"})
+            _write_package(
+                root / "jobs/dining-sync/package.json",
+                {
+                    "sync:smoke": "tsx src/cli.ts",
+                    "test": "vitest run",
+                    "typecheck": "tsc --noEmit",
+                },
+            )
+
+            issues = audit_package_script_policy(root=root)
+
+        self.assertIn(
+            PackageScriptPolicyIssue(
+                path="jobs/dining-sync/package.json",
+                script="sync:smoke",
+                message="staging smoke helpers must be invoked directly from runbooks or CI, not exposed as package scripts",
+            ),
+            issues,
+        )
+
 
 def _write_package(path: Path, scripts: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

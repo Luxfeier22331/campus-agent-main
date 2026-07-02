@@ -26,6 +26,7 @@ class CheckHtmlTrackedTest(unittest.TestCase):
                 "--exclude-standard",
                 "*.html",
                 "apps/**/*.html",
+                "jobs/**/*.html",
             ],
             check=True,
             capture_output=True,

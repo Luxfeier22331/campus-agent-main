@@ -118,9 +118,12 @@ def _audit_package_manager_versions(
     root_pnpm_version: str,
 ) -> tuple[CiWorkflowContractIssue, ...]:
     issues: list[CiWorkflowContractIssue] = []
-    for package_path in sorted(root.glob("apps/*/package.json")) + sorted(
-        root.glob("packages/*/package.json")
-    ):
+    package_paths = (
+        sorted(root.glob("apps/*/package.json"))
+        + sorted(root.glob("jobs/*/package.json"))
+        + sorted(root.glob("packages/*/package.json"))
+    )
+    for package_path in package_paths:
         package = _read_json(package_path)
         package_manager = str(package.get("packageManager") or "")
         if not package_manager:

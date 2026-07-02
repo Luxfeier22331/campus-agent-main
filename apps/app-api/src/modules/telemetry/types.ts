@@ -106,24 +106,4 @@ export interface AppTelemetry {
 			retryable: boolean;
 		},
 	): Promise<void>;
-	recordQualitySampledGrade(input: {
-		collection: string | null;
-		gradeDomain: "grounding" | "citation" | "policy" | "intent";
-		gradeId: string;
-		gradeSource: string;
-		graderVersion: string;
-		modelName: string | null;
-		principalType: string;
-		rationaleSummary: string | null;
-		requestId: string;
-		requestStartedAt: string;
-		requestedTool: string | null;
-		requestedScopeSummary: string | null;
-		sampledAt: string;
-		scoreMilli: number | null;
-		selectedTool: string | null;
-		surface: string;
-		traceId: string;
-		verdict: "pass" | "fail" | "needs_review";
-	}): Promise<void>;
 }

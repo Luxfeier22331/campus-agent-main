@@ -23,9 +23,9 @@ importers:
       better-call:
         specifier: 1.3.6
         version: 1.3.6(zod@4.3.6)
-      dining-floorplans:
-        specifier: file:../../packages/dining-floorplans
-        version: file:../../packages/dining-floorplans
+      dining-domain:
+        specifier: file:../../packages/dining-domain
+        version: file:../../packages/dining-domain
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.2)(pg@8.20.0)
@@ -1157,6 +1157,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dining-domain@file:../../packages/dining-domain:
+    resolution: {directory: ../../packages/dining-domain, type: directory}
 
   dining-floorplans@file:../../packages/dining-floorplans:
     resolution: {directory: ../../packages/dining-floorplans, type: directory}
@@ -2424,6 +2427,10 @@ snapshots:
   defu@6.1.4: {}
 
   detect-libc@2.1.2: {}
+
+  dining-domain@file:../../packages/dining-domain:
+    dependencies:
+      dining-floorplans: file:../../packages/dining-floorplans
 
   dining-floorplans@file:../../packages/dining-floorplans:
     dependencies:

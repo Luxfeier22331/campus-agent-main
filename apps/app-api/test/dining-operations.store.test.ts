@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -16,6 +15,7 @@ import {
 	diningReleaseScheduleJobs,
 	diningReleaseSnapshots,
 	diningReleases,
+	diningReviewProjections,
 	diningStallProfiles,
 	diningWindowAssignments,
 	diningWindows,
@@ -23,10 +23,9 @@ import {
 import type { AppApiRouteError } from "../src/http";
 import {
 	buildDiningOperationsService,
-	createInitialDiningOperationsState,
+	createDevDiningOperationsState,
 	createInMemoryDiningOperationsStore,
 	createPgDiningOperationsStore,
-	ensureInitialDiningOperationsRelease,
 } from "../src/modules/dining-ops";
 
 const OPERATOR = {
@@ -41,6 +40,7 @@ const DINING_TABLES = [
 	diningHalls,
 	diningMenuItems,
 	diningMenuOfferings,
+	diningReviewProjections,
 	diningReleaseCandidateValidationReports,
 	diningReleaseCandidates,
 	diningReleaseLatestPointer,
@@ -90,6 +90,30 @@ function createFakeDiningDb(rows: Map<object, unknown[]> = new Map()) {
 	return { db, insertValues, transaction, tx };
 }
 
+function createSerialOnlyDiningDb(rows: Map<object, unknown[]> = new Map()) {
+	let activeSelects = 0;
+	const createSerialQuery = (table: object) => {
+		const query = (async () => {
+			if (activeSelects > 0) {
+				throw new Error("concurrent dining state load query");
+			}
+			activeSelects += 1;
+			await Promise.resolve();
+			activeSelects -= 1;
+			return rows.get(table) ?? [];
+		})();
+		return Object.assign(query, {
+			orderBy: () => query,
+		});
+	};
+	const db = {
+		select: vi.fn(() => ({
+			from: createSerialQuery,
+		})),
+	};
+	return { db };
+}
+
 function emptyDiningRows() {
 	return new Map<object, unknown[]>(DINING_TABLES.map((table) => [table, []]));
 }
@@ -108,8 +132,21 @@ describe("dining operations store", () => {
 		} satisfies Partial<AppApiRouteError>);
 	});
 
+	it("loads persisted dining state without issuing parallel table scans", async () => {
+		const { db } = createSerialOnlyDiningDb(emptyDiningRows());
+		const store = createPgDiningOperationsStore({} as never, {
+			getDb: async () => db as never,
+		});
+
+		await expect(store.getState()).rejects.toMatchObject({
+			code: "dining_operations_state_invalid",
+			name: "AppApiRouteError",
+			status: 500,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
 	it("rejects candidate rows whose frozen snapshot payload is missing before persistence", async () => {
-		const memoryStore = createInMemoryDiningOperationsStore();
+		const memoryStore = createInMemoryDiningOperationsStore(createDevDiningOperationsState());
 		const service = buildDiningOperationsService({ store: memoryStore });
 		const candidate = await service.createReleaseCandidate({
 			actor: OPERATOR,
@@ -131,7 +168,7 @@ describe("dining operations store", () => {
 	});
 
 	it("rejects release snapshots without matching release metadata before persistence", async () => {
-		const state = createInitialDiningOperationsState();
+		const state = createDevDiningOperationsState();
 		state.releaseSnapshots["dining_release:orphan"] = state.publishedSnapshot ?? {
 			floors: {},
 			halls: [],
@@ -152,49 +189,5 @@ describe("dining operations store", () => {
 			status: 500,
 		} satisfies Partial<AppApiRouteError>);
 		expect(transaction).not.toHaveBeenCalled();
-	});
-
-	it("seeds the initial dining release without materializing SVG objects", async () => {
-		const { db, insertValues } = createFakeDiningDb(emptyDiningRows());
-
-		const seeded = await ensureInitialDiningOperationsRelease({
-			db: db as never,
-		});
-
-		expect(seeded).toBe(true);
-		const insertedPayloads = insertValues.mock.calls.map(([payload]) => payload);
-		expect(JSON.stringify(insertedPayloads)).toContain("floorplan:");
-		expect(JSON.stringify(insertedPayloads)).not.toContain("floorplan_asset_id");
-		expect(JSON.stringify(insertedPayloads)).not.toContain("sanitized_svg_markup");
-	});
-
-	it("repairs legacy initial dining release rows that are missing draft version truth", async () => {
-		const rows = emptyDiningRows();
-		rows.set(diningReleases, [{ releaseId: "dining_release:initial" }]);
-		const { db, insertValues, transaction } = createFakeDiningDb(rows);
-
-		const seeded = await ensureInitialDiningOperationsRelease({
-			db: db as never,
-		});
-
-		expect(seeded).toBe(true);
-		expect(transaction).not.toHaveBeenCalled();
-		expect(insertValues).toHaveBeenCalledTimes(1);
-		expect(insertValues).toHaveBeenCalledWith(
-			expect.objectContaining({
-				createdBy: "system:initial-dining-seed",
-				draftVersionId: "dining_draft_version:1",
-				versionNumber: 1,
-			}),
-		);
-	});
-
-	it("keeps local dining seed refresh explicit and production-closed", () => {
-		const scriptSource = readFileSync("scripts/refresh-local-dining-seed.ts", "utf8");
-
-		expect(scriptSource).toContain('APP_API_ENVIRONMENT?.trim() === "production"');
-		expect(scriptSource).toContain("Refusing to refresh dining seed in production.");
-		expect(scriptSource).toContain("createInitialDiningOperationsState()");
-		expect(scriptSource).toContain("store.saveState(state)");
 	});
 });

@@ -42,12 +42,25 @@ updated: 2026-06-03
 - 同时服务多个 app、多个 runtime seam 或多个 domain owner 的无主模块
 - 需要读完整个调用链才能知道职责的薄包装文件
 
+## Top-Level Directory Boundaries
+
+- `apps/*` 承载长驻 product app、browser surface、Worker / service runtime 或
+  transport boundary。
+- `jobs/*` 承载一次性或定时 deployable runtime，例如 Kubernetes Job /
+  CronJob、Docker one-shot 或本地 one-shot 同步任务。
+- `packages/*` 承载稳定库、contract、domain/tool boundary 与可复用逻辑，不拥有
+  transport lifecycle 或 deploy entrypoint。
+
+`jobs/*` 是 runtime boundary，不是脚本垃圾桶。能进入 `jobs/*` 的代码必须有清晰
+deploy identity、输入环境、失败语义与验证命令。只有本地开发辅助、不需要部署或调度的工具仍应留在
+`scripts/` 或 owner package 的 `scripts/` 下。
+
 ## 目录美感
 
 目录美感在本仓库中不是主观审美，而是可审查的结构质量。它至少包括：
 
 - 同类模块目录同构，命名对称，文件职责可预测
-- app 边界与 package 边界清晰，不把 transport/runtime 细节混进 tool package
+- app/job 边界与 package 边界清晰，不把 transport/runtime 细节混进 tool package
 - domain-specific 能力留在 domain owner 内，不把业务逻辑堆进 `packages/shared`
 - helper 文件服务一个明确 owner，不承担跨 owner 的业务归并
 - 测试、fixture、schema、script 与被验证的 owner 保持可追溯关系
@@ -60,7 +73,8 @@ updated: 2026-06-03
 
 必须归并或抽取的重复包括：
 
-- 同一 DTO、schema、contract、route exposure 或 env projection 在多个 app/package 中手写复制
+- 同一 DTO、schema、contract、route exposure 或 env projection 在多个 app/job/package
+  中手写复制
 - 同一业务判断、admission rule、authz rule、query surface rule 在多个消费层重复表达
 - 同一 runtime command、smoke setup 或 evidence shape 在多个 runbook/script 中分叉维护
 - 同一命名表、alias、category、surface registry 在多个位置各自维护 truth

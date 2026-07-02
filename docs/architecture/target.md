@@ -252,7 +252,8 @@ collector/source admission
 - agent-as-tool 不得退化成只有名称的 thin function wrapper；没有稳定语义职责的能力应保留为
   typed tool
 - `admission / guardrails` 与 `tool routing` 必须分层，不得重新混成一个模糊 knowledge gate
-- runtime / transport 逻辑留在 `apps/*`
+- 长驻 runtime / transport 逻辑留在 `apps/*`
+- 一次性或定时 deployable runtime 留在 `jobs/*`
 - stable tool/domain package boundary 留在 `packages/*`
 - `packages/contracts` 不泄漏具体 runtime、vendor、infra 类型
 - online query path 与 offline data plane 不混层
@@ -640,7 +641,7 @@ suite family 固定为：
 - `observed_regression`：从线上观测、人工复核、incident backfill 晋升的真实样本
 - `version_compat`：schema / classifier version 与下游消费兼容性
 
-长期 operator observability 必须能区分：
+长期在线值班观测通过 Ops Index 与外部 sink 协作，必须能区分：
 
 - routing 错误
 - routing clarification 正确但 agent 证据不足
@@ -649,9 +650,9 @@ suite family 固定为：
 
 观测驱动治理链路固定为：
 
-`request observability fact -> operator review / sampled grade -> intent case
-mining -> repo-owned observed_regression truth -> TS/Langfuse eval lane ->
-release gate / version compat report`
+`Ops Index request correlation -> external sink / operator review signal ->
+repo-owned observed_regression truth -> TS/Langfuse eval lane -> release gate /
+version compat report`
 
 该链路只能回流 sanitized routing / outcome / review summary，不得把 raw prompt、raw answer、
 raw transcript、auth material 或 provider raw response 作为 Operator Console truth
@@ -673,8 +674,8 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   truth 已收口到 `packages/eval-langfuse/fixtures`，runtime-local truth 放在 owning
   runtime testdata。旧 Python fixture loader、deterministic scorer 与
   `scripts.eval_gate` release gate 已退役
-- `apps/app-api` 拥有 internal eval ingress、request correlation、quality grade /
-  trace backlink ingest 与 operator-facing projection，不拥有 golden truth
+- `apps/app-api` 拥有 request correlation 与最小 Ops Index，不拥有 golden truth、
+  Langfuse score truth 或外部 trace body
 - Operator Console 只承担 operator review / triage UX；它可以发起受控 review
   action，但不决定 golden set truth、不生成 benchmark artifact。当前实现 surface 可以是
   `operator-console-web` 或后续统一后的 operator console package。
@@ -685,14 +686,14 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
 
 长期 eval lifecycle 固定为：
 
-`production request / incident / operator badcase ->
-app-api operator candidate projection ->
+`production request / incident / operator review signal ->
+Ops Index request correlation ->
 eval-owned review / dedupe / admission ->
 golden or observed regression case ->
 TS/Langfuse deterministic + supplemental gate ->
 accepted artifact ->
-optional app-api grade / backlink publish ->
-operator observability rollup`
+optional Ops Index correlation ->
+external sink / eval platform review`
 
 其中：
 

@@ -68,34 +68,6 @@ export function buildChatCommandService(
 	const now = dependencies.now ?? (() => new Date());
 	const telemetry = dependencies.telemetry;
 
-	async function recordTraceBacklink(input: {
-		errorCode?: string | null;
-		requestId: string;
-		selectedTool?: string | null;
-		status?: string | null;
-		surface: string;
-		traceId: string;
-		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-	}) {
-		if (!dependencies.traceBacklinkRecorder) {
-			return;
-		}
-
-		const { waitUntil, ...recordInput } = input;
-		const recordPromise = dependencies.traceBacklinkRecorder.record(recordInput).catch((error) => {
-			telemetry?.captureException(error, {
-				route: "/api/chat/requests",
-				surface: input.surface,
-				traceId: input.traceId,
-			});
-		});
-		if (waitUntil) {
-			waitUntil(recordPromise);
-			return;
-		}
-		await recordPromise;
-	}
-
 	async function acceptCommand(input: ChatCommandSubmitInput): Promise<AcceptChatCommandResult> {
 		if (!input.principal.permissions.chat) {
 			throw createPreAcceptError({
@@ -521,15 +493,6 @@ export function buildChatCommandService(
 		finalized.write.requestExecution.versionQuery = context.validatedPayload.versionQuery;
 
 		const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
-		await recordTraceBacklink({
-			errorCode: finalized.write.requestExecution.errorCode,
-			requestId: context.requestId,
-			selectedTool: finalized.write.requestExecution.selectedTool,
-			status: finalized.write.requestExecution.status,
-			surface: context.surface,
-			traceId: finalized.write.requestExecution.traceId,
-			waitUntil: context.input.waitUntil,
-		});
 		await telemetry?.recordProjectionEnqueued({
 			conversationId: context.conversation.id,
 			principalType: context.input.principal.principal.type,

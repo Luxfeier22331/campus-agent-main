@@ -15,7 +15,6 @@ describe("runtime event sanitizer", () => {
 			"request.transport_error",
 			"projection.enqueued",
 			"projection.drain",
-			"quality.sampled_grade",
 			"identity.endpoint",
 			"execution.admission_rejected",
 			"execution.cancel_requested",

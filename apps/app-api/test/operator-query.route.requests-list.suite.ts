@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import { AppApiRouteError } from "../src/http";
-import type { OperatorQueryService } from "../src/modules/operator-query";
 import {
 	createCampusPrincipal,
 	createOperatorPrincipal,
@@ -13,27 +12,7 @@ import {
 export function registerOperatorQueryRequestsListSuite(): void {
 	describe("GET /api/operator/requests", () => {
 		it("returns request projections for operator principals only", async () => {
-			const service: OperatorQueryService = {
-				getById: vi.fn(),
-				getAuditById: vi.fn(),
-				getObservabilityById: vi.fn(),
-				getOverview: vi.fn(),
-				getRuntimeHealth: vi.fn(),
-				getIntentSummary: vi.fn(),
-				getIntentTimeseries: vi.fn(),
-				getQualitySummary: vi.fn(),
-				getQualityTimeseries: vi.fn(),
-				getSafetySummary: vi.fn(),
-				listSafetyAnomalies: vi.fn(),
-				getCostSummary: vi.fn(),
-				getCostTimeseries: vi.fn(),
-				listAutoscalerActuations: vi.fn(),
-				listAutoscalerDecisions: vi.fn(),
-				listAutoscalerPostures: vi.fn(),
-				listQualityBadcases: vi.fn(),
-				listQualityEvalCandidates: vi.fn(),
-				listTemporalTaskQueues: vi.fn(),
-				listAudit: vi.fn(),
+			const service = createOperatorQueryServiceMock({
 				list: vi.fn().mockResolvedValue({
 					page: {
 						nextCursor: "cursor_01HQ",
@@ -70,7 +49,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 						},
 					],
 				}),
-			};
+			});
 			const principal = createOperatorPrincipal();
 			const app = createApp(env, {
 				getPrincipal: vi.fn().mockResolvedValue(principal),

@@ -69,7 +69,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			"db/shared-product-migrations/0009_chat_turn_branch_context.sql",
 			"scripts/bootstrap-shared-product-with-seeds.mjs",
 			"scripts/bootstrap-shared-product-database.mjs",
-			"scripts/seed-initial-dining-release.ts",
 			"scripts/ensure-app-auth-role-search-path.mjs",
 			"scripts/print-shared-product-auth-migration.mjs",
 			"scripts/reconcile-shared-db-drift.mjs",
@@ -219,6 +218,13 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(diningScopeSource).toContain("createPgDiningOperationsStore(input.env, {");
 		expect(diningScopeSource).toContain("getDb: runtime.getFreshDb");
 		expect(requestScopeSource).not.toContain("createProcessDiningOperationsStore");
+	});
+
+	it("delegates dining dev seed import to the dining sync job", () => {
+		const bootstrapSource = readAppFile("scripts/bootstrap-shared-product-with-seeds.mjs");
+
+		expect(bootstrapSource).toContain("jobs/dining-sync");
+		expect(bootstrapSource).toContain("import-dev-seed");
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

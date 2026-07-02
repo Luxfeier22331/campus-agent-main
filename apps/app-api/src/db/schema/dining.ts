@@ -111,13 +111,44 @@ export const diningMenuOfferings = dining.table(
 		offeringId: text("offering_id").primaryKey(),
 		assignmentId: text("assignment_id").notNull(),
 		menuItemId: text("menu_item_id").notNull(),
-		priceLabel: text("price_label").notNull(),
+		priceLabel: text("price_label"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
 		assignmentIndex: index("dining_menu_offerings_assignment_idx").on(table.assignmentId),
 		menuItemIndex: index("dining_menu_offerings_menu_item_idx").on(table.menuItemId),
+	}),
+);
+
+export const diningReviewProjections = dining.table(
+	"review_projections",
+	{
+		reviewId: text("review_id").primaryKey(),
+		sourceRecordId: text("source_record_id").notNull(),
+		campus: text("campus").notNull(),
+		hallId: text("hall_id").notNull(),
+		hallName: text("hall_name").notNull(),
+		stallProfileId: text("stall_profile_id").notNull(),
+		windowId: text("window_id").notNull(),
+		stallName: text("stall_name").notNull(),
+		dishName: text("dish_name").notNull(),
+		paidPriceLabel: text("paid_price_label"),
+		rating: integer("rating"),
+		comment: text("comment"),
+		contributorName: text("contributor_name"),
+		imagesJson: jsonb("images_json").$type<Record<string, unknown>[]>().notNull().default([]),
+		publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		hallIndex: index("dining_review_projections_hall_idx").on(table.hallId),
+		sourceRecordIndex: index("dining_review_projections_source_record_idx").on(
+			table.sourceRecordId,
+		),
+		stallProfileIndex: index("dining_review_projections_stall_profile_idx").on(
+			table.stallProfileId,
+		),
+		windowIndex: index("dining_review_projections_window_idx").on(table.windowId),
 	}),
 );
 
@@ -210,22 +241,62 @@ export const diningSourceObservations = dining.table(
 	{
 		observationId: text("observation_id").primaryKey(),
 		sourceType: text("source_type").notNull(),
+		sourceBaseToken: text("source_base_token"),
+		sourceTableId: text("source_table_id"),
+		sourceRecordId: text("source_record_id"),
 		targetKind: text("target_kind").notNull(),
 		targetId: text("target_id"),
 		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
+		contentHash: text("content_hash").notNull(),
 		status: text("status").notNull(),
 		observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+		firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+		lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+		lastSeenRunId: text("last_seen_run_id").notNull(),
+		staleAt: timestamp("stale_at", { withTimezone: true }),
 		reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
 		reviewedBy: text("reviewed_by"),
 	},
 	(table) => ({
+		sourceRecordIndex: index("dining_source_observations_source_record_idx").on(
+			table.sourceType,
+			table.sourceTableId,
+			table.sourceRecordId,
+		),
 		statusObservedIndex: index("dining_source_observations_status_observed_idx").on(
 			table.status,
 			table.observedAt,
 		),
+		staleIndex: index("dining_source_observations_stale_idx").on(table.sourceType, table.staleAt),
 		targetIndex: index("dining_source_observations_target_idx").on(
 			table.targetKind,
 			table.targetId,
+		),
+	}),
+);
+
+export const diningSourceSyncRuns = dining.table(
+	"source_sync_runs",
+	{
+		runId: text("run_id").primaryKey(),
+		sourceType: text("source_type").notNull(),
+		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		status: text("status").notNull(),
+		totalCount: integer("total_count").notNull(),
+		acceptedCount: integer("accepted_count").notNull(),
+		blockedCount: integer("blocked_count").notNull(),
+		staleCount: integer("stale_count").notNull().default(0),
+		errorMessage: text("error_message"),
+	},
+	(table) => ({
+		sourceStartedIndex: index("dining_source_sync_runs_source_started_idx").on(
+			table.sourceType,
+			table.startedAt,
+		),
+		statusStartedIndex: index("dining_source_sync_runs_status_started_idx").on(
+			table.status,
+			table.startedAt,
 		),
 	}),
 );

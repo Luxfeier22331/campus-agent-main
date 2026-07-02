@@ -1,16 +1,16 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: apps/app-api
+owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-06-14
+updated: 2026-07-02
 ---
 # Dining Operations Schema
 
 ## 文档边界
 
-本文冻结 `dining.*` app-owned logical schema、ownership 与数据面边界。
+本文冻结 `dining.*` logical schema、ownership 与数据面边界。
 
 它回答：
 
@@ -29,7 +29,36 @@ updated: 2026-06-14
 
 ## Ownership
 
-`apps/app-api` owns `dining.*`。
+`packages/dining-domain` owns dining domain model, floorplan scaffold,
+local/dev seed, draft/release/projection rules and floorplan manifest
+validation.
+
+`jobs/dining-sync` owns dining data production jobs:
+
+- `catalog-observations` reads Feishu/Lark catalog tables and upserts accepted
+  or blocked catalog facts into `dining.source_observations`
+- `publish-catalog` refreshes Feishu/Lark catalog observations, then
+  materializes active accepted observations into `dining.*` catalog/release
+  tables
+- `publish-catalog-from-observations` materializes active accepted PG
+  observations without calling Feishu/Lark
+- `import-dev-seed` writes the repo committed floorplan validation seed into
+  `dining.*` for local/dev and is rejected in production
+- `sync-all` refreshes and publishes catalog, then syncs Feishu/Lark review
+  records into
+  `dining.source_observations(source_type=feishu_review)`, then publishes
+  active accepted review observations into `dining.review_projections`
+- `run` only executes the review sync phase and requires existing active
+  Feishu/Lark catalog observations for stall/window binding
+
+`apps/app-api` owns the HTTP facade and Worker/Drizzle PG adapter only. It
+serves `/api/dining/*` and `/api/ops/dining/*`, but it must not own catalog
+fixture source truth or call Feishu/Lark.
+
+The persisted published snapshot is the only student visibility truth. A repo
+SVG asset, floorplan manifest entry or scaffold hall row does not make a dining
+hall visible until a release snapshot is written and pointed to by
+`dining.release_latest_pointer`.
 
 `apps/operator-console-web` consumes ops routes and does not own storage truth.
 `apps/campus-web` consumes published `/api/dining/*` and does not own storage truth.
@@ -45,7 +74,9 @@ Accepted target logical tables:
 - `dining.stall_profiles`
 - `dining.menu_items`
 - `dining.menu_offerings`
+- `dining.review_projections`
 - `dining.source_observations`
+- `dining.source_sync_runs`
 - `dining.draft_versions`
 - `dining.release_candidates`
 - `dining.release_candidate_validation_reports`
@@ -90,6 +121,8 @@ Rules:
 - `floorplan_id` references a repo-owned generated floorplan manifest entry
 - `floorplan_sha256` records the manifest checksum currently expected by dining
   draft/release validation
+- `floor_id` 是地图投影标识，不总是学生端可见的建筑楼层。单地图食堂可以使用
+  `floor_id = hall_id`；其地图标签为 "地图"，`campus-web` 隐藏地图切换控件。
 - floor rows do not store SVG bytes, object-store keys, menu, price, assignment
   or release status truth
 - changing the SVG floorplan is an application release that updates the
@@ -186,51 +219,131 @@ Canonical fields:
 
 Rules:
 
-- `price_label` is display text, not numeric pricing truth
+- `price_label` is nullable display text, not numeric pricing truth
+- missing source price is represented as `NULL`; consumers must not synthesize
+  "待更新", "未知" or fake price text
 - menu portion/spec labels are not current scope
 - real-time availability, sale status and queue state are not in scope
 
 ### `dining.source_observations`
 
-Reserved source observation/proposal table. The table documents the storage
-boundary for possible collected or manually observed facts, but current route
-surface does not implement observation list/apply/reject commands.
+Implemented source observation/proposal table. Current implemented writers are
+`jobs/dining-sync catalog-observations`, which stores Feishu/Lark catalog facts
+with `source_type='feishu_catalog'`, and review sync, which stores Feishu/Lark
+review facts with `source_type='feishu_review'`.
 
 Canonical fields:
 
 - `observation_id`
 - `source_type`
+- `source_base_token`
+- `source_table_id`
+- `source_record_id`
 - `target_kind`
 - `target_id`
 - `payload_json`
+- `content_hash`
 - `status`
 - `observed_at`
+- `first_seen_at`
+- `last_seen_at`
+- `last_seen_run_id`
+- `stale_at`
 - `reviewed_at`
 - `reviewed_by`
 
 Rules:
 
-- observation does not mutate draft by itself
-- observation cannot directly update published snapshot
-- apply/reject, if accepted in a later scope, must be explicit operator command
+- observation does not mutate draft or published snapshot by itself
+- `publish-catalog` and `publish-catalog-from-observations` are the current
+  explicit materialization commands for accepted Feishu/Lark catalog
+  observations; review sync materializes active accepted
+  `feishu_review` observations into review projections
+- `catalog-observations` uses `observation_id` as the idempotency key and does
+  not delete existing rows
+- rows observed in a previous run but not seen in the current Feishu/Lark sync
+  are marked with `stale_at`; replay and publish consume only rows where
+  `stale_at IS NULL`
+- `content_hash` is deterministic over the normalized publishable observation
+  payload and status; it excludes run id and wall-clock observation metadata
+- current HTTP surfaces do not expose observation list/apply/reject commands
+- blocked observations record deterministic source-shape failures such as
+  missing linked campus/hall/stall or missing required display names
+- blocked review observations record moderation failures, image moderation
+  failures and rows that cannot resolve to the current published catalog
+  stall/window
+- provider, config, object-store or DB failures are sync-run failures; they are
+  not converted into blocked source observations
+- future manual apply/reject, if accepted later, must be explicit operator
+  commands and must not be hidden in app-api readers
 
-### Current review seed projection
+### `dining.source_sync_runs`
 
-Current `GET /api/dining/halls/:hallId/reviews` is served from a repo-versioned
-static seed, not from a `dining.*` table.
+Implemented source sync run table for `jobs/dining-sync catalog-observations`,
+the refresh phase of `publish-catalog` and Feishu/Lark review sync.
+
+Canonical fields:
+
+- `run_id`
+- `source_type`
+- `started_at`
+- `completed_at`
+- `status`
+- `total_count`
+- `accepted_count`
+- `blocked_count`
+- `stale_count`
+- `error_message`
 
 Rules:
 
-- the seed preserves form `stallName` and `dishName` as free text
-- the seed maps only explicit `campus + hall` pairs to current hall ids
+- the table records sync batch state, not raw Feishu/Lark rows
+- it is not a user-facing audit log and must not be exposed through student
+  browser APIs
+- object storage is not used for raw catalog archive in the current batch;
+  object storage remains limited to review image attachment materialization
+
+### `dining.review_projections`
+
+Published review projection served by
+`GET /api/dining/halls/:hallId/reviews`.
+
+Canonical fields:
+
+- `review_id`
+- `source_record_id`
+- `campus`
+- `hall_id`
+- `hall_name`
+- `stall_profile_id`
+- `window_id`
+- `stall_name`
+- `dish_name`
+- `paid_price_label`
+- `rating`
+- `comment`
+- `contributor_name`
+- `images_json`
+- `published_at`
+
+Rules:
+
+- `source_record_id` records the accepted Feishu/Lark source row id; raw source
+  JSON is not stored in this public projection
+- `stall_profile_id` and `window_id` bind the review to the current published
+  catalog stall/window for map placement
+- the projection preserves submitted `stallName` and `dishName` as free text
+- rows must resolve explicit `campus + hall + stall` input to current published
+  catalog ids before publication
 - student UI uses `stallName` and `dishName` only to group reviews under the
   current stall/dish context, not as repeated review-card titles
 - inconsistent records are not guessed into another campus or hall
-- review media is not published from the repo; `images` remains empty until a
-  separate media provenance boundary is accepted
+- image URLs point to public S3-compatible/static object URLs
 - Lark / Feishu file tokens and raw attachment URLs are not public schema fields
-- the seed does not create `menu_items`, `menu_offerings`, `window_assignments`
-  or `source_observations`
+- sync writes replace the projection deterministically for accepted rows
+- review projection writes do not create `halls`, `windows`, `stall_profiles`,
+  `menu_items`, `menu_offerings` or `window_assignments`
+- review sync must not write `feishu_catalog` observations
 
 ### `dining.draft_versions`
 
@@ -386,7 +499,7 @@ Rules:
 - student `/api/dining/*` reads latest published snapshot
 - snapshots are not recomputed from draft at query time
 - missing published release yields empty/typed not-found behavior, not fallback
-  seed data
+  fixture data
 - student projection uses window -> assignment -> stall profile -> menu offering
   -> menu item relations captured inside the snapshot
 - snapshot payload must include floorplan manifest id, static asset path,
@@ -436,25 +549,71 @@ Rules:
 - audit event stores object-level summaries
 - audit event does not store raw auth rows, cookies, tokens, or secrets
 
-## Initial Release
+## Production Catalog And Bootstrap Fixture
 
-The initial release materializes existing dining seed projection into
-`dining.*`, validates repo-owned floorplan manifest entries and publishes
-`dining_release:initial`.
+Production catalog ownership belongs to `jobs/dining-sync` consuming Feishu/Lark
+OpenAPI records. The accepted catalog path is:
 
-Initial scope:
+```text
+Feishu/Lark campus/hall/stall/dish tables
+-> catalog-observations
+-> dining.source_observations(source_type=feishu_catalog)
+-> publish-catalog OR publish-catalog-from-observations
+-> dining catalog/release tables
+-> latest published snapshot
+```
 
-- 海淀校区：1-5 食堂，每个单层
-- 丰台校区：荟贤、聚雅，每个两层
-- 每层至少 5 个窗口
-- 每个窗口至少 1 个 offering；部分窗口包含 2-3 个 offering
+The current publisher maps Feishu/Lark catalog rows to dining window
+projections. Source tables do not carry formal floorplan geometry or SVG anchors,
+so missing formal map assets must not block catalog publish. When no checked-in
+floorplan scaffold exists, the publisher emits explicit placeholder floor/window
+projection with deterministic geometry. Browser rendering may use the checked-in
+manifest when present, or draw the placeholder projection from app-api response
+geometry when the floorplan id is `placeholder:*`. Student UI must mark that map
+state explicitly as "地图待补充" while still keeping the projected windows
+selectable.
 
-After materialization, production student-facing routes must read the DB-backed
-published snapshot, not in-memory seed data. The repo floorplan manifest must be
-available to app-api and browser apps before candidates can freeze floorplan
-refs. Publish must fail closed when a candidate references a missing manifest
-entry or checksum mismatch; it must not synthesize SVG markup during publish.
+Publish must still fail closed for source relationship and projection integrity
+errors: missing required display names, missing linked halls/stalls, orphaned
+offerings or snapshot records that cannot be served must stay diagnostic instead
+of being silently dropped.
 
-Initial seed ownership belongs to `apps/app-api/src/modules/dining-ops`, not
-`campus-experience`. `campus-experience` remains responsible for map and
-feedback product projections only.
+The dev seed in `packages/dining-domain` is local/dev data. It can be imported
+with `import-dev-seed` outside production, but it is not production dining
+content truth. Floorplan scaffold is physical map structure only and does not
+carry menu, price or review truth.
+
+Production student-facing routes must read the DB-backed published snapshot
+plus `dining.review_projections`, not in-memory fixture data. `apps/app-api` may
+read and persist accepted operator edits through its PG adapter, but it must not
+provide Feishu/Lark sync scripts or own catalog source truth.
+
+Review production ownership belongs to `jobs/dining-sync`. That runtime consumes
+Feishu/Lark OpenAPI review records, validates accepted rows, blocks unsafe
+text/images through the dining moderation provider, materializes accepted
+attachments to the public S3-compatible review prefix, lands
+`feishu_review` observations, and writes `dining.review_projections` from
+active accepted review observations.
+
+## Launch Path
+
+The launch path is explicit:
+
+```text
+apply dining DB migrations
+-> run jobs/dining-sync publish-catalog with production Feishu/Lark app credentials
+   OR publish-catalog-from-observations if PG observations were already synced
+-> run jobs/dining-sync sync-all for catalog + review sync
+   (or pnpm --dir jobs/dining-sync sync, which invokes sync-all)
+-> run jobs/dining-sync verify-published against the same DB
+-> start app-api and campus-web against the same PG/object-store environment
+-> verify /api/dining/halls and one floor/review route through campus-web
+```
+
+`apps/app-api` does not auto-import dining fixture data during startup and does
+not fall back to fixture data if the published snapshot is missing. If a local
+environment needs a catalog before Feishu/Lark credentials are configured, run
+`import-dev-seed` as an explicit one-shot. Production must run `publish-catalog`.
+`verify-published` is read-only and must not be treated as a sync or repair
+command; failures mean the preceding migration/sync/publish/object projection
+steps need correction.

@@ -6,8 +6,6 @@ status: active
 created: 2026-05-01
 updated: 2026-05-01
 ---
-<!-- markdownlint-disable MD013 -->
-
 # Runtime OTel Telemetry Taxonomy
 
 This document freezes the repo-owned telemetry taxonomy for the runtime OTel
@@ -46,8 +44,9 @@ This taxonomy follows the OpenTelemetry direction that:
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
-| Sentry | sink only | Error, trace and performance debugging |
-| Axiom | sink only | High-volume tool read model events, retrieval/ingestion analysis and quality slicing through Collector exporter |
+| Sentry | sink only | Error, trace and performance debugging; not an Operator Console database |
+| Axiom | sink only | Runtime logs/events, query dashboards and trend analysis through Collector exporter; not an app-api dashboard cache |
+| Langfuse | sink/platform only | LLM traces, observations, datasets, scores and review workflows; not an app-api score or trace store |
 
 ## Signal Taxonomy
 

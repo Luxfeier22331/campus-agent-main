@@ -3,20 +3,16 @@ import { and, desc, eq, lt, or, type SQL } from "drizzle-orm";
 import {
 	temporalTaskQueueCurrent,
 	workerAutoscalerActuation,
-	workerAutoscalerDecisionCurrent,
 	workerAutoscalerPosture,
 } from "../../../db/schema";
 import type {
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
-	NormalizedWorkerAutoscalerDecisionListFilters,
 	NormalizedWorkerAutoscalerPostureListFilters,
 	TemporalTaskQueueListResult,
 	TemporalTaskQueueSnapshotRecord,
 	WorkerAutoscalerActuationListResult,
 	WorkerAutoscalerActuationRecord,
-	WorkerAutoscalerDecisionListResult,
-	WorkerAutoscalerDecisionRecord,
 	WorkerAutoscalerPostureListResult,
 	WorkerAutoscalerPostureRecord,
 } from "../service";
@@ -25,7 +21,6 @@ import type {
 	OperatorQueryRuntime,
 	TemporalTaskQueueCurrentRow,
 	WorkerAutoscalerActuationRow,
-	WorkerAutoscalerDecisionCurrentRow,
 	WorkerAutoscalerPostureRow,
 } from "./runtime";
 
@@ -43,25 +38,6 @@ function toTemporalTaskQueueSnapshotRecord(
 		scheduleToStartLatency: row.scheduleToStartLatencyJson,
 		snapshotId: row.snapshotId,
 		source: row.source,
-		taskQueue: row.taskQueue,
-		taskQueueKind: row.taskQueueKind,
-	};
-}
-
-function toWorkerAutoscalerDecisionRecord(
-	row: WorkerAutoscalerDecisionCurrentRow,
-): WorkerAutoscalerDecisionRecord {
-	return {
-		budgetState: row.budgetState,
-		currentReplicas: row.currentReplicas,
-		decidedAt: row.decidedAt.toISOString(),
-		decision: row.decision,
-		decisionId: row.decisionId,
-		desiredReplicas: row.desiredReplicas,
-		projectedAt: row.projectedAt.toISOString(),
-		reason: row.reason,
-		sourceSnapshotId: row.sourceSnapshotId,
-		targetService: row.targetService,
 		taskQueue: row.taskQueue,
 		taskQueueKind: row.taskQueueKind,
 	};
@@ -157,59 +133,6 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 						: null,
 				},
 				snapshots: visibleRows.map(toTemporalTaskQueueSnapshotRecord),
-			};
-		},
-
-		async listAutoscalerDecisions(
-			filters: NormalizedWorkerAutoscalerDecisionListFilters,
-		): Promise<WorkerAutoscalerDecisionListResult> {
-			const db = await runtime.getDb();
-			const conditions: SQL[] = [];
-			if (filters.targetService) {
-				conditions.push(eq(workerAutoscalerDecisionCurrent.targetService, filters.targetService));
-			}
-			if (filters.decision) {
-				conditions.push(eq(workerAutoscalerDecisionCurrent.decision, filters.decision));
-			}
-			const cursor = filters.cursor ? decodeRuntimeProjectionCursor(filters.cursor) : null;
-			if (cursor) {
-				const cursorDecidedAt = new Date(cursor.timestamp);
-				const cursorCondition = or(
-					lt(workerAutoscalerDecisionCurrent.decidedAt, cursorDecidedAt),
-					and(
-						eq(workerAutoscalerDecisionCurrent.decidedAt, cursorDecidedAt),
-						lt(workerAutoscalerDecisionCurrent.currentId, cursor.id),
-					),
-				);
-				if (cursorCondition) {
-					conditions.push(cursorCondition);
-				}
-			}
-
-			const rows = await (conditions.length > 0
-				? db
-						.select()
-						.from(workerAutoscalerDecisionCurrent)
-						.where(and(...conditions))
-				: db.select().from(workerAutoscalerDecisionCurrent)
-			)
-				.orderBy(
-					desc(workerAutoscalerDecisionCurrent.decidedAt),
-					desc(workerAutoscalerDecisionCurrent.currentId),
-				)
-				.limit(filters.limit + 1);
-			const visibleRows = rows.slice(0, filters.limit);
-			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
-			return {
-				decisions: visibleRows.map(toWorkerAutoscalerDecisionRecord),
-				page: {
-					nextCursor: cursorRow
-						? encodeRuntimeProjectionCursor({
-								id: cursorRow.currentId,
-								timestamp: cursorRow.decidedAt.toISOString(),
-							})
-						: null,
-				},
 			};
 		},
 

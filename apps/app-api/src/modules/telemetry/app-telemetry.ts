@@ -330,37 +330,5 @@ export function createAppTelemetry(
 				}),
 			);
 		},
-
-		async recordQualitySampledGrade(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					collection: input.collection,
-					grade_domain: input.gradeDomain,
-					grade_id: input.gradeId,
-					grade_source: input.gradeSource,
-					grader_version: input.graderVersion,
-					model_name: input.modelName,
-					rationale_summary: input.rationaleSummary,
-					request_started_at: input.requestStartedAt,
-					sampled_at: input.sampledAt,
-					score_milli: input.scoreMilli,
-					verdict: input.verdict,
-					...buildRuntimeEventEnvelope(
-						{
-							eventType: "quality.sampled_grade",
-							occurredAt: input.sampledAt,
-							principalType: input.principalType,
-							requestId: input.requestId,
-							requestedTool: input.requestedTool,
-							requestedScopeSummary: input.requestedScopeSummary,
-							selectedTool: input.selectedTool,
-							surface: input.surface,
-							traceId: input.traceId,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
 	};
 }

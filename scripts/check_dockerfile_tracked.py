@@ -15,7 +15,13 @@ def repo_root() -> Path:
 
 def tracked_dockerfiles(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    return worktree_paths("Dockerfile*", "*.dockerfile", "apps/**/Dockerfile*", root=base)
+    return worktree_paths(
+        "Dockerfile*",
+        "*.dockerfile",
+        "apps/**/Dockerfile*",
+        "jobs/**/Dockerfile*",
+        root=base,
+    )
 
 
 def select_affected_dockerfiles(

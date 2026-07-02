@@ -3,12 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { OperatorQueryStoreSuiteContext } from "./operator-query.store.suite-context";
 
 export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreSuiteContext): void {
-	const {
-		createPgOperatorQueryStore,
-		createRuntimeDatabase,
-		resetOperatorQueryStoreMocks,
-		summarizeSafetyAnomaly,
-	} = ctx;
+	const { createPgOperatorQueryStore, createRuntimeDatabase, resetOperatorQueryStoreMocks } = ctx;
 
 	beforeEach(() => {
 		resetOperatorQueryStoreMocks();
@@ -75,12 +70,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 		});
 
 		const result = await store.getOverview({
-			collection: null,
 			granularity: null,
-			modelName: null,
 			principalType: null,
-			requestedTool: null,
-			selectedTool: null,
 			surface: null,
 			window: "1h",
 		});
@@ -96,136 +87,5 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			outboxStaleCount: 1,
 			projectionFailureCount: 1,
 		});
-	});
-	it("summarizes intent governance signals from request observability facts and intent grades", async () => {
-		const observabilityRows = [
-			{
-				intentAmbiguityReason: null,
-				intentAmbiguitySignal: null,
-				intentTool: "knowledge_query",
-				intentClassifierVersion: "intent-classifier@2026-04-20",
-				intentContextResolutionState: "resolved",
-				intentLaunchState: "open",
-				intentNextAction: "delegate",
-				intentRoutingConfidence: "high",
-				intentSchemaVersion: "intent-schema-1.0.0",
-				intentScopeClass: "in_scope",
-				intentTaskKind: "knowledge_lookup",
-				requestId: "req_intent_01",
-				startedAt: new Date("2026-03-28T08:40:00.000Z"),
-			},
-			{
-				intentAmbiguityReason: "missing_slot",
-				intentAmbiguitySignal: "ambiguous",
-				intentTool: "transport_schedule_lookup",
-				intentClassifierVersion: "intent-classifier@2026-04-20",
-				intentContextResolutionState: "unresolved",
-				intentLaunchState: "candidate_only",
-				intentNextAction: "clarify",
-				intentRoutingConfidence: "low",
-				intentSchemaVersion: "intent-schema-1.0.0",
-				intentScopeClass: "in_scope",
-				intentTaskKind: "campus_services_lookup",
-				requestId: "req_intent_02",
-				startedAt: new Date("2026-03-28T08:45:00.000Z"),
-			},
-			{
-				intentAmbiguityReason: null,
-				intentAmbiguitySignal: null,
-				intentTool: "knowledge_query",
-				intentClassifierVersion: "intent-classifier@2026-04-21",
-				intentContextResolutionState: "resolved",
-				intentLaunchState: "open",
-				intentNextAction: "delegate",
-				intentRoutingConfidence: "medium",
-				intentSchemaVersion: "intent-schema-1.1.0",
-				intentScopeClass: "out_of_scope",
-				intentTaskKind: "knowledge_lookup",
-				requestId: "req_intent_03",
-				startedAt: new Date("2026-03-28T08:50:00.000Z"),
-			},
-		];
-		const gradeRows = [
-			{
-				gradeDomain: "intent",
-				requestId: "req_intent_01",
-				verdict: "pass",
-			},
-			{
-				gradeDomain: "intent",
-				requestId: "req_intent_02",
-				verdict: "fail",
-			},
-		];
-		const responses = [observabilityRows, gradeRows];
-		const observabilityWhere = vi.fn().mockResolvedValue(responses.shift());
-		const gradeOrderBy = vi.fn().mockResolvedValue(responses.shift());
-		const gradeWhere = vi.fn(() => ({ orderBy: gradeOrderBy }));
-		const select = vi
-			.fn()
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: observabilityWhere,
-				})),
-			})
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: gradeWhere,
-				})),
-			});
-
-		createRuntimeDatabase.mockResolvedValue({
-			select,
-		});
-
-		const store = createPgOperatorQueryStore({} as never, {
-			now: () => new Date("2026-03-28T09:00:00.000Z"),
-		});
-
-		const result = await store.getIntentSummary({
-			collection: null,
-			granularity: null,
-			modelName: null,
-			principalType: null,
-			requestedTool: null,
-			selectedTool: null,
-			surface: null,
-			window: "1h",
-		});
-
-		expect(result.runtime.requestCount).toBe(3);
-		expect(result.runtime.lowConfidenceRate).toEqual({
-			count: 1,
-			eligibleCount: 3,
-			value: 0.3333,
-		});
-		expect(result.runtime.ambiguityRate.count).toBe(1);
-		expect(result.runtime.contextUnresolvedRate.count).toBe(1);
-		expect(result.runtime.distributions.tool).toEqual([
-			{ count: 2, value: "knowledge_query" },
-			{ count: 1, value: "transport_schedule_lookup" },
-		]);
-		expect(result.runtime.distributions.classifierVersion).toEqual([
-			{ count: 2, value: "intent-classifier@2026-04-20" },
-			{ count: 1, value: "intent-classifier@2026-04-21" },
-		]);
-		expect(result.sampledGrades?.intentPassRate).toEqual({
-			count: 1,
-			eligibleCount: 2,
-			value: 0.5,
-		});
-	});
-	it("renders operator-facing target labels in safety anomaly summaries", () => {
-		expect(
-			summarizeSafetyAnomaly({
-				aclAnomalyCode: "projection_missing",
-				failClosed: false,
-				requestedTool: "knowledge_query",
-				selectedTool: "knowledge_query",
-				status: "completed",
-			}),
-		).toBe(
-			"knowledge tool request finalized without the required policy projection for knowledge tool.",
-		);
 	});
 }

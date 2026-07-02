@@ -21,9 +21,9 @@ owner、runtime shape 与 forbidden shapes。
   - authenticated notice source channel、source/data plane 与 regulation downstream
 - `campus-services/architecture.md`
   - campus services tool read model、projection-backed query seam 与 opening gate
-- `dining/architecture.md`
-  - dining floor/window/stall/menu、ops draft/release candidate/release 与
-    student published projection boundary
+
+食堂地图、菜单与评价真相已收口到
+`dining/architecture.md` 与 `../../data/dining.md`。
 
 ## 与 `docs/domains/` 的关系
 

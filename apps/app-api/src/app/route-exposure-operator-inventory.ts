@@ -129,18 +129,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/audit",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/audit/:auditEventId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/authenticated-notices/processing",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -217,30 +205,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 		callerClass: "operator-via-panel",
 		admission:
 			"Operator Console trusted caller plus admitted operator principal; read-only ingestion projection",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/cost/summary",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/cost/timeseries",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/intent/summary",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/intent/timeseries",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
 	},
 	{
 		method: "GET",
@@ -328,30 +292,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/quality/badcases",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/quality/eval-candidates",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/quality/summary",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/quality/timeseries",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/requests",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -359,48 +299,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "GET",
 		path: "/api/operator/requests/:requestId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/requests/:requestId/observability",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/runtime/autoscaler/decisions",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/runtime/autoscaler/actuations",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/runtime/autoscaler/postures",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/runtime/temporal-task-queues",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/safety/anomalies",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/safety/summary",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
 	},

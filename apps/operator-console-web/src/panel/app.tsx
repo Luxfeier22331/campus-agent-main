@@ -1,13 +1,9 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ClipboardList, ExternalLink, KeyRound, LogOut, RefreshCw } from "lucide-react";
+import { ArrowLeft, ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
-import {
-	getRequestDetail,
-	getRequestList,
-	getRequestObservability,
-} from "./data-provider/requests";
+import { getRequestDetail, getRequestList } from "./data-provider/requests";
 import { fetchJson } from "./http";
 import { ProviderConfigPage } from "./operations/provider-config/page";
 import { formatPanelTimestamp } from "./panel-copy";
@@ -179,7 +175,6 @@ function RequestsPage() {
 		queryFn: ({ signal }) => getRequestList({ pagination: { page: 1, perPage: 20 }, signal }),
 		queryKey: ["requests"],
 	});
-	const alerts = overview.data?.data.alerts ?? [];
 	const volume = overview.data?.data.overview.requestVolume;
 
 	return (
@@ -260,35 +255,10 @@ function RequestsPage() {
 						) : null}
 					</CardContent>
 				</Card>
-				<Card className="md:col-span-3">
-					<CardHeader>
-						<CardTitle>告警摘要</CardTitle>
-					</CardHeader>
-					<CardContent>
-						{overview.error ? <QueryError error={overview.error} /> : null}
-						{alerts.length > 0 ? (
-							<div className="grid gap-2">
-								{alerts.map((alert) => (
-									<div className="rounded-md border border-slate-200 p-3" key={alert.alertId}>
-										<p className="font-medium text-sm">{alert.code}</p>
-										<p className="text-slate-500 text-xs">
-											{alert.requestCount} 个请求 · {formatPanelTimestamp(alert.startedAt)}
-										</p>
-									</div>
-								))}
-							</div>
-						) : (
-							<Empty className="min-h-24 border-0 bg-transparent">
-								<EmptyTitle>没有告警</EmptyTitle>
-								<EmptyDescription>当前没有需要处理的告警。</EmptyDescription>
-							</Empty>
-						)}
-					</CardContent>
-				</Card>
 				<Card className="md:col-span-3 xl:col-span-2">
 					<CardHeader>
 						<CardTitle>最近请求</CardTitle>
-						<CardDescription>读取 app-api 维护的请求投影；读取失败会直接显示错误。</CardDescription>
+						<CardDescription>查看最近请求状态；读取失败会直接显示错误。</CardDescription>
 					</CardHeader>
 					<CardContent>
 						{requests.error ? <QueryError error={requests.error} /> : null}
@@ -361,15 +331,7 @@ function RequestDetailPage() {
 		queryFn: ({ signal }) => getRequestDetail({ requestId, signal }),
 		queryKey: ["request-detail", requestId],
 	});
-	const observability = useQuery({
-		enabled: requestId.length > 0,
-		queryFn: ({ signal }) => getRequestObservability({ requestId, signal }),
-		queryKey: ["request-observability", requestId],
-	});
-	const request = observability.data?.request ?? detail.data;
-	const facts = observability.data?.observability;
-	const runtimeSteps = observability.data?.runtimeRun?.stepTrajectory?.steps ?? [];
-	const links = observability.data?.links;
+	const request = detail.data;
 
 	return (
 		<section>
@@ -383,15 +345,14 @@ function RequestDetailPage() {
 			</div>
 			<PageHeader description={requestId} title="请求详情" />
 			{detail.error ? <QueryError error={detail.error} /> : null}
-			{observability.error ? <QueryError error={observability.error} /> : null}
-			{detail.isLoading || observability.isLoading ? (
+			{detail.isLoading ? (
 				<div className="grid gap-4">
 					<Skeleton className="h-28 w-full" />
 					<Skeleton className="h-48 w-full" />
 				</div>
 			) : null}
 			{request ? (
-				<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+				<div className="grid gap-4">
 					<Card>
 						<CardHeader>
 							<CardTitle>请求摘要</CardTitle>
@@ -404,90 +365,44 @@ function RequestDetailPage() {
 							/>
 							<Fact label="接入面" value={request.surface} />
 							<Fact
-								label="能力"
+								label="目标"
 								value={request.selectedTool || request.requestedTool || "未指定"}
 							/>
 							<Fact label="Trace ID" value={request.traceId} />
+							<Fact label="Run ID" value={request.runId || "未绑定"} />
 							<Fact label="会话" value={request.conversationId} />
+							<Fact label="耗时" value={formatDuration(request.durationMs)} />
+							<Fact label="错误码" value={request.errorCode || "无"} />
+							<Fact label="开始时间" value={formatPanelTimestamp(request.startedAt)} />
+							<Fact
+								label="完成时间"
+								value={request.completedAt ? formatPanelTimestamp(request.completedAt) : "未完成"}
+							/>
 							<Fact label="更新时间" value={formatPanelTimestamp(request.projectedAt)} />
 						</CardContent>
 					</Card>
 					<Card>
 						<CardHeader>
-							<CardTitle>外部定位</CardTitle>
-							<CardDescription>只显示安全 deep link 和 fingerprint。</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-3">
-							<ExternalSafeLink href={links?.traceLink} label="Trace" />
-							<ExternalSafeLink href={links?.issueLink} label="Issue" />
-							<Fact label="Issue Fingerprint" value={links?.issueFingerprint || "无"} />
-						</CardContent>
-					</Card>
-					<Card>
-						<CardHeader>
-							<CardTitle>观测摘要</CardTitle>
+							<CardTitle>排障信息</CardTitle>
+							<CardDescription>只展示定位请求状态所需的最小信息。</CardDescription>
 						</CardHeader>
 						<CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-							<Fact label="耗时" value={formatDuration(facts?.durationMs)} />
-							<Fact label="投影延迟" value={formatDuration(facts?.projectionLagMs)} />
-							<Fact label="检索候选" value={formatNumber(facts?.candidateCount)} />
-							<Fact label="引用数量" value={formatNumber(facts?.citationCount)} />
-							<Fact label="引用缺失" value={formatBoolean(facts?.citationMissing)} />
-							<Fact label="Fail closed" value={formatBoolean(facts?.failClosed)} />
-							<Fact label="模型" value={formatModel(facts?.model)} />
-							<Fact label="输入 Token" value={formatNumber(facts?.inputTokens)} />
-							<Fact label="输出 Token" value={formatNumber(facts?.outputTokens)} />
-							<Fact label="成本" value={formatCost(facts?.estimatedCost?.microusd)} />
-							<Fact label="检索充分性" value={facts?.retrievalAdequacyVerdict || "未上报"} />
-							<Fact label="ACL" value={facts?.aclDecision || "未上报"} />
-						</CardContent>
-					</Card>
-					<Card>
-						<CardHeader>
-							<CardTitle>运行步骤</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<TableContainer>
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>步骤</TableHead>
-											<TableHead>状态</TableHead>
-											<TableHead>队列</TableHead>
-											<TableHead>耗时</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{runtimeSteps.map((step) => (
-											<TableRow key={step.stepId}>
-												<TableCell>
-													<p className="font-medium">{step.stepId}</p>
-													<p className="text-slate-500 text-xs">{step.stepKind}</p>
-												</TableCell>
-												<TableCell>
-													<Badge tone={statusTone(step.status)}>{step.status}</Badge>
-												</TableCell>
-												<TableCell>{step.taskQueue || "未上报"}</TableCell>
-												<TableCell>{formatDuration(step.durationMs)}</TableCell>
-											</TableRow>
-										))}
-										{runtimeSteps.length === 0 ? (
-											<TableRow>
-												<TableCell className="text-slate-500" colSpan={4}>
-													暂无运行步骤投影。
-												</TableCell>
-											</TableRow>
-										) : null}
-									</TableBody>
-								</Table>
-							</TableContainer>
+							<Fact label="负责人类型" value={request.principalType} />
+							<Fact label="负责人" value={request.principalLabel || request.principalId} />
+							<Fact label="可见范围" value={request.visibilityScope || "未指定"} />
+							<Fact label="适用范围" value={request.applicabilityScope || "未指定"} />
+							<Fact
+								label="来源文档"
+								value={request.sourceDocIds.length > 0 ? request.sourceDocIds.join(", ") : "无"}
+							/>
+							<Fact label="回答预览" value={request.answerPreview || "无"} />
 						</CardContent>
 					</Card>
 				</div>
-			) : detail.isLoading || observability.isLoading ? null : (
+			) : detail.isLoading ? null : (
 				<Empty className="min-h-40">
 					<EmptyTitle>未找到请求</EmptyTitle>
-					<EmptyDescription>当前请求投影不存在或不可见。</EmptyDescription>
+					<EmptyDescription>当前请求不存在或不可见。</EmptyDescription>
 				</Empty>
 			)}
 		</section>
@@ -500,28 +415,6 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
 			<p className="text-slate-500 text-xs">{label}</p>
 			<div className="mt-1 break-words font-medium text-sm">{value}</div>
 		</div>
-	);
-}
-
-function ExternalSafeLink({ href, label }: { href?: string | null; label: string }) {
-	if (!href) {
-		return <Fact label={label} value="无" />;
-	}
-	return (
-		<Fact
-			label={label}
-			value={
-				<a
-					className="inline-flex items-center gap-1 text-slate-900 underline-offset-4 hover:underline"
-					href={href}
-					rel="noreferrer"
-					target="_blank"
-				>
-					打开
-					<ExternalLink className="size-3.5" />
-				</a>
-			}
-		/>
 	);
 }
 
@@ -539,25 +432,6 @@ function statusTone(status: string) {
 
 function formatDuration(value: number | null | undefined) {
 	return typeof value === "number" ? `${value} ms` : "未上报";
-}
-
-function formatNumber(value: number | null | undefined) {
-	return typeof value === "number" ? value.toLocaleString("en-US") : "未上报";
-}
-
-function formatBoolean(value: boolean | null | undefined) {
-	return typeof value === "boolean" ? (value ? "是" : "否") : "未上报";
-}
-
-function formatCost(microusd: number | null | undefined) {
-	return typeof microusd === "number" ? `$${(microusd / 1_000_000).toFixed(6)}` : "未上报";
-}
-
-function formatModel(model: { name: string | null; provider: string | null } | null | undefined) {
-	if (!(model?.name || model?.provider)) {
-		return "未上报";
-	}
-	return [model.provider, model.name].filter(Boolean).join(" / ");
 }
 
 function formatStatus(status: string) {

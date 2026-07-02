@@ -47,6 +47,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "Dockerfile*",
                 "*.dockerfile",
                 "apps/**/Dockerfile*",
+                "jobs/**/Dockerfile*",
             ],
             check=True,
             capture_output=True,
@@ -150,6 +151,24 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_dining_sync_job_build_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!package.json",
+                "!pnpm-lock.yaml",
+                "!pnpm-workspace.yaml",
+                "!jobs/dining-sync/",
+                "!jobs/dining-sync/**",
+                "!packages/dining-domain/",
+                "!packages/dining-domain/**",
+                "!packages/dining-floorplans/",
+                "!packages/dining-floorplans/**",
+            }.issubset(patterns)
+        )
+
     def test_dockerignore_keeps_agent_runtime_build_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
@@ -226,6 +245,9 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!apps/authenticated-notice-collector/**",
                 "!apps/agent-runtime/**",
                 "!apps/ingestion-control/**",
+                "!jobs/dining-sync/**",
+                "!packages/dining-domain/**",
+                "!packages/dining-floorplans/**",
             )
         )
 

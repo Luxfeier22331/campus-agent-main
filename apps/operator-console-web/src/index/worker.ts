@@ -67,10 +67,7 @@ const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
 	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/activate$/,
 ] as const;
 
-const REQUEST_DYNAMIC_PROXY_ROUTES = [
-	/^GET \/api\/requests\/[^/]+$/,
-	/^GET \/api\/requests\/[^/]+\/observability$/,
-] as const;
+const REQUEST_DYNAMIC_PROXY_ROUTES = [/^GET \/api\/requests\/[^/]+$/] as const;
 
 function matchProxyRoute(
 	request: Request,

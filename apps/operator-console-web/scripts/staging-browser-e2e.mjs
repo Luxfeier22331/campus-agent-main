@@ -121,12 +121,8 @@ async function main() {
 	try {
 		const routes = [
 			["/", "operator-shell.png"],
-			["/observability/overview", "operator-overview.png"],
 			["/requests", "operator-requests.png"],
 			["/operations/provider-config", "operator-provider-config.png"],
-			["/officialWebSites", "operator-official-web.png"],
-			["/authenticatedNoticeProcessing", "operator-authenticated-notices.png"],
-			["/operations/dining", "operator-dining.png"],
 		];
 		for (const [path, screenshotName] of routes) {
 			await visit(page, path, args.evidenceDir, screenshotName);

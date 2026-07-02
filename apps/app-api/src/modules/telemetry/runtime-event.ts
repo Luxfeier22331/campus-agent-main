@@ -94,23 +94,6 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		]),
 	],
 	[
-		"quality.sampled_grade",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"collection",
-			"grade_domain",
-			"grade_id",
-			"grade_source",
-			"grader_version",
-			"model_name",
-			"rationale_summary",
-			"request_started_at",
-			"sampled_at",
-			"score_milli",
-			"verdict",
-		]),
-	],
-	[
 		"identity.endpoint",
 		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "correlation_id", "endpoint"]),
 	],

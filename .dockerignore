@@ -15,6 +15,12 @@
 !apps/ingestion-control/**
 !apps/legacy-office-conversion-service/
 !apps/legacy-office-conversion-service/**
+!jobs/dining-sync/
+!jobs/dining-sync/**
+!packages/dining-domain/
+!packages/dining-domain/**
+!packages/dining-floorplans/
+!packages/dining-floorplans/**
 !configs/ingestion/
 !configs/ingestion/**
 !configs/runtime/

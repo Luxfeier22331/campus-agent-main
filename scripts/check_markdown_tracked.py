@@ -16,6 +16,7 @@ _MARKDOWN_TRACKED_PATHS = (
     ".github/ISSUE_TEMPLATE",
     "docs",
     "apps",
+    "jobs",
     "packages",
     "configs",
     "infra",
@@ -57,7 +58,7 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         return True
     if path.startswith(".github/ISSUE_TEMPLATE/"):
         return path.endswith(".md")
-    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
+    if path.startswith(("apps/", "jobs/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
 

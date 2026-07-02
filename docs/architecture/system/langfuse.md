@@ -109,11 +109,12 @@ repo's eval truth.
   not receive raw prompt, raw transcript, unrestricted source body, provider raw
   response or secrets.
 - The repo remains the owner for canonical qrels / golden truth, business
-  contract truth, authz / privacy boundaries, sanitized app-api / operator
-  projection and fail-closed release verdicts.
-- `app-api` and Operator Console may consume only repo-owned sanitized runtime
-  and quality projections. They must not query Langfuse directly, and the old
-  eval backlink projection must not be recreated.
+  contract truth, authz / privacy boundaries, minimal app-api Ops Index and
+  fail-closed release verdicts.
+- `app-api` and Operator Console may consume only repo-owned request
+  correlation, runtime state and safe sink-link summaries. They must not query
+  Langfuse directly, copy Langfuse observations into app-api, or recreate the
+  old eval backlink projection.
 - Eval lanes do not orchestrate production workflow execution. Temporal and
   `execution-control` remain the owners for workflow history, retry, timeout,
   signal, cancel and task queue dispatch.

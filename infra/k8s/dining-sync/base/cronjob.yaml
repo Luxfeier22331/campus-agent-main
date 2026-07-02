@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dining-sync
+  namespace: campus-agent-dining-sync
+spec:
+  schedule: "0 * * * *"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1200
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: dining-sync
+          restartPolicy: Never
+          containers:
+            - name: dining-sync
+              image: ghcr.io/muc-wiki/campus-agent/dining-sync:staging
+              imagePullPolicy: Always
+              command:
+                - pnpm
+                - --dir
+                - jobs/dining-sync
+                - exec
+                - tsx
+                - src/cli.ts
+                - sync-all
+              envFrom:
+                - configMapRef:
+                    name: dining-sync-config
+                - secretRef:
+                    name: dining-sync-secrets
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi

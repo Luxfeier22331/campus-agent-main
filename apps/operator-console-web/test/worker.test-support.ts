@@ -26,20 +26,9 @@ export function createOperatorQueryServiceMock(
 ): OperatorQueryService {
 	return {
 		getById: vi.fn(),
-		getObservabilityById: vi.fn(),
-		getAuditById: vi.fn(),
 		getOverview: vi.fn(),
 		getRuntimeHealth: vi.fn(),
-		getIntentSummary: vi.fn(),
-		getIntentTimeseries: vi.fn(),
-		getQualitySummary: vi.fn(),
-		getQualityTimeseries: vi.fn(),
-		getSafetySummary: vi.fn(),
-		listSafetyAnomalies: vi.fn(),
-		getCostSummary: vi.fn(),
-		getCostTimeseries: vi.fn(),
 		listAutoscalerActuations: vi.fn(),
-		listAutoscalerDecisions: vi.fn(),
 		listAutoscalerPostures: vi.fn(),
 		list: vi.fn().mockResolvedValue({
 			page: {
@@ -47,9 +36,6 @@ export function createOperatorQueryServiceMock(
 			},
 			requests: [],
 		}),
-		listAudit: vi.fn(),
-		listQualityBadcases: vi.fn(),
-		listQualityEvalCandidates: vi.fn(),
 		listTemporalTaskQueues: vi.fn(),
 		...overrides,
 	};

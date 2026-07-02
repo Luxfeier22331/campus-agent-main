@@ -88,18 +88,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/internal/operator/quality/grades",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/trace-backlinks",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
 		path: "/api/internal/staging-smoke/auth/session",
 		callerClass: "machine-internal",
 		admission: "staging environment plus x-app-staging-smoke-auth",

@@ -1,5 +1,30 @@
-import { desc, eq } from "drizzle-orm";
-
+import type {
+	DiningAuditEvent,
+	DiningDraftVersion,
+	DiningFloorplanRef,
+	DiningMenuItem,
+	DiningMenuOffering,
+	DiningOperationsState,
+	DiningOperationsStore,
+	DiningOpsHall,
+	DiningPublishedSnapshot,
+	DiningRelease,
+	DiningReleaseCandidate,
+	DiningReleaseCandidateStatus,
+	DiningReleaseCandidateValidationReport,
+	DiningReleaseLatestPointer,
+	DiningReleaseScheduleJob,
+	DiningReleaseStatus,
+	DiningReleaseValidationIssue,
+	DiningReleaseValidationStatus,
+	DiningReview,
+	DiningReviewImage,
+	DiningStallProfile,
+	DiningWindow,
+	DiningWindowAssignment,
+	DiningWindowStatus,
+} from "dining-domain";
+import { desc } from "drizzle-orm";
 import type { Env } from "../../config";
 import {
 	createRuntimeDbGetter,
@@ -19,40 +44,12 @@ import {
 	diningReleaseScheduleJobs,
 	diningReleaseSnapshots,
 	diningReleases,
+	diningReviewProjections,
 	diningStallProfiles,
 	diningWindowAssignments,
 	diningWindows,
 } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
-import { DINING_SOURCE } from "./initial-data";
-import { createInitialDiningOperationsState } from "./initial-state";
-import { createInitialDraftVersion } from "./release-lifecycle";
-import type {
-	DiningDraftVersion,
-	DiningFloorplanRef,
-	DiningReleaseCandidate,
-	DiningReleaseCandidateStatus,
-	DiningReleaseCandidateValidationReport,
-	DiningReleaseLatestPointer,
-	DiningReleaseScheduleJob,
-	DiningReleaseValidationIssue,
-	DiningReleaseValidationStatus,
-} from "./release-types";
-import type {
-	DiningAuditEvent,
-	DiningMenuItem,
-	DiningMenuOffering,
-	DiningOperationsState,
-	DiningOperationsStore,
-	DiningOpsHall,
-	DiningPublishedSnapshot,
-	DiningRelease,
-	DiningReleaseStatus,
-	DiningStallProfile,
-	DiningWindow,
-	DiningWindowAssignment,
-	DiningWindowStatus,
-} from "./types";
 
 export function createPgDiningOperationsStore(
 	env: Env,
@@ -72,76 +69,35 @@ export function createPgDiningOperationsStore(
 	};
 }
 
-export async function ensureInitialDiningOperationsRelease(input: {
-	db: RuntimeDatabase;
-}): Promise<boolean> {
-	const releaseRows = await input.db
-		.select({ releaseId: diningReleases.releaseId })
-		.from(diningReleases)
-		.where(eq(diningReleases.releaseId, "dining_release:initial"))
-		.limit(1);
-	if (releaseRows[0]) {
-		return ensureInitialDiningDraftVersion(input.db);
-	}
-	const state = createInitialDiningOperationsState();
-	await saveDiningOperationsState(input.db, state);
-	return true;
-}
-
-async function ensureInitialDiningDraftVersion(db: RuntimeDatabase): Promise<boolean> {
-	const draftVersionRows = await db
-		.select({ draftVersionId: diningDraftVersions.draftVersionId })
-		.from(diningDraftVersions)
-		.where(eq(diningDraftVersions.draftVersionId, "dining_draft_version:1"))
-		.limit(1);
-	if (draftVersionRows[0]) {
-		return false;
-	}
-	const version = createInitialDraftVersion();
-	await db.insert(diningDraftVersions).values({
-		createdAt: new Date(version.createdAt),
-		createdBy: version.createdBy,
-		draftVersionId: version.draftVersionId,
-		summaryJson: version.summary,
-		versionNumber: version.versionNumber,
-	});
-	return true;
-}
-
 async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOperationsState> {
-	const [
-		hallRows,
-		floorRows,
-		windowRows,
-		stallProfileRows,
-		assignmentRows,
-		menuItemRows,
-		menuOfferingRows,
-		draftVersionRows,
-		candidateRows,
-		validationReportRows,
-		scheduleJobRows,
-		releaseRows,
-		snapshotRows,
-		latestPointerRows,
-		auditRows,
-	] = await Promise.all([
-		db.select().from(diningHalls),
-		db.select().from(diningFloors),
-		db.select().from(diningWindows),
-		db.select().from(diningStallProfiles),
-		db.select().from(diningWindowAssignments),
-		db.select().from(diningMenuItems),
-		db.select().from(diningMenuOfferings),
-		db.select().from(diningDraftVersions).orderBy(desc(diningDraftVersions.versionNumber)),
-		db.select().from(diningReleaseCandidates).orderBy(desc(diningReleaseCandidates.createdAt)),
-		db.select().from(diningReleaseCandidateValidationReports),
-		db.select().from(diningReleaseScheduleJobs),
-		db.select().from(diningReleases).orderBy(desc(diningReleases.createdAt)),
-		db.select().from(diningReleaseSnapshots),
-		db.select().from(diningReleaseLatestPointer),
-		db.select().from(diningAuditEvents).orderBy(desc(diningAuditEvents.occurredAt)),
-	]);
+	const hallRows = await db.select().from(diningHalls);
+	const floorRows = await db.select().from(diningFloors);
+	const windowRows = await db.select().from(diningWindows);
+	const stallProfileRows = await db.select().from(diningStallProfiles);
+	const assignmentRows = await db.select().from(diningWindowAssignments);
+	const menuItemRows = await db.select().from(diningMenuItems);
+	const menuOfferingRows = await db.select().from(diningMenuOfferings);
+	const reviewRows = await db.select().from(diningReviewProjections);
+	const draftVersionRows = await db
+		.select()
+		.from(diningDraftVersions)
+		.orderBy(desc(diningDraftVersions.versionNumber));
+	const candidateRows = await db
+		.select()
+		.from(diningReleaseCandidates)
+		.orderBy(desc(diningReleaseCandidates.createdAt));
+	const validationReportRows = await db.select().from(diningReleaseCandidateValidationReports);
+	const scheduleJobRows = await db.select().from(diningReleaseScheduleJobs);
+	const releaseRows = await db
+		.select()
+		.from(diningReleases)
+		.orderBy(desc(diningReleases.createdAt));
+	const snapshotRows = await db.select().from(diningReleaseSnapshots);
+	const latestPointerRows = await db.select().from(diningReleaseLatestPointer);
+	const auditRows = await db
+		.select()
+		.from(diningAuditEvents)
+		.orderBy(desc(diningAuditEvents.occurredAt));
 
 	const floorsByHall = new Map<string, typeof floorRows>();
 	for (const floorRow of floorRows) {
@@ -219,6 +175,7 @@ async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOpe
 		releaseScheduleJobs: scheduleJobRows.map(toScheduleJob),
 		releaseSnapshots,
 		releases,
+		reviewProjections: reviewRows.map(toReviewProjection),
 		stallProfiles: stallProfileRows.map(toStallProfile),
 		windows: windowRows.map(toWindow),
 	};
@@ -441,7 +398,7 @@ async function saveDiningOperationsState(
 		const snapshotRows = Object.entries(state.releaseSnapshots).map(([releaseId, snapshot]) => {
 			const release = requireReleaseForSnapshotPersistence(state, releaseId);
 			return {
-				createdAt: new Date(release.publishedAt ?? DINING_SOURCE.updatedAt),
+				createdAt: new Date(release.publishedAt ?? release.createdAt),
 				payloadJson: toJsonRecord(snapshot),
 				releaseId,
 				snapshotHash: release.snapshotHash,
@@ -635,6 +592,25 @@ function toMenuOffering(row: typeof diningMenuOfferings.$inferSelect): DiningMen
 		menuItemId: row.menuItemId,
 		offeringId: row.offeringId,
 		priceLabel: row.priceLabel,
+	};
+}
+
+function toReviewProjection(row: typeof diningReviewProjections.$inferSelect): DiningReview {
+	return {
+		campus: row.campus,
+		comment: row.comment,
+		contributorName: row.contributorName,
+		dishName: row.dishName,
+		hallId: row.hallId,
+		hallName: row.hallName,
+		images: row.imagesJson as unknown as DiningReviewImage[],
+		paidPriceLabel: row.paidPriceLabel,
+		rating: row.rating,
+		reviewId: row.reviewId,
+		sourceRecordId: row.sourceRecordId,
+		stallName: row.stallName,
+		stallProfileId: row.stallProfileId,
+		windowId: row.windowId,
 	};
 }
 

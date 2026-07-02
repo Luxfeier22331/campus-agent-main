@@ -32,6 +32,10 @@ updated: 2026-06-28
 - `adr-0003-golden-dataset-governance.md`
 - `adr-0004-evaluation-metrics.md`
 - `adr-0010-observability-and-telemetry-stack.md`
+- `adr-0063-ops-index-external-sinks.md`
+  - Operator Console 在线值班观测收口为 app-api 最小 Ops Index + Sentry /
+    Axiom / Langfuse 外部 sink；supersedes `adr-0023` 的 broad
+    audit/quality/safety/cost read-model 方向。
 - `adr-0061-eval-runtime.md`
   - TS + Langfuse 是长期 eval runtime / platform 默认路径；Python eval gate
     进入 transitional 退役期。
@@ -78,6 +82,8 @@ updated: 2026-06-28
     raw state 与 memory boundary 继续生效。
 - `adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
+  - superseded by `adr-0063-ops-index-external-sinks.md` for operator
+    observability shape; preserved as historical context.
 - `adr-0055-unified-operator-console-surface.md`
 
 Historical / superseded：

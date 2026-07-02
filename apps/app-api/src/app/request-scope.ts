@@ -78,7 +78,6 @@ import {
 } from "../modules/official-web-target-release-gates";
 import {
 	buildOperatorObservabilityCommandService,
-	buildOperatorTraceBacklinkRecorder,
 	createPgOperatorObservabilityCommandStore,
 } from "../modules/operator-observability-command";
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
@@ -257,10 +256,6 @@ export function createRequestScopeFactory(input: {
 					}),
 					requireExecutionRuntime,
 					telemetry: input.telemetry,
-					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
-						env: input.env,
-						resolveCommandService: resolveOperatorObservabilityCommandService,
-					}),
 				});
 				return chatCommandService;
 			}

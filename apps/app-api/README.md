@@ -40,6 +40,10 @@ Durable schema and database ownership live in:
 Postgres, not two logical databases. Read-after-write-sensitive paths must be
 explicitly admitted by the data owner docs.
 
+Dining student routes read published `dining.*` projections. Dining catalog
+fixture truth belongs to `packages/dining-domain`; import/review sync belongs to
+`jobs/dining-sync`, not the app-api request path.
+
 Repeatable local / staging database artifacts stay under `apps/app-api/scripts`
 and `apps/app-api/db/shared-product-migrations` rather than package lifecycle
 scripts:
@@ -64,6 +68,8 @@ The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 - app-api data: `docs/data/app-api/README.md`
 - operator ownership: `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - official-web ownership: `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- dining domain/data ownership: `docs/architecture/domains/dining/architecture.md`,
+  `docs/data/dining.md`
 
 ## Local Development
 
@@ -81,7 +87,8 @@ pnpm --dir apps/app-api typecheck
 Shared product database bootstrap and reconciliation entry points live under
 `apps/app-api/scripts/`:
 
-- `bootstrap-shared-product-with-seeds.mjs`
+- `bootstrap-shared-product-with-seeds.mjs` applies shared DB migrations and
+  delegates dining catalog fixture import to `jobs/dining-sync`
 - `ensure-app-auth-role-search-path.mjs`
 - `reconcile-shared-db-drift.mjs`
 - `drain-official-web-projection.ts`

@@ -299,22 +299,20 @@ Operator Console `Requests` 的 canonical read path 固定为：
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
 - 让 Operator Console 通过 `apps/execution-control` 旁路获取 operator list/detail
 
-future operator-facing observability 域也遵循同一 ownership rule：
+future operator-facing visibility 域也遵循同一 ownership rule：
 
-- audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
+- `apps/app-api` 只拥有产品运行所需的最小 Ops Index：request identity、request
+  state、runtime health summary 与 external sink correlation
+- audit / quality / safety / cost 这类 broad observability surface 不再是 target
+  architecture；详细错误、日志、trace、LLM eval / score 默认由 Sentry / Axiom /
+  Langfuse 原生平台承担
 - authenticated notice processing 这类 ingestion/downstream visibility surface
   也必须经
   `apps/app-api` 的 operator-safe projection 暴露，不能让 Operator Console 回读 queue、object-store、
   operations 目录或 raw logs
-- Operator Console 只能读取 runtime-owned projection / aggregate APIs
-- `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
-  canonical Operator Console read model
-- Temporal task queue snapshot、worker autoscaler decision / actuation 也属于
-  operator runtime projection。当前 Docker Compose autoscaler 只能通过 app-api
-  internal HTTP 发布 sanitized payload；production target 下 KEDA/HPA scale event 也必须
-  先物化为 app-api operator-safe projection。Operator Console 和 eval 不直接读取
-  Temporal history、Docker state、Kubernetes API、HPA/KEDA API 或 execution-control
-  本地证据文件
+- Operator Console 只能读取 app-api admitted Ops Index / domain projection API，不能
+  route-time 查询 raw sink、Temporal history、Docker state、Kubernetes API、HPA/KEDA API
+  或 execution-control 本地证据文件
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
 `docs/architecture/system/ops-observability.md`。

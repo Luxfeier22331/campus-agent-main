@@ -258,7 +258,6 @@ export function createTelemetryMock(): AppTelemetry {
 		recordIdentityEndpoint: vi.fn(),
 		recordProjectionDrain: vi.fn(),
 		recordProjectionEnqueued: vi.fn(),
-		recordQualitySampledGrade: vi.fn(),
 		recordRequestAccepted: vi.fn(),
 		recordRequestFinalized: vi.fn(),
 		recordRequestTransportError: vi.fn(),

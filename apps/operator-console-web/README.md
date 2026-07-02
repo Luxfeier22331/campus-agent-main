@@ -68,7 +68,7 @@ OPERATOR_CONSOLE_LIVE_SMOKE=1 pnpm dev
 Then open:
 
 ```text
-http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/observability/overview
+http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/requests
 ```
 
 ## Operational Notes
@@ -80,3 +80,6 @@ http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/observability/overv
   health checks, `apps/execution-control`.
 - Missing dining seed or eval coverage snapshot should surface the governed
   backend diagnostic state, not synthesized frontend data.
+- Current minimal Operator Console does not expose a dining operations
+  workspace. Dining review ingestion is handled by `jobs/dining-sync`; do not
+  route Feishu/Lark credentials or dining sync controls through this Worker.

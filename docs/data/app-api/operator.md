@@ -70,8 +70,8 @@ updated: 2026-06-13
 
 用途：
 
-- panel `Audit` 域的 curated request-scoped timeline
-- request observability detail 的 `auditSummary` 上游
+- current-code residue for the old standalone Audit/request-detail timeline
+- not part of the target Ops Index architecture
 
 最小列：
 
@@ -101,6 +101,7 @@ updated: 2026-06-13
 
 规则：
 
+- 该表不再作为目标态数据模型扩展；后续代码清理应优先移除或收窄它
 - `audit_event_id` 默认与 `runtime.projection_outbox.event_id` 对齐，保证幂等 timeline 物化
 - 这是 curated governance-safe audit projection，不是 raw JSONL replay
 - `status` 表示该 audit event 自身的阶段语义；`terminal_code` 表示当前请求最终 terminal
@@ -369,8 +370,8 @@ updated: 2026-06-13
 
 用途：
 
-- operator `Quality` 域的 app-owned badcase queue
-- 当前已冻结的第一版 schema 支撑 `GET /api/operator/quality/badcases`
+- current-code residue for the old operator `Quality` badcase queue
+- not part of the target Ops Index architecture
 
 最小列：
 
@@ -396,6 +397,8 @@ updated: 2026-06-13
 
 规则：
 
+- 该表不再作为目标态数据模型扩展；future badcase/eval workflow 默认进入
+  Langfuse/eval-owned workflow 或新的 allowlisted curated-summary contract
 - 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
 - 当前已冻结的第一版 schema 仅由 runtime monitor 生成 badcase，`detected_by` 固定为
   `runtime_monitor`
@@ -407,18 +410,17 @@ updated: 2026-06-13
 - `badcase_id` 采用 request-scoped stable id，保证 projector 重放时幂等替换
 - `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前已冻结的第一版 schema 允许为 `null`
 - `summary` 必须是 panel-safe 安全摘要，不得回放 raw prompt、raw answer、raw retrieval payload
-- `GET /api/operator/quality/eval-candidates` 不新增独立表；它从
-  `operator.quality_badcase_projection`、`operator.quality_grade_projection` 与
-  `operator.trace_backlink_projection` 派生 operator-safe eval candidate intake，
-  不写入 eval golden truth
+- 旧 `GET /api/operator/quality/eval-candidates` 不再是目标态 contract；future
+  eval/review intake 必须通过新的 explicit curated-summary contract 重新准入，不得从这些
+  residue 表继续派生 active product surface
 
 ## `operator.quality_grade_projection`
 
 用途：
 
-- operator `Quality` 域的 sampled grade read model
-- `quality summary.sampledGrades`、`quality timeseries.sampledGroundingPassRate`
-  与 `quality badcases.grade` 的 app-owned 上游
+- current-code residue for old app-api-owned sampled grade projection
+- not part of the target Ops Index architecture; Langfuse owns score/platform
+  workflow, while repo fixtures own canonical eval truth
 
 最小列：
 
@@ -450,6 +452,7 @@ updated: 2026-06-13
 
 规则：
 
+- 该表不再作为目标态数据模型扩展；不得以它为理由恢复 online quality dashboard
 - 这是 app-owned projection，不是 grader sink query cache
 - `grade_id` 必须稳定地绑定 `request_id + grade_source + grade_domain`，保证重复回流时 upsert
   幂等
@@ -463,8 +466,9 @@ updated: 2026-06-13
 
 用途：
 
-- operator-facing request trace / issue deep link projection
-- request observability detail、audit detail、quality badcase queue 的 `links.*` 上游
+- current-code residue for old persisted trace/issue deep links
+- target Ops Index should prefer safe link template rendering or minimal sink
+  correlation metadata over a persisted backlink table
 
 最小列：
 
@@ -482,6 +486,7 @@ updated: 2026-06-13
 
 规则：
 
+- 该表不再作为目标态数据模型扩展；不得以它为理由让 app-api 复制 sink data
 - 这是 app-owned backlink projection，不是 raw sink event cache
 - `request_id` 与 request-facing operator surfaces 一一对应
 - deep link / fingerprint 可以来自 sink reconciliation 或 trace system，但必须先写入这里，panel

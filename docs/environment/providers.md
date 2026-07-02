@@ -102,6 +102,80 @@ Reading model:
   reads.
 - Reference: `../architecture/system/data-plane.md`.
 
+### Dining Feishu/Lark Sync
+
+- Owner: `jobs/dining-sync`.
+- Scope: read Feishu/Lark Base catalog records into
+  `dining.source_observations`, publish accepted catalog observations into
+  dining catalog/release tables, read Feishu/Lark Base review records, download
+  accepted attachments, write public images to S3-compatible object storage and
+  publish `dining.source_observations(source_type=feishu_review)` plus
+  `dining.review_projections`.
+- Catalog import env keys:
+  `DATABASE_URL` or `APP_API_OPERATOR_DATABASE_URL`.
+- Shared Feishu/Lark catalog env keys:
+  `DINING_LARK_APP_ID`, `DINING_LARK_APP_SECRET`,
+  `DINING_LARK_BASE_TOKEN`, `DINING_LARK_CAMPUS_TABLE_ID`,
+  `DINING_LARK_HALL_TABLE_ID`, `DINING_LARK_STALL_TABLE_ID`,
+  `DINING_LARK_DISH_TABLE_ID`, `DATABASE_URL`.
+- Review sync env keys add:
+  `DINING_LARK_REVIEW_TABLE_ID`, `DINING_LARK_REVIEW_VIEW_ID`,
+  `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_REGION`, `OBJECT_STORE_ACCESS_KEY`,
+  `OBJECT_STORE_SECRET_KEY`, `DINING_OBJECT_STORE_BUCKET`,
+  `DINING_OBJECT_STORE_PUBLIC_BASE_URL`, `DINING_OBJECT_STORE_REVIEW_PREFIX`.
+- Moderation env keys:
+  `DINING_MODERATION_BASE_URL`, `DINING_MODERATION_API_KEY`,
+  `DINING_MODERATION_TEXT_MODEL`, `DINING_MODERATION_IMAGE_MODEL`,
+  `DINING_MODERATION_TIMEOUT_MS`.
+- Current moderation provider: Gitee AI OpenAI-compatible moderation endpoint,
+  default `DINING_MODERATION_BASE_URL=https://ai.gitee.com/v1`.
+- Current moderation models:
+  `DINING_MODERATION_TEXT_MODEL=Security-semantic-filtering` and
+  `DINING_MODERATION_IMAGE_MODEL=nsfw-classifier`.
+- `moark-text-moderation` is a paid optional text moderation model and may be
+  selected by overriding `DINING_MODERATION_TEXT_MODEL` when needed.
+- `nonescape-v0` is not the dining review image safety gate.
+- `DINING_MODERATION_API_KEY` is a server-side Job/CronJob secret. Never commit
+  the real token to git, docs, ConfigMap, or browser-facing env.
+- `nsfw-classifier` consumes `image_url` inputs, so
+  `DINING_OBJECT_STORE_PUBLIC_BASE_URL` must expose the derived moderation
+  object prefix to the provider. The moderation prefix is not written to
+  `dining.review_projections`.
+- Placement: dining sync Job/CronJob Secret/ConfigMap or one-shot Job env.
+  These values are not app-api Worker env and are not browser public env.
+- Minimum Feishu/Lark scopes for the current catalog/review table shape:
+  `base:table:read`, `base:field:read`, `base:record:retrieve`,
+  `docs:document.media:download`.
+- Wider scopes such as `bitable:app:readonly` or `bitable:app` are only
+  acceptable when the tenant/platform cannot grant the narrower Base read
+  scopes.
+- Production uses a project-specific Feishu/Lark application identity. Local
+  user `lark-cli` login is for validation/debug only and must not be mounted
+  into CronJob runtime.
+- `DINING_OBJECT_STORE_PUBLIC_BASE_URL` must resolve to a student/tool readable
+  static resource base. Published projections must never store Feishu/Lark
+  `file_token` or temporary download URLs.
+- Catalog commands:
+  - `sync-all` is the default Job/CronJob command. It refreshes and publishes
+    catalog first, then syncs review observations/projections against that
+    current catalog.
+  - `catalog-observations` writes only
+    `dining.source_observations(source_type=feishu_catalog)` by upsert and
+    stale marking; it does not require review, object-store or moderation env.
+  - `publish-catalog` refreshes Feishu/Lark catalog observations and writes the
+    latest dining catalog/release snapshot; it does not require review,
+    object-store or moderation env.
+  - `publish-catalog-from-observations` writes the latest dining catalog/release
+    snapshot from already-synced PG observations; it requires only a target PG
+    connection and does not require Feishu/Lark env.
+  - `import-dev-seed` imports a minimal local/dev seed outside production; it is
+    not production catalog source truth.
+  - `run` syncs only reviews and requires already-active catalog observations
+    for stall/window binding.
+- Current catalog sync does not write raw Feishu/Lark catalog archives to
+  object storage. S3-compatible object storage is used for review image
+  attachment materialization only.
+
 ## App And Edge Providers
 
 ### Cloudflare Turnstile
@@ -210,6 +284,19 @@ Add only what the selected task registry/command requires:
 - domain runtime profile inputs
 
 Do not revive old Python ingestion command env as fallback truth.
+
+### Dining Sync Job / CronJob
+
+Add:
+
+- dining Feishu/Lark sync env listed above
+- shared Postgres runtime DSN for writing `dining.source_observations`,
+  catalog/release tables and `dining.review_projections`
+- S3-compatible object-store credentials for public review images
+- content moderation provider env for `jobs/dining-sync`
+
+Do not add these values to `apps/app-api/.dev.vars`; app-api online requests
+read published projections only.
 
 ### Worker Staging Deploy
 

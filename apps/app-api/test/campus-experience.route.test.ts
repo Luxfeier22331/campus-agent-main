@@ -6,6 +6,7 @@ import { createApp } from "../src/app";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
 import {
 	buildDiningOperationsService,
+	createDevDiningOperationsState,
 	createInMemoryDiningOperationsStore,
 } from "../src/modules/dining-ops";
 
@@ -63,10 +64,29 @@ function createService(): CampusExperienceService {
 describe("campus experience routes", () => {
 	it("returns map and dining projections through app-api", async () => {
 		const service = createService();
+		const diningState = createDevDiningOperationsState();
+		diningState.reviewProjections = [
+			{
+				campus: "海淀校区",
+				comment: "清淡，分量合适",
+				contributorName: "果小生",
+				dishName: "金汤鱼粉",
+				hallId: "haidian-canteen-1",
+				hallName: "海淀一食堂",
+				images: [],
+				paidPriceLabel: "12 元",
+				rating: 4,
+				reviewId: "dining-review:route-test",
+				sourceRecordId: "route-test",
+				stallName: "鱼粉",
+				stallProfileId: "stall:fish-noodle",
+				windowId: "window:haidian-canteen-1:01",
+			},
+		];
 		const app = createApp(env, {
 			campusExperienceService: service,
 			diningOperationsService: buildDiningOperationsService({
-				store: createInMemoryDiningOperationsStore(),
+				store: createInMemoryDiningOperationsStore(diningState),
 			}),
 		});
 
@@ -80,6 +100,16 @@ describe("campus experience routes", () => {
 				"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
 			),
 		);
+		const haidianSecondFloor = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/dining/halls/haidian-canteen-2/floors/haidian-canteen-2",
+			),
+		);
+		const haidianFourthFloor = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/dining/halls/haidian-canteen-4/floors/haidian-canteen-4",
+			),
+		);
 		const reviews = await app.fetch(
 			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/reviews"),
 		);
@@ -88,19 +118,64 @@ describe("campus experience routes", () => {
 		expect(place.status).toBe(200);
 		expect(halls.status).toBe(200);
 		expect(floor.status).toBe(200);
+		expect(haidianSecondFloor.status).toBe(200);
+		expect(haidianFourthFloor.status).toBe(200);
 		expect(reviews.status).toBe(200);
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
-		await expect(floor.json()).resolves.toMatchObject({
+		await expect(halls.json()).resolves.toMatchObject({
+			halls: expect.arrayContaining([
+				expect.objectContaining({
+					floors: [{ floorId: "haidian-canteen-2", label: "地图" }],
+					hallId: "haidian-canteen-2",
+					name: "海淀二食堂",
+				}),
+				expect.objectContaining({
+					floors: [{ floorId: "haidian-canteen-4", label: "地图" }],
+					hallId: "haidian-canteen-4",
+					name: "海淀四食堂",
+				}),
+			]),
+		});
+		const floorPayload = (await floor.json()) as {
+			floor: { floorId: string; hallId: string };
+			source: { updatedAt: string };
+		};
+		expect(floorPayload).toMatchObject({
 			floor: {
 				floorId: "haidian-canteen-1-1f",
 				hallId: "haidian-canteen-1",
 			},
+		});
+		expect(floorPayload.source).toEqual({
+			updatedAt: expect.any(String),
+		});
+		await expect(haidianSecondFloor.json()).resolves.toMatchObject({
+			floor: {
+				floorId: "haidian-canteen-2",
+				hallId: "haidian-canteen-2",
+				label: "海淀二食堂",
+			},
+			windows: expect.arrayContaining([
+				expect.objectContaining({ assignment: expect.any(Object) }),
+			]),
+		});
+		await expect(haidianFourthFloor.json()).resolves.toMatchObject({
+			floor: {
+				floorId: "haidian-canteen-4",
+				hallId: "haidian-canteen-4",
+				label: "海淀四食堂",
+			},
+			windows: expect.arrayContaining([
+				expect.objectContaining({ assignment: expect.any(Object) }),
+			]),
 		});
 		await expect(reviews.json()).resolves.toMatchObject({
 			reviews: expect.arrayContaining([
 				expect.objectContaining({
 					dishName: expect.any(String),
 					hallId: "haidian-canteen-1",
+					stallProfileId: "stall:fish-noodle",
+					windowId: "window:haidian-canteen-1:01",
 				}),
 			]),
 		});

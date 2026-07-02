@@ -22,6 +22,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             root = Path(tmp_dir)
             (root / ".github/workflows").mkdir(parents=True)
             (root / "apps/app-api").mkdir(parents=True)
+            (root / "jobs/dining-sync").mkdir(parents=True)
             (root / "package.json").write_text(
                 json.dumps(
                     {
@@ -35,6 +36,10 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 json.dumps({"packageManager": "pnpm@10.17.1"}),
                 encoding="utf-8",
             )
+            (root / "jobs/dining-sync/package.json").write_text(
+                json.dumps({"packageManager": "pnpm@10.17.1"}),
+                encoding="utf-8",
+            )
             _write_minimal_workflows(root, pnpm_version="10.17.1")
 
             issues = audit_ci_workflow_contracts(root=root)
@@ -42,6 +47,13 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
         self.assertIn(
             CiWorkflowContractIssue(
                 path="apps/app-api/package.json",
+                message="packageManager pnpm version 10.17.1 does not match root 10.26.1",
+            ),
+            issues,
+        )
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path="jobs/dining-sync/package.json",
                 message="packageManager pnpm version 10.17.1 does not match root 10.26.1",
             ),
             issues,

@@ -70,8 +70,11 @@ export function registerWorkerDiningOpsProxySuite() {
 						path: "/api/ops/dining/release-candidates/dining_release_candidate:1/cancel",
 					},
 					{ method: "GET", path: "/api/ops/dining/releases" },
-					{ method: "GET", path: "/api/ops/dining/releases/dining_release:initial" },
-					{ method: "POST", path: "/api/ops/dining/releases/dining_release:initial/rollback" },
+					{ method: "GET", path: "/api/ops/dining/releases/dining_release:dev_seed" },
+					{
+						method: "POST",
+						path: "/api/ops/dining/releases/dining_release:dev_seed/rollback",
+					},
 					{ method: "GET", path: "/api/ops/dining/audit-events" },
 				];
 
@@ -91,8 +94,14 @@ export function registerWorkerDiningOpsProxySuite() {
 				for (const blocked of [
 					{ method: "GET", path: "/api/ops/dining/source-observations" },
 					{ method: "POST", path: "/api/ops/dining/releases" },
-					{ method: "GET", path: "/api/ops/dining/releases/dining_release:initial/preview" },
-					{ method: "POST", path: "/api/ops/dining/releases/dining_release:initial/publish" },
+					{
+						method: "GET",
+						path: "/api/ops/dining/releases/dining_release:dev_seed/preview",
+					},
+					{
+						method: "POST",
+						path: "/api/ops/dining/releases/dining_release:dev_seed/publish",
+					},
 					{ method: "GET", path: "/api/federation/authorize" },
 				]) {
 					const response = await worker.fetch(

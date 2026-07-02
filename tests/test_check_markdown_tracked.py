@@ -21,6 +21,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             config,
             {
                 "config": {
+                    "MD013": False,
                     "MD033": {
                         "allowed_elements": [
                             "role",
@@ -29,7 +30,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                             "output_contract",
                             "CourseMapSection",
                         ]
-                    }
+                    },
                 }
             },
         )
@@ -56,6 +57,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 ".github/ISSUE_TEMPLATE",
                 "docs",
                 "apps",
+                "jobs",
                 "packages",
                 "configs",
                 "infra",
@@ -83,10 +85,12 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
 
         self.assertIn("apps/app-api/README.md", relative_paths)
         self.assertIn("apps/official-web-collector/README.md", relative_paths)
+        self.assertIn("jobs/dining-sync/README.md", relative_paths)
         self.assertIn("infra/otel/README.md", relative_paths)
         self.assertIn("SECURITY.md", relative_paths)
         self.assertIn(".github/ISSUE_TEMPLATE/bug_report.md", relative_paths)
         self.assertNotIn("apps/public-docs/docs/index.md", relative_paths)
+        self.assertNotIn("apps/campus-web/docs/index.md", relative_paths)
         self.assertNotIn(
             "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
             relative_paths,
@@ -107,7 +111,9 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / "README.md",
                 repo_root / "docs/reference/testing-and-verification-lanes.md",
+                repo_root / "apps/app-api/README.md",
                 repo_root / "apps/official-web-collector/README.md",
+                repo_root / "jobs/dining-sync/README.md",
             ),
         ):
             run_mock.return_value = subprocess.CompletedProcess(
@@ -128,7 +134,9 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 ".markdownlint-cli2.jsonc",
                 "README.md",
                 "docs/reference/testing-and-verification-lanes.md",
+                "apps/app-api/README.md",
                 "apps/official-web-collector/README.md",
+                "jobs/dining-sync/README.md",
             ],
         )
 
@@ -172,6 +180,6 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         return True
     if path.startswith(".github/ISSUE_TEMPLATE/"):
         return path.endswith(".md")
-    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
+    if path.startswith(("apps/", "jobs/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False

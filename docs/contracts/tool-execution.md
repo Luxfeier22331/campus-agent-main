@@ -302,21 +302,27 @@ browser-facing execution response，也不是 Operator Console query backend。
 
 - `POST /api/internal/execution/audit-events`
 
+This section describes the existing execution event ingest seam. ADR-0063
+supersedes the older broad operator audit model: execution events may only feed
+minimal request status / reason-code projection and must not recreate a
+standalone audit workspace or sink mirror.
+
 调用规则：
 
 - 由 Go `apps/execution-control` 使用 `x-app-internal-auth` 调用 `app-api`
-- delivery 是 fail-closed；开启 execution audit 后，audit sink 不可用或返回非 2xx 时，
-  `apps/execution-control` 必须返回稳定诊断错误，不得继续完成 answer request
-- Go writer 同步发送每个 safe audit event；不存在 batch、flush、retry、local spool 或
-  drop path
+- execution event ingest 失败必须暴露为 runtime health / telemetry delivery diagnostic；
+  它不得把已经完成的 answer request 改写成失败，也不得作为回答链路的补救语义
+- Go writer 只发送 allowlisted safe event summary；不存在 raw payload batch、local spool
+  或 sink mirror path
 - `app-api` 验证 `request_id` 与 `trace_id` 后写入 `runtime.projection_outbox`
 - ingest 成功后 `app-api` 会调度 request-scoped projector drain；cron projector drain
   只承担周期性一致性检查，不承担 answer path 的补救语义
 - `Sentry` / `Axiom` 只作为 sanitized telemetry sink 或 backlink 来源，不成为 panel
   canonical truth
-- request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder
-  写入 `operator.trace_backlink_projection`；Go `apps/execution-control` 不直接服务
-  panel，也不直接写 operator schema
+- request lifecycle 中的 trace / issue backlink target 只能作为 safe correlation 或
+  link-template output；旧 `operator.trace_backlink_projection` 是 current-code residue，
+  不再是目标态持久表；Go `apps/execution-control` 不直接服务 panel，也不直接写 operator
+  schema
 
 第一版允许的 event type：
 

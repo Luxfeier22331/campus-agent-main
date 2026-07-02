@@ -4,11 +4,9 @@ import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
 	projectionOutbox,
-	qualityGradeProjection,
 	requestObservabilityFact,
 	temporalTaskQueueCurrent,
 	temporalTaskQueueSnapshot,
-	traceBacklinkProjection,
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
 	workerAutoscalerDecisionCurrent,
@@ -36,37 +34,6 @@ export interface StoredRequestObservabilitySeed {
 	modelName: string | null;
 }
 
-export interface QualityGradeProjectionWrite {
-	gradeId: string;
-	requestId: string;
-	traceId: string;
-	surface: string;
-	requestStartedAt: string;
-	selectedTool: string | null;
-	requestedTool: string | null;
-	principalType: string;
-	collection: string | null;
-	modelName: string | null;
-	gradeSource: string;
-	gradeDomain: "grounding" | "citation" | "policy" | "intent";
-	verdict: "pass" | "fail" | "needs_review";
-	scoreMilli: number | null;
-	graderVersion: string;
-	rationaleSummary: string | null;
-	requestedScopeSummary: string | null;
-	sampledAt: string;
-	projectedAt: string;
-}
-
-export interface TraceBacklinkProjectionWrite {
-	requestId: string;
-	traceId: string;
-	traceLink: string | null;
-	issueLink: string | null;
-	issueFingerprint: string | null;
-	projectedAt: string;
-}
-
 export interface ExecutionAuditEventWrite {
 	eventId: string;
 	requestId: string;
@@ -87,9 +54,7 @@ export interface TemporalTaskQueueRuntimeProjectionWrite {
 export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
 	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
-	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTemporalTaskQueueRuntime(input: TemporalTaskQueueRuntimeProjectionWrite): Promise<void>;
-	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
 }
 
 function toStoredRequestObservabilitySeed(
@@ -161,62 +126,6 @@ export function createPgOperatorObservabilityCommandStore(
 				.limit(1);
 
 			return rows[0] ? toStoredRequestObservabilitySeed(rows[0]) : null;
-		},
-
-		async upsertQualityGrades(input) {
-			if (input.grades.length === 0) {
-				return;
-			}
-
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				for (const grade of input.grades) {
-					await tx
-						.insert(qualityGradeProjection)
-						.values({
-							collection: grade.collection,
-							gradeDomain: grade.gradeDomain,
-							gradeId: grade.gradeId,
-							gradeSource: grade.gradeSource,
-							graderVersion: grade.graderVersion,
-							modelName: grade.modelName,
-							principalType: grade.principalType,
-							projectedAt: new Date(grade.projectedAt),
-							rationaleSummary: grade.rationaleSummary,
-							requestId: grade.requestId,
-							requestStartedAt: new Date(grade.requestStartedAt),
-							requestedTool: grade.requestedTool,
-							sampledAt: new Date(grade.sampledAt),
-							scoreMilli: grade.scoreMilli,
-							selectedTool: grade.selectedTool,
-							surface: grade.surface,
-							traceId: grade.traceId,
-							verdict: grade.verdict,
-						})
-						.onConflictDoUpdate({
-							set: {
-								collection: grade.collection,
-								gradeDomain: grade.gradeDomain,
-								gradeSource: grade.gradeSource,
-								graderVersion: grade.graderVersion,
-								modelName: grade.modelName,
-								principalType: grade.principalType,
-								projectedAt: new Date(grade.projectedAt),
-								rationaleSummary: grade.rationaleSummary,
-								requestId: grade.requestId,
-								requestStartedAt: new Date(grade.requestStartedAt),
-								requestedTool: grade.requestedTool,
-								sampledAt: new Date(grade.sampledAt),
-								scoreMilli: grade.scoreMilli,
-								selectedTool: grade.selectedTool,
-								surface: grade.surface,
-								traceId: grade.traceId,
-								verdict: grade.verdict,
-							},
-							target: qualityGradeProjection.gradeId,
-						});
-				}
-			});
 		},
 
 		async upsertTemporalTaskQueueRuntime(input) {
@@ -458,38 +367,6 @@ export function createPgOperatorObservabilityCommandStore(
 								taskQueueKind: posture.taskQueueKind,
 							},
 							target: workerAutoscalerPosture.postureId,
-						});
-				}
-			});
-		},
-
-		async upsertTraceBacklinks(input) {
-			if (input.backlinks.length === 0) {
-				return;
-			}
-
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				for (const backlink of input.backlinks) {
-					await tx
-						.insert(traceBacklinkProjection)
-						.values({
-							issueFingerprint: backlink.issueFingerprint,
-							issueLink: backlink.issueLink,
-							projectedAt: new Date(backlink.projectedAt),
-							requestId: backlink.requestId,
-							traceId: backlink.traceId,
-							traceLink: backlink.traceLink,
-						})
-						.onConflictDoUpdate({
-							set: {
-								issueFingerprint: backlink.issueFingerprint,
-								issueLink: backlink.issueLink,
-								projectedAt: new Date(backlink.projectedAt),
-								traceId: backlink.traceId,
-								traceLink: backlink.traceLink,
-							},
-							target: traceBacklinkProjection.requestId,
 						});
 				}
 			});

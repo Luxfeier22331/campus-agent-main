@@ -345,6 +345,7 @@
 		"CAMPUS_WEB_": ["campus-web"],
 		"CLOUDFLARE_": ["app-api"],
 		"DEPLOYMENT_": ["infra"],
+		"DINING_": ["command", "infra", "staging-local"],
 		"DOCUMENT_REGISTRY_": ["root"],
 		"EMBEDDING_": ["root"],
 		"EVAL_": ["root"],

@@ -1,16 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import {
-	createCampusPrincipal,
-	createOperatorPrincipal,
-	createOperatorQueryServiceMock,
-	env,
-} from "./operator-query.route.test-support";
+import { createOperatorQueryServiceMock, env } from "./operator-query.route.test-support";
+
+const internalEnv = {
+	...env,
+	APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+};
+
+const internalRuntimePrincipal = expect.objectContaining({
+	principal: expect.objectContaining({
+		principalId: "execution-control-runtime",
+		type: "operator",
+	}),
+});
 
 export function registerOperatorQueryRuntimeOpsSuite(): void {
-	describe("GET /api/operator/runtime/temporal-task-queues", () => {
-		it("returns Temporal task queue projections for operator principals", async () => {
+	describe("GET /api/internal/operator/runtime/temporal-task-queues", () => {
+		it("returns Temporal task queue projections for trusted internal callers", async () => {
 			const service = createOperatorQueryServiceMock({
 				listTemporalTaskQueues: vi.fn().mockResolvedValue({
 					page: { nextCursor: null },
@@ -32,15 +39,14 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					],
 				}),
 			});
-			const principal = createOperatorPrincipal();
-			const app = createApp(env, {
-				getPrincipal: vi.fn().mockResolvedValue(principal),
+			const app = createApp(internalEnv, {
 				operatorQueryService: service,
 			});
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/temporal-task-queues?taskQueue=campus-agent.activity.knowledge&limit=10",
+					"https://app-api.internal/api/internal/operator/runtime/temporal-task-queues?taskQueue=campus-agent.activity.knowledge&limit=10",
+					{ headers: { "x-app-internal-auth": "trusted-secret" } },
 				),
 			);
 
@@ -71,95 +77,29 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					taskQueue: "campus-agent.activity.knowledge",
 					taskQueueKind: null,
 				},
-				principal,
+				principal: internalRuntimePrincipal,
 			});
 		});
 
-		it("rejects non-operator principals", async () => {
+		it("rejects callers without the internal shared secret", async () => {
 			const service = createOperatorQueryServiceMock({
 				listTemporalTaskQueues: vi.fn(),
 			});
-			const app = createApp(env, {
-				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			const app = createApp(internalEnv, {
 				operatorQueryService: service,
 			});
 
 			const response = await app.fetch(
-				new Request("https://app-api.internal/api/operator/runtime/temporal-task-queues"),
+				new Request("https://app-api.internal/api/internal/operator/runtime/temporal-task-queues"),
 			);
 
-			expect(response.status).toBe(403);
+			expect(response.status).toBe(401);
 			expect(service.listTemporalTaskQueues).not.toHaveBeenCalled();
 		});
 	});
 
-	describe("GET /api/operator/runtime/autoscaler/decisions", () => {
-		it("returns autoscaler decisions and actuations for operator principals", async () => {
-			const service = createOperatorQueryServiceMock({
-				listAutoscalerDecisions: vi.fn().mockResolvedValue({
-					decisions: [
-						{
-							budgetState: "within_budget",
-							currentReplicas: 1,
-							decidedAt: "2026-06-15T10:00:05.000Z",
-							decision: "scale_up",
-							decisionId: "decision_01",
-							desiredReplicas: 2,
-							reason: "required poller floor is not met",
-							sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-							targetService: "activity-worker-knowledge",
-							taskQueue: "campus-agent.activity.knowledge",
-							taskQueueKind: "activity",
-						},
-					],
-					page: { nextCursor: null },
-				}),
-			});
-			const principal = createOperatorPrincipal();
-			const app = createApp(env, {
-				getPrincipal: vi.fn().mockResolvedValue(principal),
-				operatorQueryService: service,
-			});
-
-			const response = await app.fetch(
-				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/decisions?targetService=activity-worker-knowledge",
-				),
-			);
-
-			expect(response.status).toBe(200);
-			await expect(response.json()).resolves.toEqual({
-				decisions: [
-					{
-						budgetState: "within_budget",
-						currentReplicas: 1,
-						decidedAt: "2026-06-15T10:00:05.000Z",
-						decision: "scale_up",
-						decisionId: "decision_01",
-						desiredReplicas: 2,
-						reason: "required poller floor is not met",
-						sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-						targetService: "activity-worker-knowledge",
-						taskQueue: "campus-agent.activity.knowledge",
-						taskQueueKind: "activity",
-					},
-				],
-				page: { nextCursor: null },
-			});
-			expect(service.listAutoscalerDecisions).toHaveBeenCalledWith({
-				filters: {
-					cursor: null,
-					decision: null,
-					limit: null,
-					targetService: "activity-worker-knowledge",
-				},
-				principal,
-			});
-		});
-	});
-
-	describe("GET /api/operator/runtime/autoscaler/actuations", () => {
-		it("returns autoscaler actuation evidence for operator principals", async () => {
+	describe("GET /api/internal/operator/runtime/autoscaler/actuations", () => {
+		it("returns autoscaler actuation evidence for trusted internal callers", async () => {
 			const service = createOperatorQueryServiceMock({
 				listAutoscalerActuations: vi.fn().mockResolvedValue({
 					actuations: [
@@ -179,15 +119,14 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					page: { nextCursor: null },
 				}),
 			});
-			const principal = createOperatorPrincipal();
-			const app = createApp(env, {
-				getPrincipal: vi.fn().mockResolvedValue(principal),
+			const app = createApp(internalEnv, {
 				operatorQueryService: service,
 			});
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/actuations?targetService=activity-worker-knowledge&status=failed",
+					"https://app-api.internal/api/internal/operator/runtime/autoscaler/actuations?targetService=activity-worker-knowledge&status=failed",
+					{ headers: { "x-app-internal-auth": "trusted-secret" } },
 				),
 			);
 
@@ -217,13 +156,13 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					status: "failed",
 					targetService: "activity-worker-knowledge",
 				},
-				principal,
+				principal: internalRuntimePrincipal,
 			});
 		});
 	});
 
-	describe("GET /api/operator/runtime/autoscaler/postures", () => {
-		it("returns KEDA/HPA scaler posture for operator principals", async () => {
+	describe("GET /api/internal/operator/runtime/autoscaler/postures", () => {
+		it("returns KEDA/HPA scaler posture for trusted internal callers", async () => {
 			const service = createOperatorQueryServiceMock({
 				listAutoscalerPostures: vi.fn().mockResolvedValue({
 					page: { nextCursor: null },
@@ -252,15 +191,14 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					],
 				}),
 			});
-			const principal = createOperatorPrincipal();
-			const app = createApp(env, {
-				getPrincipal: vi.fn().mockResolvedValue(principal),
+			const app = createApp(internalEnv, {
 				operatorQueryService: service,
 			});
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/postures?targetService=activity-worker-knowledge&scalerStatus=healthy",
+					"https://app-api.internal/api/internal/operator/runtime/autoscaler/postures?targetService=activity-worker-knowledge&scalerStatus=healthy",
+					{ headers: { "x-app-internal-auth": "trusted-secret" } },
 				),
 			);
 
@@ -298,7 +236,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					scalerStatus: "healthy",
 					targetService: "activity-worker-knowledge",
 				},
-				principal,
+				principal: internalRuntimePrincipal,
 			});
 		});
 	});

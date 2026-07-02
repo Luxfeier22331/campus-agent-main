@@ -146,19 +146,15 @@ updated: 2026-06-13
 - v1 不保存自由文本 comment
 - `DELETE` 撤回反馈时 hard delete；不保留 tombstone
 - 不保存 raw prompt、raw answer、provider response、retrieval payload 或 auth material
-- `request_id` 用于和 request observability / operator quality read model 关联
-- operator quality feedback aggregates 以 `runtime.request_observability_fact.started_at`
-  所在窗口为准，通过 `request_id` 关联 `chat.message_feedback`；feedback `updated_at`
-  只表示投票更新时间，不重新定义 operator quality 时间窗
-- `vote=unhelpful` 可以作为 operator quality eval candidate export 输入；export 只携带
-  `request_id`、`conversation_id`、`message_id`、reason code、typed intent summary 与受控
-  quality posture，不携带 raw transcript、raw auth material、provider raw response 或 retrieval
-  payload
+- `request_id` 用于和请求执行事实关联，帮助定位对应 `requestId` / `traceId`
+- `chat.message_feedback` 是产品侧反馈事实，不是在线 Operator Console 的
+  quality dashboard、eval candidate queue 或 release evidence 面板输入
+- `vote=unhelpful` 只能作为后续人工分析或 Langfuse / eval 平台导入的受控来源；导入能力
+  必须另有显式 contract，不能从这张表隐式打开
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
   execution admission
 - rollout / rollback 不改变表语义：关闭 campus-web UI 只停止新浏览器入口，不删除
-  `chat.message_feedback`；已写入 feedback 继续作为 app-api-owned quality signal
-  供 operator summary、timeseries 和 eval candidate export 读取
+  `chat.message_feedback`
 
 ## `chat.session_slots`
 

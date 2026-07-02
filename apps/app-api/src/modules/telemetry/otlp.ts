@@ -14,7 +14,6 @@ const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["request.transport_error", "runtime.request.transport_error"],
 	["projection.enqueued", "runtime.projection.enqueued"],
 	["projection.drain", "runtime.projection.drain"],
-	["quality.sampled_grade", "runtime.quality.sampled_grade"],
 	["identity.endpoint", "runtime.identity.endpoint"],
 	["execution.admission_rejected", "runtime.execution.admission_rejected"],
 	["execution.cancel_requested", "runtime.execution.cancel_requested"],

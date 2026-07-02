@@ -73,6 +73,215 @@ describe("dining floorplan manifest", () => {
 		expect(() => assertDiningFloorplanManifest(DINING_FLOORPLAN_MANIFEST)).not.toThrow();
 	});
 
+	it("uses unified structural SVG floorplans for Juya floors", () => {
+		const firstFloor = getDiningFloorplanByFloor({
+			floorId: "fengtai-juya-canteen-1f",
+			hallId: "fengtai-juya-canteen",
+		});
+		const secondFloor = getDiningFloorplanByFloor({
+			floorId: "fengtai-juya-canteen-2f",
+			hallId: "fengtai-juya-canteen",
+		});
+
+		expect(firstFloor.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(firstFloor.svgMarkup).toContain('class="circulation"');
+		expect(firstFloor.svgMarkup).toContain('data-map-role="entrance"');
+		expect(firstFloor.svgMarkup).not.toContain("data-source-kind");
+		expect(firstFloor.svgMarkup).not.toContain("<image");
+		expect(firstFloor.anchorInventory.map((anchor) => anchor.anchorId)).toEqual([
+			"window-01",
+			"window-02",
+			"window-03",
+			"window-04",
+			"window-05",
+			"window-06",
+			"window-07",
+			"window-08",
+		]);
+
+		expect(secondFloor.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(secondFloor.svgMarkup).toContain('class="circulation"');
+		expect(secondFloor.svgMarkup).toContain('data-map-role="entrance"');
+		expect(secondFloor.svgMarkup).not.toContain("data-source-kind");
+		expect(secondFloor.svgMarkup).not.toContain("<image");
+		expect(secondFloor.anchorInventory.map((anchor) => anchor.anchorId)).toEqual([
+			"window-01",
+			"window-02",
+			"window-03",
+			"window-04",
+			"window-05",
+			"window-06",
+			"window-07",
+			"window-08",
+			"window-09",
+		]);
+	});
+
+	it("uses extracted structural SVG floorplans for Huixian floors", () => {
+		const firstFloor = getDiningFloorplanByFloor({
+			floorId: "fengtai-huixian-canteen-1f",
+			hallId: "fengtai-huixian-canteen",
+		});
+		const secondFloor = getDiningFloorplanByFloor({
+			floorId: "fengtai-huixian-canteen-2f",
+			hallId: "fengtai-huixian-canteen",
+		});
+
+		expect(firstFloor.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(firstFloor.svgMarkup).toContain('class="circulation"');
+		expect(firstFloor.svgMarkup).toContain('data-map-role="entrance"');
+		expect(firstFloor.svgMarkup).not.toContain("<image");
+		expect(firstFloor.anchorInventory.map((anchor) => anchor.anchorId)).toEqual([
+			"window-01",
+			"window-02",
+			"window-03",
+			"window-04",
+			"window-05",
+			"window-06",
+			"window-07",
+			"window-08",
+			"window-09",
+			"window-10",
+		]);
+
+		expect(secondFloor.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(secondFloor.svgMarkup).toContain('class="circulation"');
+		expect(secondFloor.svgMarkup).toContain('data-map-role="entrance"');
+		expect(secondFloor.svgMarkup).not.toContain("<image");
+		expect(secondFloor.anchorInventory.map((anchor) => anchor.anchorId)).toEqual([
+			"window-01",
+			"window-02",
+			"window-03",
+			"window-04",
+			"window-05",
+			"window-06",
+			"window-07",
+			"window-08",
+			"window-09",
+		]);
+	});
+
+	it("uses rebuilt structural SVG floorplans for Haidian second and fourth canteens", () => {
+		const fourthCanteen = getDiningFloorplanByFloor({
+			floorId: "haidian-canteen-4",
+			hallId: "haidian-canteen-4",
+		});
+		const secondCanteen = getDiningFloorplanByFloor({
+			floorId: "haidian-canteen-2",
+			hallId: "haidian-canteen-2",
+		});
+
+		expect(fourthCanteen).toMatchObject({
+			floorId: "haidian-canteen-4",
+			floorplanId: "floorplan:haidian-canteen-4:haidian-canteen-4",
+			hallId: "haidian-canteen-4",
+			svgAssetUrl: "/assets/dining/haidian-canteen-4.svg",
+		});
+		expect(fourthCanteen.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(fourthCanteen.svgMarkup).not.toContain("<image");
+		expect(fourthCanteen.anchorInventory.map((anchor) => anchor.anchorId)).toEqual(
+			Array.from({ length: 19 }, (_, index) => `window-${String(index + 1).padStart(2, "0")}`),
+		);
+
+		expect(secondCanteen).toMatchObject({
+			floorId: "haidian-canteen-2",
+			floorplanId: "floorplan:haidian-canteen-2:haidian-canteen-2",
+			hallId: "haidian-canteen-2",
+			svgAssetUrl: "/assets/dining/haidian-canteen-2.svg",
+		});
+		expect(secondCanteen.svgMarkup).toContain('data-structure="floorplan-walls"');
+		expect(secondCanteen.svgMarkup).not.toContain("<image");
+		expect(secondCanteen.anchorInventory.map((anchor) => anchor.anchorId)).toEqual(
+			Array.from({ length: 25 }, (_, index) => `window-${String(index + 1).padStart(2, "0")}`),
+		);
+	});
+
+	it("does not expose fire evacuation semantics in Juya student floorplans", () => {
+		for (const floorId of ["fengtai-juya-canteen-1f", "fengtai-juya-canteen-2f"]) {
+			const floorplan = getDiningFloorplanByFloor({
+				floorId,
+				hallId: "fengtai-juya-canteen",
+			});
+
+			expect(floorplan.svgMarkup).not.toContain("fire");
+			expect(floorplan.svgMarkup).not.toContain("evacuation");
+			expect(floorplan.svgMarkup).not.toContain("消防");
+			expect(floorplan.svgMarkup).not.toContain("疏散");
+			expect(floorplan.svgMarkup).not.toContain("当前位置");
+			expect(floorplan.svgMarkup).not.toContain("原图");
+		}
+	});
+
+	it("does not expose fire evacuation semantics in Huixian student floorplans", () => {
+		for (const floorId of ["fengtai-huixian-canteen-1f", "fengtai-huixian-canteen-2f"]) {
+			const floorplan = getDiningFloorplanByFloor({
+				floorId,
+				hallId: "fengtai-huixian-canteen",
+			});
+
+			expect(floorplan.svgMarkup).not.toContain("fire");
+			expect(floorplan.svgMarkup).not.toContain("evacuation");
+			expect(floorplan.svgMarkup).not.toContain("消防");
+			expect(floorplan.svgMarkup).not.toContain("疏散");
+			expect(floorplan.svgMarkup).not.toContain("当前位置");
+			expect(floorplan.svgMarkup).not.toContain("原图");
+		}
+	});
+
+	it("keeps Haidian second and fourth canteen maps as student-facing rebuilt maps", () => {
+		for (const { floorId, hallId } of [
+			{ floorId: "haidian-canteen-2", hallId: "haidian-canteen-2" },
+			{ floorId: "haidian-canteen-4", hallId: "haidian-canteen-4" },
+		]) {
+			const floorplan = getDiningFloorplanByFloor({ floorId, hallId });
+
+			expect(floorplan.svgMarkup).not.toContain("fire");
+			expect(floorplan.svgMarkup).not.toContain("evacuation");
+			expect(floorplan.svgMarkup).not.toContain("消防");
+			expect(floorplan.svgMarkup).not.toContain("疏散");
+			expect(floorplan.svgMarkup).not.toContain("原图");
+			expect(floorplan.svgMarkup).not.toContain("食堂窗口内容还原示意");
+			expect(floorplan.svgMarkup).not.toContain("楼层结构示意");
+			expect(floorplan.svgMarkup).not.toContain("基本伙");
+			expect(floorplan.svgMarkup).not.toContain("小份菜");
+			expect(floorplan.svgMarkup).not.toContain("米粉");
+		}
+	});
+
+	it("keeps Juya student floorplans focused on the clickable map surface", () => {
+		for (const floorId of ["fengtai-juya-canteen-1f", "fengtai-juya-canteen-2f"]) {
+			const floorplan = getDiningFloorplanByFloor({
+				floorId,
+				hallId: "fengtai-juya-canteen",
+			});
+
+			expect(floorplan.svgMarkup).not.toContain("档口名称待人工补充");
+			expect(floorplan.svgMarkup).not.toContain("楼层结构示意");
+			expect(floorplan.svgMarkup).not.toContain("待补充档口锚点");
+			expect(floorplan.svgMarkup).not.toContain("楼梯 / 服务设施");
+			expect(floorplan.svgMarkup).not.toContain('class="title"');
+			expect(floorplan.svgMarkup).not.toContain('class="meta"');
+			expect(floorplan.svgMarkup).not.toContain('width="1172" height="664"');
+		}
+	});
+
+	it("keeps Huixian student floorplans focused on the clickable map surface", () => {
+		for (const floorId of ["fengtai-huixian-canteen-1f", "fengtai-huixian-canteen-2f"]) {
+			const floorplan = getDiningFloorplanByFloor({
+				floorId,
+				hallId: "fengtai-huixian-canteen",
+			});
+
+			expect(floorplan.svgMarkup).not.toContain("档口名称待人工补充");
+			expect(floorplan.svgMarkup).not.toContain("楼层结构示意");
+			expect(floorplan.svgMarkup).not.toContain("待补充档口锚点");
+			expect(floorplan.svgMarkup).not.toContain("楼梯 / 服务设施");
+			expect(floorplan.svgMarkup).not.toContain('class="title"');
+			expect(floorplan.svgMarkup).not.toContain('class="meta"');
+			expect(floorplan.svgMarkup).not.toContain('width="1172" height="664"');
+		}
+	});
+
 	it("keeps checked-in checksum aligned with sanitized SVG markup", () => {
 		for (const floorplan of DINING_FLOORPLAN_MANIFEST) {
 			const digest = createHash("sha256").update(floorplan.svgMarkup).digest("hex");

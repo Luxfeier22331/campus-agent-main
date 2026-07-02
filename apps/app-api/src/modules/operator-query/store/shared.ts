@@ -1,26 +1,14 @@
 import { eq, gte, inArray, lte } from "drizzle-orm";
 
-import {
-	qualityGradeProjection,
-	requestExecution,
-	requestObservabilityFact,
-	traceBacklinkProjection,
-} from "../../../db/schema";
+import { requestExecution, requestObservabilityFact } from "../../../db/schema";
 import type {
 	MetricRatio,
 	NormalizedOperatorOverviewFilters,
-	OperatorRequestObservabilityRecord as ObservabilityRecord,
-	OperatorAuditEventListItem,
 	OperatorOverviewWindow,
 	OperatorResultWindow,
 	RequestProjectionRecord,
 } from "../service";
-import type {
-	QualityGradeProjectionRow,
-	RequestObservabilityFactRow,
-	RuntimeDatabase,
-	TraceBacklinkProjectionRow,
-} from "./runtime";
+import type { RuntimeDatabase } from "./runtime";
 
 export function toIsoString(value: Date | null): string | null {
 	return value ? value.toISOString() : null;
@@ -91,23 +79,6 @@ export async function loadRunBacklinksByRequestIds(
 		backlinks.set(row.requestId, row.runId ?? null);
 	}
 	return backlinks;
-}
-
-export function toAuditListItem(
-	row: typeof import("../../../db/schema").requestAuditProjection.$inferSelect,
-): OperatorAuditEventListItem {
-	return {
-		auditEventId: row.auditEventId,
-		eventType: row.eventType,
-		occurredAt: row.occurredAt.toISOString(),
-		principalType: row.principalType,
-		requestId: row.requestId,
-		selectedTool: row.selectedTool ?? null,
-		status: row.status,
-		summary: row.summary,
-		surface: row.surface,
-		traceId: row.traceId,
-	};
 }
 
 export function resolveWindowBounds(window: OperatorOverviewWindow, now: Date) {
@@ -207,20 +178,8 @@ export function buildObservabilityConditions(
 	if (filters.surface) {
 		conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 	}
-	if (filters.selectedTool) {
-		conditions.push(eq(requestObservabilityFact.selectedTool, filters.selectedTool));
-	}
-	if (filters.requestedTool) {
-		conditions.push(eq(requestObservabilityFact.requestedTool, filters.requestedTool));
-	}
 	if (filters.principalType) {
 		conditions.push(eq(requestObservabilityFact.principalType, filters.principalType));
-	}
-	if (filters.collection) {
-		conditions.push(eq(requestObservabilityFact.collection, filters.collection));
-	}
-	if (filters.modelName) {
-		conditions.push(eq(requestObservabilityFact.modelName, filters.modelName));
 	}
 
 	return conditions;
@@ -234,304 +193,9 @@ export function buildResultWindow(bounds: ReturnType<typeof resolveWindowBounds>
 	} as const;
 }
 
-export function buildQualityGradeConditions(
-	filters: NormalizedOperatorOverviewFilters,
-	bounds: ReturnType<typeof resolveWindowBounds>,
-	input: {
-		gradeDomain?: string;
-	} = {},
-) {
-	const conditions = [
-		gte(qualityGradeProjection.requestStartedAt, bounds.from),
-		lte(qualityGradeProjection.requestStartedAt, bounds.to),
-	];
-
-	if (filters.surface) {
-		conditions.push(eq(qualityGradeProjection.surface, filters.surface));
-	}
-	if (filters.selectedTool) {
-		conditions.push(eq(qualityGradeProjection.selectedTool, filters.selectedTool));
-	}
-	if (filters.requestedTool) {
-		conditions.push(eq(qualityGradeProjection.requestedTool, filters.requestedTool));
-	}
-	if (filters.principalType) {
-		conditions.push(eq(qualityGradeProjection.principalType, filters.principalType));
-	}
-	if (filters.collection) {
-		conditions.push(eq(qualityGradeProjection.collection, filters.collection));
-	}
-	if (filters.modelName) {
-		conditions.push(eq(qualityGradeProjection.modelName, filters.modelName));
-	}
-	if (input.gradeDomain) {
-		conditions.push(eq(qualityGradeProjection.gradeDomain, input.gradeDomain));
-	}
-
-	return conditions;
-}
-
-export function toLinks(
-	row: TraceBacklinkProjectionRow | null | undefined,
-): ObservabilityRecord["links"] {
-	return {
-		issueFingerprint: row?.issueFingerprint ?? null,
-		issueLink: row?.issueLink ?? null,
-		traceLink: row?.traceLink ?? null,
-	};
-}
-
-export function toScore(scoreMilli: number | null): number | null {
-	return typeof scoreMilli === "number" ? Number((scoreMilli / 1000).toFixed(3)) : null;
-}
-
-export function inferEvalFamilyFromCauseClass(
-	causeClass: string,
-): "citation" | "grounding" | "intent" | "policy" | "unknown" {
-	const normalized = causeClass.toLowerCase();
-	if (normalized.includes("citation")) {
-		return "citation";
-	}
-	if (
-		normalized.includes("intent") ||
-		normalized.includes("routing") ||
-		normalized.includes("classifier") ||
-		normalized.includes("context_resolution") ||
-		normalized.includes("missing_slot") ||
-		normalized.includes("handoff")
-	) {
-		return "intent";
-	}
-	if (
-		normalized.includes("policy") ||
-		normalized.includes("acl") ||
-		normalized.includes("authz") ||
-		normalized.includes("access") ||
-		normalized.includes("restricted") ||
-		normalized.includes("approval")
-	) {
-		return "policy";
-	}
-	if (
-		normalized.includes("ground") ||
-		normalized.includes("recall") ||
-		normalized.includes("retrieval") ||
-		normalized.includes("evidence") ||
-		normalized.includes("freshness")
-	) {
-		return "grounding";
-	}
-
-	return "unknown";
-}
-
-export type StepDiagnosisStage =
-	| "routing"
-	| "planning"
-	| "tool"
-	| "retrieval"
-	| "rerank"
-	| "selection"
-	| "synthesis"
-	| "grounding"
-	| "finalization"
-	| "replan";
-
-export function inferStepDiagnosisStage(input: {
-	causeClass: string;
-	failureStage?: string | null;
-}): StepDiagnosisStage {
-	const normalizedFailureStage = input.failureStage?.trim().toLowerCase() ?? "";
-	if (
-		normalizedFailureStage === "routing" ||
-		normalizedFailureStage === "planning" ||
-		normalizedFailureStage === "tool" ||
-		normalizedFailureStage === "retrieval" ||
-		normalizedFailureStage === "rerank" ||
-		normalizedFailureStage === "selection" ||
-		normalizedFailureStage === "synthesis" ||
-		normalizedFailureStage === "grounding" ||
-		normalizedFailureStage === "finalization" ||
-		normalizedFailureStage === "replan"
-	) {
-		return normalizedFailureStage;
-	}
-	if (normalizedFailureStage === "evidence_selection") {
-		return "selection";
-	}
-	if (
-		normalizedFailureStage === "clarification" ||
-		normalizedFailureStage === "needs_clarification" ||
-		normalizedFailureStage === "rejected" ||
-		normalizedFailureStage === "no_answer"
-	) {
-		return "finalization";
-	}
-
-	const normalizedCause = input.causeClass.trim().toLowerCase();
-	if (
-		normalizedCause.includes("intent") ||
-		normalizedCause.includes("routing") ||
-		normalizedCause.includes("classifier") ||
-		normalizedCause.includes("context_resolution") ||
-		normalizedCause.includes("missing_slot") ||
-		normalizedCause.includes("handoff")
-	) {
-		return "routing";
-	}
-	if (normalizedCause.includes("plan")) {
-		return "planning";
-	}
-	if (
-		normalizedCause.includes("tool") ||
-		normalizedCause.includes("service") ||
-		normalizedCause.includes("navigation") ||
-		normalizedCause.includes("notice")
-	) {
-		return "tool";
-	}
-	if (
-		normalizedCause.includes("recall") ||
-		normalizedCause.includes("retrieval") ||
-		normalizedCause.includes("freshness")
-	) {
-		return "retrieval";
-	}
-	if (normalizedCause.includes("rerank")) {
-		return "rerank";
-	}
-	if (
-		normalizedCause.includes("ground") ||
-		normalizedCause.includes("unsupported") ||
-		normalizedCause.includes("faithfulness")
-	) {
-		return "grounding";
-	}
-	if (
-		normalizedCause.includes("selection") ||
-		normalizedCause.includes("citation") ||
-		normalizedCause.includes("evidence")
-	) {
-		return "selection";
-	}
-	if (normalizedCause.includes("synthesis") || normalizedCause.includes("answer_style")) {
-		return "synthesis";
-	}
-	return "finalization";
-}
-
-export function inferGradeDomainFromCauseClass(causeClass: string): string | null {
-	const family = inferEvalFamilyFromCauseClass(causeClass);
-	if (family === "unknown") {
-		return null;
-	}
-
-	return family;
-}
-
-export function buildGradeBucketMap(rows: QualityGradeProjectionRow[]) {
-	const buckets = new Map<
-		string,
-		{
-			latest: QualityGradeProjectionRow | null;
-			byDomain: Map<string, QualityGradeProjectionRow>;
-		}
-	>();
-
-	for (const row of rows) {
-		const current = buckets.get(row.requestId) ?? {
-			byDomain: new Map<string, QualityGradeProjectionRow>(),
-			latest: null,
-		};
-		if (!current.latest) {
-			current.latest = row;
-		}
-		if (!current.byDomain.has(row.gradeDomain)) {
-			current.byDomain.set(row.gradeDomain, row);
-		}
-		buckets.set(row.requestId, current);
-	}
-
-	return buckets;
-}
-
-export async function loadTraceBacklinksByRequestIds(
-	db: RuntimeDatabase,
-	requestIds: string[],
-): Promise<Map<string, TraceBacklinkProjectionRow>> {
-	if (requestIds.length === 0) {
-		return new Map();
-	}
-
-	const rows = await db
-		.select()
-		.from(traceBacklinkProjection)
-		.where(inArray(traceBacklinkProjection.requestId, [...new Set(requestIds)]));
-
-	return new Map(rows.map((row) => [row.requestId, row]));
-}
-
 export function resolveResultGranularity(
 	filters: NormalizedOperatorOverviewFilters,
 	bounds: ReturnType<typeof resolveWindowBounds>,
 ) {
 	return filters.granularity ?? bounds.granularity;
-}
-
-export function sumNullableInteger(
-	rows: RequestObservabilityFactRow[],
-	selector: (row: RequestObservabilityFactRow) => number | null,
-): number {
-	return rows.reduce((sum, row) => sum + (selector(row) ?? 0), 0);
-}
-
-export function aggregateCostByModel(rows: RequestObservabilityFactRow[]) {
-	const grouped = new Map<
-		string,
-		{ modelName: string; requestCount: number; estimatedCostMicrousd: number }
-	>();
-
-	for (const row of rows) {
-		const modelName = row.modelName ?? "unknown";
-		const current = grouped.get(modelName) ?? {
-			estimatedCostMicrousd: 0,
-			modelName,
-			requestCount: 0,
-		};
-		current.requestCount += 1;
-		current.estimatedCostMicrousd += row.estimatedCostMicrousd ?? 0;
-		grouped.set(modelName, current);
-	}
-
-	return [...grouped.values()].sort(
-		(left, right) =>
-			right.estimatedCostMicrousd - left.estimatedCostMicrousd ||
-			right.requestCount - left.requestCount ||
-			left.modelName.localeCompare(right.modelName),
-	);
-}
-
-export function aggregateCostBySurface(rows: RequestObservabilityFactRow[]) {
-	const grouped = new Map<
-		string,
-		{ surface: string; requestCount: number; estimatedCostMicrousd: number }
-	>();
-
-	for (const row of rows) {
-		const current = grouped.get(row.surface) ?? {
-			estimatedCostMicrousd: 0,
-			requestCount: 0,
-			surface: row.surface,
-		};
-		current.requestCount += 1;
-		current.estimatedCostMicrousd += row.estimatedCostMicrousd ?? 0;
-		grouped.set(row.surface, current);
-	}
-
-	return [...grouped.values()].sort(
-		(left, right) =>
-			right.estimatedCostMicrousd - left.estimatedCostMicrousd ||
-			right.requestCount - left.requestCount ||
-			left.surface.localeCompare(right.surface),
-	);
 }

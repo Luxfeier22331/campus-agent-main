@@ -39,12 +39,8 @@ export function parseLimit(value: string | null | undefined): number | null {
 
 export function readOperatorAggregateFilters(request: { query(name: string): string | undefined }) {
 	return {
-		collection: request.query("collection") ?? null,
 		granularity: request.query("granularity") ?? null,
-		modelName: request.query("modelName") ?? null,
 		principalType: request.query("principalType") ?? null,
-		requestedTool: request.query("requestedTool") ?? null,
-		selectedTool: request.query("selectedTool") ?? null,
 		surface: request.query("surface") ?? null,
 		window: request.query("window") ?? null,
 	};

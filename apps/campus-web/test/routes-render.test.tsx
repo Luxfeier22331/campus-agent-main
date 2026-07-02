@@ -452,15 +452,26 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("overflow-x-auto");
 		expect(diningExperienceSource).toContain("md:flex-wrap");
 		expect(diningExperienceSource).toContain("shrink-0 rounded-full");
-		expect(diningExperienceSource).toContain("hidden text-[var(--sys-text-muted)]");
+		expect(diningExperienceSource).toContain("wheel={{ disabled: true }}");
+		expect(diningExperienceSource).toContain("DialogTrigger");
+		expect(diningExperienceSource).toMatch(/aria-label=\{`预览\$\{image\.alt\}`\}/);
 		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
 		expect(diningExperienceSource).not.toContain("StallList");
 		expect(diningExperienceSource).not.toContain("min-w-0 max-h-[360px]");
 		expect(diningExperienceSource).toContain("!w-full !max-w-full");
+		expect(diningExperienceSource).toContain("rounded-xl bg-[var(--dining-svg-canvas-bg)]");
+		expect(diningExperienceSource).toContain(
+			'wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg"',
+		);
+		expect(diningExperienceSource).not.toContain(
+			'wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"',
+		);
 		expect(diningExperienceSource).toContain("floorplanKey");
 		expect(diningExperienceSource).toContain("key={floorplanKey}");
 		expect(diningExperienceSource).toContain("maxScale={1.32}");
 		expect(diningExperienceSource).toContain("zoomToElement(selector, 1.08");
+		expect(diningExperienceSource).not.toContain("ZoomIn");
+		expect(diningExperienceSource).not.toContain("ZoomOut");
 		expect(diningExperienceSource).toContain("matchedWindowIds");
 		expect(diningExperienceSource).toContain("is-dimmed");
 		expect(diningExperienceSource).not.toContain("maxScale={3}");
@@ -498,47 +509,78 @@ describe("campus routes", () => {
 		expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "鱼粉" })).toBeInTheDocument();
 		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
+		expect(screen.getByText("鱼粉招牌菜")).toBeInTheDocument();
 		expect(await screen.findByLabelText("金汤鱼粉评价")).toBeInTheDocument();
-		expect(screen.getAllByText("鱼粉")).toHaveLength(1);
 		expect(screen.getByText("果小生")).toBeInTheDocument();
 		expect(screen.getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(screen.queryByAltText("金汤鱼粉评价图片")).toBeNull();
+		expect(screen.queryByText(/Feishu 食堂采集/)).toBeNull();
+		expect(screen.queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
 		const mapPanel = screen.getByTestId("dining-map-panel");
 		const reviewPanel = screen.getByTestId("dining-review-panel");
 		const detailPanel = screen.getByTestId("dining-stall-detail");
 		const selectionPanel = screen.getByTestId("dining-selection-panel");
+		expect(within(detailPanel).getByRole("heading", { name: "鱼粉" })).toBeInTheDocument();
 		expect(reviewPanel).toHaveAttribute("aria-label", "金汤鱼粉评价");
 		expect(within(reviewPanel).getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(within(reviewPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
+		expect(within(reviewPanel).queryByText("鱼粉招牌菜")).toBeNull();
+		expect(within(reviewPanel).queryByText("汤底清爽。")).toBeNull();
+		await user.click(within(detailPanel).getByRole("radio", { name: "清淡鱼粉" }));
+		expect(screen.getByTestId("dining-review-panel")).toHaveAttribute("aria-label", "鱼粉评价");
+		expect(
+			within(screen.getByTestId("dining-review-panel")).getByText("金汤鱼粉"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("dining-review-panel")).getByText("鱼粉招牌菜"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("dining-review-panel")).getByText("汤底清爽。"),
+		).toBeInTheDocument();
+		await user.click(within(detailPanel).getByRole("radio", { name: /金汤鱼粉/ }));
+		expect(
+			within(reviewPanel).getByRole("button", { name: "预览金汤鱼粉评价图片" }),
+		).toBeInTheDocument();
 		expect(selectionPanel).toContainElement(mapPanel);
 		expect(selectionPanel).toContainElement(detailPanel);
 		expect(selectionPanel).not.toContainElement(reviewPanel);
 		expect(selectionPanel.nextElementSibling).toBe(reviewPanel);
 		expect(within(mapPanel).queryByLabelText("金汤鱼粉评价")).toBeNull();
 		expect(within(mapPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
-		expect(within(mapPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
+		expect(within(mapPanel).queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
 		expect(within(detailPanel).queryByLabelText("金汤鱼粉评价")).toBeNull();
 		expect(within(detailPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
-		expect(within(detailPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
+		expect(within(detailPanel).queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
 		expect(diningApiMock.getDiningHallReviews).toHaveBeenCalledWith({
 			hallId: "haidian-canteen-1",
 		});
 		expect(screen.queryByText("参考价格")).toBeNull();
 		expect(screen.getAllByText("12 元").length).toBeGreaterThan(0);
+		expect(screen.queryByText("16 元")).toBeNull();
 		expect(screen.queryByText("标准份")).toBeNull();
 		expect(screen.queryByText("可售")).toBeNull();
 		expect(screen.queryByText("季节供应")).toBeNull();
-		expect(screen.queryByText("dining_release:initial")).toBeNull();
+		expect(screen.queryByText("dining_release:dev_seed")).toBeNull();
 		expect(screen.getByLabelText("选择鱼粉")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
-		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "缩小平面图" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "放大平面图" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "缩小平面图" })).toBeNull();
 		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("dining-inline-floorplan")).getByText("鱼粉"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("dining-inline-floorplan")).getByText("螺蛳粉"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("dining-inline-floorplan")).queryByText("一号窗口"),
+		).toBeNull();
+		expect(
+			within(screen.getByTestId("dining-inline-floorplan")).queryByText("二号窗口"),
+		).toBeNull();
 		await user.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
 		expect(screen.queryByRole("button", { name: "鱼粉" })).toBeNull();
 		await user.type(screen.getByPlaceholderText("搜索食堂、档口、菜品"), "金汤");
-		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
+		expect(screen.getAllByText("海淀一食堂").length).toBeGreaterThan(0);
 		expect(screen.queryByText("没有匹配的食堂、档口或菜品")).not.toBeInTheDocument();
 		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
 		expect(screen.getByTestId("dining-anchor-window-01")).toBeInTheDocument();
@@ -555,7 +597,7 @@ describe("campus routes", () => {
 		await user.click(screen.getByRole("radio", { name: "全部" }));
 		expect(screen.getByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 
-		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("海淀一食堂")).length).toBeGreaterThan(0);
 		await user.click(screen.getByRole("radio", { name: "丰台校区" }));
 
 		expect((await screen.findAllByText("荟贤食堂一层")).length).toBeGreaterThan(0);
@@ -563,11 +605,40 @@ describe("campus routes", () => {
 		expect((await screen.findAllByText("荟贤食堂二层")).length).toBeGreaterThan(0);
 		await user.click(screen.getByRole("radio", { name: "海淀校区" }));
 
-		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("海淀一食堂")).length).toBeGreaterThan(0);
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
 			floorId: "fengtai-huixian-canteen-2f",
 			hallId: "haidian-canteen-1",
 		});
+	});
+
+	it("keeps dining review failures scoped to the review panel", async () => {
+		mockDiningFixtureApi(diningApiMock);
+		diningApiMock.getDiningHallReviews.mockRejectedValue(new Error("reviews unavailable"));
+
+		render(<DiningPage />);
+
+		expect(await screen.findByTestId("dining-inline-floorplan")).toBeInTheDocument();
+		expect(screen.getByTestId("dining-stall-detail")).toBeInTheDocument();
+		const reviewPanel = await screen.findByTestId("dining-review-panel");
+		expect(reviewPanel).toHaveTextContent("食堂评价暂时无法读取。");
+		expect(screen.queryByRole("alert")).toBeNull();
+	});
+
+	it("opens dining review image previews from the review panel", async () => {
+		const user = userEvent.setup();
+		mockDiningFixtureApi(diningApiMock);
+
+		render(<DiningPage />);
+
+		expect(await screen.findByTestId("dining-review-panel")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "预览金汤鱼粉评价图片" }));
+
+		expect(await screen.findByRole("dialog", { name: "金汤鱼粉评价图片" })).toBeInTheDocument();
+		expect(screen.getByRole("img", { name: "金汤鱼粉评价图片" })).toHaveAttribute(
+			"src",
+			"/assets/dining/reviews/rec27DpktN6uQn-1.jpg",
+		);
 	});
 
 	it("scrolls mobile diners to the stall detail after explicit window selection", async () => {

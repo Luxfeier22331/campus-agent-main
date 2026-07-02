@@ -207,10 +207,10 @@ edit draft -> create candidate -> validate -> approve -> publish now / schedule
 ```
 
 The workspace must not expose a control that publishes the mutable current draft
-without a candidate. It must not auto-seed dining data, synthesize a draft
-version, or fall back to static floorplan data as editable truth. Initial dining
-state is created by the app-api seed/release path and then consumed through
-accepted operator APIs.
+without a candidate. It must not auto-import dining fixture data, synthesize a
+draft version, or fall back to static floorplan data as editable truth. Dining
+bootstrap fixture import, when needed outside production source sync, is run by
+`jobs/dining-sync` and then consumed through accepted operator APIs.
 
 Dining floorplan owner, manifest lifecycle and technology choices live in
 `docs/architecture/domains/dining/architecture.md`. The workspace only consumes

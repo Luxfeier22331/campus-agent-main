@@ -3,11 +3,15 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0023
-status: accepted
+status: superseded
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-06-30
 ---
 # ADR-0023 Operator Observability Control Plane And Sink Participation
+
+> Superseded by ADR-0063. The accepted target is now Ops Index + External
+> Sinks. Broad app-api-owned audit / quality / safety / cost read models remain
+> historical context only.
 
 适用范围：Operator Console 的 operator-facing observability / audit / quality / safety
 / cost domain ownership，以及 `Sentry`、`Axiom`、grading / eval tooling 的长期参与边界

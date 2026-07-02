@@ -18,116 +18,10 @@ const env = {
 };
 
 describe("operator observability internal ingest routes", () => {
-	it("accepts sampled grades through the internal ingest seam", async () => {
-		const service = {
-			ingestExecutionAuditEvents: vi.fn(),
-			ingestGrades: vi.fn().mockResolvedValue({ accepted: 1 }),
-			ingestTraceBacklinks: vi.fn(),
-		};
-		const app = createApp(env as never, {
-			operatorObservabilityCommandService: service as never,
-		});
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/internal/operator/quality/grades", {
-				body: JSON.stringify({
-					grades: [
-						{
-							gradeDomain: "grounding",
-							gradeSource: "openai_trace_grader",
-							graderVersion: "grader@2026-04-03",
-							rationaleSummary: "grounded to cited handbook passages",
-							requestId: "req_01HQ",
-							sampledAt: "2026-04-03T00:10:00.000Z",
-							score: 0.913,
-							traceId: "trace_01HQ",
-							verdict: "pass",
-						},
-					],
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-internal-auth": "trusted-secret",
-				},
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({ accepted: 1 });
-		expect(service.ingestGrades).toHaveBeenCalledWith({
-			payload: {
-				grades: [
-					{
-						gradeDomain: "grounding",
-						gradeSource: "openai_trace_grader",
-						graderVersion: "grader@2026-04-03",
-						rationaleSummary: "grounded to cited handbook passages",
-						requestId: "req_01HQ",
-						sampledAt: "2026-04-03T00:10:00.000Z",
-						score: 0.913,
-						traceId: "trace_01HQ",
-						verdict: "pass",
-					},
-				],
-			},
-		});
-	});
-
-	it("accepts trace backlinks through the internal ingest seam", async () => {
-		const service = {
-			ingestExecutionAuditEvents: vi.fn(),
-			ingestGrades: vi.fn(),
-			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
-		};
-		const app = createApp(env as never, {
-			operatorObservabilityCommandService: service as never,
-		});
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/internal/operator/trace-backlinks", {
-				body: JSON.stringify({
-					backlinks: [
-						{
-							issueFingerprint: "timeout:execution-control",
-							issueLink: "https://sentry.example/issues/123",
-							requestId: "req_01HQ",
-							traceId: "trace_01HQ",
-							traceLink: "https://sentry.example/traces/trace_01HQ",
-						},
-					],
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-internal-auth": "trusted-secret",
-				},
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({ accepted: 1 });
-		expect(service.ingestTraceBacklinks).toHaveBeenCalledWith({
-			payload: {
-				backlinks: [
-					{
-						issueFingerprint: "timeout:execution-control",
-						issueLink: "https://sentry.example/issues/123",
-						requestId: "req_01HQ",
-						traceId: "trace_01HQ",
-						traceLink: "https://sentry.example/traces/trace_01HQ",
-					},
-				],
-			},
-		});
-	});
-
 	it("accepts execution audit events through the internal ingest seam", async () => {
 		const service = {
 			ingestExecutionAuditEvents: vi.fn().mockResolvedValue({ accepted: 1 }),
 			ingestTemporalTaskQueueSnapshots: vi.fn(),
-			ingestGrades: vi.fn(),
-			ingestTraceBacklinks: vi.fn(),
 		};
 		const scheduleRequestProjectionDrain = vi.fn();
 		const app = createApp(env as never, {
@@ -135,28 +29,30 @@ describe("operator observability internal ingest routes", () => {
 			scheduleRequestProjectionDrain,
 		});
 
+		const payload = {
+			events: [
+				{
+					activity_duration_ms: 35000,
+					decision: null,
+					duration_ms: 35012,
+					event_id: "execution-control:req_01HQ:execution.activity_failed",
+					event_type: "execution.activity_failed",
+					failure_kind: "timeout",
+					http_status: 504,
+					task_queue: "campus-agent.workflow",
+					occurred_at: "2026-04-24T10:00:00.000Z",
+					queue_wait_ms: 12,
+					request_id: "req_01HQ",
+					requested_tool: "knowledge_query",
+					retryable: true,
+					trace_id: "trace_01HQ",
+				},
+			],
+		};
+
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/internal/execution/audit-events", {
-				body: JSON.stringify({
-					events: [
-						{
-							activity_duration_ms: 35000,
-							decision: null,
-							duration_ms: 35012,
-							event_id: "execution-control:req_01HQ:execution.activity_failed",
-							event_type: "execution.activity_failed",
-							failure_kind: "timeout",
-							http_status: 504,
-							task_queue: "campus-agent.workflow",
-							occurred_at: "2026-04-24T10:00:00.000Z",
-							queue_wait_ms: 12,
-							request_id: "req_01HQ",
-							requested_tool: "knowledge_query",
-							retryable: true,
-							trace_id: "trace_01HQ",
-						},
-					],
-				}),
+				body: JSON.stringify(payload),
 				headers: {
 					"content-type": "application/json",
 					"x-app-internal-auth": "trusted-secret",
@@ -167,28 +63,7 @@ describe("operator observability internal ingest routes", () => {
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({ accepted: 1 });
-		expect(service.ingestExecutionAuditEvents).toHaveBeenCalledWith({
-			payload: {
-				events: [
-					{
-						activity_duration_ms: 35000,
-						decision: null,
-						duration_ms: 35012,
-						event_id: "execution-control:req_01HQ:execution.activity_failed",
-						event_type: "execution.activity_failed",
-						failure_kind: "timeout",
-						http_status: 504,
-						occurred_at: "2026-04-24T10:00:00.000Z",
-						queue_wait_ms: 12,
-						task_queue: "campus-agent.workflow",
-						request_id: "req_01HQ",
-						requested_tool: "knowledge_query",
-						retryable: true,
-						trace_id: "trace_01HQ",
-					},
-				],
-			},
-		});
+		expect(service.ingestExecutionAuditEvents).toHaveBeenCalledWith({ payload });
 		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
 			requestId: "req_01HQ",
 			waitUntil: undefined,
@@ -204,8 +79,6 @@ describe("operator observability internal ingest routes", () => {
 				acceptedPostures: 1,
 				acceptedSnapshots: 1,
 			}),
-			ingestGrades: vi.fn(),
-			ingestTraceBacklinks: vi.fn(),
 		};
 		const app = createApp(env as never, {
 			operatorObservabilityCommandService: service as never,
@@ -316,10 +189,9 @@ describe("operator observability internal ingest routes", () => {
 			ingestTemporalTaskQueueSnapshots: vi.fn().mockResolvedValue({
 				acceptedActuations: 0,
 				acceptedDecisions: 0,
+				acceptedPostures: 0,
 				acceptedSnapshots: 1,
 			}),
-			ingestGrades: vi.fn(),
-			ingestTraceBacklinks: vi.fn(),
 		};
 		const app = createApp(env as never, {
 			operatorObservabilityCommandService: service as never,
@@ -364,167 +236,45 @@ describe("operator observability internal ingest routes", () => {
 		});
 	});
 
-	it("exposes latest Temporal task queue projections through the internal runtime query seam", async () => {
+	it("keeps retired internal quality grades and trace backlink ingest routes closed", async () => {
 		const service = {
-			listTemporalTaskQueues: vi.fn().mockResolvedValue({
-				page: { nextCursor: null },
-				snapshots: [
-					{
-						backlog: { count: null, state: "unsupported_by_source" },
-						namespace: "campus-agent-staging",
-						oldestTaskAge: { ms: null, state: "unsupported_by_source" },
-						pollerCount: 0,
-						pollerIdentities: [],
-						projectedAt: "2026-06-15T10:00:01.000Z",
-						sampledAt: "2026-06-15T10:00:00.000Z",
-						scheduleToStartLatency: { ms: null, state: "unsupported_by_source" },
-						snapshotId: "temporal-snapshot-knowledge",
-						source: "execution-control.temporal-task-queue-sampler",
-						taskQueue: "campus-agent.activity.knowledge",
-						taskQueueKind: "activity",
-					},
-				],
-			}),
+			ingestExecutionAuditEvents: vi.fn(),
+			ingestTemporalTaskQueueSnapshots: vi.fn(),
 		};
 		const app = createApp(env as never, {
-			operatorQueryService: service as never,
+			operatorObservabilityCommandService: service as never,
 		});
 
-		const response = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/internal/operator/runtime/temporal-task-queues?limit=8",
-				{
+		for (const path of [
+			"/api/internal/operator/quality/grades",
+			"/api/internal/operator/trace-backlinks",
+		]) {
+			const response = await app.fetch(
+				new Request(`https://app-api.internal${path}`, {
+					body: JSON.stringify({}),
 					headers: {
+						"content-type": "application/json",
 						"x-app-internal-auth": "trusted-secret",
 					},
-				},
-			),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			page: { nextCursor: null },
-			snapshots: [
-				{
-					backlog: { count: null, state: "unsupported_by_source" },
-					namespace: "campus-agent-staging",
-					oldestTaskAge: { ms: null, state: "unsupported_by_source" },
-					pollerCount: 0,
-					pollerIdentities: [],
-					projectedAt: "2026-06-15T10:00:01.000Z",
-					sampledAt: "2026-06-15T10:00:00.000Z",
-					scheduleToStartLatency: { ms: null, state: "unsupported_by_source" },
-					snapshotId: "temporal-snapshot-knowledge",
-					source: "execution-control.temporal-task-queue-sampler",
-					taskQueue: "campus-agent.activity.knowledge",
-					taskQueueKind: "activity",
-				},
-			],
-		});
-		expect(service.listTemporalTaskQueues).toHaveBeenCalledWith({
-			filters: {
-				cursor: null,
-				limit: 8,
-				taskQueue: null,
-				taskQueueKind: null,
-			},
-			principal: expect.objectContaining({
-				permissions: { chat: false, operator: true },
-				principal: expect.objectContaining({
-					principalId: "execution-control-runtime",
-					type: "operator",
+					method: "POST",
 				}),
-			}),
-		});
-	});
-
-	it("exposes autoscaler actuation projections through the internal runtime query seam", async () => {
-		const service = {
-			listAutoscalerActuations: vi.fn().mockResolvedValue({
-				actuations: [
-					{
-						actedAt: "2026-06-15T10:00:06.000Z",
-						action: "scale",
-						actuationId: "actuation_01",
-						actuatorKind: "docker_compose",
-						decisionId: "decision_01",
-						errorCode: "docker_compose_scale_failed",
-						fromReplicas: 1,
-						projectedAt: "2026-06-15T10:00:07.000Z",
-						status: "failed",
-						targetService: "activity-worker-knowledge",
-						toReplicas: 2,
-					},
-				],
-				page: { nextCursor: null },
-			}),
-		};
-		const app = createApp(env as never, {
-			operatorQueryService: service as never,
-		});
-
-		const response = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/internal/operator/runtime/autoscaler/actuations?limit=8&targetService=activity-worker-knowledge&status=failed",
-				{
-					headers: {
-						"x-app-internal-auth": "trusted-secret",
-					},
-				},
-			),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			actuations: [
-				{
-					actedAt: "2026-06-15T10:00:06.000Z",
-					action: "scale",
-					actuationId: "actuation_01",
-					actuatorKind: "docker_compose",
-					decisionId: "decision_01",
-					errorCode: "docker_compose_scale_failed",
-					fromReplicas: 1,
-					projectedAt: "2026-06-15T10:00:07.000Z",
-					status: "failed",
-					targetService: "activity-worker-knowledge",
-					toReplicas: 2,
-				},
-			],
-			page: { nextCursor: null },
-		});
-		expect(service.listAutoscalerActuations).toHaveBeenCalledWith({
-			filters: {
-				cursor: null,
-				decisionId: null,
-				limit: 8,
-				status: "failed",
-				targetService: "activity-worker-knowledge",
-			},
-			principal: expect.objectContaining({
-				permissions: { chat: false, operator: true },
-				principal: expect.objectContaining({
-					principalId: "execution-control-runtime",
-					type: "operator",
-				}),
-			}),
-		});
+			);
+			expect(response.status, path).toBe(404);
+		}
 	});
 
 	it("fails closed when the internal shared secret is missing", async () => {
 		const service = {
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestTemporalTaskQueueSnapshots: vi.fn(),
-			ingestGrades: vi.fn(),
-			ingestTraceBacklinks: vi.fn(),
 		};
 		const app = createApp(env as never, {
 			operatorObservabilityCommandService: service as never,
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/internal/operator/quality/grades", {
-				body: JSON.stringify({ grades: [] }),
+			new Request("https://app-api.internal/api/internal/execution/audit-events", {
+				body: JSON.stringify({ events: [] }),
 				headers: {
 					"content-type": "application/json",
 				},
@@ -543,6 +293,6 @@ describe("operator observability internal ingest routes", () => {
 				traceId: null,
 			},
 		});
-		expect(service.ingestGrades).not.toHaveBeenCalled();
+		expect(service.ingestExecutionAuditEvents).not.toHaveBeenCalled();
 	});
 });
