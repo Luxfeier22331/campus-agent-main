@@ -50,10 +50,14 @@ Index：
 
 - Sentry：错误、异常、性能 tracing、release-aware debugging
 - Axiom：日志、事件、长窗口查询、dashboard、monitor
-- Langfuse：LLM trace、session、observation、dataset、eval、score、annotation workflow
+- Langfuse：LLM trace、受控 debug observation、session、dataset、eval、score、annotation workflow
 
 因此 `app-api` 不保存外部平台的 raw dashboard 查询结果、raw event、raw trace、raw
 LLM observation、raw score 或 raw issue body。
+
+Langfuse / OpenAI trace 可以在外部平台中保存受控 raw 或 masked LLM input/output，用于
+debug、eval 和首字延迟分析；该内容不进入 `app-api` Ops Index，也不通过 Operator
+Console 重新分发。
 
 ## Current Operator Surface
 
@@ -128,9 +132,10 @@ view/query 入口，但不缓存 Axiom dashboard 结果作为 app-api read model
 
 ### Langfuse
 
-Langfuse 负责 LLM trace、session、observation、dataset、score 和 annotation workflow。
-`packages/eval-langfuse` 可与 Langfuse 平台同步 dataset / score；Operator Console
-只消费 repo-owned 最小索引和必要的 safe correlation，不查询 Langfuse trace body。
+Langfuse 负责 LLM trace、受控 debug observation、session、dataset、score 和 annotation
+workflow。`packages/eval-langfuse` 可与 Langfuse 平台同步 dataset / score；Operator
+Console 只消费 repo-owned 最小索引和必要的 safe correlation，不查询 Langfuse trace
+body。
 
 ## Access Model
 

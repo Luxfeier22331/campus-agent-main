@@ -571,6 +571,11 @@ scheduler，不拥有当前 execution truth。
 - historical scheduler 可以拒绝 stale worker 获取新 lease
 - metadata 不保存 secrets、raw prompt、provider payload 或 object-store credentials
 
+以上 raw payload 禁令限定于 durable runtime schema、metadata、operator projection 与
+repo-owned product truth。受控 Langfuse/OpenAI LLM debug trace 可按
+`docs/contracts/langfuse-runtime.md` 记录 raw 或 masked model IO，但不得反向写入这些
+durable tables。
+
 ## `runtime.conversation_run_locks`
 
 用途：

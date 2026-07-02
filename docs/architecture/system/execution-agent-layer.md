@@ -62,7 +62,8 @@ Execution Agent Layer does not own:
 
 - product auth, session, account, conversation or browser route truth
 - source truth, ingestion, index build, raw object storage or collection release
-- provider raw trace, SDK-native graph state or SDK session memory
+- provider raw trace, SDK-native graph state or SDK session memory as durable
+  execution truth
 - tool-local source-channel readiness
 - Operator Console query ownership
 
@@ -108,6 +109,9 @@ eval denominator.
 - Do not restore a Python bridge, bootstrap router or retrieval tool adapter as
   the online top-level orchestrator.
 - Do not let provider/SDK traces replace repo-owned run and step projection.
+- Do not confuse controlled SDK/provider debug traces with product/operator
+  projection. They may support LLM debugging and eval, but they do not own
+  lifecycle, cancel/retry, terminal reason or finalization truth.
 - Do not expose all tools to the model and ask it to infer policy.
 - Do not route ordinary chat to `knowledge` before the primary agent decision.
 - Do not use operator diagnostics, eval readiness or release_evidence to define

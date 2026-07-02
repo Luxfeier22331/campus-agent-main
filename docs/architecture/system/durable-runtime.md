@@ -174,6 +174,8 @@ canceled / expired`
 - panel 与 eval 只能消费 sanitized run event projection 或由它派生的 read model。
 - raw prompt、raw answer draft、raw provider response、raw transcript、auth
   material 与 raw source body 不进入 canonical run event。
+- 外部 Langfuse/OpenAI debug trace 可以在受控 sink 中保存 raw 或 masked LLM IO；该
+  sink 不改变 canonical run event 的 sanitized-only 规则。
 
 ### Run Step
 

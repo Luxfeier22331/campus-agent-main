@@ -49,6 +49,69 @@ function validRagasScoreBatch() {
 	};
 }
 
+const TEST_LANGFUSE_SETTINGS = {
+	baseUrl: "https://langfuse.example",
+	environment: "staging",
+	publicKey: "pk-test",
+	secretKey: "sk-test",
+} as const;
+
+function repoObservation(input: { id?: string; metadata?: Record<string, unknown> } = {}) {
+	return {
+		id: input.id ?? "obs-repo-001",
+		metadata: {
+			activity_attempt: 1,
+			activity_type: "agent.primary",
+			duration_ms: 12,
+			fail_close_reason: "",
+			projection_ref: "projection-001",
+			request_id: "req-001",
+			run_id: "run-001",
+			schedule_to_start_ms: 1,
+			selected_tool: "",
+			status: "completed",
+			step_id: "agent.primary",
+			step_kind: "agent",
+			task_queue: "agent",
+			trace_id: "trace-product-001",
+			workflow_id: "workflow-001",
+			...(input.metadata ?? {}),
+		},
+	};
+}
+
+function onlineTracePayload(
+	overrides: {
+		metadata?: Record<string, unknown>;
+		observations?: unknown[];
+		release?: string;
+		sessionId?: string;
+		tags?: string[];
+		userId?: string;
+	} = {},
+) {
+	return {
+		id: "trace-001",
+		name: "online-answer",
+		release: overrides.release ?? "release",
+		sessionId: overrides.sessionId ?? "session",
+		tags: overrides.tags ?? [],
+		userId: overrides.userId ?? "user",
+		metadata: {
+			request_id: "req-001",
+			run_id: "run-001",
+			trace_id: "trace-product-001",
+			workflow_id: "workflow-001",
+			...overrides.metadata,
+		},
+		observations: overrides.observations ?? [repoObservation()],
+	};
+}
+
+function traceFetch(payload: unknown) {
+	return async () => new Response(JSON.stringify(payload));
+}
+
 describe("Langfuse trace identity", () => {
 	it("matches the shared trace id vectors", () => {
 		const fixture = JSON.parse(
@@ -570,51 +633,27 @@ describe("Langfuse trace evidence", () => {
 			expectedTags: ["surface:execution-control", "env:staging"],
 			expectedUserId: "user-001",
 			expectedWorkflowId: "workflow-001",
-			fetchImpl: async () =>
-				new Response(
-					JSON.stringify({
-						id: "trace-001",
-						name: "online-answer",
-						release: "execution-control@abc123",
-						sessionId: "conversation-001",
-						tags: ["surface:execution-control", "env:staging"],
-						userId: "user-001",
-						metadata: {
-							request_id: "req-001",
-							run_id: "run-001",
-							trace_id: "trace-product-001",
-							workflow_id: "workflow-001",
-						},
-						observations: [
-							{
-								id: "obs-001",
-								metadata: {
-									activity_attempt: 1,
-									activity_type: "knowledge",
-									duration_ms: 12,
-									fail_close_reason: "",
-									projection_ref: "projection-001",
-									request_id: "req-001",
-									run_id: "run-001",
-									schedule_to_start_ms: 1,
-									selected_tool: "knowledge_query",
-									status: "completed",
-									step_id: "step-001",
-									step_kind: "activity",
-									task_queue: "knowledge",
-									trace_id: "trace-product-001",
-									workflow_id: "workflow-001",
-								},
+			fetchImpl: traceFetch(
+				onlineTracePayload({
+					observations: [
+						repoObservation({
+							id: "obs-001",
+							metadata: {
+								activity_type: "knowledge",
+								selected_tool: "knowledge_query",
+								step_id: "step-001",
+								step_kind: "activity",
+								task_queue: "knowledge",
 							},
-						],
-					}),
-				),
-			settings: {
-				baseUrl: "https://langfuse.example",
-				environment: "staging",
-				publicKey: "pk-test",
-				secretKey: "sk-test",
-			},
+						}),
+					],
+					release: "execution-control@abc123",
+					sessionId: "conversation-001",
+					tags: ["surface:execution-control", "env:staging"],
+					userId: "user-001",
+				}),
+			),
+			settings: TEST_LANGFUSE_SETTINGS,
 			traceId: "trace-001",
 		});
 
@@ -622,35 +661,86 @@ describe("Langfuse trace evidence", () => {
 		expect((evidence.trace_identity as { request_id: string }).request_id).toBe("req-001");
 	});
 
-	it("rejects forbidden trace payload fields", async () => {
+	it("allows controlled LLM debug observations to carry raw model IO fields", async () => {
+		const evidence = await verifyLangfuseOnlineTraceEvidence({
+			expectedRelease: "release",
+			expectedRequestId: "req-001",
+			expectedRunId: "run-001",
+			expectedSessionId: "session",
+			expectedTags: [],
+			expectedUserId: "user",
+			expectedWorkflowId: "workflow-001",
+			fetchImpl: traceFetch(
+				onlineTracePayload({
+					observations: [
+						repoObservation(),
+						{
+							id: "obs-llm-debug-001",
+							metadata: {
+								provider_raw_response: { id: "resp_001" },
+								raw_answer: "debug-only answer body",
+								raw_prompt: "debug-only prompt body",
+							},
+							name: "openai.model_call",
+						},
+					],
+				}),
+			),
+			settings: TEST_LANGFUSE_SETTINGS,
+			traceId: "trace-001",
+		});
+
+		expect(evidence.repo_owned_observation_count).toBe(1);
+		expect(evidence.non_repo_observation_count).toBe(1);
+	});
+
+	it("rejects raw model IO fields on repo-owned observations", async () => {
 		await expect(
 			verifyLangfuseOnlineTraceEvidence({
 				expectedRelease: "release",
 				expectedSessionId: "session",
 				expectedTags: [],
 				expectedUserId: "user",
-				fetchImpl: async () =>
-					new Response(
-						JSON.stringify({
-							id: "trace-001",
-							name: "online-answer",
-							release: "release",
-							sessionId: "session",
-							tags: [],
-							userId: "user",
-							raw_prompt: "secret",
-							observations: [{}],
-						}),
-					),
-				settings: {
-					baseUrl: "https://langfuse.example",
-					environment: "staging",
-					publicKey: "pk-test",
-					secretKey: "sk-test",
-				},
+				fetchImpl: traceFetch(
+					onlineTracePayload({
+						observations: [
+							repoObservation({
+								metadata: { raw_prompt: "repo projection must not carry this" },
+							}),
+						],
+					}),
+				),
+				settings: TEST_LANGFUSE_SETTINGS,
 				traceId: "trace-001",
 			}),
-		).rejects.toThrow("forbidden Langfuse payload fields");
+		).rejects.toThrow("forbidden Langfuse payload fields: raw_prompt");
+	});
+
+	it("rejects secrets from all trace observations", async () => {
+		await expect(
+			verifyLangfuseOnlineTraceEvidence({
+				expectedRelease: "release",
+				expectedSessionId: "session",
+				expectedTags: [],
+				expectedUserId: "user",
+				fetchImpl: traceFetch(
+					onlineTracePayload({
+						observations: [
+							repoObservation(),
+							{
+								id: "obs-llm-debug-001",
+								metadata: {
+									authorization: "Bearer secret",
+									raw_prompt: "debug prompt can exist, but auth cannot",
+								},
+							},
+						],
+					}),
+				),
+				settings: TEST_LANGFUSE_SETTINGS,
+				traceId: "trace-001",
+			}),
+		).rejects.toThrow("forbidden Langfuse payload fields: authorization");
 	});
 });
 

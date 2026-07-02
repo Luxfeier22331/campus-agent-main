@@ -556,6 +556,10 @@ approval / HITL 或 state-changing tool 作为产品目标。
 - `observability` 是 execution-side typed summary seam，用于
   `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side
   `snake_case`
+- `observability` 是 app-api / Operator Console safe projection seam，不代表
+  Langfuse/OpenAI SDK debug trace 的完整 payload。受控 LLM debug trace 可以在外部
+  sink 中携带 raw 或 masked model IO，但不得回灌成该 seam、Temporal metadata 或
+  product read model。
 - `observability.intent_*` 是 Execution Agent Layer-owned routing intent
   governance summary；其中
   `intent_schema_version` 描述字段 / 枚举 / reason code 兼容性，

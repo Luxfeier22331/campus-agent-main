@@ -46,7 +46,7 @@ This taxonomy follows the OpenTelemetry direction that:
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
 | Sentry | sink only | Error, trace and performance debugging; not an Operator Console database |
 | Axiom | sink only | Runtime logs/events, query dashboards and trend analysis through Collector exporter; not an app-api dashboard cache |
-| Langfuse | sink/platform only | LLM traces, observations, datasets, scores and review workflows; not an app-api score or trace store |
+| Langfuse | sink/platform only | LLM traces, controlled debug observations, datasets, scores and review workflows; not an app-api score or trace store |
 
 ## Signal Taxonomy
 
@@ -198,8 +198,8 @@ small bounded count for debugging sinks. They must not be promoted to metric lab
 
 ## Forbidden Fields
 
-The following must not be sent to OTel attributes, event bodies, Sentry contexts or Axiom events by
-default:
+The following must not be sent to repo-owned runtime OTel attributes, event
+bodies, Sentry contexts or Axiom events by default:
 
 - raw prompt
 - raw query text
@@ -224,6 +224,14 @@ default:
 
 Any temporary debug override must be explicit, bounded, documented, disabled by default and excluded
 from production sink configuration.
+
+Langfuse / OpenAI / controlled GenAI tracing is the only allowed exception for
+raw or near-raw model input/output. That exception is limited to the LLM debug
+trace lane defined in `../contracts/langfuse-runtime.md`; it never applies to
+app-api runtime events, Operator Console read models, Temporal metadata,
+repo-owned run/step projections, score metadata or metrics labels. Secrets,
+credentials, auth material, cookies, JWTs, database URLs, object-store secrets
+and raw Hindsight refs remain forbidden in every lane.
 
 ## Metrics Derived From Events
 

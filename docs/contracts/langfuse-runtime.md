@@ -10,9 +10,9 @@ updated: 2026-06-29
 
 ## Contract Boundary
 
-This contract defines the sanitized OTel attributes that may be exported to
-Langfuse. It does not define app-api public HTTP shape, Temporal history shape
-or `packages/contracts` DTOs.
+This contract defines how repo-owned runtime observations and controlled LLM
+debug traces may be exported to Langfuse. It does not define app-api public HTTP
+shape, Temporal history shape or `packages/contracts` DTOs.
 
 Eval score publishing uses the same boundary: `packages/eval-langfuse` may write
 sanitized score payloads to Langfuse, but Langfuse score schemas do not become
@@ -21,8 +21,22 @@ repo DTOs and must not leak into `packages/contracts`.
 RAGAS score publishing may be based on Langfuse traces, Langfuse datasets,
 repo-owned safe eval artifacts or golden dataset execution results. Langfuse
 traces and datasets may act as RAGAS sample sources only through repo-owned safe
-eval projection fields; they must not expose raw prompt, raw transcript,
-unrestricted source body, provider raw response or secrets.
+eval projection fields; score inputs and score metadata must not expose raw
+prompt, raw transcript, unrestricted source body, provider raw response or
+secrets.
+
+Langfuse has two distinct lanes in this repo:
+
+- `repo_observation`: sanitized repo-owned workflow / activity observations
+  used for correlation, latency, step evidence and eval selection.
+- `llm_debug_trace`: controlled model/tool/provider observations used for LLM
+  debugging, eval review and latency diagnosis.
+
+Only the first lane can be mirrored into app-api/operator-safe projections. The
+second lane may contain raw or near-raw LLM input/output only inside controlled
+Langfuse/OpenAI/OTel sinks with environment policy, RBAC, retention, sampling
+and masking. It is not product truth, not Temporal truth, not app-api read model
+truth and not a `packages/contracts` DTO.
 
 RAGAS runtime scoring defaults to the Ragas `metrics.collections` API. Legacy
 `ragas.evaluate()` is a compatibility island only for explicitly injected test /
@@ -42,9 +56,9 @@ Every Langfuse-bound online answer trace should provide:
 - `workflow_id`
 - `trace_id`
 
-## Observation Attributes
+## Repo Observation Attributes
 
-Every Langfuse-bound workflow/activity observation should provide:
+Every repo-owned Langfuse-bound workflow/activity observation should provide:
 
 - `step_id`
 - `step_kind`
@@ -103,6 +117,32 @@ may additionally require `memory.append`, `memory.operation_status` or
 `memory.reflect` observations when the evaluated flow exercises those runtime
 operations.
 
+Repo-owned observations must remain sanitized. They must not carry raw prompt,
+raw answer, raw transcript, provider raw response, raw retrieved snippet,
+unrestricted source body, raw memory text or auth material. They are the only
+Langfuse lane eligible for app-api/operator-safe summary projection.
+
+## LLM Debug Trace Lane
+
+LLM debug observations may be exported by SDK tracing, provider instrumentation
+or controlled OTel processors. They may carry model input/output, tool IO,
+provider response fragments or SDK-native span details when the deployment
+explicitly enables that sink behavior.
+
+Rules:
+
+- raw or near-raw LLM IO must stay inside external observability/eval sinks;
+  app-api, Operator Console, Temporal metadata and repo-owned run/step
+  projection consume only safe summaries and deep links.
+- masking/redaction is configured at the SDK, OTel processor, Collector or sink
+  adapter boundary; it is not simulated by app-api.
+- secrets, credentials, auth headers, cookies, JWTs, database URLs,
+  object-store credentials and raw Hindsight refs are never allowed in this
+  lane.
+- LLM debug traces may help diagnose prompt/tool/model/provider behavior, but
+  cannot define run lifecycle, terminal state, retry/cancel truth or release
+  verdicts.
+
 ## Score Payloads
 
 Active eval publishing writes Ragas-derived numeric Langfuse scores from
@@ -136,19 +176,25 @@ repo-owned score DTO field.
 
 ## Forbidden Payloads
 
-The following values must not be exported to Langfuse:
+The following values must not be exported to any Langfuse lane:
 
-- raw prompt
-- raw transcript
-- standalone query text
-- raw retrieved snippet
-- source body text
 - raw memory text
 - Hindsight raw bank id
 - Hindsight operation id or operation ref
 - Hindsight runtime document ref
-- provider raw response
 - JWT, cookies or authorization headers
 - API keys or provider secrets
 - database URLs
 - object-store secrets
+
+The following values are forbidden in `repo_observation`, score metadata and
+safe eval projections, but may exist in `llm_debug_trace` only under the
+controlled sink policy above:
+
+- raw prompt
+- raw answer
+- raw transcript
+- standalone query text
+- raw retrieved snippet
+- source body text
+- provider raw response

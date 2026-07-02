@@ -21,7 +21,7 @@ const REQUIRED_OBSERVATION_ATTRIBUTES = [
 	"step_kind",
 	"task_queue",
 ];
-const FORBIDDEN_PAYLOAD_FIELDS = new Set([
+const TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS = new Set([
 	"api_key",
 	"authorization",
 	"cookie",
@@ -37,15 +37,19 @@ const FORBIDDEN_PAYLOAD_FIELDS = new Set([
 	"operation_id",
 	"operation_ref",
 	"operation_status_ref",
+	"raw_memory_text",
+	"runtime_document_ref",
+]);
+const REPO_OWNED_OBSERVATION_FORBIDDEN_PAYLOAD_FIELDS = new Set([
+	...TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS,
 	"provider_raw_response",
 	"raw_answer",
-	"raw_memory_text",
 	"raw_prompt",
 	"raw_retrieved_snippet",
 	"raw_transcript",
 	"retrieved_snippet",
-	"runtime_document_ref",
 	"source_body_text",
+	"standalone_query",
 ]);
 
 export async function verifyLangfuseOnlineTraceEvidence(input: {
@@ -209,19 +213,25 @@ function assertExpectedTraceIdentity(
 
 function assertForbiddenPayloadFieldsAbsent(trace: JsonObject, observations: unknown[]): void {
 	const forbidden = new Set<string>();
-	collectForbidden(trace, forbidden);
+	collectForbidden(trace, forbidden, TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS);
 	for (const observation of observations) {
-		collectForbidden(observation, forbidden);
+		collectForbidden(
+			observation,
+			forbidden,
+			isRepoOwnedObservation(observation)
+				? REPO_OWNED_OBSERVATION_FORBIDDEN_PAYLOAD_FIELDS
+				: TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS,
+		);
 	}
 	if (forbidden.size > 0) {
 		throw new Error(`forbidden Langfuse payload fields: ${[...forbidden].sort().join(", ")}`);
 	}
 }
 
-function collectForbidden(value: unknown, result: Set<string>): void {
+function collectForbidden(value: unknown, result: Set<string>, forbiddenFields: Set<string>): void {
 	if (Array.isArray(value)) {
 		for (const item of value) {
-			collectForbidden(item, result);
+			collectForbidden(item, result, forbiddenFields);
 		}
 		return;
 	}
@@ -229,9 +239,9 @@ function collectForbidden(value: unknown, result: Set<string>): void {
 		return;
 	}
 	for (const [key, child] of Object.entries(mapping(value, "payload"))) {
-		if (FORBIDDEN_PAYLOAD_FIELDS.has(key.toLowerCase())) {
+		if (forbiddenFields.has(key.toLowerCase())) {
 			result.add(key);
 		}
-		collectForbidden(child, result);
+		collectForbidden(child, result, forbiddenFields);
 	}
 }
