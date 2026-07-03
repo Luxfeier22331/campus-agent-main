@@ -160,6 +160,18 @@ class CheckK8sExecutionRuntimeSlimOverlayTest(unittest.TestCase):
                 ]
                 self.assertEqual(service_ports, endpoint_ports)
 
+    def test_docker_host_bind_overrides_replace_ports_instead_of_appending(self) -> None:
+        for path in (
+            "infra/local/docker-compose.execution-control-runtime.k8s-host.yml",
+            "infra/local/docker-compose.postgres-k8s-host.yml",
+            "infra/local/docker-compose.qdrant-k8s-host.yml",
+        ):
+            with self.subTest(path=path):
+                text = (ROOT / path).read_text(encoding="utf-8")
+
+                self.assertIn("ports: !override", text)
+                self.assertNotIn("ports:\n      -", text)
+
 
 def _rendered_docs() -> tuple[dict, ...]:
     result = subprocess.run(
