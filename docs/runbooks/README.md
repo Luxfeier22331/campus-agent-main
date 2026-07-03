@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-12
-updated: 2026-06-28
+updated: 2026-07-04
 ---
 # Runbooks
 
@@ -35,6 +35,10 @@ updated: 2026-06-28
 
 - `execution-ops.md`
   - execution-control staging deploy、ingress、daily operations、recovery 与 triage。
+- `gitops-k8s.md`
+  - K8s target GitOps skeleton、Argo CD Application dry-run、Helm chart
+    boundary 与 secret-delivery preflight 入口；不替代当前 Docker staging
+    runbook。
 - `execution-smoke.md`
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace

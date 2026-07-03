@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: active
 created: 2026-04-12
-updated: 2026-06-28
+updated: 2026-07-04
 ---
 # Decisions
 
@@ -60,6 +60,16 @@ updated: 2026-06-28
   - superseded by `adr-0048-temporal.md` for target execution substrate
 - `adr-0048-temporal.md`
 - `adr-0056-k8s-keda.md`
+- `adr-0064-runtime-config-governance.md`
+  - 冻结 runtime config 五分类：repo static config、deploy bootstrap
+    config、secret material、app operational config 与 generated runtime
+    projection；provider-config 是模型/search provider active profile truth。
+- `adr-0065-gitops-argocd-helm-boundary.md`
+  - Argo CD 是目标 K8s desired-state reconciler；第三方组件允许 Helm，一方
+    workload 默认继续 Kustomize/raw YAML。
+- `adr-0066-secret-delivery.md`
+  - K8s 目标 secret delivery 采用 External Secrets Operator；repo 不提交真实
+    secret，Cloudflare Worker secrets 继续由 Worker secret store 管理。
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-tool-routing.md`
 - `adr-0060-agent-llm-io-contract.md`

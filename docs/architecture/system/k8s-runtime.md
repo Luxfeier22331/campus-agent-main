@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-16
-updated: 2026-06-27
+updated: 2026-07-04
 ---
 # Kubernetes Execution Runtime Architecture
 
@@ -22,7 +22,7 @@ Kubernetes deployment substrate 与 autoscaling boundary。
 
 它不负责：
 
-- 具体 Helm chart、Kustomize overlay、namespace 名称或集群供应商
+- Kubernetes provider / cluster vendor
 - 当前 merged staging 是否已经迁移到 Kubernetes
 - 每个 worker 的最终 CPU / memory request、node pool 或实际阈值
 - Temporal Cloud 与 self-hosted Temporal 的最终商业选择
@@ -216,6 +216,21 @@ The staging overlay creates the internal execution plane only:
 - Temporal task queue sampler
 - KEDA/HPA posture collector
 - one KEDA `ScaledObject` per worker Deployment
+
+### GitOps And Helm Boundary
+
+Target K8s desired state is managed by Argo CD once a K8s staging/prod
+environment exists. Argo CD is not current Docker staging truth and must not be
+used as evidence that nc-arm-6c has already migrated to Kubernetes.
+
+First-party `campus-agent` execution resources remain Kustomize/raw YAML by
+default. Third-party platform components may be consumed as pinned Helm charts
+through Argo CD, starting with KEDA and External Secrets Operator. Argo CD uses
+Helm only to render third-party charts; Argo CD owns the Application lifecycle.
+
+Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
+Hyperdrive bindings, Cloudflare Access policy or app-api provider-config active
+profiles.
 
 The example below is the committed baseline shape:
 

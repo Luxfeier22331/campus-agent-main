@@ -35,6 +35,7 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("editorconfig", (py, "-m", "scripts.check_editorconfig_tracked")),
         StaticCheck("env examples", (py, "-m", "scripts.check_env_example_tracked")),
         StaticCheck("env surface policy", (py, "-m", "scripts.check_env_surface_policy")),
+        StaticCheck("gitops skeleton", (py, "-m", "scripts.check_gitops_skeleton")),
         StaticCheck("html tracked files", (py, "-m", "scripts.check_html_tracked")),
         StaticCheck("yaml tracked files", (py, "-m", "scripts.check_yaml_tracked")),
         StaticCheck("toml syntax", (py, "-m", "scripts.check_toml_syntax")),
@@ -136,6 +137,13 @@ def affected_repo_static_checks(
                     "env surface policy", (python, "-m", "scripts.check_env_surface_policy")
                 ),
             )
+        )
+    if any(
+        path.startswith("infra/gitops/") or path == "scripts/check_gitops_skeleton.py"
+        for path in paths
+    ):
+        checks.append(
+            StaticCheck("gitops skeleton", (python, "-m", "scripts.check_gitops_skeleton"))
         )
     if any(path.endswith(".html") for path in paths):
         checks.append(

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-12
-updated: 2026-06-29
+updated: 2026-07-04
 ---
 
 # Providers
@@ -24,6 +24,9 @@ Reading model:
 - Server-only secrets stay in app-local dev vars, deploy secret stores or
   ops-owned runtime env files.
 - Browser public runtime strings must be explicitly labeled as public.
+- K8s ConfigMap/Secret, Helm values and Cloudflare Worker vars/secrets carry
+  deploy bootstrap config or secret material. They must not become LLM/search
+  provider active-profile truth.
 
 ## Core Providers
 
@@ -231,6 +234,22 @@ Reading model:
 - Rule: app runtime secrets stay in app-local Worker secret stores. Retrieval
   data-plane, object-store and execution-control compose env stay in ops-owned
   runtime env.
+- Worker vars/secrets do not own `primary_agent`, `rag_synthesis`,
+  `rag_query_embedding`, `rag_reranker`, `hindsight_*` or
+  `public_web_search` active provider profiles. Those stay in app-api
+  provider-config and are projected to runtimes through explicit snapshots.
+
+### Kubernetes / GitOps Deploy
+
+- Owner: K8s deploy substrate and GitOps runtime.
+- Surfaces: `infra/k8s/**` Kustomize overlays and `infra/gitops/**` Argo CD
+  skeleton.
+- Rule: ConfigMaps carry non-secret bootstrap handles, Secrets carry delivered
+  secret material, and External Secrets Operator is the target K8s secret
+  delivery layer.
+- Helm values are allowed only for third-party platform chart deployment
+  parameters. They must not contain provider API keys, DSNs, tokens or app-api
+  provider active-profile decisions.
 
 ### Telemetry
 

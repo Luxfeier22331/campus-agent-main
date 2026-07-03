@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-30
+updated: 2026-07-04
 ---
 
 # Docs
@@ -51,6 +51,11 @@ class owns a fact.
   - [runbooks/eval-ragas.md](./runbooks/eval-ragas.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
   - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
+- Runtime config, GitOps and secret delivery decisions:
+  - [decisions/adr-0064-runtime-config-governance.md](./decisions/adr-0064-runtime-config-governance.md)
+  - [decisions/adr-0065-gitops-argocd-helm-boundary.md](./decisions/adr-0065-gitops-argocd-helm-boundary.md)
+  - [decisions/adr-0066-secret-delivery.md](./decisions/adr-0066-secret-delivery.md)
+  - [runbooks/gitops-k8s.md](./runbooks/gitops-k8s.md)
 - Tool or domain readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)

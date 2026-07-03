@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-03-29
-updated: 2026-06-28
+updated: 2026-07-04
 ---
 # Environment
 
@@ -19,6 +19,10 @@ updated: 2026-06-28
     runtime 边界
 - `readiness.md`
   - readiness gate、runtime readiness surface 与 eval env contract
+- `../decisions/adr-0064-runtime-config-governance.md`
+  - runtime config class、source of truth 与 provider-config / deploy env 边界
+- `../decisions/adr-0066-secret-delivery.md`
+  - K8s / Worker secret delivery target boundary
 - `../runbooks/provider-secret-governance.md`
   - deploy-side secret 治理、rotate / revoke 与环境隔离规则
 

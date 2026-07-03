@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: docs
 status: active
 created: 2026-04-23
-updated: 2026-06-13
+updated: 2026-07-04
 ---
 # System Architecture
 
@@ -30,6 +30,10 @@ tool-local readiness.
   - `durable-runtime.md`
 - Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
   - `k8s-runtime.md`
+- Runtime config, GitOps and secret delivery decisions:
+  - `../../decisions/adr-0064-runtime-config-governance.md`
+  - `../../decisions/adr-0065-gitops-argocd-helm-boundary.md`
+  - `../../decisions/adr-0066-secret-delivery.md`
 - Prompt, system instruction and provider-facing prompt ownership:
   - `prompt.md`
 - Personal memory recall and memory lifecycle:
