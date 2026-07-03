@@ -41,6 +41,10 @@ kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
 该 overlay 只运行 `execution-control`、`agent-runtime` 与四个 Temporal
 worker。Temporal、Hindsight、Qdrant、projection DB 与 OTel collector 继续由
 Docker 承载，并通过 K8s selector-less Service 指向宿主机 `10.42.0.1`。
+`execution-control` 同时通过 `172.20.0.1:27051` 的 host-only bind 暴露给
+现有 Docker Traefik；Traefik 的 `execution-control-staging.mucwiki-edge.link`
+动态路由应指向 `http://172.20.0.1:27051`。不要改成 `0.0.0.0`
+NodePort 或公开端口。
 
 启动 Docker 依赖时必须额外加入 host-bind override：
 

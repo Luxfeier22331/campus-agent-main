@@ -88,6 +88,47 @@ class CheckK8sExecutionRuntimeSlimOverlayTest(unittest.TestCase):
                     ):
                         self.assertFalse("value" in env and "valueFrom" in env)
 
+    def test_execution_control_hostport_is_bound_to_docker_proxy_bridge_only(self) -> None:
+        deployments = {
+            doc["metadata"]["name"]: doc
+            for doc in _rendered_docs()
+            if doc.get("kind") == "Deployment"
+        }
+        ports = deployments["execution-control"]["spec"]["template"]["spec"]["containers"][0][
+            "ports"
+        ]
+
+        self.assertIn(
+            {
+                "name": "http",
+                "containerPort": 8000,
+                "hostIP": "172.20.0.1",
+                "hostPort": 27051,
+            },
+            ports,
+        )
+
+    def test_execution_control_host_traefik_ingress_is_explicit(self) -> None:
+        policies = {
+            doc["metadata"]["name"]: doc
+            for doc in _rendered_docs()
+            if doc.get("kind") == "NetworkPolicy"
+        }
+        ingress = policies["execution-control-host-traefik-ingress"]["spec"]["ingress"]
+
+        self.assertEqual(
+            ingress,
+            [
+                {
+                    "from": [
+                        {"ipBlock": {"cidr": "172.20.0.0/16"}},
+                        {"ipBlock": {"cidr": "10.42.0.1/32"}},
+                    ],
+                    "ports": [{"protocol": "TCP", "port": 8000}],
+                }
+            ],
+        )
+
     def test_runbook_uses_secret_renderer_not_raw_env_file_secret(self) -> None:
         runbook = (ROOT / "docs/runbooks/gitops-k8s.md").read_text(encoding="utf-8")
 

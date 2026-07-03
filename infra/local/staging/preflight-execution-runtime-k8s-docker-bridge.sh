@@ -7,6 +7,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/execution-control-staging-common.sh"
 
 bind_ip="${EXECUTION_CONTROL_K8S_HOST_BIND_IP:-10.42.0.1}"
+proxy_bind_ip="${EXECUTION_CONTROL_K8S_PROXY_HOST_BIND_IP:-172.20.0.1}"
 overlay="${EXECUTION_CONTROL_K8S_OVERLAY:-${execution_control_staging_repo_root}/infra/k8s/execution-runtime/overlays/nc-arm-6c-staging}"
 
 require_command() {
@@ -29,6 +30,10 @@ fi
 
 if ! ip -4 addr show | grep -Fq "inet ${bind_ip}/"; then
   echo "K8s host bind IP is not present on this host: ${bind_ip}" >&2
+  exit 1
+fi
+if ! ip -4 addr show | grep -Fq "inet ${proxy_bind_ip}/"; then
+  echo "K8s proxy host bind IP is not present on this host: ${proxy_bind_ip}" >&2
   exit 1
 fi
 

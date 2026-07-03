@@ -4,6 +4,7 @@ namespace: campus-agent-staging
 resources:
   - ../../base
   - external-docker-services.yaml
+  - host-traefik-ingress.yaml
 images:
   - name: ghcr.io/muc-wiki/campus-agent/execution-control
     newTag: staging
@@ -15,6 +16,7 @@ patches:
   - path: patch-nc-arm-6c-config.yaml
   - path: patch-runtime-resources.yaml
   - path: patch-provider-config-mounts.yaml
+  - path: patch-execution-control-hostport.yaml
   - path: patch-worker-identities.yaml
   - path: patch-endpoint-env.yaml
   - path: patch-network-policy.yaml

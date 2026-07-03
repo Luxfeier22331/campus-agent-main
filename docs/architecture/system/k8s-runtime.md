@@ -229,7 +229,10 @@ only `execution-control`, `agent-runtime` and the four Temporal worker
 Deployments in K8s. Temporal, Hindsight, Qdrant, projection Postgres and OTel
 collector remain Docker-owned dependencies exposed to pods through
 selector-less Services and EndpointSlices targeting the host CNI address
-`10.42.0.1`. It does not include KEDA, Temporal UI, samplers, Hindsight
+`10.42.0.1`. `execution-control` is exposed to the existing host Docker Traefik
+through a host-only `172.20.0.1:27051` bind so the current app-api staging
+entrypoint can keep using the same execution-control host name while the
+runtime pods move to K8s. It does not include KEDA, Temporal UI, samplers, Hindsight
 Postgres, Temporal Postgres or an in-cluster OTel collector.
 
 This is a substrate migration proof, not a new architecture truth for

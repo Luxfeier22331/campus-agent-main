@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-control
+  namespace: campus-agent-staging
+spec:
+  template:
+    spec:
+      containers:
+        - name: execution-control
+          ports:
+            - name: http
+              containerPort: 8000
+              hostIP: 172.20.0.1
+              hostPort: 27051
