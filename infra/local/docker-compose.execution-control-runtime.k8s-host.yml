@@ -1,0 +1,12 @@
+services:
+  temporal:
+    ports:
+      - "${EXECUTION_CONTROL_K8S_HOST_BIND_IP:-10.42.0.1}:${TEMPORAL_GRPC_HOST_PORT:-7233}:7233"
+
+  hindsight-api:
+    ports:
+      - "${EXECUTION_CONTROL_K8S_HOST_BIND_IP:-10.42.0.1}:${HINDSIGHT_API_HOST_PORT:-8888}:8888"
+
+  otel-collector:
+    ports:
+      - "${EXECUTION_CONTROL_K8S_HOST_BIND_IP:-10.42.0.1}:${OTEL_COLLECTOR_OTLP_HTTP_K8S_HOST_PORT:-4318}:4318"

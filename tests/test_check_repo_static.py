@@ -42,6 +42,16 @@ class CheckRepoStaticTest(unittest.TestCase):
 
         self.assertIn("docker affected files", labels)
 
+    def test_affected_checks_include_k8s_execution_runtime_slim_overlay(self) -> None:
+        checks = affected_repo_static_checks(
+            ("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging/kustomization.yaml",),
+            py="python",
+        )
+
+        labels = tuple(check.label for check in checks)
+
+        self.assertIn("k8s execution runtime slim overlay", labels)
+
 
 if __name__ == "__main__":
     unittest.main()

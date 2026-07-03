@@ -30,6 +30,88 @@ The first K8s staging profile is non-HA by default. Do not use this skeleton as
 production evidence until a separate production overlay or Application set has
 accepted HA sizing, backup, ingress, Access and release gates.
 
+## nc-arm-6c Slim Staging
+
+`nc-arm-6c` 的第一阶段 K8s proof 使用 slim overlay：
+
+```bash
+kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+```
+
+该 overlay 只运行 `execution-control`、`agent-runtime` 与四个 Temporal
+worker。Temporal、Hindsight、Qdrant、projection DB 与 OTel collector 继续由
+Docker 承载，并通过 K8s selector-less Service 指向宿主机 `10.42.0.1`。
+
+启动 Docker 依赖时必须额外加入 host-bind override：
+
+```bash
+export EXECUTION_CONTROL_STAGING_COMPOSE_FILES="\
+/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.yml:\
+/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.staging.yml:\
+/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.k8s-host.yml"
+
+export EXECUTION_CONTROL_STAGING_POSTGRES_COMPOSE_FILE="\
+/srv/apps/campus-agent/infra/local/docker-compose.postgres.yml"
+export EXECUTION_CONTROL_STAGING_QDRANT_COMPOSE_FILE="\
+/srv/apps/campus-agent/infra/local/docker-compose.qdrant-single-node.yml"
+```
+
+Qdrant 和 Postgres 的 K8s host bind override 需要通过对应 compose command
+显式叠加：
+
+```bash
+docker compose \
+  -f infra/local/docker-compose.postgres.yml \
+  -f infra/local/docker-compose.postgres-k8s-host.yml \
+  up -d postgres
+
+docker compose \
+  -f infra/local/docker-compose.qdrant-single-node.yml \
+  -f infra/local/docker-compose.qdrant-k8s-host.yml \
+  up -d qdrant
+```
+
+应用 K8s 前必须通过 bridge preflight：
+
+```bash
+infra/local/staging/preflight-execution-runtime-k8s-docker-bridge.sh
+```
+
+该 preflight 要求 `10.42.0.1` 存在，并确认 `5432`、`6333`、`7233`、
+`8888`、`4318` 只在 K8s host-bind 地址上可达，不允许 stateful dependency
+暴露到 `0.0.0.0`。
+
+K8s Secret 由远端 ops-owned env / artifact 生成，不提交到 repo。必须通过
+staging env loader 渲染，不能直接从原始 env file 创建 Secret；否则会漏掉
+provider projection、runtime release 与 runtime-generated secret：
+
+```bash
+infra/local/staging/render-execution-runtime-k8s-secrets.sh | kubectl apply -f -
+```
+
+渲染前必须确认 `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 与
+`QDRANT_TLS_CA_CERT_PATH` 指向真实文件。渲染结果必须包含真实
+`EXECUTION_CONTROL_RUNTIME_RELEASE`，例如 `execution-control@<sha>`，不得使用占位值。
+
+在 apply slim overlay 前，必须停止 Docker 中会重复消费 Temporal queue 的
+`execution-control`、`agent-runtime` 和 worker 容器；Temporal、Hindsight、
+Qdrant、Postgres 与 OTel 保持运行。
+
+```bash
+kubectl apply -k infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+```
+
+Rollback 固定为删除 slim overlay 后恢复 Docker runtime：
+
+```bash
+kubectl delete -k infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+docker compose \
+  -f infra/local/docker-compose.execution-control-runtime.yml \
+  -f infra/local/docker-compose.execution-control-runtime.staging.yml \
+  up -d execution-control agent-runtime workflow-worker \
+    activity-worker-core activity-worker-agent activity-worker-knowledge
+```
+
 ## Bootstrap
 
 1. Install Argo CD into the target cluster namespace `argocd`.

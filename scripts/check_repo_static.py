@@ -36,6 +36,10 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("env examples", (py, "-m", "scripts.check_env_example_tracked")),
         StaticCheck("env surface policy", (py, "-m", "scripts.check_env_surface_policy")),
         StaticCheck("gitops skeleton", (py, "-m", "scripts.check_gitops_skeleton")),
+        StaticCheck(
+            "k8s execution runtime slim overlay",
+            (py, "-m", "scripts.check_k8s_execution_runtime_slim_overlay"),
+        ),
         StaticCheck("html tracked files", (py, "-m", "scripts.check_html_tracked")),
         StaticCheck("yaml tracked files", (py, "-m", "scripts.check_yaml_tracked")),
         StaticCheck("toml syntax", (py, "-m", "scripts.check_toml_syntax")),
@@ -144,6 +148,17 @@ def affected_repo_static_checks(
     ):
         checks.append(
             StaticCheck("gitops skeleton", (python, "-m", "scripts.check_gitops_skeleton"))
+        )
+    if any(
+        path.startswith("infra/k8s/execution-runtime/")
+        or path == "scripts/check_k8s_execution_runtime_slim_overlay.py"
+        for path in paths
+    ):
+        checks.append(
+            StaticCheck(
+                "k8s execution runtime slim overlay",
+                (python, "-m", "scripts.check_k8s_execution_runtime_slim_overlay"),
+            )
         )
     if any(path.endswith(".html") for path in paths):
         checks.append(

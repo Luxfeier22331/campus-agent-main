@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-control
+  namespace: campus-agent-staging
+spec:
+  template:
+    spec:
+      containers:
+        - name: execution-control
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          secret:
+            secretName: execution-runtime-qdrant-tls-ca
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-core
+  namespace: campus-agent-staging
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          secret:
+            secretName: execution-runtime-qdrant-tls-ca
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-agent
+  namespace: campus-agent-staging
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-knowledge
+  namespace: campus-agent-staging
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          secret:
+            secretName: execution-runtime-qdrant-tls-ca

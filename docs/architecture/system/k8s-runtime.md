@@ -217,6 +217,25 @@ The staging overlay creates the internal execution plane only:
 - KEDA/HPA posture collector
 - one KEDA `ScaledObject` per worker Deployment
 
+For the current single-node `nc-arm-6c` proof, the committed slim overlay lives
+at:
+
+```text
+infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+```
+
+This overlay is intentionally narrower than the full staging target. It runs
+only `execution-control`, `agent-runtime` and the four Temporal worker
+Deployments in K8s. Temporal, Hindsight, Qdrant, projection Postgres and OTel
+collector remain Docker-owned dependencies exposed to pods through
+selector-less Services and EndpointSlices targeting the host CNI address
+`10.42.0.1`. It does not include KEDA, Temporal UI, samplers, Hindsight
+Postgres, Temporal Postgres or an in-cluster OTel collector.
+
+This is a substrate migration proof, not a new architecture truth for
+stateful services. Stateful HA decisions remain separate and require multiple
+failure domains or managed services.
+
 ### GitOps And Helm Boundary
 
 Target K8s desired state is managed by Argo CD once a K8s staging/prod
