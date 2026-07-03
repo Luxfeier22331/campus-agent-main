@@ -28,12 +28,12 @@ describe("operator provider config routes", () => {
 		} as Parameters<typeof createApp>[1]);
 		const promptConnectionResponse = await createConnection(
 			app,
-			connectionPayload({ apiKey: "sk-prompt-secret-1234", features: ["prompt"] }),
+			connectionPayload({ apiKey: "placeholder", features: ["prompt"] }),
 		);
 		const embeddingConnectionResponse = await createConnection(
 			app,
 			connectionPayload({
-				apiKey: "emb-secret-5678",
+				apiKey: "embedding-placeholder",
 				baseUrl: "https://embedding.example/v1",
 				features: ["embedding"],
 			}),
@@ -71,8 +71,8 @@ describe("operator provider config routes", () => {
 		expect(embeddingResponse.status).toBe(200);
 		const promptBodyText = await promptResponse.text();
 		const embeddingBodyText = await embeddingResponse.text();
-		expect(promptBodyText).not.toContain("sk-prompt-secret-1234");
-		expect(embeddingBodyText).not.toContain("emb-secret-5678");
+		expect(promptBodyText).not.toContain("placeholder");
+		expect(embeddingBodyText).not.toContain("embedding-placeholder");
 		expect(JSON.parse(promptBodyText)).toMatchObject({
 			profile: {
 				active: false,

@@ -187,6 +187,11 @@ def affected_repo_static_checks(
                 "ci workflow contracts", (python, "-m", "scripts.check_ci_workflow_contracts")
             )
         )
+        checks.append(
+            StaticCheck(
+                "workflow action policy", (python, "-m", "scripts.check_workflow_action_policy")
+            )
+        )
     return _dedupe_checks(tuple(checks))
 
 

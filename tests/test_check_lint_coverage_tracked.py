@@ -93,7 +93,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("ci:go",),
         )
         self.assertEqual(
-            lint_families_for_path(".github/workflows/lint.yml"),
+            lint_families_for_path(".github/workflows/pr-checks.yml"),
             ("repo:static",),
         )
         self.assertEqual(

@@ -15,7 +15,7 @@ SCORE_REGISTRY_PATH = Path("packages/eval-langfuse/fixtures/ops/langfuse_score_r
 EVAL_MAP_PATH = Path("docs/reference/eval-map.md")
 LANGFUSE_CLI_PATH = Path("packages/eval-langfuse/src/cli.ts")
 RAG_FIXTURE_ROOT = Path("packages/eval-langfuse/fixtures/rag")
-LINT_WORKFLOW_PATH = Path(".github/workflows/lint.yml")
+CI_SURFACE_DETECTOR_PATH = Path("scripts/detect_ci_changed_surfaces.py")
 LANGFUSE_RUNTIME_CONTRACT_PATH = Path("docs/contracts/langfuse-runtime.md")
 APP_API_EVAL_INGRESS_CONTRACT_PATH = Path("docs/contracts/app-api/eval-benchmark.md")
 TRACE_EVIDENCE_PATH = Path("packages/eval-langfuse/src/trace-evidence.ts")
@@ -256,7 +256,7 @@ def audit_langfuse_eval_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_retired_eval_policy_paths_absent(repo_root),
         _audit_retired_fixture_splits_absent(repo_root),
         _audit_eval_map_retired_lanes_absent(repo_root),
-        _audit_langfuse_lint_contract_path(repo_root),
+        _audit_langfuse_ci_surface_contract_path(repo_root),
         _audit_unique_literal_list(
             repo_root=repo_root,
             relative_path=TRACE_EVIDENCE_PATH,
@@ -631,19 +631,19 @@ def _audit_eval_map_retired_lanes_absent(repo_root: Path) -> dict[str, object]:
     }
 
 
-def _audit_langfuse_lint_contract_path(repo_root: Path) -> dict[str, object]:
-    workflow_path = repo_root / LINT_WORKFLOW_PATH
+def _audit_langfuse_ci_surface_contract_path(repo_root: Path) -> dict[str, object]:
+    detector_path = repo_root / CI_SURFACE_DETECTOR_PATH
     active_path = LANGFUSE_RUNTIME_CONTRACT_PATH.as_posix()
     retired_path = "docs/contracts/langfuse-runtime-observability-contract.md"
-    if not workflow_path.exists():
+    if not detector_path.exists():
         return {
-            "check_id": "langfuse_lint_contract_path",
+            "check_id": "langfuse_ci_surface_contract_path",
             "passed": False,
-            "missing_workflow": str(workflow_path),
+            "missing_detector": str(detector_path),
         }
-    text = workflow_path.read_text(encoding="utf-8")
+    text = detector_path.read_text(encoding="utf-8")
     return {
-        "check_id": "langfuse_lint_contract_path",
+        "check_id": "langfuse_ci_surface_contract_path",
         "passed": active_path in text and retired_path not in text,
         "active_path_present": active_path in text,
         "retired_path_present": retired_path in text,

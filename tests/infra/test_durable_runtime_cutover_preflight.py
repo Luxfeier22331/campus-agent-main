@@ -28,7 +28,7 @@ VALID_STAGING_ENV = textwrap.dedent(
     STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
     STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
     OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=https://o4511127794155520.ingest.us.sentry.io/api/4511351503454208/integration/otlp
-    OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=03ac022c1d762aa1882d3fdbc27915f9
+    OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=key
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
     OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom-ingest-token
     OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
@@ -250,7 +250,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                 "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-metrics",
             )
             .replace(
-                "OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=03ac022c1d762aa1882d3fdbc27915f9",
+                "OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=key",
                 "OTEL_COLLECTOR_SENTRY_AUTH_VALUE=Bearer sentry-token",
             )
         )

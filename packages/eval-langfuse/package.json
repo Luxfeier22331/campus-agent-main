@@ -16,13 +16,13 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@langfuse/client": "^5.5.3"
+		"@langfuse/client": "^5.9.1"
 	},
 	"devDependencies": {
 		"@types/node": "^24.12.0",
-		"tsx": "^4.21.0",
+		"tsx": "^4.22.5",
 		"typescript": "^5.8.2",
-		"vitest": "^4.1.0"
+		"vitest": "^4.1.9"
 	},
 	"license": "Apache-2.0"
 }

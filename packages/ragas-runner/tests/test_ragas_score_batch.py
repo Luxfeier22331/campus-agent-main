@@ -153,6 +153,71 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                     scorer_factory=lambda: lambda _projection: (),
                 )
 
+    def test_rejects_multimodal_resource_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            work_dir = Path(raw_dir)
+            input_path = work_dir / "samples.json"
+            output_path = work_dir / "scores.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "ragas_sample_batch.v1",
+                        "eval_run_id": "ragas-smoke-001",
+                        "items": [
+                            {
+                                "case_id": "case-001",
+                                "trace_id": "trace-001",
+                                "question": "What are the library opening hours?",
+                                "answer": "The library is open from 08:00 to 22:00.",
+                                "contexts": ["The library opening hours are 08:00-22:00."],
+                                "image_url": "https://example.test/proof.png",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "case-001.image_url is forbidden"):
+                run_ragas_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    scorer_factory=lambda: lambda _projection: (),
+                )
+
+    def test_rejects_url_or_file_references_in_text_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            work_dir = Path(raw_dir)
+            input_path = work_dir / "samples.json"
+            output_path = work_dir / "scores.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "ragas_sample_batch.v1",
+                        "eval_run_id": "ragas-smoke-001",
+                        "items": [
+                            {
+                                "case_id": "case-001",
+                                "trace_id": "trace-001",
+                                "question": "What are the library opening hours?",
+                                "answer": "The library is open from 08:00 to 22:00.",
+                                "contexts": ["file:///tmp/proof.txt"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "case-001.contexts\\[0\\] must not be a URL or file reference"
+            ):
+                run_ragas_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    scorer_factory=lambda: lambda _projection: (),
+                )
+
     def test_rejects_embedding_dimensions_until_supported_by_ragas_provider(self) -> None:
         settings = RagasRunnerSettings(
             llm_api_key="sk-test",

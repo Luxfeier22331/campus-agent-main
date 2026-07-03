@@ -16,17 +16,17 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.956.0",
+		"@aws-sdk/client-s3": "^3.1079.0",
 		"cheerio": "1.0.0-rc.12",
 		"ingestion-contracts": "file:../../packages/ingestion-contracts",
 		"official-web-core": "file:../../packages/official-web-core",
-		"pg": "^8.16.3"
+		"pg": "^8.22.0"
 	},
 	"devDependencies": {
 		"@types/node": "^24.12.0",
 		"@types/pg": "^8.15.6",
 		"typescript": "^5.8.2",
-		"vitest": "^4.1.0"
+		"vitest": "^4.1.9"
 	},
 	"license": "Apache-2.0"
 }

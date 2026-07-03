@@ -18,12 +18,12 @@ class LangfuseEvalAuditTest(unittest.TestCase):
 
         self.assertTrue(report["passed"])
 
-    def test_audit_rejects_retired_lint_contract_path(self) -> None:
+    def test_audit_rejects_retired_ci_surface_contract_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             _write_minimal_langfuse_eval_repo(
                 root,
-                lint_contract_path="docs/contracts/langfuse-runtime-observability-contract.md",
+                ci_surface_contract_path="docs/contracts/langfuse-runtime-observability-contract.md",
             )
 
             report = audit_langfuse_eval_configuration(repo_root=root)
@@ -31,7 +31,7 @@ class LangfuseEvalAuditTest(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertIn(
             {
-                "check_id": "langfuse_lint_contract_path",
+                "check_id": "langfuse_ci_surface_contract_path",
                 "passed": False,
                 "active_path_present": False,
                 "retired_path_present": True,
@@ -187,7 +187,7 @@ def _write_minimal_langfuse_eval_repo(
     root: Path,
     *,
     duplicate_selected_tool: bool = False,
-    lint_contract_path: str = "docs/contracts/langfuse-runtime.md",
+    ci_surface_contract_path: str = "docs/contracts/langfuse-runtime.md",
 ) -> None:
     _write_text(
         root / ".github/workflows/eval-ragas-score.yml",
@@ -213,12 +213,10 @@ jobs:
 """,
     )
     _write_text(
-        root / ".github/workflows/lint.yml",
+        root / "scripts/detect_ci_changed_surfaces.py",
         f"""
-jobs:
-  changes:
-    steps:
-      - run: echo langfuse:{lint_contract_path}
+def _is_langfuse_path(path: str) -> bool:
+    return path == {ci_surface_contract_path!r}
 """,
     )
     _write_json(

@@ -224,6 +224,45 @@ DROP COLUMN "actor_groups_json";`),
 		});
 	});
 
+	it("loads multi-clause dining adoption migrations as single-target statements", () => {
+		const migration = migrationContext.migrations.find(
+			(item: { tag: string }) => item.tag === "0056_dining_source_observation_incremental",
+		);
+
+		expect(migration?.statements).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining(
+					'ALTER TABLE "dining"."source_observations"\nADD COLUMN IF NOT EXISTS "source_base_token" text;',
+				),
+				expect.stringContaining('UPDATE "dining"."source_observations"\nSET\n    "content_hash"'),
+				expect.stringContaining(
+					'ALTER TABLE "dining"."source_observations"\nALTER COLUMN "content_hash" SET NOT NULL;',
+				),
+			]),
+		);
+		expect(
+			migration?.statements.some(
+				(statement: string) =>
+					statement.includes('ADD COLUMN IF NOT EXISTS "source_base_token"') &&
+					statement.includes('ADD COLUMN IF NOT EXISTS "source_table_id"'),
+			),
+		).toBe(false);
+		expect(
+			migration?.statements.some(
+				(statement: string) =>
+					statement.includes('ADD COLUMN IF NOT EXISTS "stale_at"') &&
+					statement.includes('UPDATE "dining"."source_observations"'),
+			),
+		).toBe(false);
+		expect(
+			migration?.statements.some(
+				(statement: string) =>
+					statement.includes('ALTER COLUMN "content_hash" SET NOT NULL') &&
+					statement.includes('ALTER COLUMN "first_seen_at" SET NOT NULL'),
+			),
+		).toBe(false);
+	});
+
 	it("classifies non-owned shared schemas as fresh for app-api adoption", () => {
 		const inventory = makeInventory({
 			schemas: ["auth", "chat"],

@@ -121,7 +121,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 		},
 		{
 			conversationKey: "curriculum",
-			key: "curriculum-semester-2-follow-up",
+			key: "curriculum-followup",
 			prompt: "那大一下呢？",
 			requestedScope: {
 				collection: "curriculum_plan",

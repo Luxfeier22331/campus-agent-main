@@ -29,10 +29,29 @@ FORBIDDEN_SAMPLE_FIELD_NAMES = frozenset(
         "bucket",
         "cookie",
         "database_url",
+        "file",
+        "file_path",
+        "file_paths",
+        "file_url",
+        "file_urls",
+        "files",
+        "image",
+        "image_path",
+        "image_paths",
+        "image_url",
+        "image_urls",
+        "images",
         "jwt",
         "local_artifact_path",
+        "media",
+        "media_path",
+        "media_paths",
+        "media_url",
+        "media_urls",
         "object_key",
         "object_store_secret",
+        "path",
+        "paths",
         "provider_raw_response",
         "raw_answer",
         "raw_chat_transcript",
@@ -40,10 +59,24 @@ FORBIDDEN_SAMPLE_FIELD_NAMES = frozenset(
         "raw_provider_response",
         "raw_retrieved_snippet",
         "raw_trace",
+        "source_url",
         "source_body",
         "transcript",
+        "uri",
+        "uris",
+        "url",
+        "urls",
     }
 )
+FORBIDDEN_RESOURCE_VALUE_PREFIXES = (
+    "file://",
+    "ftp://",
+    "gs://",
+    "http://",
+    "https://",
+    "s3://",
+)
+FORBIDDEN_LOCAL_PATH_PREFIXES = ("/", "./", "../", "~/")
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,6 +587,20 @@ def _assert_no_forbidden_fields(value: object, path: str) -> None:
     if isinstance(value, list):
         for index, child in enumerate(value):
             _assert_no_forbidden_fields(child, f"{path}[{index}]")
+        return
+    if isinstance(value, str) and _is_forbidden_resource_reference(value):
+        raise ValueError(f"{path} must not be a URL or file reference")
+
+
+def _is_forbidden_resource_reference(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized:
+        return False
+    if normalized.startswith(FORBIDDEN_RESOURCE_VALUE_PREFIXES):
+        return True
+    if normalized.startswith(FORBIDDEN_LOCAL_PATH_PREFIXES):
+        return True
+    return len(normalized) >= 3 and normalized[1:3] in (":\\", ":/")
 
 
 def _required_setting(

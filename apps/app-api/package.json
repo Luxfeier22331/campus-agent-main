@@ -25,31 +25,31 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@better-auth/oauth-provider": "1.6.20",
-		"@hono/zod-openapi": "^0.19.10",
-		"@sentry/cloudflare": "^10.46.0",
-		"better-auth": "^1.6.20",
-		"better-call": "1.3.6",
+		"@better-auth/oauth-provider": "1.6.23",
+		"@hono/zod-openapi": "^1.4.0",
+		"@sentry/cloudflare": "^10.63.0",
+		"better-auth": "^1.6.23",
+		"better-call": "1.3.7",
 		"dining-domain": "file:../../packages/dining-domain",
 		"drizzle-orm": "^0.45.2",
-		"fast-xml-parser": "^5.5.8",
-		"hono": "^4.9.8",
+		"fast-xml-parser": "^5.9.3",
+		"hono": "^4.12.27",
 		"ingestion-contracts": "file:../../packages/ingestion-contracts",
 		"official-web-core": "file:../../packages/official-web-core",
-		"pg": "^8.16.3",
-		"zod": "^4.1.11"
+		"pg": "^8.22.0",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.13.4",
-		"@cloudflare/workers-types": "^4.20260317.1",
+		"@cloudflare/vitest-pool-workers": "^0.18.0",
+		"@cloudflare/workers-types": "^4.20260702.1",
 		"@types/node": "^24.12.0",
 		"@types/pg": "^8.15.6",
 		"drizzle-kit": "^0.31.5",
-		"tsx": "^4.21.0",
+		"tsx": "^4.22.5",
 		"typescript": "^5.8.2",
-		"vite": "^8.0.3",
-		"vitest": "^4.1.0",
-		"wrangler": "^4.77.0"
+		"vite": "^8.1.3",
+		"vitest": "^4.1.9",
+		"wrangler": "^4.107.0"
 	},
 	"license": "Apache-2.0"
 }

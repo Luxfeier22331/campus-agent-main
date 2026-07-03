@@ -13,7 +13,10 @@ import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
+import diningControlsSource from "../src/components/dining/dining-controls.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
+import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx?raw";
+import diningReviewsSource from "../src/components/dining/dining-reviews.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
 import { mockDiningFixtureApi } from "./dining-fixture-test-utils";
@@ -441,45 +444,45 @@ describe("campus routes", () => {
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {
-		expect(diningExperienceSource).toContain("getDiningFloorplanByFloor");
-		expect(diningExperienceSource).toContain("floor.floor.floorplan.floorplanId");
-		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
-		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
-		expect(diningExperienceSource).not.toContain("h-full min-h-36");
+		expect(diningFloorplanSource).toContain("getDiningFloorplanByFloor");
+		expect(diningFloorplanSource).toContain("floor.floor.floorplan.floorplanId");
+		expect(diningFloorplanSource).toContain("dangerouslySetInnerHTML");
+		expect(diningFloorplanSource).toContain("[data-dining-anchor-id]");
+		expect(diningFloorplanSource).not.toContain("h-full min-h-36");
 		expect(diningExperienceSource).not.toContain("DiningReviewList");
-		expect(diningExperienceSource).toContain("暂无评价");
-		expect(diningExperienceSource).toContain("alt={image.alt}");
-		expect(diningExperienceSource).toContain("overflow-x-auto");
-		expect(diningExperienceSource).toContain("md:flex-wrap");
-		expect(diningExperienceSource).toContain("shrink-0 rounded-full");
-		expect(diningExperienceSource).toContain("wheel={{ disabled: true }}");
-		expect(diningExperienceSource).toContain("DialogTrigger");
-		expect(diningExperienceSource).toMatch(/aria-label=\{`预览\$\{image\.alt\}`\}/);
-		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
+		expect(diningReviewsSource).toContain("暂无评价");
+		expect(diningReviewsSource).toContain("alt={image.alt}");
+		expect(diningReviewsSource).toContain("overflow-x-auto");
+		expect(diningControlsSource).toContain("md:flex-wrap");
+		expect(diningControlsSource).toContain("shrink-0 rounded-full");
+		expect(diningFloorplanSource).toContain("wheel={{ disabled: true }}");
+		expect(diningReviewsSource).toContain("DialogTrigger");
+		expect(diningReviewsSource).toMatch(/aria-label=\{`预览\$\{image\.alt\}`\}/);
+		expect(diningFloorplanSource).toContain("min-w-0 rounded-xl");
 		expect(diningExperienceSource).not.toContain("StallList");
-		expect(diningExperienceSource).not.toContain("min-w-0 max-h-[360px]");
-		expect(diningExperienceSource).toContain("!w-full !max-w-full");
-		expect(diningExperienceSource).toContain("rounded-xl bg-[var(--dining-svg-canvas-bg)]");
-		expect(diningExperienceSource).toContain(
+		expect(diningFloorplanSource).not.toContain("min-w-0 max-h-[360px]");
+		expect(diningFloorplanSource).toContain("!w-full !max-w-full");
+		expect(diningFloorplanSource).toContain("rounded-xl bg-[var(--dining-svg-canvas-bg)]");
+		expect(diningFloorplanSource).toContain(
 			'wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg"',
 		);
-		expect(diningExperienceSource).not.toContain(
+		expect(diningFloorplanSource).not.toContain(
 			'wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"',
 		);
-		expect(diningExperienceSource).toContain("floorplanKey");
-		expect(diningExperienceSource).toContain("key={floorplanKey}");
-		expect(diningExperienceSource).toContain("maxScale={1.32}");
-		expect(diningExperienceSource).toContain("zoomToElement(selector, 1.08");
-		expect(diningExperienceSource).not.toContain("ZoomIn");
-		expect(diningExperienceSource).not.toContain("ZoomOut");
-		expect(diningExperienceSource).toContain("matchedWindowIds");
-		expect(diningExperienceSource).toContain("is-dimmed");
-		expect(diningExperienceSource).not.toContain("maxScale={3}");
-		expect(diningExperienceSource).not.toContain("maxScale={1.7}");
-		expect(diningExperienceSource).not.toContain("zoomToElement(selector, 1.35");
-		expect(diningExperienceSource).not.toContain("min-w-[640px]");
-		expect(diningExperienceSource).not.toContain("<fieldset");
-		expect(diningExperienceSource).toContain('data-testid="dining-inline-floorplan"');
+		expect(diningFloorplanSource).toContain("floorplanKey");
+		expect(diningFloorplanSource).toContain("key={floorplanKey}");
+		expect(diningFloorplanSource).toContain("maxScale={1.32}");
+		expect(diningFloorplanSource).toContain("zoomToElement(selector, 1.08");
+		expect(diningFloorplanSource).not.toContain("ZoomIn");
+		expect(diningFloorplanSource).not.toContain("ZoomOut");
+		expect(diningFloorplanSource).toContain("matchedWindowIds");
+		expect(diningFloorplanSource).toContain("is-dimmed");
+		expect(diningFloorplanSource).not.toContain("maxScale={3}");
+		expect(diningFloorplanSource).not.toContain("maxScale={1.7}");
+		expect(diningFloorplanSource).not.toContain("zoomToElement(selector, 1.35");
+		expect(diningFloorplanSource).not.toContain("min-w-[640px]");
+		expect(diningControlsSource).not.toContain("<fieldset");
+		expect(diningFloorplanSource).toContain('data-testid="dining-inline-floorplan"');
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
 		expect(diningPageSource).toContain("getDiningHallReviews");
@@ -487,8 +490,8 @@ describe("campus routes", () => {
 		expect(diningPageSource).toContain("requestAnimationFrame");
 		expect(diningPageSource).toContain("matchMedia");
 		expect(diningPageSource).not.toContain('id: "rice-bowl"');
-		expect(diningExperienceSource).not.toContain("x: 56");
-		expect(diningExperienceSource).not.toContain("y: 72");
+		expect(diningFloorplanSource).not.toContain("x: 56");
+		expect(diningFloorplanSource).not.toContain("y: 72");
 		expect(diningPageSource).not.toContain("stalls");
 		expect(diningExperienceSource).not.toContain("stalls");
 		expect(diningExperienceSource).not.toContain("已下架");

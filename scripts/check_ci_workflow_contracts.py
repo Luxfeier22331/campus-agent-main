@@ -1,60 +1,102 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from scripts.ci_workflow_contract_types import CiWorkflowContractIssue
+from scripts.ci_workflow_manual_contracts import audit_manual_release_workflow_contracts
 
 REQUIRED_CI_SCRIPTS = (
     "repo:guard",
     "repo:static",
     "ci:repo-guard",
     "ci:repo-static",
+    "ci:repo-static:affected",
+    "ci:contracts",
+    "ci:ingestion",
     "ci:langfuse",
     "ci:go",
+    "ci:web-graph:affected",
     "ci:web-graph:full",
+    "ci:worker-runtime",
     "ci:config:lint",
+    "ci:actions:lint",
+    "ci:secrets",
+    "ci:deps:vuln",
 )
 REQUIRED_CI_SCRIPT_VALUES = {
+    "ci:repo-static:affected": (
+        'uv run --all-packages python -m scripts.check_repo_static --affected --base "${CI_BASE_REF:-origin/develop}"'
+    ),
     "ci:langfuse": (
         "pnpm --dir packages/eval-langfuse typecheck && "
         "pnpm --dir packages/eval-langfuse test && "
         "pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts"
     ),
+    "ci:config:lint": (
+        "pnpm ci:actions:lint && "
+        "uv run --all-packages python -m scripts.check_ci_workflow_contracts && "
+        "uv run --all-packages python -m scripts.check_workflow_action_policy"
+    ),
+    "ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
+    "ci:secrets": "uv run --all-packages python -m scripts.run_gitleaks_scan",
+    "ci:deps:vuln": "uv run --all-packages python -m scripts.run_osv_scan",
 }
 
 REQUIRED_WORKFLOW_SCRIPT_CALLS = {
-    ".github/workflows/lint.yml": (
+    ".github/workflows/pr-checks.yml": (
+        "pnpm ci:repo-guard",
         "pnpm ci:repo-static",
+        "pnpm ci:repo-static:affected",
+        "pnpm ci:config:lint",
+        "pnpm ci:secrets",
+        "pnpm ci:web-graph:affected",
+        "pnpm ci:worker-runtime",
+        "pnpm ci:contracts",
         "pnpm ci:langfuse",
         "pnpm ci:go",
+        "pnpm ci:ingestion",
     ),
 }
+REQUIRED_PR_CHECK_JOBS = (
+    "changes",
+    "repo-guard",
+    "repo-static",
+    "config-lint",
+    "secret-scan",
+    "web-graph",
+    "worker-runtime",
+    "contracts",
+    "execution-control-go",
+    "langfuse-integration",
+    "ingestion",
+    "required-checks",
+)
 REQUIRED_GOLANGCI_LINT_INSTALL = (
     "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
 )
+REQUIRED_GITLEAKS_INSTALL = "go install github.com/zricethezav/gitleaks/v8@v8.30.1"
+REQUIRED_OSV_SCANNER_INSTALL = "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8"
+REQUIRED_GO_BIN_PATH_EXPORT = 'echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"'
 REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
-REQUIRED_WORKFLOW_CONCURRENCY = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
-MANUAL_ONLY_WORKFLOWS = (".github/workflows/eval-ragas-score.yml",)
-MANUAL_ONLY_IF_PRESENT_WORKFLOWS = (".github/workflows/public-docs-rolling-publish.yml",)
-INTERNAL_SECRET_WORKFLOW_ENVS = {
-    ".github/workflows/eval-ragas-score.yml": "eval-internal",
-}
+PR_CHECKS_WORKFLOW = ".github/workflows/pr-checks.yml"
+RETIRED_AUTOMATIC_WORKFLOWS = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
+REQUIRED_WORKFLOW_CONCURRENCY = (PR_CHECKS_WORKFLOW,)
 PATH_FILTERED_JOBS = {
-    ".github/workflows/lint.yml": {
+    PR_CHECKS_WORKFLOW: {
+        "contracts": "contracts",
         "execution-control-go": "go",
+        "ingestion": "ingestion",
         "langfuse-integration": "langfuse",
+        "web-graph": "web_graph",
+        "worker-runtime": "worker_runtime",
     }
 }
-
-
-@dataclass(frozen=True, slots=True)
-class CiWorkflowContractIssue:
-    path: str
-    message: str
 
 
 def repo_root() -> Path:
@@ -91,8 +133,8 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
                 CiWorkflowContractIssue(
                     path="package.json",
                     message=(
-                        f"{script_name} must call its underlying checker directly; "
-                        "do not route CI through removable root aliases"
+                        f"{script_name} must match the required CI command shape; "
+                        "do not route CI through removable or base-ambiguous aliases"
                     ),
                 )
             )
@@ -101,16 +143,52 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
         issues.extend(_audit_package_manager_versions(base, root_pnpm_version))
         issues.extend(_audit_workflow_pnpm_versions(base, root_pnpm_version))
     issues.extend(_audit_workflow_script_calls(base))
+    issues.extend(_audit_retired_automatic_workflows_absent(base))
+    issues.extend(_audit_pr_checks_required_jobs(base))
     issues.extend(_audit_workflow_concurrency(base))
-    issues.extend(_audit_manual_only_workflows(base))
-    issues.extend(_audit_secret_workflow_exposure(base))
-    issues.extend(_audit_public_docs_publish_workflow(base))
+    issues.extend(audit_manual_release_workflow_contracts(root=base))
     issues.extend(_audit_path_filtered_jobs(base))
+    issues.extend(_audit_pr_checks_aggregate_job(base))
+    issues.extend(_audit_pr_checks_base_sha_flow(base))
+    issues.extend(_audit_workflow_setup_cache(base))
+    issues.extend(_audit_secret_scan_lane_tooling(base))
+    issues.extend(_audit_dependency_vulnerability_lane_tooling(base))
     issues.extend(_audit_repo_static_lane_tooling(base))
     issues.extend(_audit_langfuse_lane_tooling(base))
-    issues.extend(_audit_eval_ragas_score_contract(base))
     issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
+
+
+def _audit_retired_automatic_workflows_absent(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_relpath in RETIRED_AUTOMATIC_WORKFLOWS:
+        if (root / workflow_relpath).exists():
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath,
+                    message="retired automatic workflow must not exist; use pr-checks.yml",
+                )
+            )
+    return tuple(issues)
+
+
+def _audit_pr_checks_required_jobs(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_path = root / PR_CHECKS_WORKFLOW
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    missing = sorted(job_name for job_name in REQUIRED_PR_CHECK_JOBS if job_name not in jobs)
+    if not missing:
+        return ()
+    return (
+        CiWorkflowContractIssue(
+            path=PR_CHECKS_WORKFLOW,
+            message="pr-checks workflow is missing required jobs: " + ", ".join(missing),
+        ),
+    )
 
 
 def _audit_package_manager_versions(
@@ -185,7 +263,7 @@ def _audit_workflow_script_calls(root: Path) -> tuple[CiWorkflowContractIssue, .
             str(step.get("run") or "") for step in _workflow_steps(_read_yaml(workflow_path))
         )
         for required_call in required_calls:
-            if required_call not in run_text:
+            if not _run_text_contains_command(run_text, required_call):
                 issues.append(
                     CiWorkflowContractIssue(
                         path=workflow_relpath,
@@ -193,6 +271,11 @@ def _audit_workflow_script_calls(root: Path) -> tuple[CiWorkflowContractIssue, .
                     )
                 )
     return tuple(issues)
+
+
+def _run_text_contains_command(run_text: str, command: str) -> bool:
+    boundary = r"[A-Za-z0-9_:-]"
+    return re.search(rf"(?<!{boundary}){re.escape(command)}(?!{boundary})", run_text) is not None
 
 
 def _audit_workflow_concurrency(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
@@ -221,141 +304,6 @@ def _audit_workflow_concurrency(root: Path) -> tuple[CiWorkflowContractIssue, ..
     return tuple(issues)
 
 
-def _audit_manual_only_workflows(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    issues: list[CiWorkflowContractIssue] = []
-    for workflow_relpath in MANUAL_ONLY_WORKFLOWS:
-        workflow_path = root / workflow_relpath
-        if not workflow_path.exists():
-            issues.append(
-                CiWorkflowContractIssue(
-                    path=workflow_relpath, message="required workflow is missing"
-                )
-            )
-            continue
-        issues.extend(_audit_manual_only_workflow(root, workflow_path))
-    for workflow_relpath in MANUAL_ONLY_IF_PRESENT_WORKFLOWS:
-        workflow_path = root / workflow_relpath
-        if workflow_path.exists():
-            issues.extend(_audit_manual_only_workflow(root, workflow_path))
-    return tuple(issues)
-
-
-def _audit_manual_only_workflow(
-    root: Path, workflow_path: Path
-) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow = _read_yaml(workflow_path)
-    relpath = workflow_path.relative_to(root).as_posix()
-    triggers = _workflow_triggers(workflow)
-    issues: list[CiWorkflowContractIssue] = []
-    if "workflow_dispatch" not in triggers:
-        issues.append(
-            CiWorkflowContractIssue(
-                path=relpath,
-                message="manual-only workflow must expose workflow_dispatch",
-            )
-        )
-    automatic_triggers = sorted(trigger for trigger in triggers if trigger != "workflow_dispatch")
-    if automatic_triggers:
-        issues.append(
-            CiWorkflowContractIssue(
-                path=relpath,
-                message=(
-                    "manual-only workflow must not define automatic triggers: "
-                    + ", ".join(automatic_triggers)
-                ),
-            )
-        )
-    return tuple(issues)
-
-
-def _audit_secret_workflow_exposure(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    issues: list[CiWorkflowContractIssue] = []
-    workflows_dir = root / ".github/workflows"
-    if not workflows_dir.exists():
-        return ()
-    for workflow_path in sorted(workflows_dir.glob("*.yml")):
-        relpath = workflow_path.relative_to(root).as_posix()
-        workflow = _read_yaml(workflow_path)
-        text = workflow_path.read_text(encoding="utf-8")
-        if "secrets." not in text:
-            continue
-        triggers = _workflow_triggers(workflow)
-        automatic_triggers = sorted(
-            trigger for trigger in triggers if trigger != "workflow_dispatch"
-        )
-        if automatic_triggers:
-            issues.append(
-                CiWorkflowContractIssue(
-                    path=relpath,
-                    message=(
-                        "workflow references secrets and must not define automatic triggers: "
-                        + ", ".join(automatic_triggers)
-                    ),
-                )
-            )
-        required_environment = INTERNAL_SECRET_WORKFLOW_ENVS.get(relpath)
-        if required_environment:
-            issues.extend(
-                _audit_workflow_jobs_environment(
-                    workflow,
-                    relpath=relpath,
-                    required_environment=required_environment,
-                )
-            )
-    return tuple(issues)
-
-
-def _audit_workflow_jobs_environment(
-    workflow: dict[str, Any],
-    *,
-    relpath: str,
-    required_environment: str,
-) -> tuple[CiWorkflowContractIssue, ...]:
-    jobs = workflow.get("jobs")
-    if not isinstance(jobs, dict):
-        return ()
-    issues: list[CiWorkflowContractIssue] = []
-    for job_name, job in jobs.items():
-        if not isinstance(job, dict):
-            continue
-        environment = job.get("environment")
-        if environment == required_environment:
-            continue
-        issues.append(
-            CiWorkflowContractIssue(
-                path=relpath,
-                message=(
-                    f"{job_name} must use protected environment {required_environment!r} "
-                    "because workflow references secrets"
-                ),
-            )
-        )
-    return tuple(issues)
-
-
-def _audit_public_docs_publish_workflow(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow_relpath = ".github/workflows/public-docs-rolling-publish.yml"
-    workflow_path = root / workflow_relpath
-    if not workflow_path.exists():
-        return ()
-    run_text = "\n".join(
-        str(step.get("run") or "") for step in _workflow_steps(_read_yaml(workflow_path))
-    )
-    forbidden_tokens = (
-        "deploy:staging",
-        " apps/campus-web deploy",
-        "pnpm --dir apps/campus-web deploy",
-    )
-    if any(token in run_text for token in forbidden_tokens):
-        return (
-            CiWorkflowContractIssue(
-                path=workflow_relpath,
-                message="public docs manual workflow must stay build-only and must not deploy",
-            ),
-        )
-    return ()
-
-
 def _audit_path_filtered_jobs(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     issues: list[CiWorkflowContractIssue] = []
     for workflow_relpath, jobs_to_outputs in PATH_FILTERED_JOBS.items():
@@ -371,7 +319,7 @@ def _audit_path_filtered_jobs(root: Path) -> tuple[CiWorkflowContractIssue, ...]
             issues.append(
                 CiWorkflowContractIssue(
                     path=workflow_relpath,
-                    message="lint workflow must define a changes job for path-filtered heavy lanes",
+                    message="pr-checks workflow must define a changes job for path-filtered heavy lanes",
                 )
             )
             continue
@@ -413,8 +361,98 @@ def _audit_path_filtered_jobs(root: Path) -> tuple[CiWorkflowContractIssue, ...]
     return tuple(issues)
 
 
+def _audit_pr_checks_aggregate_job(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_path = root / PR_CHECKS_WORKFLOW
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    aggregate = jobs.get("required-checks")
+    if not isinstance(aggregate, dict):
+        return (
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="pr-checks workflow must define required-checks aggregate job",
+            ),
+        )
+    needs = aggregate.get("needs")
+    if not isinstance(needs, list):
+        needs = []
+    required = sorted(job_name for job_name in jobs if job_name != "required-checks")
+    missing = sorted(job_name for job_name in required if job_name not in needs)
+    issues: list[CiWorkflowContractIssue] = []
+    if missing:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="required-checks must depend on every PR check job: " + ", ".join(missing),
+            )
+        )
+    if str(aggregate.get("if") or "").strip() != "always()":
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="required-checks must use if: always() so skipped conditional jobs are summarized",
+            )
+        )
+    run_text = "\n".join(str(step.get("run") or "") for step in _job_steps(aggregate))
+    if "success|skipped" not in run_text:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="required-checks must accept only successful or skipped dependent jobs",
+            )
+        )
+    return tuple(issues)
+
+
+def _audit_pr_checks_base_sha_flow(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_path = root / PR_CHECKS_WORKFLOW
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    issues: list[CiWorkflowContractIssue] = []
+    changes = jobs.get("changes")
+    changes_outputs = changes.get("outputs") if isinstance(changes, dict) else None
+    if not isinstance(changes_outputs, dict) or "base_sha" not in changes_outputs:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="changes job must expose base_sha for affected lanes",
+            )
+        )
+    repo_static = jobs.get("repo-static")
+    repo_static_env = repo_static.get("env") if isinstance(repo_static, dict) else None
+    if not isinstance(repo_static_env, dict) or repo_static_env.get("CI_BASE_REF") != (
+        "${{ needs.changes.outputs.base_sha }}"
+    ):
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="repo-static must pass changes base_sha through CI_BASE_REF",
+            )
+        )
+    web_graph = jobs.get("web-graph")
+    web_graph_env = web_graph.get("env") if isinstance(web_graph, dict) else None
+    if not isinstance(web_graph_env, dict) or web_graph_env.get("TURBO_SCM_BASE") != (
+        "${{ needs.changes.outputs.base_sha }}"
+    ):
+        issues.append(
+            CiWorkflowContractIssue(
+                path=PR_CHECKS_WORKFLOW,
+                message="web-graph must pass changes base_sha through TURBO_SCM_BASE",
+            )
+        )
+    return tuple(issues)
+
+
 def _audit_go_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_relpath = PR_CHECKS_WORKFLOW
     workflow_path = root / workflow_relpath
     if not workflow_path.exists():
         return ()
@@ -442,8 +480,159 @@ def _audit_go_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     return ()
 
 
+def _audit_workflow_setup_cache(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_path in sorted((root / ".github/workflows").glob("*.yml")):
+        workflow = _read_yaml(workflow_path)
+        relpath = workflow_path.relative_to(root).as_posix()
+
+        def add_issue(message: str, path: str = relpath) -> None:
+            issues.append(CiWorkflowContractIssue(path=path, message=message))
+
+        for steps in _workflow_job_steps(workflow):
+            installs_pnpm = any(
+                "pnpm install --frozen-lockfile" in str(s.get("run") or "") for s in steps
+            )
+            pnpm_setup_seen = False
+            for step in steps:
+                uses = step.get("uses")
+                with_block = step.get("with")
+                if uses == "pnpm/action-setup@v4":
+                    pnpm_setup_seen = True
+                if uses == "actions/setup-node@v4":
+                    cache_enabled = (
+                        isinstance(with_block, dict) and with_block.get("cache") == "pnpm"
+                    )
+                    if installs_pnpm and not cache_enabled:
+                        add_issue(
+                            "actions/setup-node steps must enable pnpm cache "
+                            "when the job installs the pnpm workspace"
+                        )
+                    elif not installs_pnpm and cache_enabled:
+                        add_issue(
+                            "actions/setup-node must not enable pnpm cache "
+                            "when the job does not run pnpm install"
+                        )
+                    elif cache_enabled and with_block.get("cache-dependency-path") != (
+                        "pnpm-lock.yaml"
+                    ):
+                        add_issue("actions/setup-node pnpm cache must use root pnpm-lock.yaml")
+                    elif cache_enabled and not pnpm_setup_seen:
+                        add_issue(
+                            "pnpm/action-setup must run before actions/setup-node "
+                            "when setup-node enables pnpm cache"
+                        )
+        for step in _workflow_steps(workflow):
+            uses = step.get("uses")
+            with_block = step.get("with")
+            if uses == REQUIRED_UV_SETUP and (
+                not isinstance(with_block, dict) or with_block.get("enable-cache") is not True
+            ):
+                add_issue("astral-sh/setup-uv steps must enable uv cache")
+    return tuple(dict.fromkeys(issues))
+
+
+def _audit_secret_scan_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = PR_CHECKS_WORKFLOW
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    job = jobs.get("secret-scan")
+    if not isinstance(job, dict):
+        return ()
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    install_step_index = _first_step_index_containing(raw_steps, REQUIRED_GITLEAKS_INSTALL)
+    path_export_step_index = _first_step_index_containing(raw_steps, REQUIRED_GO_BIN_PATH_EXPORT)
+    setup_uv_step_index = _first_step_index_using(raw_steps, REQUIRED_UV_SETUP)
+    scan_step_index = _first_step_index_containing(raw_steps, "pnpm ci:secrets")
+    if scan_step_index is None:
+        return ()
+    issues: list[CiWorkflowContractIssue] = []
+    if setup_uv_step_index is None or setup_uv_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="secret-scan must setup uv before pnpm ci:secrets",
+            )
+        )
+    if install_step_index is None or install_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="secret-scan must install gitleaks v8.30.1 before pnpm ci:secrets",
+            )
+        )
+    if path_export_step_index is None or path_export_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="secret-scan must add Go bin to PATH before pnpm ci:secrets",
+            )
+        )
+    return tuple(issues)
+
+
+def _audit_dependency_vulnerability_lane_tooling(
+    root: Path,
+) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/scheduled-checks.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    job = jobs.get("dependency-vulnerability-full")
+    if not isinstance(job, dict):
+        return ()
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    install_step_index = _first_step_index_containing(raw_steps, REQUIRED_OSV_SCANNER_INSTALL)
+    setup_uv_step_index = _first_step_index_using(raw_steps, REQUIRED_UV_SETUP)
+    path_export_step_index = _first_step_index_containing(raw_steps, REQUIRED_GO_BIN_PATH_EXPORT)
+    scan_step_index = _first_step_index_containing(raw_steps, "pnpm ci:deps:vuln")
+    if scan_step_index is None:
+        return ()
+    issues: list[CiWorkflowContractIssue] = []
+    if setup_uv_step_index is None or setup_uv_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="dependency-vulnerability-full must setup uv before pnpm ci:deps:vuln",
+            )
+        )
+    if install_step_index is None or install_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message=(
+                    "dependency-vulnerability-full must install osv-scanner v2.3.8 "
+                    "before pnpm ci:deps:vuln"
+                ),
+            )
+        )
+    if path_export_step_index is None or path_export_step_index >= scan_step_index:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message=(
+                    "dependency-vulnerability-full must add Go bin to PATH before pnpm ci:deps:vuln"
+                ),
+            )
+        )
+    return tuple(issues)
+
+
 def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_relpath = PR_CHECKS_WORKFLOW
     workflow_path = root / workflow_relpath
     if not workflow_path.exists():
         return ()
@@ -472,7 +661,7 @@ def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue
 
 
 def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_relpath = PR_CHECKS_WORKFLOW
     workflow_path = root / workflow_relpath
     if not workflow_path.exists():
         return ()
@@ -500,43 +689,6 @@ def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, .
     return ()
 
 
-def _audit_eval_ragas_score_contract(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
-    workflow_relpath = ".github/workflows/eval-ragas-score.yml"
-    workflow_path = root / workflow_relpath
-    if not workflow_path.exists():
-        return (
-            CiWorkflowContractIssue(
-                path=workflow_relpath,
-                message="required workflow is missing",
-            ),
-        )
-    workflow_text = workflow_path.read_text(encoding="utf-8")
-    required = (
-        "actions/setup-python@v5",
-        REQUIRED_UV_SETUP,
-        "uv sync --all-packages --dev",
-        "pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
-        "pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",
-    )
-    issues: list[CiWorkflowContractIssue] = []
-    for snippet in required:
-        if snippet not in workflow_text:
-            issues.append(
-                CiWorkflowContractIssue(
-                    path=workflow_relpath,
-                    message=f"eval-ragas-score workflow must call: {snippet}",
-                )
-            )
-    if "--allow-failures" in workflow_text:
-        issues.append(
-            CiWorkflowContractIssue(
-                path=workflow_relpath,
-                message="eval-ragas-score workflow must not accept --allow-failures",
-            )
-        )
-    return tuple(issues)
-
-
 def _first_step_index_using(steps: list[Any], uses: str) -> int | None:
     for index, step in enumerate(steps):
         if not isinstance(step, dict):
@@ -557,18 +709,25 @@ def _first_step_index_containing(steps: list[Any], text: str) -> int | None:
 
 
 def _workflow_steps(workflow: dict[str, Any]) -> tuple[dict[str, Any], ...]:
-    steps: list[dict[str, Any]] = []
+    return tuple(step for steps in _workflow_job_steps(workflow) for step in steps)
+
+
+def _workflow_job_steps(workflow: dict[str, Any]) -> tuple[tuple[dict[str, Any], ...], ...]:
     jobs = workflow.get("jobs")
     if not isinstance(jobs, dict):
         return ()
-    for job in jobs.values():
-        if not isinstance(job, dict):
-            continue
-        raw_steps = job.get("steps")
-        if not isinstance(raw_steps, list):
-            continue
-        steps.extend(step for step in raw_steps if isinstance(step, dict))
-    return tuple(steps)
+    return tuple(
+        tuple(step for step in job["steps"] if isinstance(step, dict))
+        for job in jobs.values()
+        if isinstance(job, dict) and isinstance(job.get("steps"), list)
+    )
+
+
+def _job_steps(job: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    return tuple(step for step in raw_steps if isinstance(step, dict))
 
 
 def _workflow_triggers(workflow: dict[str, Any]) -> set[str]:

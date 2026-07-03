@@ -17,10 +17,10 @@ describe("Lark record-list parsing", () => {
 						4,
 						"有一点辣",
 						[
-							{
-								file_token: "BwBpbNNU4oaCsXxGfUMcwrHsn0c",
-								name: "-3f16931796b88838.jpg",
-								size: 1465625,
+								{
+									file_token: "placeholder",
+									name: "-3f16931796b88838.jpg",
+									size: 1465625,
 							},
 						],
 						"果小生",
@@ -57,11 +57,11 @@ describe("Lark record-list parsing", () => {
 
 		expect(parsed).toEqual([
 			{
-				attachments: [
-					{
-						fileToken: "BwBpbNNU4oaCsXxGfUMcwrHsn0c",
-						name: "-3f16931796b88838.jpg",
-						size: 1465625,
+					attachments: [
+						{
+							fileToken: "placeholder",
+							name: "-3f16931796b88838.jpg",
+							size: 1465625,
 					},
 				],
 				campus: "海淀校区",

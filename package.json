@@ -3,6 +3,22 @@
 	"private": true,
 	"packageManager": "pnpm@10.26.1",
 	"pnpm": {
+		"overrides": {
+			"@babel/core": "7.29.6",
+			"@tanstack/react-start": "1.168.27",
+			"@tanstack/react-start-client": "1.168.15",
+			"@tanstack/react-start-rsc": "0.1.26",
+			"@tanstack/react-start-server": "1.167.21",
+			"@tanstack/router-plugin": "1.168.19",
+			"@tanstack/router-utils": "1.162.2",
+			"@tanstack/start-plugin-core": "1.171.19",
+			"@tanstack/start-server-core": "1.169.16",
+			"defu": "6.1.5",
+			"esbuild@<0.25.0": "0.25.12",
+			"js-yaml@4.1.1": "5.2.1",
+			"lodash": "4.18.1",
+			"react-router@7.13.2": "7.18.1"
+		},
 		"packageExtensions": {
 			"@hookform/resolvers@*": {
 				"peerDependencies": {
@@ -25,10 +41,18 @@
 		"repo:static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected",
 		"ci:repo-guard": "pnpm repo:guard",
 		"ci:repo-static": "pnpm repo:static",
+		"ci:repo-static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected --base \"${CI_BASE_REF:-origin/develop}\"",
+		"ci:contracts": "pnpm contracts:check && uv run --all-packages python -m unittest discover -s tests/contracts -t . -q",
+		"ci:ingestion": "uv run --all-packages python -m unittest discover -s tests/ingestion -t . -q",
 		"ci:langfuse": "pnpm --dir packages/eval-langfuse typecheck && pnpm --dir packages/eval-langfuse test && pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts",
 		"ci:go": "pnpm go:check",
+		"ci:web-graph:affected": "turbo run typecheck test --affected --concurrency=2",
 		"ci:web-graph:full": "pnpm web:check",
-		"ci:config:lint": "uv run --all-packages python -m scripts.check_ci_workflow_contracts",
+		"ci:worker-runtime": "pnpm web:test:worker",
+		"ci:config:lint": "pnpm ci:actions:lint && uv run --all-packages python -m scripts.check_ci_workflow_contracts && uv run --all-packages python -m scripts.check_workflow_action_policy",
+		"ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
+		"ci:secrets": "uv run --all-packages python -m scripts.run_gitleaks_scan",
+		"ci:deps:vuln": "uv run --all-packages python -m scripts.run_osv_scan",
 		"dev": "turbo run dev --filter=campus-web --filter=app-api",
 		"web:build": "turbo run build",
 		"web:check": "turbo run typecheck test build --concurrency=2",
@@ -44,8 +68,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.12",
 		"editorconfig-checker": "^6.1.1",
-		"markdownlint-cli2": "^0.22.0",
-		"turbo": "^2.8.21"
+		"markdownlint-cli2": "^0.23.0",
+		"turbo": "^2.10.2"
 	},
 	"license": "Apache-2.0",
 	"repository": {

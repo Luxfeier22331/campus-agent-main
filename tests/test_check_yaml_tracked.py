@@ -49,7 +49,7 @@ class CheckYamlTrackedTest(unittest.TestCase):
         with patch(
             "scripts.check_yaml_tracked.tracked_yaml_files",
             return_value=(
-                repo_root / ".github/workflows/lint.yml",
+                repo_root / ".github/workflows/pr-checks.yml",
                 repo_root
                 / "apps/legacy-office-conversion-service/src/main/resources/application.yml",
             ),
@@ -65,7 +65,7 @@ class CheckYamlTrackedTest(unittest.TestCase):
                 "yamllint",
                 "-c",
                 ".yamllint.yml",
-                ".github/workflows/lint.yml",
+                ".github/workflows/pr-checks.yml",
                 "apps/legacy-office-conversion-service/src/main/resources/application.yml",
             ],
         )

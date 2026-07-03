@@ -8,11 +8,11 @@ import { runDiningSync } from "../src/sync-pipeline";
 import type { DiningSourceRecord } from "../src/types";
 
 const SAFE_RECORD: DiningSourceRecord = {
-	attachments: [
-		{
-			fileToken: "BwBpbNNU4oaCsXxGfUMcwrHsn0c",
-			name: "meal.jpg",
-			size: 100,
+		attachments: [
+			{
+				fileToken: "placeholder",
+				name: "meal.jpg",
+				size: 100,
 		},
 	],
 	campus: "海淀校区",
@@ -117,7 +117,7 @@ describe("dining sync pipeline", () => {
 			}),
 		]);
 		expect(JSON.stringify(report)).not.toContain("fileToken");
-		expect(JSON.stringify(report)).not.toContain("BwBpbNNU4oaCsXxGfUMcwrHsn0c");
+		expect(JSON.stringify(report)).not.toContain("placeholder");
 	});
 
 	it("lands review observations before publishing active review projections", async () => {

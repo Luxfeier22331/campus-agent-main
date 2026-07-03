@@ -51,10 +51,27 @@ export function loadSnapshot(entryOrTag) {
 function splitMigrationStatements(statement) {
 	return statement
 		.trim()
-		.split(/;\s*(?=(?:ALTER|CREATE|DROP)\b|$)/i)
+		.split(/;\s*(?=(?:ALTER|CREATE|DROP|INSERT|UPDATE)\b|$)/i)
 		.map((item) => item.trim())
 		.filter(Boolean)
-		.map((item) => (item.endsWith(";") ? item : `${item};`));
+		.map((item) => (item.endsWith(";") ? item : `${item};`))
+		.flatMap(expandMultiClauseAlterTableStatement);
+}
+
+function expandMultiClauseAlterTableStatement(statement) {
+	const match = statement.trim().match(/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+([\s\S]+);$/i);
+	if (!match) {
+		return [statement];
+	}
+	const [, schema, table, body] = match;
+	const clauses = body
+		.split(/,\s*(?=(?:ADD\s+COLUMN|ALTER\s+COLUMN|DROP\s+COLUMN)\b)/i)
+		.map((item) => item.trim())
+		.filter(Boolean);
+	if (clauses.length <= 1) {
+		return [statement];
+	}
+	return clauses.map((clause) => `ALTER TABLE "${schema}"."${table}"\n${clause};`);
 }
 
 export function loadMigrationContext() {
