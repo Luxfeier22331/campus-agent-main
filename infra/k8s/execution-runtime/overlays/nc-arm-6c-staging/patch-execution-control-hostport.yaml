@@ -4,6 +4,9 @@ metadata:
   name: execution-control
   namespace: campus-agent-staging
 spec:
+  strategy:
+    $patch: replace
+    type: Recreate
   template:
     spec:
       containers:

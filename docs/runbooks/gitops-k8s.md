@@ -44,7 +44,9 @@ Docker 承载，并通过 K8s selector-less Service 指向宿主机 `10.42.0.1`�
 `execution-control` 同时通过 `172.20.0.1:27051` 的 host-only bind 暴露给
 现有 Docker Traefik；Traefik 的 `execution-control-staging.mucwiki-edge.link`
 动态路由应指向 `http://172.20.0.1:27051`。不要改成 `0.0.0.0`
-NodePort 或公开端口。
+NodePort 或公开端口。因为单节点 hostPort 不能同时运行两个
+`execution-control` pod，该 overlay 对 `execution-control` 使用 `Recreate`
+strategy；其它 runtime worker 仍保持滚动更新。
 
 启动 Docker 依赖时必须额外加入 host-bind override：
 

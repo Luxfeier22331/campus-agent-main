@@ -94,10 +94,12 @@ class CheckK8sExecutionRuntimeSlimOverlayTest(unittest.TestCase):
             for doc in _rendered_docs()
             if doc.get("kind") == "Deployment"
         }
+        strategy = deployments["execution-control"]["spec"]["strategy"]
         ports = deployments["execution-control"]["spec"]["template"]["spec"]["containers"][0][
             "ports"
         ]
 
+        self.assertEqual(strategy, {"type": "Recreate"})
         self.assertIn(
             {
                 "name": "http",
