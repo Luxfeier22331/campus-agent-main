@@ -156,6 +156,17 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                 self.assertEqual(readiness, [f"/usr/local/bin/{worker}", "--check-runtime"])
                 self.assertEqual(liveness, [f"/usr/local/bin/{worker}", "--check-runtime"])
 
+    def test_execution_control_readyz_probe_uses_internal_auth_header(self) -> None:
+        deployments = _by_kind_name("Deployment")
+        container = _deployment_container(deployments["execution-control"])
+
+        readiness = container["readinessProbe"]["exec"]["command"]
+
+        self.assertEqual(readiness[:3], ["/bin/sh", "-ec", readiness[2]])
+        self.assertIn("x-worker-origin-auth: ${EXECUTION_CONTROL_SHARED_SECRET}", readiness[2])
+        self.assertIn("http://127.0.0.1:8000/readyz", readiness[2])
+        self.assertNotIn("httpGet", container["readinessProbe"])
+
     def test_only_posture_collector_service_account_can_read_k8s_posture(self) -> None:
         roles = _by_kind_name("Role")
         bindings = _by_kind_name("RoleBinding")

@@ -63,9 +63,14 @@ spec:
             - name: API_AUTH_MODE
               value: trusted-worker
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  curl -fsS \
+                    -H "x-worker-origin-auth: ${EXECUTION_CONTROL_SHARED_SECRET}" \
+                    http://127.0.0.1:8000/readyz >/dev/null
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
