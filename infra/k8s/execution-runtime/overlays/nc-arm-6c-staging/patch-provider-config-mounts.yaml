@@ -20,12 +20,13 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
         - name: qdrant-tls-ca
-          secret:
-            secretName: execution-runtime-qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,12 +50,13 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
         - name: qdrant-tls-ca
-          secret:
-            secretName: execution-runtime-qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -75,6 +77,7 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
@@ -101,9 +104,10 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
         - name: qdrant-tls-ca
-          secret:
-            secretName: execution-runtime-qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

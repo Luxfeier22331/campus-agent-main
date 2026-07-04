@@ -2,15 +2,20 @@ import { createHash } from "node:crypto";
 
 import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "../../config";
 import { defaultRuntimeFetch } from "../integration/execution-control-runtime";
+import { isStageTimingField } from "../latency-budget";
 import type { RuntimeEventScalar, RuntimeEventSink } from "./runtime-event";
 import { sanitizeRuntimeEventPayload as sanitizeSharedRuntimeEventPayload } from "./runtime-event";
 
 const DEFAULT_OTLP_TIMEOUT_MS = 1_000;
 const OTLP_SCOPE_NAME = "campus-agent.app-api.telemetry";
+const STAGE_DURATION_HISTOGRAM_BOUNDS_MS = [
+	100, 250, 500, 1_000, 2_500, 5_000, 10_000, 15_000, 30_000,
+];
 
 const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["request.accepted", "runtime.request.accepted"],
 	["request.finalized", "runtime.request.finalized"],
+	["request.stage_timing", "runtime.request.stage_timing"],
 	["request.transport_error", "runtime.request.transport_error"],
 	["projection.enqueued", "runtime.projection.enqueued"],
 	["projection.drain", "runtime.projection.drain"],
@@ -144,8 +149,88 @@ export function createOtlpRuntimeEventSink(
 				},
 				{ fetchImplementation, sharedSecret, timeoutMs },
 			);
+
+			const metricPayload = buildStageDurationMetricPayload({
+				event: sanitizedPayload,
+				resourceAttributes,
+				timeUnixNano,
+			});
+			if (metricPayload) {
+				await postOtlp(`${endpoint}/v1/metrics`, metricPayload, {
+					fetchImplementation,
+					sharedSecret,
+					timeoutMs,
+				});
+			}
 		},
 	};
+}
+
+function buildStageDurationMetricPayload(input: {
+	event: Record<string, RuntimeEventScalar>;
+	resourceAttributes: ReturnType<typeof toOtlpAttributes>;
+	timeUnixNano: string;
+}): Record<string, unknown> | null {
+	if (input.event.event_type !== "request.stage_timing") {
+		return null;
+	}
+	const stageField = stringValue(input.event.stage_field);
+	if (!(stageField && isStageTimingField(stageField))) {
+		return null;
+	}
+	const durationMs = input.event.duration_ms;
+	if (!(typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0)) {
+		return null;
+	}
+
+	return {
+		resourceMetrics: [
+			{
+				resource: { attributes: input.resourceAttributes },
+				scopeMetrics: [
+					{
+						metrics: [
+							{
+								description:
+									"Sanitized app-api online request stage duration emitted with bounded attributes.",
+								histogram: {
+									aggregationTemporality: "AGGREGATION_TEMPORALITY_DELTA",
+									dataPoints: [
+										{
+											attributes: toOtlpAttributes({
+												budget_state: input.event.budget_state,
+												selected_tool: input.event.selected_tool,
+												stage_field: stageField,
+												status: input.event.status,
+												surface: input.event.surface,
+											}),
+											bucketCounts: stageDurationBucketCounts(durationMs),
+											count: "1",
+											explicitBounds: STAGE_DURATION_HISTOGRAM_BOUNDS_MS,
+											max: durationMs,
+											min: durationMs,
+											sum: durationMs,
+											timeUnixNano: input.timeUnixNano,
+										},
+									],
+								},
+								name: "campus.app_api.stage_duration_ms",
+								unit: "ms",
+							},
+						],
+						scope: { name: OTLP_SCOPE_NAME },
+					},
+				],
+			},
+		],
+	};
+}
+
+function stageDurationBucketCounts(durationMs: number): string[] {
+	const bucketIndex = STAGE_DURATION_HISTOGRAM_BOUNDS_MS.findIndex((bound) => durationMs <= bound);
+	const counts = Array.from({ length: STAGE_DURATION_HISTOGRAM_BOUNDS_MS.length + 1 }, () => "0");
+	counts[bucketIndex === -1 ? counts.length - 1 : bucketIndex] = "1";
+	return counts;
 }
 
 async function postOtlp(

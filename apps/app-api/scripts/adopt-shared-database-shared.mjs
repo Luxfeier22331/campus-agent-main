@@ -9,6 +9,7 @@ export const APP_API_KNOWN_SCHEMAS = [
 	"docs",
 	"identity",
 	"official_web",
+	"observability_config",
 	"operator",
 	"profile",
 	"provider_config",

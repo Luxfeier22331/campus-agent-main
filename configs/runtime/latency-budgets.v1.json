@@ -1,0 +1,150 @@
+{
+	"schema_version": "runtime-latency-budgets-v1",
+	"budget_version": "latency-budget-v1",
+	"rules": [
+		{
+			"field": "request.total_ms",
+			"warn_ms": 8000,
+			"critical_ms": 15000,
+			"candidate_reason": "request_total_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "stream.browser_ttft_ms",
+			"warn_ms": 2500,
+			"critical_ms": 5000,
+			"candidate_reason": "stream_ttft_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "execution.admission_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500,
+			"candidate_reason": "execution_admission_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "memory.recall_ms",
+			"warn_ms": 800,
+			"critical_ms": 2000,
+			"candidate_reason": "memory_recall_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "agent.primary_ms",
+			"warn_ms": 7000,
+			"critical_ms": 14000,
+			"candidate_reason": "agent_primary_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "agent.runtime_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000,
+			"candidate_reason": "agent_runtime_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "agent.first_delta_ms",
+			"warn_ms": 2000,
+			"critical_ms": 4500,
+			"candidate_reason": "agent_first_delta_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "tool.total_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000,
+			"candidate_reason": "tool_total_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "tool.knowledge_query_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000,
+			"candidate_reason": "knowledge_query_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "tool.transport_schedule_lookup_ms",
+			"warn_ms": 3000,
+			"critical_ms": 8000,
+			"candidate_reason": "transport_schedule_lookup_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "tool.campus_notice_discover_ms",
+			"warn_ms": 3000,
+			"critical_ms": 8000,
+			"candidate_reason": "campus_notice_discover_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "rag.plan_ms",
+			"warn_ms": 800,
+			"critical_ms": 2000,
+			"candidate_reason": "rag_plan_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "rag.lookup_ms",
+			"warn_ms": 1500,
+			"critical_ms": 3500,
+			"candidate_reason": "rag_lookup_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "rag.rerank_ms",
+			"warn_ms": 1500,
+			"critical_ms": 3500,
+			"candidate_reason": "rag_rerank_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "rag.synthesis_ms",
+			"warn_ms": 5000,
+			"critical_ms": 10000,
+			"candidate_reason": "rag_synthesis_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "rag.grounding_ms",
+			"warn_ms": 1500,
+			"critical_ms": 3500,
+			"candidate_reason": "rag_grounding_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "finalization.write_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500,
+			"candidate_reason": "finalization_write_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "projection.closeout_ms",
+			"warn_ms": 1000,
+			"critical_ms": 3000,
+			"candidate_reason": "projection_closeout_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		}
+	]
+}

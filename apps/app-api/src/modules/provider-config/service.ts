@@ -1,7 +1,8 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
+import { decryptAppApiSecret, encryptAppApiSecret, secretRefFromPlaintext } from "../secret-crypto";
 import type { ProviderConfigStore } from "./store";
 import type {
 	EmbeddingProviderRole,
@@ -19,7 +20,6 @@ import type {
 	ProviderConfigProfileSummary,
 	ProviderConfigRole,
 	ProviderConfigRuntimeSnapshot,
-	ProviderConfigSecretRef,
 	ProviderConfigService,
 	ProviderConfigUpdatePayload,
 	ProviderConfigValidationResult,
@@ -705,73 +705,26 @@ function normalizeRequiredString(value: unknown, field: string): string {
 	return normalized;
 }
 
-async function secretRefFromPlaintext(
-	plaintext: string,
-	encryptSecret: (plaintext: string) => Promise<string> | string,
-): Promise<ProviderConfigSecretRef> {
-	const trimmed = plaintext.trim();
-	if (!trimmed) {
-		throw validationError("apiKey is required.", { field: "apiKey" });
-	}
-	return {
-		ciphertext: await encryptSecret(trimmed),
-		fingerprint: createHash("sha256").update(trimmed).digest("hex"),
-		last4: trimmed.slice(-4),
-	};
-}
-
 async function encryptProviderConfigSecret(
 	plaintext: string,
 	encryptionKey: string | undefined,
 ): Promise<string> {
-	const key = await providerConfigAesKey(encryptionKey);
-	const iv = crypto.getRandomValues(new Uint8Array(12));
-	const encrypted = await crypto.subtle.encrypt(
-		{ iv, name: "AES-GCM" },
-		key,
-		new TextEncoder().encode(plaintext),
-	);
-	return `aesgcm:${base64url(iv)}:${base64url(new Uint8Array(encrypted))}`;
+	return encryptAppApiSecret(plaintext, encryptionKey, {
+		invalidCiphertextCode: "provider_secret_invalid",
+		invalidCiphertextMessage: "Provider secret ciphertext is invalid.",
+		missingKeyCode: "provider_config_encryption_key_missing",
+		missingKeyMessage: "APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY is required.",
+	});
 }
 
 async function decryptProviderConfigSecret(
 	ciphertext: string,
 	encryptionKey: string | undefined,
 ): Promise<string> {
-	const [scheme, ivEncoded, payloadEncoded] = ciphertext.split(":");
-	if (scheme !== "aesgcm" || !ivEncoded || !payloadEncoded) {
-		throw routeError({
-			code: "provider_secret_invalid",
-			message: "Provider secret ciphertext is invalid.",
-			status: 500,
-		});
-	}
-	const key = await providerConfigAesKey(encryptionKey);
-	const decrypted = await crypto.subtle.decrypt(
-		{ iv: base64urlDecode(ivEncoded), name: "AES-GCM" },
-		key,
-		base64urlDecode(payloadEncoded),
-	);
-	return new TextDecoder().decode(decrypted);
-}
-
-async function providerConfigAesKey(encryptionKey: string | undefined): Promise<CryptoKey> {
-	const secret = encryptionKey?.trim();
-	if (!secret) {
-		throw routeError({
-			code: "provider_config_encryption_key_missing",
-			message: "APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY is required.",
-			status: 503,
-		});
-	}
-	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
-	return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-function base64url(value: Uint8Array): string {
-	return Buffer.from(value).toString("base64url");
-}
-
-function base64urlDecode(value: string): Uint8Array<ArrayBuffer> {
-	return new Uint8Array(Buffer.from(value, "base64url"));
+	return decryptAppApiSecret(ciphertext, encryptionKey, {
+		invalidCiphertextCode: "provider_secret_invalid",
+		invalidCiphertextMessage: "Provider secret ciphertext is invalid.",
+		missingKeyCode: "provider_config_encryption_key_missing",
+		missingKeyMessage: "APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY is required.",
+	});
 }

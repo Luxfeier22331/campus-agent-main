@@ -20,6 +20,7 @@ import type {
 	IngestionTaskProjectionClient,
 	IngestionTaskProjectionFetch,
 } from "../modules/integration";
+import type { ObservabilityConfigService } from "../modules/observability-config";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
 import type { OfficialWebPlannerService } from "../modules/official-web-planner";
@@ -75,6 +76,7 @@ export interface AppDependencies {
 	officialWebTargetInventoryService?: OfficialWebTargetInventoryService;
 	officialWebTargetJobService?: OfficialWebTargetJobService;
 	officialWebTargetReleaseGateService?: OfficialWebTargetReleaseGateService;
+	observabilityConfigService?: ObservabilityConfigService;
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
@@ -141,6 +143,7 @@ export interface AppRequestScope {
 	resolveOfficialWebTargetInventoryService(): OfficialWebTargetInventoryService;
 	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
 	resolveOfficialWebTargetReleaseGateService(): OfficialWebTargetReleaseGateService;
+	resolveObservabilityConfigService(): ObservabilityConfigService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;

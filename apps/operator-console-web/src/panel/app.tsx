@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
+import { Activity, ArrowLeft, ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
 import { getRequestDetail, getRequestList } from "./data-provider/requests";
 import { fetchJson } from "./http";
+import { ObservabilityConfigPage } from "./operations/observability-config/page";
 import { ProviderConfigPage } from "./operations/provider-config/page";
 import { formatPanelTimestamp } from "./panel-copy";
 import { getPanelErrorMessage } from "./panel-error";
@@ -46,6 +47,53 @@ const queryClient = new QueryClient({
 const navItems = [
 	{ icon: ClipboardList, label: "请求与运行", to: "/requests" },
 	{ icon: KeyRound, label: "模型服务配置", to: "/operations/provider-config" },
+	{ icon: Activity, label: "观测配置", to: "/operations/observability" },
+] as const;
+
+const stageTimingGroups = [
+	{
+		fields: [
+			{ key: "request.total_ms", label: "请求总耗时" },
+			{ key: "stream.browser_ttft_ms", label: "首字输出" },
+			{ key: "projection.closeout_ms", label: "投影收口" },
+		],
+		label: "请求体验",
+	},
+	{
+		fields: [{ key: "memory.recall_ms", label: "记忆召回" }],
+		label: "记忆",
+	},
+	{
+		fields: [
+			{ key: "agent.primary_ms", label: "主智能体" },
+			{ key: "agent.runtime_ms", label: "模型运行" },
+			{ key: "agent.first_delta_ms", label: "模型首字" },
+		],
+		label: "智能体",
+	},
+	{
+		fields: [
+			{ key: "tool.total_ms", label: "工具总耗时" },
+			{ key: "tool.knowledge_query_ms", label: "知识工具" },
+			{ key: "tool.transport_schedule_lookup_ms", label: "班车工具" },
+			{ key: "tool.campus_notice_discover_ms", label: "通知工具" },
+		],
+		label: "工具",
+	},
+	{
+		fields: [
+			{ key: "rag.plan_ms", label: "检索规划" },
+			{ key: "rag.lookup_ms", label: "检索查询" },
+			{ key: "rag.rerank_ms", label: "重排" },
+			{ key: "rag.synthesis_ms", label: "答案生成" },
+			{ key: "rag.grounding_ms", label: "证据校验" },
+		],
+		label: "RAG",
+	},
+	{
+		fields: [{ key: "finalization.write_ms", label: "最终投影" }],
+		label: "收口",
+	},
 ] as const;
 
 export function OperatorConsoleAdminApp() {
@@ -57,6 +105,7 @@ export function OperatorConsoleAdminApp() {
 					<Route element={<RequestsPage />} path="/requests" />
 					<Route element={<RequestDetailPage />} path="/requests/:requestId" />
 					<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
+					<Route element={<ObservabilityConfigPage />} path="/operations/observability" />
 					<Route element={<Navigate replace to="/requests" />} path="*" />
 				</Routes>
 			</OperatorConsoleShell>
@@ -158,7 +207,7 @@ function QueryError({ error }: { error: unknown }) {
 	return <Alert tone="danger">{getPanelErrorMessage(error, "页面数据读取失败。")}</Alert>;
 }
 
-function RequestsPage() {
+export function RequestsPage() {
 	const overview = useQuery({
 		queryFn: ({ signal }) => getOperatorOverview({ signal, window: "24h" }),
 		queryKey: ["operator-overview"],
@@ -176,6 +225,8 @@ function RequestsPage() {
 		queryKey: ["requests"],
 	});
 	const volume = overview.data?.data.overview.requestVolume;
+	const stageLatency = overview.data?.data.overview.stageLatency ?? {};
+	const latencyBudget = overview.data?.data.overview.latencyBudget;
 
 	return (
 		<section>
@@ -200,6 +251,45 @@ function RequestsPage() {
 						</Card>
 					))}
 				</div>
+				<Card className="md:col-span-3 xl:col-span-2">
+					<CardHeader>
+						<CardTitle>运行趋势</CardTitle>
+						<CardDescription>只展示最近 24 小时的最小耗时摘要。</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid gap-3 md:grid-cols-4">
+							{[
+								{
+									label: "首字 P95",
+									value: stageLatency["stream.browser_ttft_ms"]?.p95Ms,
+								},
+								{
+									label: "模型运行 P95",
+									value: stageLatency["agent.runtime_ms"]?.p95Ms,
+								},
+								{
+									label: "RAG 查询 P95",
+									value: stageLatency["rag.lookup_ms"]?.p95Ms,
+								},
+							].map((metric) => (
+								<div className="rounded-md border border-slate-200 p-3" key={metric.label}>
+									<p className="text-slate-500 text-xs">{metric.label}</p>
+									<p className="mt-1 font-semibold text-xl tabular-nums">
+										{formatDuration(metric.value ?? null)}
+									</p>
+								</div>
+							))}
+							<div className="rounded-md border border-slate-200 p-3">
+								<p className="text-slate-500 text-xs">超预算字段</p>
+								<p className="mt-1 font-semibold text-xl tabular-nums">
+									{latencyBudget
+										? `${latencyBudget.criticalFieldCount} / ${latencyBudget.warnFieldCount}`
+										: "--"}
+								</p>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
 				<Card>
 					<CardHeader>
 						<CardTitle>服务状态</CardTitle>
@@ -324,14 +414,15 @@ function RequestsPage() {
 	);
 }
 
-function RequestDetailPage() {
+export function RequestDetailPage() {
 	const { requestId = "" } = useParams();
 	const detail = useQuery({
 		enabled: requestId.length > 0,
 		queryFn: ({ signal }) => getRequestDetail({ requestId, signal }),
 		queryKey: ["request-detail", requestId],
 	});
-	const request = detail.data;
+	const request = detail.data?.request;
+	const opsIndex = detail.data?.opsIndex ?? null;
 
 	return (
 		<section>
@@ -398,6 +489,7 @@ function RequestDetailPage() {
 							<Fact label="回答预览" value={request.answerPreview || "无"} />
 						</CardContent>
 					</Card>
+					<RequestOpsIndexPanel opsIndex={opsIndex} />
 				</div>
 			) : detail.isLoading ? null : (
 				<Empty className="min-h-40">
@@ -406,6 +498,193 @@ function RequestDetailPage() {
 				</Empty>
 			)}
 		</section>
+	);
+}
+
+function RequestOpsIndexPanel({
+	opsIndex,
+}: {
+	opsIndex: NonNullable<Awaited<ReturnType<typeof getRequestDetail>>["opsIndex"]> | null;
+}) {
+	if (!opsIndex) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle>运行观测</CardTitle>
+					<CardDescription>运行观测暂未上报</CardDescription>
+				</CardHeader>
+			</Card>
+		);
+	}
+
+	const hasStageTiming = stageTimingGroups.some((group) =>
+		group.fields.some(({ key }) => typeof opsIndex.stageTiming[key] === "number"),
+	);
+	const budgetVersions = [
+		...new Set(
+			Object.values(opsIndex.stageTimingBudget ?? {})
+				.map((item) => item.budgetVersion)
+				.filter(Boolean),
+		),
+	];
+	const modelLabel =
+		opsIndex.model.modelProvider || opsIndex.model.modelName
+			? [opsIndex.model.modelProvider, opsIndex.model.modelName].filter(Boolean).join(" / ")
+			: "未上报";
+
+	return (
+		<div className="grid gap-4 lg:grid-cols-2">
+			<Card>
+				<CardHeader>
+					<CardTitle>运行耗时</CardTitle>
+					<CardDescription>
+						{budgetVersions.length > 0
+							? `各阶段耗时只用于定位慢请求。预算 ${budgetVersions.join(" / ")}`
+							: "各阶段耗时只用于定位慢请求。"}
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{hasStageTiming ? (
+						stageTimingGroups.map((group) => {
+							const visibleFields = group.fields.filter(
+								({ key }) => typeof opsIndex.stageTiming[key] === "number",
+							);
+							if (visibleFields.length === 0) {
+								return null;
+							}
+							return (
+								<div className="space-y-2" key={group.label}>
+									<p className="font-medium text-slate-500 text-xs">{group.label}</p>
+									<div className="space-y-2">
+										{visibleFields.map(({ key, label }) => (
+											<div className="flex items-center justify-between gap-3" key={key}>
+												<span className="text-sm">{label}</span>
+												<div className="flex items-center gap-2">
+													{opsIndex.stageTimingBudget?.[key] ? (
+														<Badge
+															className="shrink-0"
+															tone={budgetStateTone(opsIndex.stageTimingBudget[key].budgetState)}
+														>
+															{budgetStateLabel(opsIndex.stageTimingBudget[key].budgetState)}
+														</Badge>
+													) : null}
+													<span className="font-medium text-sm tabular-nums">
+														{formatDuration(opsIndex.stageTiming[key])}
+													</span>
+												</div>
+											</div>
+										))}
+									</div>
+								</div>
+							);
+						})
+					) : (
+						<p className="text-slate-500 text-sm">未上报阶段耗时。</p>
+					)}
+				</CardContent>
+			</Card>
+			<Card>
+				<CardHeader>
+					<CardTitle>模型与工具</CardTitle>
+					<CardDescription>展示本次请求实际使用的模型和工具结果。</CardDescription>
+				</CardHeader>
+				<CardContent className="grid gap-3 sm:grid-cols-2">
+					<Fact label="模型" value={modelLabel} />
+					<Fact label="模型状态" value={opsIndex.model.executionState || "未上报"} />
+					<Fact
+						label="Token"
+						value={`${opsIndex.model.inputTokens ?? 0} in / ${opsIndex.model.outputTokens ?? 0} out`}
+					/>
+					<Fact
+						label="工具"
+						value={opsIndex.tool.selectedTool || opsIndex.tool.requestedTool || "无"}
+					/>
+					<Fact label="工具结果" value={opsIndex.tool.toolBusinessOutcome || "未上报"} />
+					<Fact
+						label="Fail closed"
+						value={
+							opsIndex.tool.failClosed === null ? "未上报" : opsIndex.tool.failClosed ? "是" : "否"
+						}
+					/>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardHeader>
+					<CardTitle>检索</CardTitle>
+					<CardDescription>展示检索是否发生和证据数量。</CardDescription>
+				</CardHeader>
+				<CardContent className="grid gap-3 sm:grid-cols-2">
+					<Fact label="集合" value={opsIndex.retrieval.collection || "未上报"} />
+					<Fact
+						label="是否检索"
+						value={
+							opsIndex.retrieval.retrievalAttempted === null
+								? "未上报"
+								: opsIndex.retrieval.retrievalAttempted
+									? "是"
+									: "否"
+						}
+					/>
+					<Fact
+						label="候选"
+						value={
+							typeof opsIndex.retrieval.candidateCount === "number"
+								? `${opsIndex.retrieval.candidateCount} 个候选`
+								: "未上报"
+						}
+					/>
+					<Fact
+						label="来源"
+						value={
+							typeof opsIndex.retrieval.retrievedSourceCount === "number"
+								? `${opsIndex.retrieval.retrievedSourceCount} 个来源`
+								: "未上报"
+						}
+					/>
+					<Fact label="证据判断" value={opsIndex.retrieval.adequacyVerdict || "未上报"} />
+					<Fact label="判断原因" value={opsIndex.retrieval.adequacyReason || "未上报"} />
+				</CardContent>
+			</Card>
+			<Card>
+				<CardHeader>
+					<CardTitle>外部追踪</CardTitle>
+					<CardDescription>只链接外部平台中的对应追踪，不展示原始内容。</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<Fact
+						label="Trace 状态"
+						value={opsIndex.sinkLinks.traceAvailable ? "已上报" : "未上报"}
+					/>
+					<Fact label="投影延迟" value={formatDuration(opsIndex.sinkLinks.projectionLagMs)} />
+					{opsIndex.debugTraceRefs.length > 0 ? (
+						<div className="space-y-2">
+							{opsIndex.debugTraceRefs.map((ref) =>
+								ref.url ? (
+									<a
+										className="block break-all text-slate-700 text-sm underline underline-offset-4 hover:text-slate-950"
+										href={ref.url}
+										key={`${ref.sink}:${ref.traceRef}`}
+										rel="noreferrer"
+										target="_blank"
+									>
+										{ref.sink}: {ref.traceRef}
+									</a>
+								) : (
+									<p
+										className="break-all text-slate-700 text-sm"
+										key={`${ref.sink}:${ref.traceRef}`}
+									>
+										{ref.sink}: {ref.traceRef}
+									</p>
+								),
+							)}
+						</div>
+					) : (
+						<p className="text-slate-500 text-sm">没有外部追踪引用。</p>
+					)}
+				</CardContent>
+			</Card>
+		</div>
 	);
 }
 
@@ -430,8 +709,34 @@ function statusTone(status: string) {
 			: "warning";
 }
 
+function budgetStateLabel(state: "within_budget" | "warn" | "critical") {
+	if (state === "critical") {
+		return "超出预算";
+	}
+	if (state === "warn") {
+		return "接近预算";
+	}
+	return "预算内";
+}
+
+function budgetStateTone(state: "within_budget" | "warn" | "critical") {
+	if (state === "critical") {
+		return "danger" as const;
+	}
+	if (state === "warn") {
+		return "warning" as const;
+	}
+	return "muted" as const;
+}
+
 function formatDuration(value: number | null | undefined) {
-	return typeof value === "number" ? `${value} ms` : "未上报";
+	if (typeof value !== "number") {
+		return "未上报";
+	}
+	if (value >= 1000) {
+		return `${Number((value / 1000).toFixed(1))} s`;
+	}
+	return `${value} ms`;
 }
 
 function formatStatus(status: string) {

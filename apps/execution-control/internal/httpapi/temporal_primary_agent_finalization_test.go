@@ -48,6 +48,9 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 				"result":       map[string]any{"outcome": "resolved_current"},
 			}},
 			"terminal_reason": "answer_completed",
+			"stage_timing": map[string]any{
+				"agent.runtime_ms": float64(42),
+			},
 			"usage": map[string]any{
 				"input_tokens":             12,
 				"output_tokens":            8,
@@ -125,6 +128,16 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 	if finalizationResponse["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("selected_tool = %#v", finalizationResponse["selected_tool"])
+	}
+	stageTiming, ok := finalizationResponse["stage_timing"].(map[string]any)
+	if !ok {
+		t.Fatalf("stage_timing = %#v", finalizationResponse["stage_timing"])
+	}
+	if stageTiming["agent.runtime_ms"] != float64(42) {
+		t.Fatalf("agent.runtime_ms = %#v, want 42", stageTiming["agent.runtime_ms"])
+	}
+	if _, ok := stageTiming["finalization.write_ms"]; !ok {
+		t.Fatalf("stage_timing missing finalization.write_ms: %#v", stageTiming)
 	}
 	workflowTrace, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
 	if !ok {

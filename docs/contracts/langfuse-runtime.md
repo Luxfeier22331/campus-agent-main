@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-29
+updated: 2026-07-03
 ---
 # Langfuse Runtime Observability Contract
 
@@ -13,6 +13,14 @@ updated: 2026-06-29
 This contract defines how repo-owned runtime observations and controlled LLM
 debug traces may be exported to Langfuse. It does not define app-api public HTTP
 shape, Temporal history shape or `packages/contracts` DTOs.
+
+User-usage continuous improvement is defined by
+`docs/architecture/system/learning-loop.md`. This contract only defines the
+Langfuse-bound payload boundary. Trace refs, scores and stage timing may feed
+that loop, but they do not become repo-owned product data or release verdicts.
+Repo-owned request latency truth is defined by
+`docs/contracts/stage-timing.md`; Langfuse traces may help diagnose a slow
+stage, but they do not replace `stage_timing.v1`.
 
 Eval score publishing uses the same boundary: `packages/eval-langfuse` may write
 sanitized score payloads to Langfuse, but Langfuse score schemas do not become
@@ -38,9 +46,9 @@ Langfuse/OpenAI/OTel sinks with environment policy, RBAC, retention, sampling
 and masking. It is not product truth, not Temporal truth, not app-api read model
 truth and not a `packages/contracts` DTO.
 
-RAGAS runtime scoring defaults to the Ragas `metrics.collections` API. Legacy
-`ragas.evaluate()` is a compatibility island only for explicitly injected test /
-repair callers and must not be treated as the default production scorer path.
+RAGAS runtime scoring defaults to the Ragas `metrics.collections` API. Deprecated
+`ragas.evaluate()` is limited to explicitly injected test / repair callers and
+must not be treated as the default production scorer path.
 
 ## Trace Attributes
 
@@ -129,6 +137,25 @@ or controlled OTel processors. They may carry model input/output, tool IO,
 provider response fragments or SDK-native span details when the deployment
 explicitly enables that sink behavior.
 
+Current online implementation is narrower than the full lane:
+
+- `apps/app-api` owns the operator-managed `llm_debug_trace_config.v1`.
+- `apps/execution-control` reads the app-api-produced
+  `observability_config_projection.v1` path from its runtime profile and passes
+  `debug_trace_config` request-scoped to `apps/agent-runtime`.
+- `apps/agent-runtime` has no `AGENT_RUNTIME_LLM_DEBUG_*` environment config and
+  must not infer debug tracing from process env.
+- The only active sink mode is `langfuse_otlp`.
+- `langfuse_otlp.endpoint` is the Langfuse OTLP base ending in
+  `/api/public/otel`; agent-runtime posts traces to `/v1/traces`.
+- `langfuse_otlp.auth_header` must be `Basic ...`; the request also sends
+  `x-langfuse-ingestion-version: 4`.
+- `include_model_io` is currently fixed to `false`; enabling raw model IO needs
+  a separate explicit contract update.
+- agent-runtime returns only `debug_trace_refs` and `stage_timing.v1` fields to
+  execution-control. Raw SDK trace bodies, OTLP payloads and provider payloads
+  are never written into app-api, Temporal metadata or repo-owned projections.
+
 Rules:
 
 - raw or near-raw LLM IO must stay inside external observability/eval sinks;
@@ -139,9 +166,9 @@ Rules:
 - secrets, credentials, auth headers, cookies, JWTs, database URLs,
   object-store credentials and raw Hindsight refs are never allowed in this
   lane.
-- LLM debug traces may help diagnose prompt/tool/model/provider behavior, but
-  cannot define run lifecycle, terminal state, retry/cancel truth or release
-  verdicts.
+- LLM debug traces may help diagnose prompt/tool/model/provider behavior and
+  stage latency, but cannot define run lifecycle, terminal state, retry/cancel
+  truth, repo-owned stage timing or release verdicts.
 
 ## Score Payloads
 

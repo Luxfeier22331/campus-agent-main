@@ -121,7 +121,7 @@ Stable reference 当前 baseline：
 
 - split manifest:
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
-- retrieval denominator: historical private/release evidence, not a public
+- retrieval denominator: historical private benchmark record, not a public
   repo-tracked fixture path
 - old deterministic release-gate cases are retired with Python `campus_evals`
 

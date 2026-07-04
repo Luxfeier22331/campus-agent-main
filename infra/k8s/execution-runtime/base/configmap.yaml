@@ -27,7 +27,7 @@ data:
   HINDSIGHT_API_RERANKER_PROVIDER: rrf
   AGENT_RUNTIME_HOST: 0.0.0.0
   AGENT_RUNTIME_PORT: "27062"
-  AGENT_RUNTIME_TOOL_CATALOG_PATH: configs/runtime/tool-catalog.v1.json
+  AGENT_RUNTIME_TOOL_REGISTRY_PATH: configs/runtime/tools.v4.json
   AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
   OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT: 0.0.0.0:4317
   OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT: 0.0.0.0:4318
@@ -36,6 +36,8 @@ data:
   OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB: "128"
   OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE: "100"
   OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE: "100"
+  OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: campus-agent-runtime
+  OTEL_COLLECTOR_AXIOM_METRICS_DATASET: campus-agent-runtime-metrics
   OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"
   otel-collector.yaml: |
     receivers:
@@ -121,6 +123,36 @@ data:
         send_batch_size: 512
 
     exporters:
+      otlphttp/sentry:
+        endpoint: "${env:OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT}"
+        headers:
+          x-sentry-auth: "${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}"
+        compression: gzip
+        encoding: proto
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 1024
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+      otlphttp/axiom:
+        endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
+        headers:
+          authorization: "${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}"
+          x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}"
+        compression: zstd
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 4096
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
       otlphttp/langfuse:
         endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
         headers:
@@ -132,6 +164,21 @@ data:
           enabled: true
           num_consumers: 2
           queue_size: 1024
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+      otlphttp/axiommetrics:
+        endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
+        headers:
+          authorization: "${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}"
+          x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}"
+        compression: zstd
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 4096
         retry_on_failure:
           enabled: true
           initial_interval: 1s
@@ -155,6 +202,8 @@ data:
             - filter/drop_marked
             - batch
           exporters:
+            - otlphttp/sentry
+            - otlphttp/axiom
             - otlphttp/langfuse
             - debug
         metrics:
@@ -167,6 +216,7 @@ data:
             - filter/drop_marked
             - batch
           exporters:
+            - otlphttp/axiommetrics
             - debug
         logs:
           receivers:
@@ -178,4 +228,5 @@ data:
             - filter/drop_marked
             - batch
           exporters:
+            - otlphttp/axiom
             - debug

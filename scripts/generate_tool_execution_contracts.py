@@ -78,6 +78,44 @@ def _enum(contract: dict[str, Any], name: str) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _stage_timing_fields(contract: dict[str, Any]) -> tuple[str, ...]:
+    schema = _schemas(contract).get("StageTiming")
+    if not isinstance(schema, dict):
+        raise ValueError("missing schema: StageTiming")
+    if schema.get("additionalProperties") is not False:
+        raise ValueError("StageTiming must reject additionalProperties")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        raise ValueError("StageTiming must define allowlisted properties")
+    fields: list[str] = []
+    for name, field_schema in properties.items():
+        if not isinstance(name, str) or not name:
+            raise ValueError("StageTiming field names must be non-empty strings")
+        if not isinstance(field_schema, dict):
+            raise ValueError(f"StageTiming.{name} schema must be an object")
+        if field_schema.get("type") != "number" or field_schema.get("minimum") != 0:
+            raise ValueError(f"StageTiming.{name} must be a non-negative number")
+        fields.append(name)
+    return tuple(fields)
+
+
+def _debug_trace_sinks(contract: dict[str, Any]) -> tuple[str, ...]:
+    schema = _schemas(contract).get("DebugTraceRef")
+    if not isinstance(schema, dict):
+        raise ValueError("missing schema: DebugTraceRef")
+    sink = (
+        schema.get("properties", {}).get("sink")
+        if isinstance(schema.get("properties"), dict)
+        else None
+    )
+    if not isinstance(sink, dict):
+        raise ValueError("DebugTraceRef.sink schema must be an object")
+    values = sink.get("enum")
+    if not isinstance(values, list) or not all(isinstance(item, str) and item for item in values):
+        raise ValueError("DebugTraceRef.sink must define a string enum")
+    return tuple(values)
+
+
 def _contract_meta(contract: dict[str, Any]) -> dict[str, str]:
     meta = contract.get("x-campus-contract")
     if not isinstance(meta, dict):
@@ -108,6 +146,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
     execution_statuses = _enum(contract, "ExecutionStatus")
     workflow_modes = _enum(contract, "WorkflowMode")
     projection_kinds = _enum(contract, "StepOutputProjectionKind")
+    stage_timing_fields = _stage_timing_fields(contract)
+    debug_trace_sinks = _debug_trace_sinks(contract)
     return (
         f"/* {HEADER}. Do not edit by hand. */\n\n"
         "export const TOOL_EXECUTION_CONTRACT = {\n"
@@ -126,6 +166,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         + _ts_const_array("EXECUTION_STATUSES", execution_statuses)
         + _ts_const_array("WORKFLOW_MODES", workflow_modes)
         + _ts_const_array("STEP_OUTPUT_PROJECTION_KINDS", projection_kinds)
+        + _ts_const_array("STAGE_TIMING_FIELDS", stage_timing_fields)
+        + _ts_const_array("DEBUG_TRACE_SINKS", debug_trace_sinks)
         + "\n"
         "export type ToolID = (typeof TOOL_IDS)[number];\n"
         "export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];\n"
@@ -135,6 +177,9 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];\n\n"
         "export type WorkflowMode = (typeof WORKFLOW_MODES)[number];\n"
         "export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];\n\n"
+        "export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];\n"
+        "export type StageTimingWire = Partial<Record<StageTimingField, number>>;\n"
+        "export type DebugTraceSink = (typeof DEBUG_TRACE_SINKS)[number];\n\n"
         "export type SafeRecord = Record<string, unknown>;\n\n"
         "export interface ConversationContextWire {\n"
         '\tschema_version: "conversation_context.v1";\n'
@@ -322,6 +367,12 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\truntime_versions: SafeRecord;\n"
         "\tpolicy_artifact_versions: SafeRecord;\n"
         "}\n\n"
+        "export interface DebugTraceRefWire {\n"
+        "\tsink: DebugTraceSink;\n"
+        "\ttrace_id?: string | null;\n"
+        "\ttrace_ref: string;\n"
+        "\turl?: string;\n"
+        "}\n\n"
         "export interface ToolExecutionResponseWire {\n"
         "\tselected_tool: ToolID | null;\n"
         "\tstatus: ExecutionStatus;\n"
@@ -332,6 +383,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\terror: { code: string; message: string; retryable: boolean } | null;\n"
         "\tobservability?: SafeRecord | null;\n"
         "\tworkflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;\n"
+        "\tstage_timing?: StageTimingWire | null;\n"
+        "\tdebug_trace_refs?: DebugTraceRefWire[] | null;\n"
         "\ttrace_id: string;\n"
         "}\n"
     )
@@ -347,6 +400,8 @@ def _generate_go(contract: dict[str, Any]) -> str:
     execution_statuses = _enum(contract, "ExecutionStatus")
     workflow_modes = _enum(contract, "WorkflowMode")
     projection_kinds = _enum(contract, "StepOutputProjectionKind")
+    stage_timing_fields = _stage_timing_fields(contract)
+    debug_trace_sinks = _debug_trace_sinks(contract)
     return _gofmt(
         f"// {HEADER}. Do not edit by hand.\n\n"
         "package contracts\n\n"
@@ -355,6 +410,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         '\t"encoding/json"\n'
         '\t"fmt"\n'
         '\t"io"\n'
+        '\t"math"\n'
         ")\n\n"
         "const (\n"
         f"\tExecutionContractVersion = {_go_quote(meta['execution_contract_version'])}\n"
@@ -373,6 +429,8 @@ def _generate_go(contract: dict[str, Any]) -> str:
         + _go_string_type("ExecutionStatus", execution_statuses)
         + _go_string_type("WorkflowMode", workflow_modes)
         + _go_string_type("StepOutputProjectionKind", projection_kinds)
+        + _go_string_type("StageTimingField", stage_timing_fields)
+        + _go_string_type("DebugTraceSink", debug_trace_sinks)
         + """
 type ConversationContextWire struct {
 \tSchemaVersion string `json:"schema_version"`
@@ -558,6 +616,15 @@ type WorkflowTraceSummaryWire struct {
 \tPolicyArtifactVersions map[string]any `json:"policy_artifact_versions"`
 }
 
+type StageTimingWire map[StageTimingField]float64
+
+type DebugTraceRefWire struct {
+\tSink DebugTraceSink `json:"sink"`
+\tTraceID *string `json:"trace_id,omitempty"`
+\tTraceRef string `json:"trace_ref"`
+\tURL string `json:"url,omitempty"`
+}
+
 type ToolExecutionResponseWire struct {
 \tSelectedTool *ToolID `json:"selected_tool"`
 \tStatus ExecutionStatus `json:"status"`
@@ -568,10 +635,19 @@ type ToolExecutionResponseWire struct {
 \tError map[string]any `json:"error"`
 \tObservability map[string]any `json:"observability,omitempty"`
 \tWorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
+\tStageTiming StageTimingWire `json:"stage_timing,omitempty"`
+\tDebugTraceRefs []DebugTraceRefWire `json:"debug_trace_refs,omitempty"`
 \tTraceID string `json:"trace_id"`
 }
 """
-        + go_decode_helpers(tool_ids, requested_tools, workflow_modes, projection_kinds)
+        + go_decode_helpers(
+            tool_ids,
+            requested_tools,
+            workflow_modes,
+            projection_kinds,
+            stage_timing_fields,
+            debug_trace_sinks,
+        )
     )
 
 
@@ -592,7 +668,8 @@ def _go_string_type(name: str, values: tuple[str, ...]) -> str:
 
 
 def _go_const_suffix(value: str) -> str:
-    return "".join(part[:1].upper() + part[1:] for part in value.replace("_", "-").split("-"))
+    normalized = value.replace(".", "-").replace("_", "-")
+    return "".join(part[:1].upper() + part[1:] for part in normalized.split("-") if part)
 
 
 _ts_quote = json.dumps

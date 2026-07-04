@@ -39,6 +39,7 @@ export {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
+export { llmDebugTraceConfig } from "./observability-config";
 export {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -127,6 +128,7 @@ import {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
+import { llmDebugTraceConfig } from "./observability-config";
 import {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -222,6 +224,7 @@ export const appApiOwnedSchema = {
 	identityFederationUserGrants,
 	profileMemorySettings,
 	profileMemoryItems,
+	llmDebugTraceConfig,
 	providerConfigConnections,
 	providerConfigProfiles,
 	requestExecution,

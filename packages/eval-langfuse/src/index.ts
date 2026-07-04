@@ -1,5 +1,6 @@
 export * from "./collector";
 export * from "./langfuse-client";
+export * from "./learning-loop-candidates";
 export * from "./platform";
 export * from "./rag-dataset-manifest";
 export * from "./ragas-langfuse";

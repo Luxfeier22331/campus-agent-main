@@ -1,10 +1,13 @@
 import { summarizeObservedSources } from "../source-trace";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
+	EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
+	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
 import type {
+	ToolExecutionDebugTraceRef,
 	ToolExecutionModelUsageSummary,
 	ToolExecutionObservability,
 	ToolExecutionPromptTrace,
@@ -27,11 +30,13 @@ const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"answer_text",
 	"confidence",
+	"debug_trace_refs",
 	"error",
 	"follow_up_question",
 	"observability",
 	"result",
 	"selected_tool",
+	"stage_timing",
 	"status",
 	"trace_id",
 	"workflow_trace_summary",
@@ -47,6 +52,9 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"status",
 	"trace_id",
 ] as const;
+
+const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
+const DEBUG_TRACE_SINK_SET = new Set<string>(EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS);
 
 class ExecutionFinalizationResponseContractError extends Error {
 	constructor(message: string) {
@@ -78,6 +86,84 @@ function isExecutionFinalizationStatus(value: unknown): value is ToolExecutionRe
 		typeof value === "string" &&
 		(EXECUTION_FINALIZATION_STATUSES as readonly string[]).includes(value)
 	);
+}
+
+function assertStageTiming(
+	value: unknown,
+): asserts value is ExecutionFinalizationResponseWire["stage_timing"] {
+	if (value === null || value === undefined) {
+		return;
+	}
+	const record = getRecord(value);
+	if (!record) {
+		throw new ExecutionFinalizationResponseContractError("stage_timing must be an object or null");
+	}
+	if (containsForbiddenWorkflowTraceKey(record)) {
+		throw new ExecutionFinalizationResponseContractError("stage_timing contains forbidden keys");
+	}
+	for (const [key, durationMs] of Object.entries(record)) {
+		if (!STAGE_TIMING_FIELD_SET.has(key)) {
+			throw new ExecutionFinalizationResponseContractError(
+				`stage_timing.${key} is not an allowed stage timing field`,
+			);
+		}
+		if (!(typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0)) {
+			throw new ExecutionFinalizationResponseContractError(
+				`stage_timing.${key} must be a finite non-negative number`,
+			);
+		}
+	}
+}
+
+function assertDebugTraceRefs(
+	value: unknown,
+): asserts value is ExecutionFinalizationResponseWire["debug_trace_refs"] {
+	if (value === null || value === undefined) {
+		return;
+	}
+	if (!Array.isArray(value)) {
+		throw new ExecutionFinalizationResponseContractError(
+			"debug_trace_refs must be an array of objects or null",
+		);
+	}
+	for (const [index, item] of value.entries()) {
+		const record = getRecord(item);
+		if (!record) {
+			throw new ExecutionFinalizationResponseContractError(
+				`debug_trace_refs[${index}] must be an object`,
+			);
+		}
+		for (const key of Object.keys(record)) {
+			if (!["sink", "trace_id", "trace_ref", "url"].includes(key)) {
+				throw new ExecutionFinalizationResponseContractError(
+					`debug_trace_refs[${index}].${key} is not allowed`,
+				);
+			}
+		}
+		if (!(typeof record.sink === "string" && DEBUG_TRACE_SINK_SET.has(record.sink))) {
+			throw new ExecutionFinalizationResponseContractError(
+				`debug_trace_refs[${index}].sink is invalid`,
+			);
+		}
+		if (!(typeof record.trace_ref === "string" && record.trace_ref.trim())) {
+			throw new ExecutionFinalizationResponseContractError(
+				`debug_trace_refs[${index}].trace_ref is required`,
+			);
+		}
+		if (
+			"trace_id" in record &&
+			!(record.trace_id === null || typeof record.trace_id === "string")
+		) {
+			throw new ExecutionFinalizationResponseContractError(
+				`debug_trace_refs[${index}].trace_id must be a string or null`,
+			);
+		}
+		if ("url" in record && !(typeof record.url === "string" && record.url.trim())) {
+			throw new ExecutionFinalizationResponseContractError(
+				`debug_trace_refs[${index}].url must be a non-empty string when present`,
+			);
+		}
+	}
 }
 
 function assertExecutionFinalizationResponseWire(
@@ -158,6 +244,8 @@ function assertExecutionFinalizationResponseWire(
 			"workflow_trace_summary must be an object or null",
 		);
 	}
+	assertStageTiming(record.stage_timing);
+	assertDebugTraceRefs(record.debug_trace_refs);
 }
 
 function normalizeRecordString(
@@ -450,13 +538,52 @@ function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSu
 	return parsed;
 }
 
+function parseStageTiming(value: unknown): Record<string, number> | null {
+	const record = getRecord(value) as Record<string, number> | null;
+	if (!record) {
+		return null;
+	}
+	return record;
+}
+
+function parseDebugTraceRefs(value: unknown): ToolExecutionDebugTraceRef[] | null {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+	const refs = value.flatMap((item) => {
+		const record = getRecord(item);
+		if (!record) {
+			return [];
+		}
+		const sink = normalizeNullableString(record.sink);
+		const traceRef = normalizeNullableString(record.trace_ref);
+		if (!(sink && traceRef)) {
+			return [];
+		}
+		const parsed: ToolExecutionDebugTraceRef = {
+			sink,
+			traceId: normalizeNullableString(record.trace_id),
+			traceRef,
+		};
+		const url = normalizeNullableString(record.url);
+		if (url) {
+			parsed.url = url;
+		}
+		return [parsed];
+	});
+	return refs.length > 0 ? refs : [];
+}
+
 export function parseExecutionFinalizationResponsePayload(
 	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
 ): ToolExecutionResponse {
 	assertExecutionFinalizationResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
+	const stageTiming = parseStageTiming(parsed.stage_timing);
+	const debugTraceRefs = parseDebugTraceRefs(parsed.debug_trace_refs);
 	return {
 		answerText: parsed.answer_text,
+		...(debugTraceRefs ? { debugTraceRefs } : {}),
 		error:
 			parsed.error && typeof parsed.error === "object"
 				? {
@@ -469,6 +596,7 @@ export function parseExecutionFinalizationResponsePayload(
 		observability: parseExecutionObservability(parsed.observability),
 		result: parsed.result ?? null,
 		selectedTool: parsed.selected_tool,
+		...(stageTiming ? { stageTiming } : {}),
 		status: parsed.status,
 		traceId: parsed.trace_id,
 		...(workflowTraceSummary ? { workflowTraceSummary } : {}),

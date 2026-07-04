@@ -177,13 +177,13 @@ Knowledge path prompt families:
 - `rag_no_answer_v1`
 - `rag_unsupported_v1`
 
-Possible future RAG families, only when a concrete workstream opens them:
+Possible RAG families after explicit admission:
 
 - `rag_rewrite_v1`
 - `rag_compare_answer_v1`
 - `rag_historical_answer_v1`
 
-Full agentic retrieval, if opened later, uses planner / clarification /
+Full agentic retrieval after explicit admission uses planner / clarification /
 synthesis / semantic verification families. Planner prompt only outputs typed
 retrieval plans inside admitted scope and cannot return final user answers.
 

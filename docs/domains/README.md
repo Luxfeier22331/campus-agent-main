@@ -72,7 +72,7 @@ updated: 2026-06-11
 - `docs/architecture/domains/` 承接 architecture-only supporting truth；`docs/domains/`
   承接领域入口或窄能力 canonical human document
 - 长期边界仍以 architecture / decisions / contracts / data owner 文档为准
-- 不为未来可能扩展提前拆分；一个窄能力文档能讲清楚，就不要拆成多个入口、设计和状态页
+- 不为计划外扩展提前拆分；一个窄能力文档能讲清楚，就不要拆成多个入口、设计和状态页
 - 通用执行态入口固定为：
   - merged truth：`../architecture/current.md`
   - repo 级当前真相：`../../.planning/PROJECT.md`

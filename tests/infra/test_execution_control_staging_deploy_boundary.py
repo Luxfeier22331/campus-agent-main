@@ -181,7 +181,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
             "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
             "AGENT_RUNTIME_SHARED_SECRET",
-            "AGENT_RUNTIME_TOOL_CATALOG_PATH",
+            "AGENT_RUNTIME_TOOL_REGISTRY_PATH",
             "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
             "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
         ):
@@ -235,6 +235,11 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "Basic cGstbGY6c2stbGY=",
         )
         self.assertEqual(projected["OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION"], "4")
+        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"], "campus-agent-runtime")
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_AXIOM_METRICS_DATASET"],
+            "campus-agent-runtime-metrics",
+        )
         self.assertEqual(projected["QDRANT_API_KEY"], "qdrant-key")
         self.assertEqual(projected["QDRANT_READ_ONLY_API_KEY"], "qdrant-readonly-key")
         self.assertEqual(projected["QDRANT_QUERY_API_KEY"], "qdrant-readonly-key")
@@ -257,9 +262,18 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
                 "provider-config-projection.json"
             )
         )
+        self.assertTrue(
+            projected["CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH"].endswith(
+                "observability-config-projection.json"
+            )
+        )
         self.assertEqual(
             projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             "/run/campus-agent/provider-config-projection.json",
+        )
+        self.assertEqual(
+            projected["CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH"],
+            "/run/campus-agent/observability-config-projection.json",
         )
         self.assertEqual(
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
@@ -332,7 +346,11 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertEqual(projected["OTEL_COLLECTOR_SENTRY_AUTH_VALUE"], "")
         self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"], "")
         self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_AUTH_HEADER"], "")
-        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"], "")
+        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"], "campus-agent-runtime")
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_AXIOM_METRICS_DATASET"],
+            "campus-agent-runtime-metrics",
+        )
         self.assertEqual(
             projected["OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT"],
             "http://langfuse-web:3000/api/public/otel",

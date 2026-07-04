@@ -166,4 +166,56 @@ describe("execution finalization canonical response fixtures", () => {
 			},
 		});
 	});
+
+	it("parses controlled debug trace refs and stage timing without raw trace bodies", () => {
+		const payload = loadFixture("response_temporal_finalization.valid.json");
+		payload.debug_trace_refs = [
+			{
+				sink: "langfuse_otlp",
+				trace_id: "trace-temporal-finalization",
+				trace_ref: "langfuse://trace-temporal-finalization",
+				url: "https://langfuse.example/project/demo/traces/trace-temporal-finalization",
+			},
+		];
+		payload.stage_timing = {
+			"agent.runtime_ms": 321,
+			"agent.first_delta_ms": 120,
+		};
+
+		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
+			debugTraceRefs: [
+				{
+					sink: "langfuse_otlp",
+					traceId: "trace-temporal-finalization",
+					traceRef: "langfuse://trace-temporal-finalization",
+					url: "https://langfuse.example/project/demo/traces/trace-temporal-finalization",
+				},
+			],
+			stageTiming: {
+				"agent.runtime_ms": 321,
+				"agent.first_delta_ms": 120,
+			},
+		});
+	});
+
+	it("rejects non-canonical debug trace refs and stage timing fields", () => {
+		const invalidStageTiming = loadFixture("response_temporal_finalization.valid.json");
+		invalidStageTiming.stage_timing = {
+			agent_runtime_duration_ms: 321,
+		};
+		expect(() => parseExecutionFinalizationResponsePayload(invalidStageTiming)).toThrow(
+			/execution finalization response contract/i,
+		);
+
+		const invalidDebugTraceRef = loadFixture("response_temporal_finalization.valid.json");
+		invalidDebugTraceRef.debug_trace_refs = [
+			{
+				sink: "raw_sdk_trace",
+				trace_ref: "trace://raw-sdk",
+			},
+		];
+		expect(() => parseExecutionFinalizationResponsePayload(invalidDebugTraceRef)).toThrow(
+			/execution finalization response contract/i,
+		);
+	});
 });

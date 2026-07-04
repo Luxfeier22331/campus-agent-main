@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-06-28
-updated: 2026-06-29
+updated: 2026-07-03
 ---
 # Eval
 
@@ -32,6 +32,17 @@ Langfuse traces / datasets
 -> packages/ragas-runner upstream Ragas
 -> packages/eval-langfuse Langfuse scores
 ```
+
+This is the scoring part of the broader learning loop defined in
+`docs/architecture/system/learning-loop.md`. Eval lanes validate and compare
+candidate improvements; they do not own candidate selection, product feedback
+storage, Operator Console surfaces or release authority.
+
+Candidate selection is owned by `jobs/learning-loop-candidates`. It reads safe
+online feedback/runtime projections, selects review candidates and can publish
+dataset items to Langfuse dataset `online-answer/candidates` through
+`packages/eval-langfuse`. It does not run RAGAS, publish scores, query raw
+Langfuse traces or expose an Operator Console review UI.
 
 ## Active Lanes
 
@@ -65,6 +76,7 @@ they must be paired with safe trace/observation projection before Ragas scoring.
 
 Active repo-owned Langfuse adapter capabilities are:
 
+- learning-loop dataset candidate payload construction and publishing
 - score config sync
 - dataset sync from repo RAG fixtures
 - RAG dataset manifest construction
@@ -145,7 +157,7 @@ The old app-api eval coverage projection is retired. Do not recreate:
 Coverage and score state now belongs to Langfuse datasets/runs/scores plus the
 `packages/eval-langfuse` audit output. The old app-api
 `GET /api/operator/quality/eval-candidates` intake is not part of the current
-Ops Index target; future operator-facing review intake must use a new explicit
+Ops Index target; operator-facing review intake must use a new explicit
 curated-summary contract if it returns to the product surface.
 
 ## Deleted Self-Built Policy Artifacts
@@ -165,7 +177,7 @@ Also do not recreate these retired active eval surfaces:
 - custom `run-experiment`
 - custom `sync-annotation-queue`
 - custom `export-review-results`
-- generic score report publishers or local release evidence gates
+- generic score report publishers or local release-closeout gates
 
 The remaining active eval reference files are:
 

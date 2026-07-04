@@ -11,12 +11,12 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
 - `collector-local-prodlike.yaml`: default local execution-control Collector
   config. It receives the same local OTLP signals, applies the forbidden-field
   deletion policy and fans out traces to the local self-hosted Langfuse OTLP
-  endpoint plus the Collector `debug` exporter. Metrics and logs stay on the
-  debug exporter.
+  endpoint plus the Collector `debug` exporter. Metrics are also exported to
+  the Axiom metrics dataset when Axiom endpoint/auth env is populated.
 - `collector-staging-template.yaml`: staging/prod template. It receives OTLP,
   applies the same redaction chain, samples traces/logs, exports traces to
-  Sentry, Axiom and Langfuse, exports logs to Axiom, and keeps metrics on the
-  local debug pipeline.
+  Sentry, Axiom and Langfuse, exports logs to Axiom, and exports metrics to the
+  Axiom metrics dataset.
 - `collector.env.example`: required environment variables. Secret-bearing
   values are intentionally blank and must be supplied by the deployment secret
   manager. It also documents the protected Collector OTLP HTTP inputs used by
@@ -30,10 +30,8 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   signal paths such as `/v1/traces` and `/v1/logs`.
 - The Collector deletes the repo forbidden fields before any exporter runs.
 - Sentry receives traces only. Langfuse receives traces only. Axiom receives
-  traces/logs through `x-axiom-dataset` in the project-level
-  `campus-agent-runtime` dataset.
-  Metrics stay in the Collector debug pipeline and do not consume a separate
-  Axiom dataset quota.
+  traces/logs through `x-axiom-dataset=campus-agent-runtime` and metrics through
+  `x-axiom-dataset=campus-agent-runtime-metrics`.
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must be the base domain, for example
   `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`,
   `/v1/logs`, or `/v1/metrics` because the Collector `otlphttp` exporter
@@ -77,10 +75,12 @@ missing. The staging template also uses environment substitution for exporter
 values; populate `collector.env.example` values before validating fan-out with a
 real Collector binary.
 
-Without a local Collector binary, run the repo structural guard:
+Without a local Collector binary, run the repo structural guards:
 
 ```bash
-pnpm langfuse:check
+pnpm ci:langfuse
+pnpm contracts:check
+uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
 ```
 
 To check a populated staging shell before starting compose:
@@ -89,13 +89,6 @@ To check a populated staging shell before starting compose:
 pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
 ```
 
-To prove the staging template Langfuse fan-out path with the real Collector
-container and local fake Sentry / Axiom / Langfuse OTLP endpoints:
-
-```bash
-pnpm langfuse:fanout:proof
-```
-
-The proof requires the fake Langfuse sink to receive `/api/public/otel/v1/traces`
-with Basic auth, ingestion version `4` and sanitized Langfuse / runtime
-attributes in the decoded OTLP protobuf body.
+`pnpm contracts:check` also materializes
+`configs/runtime/observability-alerts.v1.json` into Axiom monitor specs and
+fails when an enabled alert rule cannot be represented as one monitor.

@@ -7,6 +7,7 @@
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 180000,
 	"intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
+	"observability_config_projection_path": "/run/campus-agent/observability-config-projection.json",
 	"provider_pricing_path": "/etc/campus-agent/provider-pricing.v1.json",
 	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v1.json",
 	"tool_read_model_timeout_ms": 1000,

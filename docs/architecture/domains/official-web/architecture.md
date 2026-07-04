@@ -48,8 +48,8 @@ app-api operator-safe projection -> Operator Console`
   release task projection read model；当前 read-only implementation surface 是
   `operator-console-web`
 - collector 写入 source bucket 的对象同时包含 page-level
-  `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
-  projection artifact，则继续写入同一 source prefix 下的
+  `capture/`、`provider/`、`source-truth/` artifacts；source-side projection artifact
+  materialized by this channel must continue writing into the same source prefix under
   `projection/<projection_name>/...`；此外还会写
   `official_web/{site_id}/runs/{run_id}/...` run artifacts
 
@@ -91,7 +91,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 - collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
   downstream read model
-- ingestion staging 负责 replay、candidate review report 与 release gate 证据；
+- ingestion candidate workspace 负责 replay、candidate source fact report 与 source fact
+  materialization；
   app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
   operator release gate command ledger
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的

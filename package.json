@@ -36,7 +36,7 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"repo:guard": "uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration tests.test_package_script_policy tests.ingestion.test_ingestion_task_executability tests.api.test_app_api_collector_execution_boundary -q",
+		"repo:guard": "uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration tests.test_package_script_policy tests.ingestion.test_ingestion_task_executability tests.api.test_app_api_collector_execution_boundary -q && pnpm --filter repo-governance test",
 		"repo:static": "uv run --all-packages python -m scripts.check_repo_static",
 		"repo:static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected",
 		"ci:repo-guard": "pnpm repo:guard",

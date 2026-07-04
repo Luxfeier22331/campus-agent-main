@@ -195,8 +195,8 @@ admit
 - `ts_control` handler 是默认 materialization owner；source-specific artifact resolver、
   source-truth materialization、canonical document materialization、structured projection
   publish、operator projection snapshot 与 alias publish 只有在真实 handler 已存在时才进入
-  registry。未实现的生命周期步骤留在设计文档或 backlog；默认 closeout skeleton 不代表
-  collection migration complete。
+  registry。未被 handler/registry 显式声明的生命周期步骤不属于当前 runtime
+  truth；默认 closeout skeleton 不代表 collection migration complete。
 - `apps/ingestion-worker` 只保留 Python adapter island；它不拥有 collection lifecycle、
   release / alias publish、Qdrant ops 或 source-channel queue consumer。
 - `packages/ingestion-core` 继续拥有 canonical source-truth、materialization strategy、
@@ -319,7 +319,7 @@ release 阶段。
   document-units，不允许在下游重新修正文
 
 历史 regulation notice 的修复同样必须回到 canonical materialization：已采集但早于当前
-cleaner 的 Phase 9 / Phase 11 selected cohort 不能由 chunk/RAG/document-site 层临时清洗；
+cleaner 的 historical selected cohorts 不能由 chunk/RAG/document-site 层临时清洗；
 应通过 selected canonical backfill 从 admission/source owner text 重新生成 canonical
 markdown 与 document-units，再进入 reader publish 或 RAG release。backfill 本身只更新
 canonical artifacts / registry truth，不打开 query serving、RAG release alias 或 public
@@ -422,11 +422,11 @@ retrieval acceptance -> serving alias publish`
   伪装成 current alias delete；它必须进入 non-serving terminal status，例如
   `held_search_only`
 - serving alias publish 必须在 deterministic retrieval acceptance 后执行；acceptance
-  失败只能留下 failed candidate / repair backlog，不能切换 current pointer
-- 对 regulation-family query-enabled target alias，release proof只说明“发布产物满足 target
-  lane 约束”；runtime 仍必须继续阻止 legacy old-index primary fallback 进入 target serving path。
-  old-index compatibility 若仍需保留，只能作为单独命名的 compatibility lane 存在，不得与 target
-  alias 混用 completion truth
+  失败只能留下 failed candidate / repair signal，不能切换 current pointer
+- 对 regulation-family query-enabled target alias，release closeout 只说明“发布产物满足 target
+  lane 约束”；runtime 仍必须继续阻止 retired old-index primary fallback 进入 target serving
+  path。old-index diagnostic 若仍需保留，只能作为单独命名的 diagnostic lane 存在，
+  不得与 target alias 混用 completion truth
 
 这条 lane 的目标是让“文档站已发布”和“RAG 已可检索”保持可观测分离。
 
@@ -560,8 +560,9 @@ rollout。
 
 ## Authenticated Notice Async Staged Closeout
 
-Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 historical
-closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased pipeline。
+Authenticated-notice staged closeout 不改变 data-plane canonical chain，只改变
+historical closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
+pipeline。
 
 固定规则：
 

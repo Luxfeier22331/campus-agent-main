@@ -14,6 +14,8 @@ const OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE =
 const REQUEST_IDENTITY_MESSAGE = "Protected request queries require a trusted operator identity.";
 const PROVIDER_CONFIG_IDENTITY_MESSAGE =
 	"Operator Console provider configuration requires a trusted operator identity.";
+const OBSERVABILITY_CONFIG_IDENTITY_MESSAGE =
+	"Operator Console observability configuration requires a trusted operator identity.";
 
 const STATIC_PROXY_ROUTES = [
 	{
@@ -39,6 +41,18 @@ const STATIC_PROXY_ROUTES = [
 		method: "POST",
 		path: "/api/operator/provider-config/profiles",
 		targetPath: "/api/operator/provider-config/profiles",
+	},
+	{
+		identityMessage: OBSERVABILITY_CONFIG_IDENTITY_MESSAGE,
+		method: "GET",
+		path: "/api/operator/observability-config/llm-debug-trace",
+		targetPath: "/api/operator/observability-config/llm-debug-trace",
+	},
+	{
+		identityMessage: OBSERVABILITY_CONFIG_IDENTITY_MESSAGE,
+		method: "PATCH",
+		path: "/api/operator/observability-config/llm-debug-trace",
+		targetPath: "/api/operator/observability-config/llm-debug-trace",
 	},
 	{
 		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,

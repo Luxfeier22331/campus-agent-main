@@ -153,6 +153,17 @@ function finalizedWrite(): FinalizeRequestWrite {
 			toolHistoricalDowngradeReason: null,
 			traceAvailable: true,
 			traceId: "trace_01HQ",
+			debugTraceRefs: [
+				{
+					sink: "langfuse_otlp",
+					traceId: "trace_01HQ",
+					traceRef: "langfuse://trace_01HQ",
+					url: "https://langfuse.example/project/demo/traces/trace_01HQ",
+				},
+			],
+			stageTiming: {
+				"agent.runtime_ms": 320,
+			},
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			versionQueryMode: null,
 			versionQuerySummary: null,
@@ -377,6 +388,19 @@ describe("pg chat command store", () => {
 				id: "msg_assistant_01HQ",
 				runId: "run_01HQ",
 				turnSequence: 1,
+			}),
+		);
+		expect(insertValues).toHaveBeenCalledWith(
+			expect.objectContaining({
+				debugTraceRefsJson: [
+					expect.objectContaining({
+						sink: "langfuse_otlp",
+						traceRef: "langfuse://trace_01HQ",
+					}),
+				],
+				stageTimingJson: {
+					"agent.runtime_ms": 320,
+				},
 			}),
 		);
 	});

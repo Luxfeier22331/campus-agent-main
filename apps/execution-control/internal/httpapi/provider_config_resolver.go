@@ -150,17 +150,7 @@ func (resolver fileProviderConfigResolver) ResolveActiveProviderConfig(
 }
 
 func requireSecureProviderConfigProjectionFile(path string) error {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat provider config projection: %w", err)
-	}
-	if !fileInfo.Mode().IsRegular() {
-		return errors.New("provider config projection path must be a regular file")
-	}
-	if fileInfo.Mode().Perm() != 0o600 {
-		return errors.New("provider config projection file permissions must be 0600")
-	}
-	return nil
+	return requireSecureSecretProjectionFile(path, "provider config projection")
 }
 
 func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role providerConfigRole) error {

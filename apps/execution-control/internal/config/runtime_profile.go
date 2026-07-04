@@ -19,6 +19,7 @@ type runtimeConfigProfile struct {
 	ShutdownGraceMS          *int                            `json:"shutdown_grace_ms,omitempty"`
 	IntentPolicyPath         *string                         `json:"intent_policy_path,omitempty"`
 	ProviderPricingPath      *string                         `json:"provider_pricing_path,omitempty"`
+	ObservabilityConfigPath  *string                         `json:"observability_config_projection_path,omitempty"`
 	QueryServingScopesPath   *string                         `json:"query_serving_scopes_path,omitempty"`
 	ToolReadModelTimeoutMS   *int                            `json:"tool_read_model_timeout_ms,omitempty"`
 	OpenTools                []string                        `json:"open_tools,omitempty"`
@@ -139,6 +140,7 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 		value *string
 	}{
 		{"intent_policy_path", profile.IntentPolicyPath},
+		{"observability_config_projection_path", profile.ObservabilityConfigPath},
 		{"provider_pricing_path", profile.ProviderPricingPath},
 		{"query_serving_scopes_path", profile.QueryServingScopesPath},
 	}
@@ -315,6 +317,7 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 	applyInt64(&values.RequestBodyLimitBytes, profile.RequestBodyLimitBytes)
 	applyInt(&values.ShutdownGraceMS, profile.ShutdownGraceMS)
 	applyString(&values.IntentPolicyPath, profile.IntentPolicyPath)
+	applyString(&values.ObservabilityConfigProjectionPath, profile.ObservabilityConfigPath)
 	applyString(&values.ProviderPricingPath, profile.ProviderPricingPath)
 	applyString(&values.QueryServingScopesPath, profile.QueryServingScopesPath)
 	applyInt(&values.ToolReadModelTimeoutMS, profile.ToolReadModelTimeoutMS)

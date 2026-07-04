@@ -157,7 +157,7 @@ document-units -> chunks -> index`
 
 - `ReaderPermalink` 是所有跳转类功能的统一目标对象
 - docs search result 与 chat source card 都应回收成这个形态
-- 既有 HTTP payload 中的 `canonicalUrl` 字段名暂时保留为 wire compatibility；语义上应读作
+- HTTP payload 中的 `canonicalUrl` 字段名语义上应读作
   reader permalink，不是 SEO 语境的 canonical URL
 
 ### Reader Asset Descriptor

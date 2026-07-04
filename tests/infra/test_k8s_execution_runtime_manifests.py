@@ -77,7 +77,8 @@ def _surface_identity_values(doc: dict[str, Any]) -> list[tuple[str, str]]:
     kind = str(doc.get("kind", "resource"))
     metadata = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
     labels = metadata.get("labels") if isinstance(metadata.get("labels"), dict) else {}
-    values.append((f"{kind}.metadata.name", str(metadata.get("name", ""))))
+    if kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "ScaledObject"}:
+        values.append((f"{kind}.metadata.name", str(metadata.get("name", ""))))
     for key in ("app.kubernetes.io/name", "app.kubernetes.io/component"):
         if key in labels:
             values.append((f"{kind}.metadata.labels.{key}", str(labels[key])))
@@ -168,18 +169,73 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
 
     def test_runtime_deployments_layer_static_config_rendered_config_then_secret(self) -> None:
         deployments = _by_kind_name("Deployment")
-        expected = [
-            ("configMapRef", "execution-runtime-config"),
-            ("configMapRef", "execution-runtime-rendered-config"),
-            ("secretRef", "execution-runtime-secrets"),
-        ]
+        expected_by_deployment = {
+            "agent-runtime": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "agent-runtime-secrets"),
+            ],
+            "execution-control": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-control-secrets"),
+                ("secretRef", "execution-agent-client-secrets"),
+                ("secretRef", "execution-control-internal-query-secrets"),
+                ("secretRef", "execution-rag-secrets"),
+            ],
+            "hindsight-api": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-stateful-runtime-secrets"),
+            ],
+            "otel-collector": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-telemetry-collector-secrets"),
+            ],
+            "temporal-task-queue-sampler": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-app-api-internal-secrets"),
+            ],
+            "keda-hpa-posture-collector": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-app-api-internal-secrets"),
+            ],
+            "workflow-worker": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-worker-common-secrets"),
+            ],
+            "activity-worker-core": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-worker-common-secrets"),
+                ("secretRef", "execution-memory-client-secrets"),
+                ("secretRef", "execution-control-internal-query-secrets"),
+            ],
+            "activity-worker-agent": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-worker-common-secrets"),
+                ("secretRef", "execution-agent-client-secrets"),
+            ],
+            "activity-worker-knowledge": [
+                ("configMapRef", "execution-runtime-config"),
+                ("configMapRef", "execution-runtime-rendered-config"),
+                ("secretRef", "execution-worker-common-secrets"),
+                ("secretRef", "execution-agent-client-secrets"),
+                ("secretRef", "execution-rag-secrets"),
+            ],
+        }
 
         for name, deployment in deployments.items():
             env_from = _deployment_env_from_names(deployment)
             if not env_from:
                 continue
             with self.subTest(deployment=name):
-                self.assertEqual(env_from, expected)
+                self.assertEqual(env_from, expected_by_deployment[name])
 
     def test_execution_control_readyz_probe_uses_internal_auth_header(self) -> None:
         deployments = _by_kind_name("Deployment")
@@ -188,7 +244,7 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         readiness = container["readinessProbe"]["exec"]["command"]
 
         self.assertEqual(readiness[:3], ["/bin/sh", "-ec", readiness[2]])
-        self.assertIn("x-worker-origin-auth: ${EXECUTION_CONTROL_SHARED_SECRET}", readiness[2])
+        self.assertIn("x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}", readiness[2])
         self.assertIn("http://127.0.0.1:8000/readyz", readiness[2])
         self.assertNotIn("httpGet", container["readinessProbe"])
 
@@ -239,6 +295,63 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         )
 
         self.assertIn("availability.yaml", kustomization["resources"])
+
+    def test_otel_config_exports_full_sink_fanout(self) -> None:
+        config_map = _by_kind_name("ConfigMap")["execution-runtime-config"]
+        data = config_map["data"]
+        self.assertEqual(data["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"], "campus-agent-runtime")
+        self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", data)
+        collector = yaml.safe_load(data["otel-collector.yaml"])
+
+        self.assertIn("otlphttp/sentry", collector["exporters"])
+        self.assertIn("otlphttp/axiom", collector["exporters"])
+        self.assertIn("otlphttp/langfuse", collector["exporters"])
+        self.assertIn("otlphttp/axiommetrics", collector["exporters"])
+        traces_exporters = collector["service"]["pipelines"]["traces"]["exporters"]
+        self.assertIn("otlphttp/sentry", traces_exporters)
+        self.assertIn("otlphttp/axiom", traces_exporters)
+        self.assertIn("otlphttp/langfuse", traces_exporters)
+        logs_exporters = collector["service"]["pipelines"]["logs"]["exporters"]
+        self.assertIn("otlphttp/axiom", logs_exporters)
+        metrics_exporters = collector["service"]["pipelines"]["metrics"]["exporters"]
+        self.assertIn("otlphttp/axiommetrics", metrics_exporters)
+        axiom_headers = collector["exporters"]["otlphttp/axiom"]["headers"]
+        self.assertEqual(
+            axiom_headers["x-axiom-dataset"],
+            "${env:OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}",
+        )
+        axiom_metrics_headers = collector["exporters"]["otlphttp/axiommetrics"]["headers"]
+        self.assertEqual(
+            axiom_metrics_headers["x-axiom-dataset"],
+            "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}",
+        )
+
+    def test_secret_example_declares_full_fanout_sink_credentials(self) -> None:
+        config_data = yaml.safe_load(
+            (K8S_ROOT / "configmap-rendered.example.yaml").read_text(encoding="utf-8")
+        )["data"]
+        secrets = _by_kind_name("Secret")
+        string_data = secrets["execution-telemetry-collector-secrets"]["stringData"]
+
+        for key in (
+            "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
+            "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+        ):
+            with self.subTest(config_key=key):
+                self.assertIn(key, config_data)
+                self.assertNotEqual(config_data[key], "")
+                self.assertNotIn(key, string_data)
+
+        for key in (
+            "APP_API_OTEL_INGEST_SHARED_SECRET",
+            "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
+            "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
+            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+        ):
+            with self.subTest(secret_key=key):
+                self.assertIn(key, string_data)
+                self.assertNotEqual(string_data[key], "")
 
     def test_execution_runtime_has_pod_disruption_budgets_for_available_targets(self) -> None:
         pdbs = _by_kind_name("PodDisruptionBudget")
@@ -322,21 +435,33 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         rendered_config = yaml.safe_load(
             (K8S_ROOT / "configmap-rendered.example.yaml").read_text(encoding="utf-8")
         )["data"]
-        rendered_secret = yaml.safe_load(
-            (K8S_ROOT / "secret.example.yaml").read_text(encoding="utf-8")
-        )["stringData"]
+        rendered_secret_docs = tuple(
+            doc
+            for doc in yaml.safe_load_all(
+                (K8S_ROOT / "secret.example.yaml").read_text(encoding="utf-8")
+            )
+            if isinstance(doc, dict) and doc.get("kind") == "Secret"
+        )
+        rendered_secret = {key for doc in rendered_secret_docs for key in doc.get("stringData", {})}
 
-        self.assertTrue(set(rendered_config).isdisjoint(set(rendered_secret)))
+        self.assertTrue(set(rendered_config).isdisjoint(rendered_secret))
         for key in (
             "EXECUTION_CONTROL_APP_API_BASE_URL",
             "QDRANT_URL",
-            "EMBEDDING_MODEL",
-            "EMBEDDING_DIMENSIONS",
             "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
         ):
             with self.subTest(non_secret_key=key):
                 self.assertIn(key, rendered_config)
                 self.assertNotIn(key, rendered_secret)
+        for provider_key in (
+            "EMBEDDING_MODEL",
+            "EMBEDDING_DIMENSIONS",
+            "HINDSIGHT_API_LLM_BASE_URL",
+            "HINDSIGHT_API_LLM_MODEL",
+        ):
+            with self.subTest(provider_key=provider_key):
+                self.assertNotIn(provider_key, rendered_config)
+                self.assertNotIn(provider_key, rendered_secret)
 
         for key in rendered_config:
             with self.subTest(config_key=key):

@@ -106,7 +106,7 @@ checkouts continue to use their own ops-owned env files and secret stores.
 
 ## Closeout Expectations
 
-- No fallback or compatibility path is added unless an external migration
+- No fallback or migration path is added unless an external migration
   constraint is explicit.
 - Important decisions are committed to docs/ADRs/runbooks/contracts/schemas, not
   only chat context.

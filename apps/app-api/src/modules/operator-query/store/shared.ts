@@ -1,14 +1,16 @@
 import { eq, gte, inArray, lte } from "drizzle-orm";
 
 import { requestExecution, requestObservabilityFact } from "../../../db/schema";
+import { isStageTimingField, projectStageTimingBudget } from "../../latency-budget";
 import type {
 	MetricRatio,
 	NormalizedOperatorOverviewFilters,
 	OperatorOverviewWindow,
+	OperatorRequestOpsIndex,
 	OperatorResultWindow,
 	RequestProjectionRecord,
 } from "../service";
-import type { RuntimeDatabase } from "./runtime";
+import type { RequestObservabilityFactRow, RuntimeDatabase } from "./runtime";
 
 export function toIsoString(value: Date | null): string | null {
 	return value ? value.toISOString() : null;
@@ -79,6 +81,64 @@ export async function loadRunBacklinksByRequestIds(
 		backlinks.set(row.requestId, row.runId ?? null);
 	}
 	return backlinks;
+}
+
+function normalizeStageTiming(
+	value: Record<string, unknown> | null | undefined,
+): Record<string, number> {
+	const entries = Object.entries(value ?? {}).filter(
+		(entry): entry is [string, number] =>
+			isStageTimingField(entry[0]) &&
+			typeof entry[1] === "number" &&
+			Number.isFinite(entry[1]) &&
+			entry[1] >= 0,
+	);
+	return Object.fromEntries(entries);
+}
+
+export function toOperatorRequestOpsIndex(
+	row: RequestObservabilityFactRow,
+): OperatorRequestOpsIndex {
+	return {
+		debugTraceRefs: row.debugTraceRefsJson ?? [],
+		model: {
+			billableStepCount: row.billableStepCount ?? null,
+			cachedInputTokens: row.cachedInputTokens ?? null,
+			estimatedCostMicrousd: row.estimatedCostMicrousd ?? null,
+			executionDetail: row.modelExecutionDetail ?? null,
+			executionState: row.modelExecutionState ?? null,
+			inputTokens: row.inputTokens ?? null,
+			modelName: row.modelName ?? null,
+			modelProvider: row.modelProvider ?? null,
+			outputTokens: row.outputTokens ?? null,
+			promptId: row.promptId ?? null,
+			promptVersion: row.promptVersion ?? null,
+			templateSha256: row.templateSha256 ?? null,
+			usageSummary: row.modelUsageSummaryJson ?? [],
+		},
+		retrieval: {
+			adequacyReason: row.retrievalAdequacyReason ?? null,
+			adequacyVerdict: row.retrievalAdequacyVerdict ?? null,
+			candidateCount: row.candidateCount ?? null,
+			collection: row.collection ?? null,
+			retrievalAttempted: row.retrievalAttempted ?? null,
+			retrievedSourceCount: row.retrievedSourceCount ?? null,
+		},
+		sinkLinks: {
+			projectionLagMs: row.projectionLagMs ?? null,
+			traceAvailable: row.traceAvailable,
+		},
+		stageTiming: normalizeStageTiming(row.stageTimingJson),
+		stageTimingBudget: projectStageTimingBudget(row.stageTimingJson),
+		tool: {
+			failClosed: row.failClosed ?? null,
+			failCloseReason: row.toolFailCloseReason ?? null,
+			historicalDowngradeReason: row.toolHistoricalDowngradeReason ?? null,
+			requestedTool: row.requestedTool ?? null,
+			selectedTool: row.selectedTool ?? null,
+			toolBusinessOutcome: row.toolBusinessOutcome ?? null,
+		},
+	};
 }
 
 export function resolveWindowBounds(window: OperatorOverviewWindow, now: Date) {

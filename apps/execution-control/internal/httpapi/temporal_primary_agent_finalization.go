@@ -35,10 +35,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", err)
 	}
-	finalizedResponse, err := primaryAgentFinalizedResponse(run, agentResult)
-	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", err)
-	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -58,6 +54,19 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		},
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	completedAt := time.Now().UTC()
+	finalizedResponse, err := s.primaryAgentFinalizedResponse(
+		ctx,
+		run,
+		agentResult,
+		stageTimingDuration{
+			field:    "finalization.write_ms",
+			duration: durationBetween(finalizationStartedAt, completedAt),
+		},
+	)
+	if err != nil {
+		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", err)
 	}
 	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
 	if err != nil {
@@ -80,7 +89,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	completedAt := time.Now().UTC()
 	terminalReason := primaryAgentTerminalReason(agentResult)
 	selectedTool := primaryAgentSelectedTool(stringSliceFromAny(agentResult["selected_tools"]))
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
@@ -138,9 +146,11 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}, nil
 }
 
-func primaryAgentFinalizedResponse(
+func (s *Server) primaryAgentFinalizedResponse(
+	ctx context.Context,
 	run execution.DurableRun,
 	agentResult map[string]any,
+	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
 	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
 	if !validPrimaryAgentTerminalEnvelope(envelope) {
@@ -152,13 +162,24 @@ func primaryAgentFinalizedResponse(
 	answerText := primaryAgentEnvelopeAnswerText(envelope)
 	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalKind, answerText)
 	traceSelectedTool := primaryAgentTraceSelectedTool(selectedTool)
+	stageTiming, err := s.stageTimingForRun(
+		ctx,
+		run,
+		cloneAnyMapFromMetadata(agentResult["stage_timing"]),
+		additionalStageTiming...,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedTool:     primaryAgentResponseSelectedTool(selectedTool),
 		Status:           status,
 		AnswerText:       primaryAgentAnswerText(status, answerText),
+		DebugTraceRefs:   debugTraceRefsFromAgentResult(agentResult),
 		Error:            primaryAgentErrorBody(status, terminalKind),
 		FollowUpQuestion: followUpQuestion,
 		Confidence:       confidence,
+		StageTiming:      stageTiming,
 		Result: map[string]any{
 			"agent_result_ref":     agentResult["agent_result_ref"],
 			"provider_response_id": agentResult["provider_response_id"],
@@ -189,6 +210,20 @@ func primaryAgentFinalizedResponse(
 		},
 		TraceID: run.TraceID,
 	}), nil
+}
+
+func debugTraceRefsFromAgentResult(agentResult map[string]any) []map[string]any {
+	refs, _ := agentResult["debug_trace_refs"].([]any)
+	result := make([]map[string]any, 0, len(refs))
+	for _, raw := range refs {
+		ref := cloneAnyMapFromMetadata(raw)
+		if strings.TrimSpace(stringValue(ref["sink"])) == "" ||
+			strings.TrimSpace(stringValue(ref["trace_ref"])) == "" {
+			continue
+		}
+		result = append(result, ref)
+	}
+	return result
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {

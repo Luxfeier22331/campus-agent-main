@@ -3,6 +3,7 @@ import {
 	normalizeRequestRecord,
 	type RawRequestDetailResponse,
 	type RawRequestListResponse,
+	type RequestDetailRecord,
 	type RequestProjectionRecord,
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
@@ -49,10 +50,13 @@ export async function getRequestList(params: CursorListParams = {}): Promise<{
 export async function getRequestDetail(input: {
 	requestId: string;
 	signal?: AbortSignal;
-}): Promise<RequestProjectionRecord | null> {
+}): Promise<RequestDetailRecord> {
 	const payload = await fetchJson<RawRequestDetailResponse>(
 		`/api/requests/${encodeURIComponent(input.requestId)}`,
 		{ signal: input.signal },
 	);
-	return payload.request ? normalizeRequestRecord(payload.request) : null;
+	return {
+		opsIndex: payload.opsIndex ?? null,
+		request: payload.request ? normalizeRequestRecord(payload.request) : null,
+	};
 }

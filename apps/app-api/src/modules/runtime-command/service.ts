@@ -432,6 +432,8 @@ export function buildChatCommandService(
 	async function finalizeAcceptedCommand(input: {
 		context: AcceptedChatCommandContext;
 		executionResponse: ToolExecutionResponse;
+		executionFinalizationReceivedAt?: string | null;
+		streamBrowserTtftMs?: number | null;
 		transportError?: { code: string; retryable: boolean } | null;
 	}) {
 		const { context } = input;
@@ -445,6 +447,13 @@ export function buildChatCommandService(
 			0,
 			new Date(completedAt).valueOf() - new Date(context.acceptedAt).valueOf(),
 		);
+		const projectionCloseoutMs = input.executionFinalizationReceivedAt
+			? Math.max(
+					0,
+					new Date(completedAt).valueOf() -
+						new Date(input.executionFinalizationReceivedAt).valueOf(),
+				)
+			: null;
 		const assistantMessageId = generateId("msg");
 		const finalEventId = generateId("evt");
 		const finalized = buildFinalizedWrite({
@@ -457,6 +466,7 @@ export function buildChatCommandService(
 			durationMs,
 			outboxEventId: finalEventId,
 			principal: context.input.principal,
+			projectionCloseoutMs,
 			requestId: context.requestId,
 			requestedTool: context.validatedPayload.requestedTool,
 			requestedScope: context.validatedPayload.requestedScope,
@@ -466,6 +476,7 @@ export function buildChatCommandService(
 			safetyIdentifier: context.safetyIdentifier,
 			surface: context.surface,
 			startedAt: context.acceptedAt,
+			streamBrowserTtftMs: input.streamBrowserTtftMs,
 			traceId: context.traceId,
 			turnSequence: context.turnSequence,
 			userMessageId: context.userMessageId,
@@ -518,6 +529,7 @@ export function buildChatCommandService(
 			safetyIdentifier: context.safetyIdentifier,
 			selectedTool: finalized.write.requestExecution.selectedTool,
 			sourceDocIds: finalized.write.requestExecution.sourceDocIds,
+			stageTiming: finalized.write.requestObservabilityFact.stageTiming,
 			status: finalized.write.requestExecution.status as
 				| "completed"
 				| "error"

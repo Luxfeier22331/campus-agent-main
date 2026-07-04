@@ -1,4 +1,4 @@
-# Campus Agent Project Work Map
+# Campus Agent Project Planning Signals
 
 ## Purpose
 
@@ -24,7 +24,7 @@ admission, Temporal command/query/cancel, policy closeout, readiness, metrics,
 and sanitized projection writes. Temporal is the execution truth. PG stores
 product data and sanitized run/event/step projection, not the execution queue.
 
-## Active Work Map Facts
+## Active Planning Signal Facts
 
 - Product entry surface is `campus-web` at `https://campus.muc.wiki`; staging
   browser validation uses `https://campus-staging.mucwiki-edge.link`.
@@ -72,7 +72,8 @@ product data and sanitized run/event/step projection, not the execution queue.
 ## Current Repo State
 
 - There is no tracked active workstream directory in this repository.
-- `.planning/WORKSTREAMS.md` is a compact active work map, not a phase ledger.
+- `.planning/WORKSTREAMS.md` is a compact active planning signal surface, not a
+  phase ledger.
 - The repo-level implementation gap ledger lives in
   `.planning/WORKSTREAMS.md#implementation-gap-ledger`; do not duplicate that
   table in current/target architecture docs.
@@ -82,7 +83,7 @@ product data and sanitized run/event/step projection, not the execution queue.
 - Structural planning that should persist must be promoted into durable docs,
   ADRs, runbooks, contracts, schemas, or a short update to this file.
 - Durable governance principles belong in the owning docs/ADR/contract/runbook;
-  this work map may point to them but must not redefine them.
+  this planning signal surface may point to them but must not redefine them.
 
 ## Owner Areas
 
@@ -92,9 +93,9 @@ product data and sanitized run/event/step projection, not the execution queue.
 | Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-runtime.md` |
 | Tool Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/tool-runtime.md` |
 | Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane.md` |
-| Ops / QA | staging, release gates, observability, smoke evidence | `docs/runbooks/e2e-qa-release.md` |
+| Ops / QA | staging, release gates, observability, release closeout artifacts | `docs/runbooks/e2e-qa-release.md` |
 
-This file is a `planning_work_map`. It can point to current facts and work
+This file is a `planning_signal`. It can point to current facts and work
 signals, but it does not override architecture, contract, data, ADR or runbook
 truth. Conflict resolution follows `docs/documentation-architecture.md`.
 
@@ -110,8 +111,8 @@ Create or resume durable docs/ADRs/runbook work when any of these occur:
   catalog, or tool routing contract changes.
 - A data-plane source truth, ingestion release, query-enabled surface, or access
   boundary changes.
-- Staging/release evidence reveals drift between `app-api`, execution-control,
-  Temporal, workers, PG projection, or observability.
+- Release closeout artifacts reveal drift between `app-api`,
+  execution-control, Temporal, workers, PG projection, or observability.
 - A historical planning artifact contains a decision still needed today; recover
   only the decision into active docs, not the whole archive tree.
 

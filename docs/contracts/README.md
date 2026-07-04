@@ -33,6 +33,7 @@ updated: 2026-06-26
 - `durable-runtime.md`
 - `operator-runtime.md`
 - `langfuse-runtime.md`
+- `stage-timing.md`
 
 ## Operator / Official Web contract
 
@@ -41,6 +42,7 @@ updated: 2026-06-26
   - app-api owned authenticated notice operator-safe processing projection
     ingest/query seam only; it does not own source-truth or ingestion lifecycle
 - `app-api/observability.md`
+- `stage-timing.md`
 - `app-api/official-web.md`
 
 ## Navigation contract
@@ -98,5 +100,5 @@ updated: 2026-06-26
 - contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane /
   pending work / closeout 状态说明
 - 当 supporting architecture 已冻结 forward design，但 current wire shape
-  尚未切换时，contract 必须显式区分 `current truth` 与 `forward evolution`，不得把 future routing
+  尚未切换时，contract 必须显式区分 `current truth` 与 `forward evolution`，不得把 candidate routing
   shape 写成现状

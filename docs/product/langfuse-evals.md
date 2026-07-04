@@ -55,7 +55,7 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - Operator: review runtime quality candidates and safe trace links without
   directly depending on Langfuse as a backend.
 - Product / architecture: understand quality trend, regression risk and
-  release evidence boundaries.
+  release-closeout boundaries.
 
 ## 5. Product Requirements
 

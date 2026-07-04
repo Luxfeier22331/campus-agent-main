@@ -117,7 +117,7 @@ func TestStepOutputProjectionKindValidAcceptsAllSchemaProjectionKinds(t *testing
 func canonicalToolExecutionRequestPayload() map[string]any {
 	return map[string]any{
 		"execution_contract_version": "tool_execution_v1",
-		"response_contract":          "execution_finalization_response_v1",
+		"response_contract":          "execution_finalization_response_v2",
 		"user_goal":                  "学生手册请假制度怎么规定？",
 		"conversation_id":            "conv-contract-runtime-neutral",
 		"request_id":                 "req-contract-runtime-neutral",
@@ -212,6 +212,81 @@ func TestDecodeToolExecutionResponseWireJSONRejectsErrorWithoutRetryable(t *test
 
 	if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
 		t.Fatal("expected execution response error without retryable to be rejected")
+	}
+}
+
+func TestDecodeToolExecutionResponseWireJSONRejectsNonCanonicalStageTiming(t *testing.T) {
+	payload := canonicalToolExecutionResponsePayload()
+	payload["stage_timing"] = map[string]any{
+		"agent_runtime_duration_ms": 42,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
+		t.Fatal("expected non-canonical stage_timing field to be rejected")
+	}
+}
+
+func TestDecodeToolExecutionResponseWireJSONRejectsInvalidDebugTraceRef(t *testing.T) {
+	payload := canonicalToolExecutionResponsePayload()
+	payload["debug_trace_refs"] = []map[string]any{{
+		"sink":      "raw_sdk_trace",
+		"trace_ref": "trace://raw-sdk",
+	}}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
+		t.Fatal("expected invalid debug trace sink to be rejected")
+	}
+}
+
+func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTimingAndDebugTraceRef(t *testing.T) {
+	payload := canonicalToolExecutionResponsePayload()
+	payload["stage_timing"] = map[string]any{
+		"agent.runtime_ms":     42,
+		"agent.first_delta_ms": 12,
+	}
+	payload["debug_trace_refs"] = []map[string]any{{
+		"sink":      "langfuse_otlp",
+		"trace_id":  "trace-contract-response",
+		"trace_ref": "langfuse://trace-contract-response",
+		"url":       "https://langfuse.example/project/demo/traces/trace-contract-response",
+	}}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	wire, err := DecodeToolExecutionResponseWireJSON(body)
+	if err != nil {
+		t.Fatalf("DecodeToolExecutionResponseWireJSON returned error: %v", err)
+	}
+	if wire.StageTiming[StageTimingFieldAgentRuntimeMs] != 42 {
+		t.Fatalf("stage timing = %#v", wire.StageTiming)
+	}
+	if len(wire.DebugTraceRefs) != 1 || wire.DebugTraceRefs[0].Sink != DebugTraceSinkLangfuseOtlp {
+		t.Fatalf("debug trace refs = %#v", wire.DebugTraceRefs)
+	}
+}
+
+func canonicalToolExecutionResponsePayload() map[string]any {
+	return map[string]any{
+		"selected_tool":          nil,
+		"status":                 "completed",
+		"answer_text":            "ok",
+		"follow_up_question":     "",
+		"confidence":             "high",
+		"result":                 map[string]any{},
+		"error":                  nil,
+		"observability":          map[string]any{},
+		"workflow_trace_summary": nil,
+		"trace_id":               "trace-contract-response",
 	}
 }
 

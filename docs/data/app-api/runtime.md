@@ -103,8 +103,7 @@ updated: 2026-06-13
   summary；不要写 raw evidence snippet、score 或 backend payload
 - `rejected` 覆盖两类显式 fail-close：
   - execution policy reject
-  - app-api precheck reject，例如 future `Phase I` throttle 命中后的
-    `error_code=rate_limit_exceeded`
+  - app-api precheck reject，例如 abuse throttle 命中后的 `error_code=rate_limit_exceeded`
 - 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`
 - `cancelled` 表示 execution 已接受 explicit cancel 或 upstream cancel 并停止等待；它不是
   semantic answer failure
@@ -239,7 +238,7 @@ updated: 2026-06-13
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection
   回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
 - `selected_tool` 继续只保存 raw tool id，供 operator projection /
-  aggregate 过滤；future family grouping 如有需要，应走显式新字段或 projection
+  aggregate 过滤；family grouping 如有需要，应走显式新字段或 projection
 - `version_query_mode` / `version_query_summary` 只保存 operator-safe 版本查询摘要，不回放
   raw caller payload
 - `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` 表示 retrieval base

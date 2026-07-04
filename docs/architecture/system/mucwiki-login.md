@@ -10,8 +10,8 @@ updated: 2026-06-09
 
 ## 文档边界
 
-本文冻结 `muc.wiki` login federation 的 target architecture 与当前 provider
-implementation truth。
+本文冻结 `muc.wiki` login federation 的 target architecture 与 provider
+implementation boundary。
 
 它回答的是：
 
@@ -20,9 +20,9 @@ implementation truth。
 - 为什么不采用 cookie/session/database compatibility
 - Better Auth provider runtime 在架构中的位置
 
-本文表示 `apps/app-api` 的 federation provider endpoints 已实现；它不表示
-`muc.wiki` production login federation 已经上线。上线前仍必须完成
-`nc-arm-6c` 上的 MediaWiki staging smoke、client secret 注入与 client provision。
+本文不维护 `muc.wiki` production login federation 的 rollout state。provider
+route implementation status 属于 `current.md`；client provision、secret delivery 与
+MediaWiki verification procedure 属于 federation runbook。
 
 ## Target Relationship
 
@@ -94,7 +94,7 @@ campus-web the provider owner.
 
 Campus-web exposes only explicit allowlisted federation seams, namely discovery
 routes and canonical `/api/federation/*`, to `apps/app-api`. It must not become
-a generic app-api proxy or a MediaWiki compatibility backend.
+a generic app-api proxy or a MediaWiki federation backend outside the identity boundary.
 
 ## Client Registry
 
@@ -178,7 +178,7 @@ runtime secret material and is never committed.
 - Do not use profile memory or chat history in federation claims.
 - Do not expose operator or service principal claims to `muc.wiki` unless
   explicitly modeled as a separate administrative federation client.
-- Do not write provider endpoints as one-off MediaWiki compatibility routes
+- Do not write provider endpoints as one-off MediaWiki federation routes
   outside Identity Platform.
 
 ## Related Documents

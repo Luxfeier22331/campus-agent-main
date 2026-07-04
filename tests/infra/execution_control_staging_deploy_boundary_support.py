@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from tests.execution_control_staging_preflight_support import (
     ProviderConfigStubServer,
     copy_staging_modules_for_tests,
+    write_observability_config_projection_for_tests,
     write_provider_config_projection_for_tests,
 )
 
@@ -38,13 +39,16 @@ def run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProcess
         common_path = copy_staging_modules_for_tests(root)
         runtime_env = root / "ops" / "runtime.env"
         projection_path = root / "ops" / "provider-config-projection.json"
+        observability_projection_path = root / "ops" / "observability-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
                 (
                     "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
                     f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                    f"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH={observability_projection_path}",
                 )
             )
             + "\n",
@@ -95,7 +99,9 @@ def run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Comple
         common_path = copy_staging_modules_for_tests(root)
         runtime_env = root / "ops" / "runtime.env"
         projection_path = root / "ops" / "provider-config-projection.json"
+        observability_projection_path = root / "ops" / "observability-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env.parent.mkdir(exist_ok=True)
         server = ProviderConfigStubServer()
         server.start()
@@ -107,6 +113,7 @@ def run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Comple
                         "APP_API_INTERNAL_SHARED_SECRET=app-api-secret",
                         f"EXECUTION_CONTROL_STAGING_APP_API_BASE_URL={server.base_url}",
                         f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                        f"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH={observability_projection_path}",
                         "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
                         "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
                         "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
@@ -218,12 +225,15 @@ def run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProcess
         )
         runtime_env = root / "ops" / "runtime.env"
         projection_path = root / "ops" / "provider-config-projection.json"
+        observability_projection_path = root / "ops" / "observability-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
                 (
                     f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                    f"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH={observability_projection_path}",
                     "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
                     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
                     "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",

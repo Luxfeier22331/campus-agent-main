@@ -8,6 +8,8 @@ def go_decode_helpers(
     requested_tools: Iterable[str],
     workflow_modes: Iterable[str],
     projection_kinds: Iterable[str],
+    stage_timing_fields: Iterable[str],
+    debug_trace_sinks: Iterable[str],
 ) -> str:
     tool_id_cases = ", ".join(f"ToolID{_go_const_suffix(value)}" for value in tool_ids)
     requested_tool_cases = ", ".join(
@@ -18,6 +20,12 @@ def go_decode_helpers(
     )
     projection_kind_cases = ",\n\t\t".join(
         f"StepOutputProjectionKind{_go_const_suffix(value)}" for value in projection_kinds
+    )
+    stage_timing_field_cases = ",\n\t\t".join(
+        f"StageTimingField{_go_const_suffix(value)}" for value in stage_timing_fields
+    )
+    debug_trace_sink_cases = ", ".join(
+        f"DebugTraceSink{_go_const_suffix(value)}" for value in debug_trace_sinks
     )
     template = """
 func DecodeToolExecutionRequestWireJSON(data []byte) (ToolExecutionRequestWire, error) {
@@ -276,6 +284,38 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t\t\treturn fmt.Errorf("workflow_trace_summary: %w", err)
 \t\t}
 \t}
+\tif wire.StageTiming != nil {
+\t\tif err := wire.StageTiming.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("stage_timing: %w", err)
+\t\t}
+\t}
+\tfor index, ref := range wire.DebugTraceRefs {
+\t\tif err := ref.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
+\t\t}
+\t}
+\treturn nil
+}
+
+func (wire StageTimingWire) Validate() error {
+\tfor field, durationMs := range wire {
+\t\tif !field.Valid() {
+\t\t\treturn fmt.Errorf("%s is not an allowed stage timing field", field)
+\t\t}
+\t\tif durationMs < 0 || math.IsNaN(durationMs) || math.IsInf(durationMs, 0) {
+\t\t\treturn fmt.Errorf("%s must be a finite non-negative duration", field)
+\t\t}
+\t}
+\treturn nil
+}
+
+func (wire DebugTraceRefWire) Validate() error {
+\tif !wire.Sink.Valid() {
+\t\treturn fmt.Errorf("sink is invalid")
+\t}
+\tif wire.TraceRef == "" {
+\t\treturn fmt.Errorf("trace_ref is required")
+\t}
 \treturn nil
 }
 
@@ -346,6 +386,24 @@ func (value StepOutputProjectionKind) Valid() bool {
 \t\treturn false
 \t}
 }
+
+func (value StageTimingField) Valid() bool {
+\tswitch value {
+\tcase __STAGE_TIMING_FIELD_CASES__:
+\t\treturn true
+\tdefault:
+\t\treturn false
+\t}
+}
+
+func (value DebugTraceSink) Valid() bool {
+\tswitch value {
+\tcase __DEBUG_TRACE_SINK_CASES__:
+\t\treturn true
+\tdefault:
+\t\treturn false
+\t}
+}
 """
     legacy_projection_kind_cases = "\n".join(
         (
@@ -361,6 +419,8 @@ func (value StepOutputProjectionKind) Valid() bool {
         template.replace("__TOOL_ID_CASES__", tool_id_cases)
         .replace("__REQUESTED_TOOL_CASES__", requested_tool_cases)
         .replace("__WORKFLOW_MODE_CASES__", workflow_mode_cases)
+        .replace("__STAGE_TIMING_FIELD_CASES__", stage_timing_field_cases)
+        .replace("__DEBUG_TRACE_SINK_CASES__", debug_trace_sink_cases)
     )
     if legacy_projection_kind_cases not in result:
         raise ValueError("StepOutputProjectionKind Valid template block drifted")
@@ -368,4 +428,5 @@ func (value StepOutputProjectionKind) Valid() bool {
 
 
 def _go_const_suffix(value: str) -> str:
-    return "".join(part[:1].upper() + part[1:] for part in value.replace("_", "-").split("-"))
+    normalized = value.replace(".", "-").replace("_", "-")
+    return "".join(part[:1].upper() + part[1:] for part in normalized.split("-") if part)

@@ -52,7 +52,13 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-control-secrets
+            - secretRef:
+                name: execution-agent-client-secrets
+            - secretRef:
+                name: execution-control-internal-query-secrets
+            - secretRef:
+                name: execution-rag-secrets
           env:
             - name: CAMPUS_AGENT_HTTP_HOST
               value: 0.0.0.0
@@ -71,7 +77,7 @@ spec:
                 - -ec
                 - |
                   curl -fsS \
-                    -H "x-worker-origin-auth: ${EXECUTION_CONTROL_SHARED_SECRET}" \
+                    -H "x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}" \
                     http://127.0.0.1:8000/readyz >/dev/null
             initialDelaySeconds: 20
             periodSeconds: 10

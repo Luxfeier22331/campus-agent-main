@@ -78,7 +78,7 @@ context enters the agent as bounded dynamic instructions / model context prepare
 by `execution-control`, not as SDK-native session memory, raw Hindsight payload,
 bank id or direct vendor tool access.
 
-If a future product path needs model-visible memory behavior, it must be
+If a product path is admitted for model-visible memory behavior, it must be
 introduced as a repo-owned typed tool or workflow signal, for example
 `personal_memory_recall` or `personal_memory_reflect`, admitted by
 `execution-control` and backed by sanitized projection. Directly attaching

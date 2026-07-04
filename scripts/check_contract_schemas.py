@@ -10,11 +10,14 @@ import yaml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
 
+from scripts.materialize_observability_alerts import materialize_alert_artifact
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "packages/contracts/schemas/contract-schema-registry.v1.json"
 REGISTRY_SCHEMA_PATH = (
     REPO_ROOT / "packages/contracts/schemas/contract-schema-registry.v1.schema.json"
 )
+TOOL_EXECUTION_OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/tool-execution.openapi.yaml"
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 OPENAPI_VERSION = "3.1.1"
 
@@ -64,6 +67,7 @@ def _validate_json_schema_entry(entry: SchemaRegistryEntry) -> None:
     for target in entry.validates:
         instance = _load_json(target)
         _validate_instance(str(_relative(target)), schema, instance)
+        _validate_json_artifact_invariants(entry.id, target, instance)
 
     for group in entry.fixture_groups:
         group_dir = _repo_path(group["path"])
@@ -78,6 +82,140 @@ def _validate_json_schema_entry(entry: SchemaRegistryEntry) -> None:
             _validate_with_validator(validator, fixture_path, should_pass=True)
         for fixture_path in invalid_fixtures:
             _validate_with_validator(validator, fixture_path, should_pass=False)
+
+
+def _validate_json_artifact_invariants(entry_id: str, path: Path, instance: Any) -> None:
+    if entry_id == "runtime-observability-alerts.v1":
+        _validate_observability_alert_invariants(path, instance)
+        return
+    if entry_id != "runtime-latency-budgets.v1":
+        return
+    canonical_stage_fields = _canonical_stage_timing_fields()
+    if not isinstance(instance, dict):
+        raise ValueError(f"{_relative(path)} must contain an object")
+    rules = instance.get("rules")
+    if not isinstance(rules, list):
+        raise ValueError(f"{_relative(path)} rules must be a list")
+    enabled_fields: set[str] = set()
+    reasons: set[str] = set()
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise ValueError(f"{_relative(path)} rules[{index}] must be an object")
+        field = rule.get("field")
+        reason = rule.get("candidate_reason")
+        warn_ms = rule.get("warn_ms")
+        critical_ms = rule.get("critical_ms")
+        if not isinstance(field, str) or not isinstance(reason, str):
+            raise ValueError(
+                f"{_relative(path)} rules[{index}] must declare field and candidate_reason"
+            )
+        if field not in canonical_stage_fields:
+            raise ValueError(f"{_relative(path)} rules[{index}] field is not canonical: {field}")
+        if not isinstance(warn_ms, int) or not isinstance(critical_ms, int):
+            raise ValueError(f"{_relative(path)} rules[{index}] thresholds must be integers")
+        if critical_ms <= warn_ms:
+            raise ValueError(
+                f"{_relative(path)} rules[{index}] critical_ms must be greater than warn_ms"
+            )
+        if reason in reasons:
+            raise ValueError(f"{_relative(path)} duplicate candidate_reason: {reason}")
+        reasons.add(reason)
+        if rule.get("enabled") is True:
+            if field in enabled_fields:
+                raise ValueError(
+                    f"{_relative(path)} duplicate enabled latency budget field: {field}"
+                )
+            enabled_fields.add(field)
+    missing_fields = canonical_stage_fields - enabled_fields
+    extra_fields = enabled_fields - canonical_stage_fields
+    if missing_fields or extra_fields:
+        raise ValueError(
+            f"{_relative(path)} enabled latency budget fields must exactly cover "
+            f"canonical stage_timing fields; missing={sorted(missing_fields)} "
+            f"extra={sorted(extra_fields)}"
+        )
+
+
+def _validate_observability_alert_invariants(path: Path, instance: Any) -> None:
+    canonical_stage_fields = _canonical_stage_timing_fields()
+    if not isinstance(instance, dict):
+        raise ValueError(f"{_relative(path)} must contain an object")
+    rules = instance.get("rules")
+    if not isinstance(rules, list):
+        raise ValueError(f"{_relative(path)} rules must be a list")
+    rule_ids: set[str] = set()
+    enabled_keys: set[tuple[str, str | None, str]] = set()
+    expected_units = {
+        "stage_latency_p95": "ms",
+        "request_error_rate": "ratio",
+        "projection_outbox_stale": "count",
+        "telemetry_export_failure": "count",
+        "missing_trace_rate": "ratio",
+    }
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise ValueError(f"{_relative(path)} rules[{index}] must be an object")
+        rule_id = rule.get("id")
+        signal = rule.get("signal")
+        window = rule.get("window")
+        stage_field = rule.get("stage_field")
+        threshold = rule.get("threshold")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise ValueError(f"{_relative(path)} rules[{index}] must declare id")
+        if rule_id in rule_ids:
+            raise ValueError(f"{_relative(path)} duplicate alert rule id: {rule_id}")
+        rule_ids.add(rule_id)
+        if not isinstance(signal, str) or signal not in expected_units:
+            raise ValueError(f"{_relative(path)} rules[{index}] has unsupported signal")
+        if not isinstance(window, str):
+            raise ValueError(f"{_relative(path)} rules[{index}] must declare window")
+        if not isinstance(threshold, dict):
+            raise ValueError(f"{_relative(path)} rules[{index}] must declare threshold")
+        if signal == "stage_latency_p95":
+            if not isinstance(stage_field, str) or stage_field not in canonical_stage_fields:
+                raise ValueError(f"{_relative(path)} rules[{index}] stage_field must be canonical")
+        elif stage_field is not None:
+            raise ValueError(
+                f"{_relative(path)} rules[{index}] stage_field is only valid for stage_latency_p95"
+            )
+        if threshold.get("unit") != expected_units[signal]:
+            raise ValueError(
+                f"{_relative(path)} rules[{index}] threshold unit must be "
+                f"{expected_units[signal]} for {signal}"
+            )
+        if rule.get("enabled") is True:
+            key = (signal, stage_field if isinstance(stage_field, str) else None, window)
+            if key in enabled_keys:
+                raise ValueError(f"{_relative(path)} duplicate enabled alert signal/window: {key}")
+            enabled_keys.add(key)
+    try:
+        materialized = materialize_alert_artifact(instance)
+    except ValueError as exc:
+        raise ValueError(f"{_relative(path)} cannot materialize alert monitors: {exc}") from exc
+    monitors = materialized.get("monitors")
+    if not isinstance(monitors, list) or len(monitors) != len(enabled_keys):
+        raise ValueError(f"{_relative(path)} must materialize one monitor per enabled alert rule")
+
+
+def _canonical_stage_timing_fields() -> set[str]:
+    doc = _load_yaml(TOOL_EXECUTION_OPENAPI_PATH)
+    if not isinstance(doc, dict):
+        raise ValueError(f"{_relative(TOOL_EXECUTION_OPENAPI_PATH)} must contain an object")
+    components = doc.get("components")
+    if not isinstance(components, dict):
+        raise ValueError(f"{_relative(TOOL_EXECUTION_OPENAPI_PATH)} must declare components")
+    schemas = components.get("schemas")
+    if not isinstance(schemas, dict):
+        raise ValueError(f"{_relative(TOOL_EXECUTION_OPENAPI_PATH)} must declare schemas")
+    stage_timing = schemas.get("StageTiming")
+    if not isinstance(stage_timing, dict):
+        raise ValueError(f"{_relative(TOOL_EXECUTION_OPENAPI_PATH)} must declare StageTiming")
+    properties = stage_timing.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        raise ValueError(
+            f"{_relative(TOOL_EXECUTION_OPENAPI_PATH)} StageTiming must declare properties"
+        )
+    return {key for key in properties if isinstance(key, str)}
 
 
 def _validate_json_schema_document(path: Path, schema: dict[str, Any]) -> None:

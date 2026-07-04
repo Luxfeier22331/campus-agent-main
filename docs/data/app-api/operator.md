@@ -11,6 +11,12 @@ updated: 2026-06-13
 
 <!-- markdownlint-disable MD013 -->
 
+## Document Boundary
+
+This document owns app-api operator read-model logical schema. It does not own
+Operator Console product UX, raw observability sinks, request lifecycle command
+truth or release closeout.
+
 ## `operator.request_projection`
 
 用途：
@@ -397,7 +403,7 @@ updated: 2026-06-13
 
 规则：
 
-- 该表不再作为目标态数据模型扩展；future badcase/eval workflow 默认进入
+- 该表不再作为目标态数据模型扩展；badcase/eval workflow 默认进入
   Langfuse/eval-owned workflow 或新的 allowlisted curated-summary contract
 - 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
 - 当前已冻结的第一版 schema 仅由 runtime monitor 生成 badcase，`detected_by` 固定为

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from typing import Any
 
 import yaml
 
+_BOUNDARY = Path("configs/runtime/k8s-execution-runtime-env-boundary.v1.json")
 _OVERLAY = Path("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging")
 _REQUIRED_DEPLOYMENTS = {
     "execution-control",
@@ -35,6 +37,15 @@ _FORBIDDEN_NAMES = {
     "execution-runtime-temporal-keda-ingress",
     "temporal-namespace-setup",
 }
+_SECRET_LIKE_PATTERN = (
+    "SECRET",
+    "PASSWORD",
+    "API_KEY",
+    "AUTH_HEADER",
+    "AUTH_VALUE",
+    "DATABASE_URL",
+    "BEARER_TOKEN",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +73,13 @@ def audit_slim_overlay(*, root: Path | None = None) -> tuple[SlimOverlayIssue, .
     docs, render_error = _render_overlay(overlay, base=base)
     if render_error:
         return (SlimOverlayIssue(path=_OVERLAY.as_posix(), message=render_error),)
+    boundary, boundary_error = _load_boundary(base)
+    if boundary_error:
+        return (SlimOverlayIssue(path=_BOUNDARY.as_posix(), message=boundary_error),)
+    retired_secret_names = set(boundary.get("retired_secret_names", []))
+    slim_forbidden_secrets = set(boundary.get("slim_forbidden_secrets", []))
+    configmap_keys = {key for keys in boundary.get("configmaps", {}).values() for key in keys}
+    secret_keys = {key for keys in boundary.get("secrets", {}).values() for key in keys}
 
     for doc in docs:
         kind = str(doc.get("kind", ""))
@@ -73,6 +91,45 @@ def audit_slim_overlay(*, root: Path | None = None) -> tuple[SlimOverlayIssue, .
                     message=f"slim overlay must not include {kind} {name}",
                 )
             )
+        if kind == "Secret" and name in retired_secret_names:
+            issues.append(
+                SlimOverlayIssue(
+                    path=_OVERLAY.as_posix(),
+                    message=f"slim overlay must not include retired Secret {name}",
+                )
+            )
+        if kind == "Secret" and name in slim_forbidden_secrets:
+            issues.append(
+                SlimOverlayIssue(
+                    path=_OVERLAY.as_posix(),
+                    message=f"slim overlay must not include forbidden Secret {name}",
+                )
+            )
+        if kind == "ConfigMap":
+            for key in _resource_data_keys(doc):
+                if _is_secret_like_key(key):
+                    issues.append(
+                        SlimOverlayIssue(
+                            path=_OVERLAY.as_posix(),
+                            message=f"ConfigMap {name} contains secret-like key {key}",
+                        )
+                    )
+                if key in secret_keys:
+                    issues.append(
+                        SlimOverlayIssue(
+                            path=_OVERLAY.as_posix(),
+                            message=f"ConfigMap {name} contains secret-owned key {key}",
+                        )
+                    )
+        if kind == "Secret":
+            for key in _resource_data_keys(doc):
+                if key in configmap_keys:
+                    issues.append(
+                        SlimOverlayIssue(
+                            path=_OVERLAY.as_posix(),
+                            message=f"Secret {name} contains config-owned key {key}",
+                        )
+                    )
         if name in _FORBIDDEN_NAMES:
             issues.append(
                 SlimOverlayIssue(
@@ -139,6 +196,158 @@ def audit_slim_overlay(*, root: Path | None = None) -> tuple[SlimOverlayIssue, .
                 )
             )
 
+    issues.extend(_audit_workload_secret_boundaries(docs, boundary))
+
+    return tuple(issues)
+
+
+def _load_boundary(base: Path) -> tuple[dict[str, Any], str | None]:
+    try:
+        payload = json.loads((base / _BOUNDARY).read_text(encoding="utf-8"))
+    except OSError as exc:
+        return {}, f"read K8s env boundary: {exc}"
+    except json.JSONDecodeError as exc:
+        return {}, f"invalid JSON: {exc}"
+    if payload.get("schema_version") != "campus_k8s_execution_runtime_env_boundary.v1":
+        return {}, "unsupported schema_version"
+    return payload, None
+
+
+def _resource_data_keys(doc: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for field in ("data", "stringData"):
+        values = doc.get(field)
+        if isinstance(values, dict):
+            keys.update(str(key) for key in values)
+    return keys
+
+
+def _is_secret_like_key(key: str) -> bool:
+    return any(token in key for token in _SECRET_LIKE_PATTERN)
+
+
+def _audit_workload_secret_boundaries(
+    docs: tuple[dict[str, Any], ...],
+    boundary: dict[str, Any],
+) -> tuple[SlimOverlayIssue, ...]:
+    issues: list[SlimOverlayIssue] = []
+    retired_secret_names = set(boundary.get("retired_secret_names", []))
+    slim_forbidden_secrets = set(boundary.get("slim_forbidden_secrets", []))
+    expected_by_deployment = {
+        "execution-control": {
+            "execution-control-secrets",
+            "execution-agent-client-secrets",
+            "execution-control-internal-query-secrets",
+            "execution-rag-secrets",
+        },
+        "agent-runtime": {"agent-runtime-secrets"},
+        "workflow-worker": {"execution-worker-common-secrets"},
+        "activity-worker-core": {
+            "execution-worker-common-secrets",
+            "execution-memory-client-secrets",
+            "execution-control-internal-query-secrets",
+        },
+        "activity-worker-agent": {
+            "execution-worker-common-secrets",
+            "execution-agent-client-secrets",
+        },
+        "activity-worker-knowledge": {
+            "execution-worker-common-secrets",
+            "execution-agent-client-secrets",
+            "execution-rag-secrets",
+        },
+    }
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        name = _resource_name(doc)
+        if name not in expected_by_deployment:
+            continue
+        actual = _deployment_secret_refs(doc)
+        forbidden = actual & (retired_secret_names | slim_forbidden_secrets)
+        for secret_name in sorted(forbidden):
+            issues.append(
+                SlimOverlayIssue(
+                    path=_OVERLAY.as_posix(),
+                    message=f"Deployment {name} references forbidden Secret {secret_name}",
+                )
+            )
+        expected = expected_by_deployment[name]
+        if actual != expected:
+            issues.append(
+                SlimOverlayIssue(
+                    path=_OVERLAY.as_posix(),
+                    message=(
+                        f"Deployment {name} Secret refs = {sorted(actual)}, want {sorted(expected)}"
+                    ),
+                )
+            )
+        issues.extend(_audit_provider_projection_mounts(doc))
+    return tuple(issues)
+
+
+def _deployment_secret_refs(doc: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    for container in _deployment_containers(doc):
+        for entry in container.get("envFrom", []):
+            secret_ref = entry.get("secretRef") if isinstance(entry, dict) else None
+            if isinstance(secret_ref, dict) and secret_ref.get("name"):
+                refs.add(str(secret_ref["name"]))
+    return refs
+
+
+def _deployment_containers(doc: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    template = doc.get("spec", {}).get("template", {})
+    pod_spec = template.get("spec", {}) if isinstance(template, dict) else {}
+    containers = pod_spec.get("containers", []) if isinstance(pod_spec, dict) else []
+    return tuple(container for container in containers if isinstance(container, dict))
+
+
+def _audit_provider_projection_mounts(doc: dict[str, Any]) -> tuple[SlimOverlayIssue, ...]:
+    issues: list[SlimOverlayIssue] = []
+    name = _resource_name(doc)
+    template = doc.get("spec", {}).get("template", {})
+    pod_spec = template.get("spec", {}) if isinstance(template, dict) else {}
+    volumes = pod_spec.get("volumes", []) if isinstance(pod_spec, dict) else []
+    for volume in volumes:
+        if not isinstance(volume, dict):
+            continue
+        if volume.get("name") == "provider-config-projection":
+            secret = volume.get("secret")
+            if not isinstance(secret, dict):
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_OVERLAY.as_posix(),
+                        message=f"Deployment {name} provider projection must be a Secret volume",
+                    )
+                )
+                continue
+            if secret.get("secretName") != "execution-runtime-provider-config-projection":
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_OVERLAY.as_posix(),
+                        message=f"Deployment {name} provider projection Secret name is invalid",
+                    )
+                )
+            if secret.get("defaultMode") != 0o600:
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_OVERLAY.as_posix(),
+                        message=f"Deployment {name} provider projection Secret volume must use defaultMode 0600",
+                    )
+                )
+        if volume.get("name") == "qdrant-tls-ca":
+            config_map = volume.get("configMap")
+            if (
+                not isinstance(config_map, dict)
+                or config_map.get("name") != "execution-runtime-qdrant-tls-ca"
+            ):
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_OVERLAY.as_posix(),
+                        message=f"Deployment {name} Qdrant CA must be mounted from ConfigMap",
+                    )
+                )
     return tuple(issues)
 
 

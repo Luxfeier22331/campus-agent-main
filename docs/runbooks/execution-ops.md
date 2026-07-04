@@ -15,14 +15,14 @@ updated: 2026-06-29
 
 This runbook owns staging deploy, ingress, daily operations, recovery and triage
 for the current execution-control + Temporal Docker Compose baseline. It does
-not define production substrate, product request truth or Temporal proof
+not define production substrate, product request truth or Temporal closeout
 semantics.
 
 Related owner docs:
 
 - current topology: `../architecture/current.md`
 - K8s/KEDA target runtime: `../architecture/system/k8s-runtime.md`
-- Temporal substrate proof: `temporal-self-host-operations.md`
+- Temporal substrate closeout: `temporal-self-host-operations.md`
 - product-path smoke: `execution-smoke.md`
 
 ## Deploy Checkout And Secrets
@@ -130,11 +130,11 @@ Default runtime includes execution-control, workflow worker,
 activity-worker-core, agent-runtime, activity-worker-agent,
 activity-worker-knowledge, Temporal, projection store and data-plane
 dependencies. Temporal UI, Langfuse stack, task-queue sampler and
-worker-autoscaler are opt-in proof or diagnosis components, not default serving
+worker-autoscaler are opt-in validation or diagnosis components, not default serving
 loop requirements.
 
 Before `docker compose up`, the lifecycle runs preflight and installs/checks the
-run projection schema. Schema evidence is written under:
+run projection schema. Schema closeout artifacts are written under:
 
 ```text
 .tmp/execution-control-staging/evidence/
@@ -159,8 +159,8 @@ Strict check must prove:
 - `api-staging` reports `auth`, `database`, `executionControl` and
   `executionRuntime` ready
 
-This proves runtime readiness, not autoscaler proof. Worker autoscaler and task
-queue sampler evidence live in `temporal-self-host-operations.md`.
+This validates runtime readiness, not autoscaler closeout. Worker autoscaler and
+task queue sampler closeout artifacts live in `temporal-self-host-operations.md`.
 
 ## Recovery
 
@@ -189,8 +189,8 @@ Logs live under `.tmp/execution-control-staging/logs/`. The main files are:
 - `otel-collector.log`
 - `otel-collector.recent.log`
 
-Log rotation is owned by the staging lifecycle. Ops proof output belongs in the
-current evidence directory, not in long-lived service logs.
+Log rotation is owned by the staging lifecycle. Ops closeout output belongs in
+the current closeout directory, not in long-lived service logs.
 
 ## Triage
 

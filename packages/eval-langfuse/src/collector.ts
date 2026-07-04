@@ -6,6 +6,10 @@ export interface CollectorConfigCheck {
 export function checkCollectorConfig(source: Record<string, unknown>): CollectorConfigCheck {
 	const errors: string[] = [];
 	for (const key of [
+		"OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
+		"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+		"OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
+		"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
 		"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
 		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
 		"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
@@ -17,6 +21,20 @@ export function checkCollectorConfig(source: Record<string, unknown>): Collector
 	const endpoint = String(source.OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT ?? "").trim();
 	if (endpoint && !endpoint.endsWith("/api/public/otel")) {
 		errors.push("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT must end with /api/public/otel");
+	}
+	const axiomEndpoint = String(source.OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT ?? "").trim();
+	if (
+		axiomEndpoint &&
+		!(
+			(axiomEndpoint.startsWith("https://") || axiomEndpoint.startsWith("http://")) &&
+			!axiomEndpoint.replace(/^https?:\/\//u, "").includes("/")
+		)
+	) {
+		errors.push("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be an OTLP base URL without a path");
+	}
+	const axiomAuth = String(source.OTEL_COLLECTOR_AXIOM_AUTH_HEADER ?? "").trim();
+	if (axiomAuth && !axiomAuth.startsWith("Bearer ") && !axiomAuth.startsWith("Token ")) {
+		errors.push("OTEL_COLLECTOR_AXIOM_AUTH_HEADER must be a bearer-style header value");
 	}
 	const auth = String(source.OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER ?? "").trim();
 	if (auth && !auth.startsWith("Basic ")) {

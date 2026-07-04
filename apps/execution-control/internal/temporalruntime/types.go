@@ -168,6 +168,7 @@ type AgentToolResult struct {
 
 type ExecutePrimaryAgentActivityOutput struct {
 	AgentResultRef     string            `json:"agent_result_ref"`
+	DebugTraceRefs     []DebugTraceRef   `json:"debug_trace_refs,omitempty"`
 	FinalOutput        string            `json:"final_output"`
 	ModelName          string            `json:"model_name"`
 	ModelProvider      string            `json:"model_provider"`
@@ -175,11 +176,19 @@ type ExecutePrimaryAgentActivityOutput struct {
 	RunID              string            `json:"run_id"`
 	SDKTraceRef        string            `json:"sdk_trace_ref"`
 	SelectedTools      []string          `json:"selected_tools"`
+	StageTiming        map[string]any    `json:"stage_timing,omitempty"`
 	Status             string            `json:"status"`
 	TerminalEnvelope   map[string]any    `json:"terminal_envelope,omitempty"`
 	TerminalReason     string            `json:"terminal_reason"`
 	ToolResults        []AgentToolResult `json:"tool_results"`
 	Usage              AgentUsageSummary `json:"usage"`
+}
+
+type DebugTraceRef struct {
+	Sink     string `json:"sink"`
+	TraceID  string `json:"trace_id,omitempty"`
+	TraceRef string `json:"trace_ref"`
+	URL      string `json:"url,omitempty"`
 }
 
 type AgentUsageSummary struct {

@@ -261,6 +261,57 @@ describe("app telemetry", () => {
 		).resolves.toBeUndefined();
 	});
 
+	it("emits only canonical stage timing events from request finalization", async () => {
+		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
+		const telemetry = createAppTelemetry(
+			{
+				APP_API_ENVIRONMENT: "staging",
+				SENTRY_RELEASE: "app-api@2026.07.04",
+			},
+			{
+				runtimeEventSink,
+				now: () => new Date("2026-07-04T12:30:00.000Z"),
+			},
+		);
+
+		await telemetry.recordRequestFinalized({
+			conversationId: "conv_01",
+			durationMs: 5500,
+			errorCode: null,
+			principalType: "campus_member",
+			requestId: "req_01",
+			requestedTool: "knowledge_query",
+			requestedScope: null,
+			resolvedScope: null,
+			retryable: null,
+			safetyIdentifier: null,
+			selectedTool: "knowledge_query",
+			sourceDocIds: [],
+			stageTiming: {
+				"stream.browser_ttft_ms": 5500,
+				"provider.queue_ms": 900,
+			},
+			status: "completed",
+			surface: "campus_web",
+			traceId: "trace_01",
+		});
+
+		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				budget_state: "critical",
+				duration_ms: 5500,
+				event_type: "request.stage_timing",
+				request_id: "req_01",
+				stage_field: "stream.browser_ttft_ms",
+			}),
+		);
+		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				stage_field: "provider.queue_ms",
+			}),
+		);
+	});
+
 	it("emits identity endpoint telemetry without auth-sensitive fields", async () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(

@@ -24,12 +24,13 @@ supporting architecture。
 它不负责：
 
 - 具体 database schema、migration 文件或执行顺序
-- 当前 staging 的一次部署证据是否已经覆盖所有 production topology
+- 一次部署证据是否已经覆盖 production topology
 - 某个 worker pool 的机器规格或具体 autoscaling 阈值
 - eval、retrieval、ingestion 的 collection-specific release 细节
 
-当前 merged truth 仍以 `docs/architecture/current.md` 为准。本文描述的是
-supporting architecture；实现状态必须单独写在 current architecture 或 evidence artifact 中。
+accepted merged truth 仍以 `docs/architecture/current.md` 为准。本文描述的是
+supporting architecture；实现状态必须单独写在 current architecture 或 owning
+operational artifact 中。
 
 ## Core Conclusion
 
@@ -48,8 +49,8 @@ model -> browser surface / Operator Console / eval / badcase`
 - `conversation_id` 是上下文、account / session、memory binding 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
-- `RunStep -> StepAttempt -> StepResult` 是 Operator Console、eval、badcase 与 release
-  evidence 的共同诊断主线；`workflow_trace_summary` 只能作为兼容摘要，不替代
+- `RunStep -> StepAttempt -> StepResult` 是 Operator Console、eval、badcase 与
+  operational diagnostic artifact 的共同诊断主线；`workflow_trace_summary` 只能作为 bounded summary，不替代
   step-level projection truth。
 - production admission truth 不得只存在于某个 `execution-control` /
   `execution-control` 进程内存。
@@ -63,7 +64,7 @@ model -> browser surface / Operator Console / eval / badcase`
   terminal truth。
 - production worker replica autoscaling 的目标 controller 是 KEDA Temporal scaler +
   Kubernetes HPA；repo-owned `worker-autoscaler` 只保留为 Docker Compose local /
-  transitional staging proof。
+  transitional runtime adapter。
 - tool 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
   outcome 都能写入 sanitized step / attempt / result projection，并能被
   app-api operator read model 消费时，才算 production-open。
@@ -514,8 +515,8 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
 ### Retired Python Semantic Bridge
 
 retired Python semantic worker 已从 active workspace 删除。旧 Python semantic bridge
-code 只可通过 git history 追溯；不得作为 serving fallback、staging readiness
-dependency 或 Temporal workflow branch 恢复。
+code 只可通过 git history 追溯；不得作为 serving fallback、readiness dependency
+或 Temporal workflow branch 恢复。
 
 它不负责：
 
@@ -721,14 +722,14 @@ worker autoscaler 边界固定为：
 ## Current-State Ownership
 
 This document owns durable runtime semantics, not merged implementation status,
-active backlog or release closeout evidence. Current-state facts must stay in
+  active work signals or release closeout evidence. Current-state facts must stay in
 these owner classes:
 
 - merged topology and implemented execution path:
   `../current.md`
 - durable execution work signals and backlog pointers:
   `../../../.planning/PROJECT.md` and `../../../.planning/WORKSTREAMS.md`
-- operational proof, staging closeout and recovery commands:
+- operational validation, staging closeout and recovery commands:
   `../../runbooks/`
 
 Do not add implementation-progress lists to this supporting architecture. If a
@@ -736,9 +737,9 @@ new runtime fact needs to persist, promote it to `current.md`, the
 matching contract/schema, an ADR or a runbook.
 
 Durable runtime work must not be marked complete by simple multi-instance HTTP
-load balancing, Redis queue usage or K8s HPA alone. The canonical proof remains
-Temporal workflow history plus repo-owned sanitized run / event / step /
-attempt / result projection.
+load balancing, Redis queue usage or K8s HPA alone. The canonical validation
+source remains Temporal workflow history plus repo-owned sanitized run / event /
+step / attempt / result projection.
 
 Stable artifacts for this architecture:
 

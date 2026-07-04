@@ -36,7 +36,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-worker-common-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
@@ -100,7 +100,11 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-worker-common-secrets
+            - secretRef:
+                name: execution-memory-client-secrets
+            - secretRef:
+                name: execution-control-internal-query-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
@@ -164,7 +168,9 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-worker-common-secrets
+            - secretRef:
+                name: execution-agent-client-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
@@ -228,7 +234,11 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-worker-common-secrets
+            - secretRef:
+                name: execution-agent-client-secrets
+            - secretRef:
+                name: execution-rag-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:

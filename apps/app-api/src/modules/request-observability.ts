@@ -1,5 +1,9 @@
 import type { ResolvedAppPrincipal } from "./auth";
 import type { RequestedScope, ToolExecutionResponse } from "./integration";
+import {
+	STAGE_TIMING_FIELDS,
+	type StageTimingField,
+} from "./integration/execution-finalization-contract";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -19,6 +23,57 @@ function toScopeSummary(scope: RequestedScope | null | undefined): string | null
 	}
 
 	return `${scope.corpus}/${scope.collection}`;
+}
+
+const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
+
+function assertStageTimingField(field: string): asserts field is StageTimingField {
+	if (!STAGE_TIMING_FIELD_SET.has(field)) {
+		throw new Error(`stage_timing.${field} is not an allowed stage timing field`);
+	}
+}
+
+function addStageTimingField(
+	timing: Partial<Record<StageTimingField, number>>,
+	field: string,
+	value: unknown,
+) {
+	assertStageTimingField(field);
+	if (!(typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+		throw new Error(`stage_timing.${field} must be a finite non-negative number`);
+	}
+	timing[field] = value;
+}
+
+function addOptionalStageTimingField(
+	timing: Partial<Record<StageTimingField, number>>,
+	field: StageTimingField,
+	value: number | null | undefined,
+) {
+	if (!(typeof value === "number" && Number.isFinite(value) && value > 0)) {
+		return;
+	}
+	timing[field] = value;
+}
+
+function mergeStageTiming(input: {
+	executionStageTiming?: Record<string, unknown> | null;
+	appApiStageTiming?: Record<string, unknown> | null;
+	requestTotalMs: number;
+	projectionCloseoutMs?: number | null;
+	streamBrowserTtftMs?: number | null;
+}): Partial<Record<StageTimingField, number>> {
+	const timing: Partial<Record<StageTimingField, number>> = {};
+	for (const [field, value] of Object.entries(input.executionStageTiming ?? {})) {
+		addStageTimingField(timing, field, value);
+	}
+	for (const [field, value] of Object.entries(input.appApiStageTiming ?? {})) {
+		addStageTimingField(timing, field, value);
+	}
+	addOptionalStageTimingField(timing, "request.total_ms", input.requestTotalMs);
+	addOptionalStageTimingField(timing, "stream.browser_ttft_ms", input.streamBrowserTtftMs);
+	addOptionalStageTimingField(timing, "projection.closeout_ms", input.projectionCloseoutMs);
+	return timing;
 }
 
 function normalizeAclDecision(input: {
@@ -330,6 +385,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		toolHistoricalDowngradeReason: null,
 		updatedAt: input.startedAt,
 		workflowTraceSummary: null,
+		stageTiming: {},
+		debugTraceRefs: [],
 	};
 }
 
@@ -339,6 +396,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	durationMs: number;
 	errorCode: string | null;
 	principal: ResolvedAppPrincipal;
+	projectionCloseoutMs?: number | null;
 	requestId: string;
 	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
@@ -347,7 +405,9 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	safetyIdentifier?: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
+	stageTiming?: Record<string, unknown> | null;
 	status: RequestExecutionStatus;
+	streamBrowserTtftMs?: number | null;
 	surface: string;
 	traceId: string;
 	conversationId: string;
@@ -487,6 +547,14 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		toolHistoricalDowngradeReason: observability?.toolHistoricalDowngradeReason ?? null,
 		updatedAt: input.completedAt,
 		workflowTraceSummary: input.response.workflowTraceSummary ?? null,
+		stageTiming: mergeStageTiming({
+			appApiStageTiming: input.stageTiming,
+			executionStageTiming: input.response.stageTiming,
+			projectionCloseoutMs: input.projectionCloseoutMs,
+			requestTotalMs: input.durationMs,
+			streamBrowserTtftMs: input.streamBrowserTtftMs,
+		}),
+		debugTraceRefs: input.response.debugTraceRefs ?? [],
 	};
 }
 

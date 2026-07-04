@@ -100,7 +100,7 @@ Execution Agent Layer keeps finalization ownership. Even when a typed tool,
 RAG graph or bounded agent-as-tool step contributes the result, the final answer
 must pass through repo-owned finalization and sanitized projection.
 
-Specialist handoff is only valid when a future workflow explicitly transfers
+Specialist handoff is only valid when an admitted workflow explicitly transfers
 next-response ownership with an admitted target, tool subset, context filter and
 eval denominator.
 

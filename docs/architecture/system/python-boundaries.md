@@ -105,7 +105,7 @@ boundary before those Python dependencies can be removed.
 
 PDF page counting / splitting may use a permissive lightweight parser for
 local file kernel work. PDF page rendering probes are retired from the default
-workspace; future rendering must be admitted as an explicit adapter runtime
+workspace; later rendering must be admitted as an explicit adapter runtime
 instead of reintroducing a default native rendering dependency.
 
 内部拆分规则：

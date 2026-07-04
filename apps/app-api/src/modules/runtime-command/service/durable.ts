@@ -4,6 +4,7 @@ import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
+import { createDurableCloseoutQueue } from "./durable-closeout-queue";
 import { toHandledErrorTransportOutcome } from "./errors";
 import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
 import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
@@ -15,6 +16,7 @@ export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
 } as const;
 
 interface DurableRunEventContext {
+	acceptedAt: string;
 	requestId: string;
 	runId: string | null;
 	traceId: string;
@@ -475,6 +477,15 @@ function durableEventWaitTimeoutResponse(context: DurableRunEventContext): ToolE
 	});
 }
 
+function durationMsBetween(startedAt: string, completedAt: string): number | null {
+	const started = new Date(startedAt).valueOf();
+	const completed = new Date(completedAt).valueOf();
+	if (!(Number.isFinite(started) && Number.isFinite(completed)) || completed <= started) {
+		return null;
+	}
+	return completed - started;
+}
+
 export async function waitForDurableFinalizationResponse<
 	Context extends DurableRunEventContext,
 >(input: {
@@ -527,6 +538,8 @@ export async function* streamDurableRunEventsUntilTerminal<
 	finalizeAcceptedCommand(finalizeInput: {
 		context: Context;
 		executionResponse: ToolExecutionResponse;
+		executionFinalizationReceivedAt?: string | null;
+		streamBrowserTtftMs?: number | null;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
@@ -538,6 +551,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	let lastSequence = 0;
 	let emptyPollAttempts = 0;
 	let hasStreamedAnswerDelta = false;
+	let streamBrowserTtftMs: number | null = null;
 	try {
 		while (emptyPollAttempts < polling.maxAttempts) {
 			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
@@ -555,6 +569,9 @@ export async function* streamDurableRunEventsUntilTerminal<
 				}
 				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
 				if (answerDelta) {
+					if (streamBrowserTtftMs === null) {
+						streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
+					}
 					hasStreamedAnswerDelta = true;
 					yield answerDelta;
 					continue;
@@ -566,6 +583,8 @@ export async function* streamDurableRunEventsUntilTerminal<
 				const finalized = await input.finalizeAcceptedCommand({
 					context,
 					executionResponse: terminalOutcome.response,
+					executionFinalizationReceivedAt: runEvent.occurredAt,
+					streamBrowserTtftMs,
 					transportError: terminalOutcome.transportError,
 				});
 				for (const event of chatStreamEventsForFinalized({
@@ -589,6 +608,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 		const finalized = await input.finalizeAcceptedCommand({
 			context,
 			executionResponse: handled,
+			streamBrowserTtftMs,
 			transportError: {
 				code: handled.error.code,
 				retryable: handled.error.retryable,
@@ -607,6 +627,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	const finalized = await input.finalizeAcceptedCommand({
 		context,
 		executionResponse: durableEventWaitTimeoutResponse(context),
+		streamBrowserTtftMs,
 		transportError: {
 			code: "execution_timeout",
 			retryable: true,
@@ -622,50 +643,13 @@ export async function* streamDurableRunEventsUntilTerminal<
 	}
 }
 
-type DurableCloseoutQueueItem =
-	| {
-			event: ChatCommandStreamEvent;
-			kind: "event";
-	  }
-	| {
-			kind: "done";
-	  }
-	| {
-			error: unknown;
-			kind: "error";
-	  };
-
-function createDurableCloseoutQueue() {
-	const items: DurableCloseoutQueueItem[] = [];
-	const waiters: Array<(item: DurableCloseoutQueueItem) => void> = [];
-
-	function push(item: DurableCloseoutQueueItem) {
-		const waiter = waiters.shift();
-		if (waiter) {
-			waiter(item);
-			return;
-		}
-		items.push(item);
-	}
-
-	async function next(): Promise<DurableCloseoutQueueItem> {
-		const item = items.shift();
-		if (item) {
-			return item;
-		}
-		return new Promise<DurableCloseoutQueueItem>((resolve) => {
-			waiters.push(resolve);
-		});
-	}
-
-	return { next, push };
-}
-
 export function startDurableFinalizationCloseout<Context extends DurableRunEventContext>(input: {
 	context: Context;
 	finalizeAcceptedCommand(finalizeInput: {
 		context: Context;
 		executionResponse: ToolExecutionResponse;
+		executionFinalizationReceivedAt?: string | null;
+		streamBrowserTtftMs?: number | null;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
@@ -683,6 +667,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		let lastSequence = 0;
 		let emptyPollAttempts = 0;
 		let hasStreamedAnswerDelta = false;
+		let streamBrowserTtftMs: number | null = null;
 		try {
 			while (emptyPollAttempts < polling.maxAttempts) {
 				const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
@@ -700,6 +685,9 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					}
 					const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
 					if (answerDelta) {
+						if (streamBrowserTtftMs === null) {
+							streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
+						}
 						hasStreamedAnswerDelta = true;
 						queue.push({ event: answerDelta, kind: "event" });
 						continue;
@@ -711,6 +699,8 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					const finalized = await input.finalizeAcceptedCommand({
 						context,
 						executionResponse: terminalOutcome.response,
+						executionFinalizationReceivedAt: runEvent.occurredAt,
+						streamBrowserTtftMs,
 						transportError: terminalOutcome.transportError,
 					});
 					for (const event of chatStreamEventsForFinalized({
@@ -735,6 +725,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 			const finalized = await input.finalizeAcceptedCommand({
 				context,
 				executionResponse: handled,
+				streamBrowserTtftMs,
 				transportError: {
 					code: handled.error.code,
 					retryable: handled.error.retryable,
@@ -755,6 +746,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		const finalized = await input.finalizeAcceptedCommand({
 			context,
 			executionResponse: durableEventWaitTimeoutResponse(context),
+			streamBrowserTtftMs,
 			transportError: {
 				code: "execution_timeout",
 				retryable: true,

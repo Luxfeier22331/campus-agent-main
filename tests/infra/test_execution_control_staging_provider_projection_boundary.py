@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 from tests.execution_control_staging_preflight_support import (
     copy_staging_modules_for_tests,
+    write_observability_config_projection_for_tests,
     write_provider_config_projection_for_tests,
 )
 
@@ -57,8 +58,16 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
                 projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"], projected["expected"]
             )
             self.assertEqual(
+                projected["CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH"],
+                projected["expectedObservability"],
+            )
+            self.assertEqual(
                 projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
                 "/run/campus-agent/provider-config-projection.json",
+            )
+            self.assertEqual(
+                projected["CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH"],
+                "/run/campus-agent/observability-config-projection.json",
             )
             self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID"].isdigit())
             self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID"].isdigit())
@@ -66,6 +75,9 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
             self.assertEqual(projected["hindsightEmbeddingModel"], "Qwen3-Embedding-4B")
             self.assertEqual(projected["profileRoles"], server.roles)
             self.assertTrue(projected["projectionExists"])
+            self.assertEqual(projected["observabilityMode"], "off")
+            self.assertTrue(projected["observabilityProjectionExists"])
+            self.assertEqual(projected["observabilityProjectionMode"], "600")
             self.assertEqual(projected["projectionMode"], "600")
             self.assertTrue(all(header == "internal-secret" for header in server.auth_headers))
         finally:
@@ -118,7 +130,9 @@ def _run_env_loader_with_default_provider_projection_path() -> subprocess.Comple
         runtime_env = root / "ops" / "runtime.env"
         runtime_dir = root / ".tmp" / "execution-control-staging"
         projection_path = runtime_dir / "provider-config-projection.json"
+        observability_projection_path = runtime_dir / "observability-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
@@ -167,6 +181,7 @@ def _run_env_loader_with_missing_provider_projection(
         runtime_env = root / "ops" / "runtime.env"
         runtime_dir = root / ".tmp" / "execution-control-staging"
         projection_path = runtime_dir / "provider-config-projection.json"
+        observability_projection_path = runtime_dir / "observability-config-projection.json"
         runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
@@ -188,10 +203,19 @@ def _run_env_loader_with_missing_provider_projection(
         node - <<'NODE'
         const fs = require("node:fs");
         const projectionPath = process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH;
+        const observabilityProjectionPath =
+          process.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH;
         const projection = JSON.parse(fs.readFileSync(projectionPath, "utf8"));
+        const observabilityProjection = JSON.parse(
+          fs.readFileSync(observabilityProjectionPath, "utf8"),
+        );
         console.log(JSON.stringify({{
           expected: {json.dumps(str(projection_path))},
+          expectedObservability: {json.dumps(str(observability_projection_path))},
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH: projectionPath,
+          CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH: observabilityProjectionPath,
+          CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:
+            process.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:
             process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:
@@ -201,6 +225,9 @@ def _run_env_loader_with_missing_provider_projection(
           hindsightEmbeddingModel: process.env.HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL,
           profileRoles: projection.source.roles,
           projectionExists: fs.existsSync(projectionPath),
+          observabilityMode: observabilityProjection.llm_debug_trace.mode,
+          observabilityProjectionExists: fs.existsSync(observabilityProjectionPath),
+          observabilityProjectionMode: (fs.statSync(observabilityProjectionPath).mode & 0o777).toString(8),
           projectionMode: (fs.statSync(projectionPath).mode & 0o777).toString(8),
         }}));
         NODE
@@ -224,7 +251,9 @@ def _run_env_loader_with_existing_stale_provider_projection(
         runtime_env = root / "ops" / "runtime.env"
         runtime_dir = root / ".tmp" / "execution-control-staging"
         projection_path = runtime_dir / "provider-config-projection.json"
+        observability_projection_path = runtime_dir / "observability-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
@@ -290,8 +319,25 @@ class _ProviderConfigServer:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
-                role = parse_qs(parsed.query).get("role", [""])[0]
                 owner.auth_headers.append(self.headers.get("x-app-internal-auth", ""))
+                if parsed.path == "/api/internal/observability-config/llm-debug-trace":
+                    self.send_response(200)
+                    self.send_header("content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        json.dumps(
+                            {
+                                "config": {
+                                    "schema_version": "llm_debug_trace_config.v1",
+                                    "mode": "off",
+                                    "include_model_io": False,
+                                    "sample_ratio": 1,
+                                }
+                            }
+                        ).encode("utf-8")
+                    )
+                    return
+                role = parse_qs(parsed.query).get("role", [""])[0]
                 owner.roles.append(role)
                 self.send_response(200)
                 self.send_header("content-type", "application/json")

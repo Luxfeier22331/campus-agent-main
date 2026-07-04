@@ -4,15 +4,16 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-29
+updated: 2026-07-03
 ---
 # Langfuse Observability And Eval Architecture
 
 ## Core Conclusion
 
 Langfuse is the LLM observability and eval platform for the online answer path.
-It is not an execution runtime, product data store, operator query backend or
-contract owner.
+It is not an execution runtime, product data store, operator query backend,
+learning-loop warehouse or contract owner. User-usage continuous improvement is
+owned by `learning-loop.md`; this document owns the Langfuse platform boundary.
 
 The runtime chain is:
 
@@ -25,10 +26,19 @@ The target eval platform chain is:
 projection -> Ragas / TS eval runner -> Langfuse scores / annotation ->
 app-api sanitized projection or backlink`
 
+The broader learning loop is:
+
+`online usage -> safe projection / trace refs / feedback -> candidate selection
+-> Langfuse annotation / dataset / scores -> improvement action -> offline
+eval / experiment -> release -> post-release comparison`
+
+That loop is defined in `learning-loop.md`. This document only defines how
+Langfuse participates in it.
+
 RAGAS is used as an eval scorer, not as trace truth. The default scorer path
 uses Ragas `metrics.collections` and direct metric `score` / `ascore` execution.
-Deprecated `ragas.evaluate()` usage is limited to explicit compatibility tests
-or staged repair callers that inject the legacy function.
+Deprecated `ragas.evaluate()` usage is limited to explicit tests or staged
+repair callers that inject the deprecated function.
 
 ## Runtime Mapping
 

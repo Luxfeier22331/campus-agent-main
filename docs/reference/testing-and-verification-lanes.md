@@ -33,7 +33,7 @@ GitHub Actions keeps one automatic PR / develop / main workflow:
   correctly marks the untouched surface as out of scope.
 
 Manual workflows remain separate for eval scoring, image build / push and
-controlled release proof. They must not become ordinary PR blockers.
+controlled release validation. They must not become ordinary PR blockers.
 
 ## Scheduled Full Health Checks
 
@@ -46,7 +46,7 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   `pnpm ci:go` and `pnpm ci:deps:vuln`.
 - It must not define `pull_request` triggers, reference secrets or participate
   in `pr-checks / required-checks`.
-- It is not a PR blocker, release proof, staging proof, eval scoring lane or
+- It is not a PR blocker, release closeout, deployment validation, eval scoring lane or
   image publishing lane.
 
 ## Security / Supply Chain Lanes
@@ -120,25 +120,25 @@ GitHub security features are confirmed for this repository.
     files, merge conflicts, JSON / TOML / YAML parseability, EOF and trailing
     whitespace, plus staged secret scanning through Gitleaks.
   - It is the only repository-level local hook system. Do not add Husky,
-    lint-staged, lefthook or root `prepare` hooks unless a future governance
+    lint-staged, lefthook or root `prepare` hooks unless a separate governance
     decision replaces this policy.
   - Not a typecheck, unit test, build, runtime smoke, CI replacement or release
-    proof.
+    closeout.
 - `pnpm repo:guard`
   - Fast collaboration / docs structure / workspace layout guard.
-  - Not a lint, build, test, runtime or release proof.
+  - Not a lint, build, test, runtime validation or release closeout.
 - `pnpm repo:static`
   - Repo-wide static gate for live tracked surfaces: docs, configs, env examples,
     JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, HTML checker,
     Biome, Ruff format checks and decomposition guard.
   - The lane is based on tracked + current worktree files selected by the repo
-    checker; untracked 文件 are not proof of branch-tip compliance until they
+    checker; untracked 文件 do not demonstrate branch-tip compliance until they
     are intentionally added.
   - The HTML checker validates tracked + untracked 文件 matched by the live
-    HTML pathspecs; it is part of repo static structure proof, not browser
-    runtime proof.
+    HTML pathspecs; it is part of repo static structure validation, not browser
+    runtime validation.
   - PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`。
-  - Not a typecheck, unit test, integration test or E2E proof.
+  - Not a typecheck, unit test, integration test or E2E validation.
 - `pnpm repo:static:affected`
   - Local changed-file static lane against `origin/develop`.
   - Skips unrelated heavy checks such as Java legacy office conversion and
@@ -211,11 +211,11 @@ GitHub security features are confirmed for this repository.
 | `.github/workflows/pr-checks.yml`, root package / turbo config or CI scripts | all conditional PR lanes through changed-surface detection | Run `pnpm ci:config:lint`; do not add new automatic workflows without updating this document. |
 | Other manual workflow files | `pnpm ci:config:lint` and `pnpm ci:repo-static:affected` | If the workflow can publish artifacts or use secrets, confirm manual-only triggers and environment / input guards. |
 | npm / pnpm workspace dependency files | `pnpm ci:web-graph:affected` | Dependabot PRs use the dependency surface rule above; run `pnpm ci:deps:vuln` for dependency-risk changes. Run `pnpm web:build` only when the docs manifest / operator DB env is available. Dependency Review waits for GitHub security feature enablement. |
-| `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / staging smoke remains explicit, not automatic PR default. |
+| `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
 | `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker-runtime` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
 | `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:langfuse` | Manual Ragas scoring remains `.github/workflows/eval-ragas-score.yml`. |
-| ingestion apps/packages/kernels | `pnpm ci:ingestion` plus web graph when TS workspace code changes | Release / alias publish proof stays in the owning ingestion runbook. |
-| release image / deploy / staging proof | owning PR lane plus explicit manual / staging lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
+| ingestion apps/packages/kernels | `pnpm ci:ingestion` plus web graph when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
+| release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
 ## App / Runtime Lanes
 
@@ -238,7 +238,7 @@ GitHub security features are confirmed for this repository.
   - Uses the local Cloudflare Vite dev server without browser-side API mocks.
   - Proves Worker-owned routes such as probes, docs redirects, missing docs
     fail-closed behavior, protected docs asset denial and unknown API paths.
-  - Not a staging release proof and not part of the root web graph lane.
+  - Not staging release closeout and not part of the root web graph lane.
 - `pnpm --dir apps/operator-console-web test`
   - Operator-console-web Worker lane.
 - `cd apps/execution-control && go test ./...`
@@ -250,7 +250,7 @@ GitHub security features are confirmed for this repository.
 - `pnpm --dir apps/app-api hindsight:memory:e2e:staging`
   - Explicit live Hindsight personal-memory lane through execution-control
     internal memory commands.
-  - It verifies async append acceptance, operation status/materialization proof,
+  - It verifies async append acceptance, operation status/materialization confirmation,
     operation list sanitized projection, recall, reflect, explicit profile memory
     commands, owner disable and user isolation against a self-hosted Hindsight
     runtime.
@@ -267,7 +267,7 @@ GitHub security features are confirmed for this repository.
   - Fresh RAG collection release / rebuild acceptance for current query-serving
     collections.
 - `docs/runbooks/execution-smoke.md`
-  - Execution-control staging smoke.
+  - Execution-control deployment smoke.
 - `docs/runbooks/worker-observability-smoke.md`
   - Forward Worker observability preflight / post-deploy smoke.
 - `.github/workflows/eval-ragas-score.yml`
@@ -285,7 +285,7 @@ GitHub security features are confirmed for this repository.
     replacement while the repository cannot enforce rulesets.
 - `.github/workflows/scheduled-checks.yml`
   - Scheduled / manual full repository health check.
-  - It is not a PR blocker and does not replace staging release proof.
+  - It is not a PR blocker and does not replace staging release closeout.
 
 ## Rules
 
@@ -298,10 +298,10 @@ GitHub security features are confirmed for this repository.
 - CodeQL, Dependency Review and artifact attestations require an explicit
   security / supply-chain lane decision before they become PR or release
   requirements.
-- Do not treat release evidence as main-chain architecture completion.
+- Do not treat release-closeout artifacts as main-chain architecture completion.
 - Do not treat static/lint success as runtime correctness.
 - Do not mix integration lanes into the default stable gate unless the changed
-  surface requires external dependency proof.
+  surface requires external dependency validation.
 - Record exact commands in PRs and final handoff; do not write "should pass".
 - Do not add CI behavior directly in workflow YAML when a root `ci:*` script can
   own it. Workflow YAML should route; scripts should verify.

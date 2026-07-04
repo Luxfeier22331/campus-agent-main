@@ -19,7 +19,7 @@ class ToolExecutionFixtureMatrixTest(unittest.TestCase):
         payload = load_fixture("tool_execution_delegate.valid.json")
 
         self.assertEqual(payload["execution_contract_version"], "tool_execution_v1")
-        self.assertEqual(payload["response_contract"], "execution_finalization_response_v1")
+        self.assertEqual(payload["response_contract"], "execution_finalization_response_v2")
         self.assertEqual(payload["request_id"], "req-contract-001")
         runtime_decisions = payload["runtime_decisions"]
         self.assertIsInstance(runtime_decisions, dict)

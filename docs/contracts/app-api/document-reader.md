@@ -78,7 +78,7 @@ control-plane HTTP contract。
 - restricted admission 失败时直接 fail-close，不返回“伪装成不存在”的高亮内容片段
 - `docId` / `versionId` 可以存在于 API payload，供 client 关联 control-plane 状态；
   默认学生侧 reader UI 不应展示这些内部 identity 字段
-- 既有 response 中的 `canonicalUrl` 字段名暂时保留为 wire compatibility；它的语义是
+- response 中的 `canonicalUrl` 字段名语义是
   reader permalink，不是 SEO canonical URL，也不表示公开文档站运行时必须调用
   `app-api` 解析链接
 
@@ -202,7 +202,7 @@ control-plane HTTP contract。
 固定规则：
 
 - first launch 即使只开放 current reader，也要返回稳定 `versionId` / `versionSlug`
-- future historical rollout 只在这里扩 version list，不改 reader URL contract
+- historical rollout 只在这里扩 version list，不改 reader URL contract
 
 ## Reader Asset Resolve Contract
 
@@ -266,7 +266,7 @@ control-plane HTTP contract。
 - `gated_asset` 可以拥有 Rspress bootstrap route，但正文必须通过 resolve/admission 后
   same-origin 读取；匿名 Rspress index 不得包含 gated 文档 title/slug
 - short-lived grant token / local verification 不属于当前默认 contract
-- future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
+- restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
   path
 
 ## Gated Reader Admission Contract

@@ -5,7 +5,7 @@ info:
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
   execution_contract_version: tool_execution_v1
-  response_contract: execution_finalization_response_v1
+  response_contract: execution_finalization_response_v2
   runtime_decisions_schema_version: tool-execution-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
   workflow_trace_summary_version: workflow-trace-summary-v4
@@ -792,6 +792,7 @@ components:
       required:
         - code
         - message
+        - retryable
       properties:
         code:
           type: string
@@ -799,6 +800,84 @@ components:
           type: string
         retryable:
           type: boolean
+    DebugTraceRef:
+      type: object
+      additionalProperties: false
+      required:
+        - sink
+        - trace_ref
+      properties:
+        sink:
+          type: string
+          enum:
+            - langfuse_otlp
+        trace_id:
+          type:
+            - string
+            - "null"
+        trace_ref:
+          type: string
+        url:
+          type: string
+          format: uri
+    StageTiming:
+      type: object
+      additionalProperties: false
+      properties:
+        request.total_ms:
+          type: number
+          minimum: 0
+        stream.browser_ttft_ms:
+          type: number
+          minimum: 0
+        execution.admission_ms:
+          type: number
+          minimum: 0
+        memory.recall_ms:
+          type: number
+          minimum: 0
+        agent.primary_ms:
+          type: number
+          minimum: 0
+        agent.runtime_ms:
+          type: number
+          minimum: 0
+        agent.first_delta_ms:
+          type: number
+          minimum: 0
+        tool.total_ms:
+          type: number
+          minimum: 0
+        tool.knowledge_query_ms:
+          type: number
+          minimum: 0
+        tool.transport_schedule_lookup_ms:
+          type: number
+          minimum: 0
+        tool.campus_notice_discover_ms:
+          type: number
+          minimum: 0
+        rag.plan_ms:
+          type: number
+          minimum: 0
+        rag.lookup_ms:
+          type: number
+          minimum: 0
+        rag.rerank_ms:
+          type: number
+          minimum: 0
+        rag.synthesis_ms:
+          type: number
+          minimum: 0
+        rag.grounding_ms:
+          type: number
+          minimum: 0
+        finalization.write_ms:
+          type: number
+          minimum: 0
+        projection.closeout_ms:
+          type: number
+          minimum: 0
     TraceContext:
       type: object
       additionalProperties: false
@@ -1261,7 +1340,7 @@ components:
         execution_contract_version:
           const: tool_execution_v1
         response_contract:
-          const: execution_finalization_response_v1
+          const: execution_finalization_response_v2
         user_goal:
           type: string
         conversation_id:
@@ -1423,6 +1502,16 @@ components:
         workflow_trace_summary:
           oneOf:
             - $ref: "#/components/schemas/WorkflowTraceSummary"
+            - type: "null"
+        stage_timing:
+          oneOf:
+            - $ref: "#/components/schemas/StageTiming"
+            - type: "null"
+        debug_trace_refs:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/DebugTraceRef"
             - type: "null"
         trace_id:
           type: string

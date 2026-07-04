@@ -55,7 +55,8 @@ updated: 2026-04-14
 - 当前 execution 产品路径已对 `place_lookup` fail-close
 - 校内导航 / 地点查询暂不作为已开放能力，等待地图产品上线后再开放
 - `place_catalog` 继续保留为 repo-owned spatial truth foundation，而不是当前浏览器可消费 surface
-- `place_card` / map consumption 已后置到地图实际上线后的 backlog
+- `place_card` / map consumption 不由本文开放；必须由对应 product requirement 与
+  browser projection contract 显式承接
 
 ## Record Shape
 

@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 import yaml
 
 from tests.execution_control_staging_preflight_support import (
+    ProviderConfigStubServer,
     copy_staging_modules_for_tests,
     write_provider_config_projection_for_tests,
 )
@@ -49,20 +50,25 @@ class ExecutionRuntimeK8sEnvRendererTest(unittest.TestCase):
                     (
                         "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
-                        "EXECUTION_CONTROL_APP_API_BASE_URL=https://api-staging.example.internal",
+                        "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET=app-api-secret",
                         "EXECUTION_CONTROL_RUNTIME_RELEASE=execution-control@abcdef1",
                         f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH={projection_path}",
                         f"QDRANT_TLS_CA_CERT_PATH={qdrant_ca_path}",
                         "QDRANT_URL=https://127.0.0.1:6333",
                         "QDRANT_QUERY_API_KEY=qdrant-query-key",
-                        "EMBEDDING_MODEL=text-embedding-3-large",
-                        "EMBEDDING_DIMENSIONS=3072",
-                        "HINDSIGHT_API_LLM_BASE_URL=https://llm.example.internal/v1",
-                        "HINDSIGHT_API_LLM_MODEL=gpt-4o-mini",
-                        "HINDSIGHT_API_LLM_API_KEY=hindsight-llm-key",
+                        "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+                        "EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET=audit-secret",
+                        "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
+                        "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret",
+                        "AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret",
+                        "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET=query-secret",
+                        "PERSONAL_MEMORY_API_SECRET=memory-secret",
+                        "PERSONAL_MEMORY_OWNER_SALT=memory-salt",
                         "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent?sslmode=disable&gssencmode=disable",
                         "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/campus_agent?sslmode=disable&gssencmode=disable",
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent?sslmode=disable&gssencmode=disable",
+                        "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=https://sentry.example.internal/api/project/integration/otlp",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                     )
                 )
                 + "\n",
@@ -125,16 +131,29 @@ class ExecutionRuntimeK8sEnvRendererTest(unittest.TestCase):
             export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env_path))}
             export EXECUTION_CONTROL_STAGING_RUNTIME_DIR={shlex.quote(str(temp_root / ".tmp"))}
             export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
+            export EXECUTION_RUNTIME_K8S_ENV_BOUNDARY_PATH={shlex.quote(str(ROOT / "configs/runtime/k8s-execution-runtime-env-boundary.v1.json"))}
             source {shlex.quote(str(common_path))}
             {shlex.quote(str(renderer_path))}
             """
-            result = subprocess.run(
-                ["bash", "-lc", textwrap.dedent(command)],
-                cwd=temp_root,
-                env=os.environ.copy(),
-                capture_output=True,
-                text=True,
-            )
+            server = ProviderConfigStubServer()
+            app_api_base_url = ""
+            server.start()
+            try:
+                app_api_base_url = server.base_url
+                with runtime_env_path.open("a", encoding="utf-8") as handle:
+                    handle.write(f"EXECUTION_CONTROL_APP_API_BASE_URL={app_api_base_url}\n")
+                    handle.write(
+                        f"EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL={app_api_base_url}\n"
+                    )
+                result = subprocess.run(
+                    ["bash", "-lc", textwrap.dedent(command)],
+                    cwd=temp_root,
+                    env=os.environ.copy(),
+                    capture_output=True,
+                    text=True,
+                )
+            finally:
+                server.close()
 
             self.assertEqual(result.returncode, 0, result.stderr)
             docs = [doc for doc in yaml.safe_load_all(result.stdout) if isinstance(doc, dict)]
@@ -142,21 +161,34 @@ class ExecutionRuntimeK8sEnvRendererTest(unittest.TestCase):
             self.assertEqual(
                 set(by_name),
                 {
+                    "agent-runtime-secrets",
+                    "execution-agent-client-secrets",
+                    "execution-control-internal-query-secrets",
+                    "execution-control-secrets",
+                    "execution-memory-client-secrets",
+                    "execution-rag-secrets",
                     "execution-runtime-rendered-config",
-                    "execution-runtime-secrets",
                     "execution-runtime-provider-config-projection",
                     "execution-runtime-qdrant-tls-ca",
+                    "execution-worker-common-secrets",
                 },
             )
 
             rendered_config = by_name["execution-runtime-rendered-config"]["data"]
-            rendered_secrets = by_name["execution-runtime-secrets"]["data"]
+            rendered_secrets = {
+                key
+                for name, doc in by_name.items()
+                if doc["kind"] == "Secret"
+                and name != "execution-runtime-provider-config-projection"
+                for key in doc.get("data", {})
+            }
 
             self.assertEqual(
                 by_name["execution-runtime-rendered-config"]["kind"],
                 "ConfigMap",
             )
-            self.assertEqual(by_name["execution-runtime-secrets"]["kind"], "Secret")
+            self.assertEqual(by_name["execution-control-secrets"]["kind"], "Secret")
+            self.assertEqual(by_name["execution-runtime-qdrant-tls-ca"]["kind"], "ConfigMap")
             self.assertTrue(set(rendered_config).isdisjoint(set(rendered_secrets)))
 
             self.assertEqual(
@@ -165,33 +197,32 @@ class ExecutionRuntimeK8sEnvRendererTest(unittest.TestCase):
             )
             self.assertEqual(
                 rendered_config["EXECUTION_CONTROL_APP_API_BASE_URL"],
-                "https://api-staging.example.internal",
+                app_api_base_url,
             )
             self.assertEqual(rendered_config["QDRANT_URL"], "http://qdrant:6333")
-            self.assertEqual(rendered_config["EMBEDDING_MODEL"], "text-embedding-3-large")
-            self.assertEqual(rendered_config["EMBEDDING_DIMENSIONS"], "3072")
             self.assertEqual(
-                rendered_config["HINDSIGHT_API_LLM_BASE_URL"],
-                "https://llm.example.com/v1",
+                rendered_config["OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"],
+                "https://us-east-1.aws.edge.axiom.co",
             )
-            self.assertEqual(rendered_config["HINDSIGHT_API_LLM_MODEL"], "gpt-test")
+            self.assertEqual(
+                rendered_config["OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT"],
+                "http://langfuse-web:3000/api/public/otel",
+            )
+            self.assertEqual(
+                rendered_config["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+                "/run/campus-agent/provider-config-projection.json",
+            )
 
             self.assertIn(
-                "EXECUTION_CONTROL_SHARED_SECRET",
+                "API_WORKER_SHARED_SECRET",
                 rendered_secrets,
             )
             self.assertIn("QDRANT_QUERY_API_KEY", rendered_secrets)
-            self.assertIn("HINDSIGHT_API_LLM_API_KEY", rendered_secrets)
+            self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", rendered_secrets)
             self.assertEqual(
-                rendered_secrets["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"],
-                "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
-            )
-            self.assertEqual(
-                rendered_secrets["CAMPUS_SHARED_POSTGRES_URL"],
-                "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
-            )
-            self.assertEqual(
-                rendered_secrets["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"],
+                by_name["execution-control-secrets"]["data"][
+                    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"
+                ],
                 "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
             )
 
@@ -202,9 +233,21 @@ class ExecutionRuntimeK8sEnvRendererTest(unittest.TestCase):
                 "EMBEDDING_DIMENSIONS",
                 "HINDSIGHT_API_LLM_BASE_URL",
                 "HINDSIGHT_API_LLM_MODEL",
+                "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
             ):
                 with self.subTest(key=key):
                     self.assertNotIn(key, rendered_secrets)
+            for forbidden_secret_name in (
+                "execution-app-api-internal-secrets",
+                "execution-stateful-runtime-secrets",
+                "execution-telemetry-collector-secrets",
+                "notice-tool-secrets",
+                "qdrant-admin-secrets",
+                "execution-runtime-secrets",
+            ):
+                with self.subTest(forbidden_secret_name=forbidden_secret_name):
+                    self.assertNotIn(forbidden_secret_name, by_name)
 
             secret_like_pattern = re.compile(
                 r"(SECRET|PASSWORD|API_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN)"

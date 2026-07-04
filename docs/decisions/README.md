@@ -11,6 +11,10 @@ updated: 2026-07-04
 `decisions/` 保存 ADR。
 它回答“为什么接受这条边界”和“如果后来变了，替代它的是什么”。
 
+ADR 默认遵循 MADR / Nygard 风格：记录 context、decision、alternatives 和
+consequences。仓库只在此基础上增加 `decision_id`、frontmatter lifecycle 和
+owner-boundary 映射。
+
 ## 生命周期
 
 - `proposed`

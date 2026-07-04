@@ -28,8 +28,8 @@ Kubernetes deployment substrate 与 autoscaling boundary。
 - Temporal Cloud 与 self-hosted Temporal 的最终商业选择
 
 当前拓扑 truth 仍以 `../current.md` 为准；live substrate truth 必须由
-applied resources、runtime env、projection 与 E2E evidence 证明。本文描述目标
-deployment substrate 和 supporting architecture。
+applied resources、runtime env、operator projection 与 release closeout artifacts
+共同确认。本文描述目标 deployment substrate 和 supporting architecture。
 
 ## Core Conclusion
 
@@ -55,7 +55,7 @@ app-api Worker
 - KEDA / HPA 只调整 worker Deployment replica count，不拥有 execution truth、
   product run projection、step projection 或 terminal state。
 - `worker-autoscaler` 不再作为长期 production autoscaling controller；它只保留为
-  local / Docker Compose transitional proof 和 evidence producer。
+  local / Docker Compose transitional runtime projection producer。
 - Operator Console 不读取 Kubernetes API、Temporal history 或 raw KEDA metrics；它只读取
   app-api 物化的 operator-safe runtime projection。
 
@@ -73,8 +73,8 @@ Runtime substrate ownership is split by truth type:
   It does not own run/step/event projection, terminal state or tool policy.
 - app-api owns product projection and operator-safe runtime projection. It does
   not expose raw Temporal history or raw Kubernetes/KEDA/HPA objects.
-- worker-autoscaler owns only local/Docker Compose transitional proof and
-  evidence production. It is not the production replica controller once
+- worker-autoscaler owns only local/Docker Compose transitional runtime
+  projection production. It is not the production replica controller once
   KEDA/HPA owns workers.
 
 This ledger is the runtime equivalent of the tool concept governance rule:
@@ -194,18 +194,19 @@ KEDA `fallback` must not hide source metric failure as success. If Temporal
 metric collection fails, runtime evidence must mark autoscaling posture as
 degraded and fail closed for release closeout.
 
-### Committed Staging Manifest Shape
+### Manifest Boundary
 
-First-stage staging manifests live at:
+Execution-runtime K8s manifests live at:
 
 ```text
 infra/k8s/execution-runtime/base
 infra/k8s/execution-runtime/overlays/staging
+infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
 ```
 
 They use Kustomize/raw YAML and intentionally exclude `campus-web`,
 `operator-console-web` and `app-api`, which remain Cloudflare Worker surfaces.
-The staging overlay creates the internal execution plane only:
+The manifests describe internal execution-plane workloads only:
 
 - self-hosted Temporal and Temporal Postgres
 - `execution-control` internal Service / Deployment
@@ -217,27 +218,9 @@ The staging overlay creates the internal execution plane only:
 - KEDA/HPA posture collector
 - one KEDA `ScaledObject` per worker Deployment
 
-For the current single-node `nc-arm-6c` proof, the committed slim overlay lives
-at:
-
-```text
-infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
-```
-
-This overlay is intentionally narrower than the full staging target. It runs
-only `execution-control`, `agent-runtime` and the four Temporal worker
-Deployments in K8s. Temporal, Hindsight, Qdrant, projection Postgres and OTel
-collector remain Docker-owned dependencies exposed to pods through
-selector-less Services and EndpointSlices targeting the host CNI address
-`10.42.0.1`. `execution-control` is exposed to the existing host Docker Traefik
-through a host-only `172.20.0.1:27051` bind so the current app-api staging
-entrypoint can keep using the same execution-control host name while the
-runtime pods move to K8s. It does not include KEDA, Temporal UI, samplers, Hindsight
-Postgres, Temporal Postgres or an in-cluster OTel collector.
-
-This is a substrate migration proof, not a new architecture truth for
-stateful services. Stateful HA decisions remain separate and require multiple
-failure domains or managed services.
+The `nc-arm-6c-staging` overlay is a constrained migration overlay, not a new
+architecture truth for stateful services. Stateful HA decisions remain separate
+and require multiple failure domains or managed services.
 
 ### GitOps And Helm Boundary
 
@@ -318,7 +301,7 @@ Target projection families:
 Operator Console reads only app-api operator endpoints. It does not call the
 Kubernetes API server, KEDA API, HPA API or Temporal history APIs directly.
 
-## Release And Readiness Gates
+## Readiness Invariants
 
 Production readiness for K8s execution runtime requires:
 
@@ -332,29 +315,17 @@ Production readiness for K8s execution runtime requires:
 - KEDA operator and metrics server are healthy.
 - HPA objects are present and not reporting metric fetch failures.
 - app-api operator runtime projection contains fresh queue metrics and
-  `worker_autoscaler_posture.v1` scaler evidence.
-- Release E2E evidence can show a task queue backlog increase causes HPA desired
-  replicas to rise, and idle stabilization causes scale down without failed
-  in-flight activities.
+  `worker_autoscaler_posture.v1` scaler posture.
+- Release closeout is runbook-owned and must validate queue backlog response,
+  HPA desired replica movement, idle stabilization and in-flight activity safety
+  before production acceptance.
 
 ## Migration Boundary
 
-The staged migration is:
-
-1. Keep Docker Compose runtime as local / transitional smoke path while live
-   staging takeover remains unverified.
-2. Add K8s Kustomize overlays for execution-control, Temporal, agent-runtime,
-   Hindsight, OTel, workflow-worker and all activity-worker Deployments.
-3. Add KEDA ScaledObjects for all worker pools with no scale-to-zero.
-4. Add projection collector for KEDA/HPA posture evidence into app-api operator
-   runtime projection.
-5. Run staging shadow validation: KEDA computes desired replicas while Docker
-   runtime still serves, or a dedicated K8s staging namespace serves non-production
-   traffic.
-6. Cut `app-api` staging `EXECUTION_CONTROL_BASE_URL` to the K8s internal
-   execution-control Service / ingress.
-7. Retire Docker Compose `worker-autoscaler` from staging/prod runbooks; keep it
-   only for local compose smoke unless local K8s becomes the default dev runtime.
+K8s migration is an operations rollout, not an architecture truth owner. This
+document owns the target runtime boundary and forbidden shapes. Shadow
+validation, traffic cutover, deploy order and retirement of transitional Docker
+components belong to the release runbooks and planning signals.
 
 ## Forbidden Shapes
 

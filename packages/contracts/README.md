@@ -56,9 +56,10 @@
 - `packages/contracts/schemas/runtime-tools.v4.schema.json`、
   `execution-control-runtime-profile.v1.schema.json`、
   `query-serving-scopes.v1.schema.json`、`intent-policy.v1.schema.json`、
-  `intent-drift-thresholds.v1.schema.json`、`provider-pricing.v1.schema.json`
-  与 `env-surface-policy.v1.schema.json` 覆盖当前 execution runtime 与 repo
-  static checks 实际读取的 non-code JSON artifacts
+  `intent-drift-thresholds.v1.schema.json`、`provider-pricing.v1.schema.json`、
+  `runtime-latency-budgets.v1.schema.json` 与 `env-surface-policy.v1.schema.json`
+  覆盖当前 execution runtime、ops summary、learning-loop 与 repo static checks
+  实际读取的 non-code JSON artifacts
 - cross-language generated artifacts 由
   `uv run --all-packages python -m scripts.generate_tool_execution_contracts`
   生成，并由 `--check` 和 `tool-runtime-contract` gate 防漂移

@@ -208,3 +208,72 @@ describe("operator provider-config proxy", () => {
 		);
 	});
 });
+
+describe("operator observability-config proxy", () => {
+	it("proxies LLM debug trace configuration commands to app-api operator routes", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-observability-config.cloudflareaccess.com",
+				claims: {
+					email: "ops@example.com",
+					groups: ["panel", "ops"],
+					name: "Ops Team",
+					sub: "operator-001",
+				},
+			},
+			async (token) => {
+				const forwarded: Array<{ method: string; url: string }> = [];
+				const workerEnv = {
+					ACCESS_POLICY_AUD: "operator-console-test-audience",
+					ACCESS_TEAM_DOMAIN: "https://team-observability-config.cloudflareaccess.com",
+					APP_API: {
+						fetch: async (request: Request) => {
+							forwarded.push({ method: request.method, url: request.url });
+							return new Response(JSON.stringify({ ok: true }), {
+								headers: { "content-type": "application/json; charset=utf-8" },
+								status: 200,
+							});
+						},
+					},
+					OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
+					OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+					OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
+				};
+
+				for (const request of [
+					new Request(
+						"https://operator-console.example.com/api/operator/observability-config/llm-debug-trace",
+						{
+							headers: { "cf-access-jwt-assertion": token },
+						},
+					),
+					new Request(
+						"https://operator-console.example.com/api/operator/observability-config/llm-debug-trace",
+						{
+							body: JSON.stringify({ mode: "off" }),
+							headers: {
+								"cf-access-jwt-assertion": token,
+								"content-type": "application/json",
+							},
+							method: "PATCH",
+						},
+					),
+				]) {
+					const response = await worker.fetch(request, workerEnv);
+					expect(response.status, await response.text()).toBe(200);
+				}
+
+				expect(forwarded).toEqual([
+					{
+						method: "GET",
+						url: "https://app-api.internal/api/operator/observability-config/llm-debug-trace",
+					},
+					{
+						method: "PATCH",
+						url: "https://app-api.internal/api/operator/observability-config/llm-debug-trace",
+					},
+				]);
+			},
+		);
+	});
+});

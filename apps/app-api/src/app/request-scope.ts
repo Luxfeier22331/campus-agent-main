@@ -42,6 +42,10 @@ import {
 	probeExecutionControlOperatorRuntimeHealth,
 } from "../modules/integration";
 import {
+	buildObservabilityConfigService,
+	createPgObservabilityConfigStore,
+} from "../modules/observability-config";
+import {
 	buildOfficialWebCommandService,
 	createPgOfficialWebCommandStore,
 } from "../modules/official-web-command";
@@ -149,6 +153,7 @@ export function createRequestScopeFactory(input: {
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let officialWebTargetReleaseGateService =
 				input.dependencies.officialWebTargetReleaseGateService ?? null;
+			let observabilityConfigService = input.dependencies.observabilityConfigService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
@@ -434,6 +439,18 @@ export function createRequestScopeFactory(input: {
 				return operatorQueryService;
 			}
 
+			function resolveObservabilityConfigService() {
+				if (observabilityConfigService) {
+					return observabilityConfigService;
+				}
+
+				observabilityConfigService = buildObservabilityConfigService({
+					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
+					store: createPgObservabilityConfigStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return observabilityConfigService;
+			}
+
 			function resolveOperatorObservabilityCommandService() {
 				if (operatorObservabilityCommandService) {
 					return operatorObservabilityCommandService;
@@ -531,6 +548,7 @@ export function createRequestScopeFactory(input: {
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOfficialWebTargetReleaseGateService,
+				resolveObservabilityConfigService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,

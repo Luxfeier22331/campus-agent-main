@@ -39,7 +39,7 @@ schema、dataset manifest、qrels-only projection 和 answer-quality contract
 发布，应通过私有 fixture root 或 Langfuse dataset 进入 eval loop。
 
 历史 workflow / release acceptance fixture 与 judge policy fixture 已从
-`packages/eval-langfuse` active package 删除。后续 release evidence 应由 owning
+`packages/eval-langfuse` active package 删除。后续 release-closeout observation 应由 owning
 runtime 产出 sanitized observation，再通过 Langfuse datasets / Ragas scoring 或
 明确的新 benchmark adapter 消费；不得恢复 corpus-specific Python live runner。
 
@@ -89,7 +89,7 @@ runtime 产出 sanitized observation，再通过 Langfuse datasets / Ragas scori
 
 ## Retrieval Baseline
 
-accepted retrieval benchmark 的历史数值来自私有/历史 release evidence，不再由
+accepted retrieval benchmark 的历史数值来自私有/历史 benchmark record，不再由
 公开 repo-tracked synthetic fixture denominator 直接代表。
 
 当前公开 synthetic qrels denominator：
@@ -102,7 +102,7 @@ accepted retrieval benchmark 的历史数值来自私有/历史 release evidence
 解释：
 
 - public synthetic fixture 不承诺线上 retrieval 指标。
-- historical accepted retrieval metrics 需要从对应 private release evidence
+- historical accepted retrieval metrics 需要从对应 private benchmark record
   或 Langfuse run 中解释。
 
 ## Workflow And Error Baseline
@@ -160,7 +160,7 @@ deterministic error gate 固定为：
 - 旧 Python `packages/retrieval-core` / `tests/retrieval` 实现已从 active workspace
   删除；该 marker 现在只保留为 regression behavior 说明
 - 后续等价检查应落在 Go-owned retrieval runtime seam 与 repo-owned qrels /
-  release-acceptance evidence 上
+  release acceptance closeout artifact 上
 
 ## Maintenance Rules
 

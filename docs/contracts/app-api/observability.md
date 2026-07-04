@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-03
-updated: 2026-06-30
+updated: 2026-07-04
 ---
 
 # App API Ops Index Contract
@@ -62,12 +62,14 @@ Active Operator Console endpoints:
 
 - `GET /api/operator/overview`
 - `GET /api/operator/runtime/health`
+- `GET /api/operator/observability-config/llm-debug-trace`
+- `PATCH /api/operator/observability-config/llm-debug-trace`
 - `GET /api/requests`
+- `GET /api/operator/requests/:requestId`
 
-Candidate endpoint, not currently part of the shipped Worker allowlist unless a
-request detail workflow is deliberately restored:
+Active machine-only internal endpoint:
 
-- `GET /api/operator/requests/:requestId/ops-index`
+- `GET /api/internal/observability-config/llm-debug-trace`
 
 Retired / non-current endpoint families:
 
@@ -93,6 +95,8 @@ Response shape remains implementation-owned, but it may only contain:
 - request terminal status counts
 - runtime health status
 - explicit blocker summaries from app-api / execution-control projections
+- stage latency summary derived from `stage_timing.v1` canonical fields
+- latency budget summary derived from `configs/runtime/latency-budgets.v1.json`
 - sink write/correlation health when available
 - `asOf`
 
@@ -101,6 +105,10 @@ Rules:
 - This endpoint is not a custom dashboard API.
 - It must not copy Sentry/Axiom/Langfuse dashboard data.
 - It may expose that a sink is configured, degraded or recently written to.
+- It may expose `stageLatency` as p50/p95/p99/sample/warn/critical counts per
+  canonical stage field.
+- It may expose `latencyBudget` as version, warn count, critical count and worst
+  field only.
 - Backend query errors return standard errors; the panel must not disguise them
   as empty state.
 
@@ -149,17 +157,73 @@ Rules:
 - It must not expose raw prompt, raw answer, raw transcript, raw retrieval
   payload or raw sink data.
 
-## Candidate `GET /api/operator/requests/:requestId/ops-index`
+## `GET /api/operator/requests/:requestId`
 
-This endpoint is reserved for a future visible request detail workflow.
+Returns one Operator Console request detail and its optional safe Ops Index.
 
-If implemented, it may return only:
+Top-level response shape:
+
+```json
+{
+  "request": {
+    "requestId": "req_...",
+    "traceId": "trace_...",
+    "status": "completed"
+  },
+  "opsIndex": {
+    "stageTiming": {
+      "agent.primary_ms": 620,
+      "stream.browser_ttft_ms": 410
+    },
+    "stageTimingBudget": {
+      "agent.primary_ms": {
+        "budgetState": "within_budget",
+        "budgetVersion": "latency-budget-v1",
+        "durationMs": 620,
+        "warnMs": 7000,
+        "criticalMs": 14000
+      }
+    },
+    "debugTraceRefs": [
+      {
+        "sink": "langfuse_otlp",
+        "traceId": "trace_...",
+        "traceRef": "langfuse://...",
+        "url": "https://..."
+      }
+    ],
+    "model": {},
+    "tool": {},
+    "retrieval": {},
+    "sinkLinks": {}
+  }
+}
+```
+
+`request` uses the same safe projection field family as `GET /api/requests`.
+`opsIndex` may be `null` when runtime observability fact has not been projected.
+
+`opsIndex` may contain only:
 
 - request identity and terminal state
-- minimal runtime health/correlation summary for that request
-- external sink link entries generated from safe templates or allowlisted
-  dashboard metadata
-- compact reason-code diagnostics
+- `stageTiming`: `stage_timing.v1` allowlisted numeric duration map; see
+  `docs/contracts/stage-timing.md`
+- `stageTimingBudget`: per canonical timing field budget projection derived
+  from `configs/runtime/latency-budgets.v1.json`; contains only budget state,
+  budget version and thresholds for fields that have a configured latency budget
+- `debugTraceRefs`: sink name, trace id/ref and optional safe deep link
+- `model`: provider/name, execution state/detail, token/cost summary, prompt id/version/hash
+- `tool`: requested/selected tool, business outcome and fail-close reason code
+- `retrieval`: retrieval attempted flag, candidate/source counts, collection and adequacy reason code
+- `sinkLinks`: trace availability and projection lag
+
+`stageTiming` is the app-api merged safe timing projection. It includes
+execution-control returned runtime stages plus app-api-owned
+`request.total_ms`, optional `stream.browser_ttft_ms` and optional
+`projection.closeout_ms`.
+`stageTimingBudget` is derived by app-api from the same canonical fields and
+budget artifact. Non-canonical timing keys are not returned through Ops Index
+and must not be interpreted by Operator Console.
 
 It must not return:
 
@@ -168,6 +232,49 @@ It must not return:
 - raw Sentry/Axiom/Langfuse payload
 - quality grade body or eval output
 - replay controls
+
+## LLM Debug Trace Config
+
+Operator routes expose only config summaries:
+
+- `mode`: `off` or `langfuse_otlp`
+- `sampleRatio`
+- `includeModelIo` currently fixed to `false`
+- Langfuse OTLP endpoint and public trace base URL
+- auth header configured/fingerprint/last4 summary
+- revision and operator update metadata
+
+They must not return the raw `Authorization` header.
+
+The internal route is machine-only and returns the execution-runtime snapshot:
+
+```json
+{
+  "config": {
+    "schema_version": "llm_debug_trace_config.v1",
+    "mode": "langfuse_otlp",
+    "include_model_io": false,
+    "sample_ratio": 1,
+    "langfuse_otlp": {
+      "endpoint": "https://cloud.langfuse.com/api/public/otel",
+      "auth_header": "Basic ...",
+      "public_trace_base_url": "https://cloud.langfuse.com/project/demo/traces"
+    }
+  }
+}
+```
+
+Rules:
+
+- app-api owns this online config surface.
+- execution-control consumes an app-api-produced projection path from its
+  runtime profile.
+- agent-runtime receives only request-scoped `debug_trace_config`.
+- Do not add agent-runtime environment variables for this config.
+- `langfuse_otlp.auth_header` must use Basic auth.
+- `langfuse_otlp.endpoint` must end with `/api/public/otel`.
+- app-api/operator projections may store and display only safe deep links,
+  trace refs and `stage_timing.v1` fields.
 
 ## Internal Producer Guidance
 
@@ -181,7 +288,7 @@ projection outbox entries required for request list materialization and runtime
 health summaries required by `GET /api/operator/runtime/health`.
 
 Quality scores, eval outputs, trace bodies, issue bodies and dashboard results
-belong to Langfuse, Sentry or Axiom. If a future curated summary is required for
+belong to Langfuse, Sentry or Axiom. If a curated summary is required for
 operators without sink access, it must be introduced as a new allowlisted
 contract rather than by reactivating retired broad endpoints.
 

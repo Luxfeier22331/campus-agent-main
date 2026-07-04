@@ -58,6 +58,10 @@ _PROJECTED_STAGING_KEYS = [
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_NAME",
     "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
@@ -92,7 +96,7 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
     "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
     "AGENT_RUNTIME_SHARED_SECRET",
-    "AGENT_RUNTIME_TOOL_CATALOG_PATH",
+    "AGENT_RUNTIME_TOOL_REGISTRY_PATH",
     "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
     "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
@@ -139,6 +143,7 @@ _PROJECTED_STAGING_KEYS = [
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+    "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
     "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
     "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
@@ -157,6 +162,10 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
+    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
@@ -195,6 +204,7 @@ _VALID_OBSERVABILITY_SINK_ENV = {
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER": "Bearer axiom-ingest-token",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET": "campus-agent-runtime",
+    "OTEL_COLLECTOR_AXIOM_METRICS_DATASET": "campus-agent-runtime-metrics",
     "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT": "https://langfuse.internal/api/public/otel",
     "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": "Basic cGstbGY6c2stbGY=",
     "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION": "4",
@@ -231,11 +241,15 @@ def copy_staging_modules_for_tests(target_root: Path) -> Path:
         )
     scripts_dir = target_root / "scripts"
     scripts_dir.mkdir()
-    sync_script = ROOT / "scripts" / "sync-provider-config-projection.mjs"
-    (scripts_dir / sync_script.name).write_text(
-        sync_script.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    for script_name in (
+        "sync-provider-config-projection.mjs",
+        "sync-observability-config-projection.mjs",
+    ):
+        sync_script = ROOT / "scripts" / script_name
+        (scripts_dir / sync_script.name).write_text(
+            sync_script.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
     return staging_dir / "execution-control-staging-common.sh"
 
 
@@ -254,13 +268,18 @@ def run_common_script_with_env(
         runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
         runtime_env_path.parent.mkdir(parents=True)
         projection_path = temp_root / "ops" / "staging" / "provider-config-projection.json"
+        observability_projection_path = (
+            temp_root / "ops" / "staging" / "observability-config-projection.json"
+        )
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env_path.write_text(
             _with_valid_staging_fixture_env(
                 "\n".join(
                     [
                         "APP_API_INTERNAL_BASE_URL={app_api_base_url}",
                         f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                        f"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH={observability_projection_path}",
                         staging_env,
                     ]
                 ),
@@ -379,7 +398,11 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         projection_path = (
             temp_root / "infra" / "local" / ".generated" / "provider-config-projection.json"
         )
+        observability_projection_path = (
+            temp_root / "infra" / "local" / ".generated" / "observability-config-projection.json"
+        )
         write_provider_config_projection_for_tests(projection_path)
+        write_observability_config_projection_for_tests(observability_projection_path)
         command = f"""
         set -euo pipefail
         {shlex.quote(str(script_path))} __campus_agent_print_projected_env > projected.env0
@@ -442,6 +465,32 @@ def write_provider_config_projection_for_tests(path: Path) -> None:
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
+def write_observability_config_projection_for_tests(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "observability_config_projection.v1",
+                "generated_at": "2026-07-02T00:00:00Z",
+                "llm_debug_trace": observability_config_stub_snapshot(),
+            },
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
+def observability_config_stub_snapshot() -> dict[str, object]:
+    return {
+        "schema_version": "llm_debug_trace_config.v1",
+        "mode": "off",
+        "include_model_io": False,
+        "sample_ratio": 1,
+    }
+
+
 def _prompt_profile(role: str) -> dict[str, object]:
     return {
         "api_key": "llm-key",
@@ -497,8 +546,16 @@ class ProviderConfigStubServer:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
-                role = parse_qs(parsed.query).get("role", [""])[0]
                 owner.auth_headers.append(self.headers.get("x-app-internal-auth", ""))
+                if parsed.path == "/api/internal/observability-config/llm-debug-trace":
+                    self.send_response(200)
+                    self.send_header("content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        json.dumps({"config": observability_config_stub_snapshot()}).encode("utf-8")
+                    )
+                    return
+                role = parse_qs(parsed.query).get("role", [""])[0]
                 owner.roles.append(role)
                 self.send_response(200)
                 self.send_header("content-type", "application/json")

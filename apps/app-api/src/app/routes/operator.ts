@@ -273,11 +273,11 @@ export function registerOperatorRoutes(input: {
 			return resolved.response;
 		}
 
-		const request = await scope.resolveOperatorQueryService().getById({
+		const detail = await scope.resolveOperatorQueryService().getById({
 			principal: resolved.principal,
 			requestId: c.req.param("requestId"),
 		});
 
-		return jsonResponse({ request });
+		return jsonResponse(detail);
 	});
 }

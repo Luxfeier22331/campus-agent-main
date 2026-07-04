@@ -15,7 +15,8 @@ updated: 2026-07-04
 
 - `e2e-qa-release.md`
   - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
-    public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
+    public surfaces、chat、docs、panel、observability、data-plane sanity 与 release
+    closeout artifacts。
 - `execution-ops.md`
   - 当前 execution-control + Temporal staging runtime 运维入口。
 - `forward-worker-smoke.md`
@@ -42,8 +43,8 @@ updated: 2026-07-04
 - `execution-smoke.md`
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
-    bootstrap、worker identity、task queue poller evidence、failure-mode evidence
-    与 autoscaler posture / Docker Compose transitional proof。
+    bootstrap、worker identity、task queue poller closeout、failure-mode closeout
+    与 autoscaler posture / Docker Compose transitional validation。
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke.md`
 
@@ -52,6 +53,10 @@ updated: 2026-07-04
 - `local-runtime-smoke.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
+- `mucwiki-federation.md`
+  - `muc-wiki` federation client provision and staging verification entry.
+- `dining-sync.md`
+  - dining catalog/review sync launch path and published snapshot verification.
 
 ## Authenticated Notice / Internal Notice
 

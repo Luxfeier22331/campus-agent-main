@@ -12,7 +12,7 @@ updated: 2026-06-13
 It explains what the system is, how owner boundaries are split, and which
 boundaries must not regress.
 
-It does not own contracts, data schemas, runbook procedure, release evidence or
+It does not own contracts, data schemas, runbook procedure, release-closeout artifacts or
 planning status.
 
 ## Repo Entry Truth
@@ -40,7 +40,7 @@ planning status.
 - Accepted decision reasoning lives in `docs/decisions/`.
 - Deployment, staging, release and recovery procedures live in `docs/runbooks/`,
   `docs/environment/` and `docs/policies/`.
-- Current work maps live in `.planning/PROJECT.md` and
+- Active planning signals live in `.planning/PROJECT.md` and
   `.planning/WORKSTREAMS.md`.
 
 ## Question Routing

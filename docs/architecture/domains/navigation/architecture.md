@@ -79,9 +79,9 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 直接含义：
 
-- 导航能力既可以被 chat surface 消费，也可以被未来独立的 map / wayfinding surface 消费
+- 导航能力既可以被 chat surface 消费，也可以被独立 map / wayfinding surface 消费
 - chat 内 route card、mini-map 与路线解释仍然是重要消费形态，但不再被提升为唯一产品入口真相
-- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation`
+- 如果存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation`
   truth chain
 
 长期推荐形态包括：
@@ -150,7 +150,7 @@ tool runtime 或 internal query service。
 - request-scoped typed navigation context projection
 - canonical request identity and audit / projection input
 
-### `apps/campus-web` / future navigation surfaces
+### `apps/campus-web` / navigation surfaces
 
 长期负责：
 

@@ -34,9 +34,9 @@ func TestParseAnswerRequestProjectsCampusServicesIntentWithoutPreplanning(t *tes
 			payload["execution_contract_version"],
 		)
 	}
-	if payload["response_contract"] != "execution_finalization_response_v1" {
+	if payload["response_contract"] != "execution_finalization_response_v2" {
 		t.Fatalf(
-			"response_contract = %v, want execution_finalization_response_v1",
+			"response_contract = %v, want execution_finalization_response_v2",
 			payload["response_contract"],
 		)
 	}

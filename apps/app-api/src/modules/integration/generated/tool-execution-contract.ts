@@ -2,7 +2,7 @@
 
 export const TOOL_EXECUTION_CONTRACT = {
 	executionContractVersion: "tool_execution_v1",
-	responseContract: "execution_finalization_response_v1",
+	responseContract: "execution_finalization_response_v2",
 	runtimeDecisionsSchemaVersion: "tool-execution-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
 	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
@@ -54,6 +54,27 @@ export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"evidence_bundle",
 	"grounding_verdict",
 ] as const;
+export const STAGE_TIMING_FIELDS = [
+	"request.total_ms",
+	"stream.browser_ttft_ms",
+	"execution.admission_ms",
+	"memory.recall_ms",
+	"agent.primary_ms",
+	"agent.runtime_ms",
+	"agent.first_delta_ms",
+	"tool.total_ms",
+	"tool.knowledge_query_ms",
+	"tool.transport_schedule_lookup_ms",
+	"tool.campus_notice_discover_ms",
+	"rag.plan_ms",
+	"rag.lookup_ms",
+	"rag.rerank_ms",
+	"rag.synthesis_ms",
+	"rag.grounding_ms",
+	"finalization.write_ms",
+	"projection.closeout_ms",
+] as const;
+export const DEBUG_TRACE_SINKS = ["langfuse_otlp"] as const;
 
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
@@ -64,6 +85,10 @@ export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];
+
+export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
+export type StageTimingWire = Partial<Record<StageTimingField, number>>;
+export type DebugTraceSink = (typeof DEBUG_TRACE_SINKS)[number];
 
 export type SafeRecord = Record<string, unknown>;
 
@@ -268,6 +293,13 @@ export interface ToolExecutionWorkflowTraceSummaryWire {
 	policy_artifact_versions: SafeRecord;
 }
 
+export interface DebugTraceRefWire {
+	sink: DebugTraceSink;
+	trace_id?: string | null;
+	trace_ref: string;
+	url?: string;
+}
+
 export interface ToolExecutionResponseWire {
 	selected_tool: ToolID | null;
 	status: ExecutionStatus;
@@ -278,5 +310,7 @@ export interface ToolExecutionResponseWire {
 	error: { code: string; message: string; retryable: boolean } | null;
 	observability?: SafeRecord | null;
 	workflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;
+	stage_timing?: StageTimingWire | null;
+	debug_trace_refs?: DebugTraceRefWire[] | null;
 	trace_id: string;
 }

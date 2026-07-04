@@ -241,7 +241,7 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
 - `collector.file_storage_mode=reference_only`
 - `released_file.storage_provider=reference_only`
 
-## 建议保留证据
+## 建议保留 closeout artifacts
 
 每轮 auth window 至少保留：
 
@@ -253,7 +253,7 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
 - 如果启用了 source bucket 上传，保留 object key 样例和 uploaded file count
 - 如果启用了 run ledger，保留 `source_surface=file_release` 的 run id / row 摘要
 
-建议本地证据目录：
+建议本地 closeout directory：
 
 - `.tmp/authenticated-notice-file-release/<timestamp>/`
 

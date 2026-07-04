@@ -1,0 +1,44 @@
+name: Documentation issue
+description: Report unclear, outdated, missing, or broken documentation
+title: "docs: "
+labels:
+  - documentation
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or section
+      description: Link or path to the affected page or section.
+    validations:
+      required: true
+  - type: dropdown
+    id: problem-type
+    attributes:
+      label: Problem type
+      options:
+        - unclear
+        - outdated
+        - missing
+        - broken link
+        - wrong rendered page
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong or hard to use?
+    validations:
+      required: true
+  - type: textarea
+    id: suggested-correction
+    attributes:
+      label: Suggested correction
+      description: Optional exact wording or structure change.
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Boundary confirmation
+      options:
+        - label: This issue does not include private deployment details, source-derived school data, or internal logs.
+          required: true

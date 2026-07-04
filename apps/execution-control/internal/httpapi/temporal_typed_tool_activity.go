@@ -325,6 +325,19 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	completedAt := time.Now().UTC()
+	finalizedResponse, err = s.attachStageTimingToFinalizedResponse(
+		ctx,
+		run,
+		finalizedResponse,
+		stageTimingDuration{
+			field:    "finalization.write_ms",
+			duration: durationBetween(finalizationStartedAt, completedAt),
+		},
+	)
+	if err != nil {
+		return s.failFinalizationActivity(ctx, run, toolName, "stage_timing_unavailable", err)
+	}
 	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -346,7 +359,6 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	completedAt := time.Now().UTC()
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{

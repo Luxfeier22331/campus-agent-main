@@ -16,7 +16,8 @@ updated: 2026-04-25
 它回答的是：
 
 - 哪些 deploy / release 约束属于 repo 级长期 runtime truth
-- staging baseline、release identity、config gate 与 post-deploy evidence 应如何分层
+- staging baseline、release identity、config gate 与 release closeout artifacts
+  应如何分层
 - 哪些发布动作属于 shared runtime closure，哪些仍是环境特定输入
 
 它不负责：
@@ -37,7 +38,7 @@ updated: 2026-04-25
 三端 Worker surface 的长期发布闭环固定为：
 
 `repo-owned config truth -> pre-deploy config/secret gate -> deploy-time release
-identity injection -> post-deploy smoke -> observability evidence artifact`
+identity injection -> post-deploy smoke -> release closeout artifact`
 
 固定约束：
 
@@ -48,8 +49,9 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local /
-  transitional evidence；production target deploy substrate 已由 ADR-0056 收口为
-  Kubernetes + KEDA。live staging/prod substrate 必须由环境证据证明。
+  transitional runtime projection；production target deploy substrate 已由 ADR-0056
+  收口为 Kubernetes + KEDA。live staging/prod substrate 必须由 applied resources、
+  runtime env、operator projection 与 release closeout artifact 共同确认。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
 - repo-owned transitional execution runtime shape 已 hardcut 到
@@ -59,12 +61,13 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   legacy dev-backed execution host 与 Python bridge serving path 不再是 active
   runback path
 - production target runtime 将 `worker-autoscaler` 替换为 KEDA Temporal scaler +
-  Kubernetes HPA；Docker Compose autoscaler 只保留 local / transitional staging proof
+  Kubernetes HPA；Docker Compose autoscaler 只保留 local / transitional runtime
+  projection
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / RAG runtime unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与
-  post-deploy evidence 共同决定
+  release closeout artifacts 共同决定
 
 ## Staging Baseline
 
@@ -81,7 +84,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 - `mucwiki-edge.link` 下项目隔离一级子域是当前 repo-owned staging truth
 - `ayafeed.com` 与 `*.rag.ayafeed.com` 不再作为 campus-agent staging forward truth
-- future production hostname 应新增独立 env truth，而不是覆写 staging baseline
+- production hostname 应新增独立 env truth，而不是覆写 staging baseline
 - `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 在 Worker web
   surfaces 中固定为 `https://app-api.internal`，只用于 Service Binding request construction
 - `api-staging.mucwiki-edge.link` 不得作为 browser surface upstream invariant；若保留，
@@ -94,7 +97,7 @@ release identity 的长期规则固定为：
 - 每次 deploy 都必须显式生成当次 runtime release identity
 - `SENTRY_RELEASE` 不得继续在 repo 中长期写死为某个历史值
 - release identity 应优先从当前 git commit 或 CI release identifier 派生
-- release identity 必须进入三端 runtime env，并作为 post-deploy evidence 的主键之一
+- release identity 必须进入三端 runtime env，并作为 release closeout artifact 的主键之一
 
 这意味着：
 
@@ -140,7 +143,7 @@ release identity 的长期规则固定为：
   `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
 - repo-owned staging runbook 只消费 `execution-control` execution origin；不再保留
-  dev-backed compatibility path
+  dev-backed path
 
 ### Execution Runtime Gate
 
@@ -199,21 +202,22 @@ Kubernetes production target 还必须覆盖：
 - operator smoke 继续使用真实 Access-admitted operator principal
 - smoke identity 只属于 deploy / verification tooling，不写进产品文案、测试快照或 runbook 摘要正文
 
-## Post-Deploy Evidence
+## Release Closeout Artifact Boundary
 
-post-deploy verification 的长期 closure 固定为：
+release closeout artifact 的长期 closure 固定为：
 
 - `campus-web -> app-api` 至少一条真实 trace
 - `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
   surface 是 `operator-console-web`
-- `app-api` 至少一条 runtime event / scheduled drain evidence
-- 当次 release 的 evidence artifact 落盘
+- `app-api` 至少一条 runtime event / scheduled drain artifact
+- 当次 release 的 closeout artifact 落盘
 
 长期规则：
 
 - `Sentry` / `Axiom` 是 verification sink，不是 canonical operator read model
-- release hardening 的关闭条件是“真实请求和真实 runtime event 已进入 sink 并留存证据”，不是“SDK 已接入”
-- evidence artifact 必须以 timestamp + release identity + environment 收口，供回归和发布审计复用
+- release hardening 的关闭条件是“真实请求和真实 runtime event 已进入 sink 并留存
+  closeout artifact”，不是“SDK 已接入”
+- closeout artifact 必须以 timestamp + release identity + environment 收口，供回归和发布审计复用
 
 ## Out Of Scope
 
@@ -230,7 +234,7 @@ post-deploy verification 的长期 closure 固定为：
 - 不把静态 `wrangler.toml` 里的历史 `SENTRY_RELEASE` 当成长期正确发布方案
 - 不把 panel Access placeholder 当成可接受的 staging protection truth
 - 不把 `/readyz = 200` 误写成完整 deploy closure
-- 不把临时浏览器注册账号重新引回 staging smoke 主路径
+- 不把临时浏览器注册账号重新引回 deployment smoke 主路径
 - 不把 runtime observability sink 反向当成 canonical app read model
 
 ## 相关稳定文档

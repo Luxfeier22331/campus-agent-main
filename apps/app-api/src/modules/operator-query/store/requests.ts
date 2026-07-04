@@ -1,12 +1,13 @@
 import { and, desc, eq, ilike, lt, or, type SQL } from "drizzle-orm";
 
-import { requestProjection } from "../../../db/schema";
+import { requestObservabilityFact, requestProjection } from "../../../db/schema";
 import type { NormalizedOperatorRequestListFilters, OperatorQueryListResult } from "../service";
 import { decodeRequestCursor, encodeRequestCursor } from "./cursors";
 import type { OperatorQueryRuntime } from "./runtime";
 import {
 	escapeLikePattern,
 	loadRunBacklinksByRequestIds,
+	toOperatorRequestOpsIndex,
 	toRequestProjectionRecord,
 } from "./shared";
 
@@ -25,9 +26,17 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				return null;
 			}
 			const runBacklinks = await loadRunBacklinksByRequestIds(db, [row.requestId]);
-			return toRequestProjectionRecord(row, {
-				runId: runBacklinks.get(row.requestId) ?? null,
-			});
+			const opsIndexRows = await db
+				.select()
+				.from(requestObservabilityFact)
+				.where(eq(requestObservabilityFact.requestId, row.requestId))
+				.limit(1);
+			return {
+				opsIndex: opsIndexRows[0] ? toOperatorRequestOpsIndex(opsIndexRows[0]) : null,
+				request: toRequestProjectionRecord(row, {
+					runId: runBacklinks.get(row.requestId) ?? null,
+				}),
+			};
 		},
 
 		async list(filters: NormalizedOperatorRequestListFilters) {

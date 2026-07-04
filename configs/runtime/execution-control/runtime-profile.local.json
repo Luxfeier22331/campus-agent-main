@@ -7,6 +7,7 @@
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 45000,
 	"intent_policy_path": "configs/runtime/intent-policy.v1.json",
+	"observability_config_projection_path": "configs/runtime/observability-config-projection.local.json",
 	"provider_pricing_path": "configs/runtime/provider-pricing.v1.json",
 	"query_serving_scopes_path": "configs/runtime/query-serving-scopes.v1.json",
 	"tool_read_model_timeout_ms": 1000,

@@ -201,8 +201,8 @@ visibility / scope policy 同样属于 runtime profile 与 admission projection�
 - `release_admission_blocked` 是 fail-closed terminal status，用来表示 canonical
   已变更但 release 证据不完整；它不是 preparation failure，也不能被 worker 自动降级为
   search-only。
-- release executor 的成功结果必须携带 admission manifest proof；candidate processor
-  在写入 `serving_published` 前必须再次确认 proof，避免自定义 executor 或直接 CLI
+- release executor 的成功结果必须携带 admission manifest validation artifact；candidate processor
+  在写入 `serving_published` 前必须再次确认 validation artifact，避免自定义 executor 或直接 CLI
   绕过 admission gate。
 - 对早于当前 cleaner 的 historical regulation artifacts，RAG release 不做就地修补；
   这些 document 必须先经过 ingestion canonical backfill，产出当前 provenance 后才能被
@@ -229,7 +229,7 @@ visibility / scope policy 同样属于 runtime profile 与 admission projection�
 - 发现已切换 alias 但缺少 matching release admission manifest 的 query-enabled
   regulation release 时，必须执行 containment：仅当 alias 当前仍指向指定 suspect
   physical collection 时才允许 unpublish/rollback，防止误伤后续已修复 release。
-- alias publish 后必须执行 drift guard 与 payload/index audit；失败时进入 repair backlog，
+- alias publish 后必须执行 drift guard 与 payload/index audit；失败时进入 repair queue，
   并保留可回滚 current pointer
 
 operator-facing status 必须拆开表达：
@@ -272,7 +272,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   不应等到 points 写入后才补建
 - repo-owned eval truth 持有的 per-collection qrels scenario denominator、retrieval
   tuning report、deterministic rerank branch report 与 sanitized runtime observation
-  backlog intake；旧 `packages/evals` package 已退役，Langfuse-bound qrels 位于
+  diagnostic intake；旧 `packages/evals` package 已退役，Langfuse-bound qrels 位于
   `packages/eval-langfuse/fixtures`
 
 固定规则：
@@ -288,19 +288,20 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - supplemental judge / Ragas scores 只能作为 supplemental eval / diagnostic signal，不作为
   alias publish 或 profile patch 的唯一通过依据
 - runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
-  只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
+  只作为 eval/diagnostic intake，不反向改变 release manifest、runtime profile 或 serving alias
 - observation sink 是显式配置的 runtime intake；sink 写入失败表示观测链路配置或存储不满足
   contract，retrieval answer path 必须 fail closed 并暴露该诊断
 - sanitized runtime observation 默认不写入原始 query text，只写 `query_sha256`；只有显式
   operator 调试开关打开时，才允许把 query text 写入 JSONL observation
 - indexed lookup backend fail-closed exception 必须在重新抛出前写入 sanitized failed
-  observation；release metadata drift 必须保留可分类的 failure kind，供 monitoring backlog
+  observation；release metadata drift 必须保留可分类的 failure kind，供 monitoring diagnostics
   归入 release repair 而不是普通 no-hit
 - 对 query-enabled regulation target alias，retrieval runtime 还必须显式区分两条内部路径：
   - `target_v3_only`：默认 target serving 路径；如果命中的 answer-bearing source 缺少
     `answer_ready_evidence.v3` 必需 contract 字段，runtime 必须 fail closed，不得继续当作成功
     grounding
-  - `legacy_old_index_compatibility`：仅供 old-index compatibility/历史诊断/受控测试使用；
+  - `legacy_old_index_compatibility`：仅供 old-index historical diagnostic / controlled
+    test 使用；
     可以继续报告 `missing_contract` diagnostics，但这些结果不得计入 target release
     completion、component-eval target pass 或 serving adoption truth
 - production observation 集成边界固定在 runtime adapter，不进入 deleted Python
@@ -445,7 +446,7 @@ tool read model seam。
 
 - 这些 internal query surfaces 可以是 runtime-admitted structured seam，但不因此自动成为默认公开
   query-enabled collection
-- future internal query service 只读 projection / normalized truth，不读
+- admitted internal query service 只读 projection / normalized truth，不读
   query-disabled retrieval alias
 - tool read model surface 与 `fresh_news` 一类 retrieval surface 可以并存，但不能互相冒充
 - structured campus-services runtime 不回退成 `service_catalog` reopening、generic

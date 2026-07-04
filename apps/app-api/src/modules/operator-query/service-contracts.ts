@@ -12,8 +12,8 @@ import type {
 	OperatorOverviewFilters,
 	OperatorOverviewResult,
 	OperatorQueryListResult,
+	OperatorRequestDetailResult,
 	OperatorRequestListFilters,
-	RequestProjectionRecord,
 	TemporalTaskQueueListFilters,
 	TemporalTaskQueueListResult,
 	WorkerAutoscalerActuationListFilters,
@@ -23,7 +23,7 @@ import type {
 } from "./service-types";
 
 export interface OperatorQueryStore {
-	getById(requestId: string): Promise<RequestProjectionRecord | null>;
+	getById(requestId: string): Promise<OperatorRequestDetailResult | null>;
 	getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
 	listTemporalTaskQueues(
 		filters: NormalizedTemporalTaskQueueListFilters,
@@ -41,7 +41,7 @@ export interface OperatorQueryService {
 	getById(input: {
 		principal: ResolvedAppPrincipal;
 		requestId: string;
-	}): Promise<RequestProjectionRecord>;
+	}): Promise<OperatorRequestDetailResult>;
 	getOverview(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;

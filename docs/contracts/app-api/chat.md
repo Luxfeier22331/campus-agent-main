@@ -239,8 +239,8 @@ Rules:
 
 ### `POST /api/chat/requests`
 
-Synchronous compatibility / diagnostic command entry for online answer. The
-product default and release gate remain `POST /api/chat/requests/stream`.
+Synchronous diagnostic command entry for online answer. The product default and
+release gate remain `POST /api/chat/requests/stream`.
 
 Request:
 

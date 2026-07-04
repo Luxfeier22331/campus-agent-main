@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 )
 
 const (
 	ExecutionContractVersion            = "tool_execution_v1"
-	ResponseContract                    = "execution_finalization_response_v1"
+	ResponseContract                    = "execution_finalization_response_v2"
 	RuntimeDecisionsSchemaVersion       = "tool-execution-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
 	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
@@ -93,6 +94,35 @@ const (
 	StepOutputProjectionKindPlaceContext        StepOutputProjectionKind = "place_context"
 	StepOutputProjectionKindEvidenceBundle      StepOutputProjectionKind = "evidence_bundle"
 	StepOutputProjectionKindGroundingVerdict    StepOutputProjectionKind = "grounding_verdict"
+)
+
+type StageTimingField string
+
+const (
+	StageTimingFieldRequestTotalMs                StageTimingField = "request.total_ms"
+	StageTimingFieldStreamBrowserTtftMs           StageTimingField = "stream.browser_ttft_ms"
+	StageTimingFieldExecutionAdmissionMs          StageTimingField = "execution.admission_ms"
+	StageTimingFieldMemoryRecallMs                StageTimingField = "memory.recall_ms"
+	StageTimingFieldAgentPrimaryMs                StageTimingField = "agent.primary_ms"
+	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
+	StageTimingFieldAgentFirstDeltaMs             StageTimingField = "agent.first_delta_ms"
+	StageTimingFieldToolTotalMs                   StageTimingField = "tool.total_ms"
+	StageTimingFieldToolKnowledgeQueryMs          StageTimingField = "tool.knowledge_query_ms"
+	StageTimingFieldToolTransportScheduleLookupMs StageTimingField = "tool.transport_schedule_lookup_ms"
+	StageTimingFieldToolCampusNoticeDiscoverMs    StageTimingField = "tool.campus_notice_discover_ms"
+	StageTimingFieldRagPlanMs                     StageTimingField = "rag.plan_ms"
+	StageTimingFieldRagLookupMs                   StageTimingField = "rag.lookup_ms"
+	StageTimingFieldRagRerankMs                   StageTimingField = "rag.rerank_ms"
+	StageTimingFieldRagSynthesisMs                StageTimingField = "rag.synthesis_ms"
+	StageTimingFieldRagGroundingMs                StageTimingField = "rag.grounding_ms"
+	StageTimingFieldFinalizationWriteMs           StageTimingField = "finalization.write_ms"
+	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
+)
+
+type DebugTraceSink string
+
+const (
+	DebugTraceSinkLangfuseOtlp DebugTraceSink = "langfuse_otlp"
 )
 
 type ConversationContextWire struct {
@@ -279,6 +309,15 @@ type WorkflowTraceSummaryWire struct {
 	PolicyArtifactVersions      map[string]any                  `json:"policy_artifact_versions"`
 }
 
+type StageTimingWire map[StageTimingField]float64
+
+type DebugTraceRefWire struct {
+	Sink     DebugTraceSink `json:"sink"`
+	TraceID  *string        `json:"trace_id,omitempty"`
+	TraceRef string         `json:"trace_ref"`
+	URL      string         `json:"url,omitempty"`
+}
+
 type ToolExecutionResponseWire struct {
 	SelectedTool         *ToolID                   `json:"selected_tool"`
 	Status               ExecutionStatus           `json:"status"`
@@ -289,6 +328,8 @@ type ToolExecutionResponseWire struct {
 	Error                map[string]any            `json:"error"`
 	Observability        map[string]any            `json:"observability,omitempty"`
 	WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
+	StageTiming          StageTimingWire           `json:"stage_timing,omitempty"`
+	DebugTraceRefs       []DebugTraceRefWire       `json:"debug_trace_refs,omitempty"`
 	TraceID              string                    `json:"trace_id"`
 }
 
@@ -548,6 +589,38 @@ func (wire ToolExecutionResponseWire) Validate() error {
 			return fmt.Errorf("workflow_trace_summary: %w", err)
 		}
 	}
+	if wire.StageTiming != nil {
+		if err := wire.StageTiming.Validate(); err != nil {
+			return fmt.Errorf("stage_timing: %w", err)
+		}
+	}
+	for index, ref := range wire.DebugTraceRefs {
+		if err := ref.Validate(); err != nil {
+			return fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
+		}
+	}
+	return nil
+}
+
+func (wire StageTimingWire) Validate() error {
+	for field, durationMs := range wire {
+		if !field.Valid() {
+			return fmt.Errorf("%s is not an allowed stage timing field", field)
+		}
+		if durationMs < 0 || math.IsNaN(durationMs) || math.IsInf(durationMs, 0) {
+			return fmt.Errorf("%s must be a finite non-negative duration", field)
+		}
+	}
+	return nil
+}
+
+func (wire DebugTraceRefWire) Validate() error {
+	if !wire.Sink.Valid() {
+		return fmt.Errorf("sink is invalid")
+	}
+	if wire.TraceRef == "" {
+		return fmt.Errorf("trace_ref is required")
+	}
 	return nil
 }
 
@@ -614,6 +687,41 @@ func (value StepOutputProjectionKind) Valid() bool {
 		StepOutputProjectionKindPlaceContext,
 		StepOutputProjectionKindEvidenceBundle,
 		StepOutputProjectionKindGroundingVerdict:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value StageTimingField) Valid() bool {
+	switch value {
+	case StageTimingFieldRequestTotalMs,
+		StageTimingFieldStreamBrowserTtftMs,
+		StageTimingFieldExecutionAdmissionMs,
+		StageTimingFieldMemoryRecallMs,
+		StageTimingFieldAgentPrimaryMs,
+		StageTimingFieldAgentRuntimeMs,
+		StageTimingFieldAgentFirstDeltaMs,
+		StageTimingFieldToolTotalMs,
+		StageTimingFieldToolKnowledgeQueryMs,
+		StageTimingFieldToolTransportScheduleLookupMs,
+		StageTimingFieldToolCampusNoticeDiscoverMs,
+		StageTimingFieldRagPlanMs,
+		StageTimingFieldRagLookupMs,
+		StageTimingFieldRagRerankMs,
+		StageTimingFieldRagSynthesisMs,
+		StageTimingFieldRagGroundingMs,
+		StageTimingFieldFinalizationWriteMs,
+		StageTimingFieldProjectionCloseoutMs:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value DebugTraceSink) Valid() bool {
+	switch value {
+	case DebugTraceSinkLangfuseOtlp:
 		return true
 	default:
 		return false

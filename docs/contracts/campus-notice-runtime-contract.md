@@ -103,9 +103,9 @@ CampusNoticeGetResult
 - fail_close_reason
 ```
 
-`normalized_body` may remain on the internal DTO for compatibility with
-source-truth-backed materialization, but it is not required for resolved results
-and must not be used for default answer rendering.
+`normalized_body` may remain on the internal DTO for source-truth-backed
+materialization, but it is not required for resolved results and must not be
+used for default answer rendering.
 
 Closed contract residue:
 
@@ -115,7 +115,7 @@ CampusNoticeChangeSetLookupPayload / Result
 ```
 
 These packets may remain in machine-readable schemas and Go read-model code for
-compatibility tests and future reopening review. They must not be exposed to the
+closed-surface tests and reopening review. They must not be exposed to the
 model, provider function schema, Agents SDK loop or public product surface while
 their ToolSpec exposure remains `closed`.
 

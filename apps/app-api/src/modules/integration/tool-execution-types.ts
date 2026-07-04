@@ -40,6 +40,13 @@ export interface ToolExecutionUsageSummary {
 	outputTokens: number;
 }
 
+export interface ToolExecutionDebugTraceRef {
+	sink: string;
+	traceId: string | null;
+	traceRef: string;
+	url?: string;
+}
+
 export interface ToolExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
@@ -230,6 +237,7 @@ export interface ToolExecutionWorkflowTraceSummary {
 
 export interface ToolExecutionResponse {
 	answerText: string;
+	debugTraceRefs?: ToolExecutionDebugTraceRef[];
 	error: {
 		code: string;
 		message: string;
@@ -239,6 +247,7 @@ export interface ToolExecutionResponse {
 	observability?: ToolExecutionObservability | null;
 	result: unknown;
 	selectedTool: string | null;
+	stageTiming?: Record<string, unknown>;
 	status: ExecutionFinalizationStatus;
 	traceId: string;
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;

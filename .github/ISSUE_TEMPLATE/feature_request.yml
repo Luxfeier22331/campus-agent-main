@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose a focused product, contract, or implementation change
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Problem or goal
+      description: What should change, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: What should the system do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - campus-web
+        - operator-console-web
+        - app-api
+        - execution-control
+        - agent-runtime
+        - ingestion/data
+        - docs
+        - infra/ci
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What should not be included?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional alternatives or tradeoffs.
+  - type: checkboxes
+    id: data-boundary
+    attributes:
+      label: Public source/data boundary
+      options:
+        - label: This request can be described with synthetic, self-authored, or redistributable examples.
+          required: true
+        - label: This request does not require publishing secrets, private URLs, raw notices, source-derived documents, or internal logs.
+          required: true

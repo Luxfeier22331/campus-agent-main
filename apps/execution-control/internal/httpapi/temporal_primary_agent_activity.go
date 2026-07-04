@@ -38,6 +38,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "provider_profile_missing", err)
 	}
+	debugTraceConfig, err := s.resolveLLMDebugTraceConfig(ctx)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "llm_debug_trace_config_unavailable", err)
+	}
 	input.VisibleToolNames = s.primaryAgentVisibleToolNames(run, input)
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
@@ -67,7 +71,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	output, err := s.callAgentRuntime(ctx, run, input, providerConfig, finalModelContext)
+	output, err := s.callAgentRuntime(ctx, run, input, providerConfig, debugTraceConfig, finalModelContext)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, primaryAgentRuntimeFailureKind(err), err)
 	}
@@ -165,9 +169,11 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
 			"agent_result_ref":     agentResultRef,
+			"debug_trace_refs":     debugTraceRefsPayload(output.DebugTraceRefs),
 			"provider_response_id": output.ProviderResponseID,
 			"sdk_trace_ref":        output.SDKTraceRef,
 			"selected_tools":       append([]string{}, output.SelectedTools...),
+			"stage_timing":         cloneAnyMapFromMetadata(output.StageTiming),
 			"terminal_reason":      output.TerminalReason,
 		},
 	}); err != nil {

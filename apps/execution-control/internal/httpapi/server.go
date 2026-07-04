@@ -22,32 +22,34 @@ import (
 )
 
 type Server struct {
-	config                 config.Config
-	admission              *admission.Controller
-	lifecycle              *lifecycle.Registry
-	logger                 *slog.Logger
-	metrics                *observability.Metrics
-	telemetry              *telemetry.Emitter
-	executionAudit         *executionaudit.Emitter
-	toolReadModel          *toolreadmodel.Runtime
-	workflowRuns           execution.WorkflowRunStore
-	workflowRunsErr        error
-	runProjectionStore     execution.RunProjectionStore
-	runProjectionStoreErr  error
-	personalMemoryExecutor personalMemoryExecutor
-	personalMemoryErr      error
-	ragLookupExecutor      ragLookupExecutor
-	ragLookupErr           error
-	ragSynthesisExecutor   ragSynthesisExecutor
-	ragSynthesisErr        error
-	ragVersionResolver     ragVersionResolver
-	providerConfigResolver providerConfigResolver
-	providerConfigErr      error
-	temporalStarter        temporalruntime.ChatWorkflowStarter
-	temporalStarterErr     error
-	temporalWorkersStarted bool
-	intentPolicy           runtimepolicy.IntentPolicyArtifact
-	intentPolicyErr        error
+	config                      config.Config
+	admission                   *admission.Controller
+	lifecycle                   *lifecycle.Registry
+	logger                      *slog.Logger
+	metrics                     *observability.Metrics
+	telemetry                   *telemetry.Emitter
+	executionAudit              *executionaudit.Emitter
+	toolReadModel               *toolreadmodel.Runtime
+	workflowRuns                execution.WorkflowRunStore
+	workflowRunsErr             error
+	runProjectionStore          execution.RunProjectionStore
+	runProjectionStoreErr       error
+	personalMemoryExecutor      personalMemoryExecutor
+	personalMemoryErr           error
+	ragLookupExecutor           ragLookupExecutor
+	ragLookupErr                error
+	ragSynthesisExecutor        ragSynthesisExecutor
+	ragSynthesisErr             error
+	ragVersionResolver          ragVersionResolver
+	providerConfigResolver      providerConfigResolver
+	providerConfigErr           error
+	observabilityConfigResolver observabilityConfigResolver
+	observabilityConfigErr      error
+	temporalStarter             temporalruntime.ChatWorkflowStarter
+	temporalStarterErr          error
+	temporalWorkersStarted      bool
+	intentPolicy                runtimepolicy.IntentPolicyArtifact
+	intentPolicyErr             error
 }
 
 func (s *Server) TemporalWorkerActivities() any {
@@ -271,37 +273,40 @@ func NewServerWithDependencies(
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
+	observabilityConfigResolver, observabilityConfigErr := newObservabilityConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
 	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
-		config:                 cfg,
-		admission:              admissionController,
-		lifecycle:              registry,
-		logger:                 logger,
-		metrics:                metrics,
-		telemetry:              telemetryEmitter,
-		executionAudit:         executionAuditEmitter,
-		toolReadModel:          toolReadModelRuntime,
-		workflowRuns:           workflowRuns,
-		workflowRunsErr:        workflowRunsErr,
-		runProjectionStore:     runProjectionStore,
-		runProjectionStoreErr:  runProjectionStoreErr,
-		personalMemoryExecutor: personalMemoryExecutor,
-		personalMemoryErr:      personalMemoryErr,
-		ragLookupExecutor:      ragLookupExecutor,
-		ragLookupErr:           ragLookupErr,
-		ragSynthesisExecutor:   ragSynthesisExecutor,
-		ragSynthesisErr:        ragSynthesisErr,
-		ragVersionResolver:     newQdrantMetadataVersionResolver(cfg),
-		providerConfigResolver: providerConfigResolver,
-		providerConfigErr:      providerConfigErr,
-		temporalStarter:        temporalStarter,
-		temporalStarterErr:     temporalStarterErr,
-		intentPolicy:           intentPolicy,
-		intentPolicyErr:        intentPolicyErr,
+		config:                      cfg,
+		admission:                   admissionController,
+		lifecycle:                   registry,
+		logger:                      logger,
+		metrics:                     metrics,
+		telemetry:                   telemetryEmitter,
+		executionAudit:              executionAuditEmitter,
+		toolReadModel:               toolReadModelRuntime,
+		workflowRuns:                workflowRuns,
+		workflowRunsErr:             workflowRunsErr,
+		runProjectionStore:          runProjectionStore,
+		runProjectionStoreErr:       runProjectionStoreErr,
+		personalMemoryExecutor:      personalMemoryExecutor,
+		personalMemoryErr:           personalMemoryErr,
+		ragLookupExecutor:           ragLookupExecutor,
+		ragLookupErr:                ragLookupErr,
+		ragSynthesisExecutor:        ragSynthesisExecutor,
+		ragSynthesisErr:             ragSynthesisErr,
+		ragVersionResolver:          newQdrantMetadataVersionResolver(cfg),
+		providerConfigResolver:      providerConfigResolver,
+		providerConfigErr:           providerConfigErr,
+		observabilityConfigResolver: observabilityConfigResolver,
+		observabilityConfigErr:      observabilityConfigErr,
+		temporalStarter:             temporalStarter,
+		temporalStarterErr:          temporalStarterErr,
+		intentPolicy:                intentPolicy,
+		intentPolicyErr:             intentPolicyErr,
 	}
 	return server
 }

@@ -117,7 +117,7 @@ promotion/materialization 的 acceptance truth。
 
 target-side chunk preparation 已有 local-only acceptance 证据，但 stop point 仍未提升到
 release / alias publish。一次性 evidence path 不再作为 branch-tip tracked truth；需要追溯旧
-local-only proof 时通过 git history 恢复具体片段，再提升到当前 owner 文档或 runbook。
+local-only closeout artifact 时通过 git history 恢复具体片段，再提升到当前 owner 文档或 runbook。
 
 ### 6. Repo-local acceptance 必须使用隔离 snapshot root
 

@@ -26,8 +26,12 @@ Forbidden tracked content:
 - LLM/search/embedding/rerank provider active-profile decisions
 - Cloudflare Worker secret material
 
-Workloads continue to consume Kubernetes Secrets by stable names such as
-`execution-runtime-secrets` and `dining-sync-secrets`. External Secrets
-Operator owns how those Secret objects are populated. Provider active profiles
-remain owned by app-api provider-config and are consumed through explicit
-runtime projections, not through this directory.
+Workloads consume Kubernetes Secrets by stable, role-scoped names such as
+`execution-control-secrets`, `execution-worker-common-secrets`,
+`execution-agent-client-secrets`, `agent-runtime-secrets`,
+`execution-memory-client-secrets`, `execution-rag-secrets`,
+`execution-control-internal-query-secrets`, and `dining-sync-secrets`.
+External Secrets Operator owns how those Secret objects are populated. The
+retired monolithic `execution-runtime-secrets` Secret must not be recreated.
+Provider active profiles remain owned by app-api provider-config and are
+consumed through explicit runtime projections, not through this directory.

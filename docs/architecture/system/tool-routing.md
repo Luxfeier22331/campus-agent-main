@@ -150,7 +150,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 补充约束：
 
 - `campus-web /docs/*` 是 docs-first reader surface，不自动进入这条 execution routing path
-- `campus-web` Q&A、future `服务状态`、future `校园地图` 可以拥有不同 tool set
+- `campus-web` Q&A、separately admitted `服务状态`、`校园地图` 可以拥有不同 tool set
 - 单个 surface 的内部 IA 不自动升级成产品级 routing 原则
 
 ### 2. Admission / Guardrails
@@ -310,7 +310,7 @@ internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥�
   - notice 候选消歧、historical posture、短摘要/事实抽取等 semantic specialist step
 - campus services typed tools
   - structured current-state / process / directory / schedule lookup
-- future campus-services specialist label
+- campus-services specialist label after explicit admission
   - semantic disambiguation、跨工具编排、说明生成或 agent-owned clarification；
     当前 model-visible 工具仍以 `transport_schedule_lookup` 为准
 - navigation typed tools / `navigation`
@@ -337,7 +337,7 @@ Execution Agent Layer 长期继续统一负责：
 
 - `campus-web` Q&A 的当前 tool set 是 surface posture
 - `campus-web /docs/*` 不消费 execution routing，不因此拥有 `knowledge_query` tool
-- future `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
+- separately admitted `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
 - `apps/execution-control` 不拥有 product-layer surface allowlist truth
 
 surface policy 只区分产品入口，不表达学生 / 教职工 / 院系之间的普通问答 tool 差异：

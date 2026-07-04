@@ -17,6 +17,7 @@ import {
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	type FinalizeRequestWrite,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -392,6 +393,74 @@ describe("chat command durable stream closeout", () => {
 			}),
 		]);
 		expect(finalWrites).toHaveLength(1);
+	});
+
+	it("records browser stream TTFT from the first durable answer delta", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(durableRun()),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventId: "event-answer-1",
+					eventType: "run.answer_delta",
+					occurredAt: "2026-06-04T01:02:04.250Z",
+					payload: {
+						accumulated_text: "国家奖学金",
+						chunk_index: 1,
+						delta: "国家奖学金",
+						message_id: "msg_answer_stream",
+						request_id: "req_0001",
+						schema_version: "run_answer_delta.v1",
+						trace_id: "trace_0001",
+					},
+					payloadSchemaVersion: "run_answer_delta.v1",
+					sequence: 1,
+				}),
+				durableEvent({
+					eventId: "event-final",
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					payload: {
+						request_id: "req_0001",
+						response: answerResponsePayload(),
+						trace_id: "trace_0001",
+					},
+					sequence: 2,
+				}),
+			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		}) ?? []) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toContain("answer.delta");
+		expect(finalWrites).toHaveLength(1);
+		const finalWrite = finalWrites[0] as FinalizeRequestWrite;
+		expect(finalWrite.requestObservabilityFact.stageTiming).toMatchObject({
+			"stream.browser_ttft_ms": 1250,
+		});
 	});
 
 	it("does not consume the empty-poll budget while durable progress events keep advancing", async () => {

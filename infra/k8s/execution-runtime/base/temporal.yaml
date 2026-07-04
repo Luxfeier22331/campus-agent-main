@@ -53,7 +53,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: execution-runtime-secrets
+                  name: execution-stateful-runtime-secrets
                   key: TEMPORAL_POSTGRES_PASSWORD
           readinessProbe:
             exec:
@@ -149,7 +149,7 @@ spec:
             - name: POSTGRES_PWD
               valueFrom:
                 secretKeyRef:
-                  name: execution-runtime-secrets
+                  name: execution-stateful-runtime-secrets
                   key: TEMPORAL_POSTGRES_PASSWORD
             - name: VISIBILITY_STORE
               value: visibility

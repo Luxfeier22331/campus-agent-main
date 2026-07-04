@@ -79,7 +79,7 @@ See:
 - [SECURITY.md](./SECURITY.md)
 - [SUPPORT.md](./SUPPORT.md)
 
-项目级当前工作地图与 pending work signals 见：
+项目级 planning signals 与 pending work signals 见：
 
 - [.planning/PROJECT.md](./.planning/PROJECT.md)
 - [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
@@ -109,8 +109,8 @@ See:
 - [`docs/`](./docs/)
   - 长期可引用的 architecture、decision、contract、data、runbook 与 policy truth
 - [`.planning/`](./.planning/)
-  - 当前项目级 planning truth 与 compact active work map；历史 phase/archive material 通过
-    git history 恢复
+  - 当前项目级 planning signal surface；历史 phase/archive material 通过 git history
+    恢复
 - [`tests/`](./tests/)
   - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
 
@@ -144,9 +144,9 @@ See:
 - `docs/architecture/current.md`
   - 当前 accepted merged truth
 - `.planning/PROJECT.md`
-  - compact project work map；不覆盖 architecture / contract / data truth
+  - compact project planning signals；不覆盖 architecture / contract / data truth
 - `.planning/WORKSTREAMS.md`
-  - compact active work map、owner areas、backlog signals 与恢复规则
+  - compact active planning signals、owner areas、backlog signals 与恢复规则
 - git history
   - 已退出 live truth 的 historical / superseded / completed planning snapshots
 
@@ -223,10 +223,8 @@ YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`�
 
 更细的验证 lane 与 smoke 路径见：
 
-- [testing-and-verification-lanes](./docs/reference/testing-and-verification-lan
-  es.md)
-- [runtime-serving-and-index-terms](./docs/reference/runtime-serving-and-index-t
-  erms.md)
+- [testing-and-verification-lanes](./docs/reference/testing-and-verification-lanes.md)
+- [runtime-serving-and-index-terms](./docs/reference/runtime-serving-and-index-terms.md)
 - [forward-worker-smoke](./docs/runbooks/forward-worker-smoke.md)
 
 ## Collaboration

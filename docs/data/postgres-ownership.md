@@ -146,7 +146,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 
 当共享库已经存在部分 schema 但没有 `app-api` migration journal 时：
 
-- 必须先做 inventory / compatibility validation
+- 必须先做 inventory / schema validation
 - 只允许在对象结构与 repo baseline 一致时写入 `app-api` migration journal
 - 不允许把“不确定是否一致”的共享库直接标记为已迁移
 - 发现结构不一致时必须 fail closed，而不是自动 destructive 修复

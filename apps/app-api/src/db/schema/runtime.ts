@@ -9,6 +9,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type {
+	ToolExecutionDebugTraceRef,
 	ToolExecutionModelUsageSummary,
 	ToolExecutionWorkflowTraceSummary,
 } from "../../modules/integration/tool-execution-types";
@@ -166,6 +167,14 @@ export const requestObservabilityFact = runtime.table(
 		workflowTraceSummaryJson: jsonb(
 			"workflow_trace_summary_json",
 		).$type<ToolExecutionWorkflowTraceSummary | null>(),
+		stageTimingJson: jsonb("stage_timing_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		debugTraceRefsJson: jsonb("debug_trace_refs_json")
+			.$type<ToolExecutionDebugTraceRef[]>()
+			.notNull()
+			.default([]),
 		intentTool: text("intent_tool"),
 		intentTaskKind: text("intent_task_kind"),
 		intentLaunchState: text("intent_launch_state"),

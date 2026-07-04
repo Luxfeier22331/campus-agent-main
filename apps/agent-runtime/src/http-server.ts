@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { LlmDebugTraceConfig } from "./debug-trace.ts";
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 
 const providerConfigSchema = z.object({
@@ -74,6 +75,26 @@ const finalModelContextSchema = z.object({
 	}),
 });
 
+const debugTraceConfigSchema = z.discriminatedUnion("mode", [
+	z.object({
+		schema_version: z.literal("llm_debug_trace_config.v1"),
+		mode: z.literal("off"),
+		include_model_io: z.literal(false),
+		sample_ratio: z.number().min(0).max(1),
+	}),
+	z.object({
+		schema_version: z.literal("llm_debug_trace_config.v1"),
+		mode: z.literal("langfuse_otlp"),
+		include_model_io: z.literal(false),
+		sample_ratio: z.number().min(0).max(1),
+		langfuse_otlp: z.object({
+			endpoint: z.string().min(1),
+			auth_header: z.string().min(1).startsWith("Basic "),
+			public_trace_base_url: z.string().min(1).optional(),
+		}),
+	}),
+]);
+
 const runRequestSchema = z.object({
 	run_id: z.string().min(1),
 	conversation_id: z.string().min(1),
@@ -82,6 +103,7 @@ const runRequestSchema = z.object({
 	input: z.string().min(1),
 	visible_tool_names: z.array(z.string().min(1)).default([]),
 	provider_config: providerConfigSchema,
+	debug_trace_config: debugTraceConfigSchema.optional(),
 	final_model_context: finalModelContextSchema.optional(),
 	memory_context: memoryContextSchema.optional(),
 	memory_projection_refs: z.array(z.string().min(1)).optional(),
@@ -141,6 +163,7 @@ export function createAgentRuntimeHandler(
 						apiKey: parsed.provider_config.api_key,
 						timeoutMs: parsed.provider_config.timeout_ms,
 					},
+					debugTraceConfig: debugTraceConfigFromParsed(parsed.debug_trace_config),
 					finalModelContext: parsed.final_model_context
 						? {
 								schemaVersion: parsed.final_model_context.schema_version,
@@ -208,33 +231,7 @@ export function createAgentRuntimeHandler(
 					},
 				});
 			}
-			return jsonResponse(200, {
-				status: result.status,
-				run_id: result.runId,
-				final_output: result.finalOutput,
-				model_name: result.modelName,
-				model_provider: result.modelProvider,
-				terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
-				provider_response_id: result.providerResponseId,
-				sdk_trace_ref: result.sdkTraceRef,
-				selected_tools: result.selectedTools,
-				tool_results: result.toolResults.map((toolResult) => ({
-					status: toolResult.status,
-					tool_name: toolResult.toolName,
-					payload_kind: toolResult.payloadKind,
-					arguments_json: toolResult.argumentsJson ?? {},
-					result: toolResult.result,
-					result_ref: toolResult.resultRef,
-					fail_close_reason: toolResult.failCloseReason,
-				})),
-				terminal_reason: result.terminalReason,
-				usage: {
-					input_tokens: result.usage.inputTokens,
-					output_tokens: result.usage.outputTokens,
-					cached_input_tokens: result.usage.cachedInputTokens ?? 0,
-					estimated_cost_micro_usd: result.usage.estimatedCostMicroUsd ?? 0,
-				},
-			});
+			return jsonResponse(200, agentRunResultWire(result));
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
 			if (!authorized(request, options.sharedSecret)) {
@@ -290,6 +287,7 @@ function runtimeInputFromParsedRunRequest(
 			apiKey: parsed.provider_config.api_key,
 			timeoutMs: parsed.provider_config.timeout_ms,
 		},
+		debugTraceConfig: debugTraceConfigFromParsed(parsed.debug_trace_config),
 		finalModelContext: parsed.final_model_context
 			? {
 					schemaVersion: parsed.final_model_context.schema_version,
@@ -402,7 +400,9 @@ function agentRunResultWire(result: PrimaryAgentRunResult) {
 		terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
 		provider_response_id: result.providerResponseId,
 		sdk_trace_ref: result.sdkTraceRef,
+		debug_trace_refs: debugTraceRefsWire(result.debugTraceRefs),
 		selected_tools: result.selectedTools,
+		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
 			status: toolResult.status,
 			tool_name: toolResult.toolName,
@@ -420,6 +420,45 @@ function agentRunResultWire(result: PrimaryAgentRunResult) {
 			estimated_cost_micro_usd: result.usage.estimatedCostMicroUsd ?? 0,
 		},
 	};
+}
+
+function debugTraceConfigFromParsed(
+	value: z.infer<typeof debugTraceConfigSchema> | undefined,
+): LlmDebugTraceConfig | undefined {
+	if (!value) {
+		return;
+	}
+	if (value.mode === "off") {
+		return {
+			includeModelIo: value.include_model_io,
+			mode: value.mode,
+			sampleRatio: value.sample_ratio,
+			schemaVersion: value.schema_version,
+		};
+	}
+	return {
+		includeModelIo: value.include_model_io,
+		langfuseOtlp: {
+			authHeader: value.langfuse_otlp.auth_header,
+			endpoint: value.langfuse_otlp.endpoint,
+			publicTraceBaseUrl: value.langfuse_otlp.public_trace_base_url,
+		},
+		mode: value.mode,
+		sampleRatio: value.sample_ratio,
+		schemaVersion: value.schema_version,
+	};
+}
+
+function debugTraceRefsWire(refs: PrimaryAgentRunResult["debugTraceRefs"] | undefined) {
+	if (!refs) {
+		return [];
+	}
+	return refs.map((ref) => ({
+		sink: ref.sink,
+		trace_id: ref.traceId,
+		trace_ref: ref.traceRef,
+		url: ref.url,
+	}));
 }
 
 function authorized(request: Request, sharedSecret: string): boolean {

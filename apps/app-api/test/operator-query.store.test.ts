@@ -16,6 +16,7 @@ import { encodeBase64UrlJson } from "../src/base64url";
 import { createPgOperatorQueryStore } from "../src/modules/operator-query/store";
 import { registerOperatorQueryStoreCursorsSuite } from "./operator-query.store.cursors.suite";
 import { registerOperatorQueryStoreOverviewSuite } from "./operator-query.store.overview.suite";
+import { registerOperatorQueryStoreRequestDetailSuite } from "./operator-query.store.request-detail.suite";
 import type { OperatorQueryStoreSuiteContext } from "./operator-query.store.suite-context";
 
 function resetOperatorQueryStoreMocks(): void {
@@ -34,4 +35,5 @@ describe("pg operator query store", () => {
 
 	registerOperatorQueryStoreOverviewSuite(ctx);
 	registerOperatorQueryStoreCursorsSuite(ctx);
+	registerOperatorQueryStoreRequestDetailSuite(ctx);
 });

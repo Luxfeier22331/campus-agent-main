@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-30
+updated: 2026-07-04
 ---
 # Ops Index And External Sinks Architecture
 
@@ -18,6 +18,7 @@ updated: 2026-06-30
 - `operator-console-web` 如何消费这些索引
 - `Sentry`、`Axiom`、`Langfuse` 与 repo-owned runtime 各自负责什么
 - 为什么不在 `app-api` 中复制外部 dashboard、trace、log、score 或 eval 明细
+- 为什么 Operator Console 不承载 learning-loop review UI
 
 它不负责：
 
@@ -26,6 +27,8 @@ updated: 2026-06-30
 - sink SDK 或 Collector 的逐字段接入，见
   `docs/reference/runtime-otel-telemetry-taxonomy.md`
 - eval 平台细节，见 `docs/architecture/system/langfuse.md`
+- 用户使用驱动的持续优化闭环，见
+  `docs/architecture/system/learning-loop.md`
 
 ## Core Conclusion
 
@@ -44,6 +47,14 @@ Index：
 - request identity：`requestId`、`traceId`、`conversationId`、`runId`
 - request state：`surface`、`status`、`errorCode`、`startedAt`、`completedAt`
 - runtime health summary：执行平面 ready/degraded/blocker 摘要
+- stage timing summary：`stage_timing.v1` 安全分段耗时，见
+  `docs/contracts/stage-timing.md`
+- latency budget summary：从 `configs/runtime/latency-budgets.v1.json`
+  对 `stage_timing.v1` 字段做 warn / critical 分类
+- alert policy：从 `configs/runtime/observability-alerts.v1.json` 提供
+  repo-owned symptom alert rule、threshold、window、severity 与 runbook anchor；
+  `scripts/materialize_observability_alerts.py` 将 enabled rules 物化为 Axiom
+  monitor specs，并由 `pnpm contracts:check` 校验
 - sink correlation：能让 operator 跳到 Sentry / Axiom / Langfuse 的关联 ID 或链接模板
 
 `Sentry`、`Axiom`、`Langfuse` 是详细观测 truth：
@@ -80,7 +91,8 @@ Console 重新分发。
 - online safety dashboard
 - online cost dashboard
 - intent drift dashboard
-- badcase / eval candidate / release evidence 在线面板
+- badcase / eval candidate / release-closeout 在线面板
+- learning-loop review UI
 - external sink mirror
 
 这些内容如未来重新进入产品面，必须先有明确 operator workflow、current app-api
@@ -191,7 +203,7 @@ operator browser
 - `standalone audit workspace`
 - `trace backlink projection` 作为默认持久表
 - `quality grade projection` 作为 Operator Console 当前 read model
-- `badcase / eval candidate / release evidence` 在线面板
+- `badcase / eval candidate / release-closeout` 在线面板
 - app-api-owned Sentry/Axiom/Langfuse dashboard cache
 
 如果代码或 schema 中仍存在这些名字，它们只能作为 current-code residue 或后续清理对象，
@@ -212,6 +224,19 @@ Ops Index 只保存值班必须字段：
 所有更详细的调试、查询、趋势、LLM 质量分析和人工复核 workflow，默认回到
 Sentry / Axiom / Langfuse 原生平台。
 
+用户使用驱动的持续优化闭环由 `learning-loop.md` 定义。Operator Console 只能展示最小
+Ops Index、stage timing 摘要和外部 sink link；它不承载 annotation queue、dataset
+curation、score analytics 或改进动作 review UI。
+
+Stage timing 摘要只消费 `stage_timing.v1` canonical fields。Operator Console 可以按
+request / stream / memory / agent / tool / RAG / finalization 分组展示这些数字，但不得
+展示 raw span tree、raw Langfuse observation、raw SDK trace body 或 raw Temporal history。
+请求详情可以展示 app-api 从 latency budget artifact 派生的 `stageTimingBudget`
+状态，用于标注“预算内 / 接近预算 / 超出预算”。前端不重新计算预算，也不展示非 canonical
+timing key。
+Overview 可以展示最小运行趋势，例如首字 P95、模型运行 P95、RAG 查询 P95 与超预算计数；
+完整分段字段留在请求详情和外部 sink deep link 中，不在 overview 做高密度 trace viewer。
+
 ## Forbidden Shapes
 
 - 不把 Operator Console 做成 Sentry、Axiom 或 Langfuse 的嵌入式 viewer。
@@ -224,6 +249,8 @@ Sentry / Axiom / Langfuse 原生平台。
 ## 相关稳定文档
 
 - `docs/contracts/app-api/observability.md`
+- `docs/contracts/stage-timing.md`
+- `docs/reference/observability-ledger.md`
 - `docs/architecture/system/operator-console.md`
 - `docs/architecture/system/langfuse.md`
 - `docs/reference/runtime-otel-telemetry-taxonomy.md`

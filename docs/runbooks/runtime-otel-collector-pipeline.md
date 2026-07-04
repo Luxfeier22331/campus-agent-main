@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-07-04
 ---
 # Runtime OTel Collector Pipeline
 
@@ -37,8 +37,7 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
   - receives OTLP traces, metrics and logs
   - exports traces to Sentry, Axiom and Langfuse
   - exports logs to Axiom
-  - keeps metrics on the Collector debug pipeline; Axiom does not receive a
-    separate metrics dataset
+  - exports metrics to the Axiom metrics dataset
 - `infra/otel/collector.env.example`
   - documents required environment variables
   - keeps all endpoint/header/dataset values blank in the tracked file
@@ -67,7 +66,7 @@ Enable `execution-control` OTLP export in the runtime profile:
 }
 ```
 
-Expected local evidence:
+Expected local closeout artifacts:
 
 - Collector process stays healthy on `:13133`
 - debug exporter prints request/bridge trace records
@@ -75,6 +74,10 @@ Expected local evidence:
 - emitted records include `telemetry.allowed_attributes_version=runtime-otel-attrs-v1`
 - emitted records do not include raw prompt, raw query, raw answer, chunk body, canonical body,
   OCR raw text, authorization, cookie, JWT, database URL or provider secret fields
+- app-api `request.stage_timing` events produce
+  `campus.app_api.stage_duration_ms` with bounded labels only
+- execution-control metrics include runtime request/error/decision counters and
+  activity duration, queue wait and schedule-to-start histograms
 
 Worker JSONL sinks remain available as local debug handoff surfaces. Runtime now
 also supports Worker-origin OTLP export through the protected Collector OTLP HTTP
@@ -110,6 +113,7 @@ OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+OTEL_COLLECTOR_AXIOM_METRICS_DATASET=campus-agent-runtime-metrics
 APP_API_OTEL_INGEST_SHARED_SECRET=<secret-managed Worker ingest secret>
 EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer <same secret>"
 LANGFUSE_BASE_URL=https://langfuse.internal
@@ -161,7 +165,16 @@ Structural repo test:
 
 ```bash
 pnpm ci:langfuse
+pnpm contracts:check
 ```
+
+`pnpm contracts:check` validates both latency budgets and
+`configs/runtime/observability-alerts.v1.json`. The alert artifact is the
+repo-owned symptom policy source for stage latency, request error rate,
+projection outbox, telemetry export failure and missing trace rate alerts. It
+also materializes one Axiom monitor spec per enabled alert rule through
+`scripts/materialize_observability_alerts.py`. The repo still does not mirror
+external dashboard content into app-api.
 
 Fail-closed Langfuse env check:
 
@@ -189,7 +202,7 @@ pnpm --dir packages/eval-langfuse langfuse ragas-score-traces \
 Use `ragas-score-dataset` for Langfuse dataset-backed scoring. Remove
 `--validate-only` only when the run should write `ragas.*` scores to Langfuse.
 
-Langfuse real trace evidence smoke:
+Langfuse real trace closeout smoke:
 
 ```bash
 LANGFUSE_BASE_URL=https://langfuse.internal \
@@ -216,18 +229,20 @@ Langfuse `GET /api/public/traces/{traceId}` with `fields=core,observations` and
 fails closed when the trace is missing, the session / user / release / required
 tags drift, the trace lacks populated identity attributes (`request_id`,
 `run_id`, `workflow_id`, `trace_id`), the provided request / run / workflow ids
-do not match the trace evidence, the trace has no observations, or no
+do not match the trace closeout artifact, the trace has no observations, or no
 observation exposes the runtime observation attribute contract (`step_id`,
 `step_kind`, `activity_type`, `task_queue`, `activity_attempt`, selected
-tool/tool, status, timing, projection ref and fail-close reason). Omit
+tool/tool, status, timing, projection ref and fail-close reason). Successful
+JSON output includes `forbidden_check_passed=true`, repo-owned observation
+counts and checked identity fields. Omit
 the request / run / workflow id flags only for local diagnostics. Release
 closeout must include them from the staging durable reconnect artifact. This
-command is release evidence only; Langfuse remains a sink and does not become
-product truth.
+command produces release closeout artifacts only; Langfuse remains a sink and
+does not become product truth.
 
-Langfuse trace closeout evidence is produced by running `verify-trace` with the
+Langfuse trace closeout artifact is produced by running `verify-trace` with the
 identity values from `chat-durable-reconnect.json`. The old bundled
-`closeout-staging` / `build-release-evidence` / `check-release-evidence` path
+`closeout-staging` / `build-release-artifacts` / `check-release-artifacts` path
 has been retired with the artifact score-report publisher.
 
 `chat-durable-reconnect.json` is produced by
@@ -236,7 +251,7 @@ is the product-side identity source for closeout: `productTraceId`, `requestId`,
 `runId`, `workflowId`, `sessionId` and `userId`. Do not derive `workflowId` from
 `runId`; it must come from the sanitized run step attempt projection.
 
-Manual trace evidence path:
+Manual trace closeout path:
 
 ```bash
 pnpm --dir packages/eval-langfuse langfuse verify-trace \
@@ -292,7 +307,7 @@ cd apps/execution-control && \
     ./internal/telemetry ./internal/temporalruntime ./cmd/internal/workermain ./internal/httpapi
 ```
 
-Expected evidence:
+Expected closeout artifacts:
 
 - `TestEmitterPreservesIncomingTraceParent` proves execution-control spans keep
   the W3C trace id propagated from app-api.
@@ -315,11 +330,15 @@ Collector config structural smoke:
 
 ```bash
 pnpm ci:langfuse
+pnpm contracts:check
+uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
 ```
 
 `pnpm ci:langfuse` covers the TS Langfuse package and trace id vector checks.
 These checks prove the eval platform management plane can create sanitized
 artifacts; they do not replace the real staging trace and score publish closeout.
+`pnpm contracts:check` covers alert materialization and latency-budget coverage
+of every canonical `stage_timing.v1` field.
 
 ## Drop Diagnosis
 
@@ -339,10 +358,10 @@ If the Collector receives telemetry but no sink records appear:
 8. Confirm Worker-origin telemetry is posted to the protected Collector OTLP
    HTTP receiver with bearer auth, not to vendor sinks.
 9. Confirm Axiom traces/logs use `x-axiom-dataset=campus-agent-runtime`.
-   Metrics stay on the Collector debug pipeline and are not exported to a
-   separate Axiom metrics dataset.
+10. Confirm Axiom metrics use
+   `x-axiom-dataset=campus-agent-runtime-metrics`.
 
 When OTel is explicitly enabled, exporter failure is part of the configured
 runtime contract and answer paths fail closed with `telemetry_delivery_failed`.
-When OTel is disabled in a local profile, missing sink evidence is expected and
-must not be treated as release proof.
+When OTel is disabled in a local profile, missing sink closeout artifacts are
+expected and must not be treated as release closeout failure.

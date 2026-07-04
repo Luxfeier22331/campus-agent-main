@@ -8,6 +8,8 @@ updated: 2026-06-28
 ---
 # Memory Plane Architecture
 
+## 文档边界
+
 本文冻结 `campus-agent` 的 Hindsight self-host Personal Memory Plane。当前个人记忆不再
 使用 Qdrant collection、repo-owned LLM extraction prompt、personal memory embedding
 profile 或 provider-backed memory extraction eval；Qdrant 只承载 institutional RAG。
@@ -175,7 +177,7 @@ Hindsight 在本仓库中的目标 runtime surface 固定为：
 - app-api student run-step projection 会剥离 Hindsight operation/document/bank refs；
   operator/internal ops path 保留必要诊断字段。
 
-当前剩余验收缺口不得冒充已完成：
+Runtime acceptance rules:
 
 - completed-turn append 本身只能声称 `accepted`，不能声称 materialized。
 - Hindsight live E2E 必须实际验证 operation status 或后续 recall / reflect 证明
@@ -313,8 +315,8 @@ admitted internal memory-reflect request
    disambiguation、clarification 与 answer wording；不得伪造 source truth、tool
    opening truth、account / session truth 或 fail-close override。
 
-这些规则只定义恢复 productization 时的执行入口和验收口径，不表示当前 memory
-productization 已经上线。
+这些规则只定义恢复 productization 时的执行入口和验收口径，不表达 memory
+productization rollout state。
 
 ## Write / Update Flow
 
@@ -401,7 +403,7 @@ worker / runtime smoke。它们用于 Hindsight live gate 和 operator diagnosti
 append、operation status/list、recall、reflect 和 user isolation，不是 browser-facing
 API，也不替代 Temporal production workflow。`operations:cancel` / `operations:retry`
 的 live 成功依赖 Hindsight 当前是否存在 pending / failed operation，因此默认不作为
-release gate 的稳定 materialization proof。
+release gate 的稳定 materialization validation。
 
 ### Explicit Profile Memory
 
@@ -441,31 +443,15 @@ profile memory owner disable
 command payload；
 不得暴露给 browser-facing profile-memory item response。
 
-## Eval And Acceptance
+## Runtime Acceptance Boundary
 
 repo-owned memory evidence taxonomy / score profile 是
 `hindsight-memory-product-path`，不是 `personal-memory-extraction`。该 profile
-用于 Langfuse-bound sanitized score publishing 与 historical eval map naming；live
-runtime gate 由 `pnpm --dir apps/app-api hindsight:memory:e2e:staging` 承接。覆盖面是：
+用于 Langfuse-bound sanitized score publishing 与 historical eval map naming。
 
-- completed turn append
-- append operation status / materialization proof
-- cross-thread recall
-- observation recall type
-- reflect with based_on facts
-- explicit profile memory upsert
-- explicit profile memory disable
-- operation list sanitized projection
-- owner disable / RTBF
-- user isolation
-
-staging runtime smoke 只记录 schema、status、hash 与字段级 token，不保存 raw
-transcript、provider raw response、Hindsight raw payload 或 API key。它必须实际调用
-internal append、operation-status、operation-list、recall、reflect、explicit profile
-upsert / disable 与 owner disable endpoint；不得用 `not_collected`、离线 fixture
-或退休的 Python eval gate 冒充 live smoke。该 lane 需要
-`EXECUTION_CONTROL_BASE_URL` 或 `STAGING_EXECUTION_CONTROL_BASE_URL`，以及
-`API_WORKER_SHARED_SECRET` 或 `EXECUTION_CONTROL_SHARED_SECRET`。
+live runtime gate、deployment smoke command、required environment 和 coverage list 归
+`docs/runbooks/execution-smoke.md`。本文只冻结 memory runtime 边界和 sanitized
+projection 规则，不拥有可执行验收步骤。
 
 agent runtime eval projection 只可从 `memory.recall` / `memory.reflect` step result
 派生 sanitized memory summary，例如 recall / reflect status、selected count、selected chars

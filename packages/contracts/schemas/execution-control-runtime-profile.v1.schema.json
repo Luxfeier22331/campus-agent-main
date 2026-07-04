@@ -13,6 +13,7 @@
 		"request_body_limit_bytes",
 		"shutdown_grace_ms",
 		"intent_policy_path",
+		"observability_config_projection_path",
 		"provider_pricing_path",
 		"query_serving_scopes_path",
 		"tool_read_model_timeout_ms",
@@ -52,6 +53,10 @@
 			"minimum": 1
 		},
 		"intent_policy_path": {
+			"type": "string",
+			"minLength": 1
+		},
+		"observability_config_projection_path": {
 			"type": "string",
 			"minLength": 1
 		},

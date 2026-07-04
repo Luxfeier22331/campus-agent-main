@@ -12,6 +12,7 @@ describe("runtime event sanitizer", () => {
 		expect(RUNTIME_EVENT_ALLOWED_EVENT_TYPES).toEqual([
 			"request.accepted",
 			"request.finalized",
+			"request.stage_timing",
 			"request.transport_error",
 			"projection.enqueued",
 			"projection.drain",
@@ -105,6 +106,39 @@ describe("runtime event sanitizer", () => {
 			requested_tool: "knowledge_query",
 			retryable: true,
 			status: "error",
+			surface: "campus_web",
+			trace_id: "trace_01HQ",
+		});
+	});
+
+	it("allows bounded stage timing telemetry fields without raw payload material", () => {
+		expect(
+			sanitizeRuntimeEventPayload({
+				budget_state: "critical",
+				duration_ms: 5500,
+				environment: "staging",
+				event_type: "request.stage_timing",
+				occurred_at: "2026-04-20T12:30:00.000Z",
+				prompt: "raw prompt must not pass",
+				release: "app-api@2026.04.20",
+				request_id: "req_01HQ",
+				selected_tool: "knowledge_query",
+				stage_field: "stream.browser_ttft_ms",
+				status: "completed",
+				surface: "campus_web",
+				trace_id: "trace_01HQ",
+			}),
+		).toEqual({
+			budget_state: "critical",
+			duration_ms: 5500,
+			environment: "staging",
+			event_type: "request.stage_timing",
+			occurred_at: "2026-04-20T12:30:00.000Z",
+			release: "app-api@2026.04.20",
+			request_id: "req_01HQ",
+			selected_tool: "knowledge_query",
+			stage_field: "stream.browser_ttft_ms",
+			status: "completed",
 			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});

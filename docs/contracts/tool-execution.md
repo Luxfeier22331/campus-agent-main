@@ -56,13 +56,8 @@ durable runtime contract 为当前 canonical source。`tool-execution.openapi.ya
   offline historical comparison，应从 git history 恢复到隔离环境，不能作为 active
   generated artifact 或 serving seam
 
-生成物必须通过以下命令保持同步：
-
-```bash
-pnpm contracts:check
-```
-
-这条 check 已接入 `tool-runtime-contract` eval gate。凡是修改 schema、
+生成物必须通过 `pnpm contracts:check` 保持同步。这条 check 已接入
+`tool-runtime-contract` eval gate。凡是修改 schema、
 execution contract version、runtime decision schema version、status enum 或
 terminal response shape，都必须先更新 canonical schema，再重新生成 artifact。
 
@@ -71,7 +66,7 @@ Execution Agent Layer -> tool handoff 的 `ToolRequest` /
 `ToolResponse`。它不承载 `runtime_decisions` 或具体 execution transport
 wrapper，避免把 execution runtime truth 泄漏进共享 tool contract 包。
 
-Run projection compatibility note：
+Run projection boundary：
 
 - 本文冻结的是 current internal tool execution transport
 - `docs/contracts/durable-runtime.md` 冻结 forward production run /
@@ -91,8 +86,8 @@ internal execution seam 只接受 canonical `snake_case` JSON。
   top-level field、未知 top-level field、非法 enum 或缺少必需字段，按
   `execution_invalid_response` transport/protocol failure 处理
 - Go `execution-control` 对当前 run command/query JSON 必须 strict decode；offline/eval
-  artifact 如果用于 historical handoff tooling，也必须 strict decode，不得接受 unknown top-level
-  compatibility payload
+  artifact 如果用于 historical handoff tooling，也必须 strict decode，不得接受 unknown
+  top-level payload
 - browser / panel / public product API 可以继续使用产品层 camelCase projection，但不能把
   camelCase 反向带入 internal execution wire
 - panel 只能消费 `app-api` 物化后的 sanitized request / workflow trace projection；即使 projection
@@ -113,7 +108,7 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - `runtime_decision_summary_schema_version`：operator / eval 消费的 runtime decision
   summary shape 变化时必须 bump
 - `workflow_trace_summary_version`：sanitized workflow trace summary 的 operator-visible
-  compatibility summary shape 变化时必须 bump；它不是 canonical diagnostic
+  display summary shape 变化时必须 bump；它不是 canonical diagnostic
   projection，不能替代 step / attempt / result projection
 
 修改这些字段或对应 shape 时，必须同步：
@@ -152,7 +147,7 @@ corpus、collection、top-k 或 raw retrieval query slot。
 selected notice context + knowledge follow-through 仍可在 support path 内被 resolver
 编译为 typed tool step + knowledge step。typed tool 输出会被 `execution-control` 投影成
 canonical `StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。
-operator / eval 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized compatibility
+operator / eval 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized display
 summary：`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与
 `safety`，不包含 notice 正文 payload。semantic retry/replan 与 resumable resume
 仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、Temporal activity
@@ -173,7 +168,7 @@ workflow/activity workers -> sanitized run event + step/attempt/result projectio
   `execution-control`
 - `execution-control` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
   auth/session/conversation
-- panel、eval、badcase 与 release evidence 只能消费 app-api materialized projection；
+- panel、eval、badcase 与 operational diagnostic artifact 只能消费 app-api materialized projection；
   `workflow_trace_summary` 只作为兼容摘要，主诊断事实源是 step trajectory
 - `execution-control` 的 deploy substrate 不改变本文冻结的 request/response 语义；
   Docker Compose 只保留 local / transitional evidence，production target substrate
@@ -192,7 +187,7 @@ workflow/activity workers -> sanitized run event + step/attempt/result projectio
 - `GET /readyz`
 
 retired legacy answer transport 已从 active `app-api -> execution-control`
-submit path 退役；它不得作为 runtime fallback、smoke shortcut 或兼容双路径恢复。
+submit path 退役；它不得作为 runtime fallback、smoke shortcut 或双路径恢复。
 Forward canonical seam 是 `app-api -> execution-control` 的 internal execution
 run command/query contract，不是 browser-facing public API。
 
@@ -395,8 +390,8 @@ payload 或 provider raw response。
   `context.profile_memory.items`。`app-api` 只提供 actor/session/request context；
   `execution-control` 在 `ToolExecutionWorkflow` 的 `context.memory_recall`
   step 中调用 Hindsight runtime，生成 bounded `MemoryContextPacket` /
-  memory projection refs。legacy `profile_memory` 字段如仍出现在 generated DTO 或历史
-  fixture 中，只能解释为 ignored / legacy compatibility residue，不得作为 active
+  memory projection refs。retired `profile_memory` 字段如仍出现在 generated DTO 或历史
+  fixture 中，只能解释为 ignored historical residue，不得作为 active
   online recall truth 或目标 contract 扩展点。
 - `requested_tool` 当前 wire 只允许 external caller hint 可表达的具体 tool id：
   `knowledge_query`、`place_lookup`、`transport_schedule_lookup` 或
@@ -522,8 +517,8 @@ approval / HITL 或 state-changing tool 作为产品目标。
 
 其中：
 
-- `selected_tool` 始终表示 execution path 实际选择的 tool id。 在当前 phase
-  它只能是 shared contract 中已 admitted 的 tool label，例如
+- `selected_tool` 始终表示 execution path 实际选择的 tool id。当前只允许 shared
+  contract 中已 admitted 的 tool label，例如
   `knowledge_query`、`place_lookup`、`transport_schedule_lookup`、
   `campus_notice_discover`、`campus_notice_period_summary` 或
   `campus_notice_change_set_lookup`。它不是 tool domain label，也不是
@@ -551,7 +546,7 @@ approval / HITL 或 state-changing tool 作为产品目标。
   的 raw agent dump contract
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 agent
   payload 直接当 browser contract 暴露
-- 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于
+- 当前这份 `place_card` normalization shape 继续保留为 navigation admission seam；但由于
   execution path 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
 - `observability` 是 execution-side typed summary seam，用于
   `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side
@@ -647,7 +642,7 @@ terminal response 的跨语言语义固定如下：
 Go finalizer 必须保证 delegate branch 与 `handoff.tool_request.tool`、
 `selected_tool`、runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
 
-## Current Compatibility Note
+## Retired Public Ingress Boundary
 
 当前仓库里的 public execution ingress 已 hardcut 到 `apps/execution-control`。
 shared product path 已收口为：
@@ -659,7 +654,7 @@ shared product path 已收口为：
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
 - Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 handoff code
-  只可通过 git history 追溯，不再暴露 public compatibility ingress，也不参与
+  只可通过 git history 追溯，不再暴露 public ingress，也不参与
   online serving
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
@@ -678,7 +673,7 @@ shared product path 已收口为：
 - `requested_scope` 的长期语义应收窄为 knowledge-tool-specific field；它不能代替 tool
   routing，也不应要求非 knowledge path 伪造等价字段
 - `selected_tool` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime
-  target，而不是 future alias、surface label 或 operator-facing 名称
+  target，而不是 candidate alias、surface label 或 operator-facing 名称
 - tool-routed execution、surface tool policy 与 routing clarification
   的长期 supporting truth 见
   `docs/architecture/system/tool-routing.md`

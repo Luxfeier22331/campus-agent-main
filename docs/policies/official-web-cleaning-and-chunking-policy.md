@@ -8,6 +8,12 @@ updated: 2026-04-04
 ---
 # `official_web` Cleaning 与 Chunking 规则
 
+## 文档边界
+
+本文是 `official_web/muc_public_pages` 的 cleaning / chunking policy。它不拥有
+collector admission、source-truth schema、serving rollout、release runbook 或当前 work
+status。
+
 ## 目标
 
 把当前 `official_web/muc_public_pages` 在当前 scope 下的清洗、structured-unit 产出、chunking 与
@@ -25,7 +31,8 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 
 - collector 的 host allowlist、crawl frontier、robots 与 parser 细节
 - `official_web` source-truth 字段级 schema
-- future `fresh_news` / `news_archive` collection 的 runtime profile 具体 JSON 形状
+- `fresh_news` / `news_archive` collection 的 runtime profile 具体 JSON 形状；
+  该范围需要单独治理决策
 - query-serving 是否开放
 
 对应文档：

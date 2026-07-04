@@ -108,9 +108,9 @@ projection / operator read model / operator-safe operations domains`
     operations domains
   - 当前唯一 implementation surface 是 `operator-console-web`
   - 当前最小 implementation surface 只承载 `/requests` 与
-    `/operations/provider-config`
+    `/operations/provider-config`、`/operations/observability`
   - 当前只通过 explicitly allowlisted request / runtime health / provider
-    configuration routes 消费 `apps/app-api`
+    configuration / observability configuration routes 消费 `apps/app-api`
   - 通用控件使用 shadcn/Radix wrappers，配置表单使用 `react-hook-form` + `zod`，
     简单列表使用 shadcn-style table primitive；不维护第二套自研表单、select、button
     或 table widget
@@ -200,7 +200,7 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
 
 - `campus-web` Q&A 的 tool set 是 current surface posture
 - `campus-web /docs/*` 是非执行 reader surface，不自动进入 tool routing
-- future `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
+- separately admitted `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
 - `apps/execution-control` 不拥有 browser-facing tool allowlist truth
 
 固定规则：
@@ -263,7 +263,7 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
     只保留为 historical migration artifact
 - Retired Python semantic bridge code
   - 已从 active workspace 删除，只可通过 git history 追溯
-  - 不参与 online answer serving、staging readiness 或 active product runtime
+  - 不参与 online answer serving、deployment readiness 或 active product runtime
   - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
     或 RAG step projection truth
 
@@ -299,7 +299,7 @@ Operator Console `Requests` 的 canonical read path 固定为：
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
 - 让 Operator Console 通过 `apps/execution-control` 旁路获取 operator list/detail
 
-future operator-facing visibility 域也遵循同一 ownership rule：
+Additional operator-facing visibility 域也遵循同一 ownership rule：
 
 - `apps/app-api` 只拥有产品运行所需的最小 Ops Index：request identity、request
   state、runtime health summary 与 external sink correlation

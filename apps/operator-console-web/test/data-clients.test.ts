@@ -102,6 +102,54 @@ describe("Operator Console minimal data clients", () => {
 
 	it("loads request detail through the same-site panel route", async () => {
 		const fetchSpy = mockJsonFetch({
+			opsIndex: {
+				debugTraceRefs: [
+					{
+						sink: "langfuse",
+						traceId: "trace_01HQ",
+						traceRef: "lf_trace_01HQ",
+						url: "https://langfuse.example/project/traces/lf_trace_01HQ",
+					},
+				],
+				model: {
+					billableStepCount: 2,
+					cachedInputTokens: 12,
+					estimatedCostMicrousd: 120,
+					executionDetail: "completed",
+					executionState: "completed",
+					inputTokens: 300,
+					modelName: "gpt-test",
+					modelProvider: "openai",
+					outputTokens: 80,
+					promptId: "campus-primary-agent",
+					promptVersion: "current",
+					templateSha256: "sha256-template",
+					usageSummary: [],
+				},
+				retrieval: {
+					adequacyReason: "enough_evidence",
+					adequacyVerdict: "adequate",
+					candidateCount: 8,
+					collection: "student_rules",
+					retrievalAttempted: true,
+					retrievedSourceCount: 3,
+				},
+				sinkLinks: {
+					projectionLagMs: 250,
+					traceAvailable: true,
+				},
+				stageTiming: {
+					"agent.primary_ms": 620,
+				},
+				tool: {
+					failClosed: false,
+					failCloseReason: null,
+					historicalDowngradeReason: null,
+					requestedTool: "knowledge_query",
+					selectedTool: "knowledge_query",
+					toolBusinessOutcome: "answered",
+				},
+			},
 			request: {
 				answerPreview: "图书馆开放到 22:00。",
 				completedAt: "2026-03-28T08:00:01.000Z",
@@ -126,8 +174,19 @@ describe("Operator Console minimal data clients", () => {
 		});
 
 		await expect(getRequestDetail({ requestId: "req_01HQ" })).resolves.toMatchObject({
-			id: "req_01HQ",
-			requestId: "req_01HQ",
+			opsIndex: {
+				model: {
+					modelName: "gpt-test",
+					modelProvider: "openai",
+				},
+				stageTiming: {
+					"agent.primary_ms": 620,
+				},
+			},
+			request: {
+				id: "req_01HQ",
+				requestId: "req_01HQ",
+			},
 		});
 		expect(fetchSpy.mock.calls.map((call) => call[0])).toEqual(["/api/requests/req_01HQ"]);
 	});

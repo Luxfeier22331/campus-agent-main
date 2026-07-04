@@ -1,14 +1,15 @@
-# Active Work Map
+# Active Planning Signals
 
 ## Status
 
 There are no tracked active workstream directories in this repo.
 
-This file is the compact repo-level work map. It is not a completed-workstream
-ledger, phase archive, evidence tree, or session handoff store. Historical
-workstream and phase material is available through git history.
+This file is the compact repo-level planning signal surface. It is not a
+completed-workstream ledger, phase archive, closeout artifact tree, or session
+handoff store. Historical workstream and phase material is available through git
+history.
 
-This file is a `planning_work_map`. It records work signals only. It does not
+This file is a `planning_signal`. It records work signals only. It does not
 define product truth, architecture invariants, contract truth, data truth,
 operator truth or release acceptance criteria.
 
@@ -21,7 +22,7 @@ operator truth or release acceptance criteria.
   - contracts -> `docs/contracts/`
   - schemas/data truth -> `docs/data/`
   - operations -> `docs/runbooks/`
-  - project-level map -> `.planning/PROJECT.md` and this file
+  - project-level planning signals -> `.planning/PROJECT.md` and this file
 - Do not recreate tracked `.planning/workstreams`, `.planning/quick`,
   `.planning/legacy-flat`, `.planning/milestones`, `.planning/research`,
   `.planning/todos`, `.planning/codebase`, or `.planning/seeds`.
@@ -34,22 +35,22 @@ operator truth or release acceptance criteria.
 | Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
 | Tool Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or tool evidence changes |
 | Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |
-| Ops / QA | staging, release gates, observability, deploy hygiene | Staging closeout, release smoke, ingress, secrets, evidence, or monitoring changes |
+| Ops / QA | staging, release gates, observability, deploy hygiene | Staging closeout, release smoke, ingress, secrets, closeout artifact, or monitoring changes |
 
 ## Recovery Rule
 
 If a deleted planning archive contains useful context, recover only the specific
-decision, requirement, or evidence reference into an active doc/ADR/runbook with
+decision, requirement, or closeout reference into an active doc/ADR/runbook with
 current terminology. Do not restore the archive directory or treat old phase
 status as current project truth.
 
-## Current Backlog Signals
+## Active Planning Signals
 
-- Ops / QA signal: Temporal execution-control normal-path staging closeout has
-  real `nc-arm-6c` release evidence; remaining closeout work is failure-mode
-  proof for cancel, timeout, late completion, and panel/eval/operator
-  consumption. This is release/ops work, not the definition of main-chain
-  architecture completion.
+- Ops / QA signal: Temporal execution-control normal-path release closeout has
+  real `nc-arm-6c` artifacts; remaining closeout work is failure-mode coverage
+  for cancel, timeout, late completion, and panel/eval/operator consumption.
+  This is release/ops work, not the definition of main-chain architecture
+  completion.
 - Execution-plane signal: main answer path first-decision work has moved into
   the primary agent SDK loop:
   direct/no-tool turns finalize from `agent.primary`; knowledge turns use
@@ -61,16 +62,16 @@ status as current project truth.
   terminal outcomes now project as typed `needs_clarification` / `rejected`
   finalization responses. Strict SDK tool argument schema is hardened by the
   canonical `tool_function_schemas.v1` fixture and execution-control validation;
-  remaining runtime/staging proof is tracked as ops/release work.
+  remaining runtime closeout is tracked as ops/release work.
 - Operator / eval signal: step projection remains the panel/eval/operator
   diagnostic spine and carries cancel/timeout/late-completion/token/cost/
   fail-close/replan operator diagnostic evidence for local failure-mode
   projection tests.
-- Operator / eval signal: eval, badcase and future release evidence should
+- Operator / eval signal: eval, badcase and release closeout consumption should
   converge on the app-api-owned `operator_step_trajectory.v1` export. Real
-  staging closeout and Temporal metrics sampling remain deferred until the
-  runtime path is mature.
-- Ops signal: worker autoscaler remains an operations-plane proof. It reads
+  closeout and Temporal metrics sampling remain deferred until the runtime path
+  is mature.
+- Ops signal: worker autoscaler remains an operations-plane projection. It reads
   Temporal/task queue metrics and downstream budgets, outputs desired replicas,
   and never writes workflow/run/event/terminal state.
 - Tool-plane signal: notice, navigation and campus-services tools
@@ -79,29 +80,33 @@ status as current project truth.
   operator-maintained source channel base:
   manual attestations, bounded transport overrides, preview,
   publish release snapshot, audit events, and execution-control consumption of
-  published current-effective release snapshots. Remaining staging/runtime proof
+  published current-effective release snapshots. Remaining runtime closeout
   and tool-opening work belong to tool/ops tracking, not main-chain
   completion.
 - Product-plane signal: conversation attachment upload is now captured as a
   proposed PRD in `docs/product/attachments.md`. It is a
   per-message user-provided image/document context feature for `campus-web` Q&A,
   not an institution RAG ingestion path, notice/source-truth path, release
-  evidence path or long-term personal file library. Until the backend contract
+  closeout path or long-term personal file library. Until the backend contract
   and execution projection are implemented, the browser attachment entry must
   remain hidden or fail closed.
-- Tool-plane signal: dining published projection may later be exposed to
+- Tool-plane signal: dining published projection is eligible for explicit
+  product/tool admission into
   the Q&A path as a read-only `campus_services` typed tool such as
   `dining_lookup`. It must read app-api-owned published dining projection, not
   Lark / Feishu Base, raw dining draft, release candidate, source observation or
-  floorplan SVG assets. This is a future tool expansion signal, not a
+  floorplan SVG assets. This is a deferred tool expansion signal, not a
   current implementation gap until a ToolSpec / contract is accepted.
-- Document reader appendix / form downloads are deferred backlog, not part of
+- Tool-plane signal: dining operator review/apply remains deferred. If accepted,
+  it must enter through a product requirement and operations contract before
+  adding observation listing, apply or reject routes.
+- Document reader appendix / form downloads are deferred planning signals, not part of
   the current docs hardening closeout. Current reader delivery renders appendix
-  tables as reader sections/blocks. Future work should expose "download original
-  appendix" only when source truth contains a real original file asset, delivered
-  as a reader supplement under the same document version package; generated
-  table exports may be added separately but must not be labeled as original
-  source files.
+  tables as reader sections/blocks. An accepted reader supplement should
+  expose "download original appendix" only when source truth contains a real
+  original file asset, delivered under the same document version package;
+  generated table exports may be added separately but must not be labeled as
+  original source files.
 - Execution-plane signal: bounded semantic retry / replan is now implemented as
   an explicit typed
   outcome allow-list: `provider_timeout`, `tool_handler_failed`,
@@ -116,15 +121,15 @@ status as current project truth.
 ## Implementation Gap Ledger
 
 This ledger records only work that is already required by active docs/contracts
-and not yet closed by current merged code truth. It is not a place for future
-product opening, staging proof, downstream consumers, content quality, or
+and not yet closed by current merged code truth. It is not a place for deferred
+product opening, release closeout, downstream consumers, content quality, or
 badcase-driven hardening signals.
 
 Scope rules:
 
 - Include only gaps where an active doc or contract defines a target behavior and
   current code does not yet close that behavior.
-- Exclude staging proof, release evidence, content-quality maturity, product
+- Exclude release closeout, content-quality maturity, product
   opening decisions, and tools intentionally kept closed unless
   they require code to become available.
 - Exclude old-document contradictions once the owning doc has been corrected.
@@ -143,11 +148,12 @@ Current non-gaps after the doc audit:
 - Explicit personal memory upsert / disable / owner-disable and post-finalization
   inferred memory update are implemented through
   `app-api -> execution-control -> Hindsight`; Qdrant personal memory has been
-  retired. Candidate confirmation UI / strong governance remains later product
+  retired. Candidate confirmation UI / strong governance requires separate product
   work, not a current main-chain gap.
 - Campus-services read-only contracts can exist without being model-visible.
   Current model-visible campus-services exposure is limited by `tools.v4` and
-  runtime profile `open_tools`; `service_process_lookup` remains later-wave.
+  runtime profile `open_tools`; `service_process_lookup` requires separate
+  admission.
 - Notice content maturity and manual校对 work are data / quality work, not a
   generic main-chain implementation gap.
 - Go RAG `grounding.verify` is current evidence-integrity verification, not
@@ -163,5 +169,5 @@ Deferred signals that must not be treated as active implementation gaps:
   are satisfied.
 - Navigation map/route/current-location product opening after spatial truth and
   map surface work resumes.
-- Production storage, panel consumption, or release-evidence consumption of
+- Production storage, panel consumption, or release-closeout consumption of
   `retrieval.runtime_observation`.

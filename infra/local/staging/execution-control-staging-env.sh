@@ -147,7 +147,7 @@ const keys = [
   "CAMPUS_AGENT_APP_NAME",
   "AGENT_RUNTIME_PORT",
   "AGENT_RUNTIME_SHARED_SECRET",
-  "AGENT_RUNTIME_TOOL_CATALOG_PATH",
+  "AGENT_RUNTIME_TOOL_REGISTRY_PATH",
   "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
   "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
   "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
@@ -168,6 +168,10 @@ const keys = [
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
+  "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
+  "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
+  "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
+  "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_RUNTIME_PROFILE",
   "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
   "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
@@ -184,6 +188,7 @@ const keys = [
   "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
   "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
   "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+  "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
   "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
   "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
   "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
@@ -378,6 +383,7 @@ if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
 projectProviderConfigProjection();
+projectObservabilityConfigProjection();
 projectHindsightProviderConfig();
 
 const explicitLangfuseBaseURL = sourceEnvValue("LANGFUSE_BASE_URL");
@@ -411,6 +417,8 @@ if (resolvedValue("LANGFUSE_PUBLIC_KEY") && resolvedValue("LANGFUSE_SECRET_KEY")
   );
 }
 setDefault("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION", "4");
+setDefault("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", "campus-agent-runtime");
+setDefault("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", "campus-agent-runtime-metrics");
 if (!resolved.get("QDRANT_API_KEY") && sourceEnvValue("QDRANT_API_KEY")) {
   resolved.set("QDRANT_API_KEY", sourceEnvValue("QDRANT_API_KEY"));
 }
@@ -529,6 +537,20 @@ function projectProviderConfigProjection() {
   setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID", String(snapshotStat.gid));
   setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
   setValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
+}
+
+function projectObservabilityConfigProjection() {
+  const snapshotHostPath =
+    resolvedValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH") ||
+    resolvedValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH") ||
+    `${resolvedValue("EXECUTION_CONTROL_STAGING_RUNTIME_DIR") || "."}/observability-config-projection.json`;
+  const snapshotPath = "/run/campus-agent/observability-config-projection.json";
+  fs.chmodSync(snapshotHostPath, 0o600);
+  const snapshotStat = fs.statSync(snapshotHostPath);
+  setValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH", snapshotHostPath);
+  setValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID", String(snapshotStat.uid));
+  setValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID", String(snapshotStat.gid));
+  setValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH", snapshotPath);
 }
 
 function loadProviderConfigProjection() {
@@ -1011,8 +1033,8 @@ if (!resolved.has("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL")) {
 if (!resolved.has("EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS")) {
   resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "30000");
 }
-if (!resolved.has("AGENT_RUNTIME_TOOL_CATALOG_PATH")) {
-  resolved.set("AGENT_RUNTIME_TOOL_CATALOG_PATH", "configs/runtime/tool-catalog.v1.json");
+if (!resolved.has("AGENT_RUNTIME_TOOL_REGISTRY_PATH")) {
+  resolved.set("AGENT_RUNTIME_TOOL_REGISTRY_PATH", "configs/runtime/tools.v4.json");
 }
 const agentRuntimeSharedSecret =
   envValue("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
@@ -1088,6 +1110,8 @@ if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY")) {
     "staging:temporal-task-queue-sampler:001",
   );
 }
+setDefault("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", "campus-agent-runtime");
+setDefault("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", "campus-agent-runtime-metrics");
 
 for (const [key, value] of resolved.entries()) {
   process.stdout.write(`export ${key}=${JSON.stringify(value)}\n`);
@@ -1131,6 +1155,8 @@ NODE
   export OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}"
   export OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}"
   export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
+  export OTEL_COLLECTOR_AXIOM_EVENTS_DATASET="${OTEL_COLLECTOR_AXIOM_EVENTS_DATASET:-campus-agent-runtime}"
+  export OTEL_COLLECTOR_AXIOM_METRICS_DATASET="${OTEL_COLLECTOR_AXIOM_METRICS_DATASET:-campus-agent-runtime-metrics}"
 }
 
 execution_control_staging_sync_provider_config_projection() {
@@ -1150,7 +1176,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { parseEnv } = require("node:util");
 if (typeof parseEnv !== "function") {
-  throw new Error("node:util.parseEnv is required for staging provider projection sync");
+  throw new Error("node:util.parseEnv is required for staging projection sync");
 }
 
 const fileEnv = new Map();
@@ -1185,11 +1211,15 @@ function fileEnvValue(key) {
   return fileEnv.get(key)?.trim() || "";
 }
 
-const output =
+const providerOutput =
   sourceEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH") ||
   fileEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   fileEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   path.join(runtimeDir, "provider-config-projection.json");
+const observabilityOutput =
+  sourceEnvValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH") ||
+  fileEnvValue("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH") ||
+  path.join(runtimeDir, "observability-config-projection.json");
 
 const appApiBaseUrl = (
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
@@ -1202,37 +1232,42 @@ const sharedSecret =
   sourceEnvValue("APP_API_INTERNAL_SHARED_SECRET") ||
   sourceEnvValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
 if (!sharedSecret) {
-  if (fs.existsSync(output)) {
+  if (fs.existsSync(providerOutput) && fs.existsSync(observabilityOutput)) {
     process.exit(0);
   }
   throw new Error(
-    "provider-config projection sync requires APP_API_INTERNAL_SHARED_SECRET or EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
+    "provider-config and observability-config projection sync requires APP_API_INTERNAL_SHARED_SECRET or EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET unless both artifacts already exist",
   );
 }
 
-const syncScript = path.join(repoRoot, "scripts", "sync-provider-config-projection.mjs");
-const result = spawnSync(
-  process.execPath,
-  [
-    syncScript,
-    "--app-api-base-url",
-    appApiBaseUrl,
-    "--internal-shared-secret",
-    sharedSecret,
-    "--output",
-    output,
-  ],
-  {
-    cwd: repoRoot,
-    env: process.env,
-    stdio: ["ignore", "ignore", "inherit"],
-  },
-);
-if (result.error) {
-  throw result.error;
-}
-if (result.status !== 0) {
-  process.exit(result.status ?? 1);
+runSyncScript("sync-provider-config-projection.mjs", providerOutput);
+runSyncScript("sync-observability-config-projection.mjs", observabilityOutput);
+
+function runSyncScript(scriptName, output) {
+  const syncScript = path.join(repoRoot, "scripts", scriptName);
+  const result = spawnSync(
+    process.execPath,
+    [
+      syncScript,
+      "--app-api-base-url",
+      appApiBaseUrl,
+      "--internal-shared-secret",
+      sharedSecret,
+      "--output",
+      output,
+    ],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: ["ignore", "ignore", "inherit"],
+    },
+  );
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 }
 NODE
 }
@@ -1420,8 +1455,8 @@ execution_control_staging_require_runtime_env_core() {
     echo "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET and AGENT_RUNTIME_SHARED_SECRET must match." >&2
     return 1
   fi
-  if [[ -z "${AGENT_RUNTIME_TOOL_CATALOG_PATH:-}" ]]; then
-    echo "AGENT_RUNTIME_TOOL_CATALOG_PATH is required for primary agent runtime tool catalog." >&2
+  if [[ -z "${AGENT_RUNTIME_TOOL_REGISTRY_PATH:-}" ]]; then
+    echo "AGENT_RUNTIME_TOOL_REGISTRY_PATH is required for primary agent runtime tool registry." >&2
     return 1
   fi
   if [[ -z "${AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL:-}" ]]; then

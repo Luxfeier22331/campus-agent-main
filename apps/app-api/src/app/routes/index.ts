@@ -16,6 +16,7 @@ import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
 import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
+import { registerObservabilityConfigRoutes } from "./observability-config";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
@@ -119,6 +120,12 @@ export function registerAppRoutes(input: {
 		getPrincipal: input.getPrincipal,
 	});
 	registerProviderConfigRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerObservabilityConfigRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

@@ -37,7 +37,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-app-api-internal-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
@@ -92,7 +92,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-app-api-internal-secrets
           env:
             - name: POD_NAMESPACE
               valueFrom:

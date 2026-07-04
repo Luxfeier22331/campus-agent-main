@@ -11,6 +11,12 @@ updated: 2026-06-13
 
 <!-- markdownlint-disable MD013 -->
 
+## Document Boundary
+
+This document owns app-api logical data shape for auth, chat, docs reader and
+profile-memory projection tables. It does not own Better Auth adapter internals,
+browser UX, execution runtime contracts or runbook procedures.
+
 ## `app_auth.*`
 
 `app_auth.*` 由 Better Auth 拥有。
@@ -148,7 +154,7 @@ updated: 2026-06-13
 - 不保存 raw prompt、raw answer、provider response、retrieval payload 或 auth material
 - `request_id` 用于和请求执行事实关联，帮助定位对应 `requestId` / `traceId`
 - `chat.message_feedback` 是产品侧反馈事实，不是在线 Operator Console 的
-  quality dashboard、eval candidate queue 或 release evidence 面板输入
+  quality dashboard、eval candidate queue 或 release-closeout panel 输入
 - `vote=unhelpful` 只能作为后续人工分析或 Langfuse / eval 平台导入的受控来源；导入能力
   必须另有显式 contract，不能从这张表隐式打开
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
@@ -276,9 +282,10 @@ updated: 2026-06-13
 
 规则：
 
-- Phase 2 首发只开放 `visibility_level=public`、`delivery_mode=public_static_asset` 且无
-  entitlement groups 的 public current subset
-- `gated_asset` 只能进入受控 delivery phase，不得误入匿名 docs static bundle
+- 当前匿名 docs reader 只开放 `visibility_level=public`、
+  `delivery_mode=public_static_asset` 且无 entitlement groups 的 public current
+  subset
+- `gated_asset` 只能进入受控 delivery path，不得误入匿名 docs static bundle
 
 ## `docs.reader_assets`
 

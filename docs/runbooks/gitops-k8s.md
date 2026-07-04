@@ -12,7 +12,7 @@ updated: 2026-07-04
 
 This runbook is the operational entry for the target K8s GitOps skeleton. It
 does not replace the current Docker staging runbooks until K8s staging is
-actually serving traffic and has E2E evidence.
+actually serving traffic and has release closeout artifacts.
 
 ## Preflight
 
@@ -27,12 +27,12 @@ kubectl kustomize infra/k8s/dining-sync/overlays/staging
 The GitOps static check must pass before using `infra/gitops/apps/*.yaml`.
 
 The first K8s staging profile is non-HA by default. Do not use this skeleton as
-production evidence until a separate production overlay or Application set has
+production closeout material until a separate production overlay or Application set has
 accepted HA sizing, backup, ingress, Access and release gates.
 
 ## nc-arm-6c Slim Staging
 
-`nc-arm-6c` 的第一阶段 K8s proof 使用 slim overlay：
+`nc-arm-6c` 的第一阶段 K8s validation 使用 slim overlay：
 
 ```bash
 kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
@@ -98,11 +98,17 @@ infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
 渲染前必须确认 `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 与
 `QDRANT_TLS_CA_CERT_PATH` 指向真实文件。渲染结果必须包含真实
 `EXECUTION_CONTROL_RUNTIME_RELEASE`，例如 `execution-control@<sha>`，不得使用占位值。
-渲染结果必须至少包含 `execution-runtime-rendered-config`、
-`execution-runtime-secrets`、`execution-runtime-provider-config-projection` 与
-`execution-runtime-qdrant-tls-ca`；非敏感 URL / model / endpoint / bucket
-配置进入 `execution-runtime-rendered-config`，token / password / DSN / key 进入
-`execution-runtime-secrets`。
+默认 `EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`，渲染结果必须包含
+`execution-runtime-rendered-config`、`execution-control-secrets`、
+`execution-worker-common-secrets`、`execution-agent-client-secrets`、
+`agent-runtime-secrets`、`execution-memory-client-secrets`、
+`execution-rag-secrets`、`execution-control-internal-query-secrets`、
+`execution-runtime-provider-config-projection` 与
+`execution-runtime-qdrant-tls-ca`。不要创建已退役的单体
+`execution-runtime-secrets`。非敏感 endpoint / path / runtime release 配置进入
+`execution-runtime-rendered-config`，token / password / DSN / key 进入对应
+role-scoped Secret。模型/provider active profile 不进入 ConfigMap / Secret；online
+runtime 通过 `execution-runtime-provider-config-projection` 文件消费。
 
 在 apply slim overlay 前，必须停止 Docker 中会重复消费 Temporal queue 的
 `execution-control`、`agent-runtime` 和 worker 容器；Temporal、Hindsight、
@@ -164,4 +170,4 @@ Do not describe K8s/Argo CD as live staging truth until these are all true:
 - `platform-keda` and `platform-external-secrets` sync successfully.
 - `execution-runtime-staging` syncs and all pods pass readiness.
 - app-api staging points to the K8s execution-control ingress/service.
-- A real staging chat proof and runtime projection evidence have passed.
+- A real staging chat closeout and runtime projection closeout artifact have passed.

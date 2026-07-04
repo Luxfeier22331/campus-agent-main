@@ -63,7 +63,7 @@ function parseArgs(argv, env = process.env) {
 
 function assertNoDirectRuntimeRequests(records) {
 	const forbidden = records.filter((record) =>
-		/temporal|execution-control|sentry|axiom|postgres|pg\b/i.test(record.url),
+		/temporal|execution-control|sentry|axiom|langfuse|postgres|pg\b/i.test(record.url),
 	);
 	if (forbidden.length > 0) {
 		throw new Error(
@@ -123,6 +123,7 @@ async function main() {
 			["/", "operator-shell.png"],
 			["/requests", "operator-requests.png"],
 			["/operations/provider-config", "operator-provider-config.png"],
+			["/operations/observability", "operator-observability-config.png"],
 		];
 		for (const [path, screenshotName] of routes) {
 			await visit(page, path, args.evidenceDir, screenshotName);

@@ -59,7 +59,7 @@ projection ingest -> Operator Console list/detail query`
     list/detail query
 - `runtime / serving seam`
   - notice discover/get runtime、regulation
-    downstream、future serving rollout
+    downstream、explicit serving admission posture
 
 这四层不得混写成一层“通知系统”。
 
@@ -80,8 +80,8 @@ projection ingest -> Operator Console list/detail query`
     contract。
 - `wechat_official_account`
   - 公开公众号通知源
-  - 当前已验证真实 WeChat 页面抓取、正文与媒体同 run capture、
-    source-truth schema 与 offline projection handoff
+  - source-channel boundary includes real WeChat page capture, article body +
+    same-run media capture, source-truth schema and offline projection handoff
 
 统一约束：
 
@@ -267,13 +267,13 @@ document center 旧设想已退役，不属于当前主问答产品目标。
 - 不得把 wrapper notices、capture evidence 或 source holding
   直接冒充成 regulation canonical surface
 - `annual_cycle_rule` 与 `time_bound_operational_rule` 的 target collection 固定为
-  `regulations/scoped_rules`；默认 query admission、future metadata filter 与
+  `regulations/scoped_rules`；默认 query admission、metadata filter admission 与
   scoped-rule reopen 条件统一看
   `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 
 ## WeChat Official Account Placement
 
-`wechat_official_account` 当前已经具备：
+`wechat_official_account` source-channel posture：
 
 - source-truth schema
 - real `mp.weixin.qq.com` page capture boundary

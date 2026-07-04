@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-07-02
+updated: 2026-07-04
 ---
 # Dining Operations Schema
 
@@ -274,7 +274,7 @@ Rules:
   stall/window
 - provider, config, object-store or DB failures are sync-run failures; they are
   not converted into blocked source observations
-- future manual apply/reject, if accepted later, must be explicit operator
+- manual apply/reject, if accepted later, must be explicit operator
   commands and must not be hidden in app-api readers
 
 ### `dining.source_sync_runs`
@@ -595,25 +595,8 @@ attachments to the public S3-compatible review prefix, lands
 `feishu_review` observations, and writes `dining.review_projections` from
 active accepted review observations.
 
-## Launch Path
+## Operational Runbook
 
-The launch path is explicit:
-
-```text
-apply dining DB migrations
--> run jobs/dining-sync publish-catalog with production Feishu/Lark app credentials
-   OR publish-catalog-from-observations if PG observations were already synced
--> run jobs/dining-sync sync-all for catalog + review sync
-   (or pnpm --dir jobs/dining-sync sync, which invokes sync-all)
--> run jobs/dining-sync verify-published against the same DB
--> start app-api and campus-web against the same PG/object-store environment
--> verify /api/dining/halls and one floor/review route through campus-web
-```
-
-`apps/app-api` does not auto-import dining fixture data during startup and does
-not fall back to fixture data if the published snapshot is missing. If a local
-environment needs a catalog before Feishu/Lark credentials are configured, run
-`import-dev-seed` as an explicit one-shot. Production must run `publish-catalog`.
-`verify-published` is read-only and must not be treated as a sync or repair
-command; failures mean the preceding migration/sync/publish/object projection
-steps need correction.
+Repeatable launch and verification steps belong to
+`docs/runbooks/dining-sync.md`. This data document only owns the logical schema
+and data ownership rules that those steps operate on.

@@ -96,6 +96,7 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	const requiredStepIds = assertRequiredStepIds(repoOwnedObservations, input.requiredStepIds ?? []);
 	return {
 		contract_checked_observation_count: repoOwnedObservations.length,
+		forbidden_check_passed: true,
 		non_repo_observation_count: observations.length - repoOwnedObservations.length,
 		observation_count: observations.length,
 		required_step_ids: requiredStepIds,

@@ -24,7 +24,7 @@ updated: 2026-06-11
 - 具体 migration 文件名
 - 物理分库 / 分区策略
 - SQL DDL 的完整列类型和索引语法
-- 当前代码是否已实现这些表
+- implementation completion status
 - Temporal internal workflow history schema
 
 稳定 contract 见：
@@ -227,7 +227,7 @@ projection spine。
 - `agent_run_steps` 表达 workflow plan admitted 的 typed execution unit。
 - `agent_step_attempts` 表达 Temporal activity attempt / worker execution evidence。
 - `agent_step_results` 表达 bounded sanitized output projection。
-- panel、eval、badcase 与 release evidence 只能读取这些 projection 或由 app-api
+- panel、eval、badcase 与 operational diagnostic artifact 只能读取这些 projection 或由 app-api
   materialize 的 read model，不读取 Temporal raw history、runtime event string 或
   provider trace。
 - cancel、timeout、fail-close、late completion、bounded replan、provider abort

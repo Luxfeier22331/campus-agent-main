@@ -4,9 +4,11 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-07-04
 ---
 # Runtime OTel Telemetry Taxonomy
+
+## Boundary
 
 This document freezes the repo-owned telemetry taxonomy for the runtime OTel
 bridge. It defines where OTel SDKs are allowed, which runtime owns each signal,
@@ -233,12 +235,61 @@ repo-owned run/step projections, score metadata or metrics labels. Secrets,
 credentials, auth material, cookies, JWTs, database URLs, object-store secrets
 and raw Hindsight refs remain forbidden in every lane.
 
+Current LLM debug trace implementation exports only to Langfuse OTLP when an
+app-api-owned operator config is projected through execution-control and passed
+request-scoped to agent-runtime. Agent-runtime does not own environment
+variables for this behavior. The repo-owned projection surface may carry only
+safe `debug_trace_refs` and `stage_timing.v1` fields defined in
+`../contracts/stage-timing.md`; raw OTLP bodies and SDK trace payloads stay in
+the external sink.
+
+## Stage Timing Projection
+
+`stage_timing.v1` is the repo-owned request latency projection. It is not an
+OTel schema, Langfuse trace body, SDK trace payload or Temporal history shape.
+
+Allowed timing fields are fixed by `../contracts/stage-timing.md`. Runtime
+adapters and Collector/backend aggregation may derive low-cardinality latency
+histograms from those fields, using the field name as a bounded stage label.
+They must not derive metric labels from request ids, user ids, raw URLs, raw
+errors, arbitrary tool names or vendor span names.
+
+Provider-internal queue timing is not a required repo-owned field. If an
+external sink exposes provider queue detail, it remains debug-sink detail unless
+an explicit contract admits a safe projection.
+
+App-api emits `request.stage_timing` as the bounded runtime event for this
+projection. Each event may contain only:
+
+- `stage_field`: canonical `stage_timing.v1` field
+- `duration_ms`: finite non-negative duration
+- `budget_state`: `within_budget`, `warn` or `critical`
+- normal request correlation fields admitted by the runtime event sanitizer
+
+The event must not carry raw SDK spans, provider queue internals, raw model IO,
+raw retrieval snippets or Temporal history.
+
+The app-api OTLP adapter also emits `campus.app_api.stage_duration_ms` for
+`request.stage_timing`. Its metric attributes are limited to `stage_field`,
+`surface`, `status`, `selected_tool` and `budget_state`; request ids and trace
+ids remain trace/log correlation fields, not metric labels.
+
 ## Metrics Derived From Events
 
 Runtime adapters or Collector/backend aggregation may derive these low-cardinality metrics:
 
 - request count by surface/tool/status
 - request latency histogram
+- stage timing histogram by `stage_timing.v1` field
+- execution-control activity duration, queue wait and schedule-to-start
+  histograms:
+  - `campus.execution_control.activity_duration_ms`
+  - `campus.execution_control.queue_wait_ms`
+  - `campus.execution_control.schedule_to_start_ms`
+- execution-control runtime request/error/decision counters:
+  - `campus.execution_control.runtime_requests`
+  - `campus.execution_control.runtime_errors`
+  - `campus.execution_control.runtime_decisions`
 - bridge latency and queue wait histogram
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state
 - retrieval no-hit / low-confidence / forbidden-hit count
@@ -254,7 +305,7 @@ Raw document ids, raw query hashes and source urls must not become metric labels
 
 ## Focused Verification Expectations
 
-Phase implementations must add or maintain tests for:
+Runtime implementations must add or maintain tests for:
 
 - disabled telemetry is a no-op
 - missing endpoint when enabled reports degraded telemetry health and fails closed on configured product paths

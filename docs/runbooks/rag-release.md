@@ -19,7 +19,8 @@ Current covered surfaces:
 - `curriculum/curriculum_plan`
 
 It does not own source-truth cleaning rules, split-manifest policy, eval
-denominators, Execution Agent Layer routing, or one-off release evidence.
+denominators, Execution Agent Layer routing, or one-off release closeout
+artifacts.
 
 ## Source Of Truth
 
@@ -76,7 +77,7 @@ projection are present, including `entitlement_groups`, `visibility_scope`,
 1. Run Ragas trace or materialized-dataset scoring in validate-only mode before
    publishing scores.
 1. Save one sanitized release acceptance result for runtime-owner closeout and
-   Langfuse/Ragas evidence.
+   Langfuse/Ragas closeout review.
 
 Expected result artifact names:
 
@@ -130,7 +131,7 @@ pnpm --dir packages/eval-langfuse langfuse sync-datasets \
 pnpm --dir packages/eval-langfuse langfuse sync-score-configs --dry-run --json
 ```
 
-## Evidence Template
+## Closeout Artifact Template
 
 Every fresh release acceptance should record:
 

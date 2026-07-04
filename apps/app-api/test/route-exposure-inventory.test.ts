@@ -19,6 +19,7 @@ const routeFiles = [
 	"federation.ts",
 	"identity-platform.ts",
 	"internal.ts",
+	"observability-config.ts",
 	"official-web.ts",
 	"operator.ts",
 	"profile-memory.ts",

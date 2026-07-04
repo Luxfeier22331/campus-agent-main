@@ -11,9 +11,11 @@ updated: 2026-07-04
 
 `docs/` is the long-lived documentation surface for `campus-agent`.
 
-The repository uses a Source-of-Truth documentation architecture. Read
-`documentation-architecture.md` first when a question depends on which document
-class owns a fact.
+The repository uses mature documentation standards with a thin Source-of-Truth
+mapping layer. Use Diataxis, MADR / ADR, OpenAPI / JSON Schema, RFC 2119 / RFC
+8174 and GitHub's native templates for their respective surfaces. Read
+`documentation-architecture.md` when a question depends on which document owns a
+fact or which document wins a conflict.
 
 ## Question Routing
 
@@ -30,7 +32,7 @@ class owns a fact.
   - [architecture/current.md](./architecture/current.md)
 - Long-term architecture invariants:
   - [architecture/target.md](./architecture/target.md)
-- Documentation truth classes and conflict resolution:
+- Documentation standards mapping, truth classes and conflict resolution:
   - [documentation-architecture.md](./documentation-architecture.md)
 - Main question-answer chain semantics:
   - [architecture/system/execution-agent-layer.md](./architecture/system/execution-agent-layer.md)
@@ -41,14 +43,18 @@ class owns a fact.
   - [architecture/system/durable-runtime.md](./architecture/system/durable-runtime.md)
   - [contracts/durable-runtime.md](./contracts/durable-runtime.md)
 - Langfuse LLM observability and eval platform:
+  - [architecture/system/learning-loop.md](./architecture/system/learning-loop.md)
   - [product/langfuse-evals.md](./product/langfuse-evals.md)
   - [architecture/system/langfuse.md](./architecture/system/langfuse.md)
   - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
+  - [contracts/stage-timing.md](./contracts/stage-timing.md)
+  - [reference/observability-ledger.md](./reference/observability-ledger.md)
   - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
   - [decisions/adr-0062-ragas-langfuse.md](./decisions/adr-0062-ragas-langfuse.md)
   - [reference/eval.md](./reference/eval.md)
   - [reference/eval-map.md](./reference/eval-map.md)
   - [runbooks/eval-ragas.md](./runbooks/eval-ragas.md)
+  - [runbooks/eval-operations-governance.md](./runbooks/eval-operations-governance.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
   - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
 - Runtime config, GitOps and secret delivery decisions:
@@ -85,7 +91,7 @@ class owns a fact.
   - [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
   - [policies/public-source-data.md](./policies/public-source-data.md)
   - [reference/open-source-data.md](./reference/open-source-data.md)
-- Current work map and backlog signals:
+- Active planning signals:
   - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
 - Account center, identity product projection and federation boundary:
@@ -95,6 +101,7 @@ class owns a fact.
   - [contracts/app-api/identity.md](./contracts/app-api/identity.md)
   - [contracts/app-api/federation.md](./contracts/app-api/federation.md)
   - [data/identity-platform.md](./data/identity-platform.md)
+  - [runbooks/mucwiki-federation.md](./runbooks/mucwiki-federation.md)
 - campus-web docs reader, Rspress delivery and Q&A source-card jumps:
   - [architecture/system/document-site.md](./architecture/system/document-site.md)
   - [domains/source-card.md](./domains/source-card.md)
@@ -108,6 +115,7 @@ class owns a fact.
   - [contracts/app-api/dining.md](./contracts/app-api/dining.md)
   - [contracts/app-api/dining-ops.md](./contracts/app-api/dining-ops.md)
   - [data/dining.md](./data/dining.md)
+  - [runbooks/dining-sync.md](./runbooks/dining-sync.md)
 
 ## Documentation Areas
 
@@ -138,9 +146,9 @@ class owns a fact.
 
 ## Non-Ownership Rules
 
-- `.planning/` is a compact work map. It does not override architecture,
+- `.planning/` is a compact planning signal surface. It does not override architecture,
   contract, data or ADR truth.
-- `runbooks/` define operational procedures and release evidence. They do not
+- `runbooks/` define operational procedures and release-closeout artifacts. They do not
   define whether the main answer chain is architecturally complete.
 - Domain/tool docs define local readiness. They do not
   redefine main-chain completion.

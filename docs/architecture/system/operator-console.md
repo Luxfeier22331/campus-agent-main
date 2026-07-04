@@ -19,7 +19,7 @@ operations domain 重新进入 Operator Console 的准入条件。
 - Worker shell 与 `app-api` 受控转发路由清单如何分层
 - provider/model/API key 在线配置如何进入同一个 operator data surface
 - dining operations 这类长期 domain 如何在未来重新开放
-- 为什么未实现 operations domains 不能以占位路由、隐藏 proxy 或假就绪指标进入当前产品面
+- 为什么未开放 operations domains 不能以占位路由、隐藏 proxy 或假就绪指标进入当前产品面
 
 它不负责：
 
@@ -79,6 +79,9 @@ operator browser
   - `PATCH /api/operator/provider-config/profiles/:profileId`
   - `POST /api/operator/provider-config/profiles/:profileId/validate`
   - `POST /api/operator/provider-config/profiles/:profileId/activate`
+- proxy explicit observability configuration routes:
+  - `GET /api/operator/observability-config/llm-debug-trace`
+  - `PATCH /api/operator/observability-config/llm-debug-trace`
 - reject unknown `/api/*`
 - reject `/api/federation/*`
 - reject `/api/auth/*`
@@ -111,17 +114,20 @@ Current implemented routes:
 - `/` redirects to `/requests`
 - `/requests`
 - `/operations/provider-config`
+- `/operations/observability`
 
 Current navigation labels:
 
 - `请求与运行`
 - `模型服务配置`
+- `观测配置`
 
 Current UI implementation rules:
 
 - 通用 buttons、inputs、selects、sheet、card 与 table primitives 使用 shadcn/Radix
   wrappers
-- provider configuration form 使用 `react-hook-form` + `zod`
+- provider configuration 与 observability configuration forms 使用 `react-hook-form`
+  与 `zod`
 - 页面 copy 只描述 operator 要完成的工作，不暴露 `app-api` projection、Worker
   proxy、Temporal、internal route 或架构组件名作为用户说明
 - 领域 workspace 被移出当前导航后，对应 proxy route 也必须同时移除
@@ -146,7 +152,7 @@ Rules:
 - The page must show backend query errors as errors; it must not disguise
   failed reads as an empty list.
 - The page must not expose raw telemetry, Temporal history, raw traces, raw
-  prompts, raw answers, release evidence or offline eval results.
+  prompts, raw answers, release-closeout artifacts or offline eval results.
 - Request detail, step trajectory and observability drilldown are not current
   UI workflows. Their proxy routes must remain absent until a visible request
   detail workflow is deliberately restored.
@@ -181,7 +187,7 @@ not compatible with active retrieval vector dimensions. App-api performs that
 check by calling execution-control internal
 `/internal/provider-config/embedding:check-compatibility` with candidate
 metadata only; raw API keys stay in app-api encrypted persistence and are not
-sent to the compatibility endpoint. The UI may show validation and activation
+sent to the validation endpoint. The UI may show validation and activation
 errors, but it must not invent fallback provider values or expose raw API keys.
 
 ## Dining Workspace Reopening Contract
@@ -234,14 +240,15 @@ truth.
 - Do not expose fake readiness for domains that are not in the current
   navigation and route table.
 - Do not keep hidden proxy routes for pages removed from the current UI.
-- Do not put offline eval, release evidence, raw trace or sink explorer
+- Do not put offline eval, release-closeout artifacts, raw trace or sink explorer
   workflows in the online Ops Panel.
 
-## Staging Surface
+## Staging Boundary
 
 Staging route target is `https://panel-staging.mucwiki-edge.link`.
 
-Current minimal staging acceptance requires:
+Minimal release closeout for the staging Operator Console surface is
+runbook-owned and must cover:
 
 - unauthorized user cannot access the Operator Console shell or minimal ops APIs
 - operator can open `/requests`
@@ -252,5 +259,5 @@ Current minimal staging acceptance requires:
   routes
 - removed domains return 404 through the Worker rather than proxying upstream
 
-Dining staging acceptance only applies when dining is explicitly returned to
+Dining release closeout applies only when dining is explicitly returned to
 release scope.

@@ -15,6 +15,10 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 		tmp,
 		"infra/local/.generated/provider-config-projection.json",
 	);
+	const observabilityConfigSnapshotHostPath = path.join(
+		tmp,
+		"infra/local/.generated/observability-config-projection.json",
+	);
 	const repoEnvPath = path.join(tmp, ".env");
 	const appApiEnvPath = path.join(tmp, "app-api.env");
 	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
@@ -35,6 +39,7 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 			].join("\n"),
 	);
 	await writeProviderConfigProjection(providerConfigSnapshotHostPath);
+	await writeObservabilityConfigProjection(observabilityConfigSnapshotHostPath);
 	await writeFile(appApiEnvPath, "");
 	await writeFile(
 		appApiDevVarsPath,
@@ -68,6 +73,7 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 			composeProjectName: "campus-runtime-test",
 			env: {},
 			generatedRuntimeEnvPath,
+			observabilityConfigSnapshotHostPath,
 			providerConfigSnapshotHostPath,
 			repoEnvPath,
 			repoRoot: tmp,
@@ -93,6 +99,16 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 		);
 		assert.equal(result.env.EXECUTION_CONTROL_COMPOSE_PROJECT_NAME, "campus-runtime-test");
 		assert.match(result.env.EXECUTION_CONTROL_RUNTIME_RELEASE, /^execution-control@/);
+		assert.equal(
+			result.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH,
+			"/run/campus-agent/observability-config-projection.json",
+		);
+		assert.equal(
+			result.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH,
+			observabilityConfigSnapshotHostPath,
+		);
+		assert.match(result.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID, /^\d+$/);
+		assert.match(result.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID, /^\d+$/);
 		assert.equal(result.env.EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS, "30000");
 		assert.equal(result.env.EXECUTION_CONTROL_TIMEOUT_MS, "30000");
 		assert.equal(result.env.LANGFUSE_BASE_URL, "http://127.0.0.1:3000");
@@ -102,6 +118,11 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 		);
 		assert.equal(result.env.OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION, "4");
 		assert.match(result.env.OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER, /^Basic [A-Za-z0-9+/=]+$/);
+		assert.equal(result.env.OTEL_COLLECTOR_AXIOM_EVENTS_DATASET, "campus-agent-runtime");
+		assert.equal(
+			result.env.OTEL_COLLECTOR_AXIOM_METRICS_DATASET,
+			"campus-agent-runtime-metrics",
+		);
 		assert.equal(result.env.APP_API_OTEL_INGEST_ENDPOINT, "http://127.0.0.1:4318");
 		assert.equal(
 			result.env.EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS,
@@ -248,6 +269,10 @@ test("projectLocalRuntimeEnv derives Langfuse collector values from canonical ke
 			`Basic ${Buffer.from("pk-lf-dev:sk-lf-dev").toString("base64")}`,
 		);
 		assert.equal(result.env.OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION, "4");
+		assert.equal(
+			result.env.OTEL_COLLECTOR_AXIOM_METRICS_DATASET,
+			"campus-agent-runtime-metrics",
+		);
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
 	}
@@ -390,6 +415,27 @@ async function writeProviderConfigProjection(filePath) {
 						transport: "embeddings",
 					},
 				},
+			},
+			null,
+			2,
+		)}\n`,
+	);
+}
+
+async function writeObservabilityConfigProjection(filePath) {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	await writeFile(
+		filePath,
+		`${JSON.stringify(
+			{
+				generated_at: "2026-07-02T00:00:00.000Z",
+				llm_debug_trace: {
+					include_model_io: false,
+					mode: "off",
+					sample_ratio: 1,
+					schema_version: "llm_debug_trace_config.v1",
+				},
+				schema_version: "observability_config_projection.v1",
 			},
 			null,
 			2,

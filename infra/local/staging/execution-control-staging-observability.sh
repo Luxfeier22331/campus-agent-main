@@ -65,6 +65,7 @@ execution_control_staging_require_observability_sink_env() {
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT \
     OTEL_COLLECTOR_AXIOM_AUTH_HEADER \
     OTEL_COLLECTOR_AXIOM_EVENTS_DATASET \
+    OTEL_COLLECTOR_AXIOM_METRICS_DATASET \
     OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT \
     OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER \
     OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION; do
@@ -83,6 +84,10 @@ execution_control_staging_require_observability_sink_env() {
 
   if [[ "${OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}" != "campus-agent-runtime" ]]; then
     echo "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET must be campus-agent-runtime." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_AXIOM_METRICS_DATASET}" != "campus-agent-runtime-metrics" ]]; then
+    echo "OTEL_COLLECTOR_AXIOM_METRICS_DATASET must be campus-agent-runtime-metrics." >&2
     return 1
   fi
   if [[ "${OTEL_COLLECTOR_AXIOM_AUTH_HEADER}" != Bearer\ * ]]; then

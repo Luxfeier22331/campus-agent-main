@@ -1,3 +1,8 @@
+import {
+	type DebugTraceRef,
+	debugTraceRefsForConfig,
+	type LlmDebugTraceConfig,
+} from "./debug-trace.ts";
 import type { JsonObjectSchema, ToolCatalog, ToolCatalogEntry } from "./tool-catalog.ts";
 import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
@@ -9,6 +14,7 @@ export interface PrimaryAgentRunInput {
 	input: string;
 	visibleToolNames: string[];
 	providerConfig: PromptProviderRuntimeConfig;
+	debugTraceConfig?: LlmDebugTraceConfig;
 	finalModelContext?: FinalModelContext;
 	memoryContext?: PersonalMemoryContext;
 	memoryProjectionRefs?: string[];
@@ -148,6 +154,7 @@ export interface AgentRunnerInput {
 	runId: string;
 	traceId: string;
 	providerConfig: PromptProviderRuntimeConfig;
+	debugTraceConfig?: LlmDebugTraceConfig;
 	signal?: AbortSignal;
 }
 
@@ -158,6 +165,7 @@ export interface AgentRunnerResult {
 	toolCalls: RunnerToolCall[];
 	traceRef: string;
 	usage: UsageSummary;
+	debugTraceRefs?: DebugTraceRef[];
 }
 
 export type AgentRunner = (input: AgentRunnerInput) => Promise<AgentRunnerResult>;
@@ -174,7 +182,9 @@ export interface PrimaryAgentRunResult {
 	modelProvider: string;
 	providerResponseId: string;
 	sdkTraceRef: string;
+	debugTraceRefs: DebugTraceRef[];
 	selectedTools: string[];
+	stageTiming: Record<string, number>;
 	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
 	toolResults: ToolExecutionResult[];
 	terminalReason:
@@ -227,20 +237,23 @@ export function createPrimaryAgentRuntime(
 		input: PrimaryAgentRunInput,
 		runner: AgentRunner,
 	): Promise<PrimaryAgentRunResult> => {
+		const startedAt = new Date();
 		const runnerInput = primaryAgentRunnerInput(input, options.catalog, executor, instructions);
 		const result = await runner(runnerInput);
-		return primaryAgentRunResultFromRunnerResult(input, result);
+		return primaryAgentRunResultFromRunnerResult(input, result, stageTiming(startedAt, new Date()));
 	};
 	return {
 		async run(input) {
 			return runWithAgentRunner(input, options.runner);
 		},
 		async *stream(input) {
+			const startedAt = new Date();
 			const streamingRunner = options.streamingRunner;
 			if (!streamingRunner) {
 				throw new Error("streaming agent runner is required");
 			}
 			let completed = false;
+			let firstDeltaAt: Date | undefined;
 			for await (const item of streamingRunner(
 				primaryAgentRunnerInput(input, options.catalog, executor, instructions),
 			)) {
@@ -248,10 +261,15 @@ export function createPrimaryAgentRuntime(
 					completed = true;
 					yield {
 						event: "completed",
-						data: primaryAgentRunResultFromRunnerResult(input, item),
+						data: primaryAgentRunResultFromRunnerResult(
+							input,
+							item,
+							stageTiming(startedAt, new Date(), firstDeltaAt),
+						),
 					};
 					continue;
 				}
+				firstDeltaAt ??= new Date();
 				yield {
 					event: "answer_delta",
 					data: item,
@@ -303,6 +321,7 @@ function primaryAgentRunnerInput(
 		runId: input.runId,
 		traceId: input.traceId,
 		providerConfig: input.providerConfig,
+		debugTraceConfig: input.debugTraceConfig,
 		signal: input.signal,
 	};
 }
@@ -310,6 +329,7 @@ function primaryAgentRunnerInput(
 function primaryAgentRunResultFromRunnerResult(
 	input: PrimaryAgentRunInput,
 	result: AgentRunnerResult,
+	timing: Record<string, number>,
 ): PrimaryAgentRunResult {
 	const toolResults = result.toolCalls
 		.map((call) => call.result)
@@ -324,7 +344,9 @@ function primaryAgentRunResultFromRunnerResult(
 			modelProvider: input.providerConfig.provider,
 			providerResponseId: result.providerResponseId,
 			sdkTraceRef: result.traceRef,
+			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
+			stageTiming: timing,
 			toolResults,
 			terminalReason: "agent_runtime_failed",
 			usage: result.usage,
@@ -344,7 +366,9 @@ function primaryAgentRunResultFromRunnerResult(
 			modelProvider: input.providerConfig.provider,
 			providerResponseId: result.providerResponseId,
 			sdkTraceRef: result.traceRef,
+			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
+			stageTiming: timing,
 			toolResults,
 			terminalReason: "agent_runtime_failed",
 			usage: result.usage,
@@ -361,12 +385,32 @@ function primaryAgentRunResultFromRunnerResult(
 		modelProvider: input.providerConfig.provider,
 		providerResponseId: result.providerResponseId,
 		sdkTraceRef: result.traceRef,
+		debugTraceRefs: debugTraceRefs(input, result),
 		selectedTools: result.toolCalls.map((call) => call.name),
+		stageTiming: timing,
 		terminalEnvelope: result.terminalEnvelope,
 		toolResults,
 		terminalReason,
 		usage: result.usage,
 	};
+}
+
+function debugTraceRefs(input: PrimaryAgentRunInput, result: AgentRunnerResult): DebugTraceRef[] {
+	return result.debugTraceRefs ?? debugTraceRefsForConfig(input.debugTraceConfig, input.traceId);
+}
+
+function stageTiming(
+	startedAt: Date,
+	completedAt: Date,
+	firstDeltaAt?: Date,
+): Record<string, number> {
+	const timing: Record<string, number> = {
+		"agent.runtime_ms": Math.max(0, completedAt.getTime() - startedAt.getTime()),
+	};
+	if (firstDeltaAt) {
+		timing["agent.first_delta_ms"] = Math.max(0, firstDeltaAt.getTime() - startedAt.getTime());
+	}
+	return timing;
 }
 
 function isAgentRunnerResult(

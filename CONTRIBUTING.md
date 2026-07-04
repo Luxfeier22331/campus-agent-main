@@ -113,6 +113,9 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 
 ## 文档与规划分工
 
+- 新增或重写文档时，先选成熟文档模式，再选 repo owner class：Diataxis 承接 tutorial /
+  how-to / reference / explanation，MADR / Nygard 承接 ADR，OpenAPI / JSON Schema
+  承接机器 contract，RFC 2119 / RFC 8174 承接规范性措辞。
 - `docs/` 记录共享、可长期引用的真相
 - `.planning/PROJECT.md` 记录当前项目级范围与关键决策
 - `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览

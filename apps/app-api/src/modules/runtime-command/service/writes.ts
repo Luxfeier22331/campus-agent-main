@@ -369,6 +369,7 @@ export function buildFinalizedWrite(input: {
 	durationMs: number;
 	outboxEventId: string;
 	principal: ResolvedAppPrincipal;
+	projectionCloseoutMs?: number | null;
 	requestId: string;
 	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
@@ -378,6 +379,7 @@ export function buildFinalizedWrite(input: {
 	safetyIdentifier: string | null;
 	surface: string;
 	startedAt: string;
+	streamBrowserTtftMs?: number | null;
 	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
@@ -566,6 +568,7 @@ export function buildFinalizedWrite(input: {
 			durationMs: input.durationMs,
 			errorCode,
 			principal: input.principal,
+			projectionCloseoutMs: input.projectionCloseoutMs,
 			requestId: input.requestId,
 			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
@@ -575,6 +578,7 @@ export function buildFinalizedWrite(input: {
 			sourceDocIds,
 			startedAt: input.startedAt,
 			status,
+			streamBrowserTtftMs: input.streamBrowserTtftMs,
 			surface: input.surface,
 			traceId: normalizedTraceId,
 			versionQuery: input.versionQuery,

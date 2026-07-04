@@ -1,5 +1,6 @@
 import { Agent, type AgentOutputType, type ModelProvider, Runner, tool } from "@openai/agents";
 import { z } from "zod";
+import { beginDebugTrace } from "./debug-trace.ts";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
@@ -33,6 +34,7 @@ const primaryAgentTerminalOutputSchema = z.object({
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
 	runSdkStream?: OpenAIAgentsStreamRunFunction;
+	fetchImplementation?: typeof fetch;
 	maxTurns?: number;
 	model?: string;
 	modelProvider?: ModelProvider;
@@ -122,26 +124,35 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			outputType: primaryAgentTerminalOutputSchema,
 			tools: sdkTools,
 		});
-		const result = await runSdk(agent, input.input, {
-			maxTurns,
-			modelProvider: requestOptions.modelProvider,
+		const debugTrace = beginDebugTrace({
+			config: input.debugTraceConfig,
+			fetchImplementation: options.fetchImplementation,
 			traceId: input.traceId,
-			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: false,
-			signal: input.signal,
 		});
-		const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
-		return {
-			finalOutput:
-				terminalEnvelope === undefined
-					? String(result.finalOutput ?? "")
-					: finalOutputFromTerminalEnvelope(terminalEnvelope),
-			providerResponseId: providerResponseIDFromResult(result),
-			terminalEnvelope,
-			toolCalls: toolCallsFromItems(result.newItems ?? []),
-			traceRef: traceRefFromResult(result),
-			usage: usageFromResult(result),
-		};
+		try {
+			const result = await runSdk(agent, input.input, {
+				maxTurns,
+				modelProvider: requestOptions.modelProvider,
+				traceId: input.traceId,
+				workflowName: "campus-agent.primary-agent",
+				traceIncludeSensitiveData: false,
+				signal: input.signal,
+			});
+			const projected = agentRunnerResultFromSDKResult(result);
+			debugTrace.exportSummary({
+				model: requestOptions.model,
+				provider: input.providerConfig.provider,
+				runId: input.runId,
+				status: "completed",
+			});
+			await debugTrace.flush();
+			return {
+				...projected,
+				debugTraceRefs: debugTrace.refs,
+			};
+		} finally {
+			debugTrace.close();
+		}
 	};
 }
 
@@ -175,58 +186,77 @@ export function createStreamingOpenAIAgentsRunner(
 			outputType: primaryAgentTerminalOutputSchema,
 			tools: sdkTools,
 		});
-		const result = await runSdkStream(agent, input.input, {
-			maxTurns,
-			modelProvider: requestOptions.modelProvider,
+		const debugTrace = beginDebugTrace({
+			config: input.debugTraceConfig,
+			fetchImplementation: options.fetchImplementation,
 			traceId: input.traceId,
-			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: false,
-			signal: input.signal,
 		});
-		let rawOutputText = "";
-		let accumulatedVisibleText = "";
-		let chunkIndex = 0;
-		for await (const delta of result.toTextStream()) {
-			if (delta === "") {
-				continue;
-			}
-			rawOutputText += delta;
-			const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
-			if (nextVisibleText === accumulatedVisibleText) {
-				continue;
-			}
-			if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
-				throw new Error("streamed terminal output visible text drifted");
-			}
-			const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
-			accumulatedVisibleText = nextVisibleText;
-			if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
-				continue;
-			}
-			chunkIndex += 1;
-			yield {
-				accumulatedText: accumulatedVisibleText,
-				chunkIndex,
-				delta: visibleDelta,
-			} satisfies AgentRunnerAnswerDelta;
-		}
-		await result.completed;
-		const finalResult = agentRunnerResultFromSDKResult(result);
-		if (accumulatedVisibleText !== "") {
-			if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
-				throw new Error("streamed answer text drifted from final output");
-			}
-			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-			if (tail.trim() !== "") {
+		try {
+			const result = await runSdkStream(agent, input.input, {
+				maxTurns,
+				modelProvider: requestOptions.modelProvider,
+				traceId: input.traceId,
+				workflowName: "campus-agent.primary-agent",
+				traceIncludeSensitiveData: false,
+				signal: input.signal,
+			});
+			let rawOutputText = "";
+			let accumulatedVisibleText = "";
+			let chunkIndex = 0;
+			for await (const delta of result.toTextStream()) {
+				if (delta === "") {
+					continue;
+				}
+				rawOutputText += delta;
+				const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
+				if (nextVisibleText === accumulatedVisibleText) {
+					continue;
+				}
+				if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
+					throw new Error("streamed terminal output visible text drifted");
+				}
+				const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
+				accumulatedVisibleText = nextVisibleText;
+				if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
+					continue;
+				}
 				chunkIndex += 1;
 				yield {
-					accumulatedText: finalResult.finalOutput,
+					accumulatedText: accumulatedVisibleText,
 					chunkIndex,
-					delta: tail,
+					delta: visibleDelta,
 				} satisfies AgentRunnerAnswerDelta;
 			}
+			await result.completed;
+			const finalResult = agentRunnerResultFromSDKResult(result);
+			if (accumulatedVisibleText !== "") {
+				if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
+					throw new Error("streamed answer text drifted from final output");
+				}
+				const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
+				if (tail.trim() !== "") {
+					chunkIndex += 1;
+					yield {
+						accumulatedText: finalResult.finalOutput,
+						chunkIndex,
+						delta: tail,
+					} satisfies AgentRunnerAnswerDelta;
+				}
+			}
+			debugTrace.exportSummary({
+				model: requestOptions.model,
+				provider: input.providerConfig.provider,
+				runId: input.runId,
+				status: "completed",
+			});
+			await debugTrace.flush();
+			yield {
+				...finalResult,
+				debugTraceRefs: debugTrace.refs,
+			};
+		} finally {
+			debugTrace.close();
 		}
-		yield finalResult;
 	};
 }
 

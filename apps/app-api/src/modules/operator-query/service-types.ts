@@ -1,4 +1,9 @@
 import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
+import type {
+	ToolExecutionDebugTraceRef,
+	ToolExecutionModelUsageSummary,
+} from "../integration/tool-execution-types";
+import type { StageTimingBudgetProjection } from "../latency-budget";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
 import type { VersionQuery } from "../version-query";
@@ -57,6 +62,52 @@ export interface RequestProjectionRecord {
 	projectedAt: string;
 }
 
+export interface OperatorRequestOpsIndex {
+	stageTiming: Record<string, number>;
+	stageTimingBudget: Record<string, StageTimingBudgetProjection>;
+	debugTraceRefs: ToolExecutionDebugTraceRef[];
+	model: {
+		modelProvider: string | null;
+		modelName: string | null;
+		billableStepCount: number | null;
+		usageSummary: ToolExecutionModelUsageSummary[];
+		promptId: string | null;
+		promptVersion: string | null;
+		templateSha256: string | null;
+		executionState: string | null;
+		executionDetail: string | null;
+		inputTokens: number | null;
+		outputTokens: number | null;
+		cachedInputTokens: number | null;
+		estimatedCostMicrousd: number | null;
+	};
+	tool: {
+		requestedTool: string | null;
+		selectedTool: string | null;
+		toolBusinessOutcome: string | null;
+		failClosed: boolean | null;
+		failCloseReason: string | null;
+		historicalDowngradeReason: string | null;
+	};
+	retrieval: {
+		retrievalAttempted: boolean | null;
+		candidateCount: number | null;
+		retrievedSourceCount: number | null;
+		collection: string | null;
+		adequacyVerdict: string | null;
+		adequacyReason: string | null;
+	};
+	sinkLinks: {
+		traceAvailable: boolean;
+		projectionLagMs: number | null;
+	};
+}
+
+export interface OperatorRequestDetailResult {
+	request: RequestProjectionRecord;
+	opsIndex: OperatorRequestOpsIndex | null;
+}
+
 export interface OperatorRequestListFilters {
 	limit?: number | null;
 	cursor?: string | null;
@@ -113,6 +164,12 @@ export interface OperatorOverviewResult {
 			p95Ms: number | null;
 			p99Ms: number | null;
 		};
+		latencyBudget: {
+			criticalFieldCount: number;
+			version: string;
+			warnFieldCount: number;
+			worstField: string | null;
+		};
 		failureRate: MetricRatio;
 		sinkHealth: {
 			missingTraceRate: MetricRatio;
@@ -121,6 +178,17 @@ export interface OperatorOverviewResult {
 			outboxRetryCount: number;
 			outboxStaleCount: number;
 		};
+		stageLatency: Record<
+			string,
+			{
+				criticalCount: number;
+				p50Ms: number | null;
+				p95Ms: number | null;
+				p99Ms: number | null;
+				sampleCount: number;
+				warnCount: number;
+			}
+		>;
 	};
 	asOf: string;
 }

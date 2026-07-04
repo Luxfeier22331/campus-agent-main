@@ -21,6 +21,9 @@ export async function projectLocalRuntimeEnv(input = {}) {
 	const providerConfigSnapshotHostPath =
 		input.providerConfigSnapshotHostPath ??
 		path.join(repoRoot, "infra/local/.generated/provider-config-projection.json");
+	const observabilityConfigSnapshotHostPath =
+		input.observabilityConfigSnapshotHostPath ??
+		path.join(repoRoot, "infra/local/.generated/observability-config-projection.json");
 	const composeProjectName =
 		input.composeProjectName ?? "campus-execution-control-runtime-local";
 	const target = normalizeProjectionTarget(input.target ?? "container");
@@ -37,7 +40,12 @@ export async function projectLocalRuntimeEnv(input = {}) {
 		}
 	}
 
-	deriveRuntimeEnv(env, { composeProjectName, providerConfigSnapshotHostPath, repoRoot });
+	deriveRuntimeEnv(env, {
+		composeProjectName,
+		observabilityConfigSnapshotHostPath,
+		providerConfigSnapshotHostPath,
+		repoRoot,
+	});
 	if (!input.skipHindsightProviderConfig) {
 		await projectHindsightProviderConfig(env);
 	}
@@ -94,6 +102,26 @@ function deriveRuntimeEnv(env, input) {
 		read(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"),
 	);
 	projectProviderConfigProjectionFile(env, providerConfigSnapshotHostPath);
+	const observabilityConfigSnapshotHostPath =
+		read(env, "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH") ||
+		read(env, "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH") ||
+		input.observabilityConfigSnapshotHostPath;
+	setValue(
+		env,
+		"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
+		observabilityConfigSnapshotHostPath,
+	);
+	setDefault(
+		env,
+		"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
+		"/run/campus-agent/observability-config-projection.json",
+	);
+	projectSnapshotProjectionFile(
+		env,
+		observabilityConfigSnapshotHostPath,
+		"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
+		"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
+	);
 
 	const workerSharedSecret =
 		read(env, "API_WORKER_SHARED_SECRET") ||
@@ -163,7 +191,7 @@ function deriveRuntimeEnv(env, input) {
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "180000");
 	setDefault(env, "AGENT_RUNTIME_PORT", "27062");
-	setDefault(env, "AGENT_RUNTIME_TOOL_CATALOG_PATH", "configs/runtime/tool-catalog.v1.json");
+	setDefault(env, "AGENT_RUNTIME_TOOL_REGISTRY_PATH", "configs/runtime/tools.v4.json");
 	setDefault(env, "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL", "http://execution-control:8000");
 	const agentRuntimeSharedSecret =
 		read(env, "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
@@ -186,6 +214,8 @@ function deriveRuntimeEnv(env, input) {
 		);
 	}
 	setDefault(env, "APP_API_OTEL_INGEST_ENDPOINT", "http://127.0.0.1:4318");
+	setDefault(env, "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", "campus-agent-runtime");
+	setDefault(env, "OTEL_COLLECTOR_AXIOM_METRICS_DATASET", "campus-agent-runtime-metrics");
 
 	const explicitLangfuseBaseURL = read(env, "LANGFUSE_BASE_URL");
 	setDefault(env, "LANGFUSE_HOST_PORT", "3000");
@@ -242,11 +272,20 @@ function deriveRuntimeEnv(env, input) {
 }
 
 function projectProviderConfigProjectionFile(env, providerConfigSnapshotHostPath) {
+	projectSnapshotProjectionFile(
+		env,
+		providerConfigSnapshotHostPath,
+		"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID",
+		"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
+	);
+}
+
+function projectSnapshotProjectionFile(env, snapshotHostPath, ownerUIDKey, ownerGIDKey) {
 	try {
-		chmodSync(providerConfigSnapshotHostPath, 0o600);
-		const snapshotStat = statSync(providerConfigSnapshotHostPath);
-		setValue(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID", String(snapshotStat.uid));
-		setValue(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID", String(snapshotStat.gid));
+		chmodSync(snapshotHostPath, 0o600);
+		const snapshotStat = statSync(snapshotHostPath);
+		setValue(env, ownerUIDKey, String(snapshotStat.uid));
+		setValue(env, ownerGIDKey, String(snapshotStat.gid));
 	} catch {
 		return;
 	}
@@ -517,6 +556,8 @@ function summarizeProjectedEnv(env) {
 		"EXECUTION_CONTROL_TIMEOUT_MS",
 		"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
 		"LANGFUSE_BASE_URL",
+		"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+		"OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
 		"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
 		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
 		"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",

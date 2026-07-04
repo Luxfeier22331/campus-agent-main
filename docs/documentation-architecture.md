@@ -4,21 +4,26 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-06-27
+updated: 2026-07-04
 ---
 
-# Documentation Architecture
+# Documentation Standards and Source-of-Truth Mapping
 
 ## Document Boundary
 
-This document defines the source-of-truth architecture for `campus-agent`
-documentation.
+This document maps mature documentation standards onto `campus-agent` source
+ownership.
+
+It is not a standalone documentation framework. The repository uses mature
+documentation patterns by default, and keeps only a thin Source-of-Truth mapping
+layer for facts that mature writing frameworks do not decide on their own.
 
 It answers:
 
 - which class of fact each document type is allowed to own
 - which document wins when two documents appear to conflict
 - which content must be moved instead of repeated
+- which mature documentation standard a document area follows
 - how to distinguish architecture truth, contract truth, operational truth and
   planning truth
 
@@ -29,18 +34,20 @@ It does not answer:
 - how to deploy, smoke, release or operate a runtime surface
 - detailed contract fields, schemas, ADR reasoning or domain-specific source
   truth
+- authoring style rules that are already covered by a mature standard
 
 ## Core Rule
 
-`campus-agent` uses a Source-of-Truth documentation architecture.
+`campus-agent` uses mature documentation standards with a repo-owned
+Source-of-Truth overlay.
 
 Every durable fact must have exactly one owning document class. Other documents
 may link to that fact, summarize it briefly, or explain how to consume it, but
 they must not redefine it.
 
 The primary failure mode this architecture prevents is mixing product chain
-truth, tool readiness, operator/eval diagnostics, release evidence,
-staging proof and active planning into the same paragraph.
+truth, tool readiness, operator/eval diagnostics, release-closeout artifacts,
+deployment validation and active planning into the same paragraph.
 
 Human documentation must also stay small enough to keep that ownership
 observable:
@@ -64,14 +71,66 @@ observable:
   cleanup ledger or mirror of the Markdown tree; counts and cleanup history
   belong in tooling output and git history.
 
+## Mature Standards Mapping
+
+The repository does not invent document genres. Use the mature standard for the
+document's reader need, then apply the smallest repo-specific ownership mapping
+needed to avoid conflicting truth.
+
+- Diataxis:
+  - Use tutorial, how-to, reference and explanation as the default content
+    modes.
+  - `docs/runbooks/` are how-to operational procedures.
+  - `docs/reference/` and most `docs/contracts/` prose are technical
+    reference.
+  - Architecture docs are explanation plus explicit constraints.
+- MADR / Nygard ADR:
+  - `docs/decisions/` records architecturally significant decisions with
+    context, decision, alternatives and consequences.
+  - ADRs keep lifecycle state. Supersede or deprecate old decisions instead of
+    deleting them from the active history.
+- OpenAPI / JSON Schema:
+  - Machine-readable contract truth lives in OpenAPI, JSON Schema or the
+    registered runtime JSON artifacts.
+  - Prose contract docs explain owner boundary and semantic intent, but do not
+    replace executable schemas.
+- RFC 2119 / RFC 8174:
+  - Normative constraints use `MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT` and
+    `MAY` only when they are intended as requirement keywords.
+  - Avoid vague requirement words when a behavior is contractually required.
+- GitHub Issue Forms:
+  - `.github/ISSUE_TEMPLATE/*.yml` owns issue intake structure.
+  - Do not keep parallel Markdown issue templates.
+  - `.github/ISSUE_TEMPLATE/config.yml` owns blank-issue and contact-link
+    behavior.
+  - GitHub templates are collaboration metadata, not `docs/` durable
+    documentation, and they do not use docs frontmatter.
+- GitHub Markdown pull request template:
+  - `.github/pull_request_template.md` stays short.
+  - The pull request template asks for Summary, Related Issue, Changes and
+    Validation. When there is no related issue, use `N/A`; do not leave empty
+    `Closes:` placeholders.
+  - Review guidance is not a default template field. Add short formal reviewer
+    guidance to a specific pull request only when it changes review decisions.
+  - CI, security, data-boundary and release discipline belong in workflows,
+    contracts, runbooks, issue forms and review, not in a checklist-heavy PR
+    body.
+
+The repo-specific terms below are mappings onto those standards. They are not a
+parallel documentation genre.
+
 ## Truth Classes
+
+Truth classes identify the owner of a durable fact inside this repository. They
+do not replace Diataxis content modes, MADR ADR structure, OpenAPI / JSON Schema
+contract shape or RFC requirement wording.
 
 ### `product_truth`
 
 - Owns: product boundary, target users, product promises and explicit
   non-promises.
 - Default location: `docs/architecture/product.md`.
-- Must not own: runtime progress, release evidence or tool implementation
+- Must not own: runtime progress, release-closeout artifacts or tool implementation
   status.
 
 ### `product_requirement`
@@ -94,21 +153,21 @@ observable:
 
 - Owns: long-term architecture constraints and non-regression boundaries.
 - Default location: `docs/architecture/target.md`.
-- Must not own: current completion, P0/P1/P2 status, staging evidence or
+- Must not own: current completion, P0/P1/P2 status, staging closeout artifacts or
   one-off implementation order.
 
 ### `supporting_architecture`
 
 - Owns: cross-domain owner boundaries, runtime semantics and system design.
 - Default location: `docs/architecture/system/`.
-- Must not own: workstream progress, release proof or domain source-channel
+- Must not own: workstream progress, release closeout or domain source-channel
   details.
 
 ### `domain_architecture`
 
 - Owns: tool/domain boundary and source-channel architecture.
 - Default location: `docs/architecture/domains/`.
-- Must not own: main-chain completion status, operator/release evidence or
+- Must not own: main-chain completion status, operator/release-closeout artifacts or
   cross-domain runtime ownership.
 
 ### `contract_truth`
@@ -135,15 +194,18 @@ observable:
 
 ### `operational_truth`
 
-- Owns: deployment, smoke, staging, recovery and release procedures.
+- Owns: deployment, smoke, staging, recovery, readiness procedure and
+  release-closeout artifact production rules.
 - Default locations: `docs/runbooks/`, `docs/environment/` and
   `docs/policies/`.
 - Must not own: architecture completion definition, product promises or
   target-state invariants.
+  Environment documents are operational references; they define env ownership
+  and readiness semantics, not staging state inventory.
 
-### `planning_work_map`
+### `planning_signal`
 
-- Owns: current work map, backlog signals and session-independent planning
+- Owns: active planning signals, backlog signals and session-independent planning
   pointers.
 - Default locations: `.planning/PROJECT.md` and `.planning/WORKSTREAMS.md`.
 - Must not own: long-term architecture truth, current merged topology override
@@ -173,7 +235,7 @@ implementing a plan:
 8. `decision_record` explains why a decision was accepted and how it was
    superseded.
 9. `operational_truth` defines how to operate or verify a system.
-10. `planning_work_map` defines what work is currently queued or signaled.
+10. `planning_signal` defines what work is currently queued or signaled.
 11. `reference` provides stable lookup material but does not override the owner
     classes above.
 
@@ -205,7 +267,7 @@ new ADR.
 - Is answer grounding sufficient?
   - Owning class: `contract_truth` or a domain-specific answer contract
   - First place: tool answer/evidence contracts
-- Is release or staging evidence sufficient?
+- Is release or staging closeout sufficient?
   - Owning class: `operational_truth`
   - First place: release and staging runbooks
 - How does resume, cancel or replay behave?
@@ -215,7 +277,7 @@ new ADR.
   - Owning class: `decision_record`
   - First place: matching ADR
 - What work remains?
-  - Owning class: `planning_work_map`
+  - Owning class: `planning_signal`
   - First places: `.planning/PROJECT.md` and `.planning/WORKSTREAMS.md`
 
 ## Main Chain Completion Rule
@@ -232,12 +294,12 @@ generic execution skeleton:
 
 - maturity of individual tools or tool content
 - notice, campus-services, navigation or RAG answer quality
-- Operator Console, eval, badcase or release evidence consumption
-- staging closeout, production smoke or release proof
-- future multi-step workflow coverage
+- Operator Console, eval, badcase or release-closeout artifact consumption
+- staging closeout, production smoke or release closeout
+- planned multi-step workflow coverage
 - replay or repair features beyond existing event-stream resume
 
-Tool readiness, operator diagnostics and release evidence remain
+Tool readiness, operator diagnostics and release-closeout artifacts remain
 important, but they live in their own truth classes.
 
 ## Evidence Terminology
@@ -247,32 +309,44 @@ docs should prefer one of these terms:
 
 - `answer_grounding_evidence`: source material, citations, retrieval support,
   grounding verdicts or bounded artifacts used to support an answer.
-- `release_evidence`: staging, smoke, closeout, deploy, readiness or regression
-  proof used to accept a release or operational change.
+- `release_closeout_artifact`: staging, smoke, closeout, deploy, readiness or
+  regression output used to accept a release or operational change.
 - `operator_diagnostic_evidence`: sanitized trajectory, step, attempt, metric or
   trace-derived facts used by operator/eval/badcase surfaces.
 
-Do not use release evidence to define whether the online main chain is
+Do not use release-closeout artifacts to define whether the online main chain is
 architecturally closed. Do not use answer grounding evidence as a substitute
-for release closeout.
+for release closeout. A runbook closeout artifact is one execution's retained
+output, not durable current truth.
+
+`proof` is not a truth class. When a procedure needs retained outputs, name
+them as closeout artifacts. When a lane checks behavior, name it as validation
+or smoke. Do not promote a per-run retained file into architecture, current or
+target truth.
+
+This vocabulary is repo-specific disambiguation. It does not create another
+documentation style; write the containing document using the mature standard
+for that document type.
 
 ## Content Ownership Rules
 
 ### Large Documents
 
-Large documents are allowed only when they are owner-clean.
+Large documents are allowed only when they follow one mature content mode and
+remain owner-clean.
 
 A large document is owner-clean when:
 
 - it has one truth class
+- it has one primary Diataxis mode or one ADR / contract / runbook standard
 - its frontmatter owner boundary matches the content it owns
 - it does not redefine another document class
-- it is not carrying active work status, release proof or staging closeout unless
+- it is not carrying active work status, release closeout or staging closeout unless
   it is an operational runbook
 
 Large but owner-clean documents may remain large without a separate inventory
 entry. The review result is the document itself staying owner-clean at branch
-tip; future additions still need to respect the same owner boundary.
+tip; later additions still need to respect the same owner boundary.
 
 If a large document mixes truth classes, split the mixed section into the owning
 document class before adding new content. Do not leave durable docs with
@@ -288,7 +362,7 @@ carry:
 - `next work`
 - `staging closeout`
 - `opening evidence`
-- `future target`
+- `planned target`
 - active phase status
 
 If a current-truth document needs to mention deferred work, link to the owning
@@ -302,7 +376,7 @@ They must not carry:
 - current completion status
 - P0/P1/P2 work labels
 - runbook proof state
-- staging or release evidence
+- staging or release-closeout evidence
 - implementation-order checklists
 
 ### Supporting Architecture
@@ -316,12 +390,12 @@ When a section becomes an executable schema or wire contract, move it to
 ### Operational Truth
 
 `operational_truth` documents may define commands, checks, deployment steps,
-smoke steps and release evidence requirements. They must not define whether a
-product or architecture target is correct.
+smoke steps and release-closeout artifact requirements. They must not define
+whether a product or architecture target is correct.
 
-### Planning Work Map
+### Planning Signal
 
-`.planning/` documents are compact work maps. They may point to backlog signals
+`.planning/` documents are compact planning signals. They may point to backlog signals
 and active lanes. They must not override architecture, contract, data or ADR
 truth.
 
@@ -371,7 +445,7 @@ the documentation checks.
 
 ## Frontmatter Target
 
-New durable docs should use:
+New durable `docs/` Markdown files MUST use:
 
 ```yaml
 ---
@@ -387,6 +461,9 @@ updated: YYYY-MM-DD
 Existing docs may keep their current frontmatter until touched for durable
 content changes, but new docs should not introduce ambiguous `doc_type:
 architecture` without `truth_scope` and `owner_boundary`.
+
+GitHub issue forms, pull request templates, workflow files and other
+collaboration metadata are outside this frontmatter target.
 
 ## Migration Rules
 

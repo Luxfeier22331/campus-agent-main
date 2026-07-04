@@ -16,11 +16,11 @@ updated: 2026-06-13
 
 - 长期要稳定成什么系统形态
 - 哪些边界是长期不能退回的
-- 当前架构向目标架构演进时，哪些原则必须保持不变
+- accepted architecture 向目标架构演进时，哪些原则必须保持不变
 
 它不负责：
 
-- 当前已开放 serving surface 的快照
+- accepted serving surface 的快照
 - 某一轮 phase 的执行顺序
 - 某个 app/package 的一次性实施细节
 
@@ -61,7 +61,7 @@ client/channel
 -> browser surface
 -> app-api surface policy / account-session / minimal context projection
 -> execution-control durable run admission / Temporal command
--> ToolExecutionWorkflow (current Temporal workflow name)
+-> ToolExecutionWorkflow (canonical Temporal workflow name)
 -> optional context.memory_recall
 -> agent.primary model-facing first decision
 -> direct/no-tool terminal or admitted tool / workflow signal
@@ -86,7 +86,7 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
   governance 层，负责 admission、workflow command/query/cancel、visible tool
   裁剪、step admission、projection 与 finalization；首轮工具选择由 primary
   agent runtime 在已裁剪 tool set 内完成。
-- `ToolExecutionWorkflow` 是当前 Temporal durable workflow 名称；它编排 execution
+- `ToolExecutionWorkflow` 是 canonical Temporal durable workflow 名称；它编排 execution
   lifetime，但不是 agent 本身。
 - `agent-runtime` 是 model-facing primary agent runtime；它承接 OpenAI Agents
   SDK instructions、function tool schema、tool loop、SDK trace 与 usage
@@ -108,7 +108,7 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
 flowchart LR
   subgraph Client["Browser Surfaces"]
     Campus["campus-web"]
-    Panel["Operator Console\n(current surfaces: operator-console-web)"]
+    Panel["Operator Console"]
   end
 
   subgraph ProductIngress["Product Ingress"]
@@ -120,7 +120,7 @@ flowchart LR
   end
 
   subgraph TemporalPlane["Temporal Execution Plane"]
-    Temporal["Temporal Service\ncurrent workflow + task queues"]
+    Temporal["Temporal Service\nworkflow + task queues"]
   end
 
   subgraph Workers["Worker Pools"]
@@ -225,7 +225,7 @@ collector/source admission
 - `packages/ingestion-core` 继续拥有 canonical data-plane contract、shared file asset
   loader、source-truth / materialization strategy 与 collection strategy；release
   lifecycle 由 ingestion-control task registry/executor 承接。
-- Rust 只作为 proof-gated deterministic kernel lane，用于 profiling 已证明的高吞吐
+- Rust 只作为 validation-gated deterministic kernel lane，用于 profiling 已确认的高吞吐
   CPU / memory 热点，例如 JSONL streaming、document-units validation、chunk packing、
   hash / dedup / diff、release manifest validation 与 embedding batch input preparation。
 - Python 只作为 offline ingestion / eval / tooling runtime，或 MinerU / OCR / ML /
@@ -282,7 +282,7 @@ collector/source admission
 - production worker autoscaling 目标态由 KEDA Temporal scaler + Kubernetes HPA
   承接；autoscaler 只能调整 workflow / activity worker replica count，不得写
   workflow state、product run projection、step projection、event projection 或 terminal
-  state。Docker Compose `worker-autoscaler` 只保留 local / transitional staging 语义。
+  state。Docker Compose 不属于目标 production autoscaling substrate。
 - tool 不得只因为 typed tool / worker 函数可执行就进入 production-open；normal、
   fail-close、cancel、timeout、late-completion 与 replan outcome 必须能写入
   step/attempt/result projection，并能被 app-api operator read model 消费
@@ -312,7 +312,7 @@ collector/source admission
 - `execution-control` 持续只是 internal execution ingress，不是 product backend
 - `apps/app-api` 长期以 Worker product ingress 承接产品层 runtime boundary
 - `execution-control` 是长期 internal execution ingress 概念名；具体 app /
-  deployment label 的当前状态以 `current.md` 为准
+  deployment label 的 accepted state 以 `current.md` 为准
 - execution-control / worker 的部署 substrate 不反推 browser-facing exposure model
 - `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
   surface；`execution-control` 负责 workflow start / signal / cancel / query，
@@ -336,11 +336,11 @@ collector/source admission
   contract 文件名、旧 schema / symbol 在目标态映射为 `Execution Agent Layer`
 - product-level agent 是 `Campus Assistant`；runtime-level agentic logic 位于
   `Execution Agent Layer` 和明确的 semantic specialist / agent-as-tool step。
-- `ToolExecutionWorkflow` 是当前 durable execution substrate 名称；它承载
+- `ToolExecutionWorkflow` 是 durable execution substrate 名称；它承载
   run lifecycle、retry、timeout、cancel、step ordering 与 projection ordering，
   但不承担语义主体身份。
 - repo-wide execution 只维护 concrete ToolSpec tool id 作为 active product/routing
-  concept；runtime/package/contract 的历史命名只由 `current.md`
+  concept；runtime/package/contract 的 historical naming 只由 `current.md`
   标注，不再引入额外的 forward grouping label。
 - 当新增稳定 domain tool 时，默认先冻结 typed tool / internal query service；只有需要
   semantic specialist 时，才新增 explicit agent-as-tool step，不得把 deterministic tool
@@ -393,10 +393,10 @@ collector/source admission
   形态是：repo 先提供 system instructions、tool catalog 与 deterministic gates，模型
   在 SDK loop 内决定是否使用已暴露工具；repo durable workflow 只接收 sanitized
   final output、selected tool summary 与 result refs。
-- campus services 的当前只读结构化查询由 typed tools / projection-backed internal
+- campus services 的只读结构化查询由 typed tools / projection-backed internal
   query service 承接，model-visible opened surface 只有 transport schedule；
   service status 仅保留 closed/internal status projection prework。service guide、
-  contact directory、process guide 与 academic calendar 不属于当前 campus-services
+  contact directory、process guide 与 academic calendar 不属于 campus-services
   runtime surface；指南/联系方式/流程内容由 wiki 或 official-web stable reference
   承接。`campus_services` 只在需要语义消歧、跨工具编排、说明生成或
   agent-owned clarification 时作为 agent-as-tool；它不拥有服务 source truth。
@@ -408,8 +408,8 @@ collector/source admission
 - `navigation` 长期可消费 transport point refs / service point refs，但不拥有
   timetable truth 或 service-status truth。
 - `knowledge` 长期拆成 scope resolution、retrieval planning、answer
-  synthesis、grounding validation 等内部角色；当前 runtime owner 为 Go-owned
-  `apps/execution-control` RAG Temporal graph
+  synthesis、grounding validation 等内部角色；runtime owner 为 Go-owned
+  RAG Temporal graph
 - `context.memory_recall` 是 tool-neutral bounded context step，不属于
   RAG worker 的私有前置逻辑；`plan.route` 只能作为 retained deterministic
   support path / historical planning artifact，不再是普通 chat 的 first
@@ -669,7 +669,7 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
 - repo-owned eval truth 拥有 golden cases、qrels、case schema、review/admission
   policy、metric semantics 与 release verdict authority
 - TS eval runtime / `packages/eval-langfuse` 拥有目标 runner、score report、
-  Langfuse platform sync、score publishing、release evidence 与 review automation
+  Langfuse platform sync、score publishing、verdict artifact publishing 与 review automation
 - 旧 `packages/evals` package 已从 active workspace 退役；Langfuse-bound fixture
   truth 已收口到 `packages/eval-langfuse/fixtures`，runtime-local truth 放在 owning
   runtime testdata。旧 Python fixture loader、deterministic scorer 与
@@ -677,8 +677,8 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
 - `apps/app-api` 拥有 request correlation 与最小 Ops Index，不拥有 golden truth、
   Langfuse score truth 或外部 trace body
 - Operator Console 只承担 operator review / triage UX；它可以发起受控 review
-  action，但不决定 golden set truth、不生成 benchmark artifact。当前实现 surface 可以是
-  `operator-console-web` 或后续统一后的 operator console package。
+  action，但不决定 golden set truth、不生成 benchmark artifact。implementation surface
+  由 current architecture 冻结。
 - `apps/execution-control` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
 - OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader /
@@ -707,26 +707,17 @@ external sink / eval platform review`
 - failed release gate 只能通过修复 runtime、修复 truth、或有审计记录的 case
   governance decision 关闭，不能在 Operator Console 上直接 override
 
-长期 suite family 固定分层：
+长期 suite taxonomy 必须保持分层。具体 suite 名称、denominator、fixture 形状与
+execution command 由 eval reference、contract 与 runbook 拥有；本文只冻结以下目标不变量：
 
-- `smoke`
-  - 小样本、快速、本地开发可跑，覆盖入口 contract 与高风险 happy path
-- `release_gate`
-  - 发布前 canonical denominator，覆盖已开放 serving surface 的核心成功 / fail-close /
-    clarification / policy path
-- `regression_locked`
-  - 高风险历史回归，优先锁定 doc/version/source truth 与已修复 incident
-- `observed_regression`
-  - 从生产 badcase、operator review、incident backfill 与 sampled grade 晋升的真实样本
-- `context_follow_up`
-  - session slot、selected notice、recent goal、profile projection 与缺上下文澄清
-- `version_compat`
-  - intent schema、classifier、prompt、model、index、case-set 与 downstream consumer 兼容性
-- `workflow_trace`
-  - planner、handoff、tool call、guardrail、fail-close 与 tool read model branch
-    的 trace correctness
+- local fast checks、release gates、locked regressions 与 observed regressions 不得混成同一
+  verdict source
+- context follow-up、version transition 与 workflow trace correctness 必须能被独立归因
+- 发布前 denominator 必须覆盖 admitted serving surface 的核心 success、fail-close、
+  clarification 与 policy path
+- workflow trace correctness 是 orchestration 的一等 gate，不是回答质量 gate 的附属字段
 
-`workflow_trace` 是 orchestration 的一等 release gate，不是回答质量 gate 的附属字段。它至少需要覆盖：
+workflow trace correctness 至少需要覆盖：
 
 - `first_decision_branch_correctness`
   - 应 direct/no-tool terminal 的 product identity、普通寒暄、clarification /
@@ -816,8 +807,8 @@ Memory Plane 的 Hindsight runtime、online recall、写入链路与 Temporal �
 - historical / search-only regulation candidate 如果不是 withdrawn / deleted，不得误触
   current alias cleanup；它必须进入 non-serving terminal status，例如 `held_search_only`
 - serving alias 只能由通过 retrieval acceptance 的 release 切换；失败 release 必须保留旧
-  current pointer，并产出可观测 repair backlog
-- 对已发布但缺少 admission proof 的 regulation release，目标态处理是 fail-closed
+  current pointer，并产出可观测 repair signal
+- 对已发布但缺少 admission validation artifact 的 regulation release，目标态处理是 fail-closed
   containment：只有当 alias 仍指向指定 suspect physical collection 时才允许解除或回滚，
   然后重新生成 canonical/reader/chunk/qrels/admission 证据后再发布
 - freshness-sensitive / live-assisted query 必须显式进入 planner
@@ -857,8 +848,8 @@ merged truth 只看 `docs/architecture/current.md`，不由本文反推：
 - operator observability / audit control plane
 - deploy-side observability hardening
 
-这些能力的实现状态以 `current.md`、对应 supporting architecture 与
-`.planning/` work map 为准。
+本文不维护这些能力的实现状态。accepted snapshot 以 `current.md` 为准；active
+planning signal 以 `.planning/` 的 owning documents 为准。
 
 与 primary-agent-first tool routing、surface tool policy 与 clarification 分层相关的长期
 supporting truth，统一看

@@ -29,10 +29,10 @@ Retired artifact families include:
 
 - Python `campus_evals` profile reports
 - `scripts.eval_gate` run/repair/accept artifacts
-- local release evidence builders/checkers
+- local diagnostic artifact builders/checkers
 - generic score report publishers
 - app-api eval coverage and diagnostic-badcase projection artifacts
 
-Runtime-owner release evidence still belongs to the owning app/package tests,
-staging E2E closeout and explicit product/runtime runbooks. This contract must
-not become a replacement release-gate framework.
+Runtime-owner diagnostic validation belongs to the owning app/package tests, E2E
+closeout and explicit product/runtime runbooks. This contract must not become a
+replacement release-gate framework.

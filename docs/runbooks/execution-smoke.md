@@ -41,7 +41,7 @@ execution origin 为准。
   - `activity-worker-knowledge`
   - Temporal
 - `worker-autoscaler`、`temporal-task-queue-sampler`、`temporal-ui` 与
-  self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops proof、
+  self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops validation、
   UI 排障或 eval/trace UI 会话中显式 opt-in。模型可见工具由 `tools.v4` 与
   execution-control runtime profile 控制，不再通过额外 worker 进程打开。
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
@@ -224,7 +224,24 @@ disable / RTBF 与 user isolation：
 pnpm --dir apps/app-api hindsight:memory:e2e:staging
 ```
 
-## Step 5. 记录链路证据
+该 lane 需要当前 shell 提供：
+
+- `EXECUTION_CONTROL_BASE_URL` 或 `STAGING_EXECUTION_CONTROL_BASE_URL`
+- `API_WORKER_SHARED_SECRET` 或 `EXECUTION_CONTROL_SHARED_SECRET`
+
+通过标准：
+
+- completed turn append 返回 accepted，并能通过 operation status 或后续 recall /
+  reflect 证明 materialization
+- cross-thread recall、observation recall type 与 reflect based_on facts 都返回
+  sanitized projection
+- explicit profile memory upsert / disable、operation list、owner disable /
+  RTBF 与 user isolation 都完成
+- 只记录 schema、status、hash 与字段级 token
+- 不保存 raw transcript、provider raw response、Hindsight raw payload 或 API key
+- 不用 `not_collected`、离线 fixture 或退休 Python eval gate 冒充 live smoke
+
+## Step 5. 记录链路 closeout artifact
 
 至少记录：
 

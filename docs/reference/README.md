@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-04-12
-updated: 2026-06-30
+updated: 2026-07-04
 ---
 # Reference
 
@@ -25,6 +25,8 @@ updated: 2026-06-30
     的迁移控制表；不替代 ADR-0061
 - `eval-gold-truth-model.md`
 - `runtime-otel-telemetry-taxonomy.md`
+- `observability-ledger.md`
+  - trace / observability capability completion ledger and verification mapping
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 

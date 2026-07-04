@@ -219,6 +219,27 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if finalizationResponse["error"] != nil {
 		t.Fatalf("finalization response error = %#v, want nil", finalizationResponse["error"])
 	}
+	stageTiming, ok := finalizationResponse["stage_timing"].(map[string]any)
+	if !ok {
+		t.Fatalf("stage_timing = %#v", finalizationResponse["stage_timing"])
+	}
+	for _, field := range []string{
+		"memory.recall_ms",
+		"rag.plan_ms",
+		"rag.lookup_ms",
+		"rag.synthesis_ms",
+		"rag.grounding_ms",
+		"tool.total_ms",
+		"tool.knowledge_query_ms",
+		"finalization.write_ms",
+	} {
+		if _, ok := stageTiming[field]; !ok {
+			t.Fatalf("stage_timing missing %s: %#v", field, stageTiming)
+		}
+	}
+	if _, ok := stageTiming["rag.rerank_ms"]; ok {
+		t.Fatalf("stage_timing must not synthesize rag.rerank_ms without a rerank step: %#v", stageTiming)
+	}
 	results, resultsErr := store.ListStepResults(context.Background(), "run-rag-graph")
 	if resultsErr != nil {
 		t.Fatalf("list step results: %v", resultsErr)

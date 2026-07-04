@@ -8,6 +8,12 @@ updated: 2026-06-30
 ---
 # `student_rules` Chunking 与 Validation 规则
 
+## 文档边界
+
+本文是 `regulations/student_rules` 的 chunking / validation policy。它不拥有
+collection release runbook、runtime serving contract、query answer policy 或当前 work
+status。
+
 ## 目标
 
 把 `regulations/student_rules` 当前已经验证通过的 chunking 运行真相固定下来，避免后续只能从代码和临时 sample

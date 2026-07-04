@@ -138,6 +138,13 @@ node scripts/sync-provider-config-projection.mjs \
   --output infra/local/.generated/provider-config-projection.json
 ```
 
+同步本地 observability projection artifact：
+
+```bash
+node scripts/sync-observability-config-projection.mjs \
+  --output infra/local/.generated/observability-config-projection.json
+```
+
 如果启用 rerank：
 
 ```bash

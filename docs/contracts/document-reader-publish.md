@@ -245,12 +245,10 @@ reader asset package 的 content format 可以统一，但 delivery mode 必须�
 - `gated_asset` 返回给 browser 的 URL 应保持在 `campus.muc.wiki` /
   `campus-staging.mucwiki-edge.link` origin 下
 - v1 delivery 层必须先完成逐请求 `app-api` authz 校验，再读取 gated static assets
-- short-lived grant token / local verification 只保留为 future optimization，不作为默认
-  contract
-- direct presigned URL 只允许作为 future optimization / explicit exception，不作为默认
-  contract
+- short-lived grant token / local verification 不属于默认 contract
+- direct presigned URL 只允许作为 explicit exception，不作为默认 contract
 
-## Local Staging Directory
+## Deploy Working Directory
 
 deploy 期间允许在 repo 内生成临时目录，例如：
 

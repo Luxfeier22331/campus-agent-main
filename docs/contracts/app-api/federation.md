@@ -13,9 +13,9 @@ updated: 2026-06-09
 本文冻结 Identity Platform OAuth/OIDC-compatible provider surface 的 HTTP
 contract。
 
-本文描述当前已实现的 provider route surface。它不表示 `muc.wiki` production
-login federation 已经 rollout；production 前仍必须完成 staging client provision
-和 `nc-arm-6c` MediaWiki OpenID Connect smoke。
+本文描述当前已实现的 provider route surface。Relying-party rollout、client
+provision 和 MediaWiki OpenID Connect smoke 属于
+`docs/runbooks/mucwiki-federation.md`，不属于本文 wire contract。
 
 ## Provider Posture
 
@@ -47,9 +47,9 @@ Runtime persistence:
 - App-owned product policy lives in `identity.federation_clients`,
   `identity.federation_claims_policies` and
   `identity.federation_user_grants`.
-- The `muc-wiki` client is materialized by
-  `provision-muc-wiki-federation-client.ts` through `run-with-local-env.mjs` or
-  `run-with-staging-db-env.mjs`, not by browser UI or MediaWiki.
+- The `muc-wiki` client is materialized by app-api-owned provision tooling
+  described in `docs/runbooks/mucwiki-federation.md`, not by browser UI or
+  MediaWiki.
 
 ## Discovery
 
@@ -219,20 +219,8 @@ The first client is:
 - `enableEndSession`: `true`
 
 Client secret values must be stored as secret material, not in docs or committed
-config.
-
-Staging provision command:
-
-```bash
-APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
-APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
-'Special:PluggableAuthLogin' \
-APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
-'Special:UserLogout' \
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-node apps/app-api/scripts/run-with-staging-db-env.mjs \
-  pnpm exec tsx ./scripts/provision-muc-wiki-federation-client.ts
-```
+config. Client materialization steps belong to
+`docs/runbooks/mucwiki-federation.md`.
 
 ## Related Documents
 

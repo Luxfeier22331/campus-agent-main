@@ -54,7 +54,7 @@ class CanonicalToolExecutionSchemaTest(unittest.TestCase):
         )
         self.assertEqual(
             openapi["x-campus-contract"]["response_contract"],
-            "execution_finalization_response_v1",
+            "execution_finalization_response_v2",
         )
         self.assertEqual(
             openapi["x-campus-contract"]["runtime_decisions_schema_version"],
@@ -244,6 +244,57 @@ class CanonicalToolExecutionSchemaTest(unittest.TestCase):
         self.assertIn({"type": "null"}, selected_tool_schema["oneOf"])
         self.assertIn("cancelled", _schema("ExecutionStatus")["enum"])
 
+    def test_execution_finalization_response_declares_safe_debug_trace_and_stage_timing(
+        self,
+    ) -> None:
+        response = _schema("ExecutionFinalizationResponse")
+        stage_timing = _schema("StageTiming")
+        debug_trace_ref = _schema("DebugTraceRef")
+
+        self.assertEqual(
+            response["properties"]["stage_timing"]["oneOf"],
+            [{"$ref": "#/components/schemas/StageTiming"}, {"type": "null"}],
+        )
+        self.assertEqual(
+            response["properties"]["debug_trace_refs"]["oneOf"],
+            [
+                {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/DebugTraceRef"},
+                },
+                {"type": "null"},
+            ],
+        )
+        self.assertFalse(stage_timing["additionalProperties"])
+        self.assertEqual(
+            set(stage_timing["properties"]),
+            {
+                "request.total_ms",
+                "stream.browser_ttft_ms",
+                "execution.admission_ms",
+                "memory.recall_ms",
+                "agent.primary_ms",
+                "agent.runtime_ms",
+                "agent.first_delta_ms",
+                "tool.total_ms",
+                "tool.knowledge_query_ms",
+                "tool.transport_schedule_lookup_ms",
+                "tool.campus_notice_discover_ms",
+                "rag.plan_ms",
+                "rag.lookup_ms",
+                "rag.rerank_ms",
+                "rag.synthesis_ms",
+                "rag.grounding_ms",
+                "finalization.write_ms",
+                "projection.closeout_ms",
+            },
+        )
+        for field_schema in stage_timing["properties"].values():
+            self.assertEqual(field_schema, {"type": "number", "minimum": 0})
+        self.assertFalse(debug_trace_ref["additionalProperties"])
+        self.assertEqual(debug_trace_ref["required"], ["sink", "trace_ref"])
+        self.assertEqual(debug_trace_ref["properties"]["sink"]["enum"], ["langfuse_otlp"])
+
     def test_tool_handoff_schema_is_package_owned_without_runtime_wrapper_truth(self) -> None:
         schema = json.loads(TOOL_HANDOFF_SCHEMA_PATH.read_text(encoding="utf-8"))
 
@@ -284,6 +335,32 @@ class CanonicalToolExecutionSchemaTest(unittest.TestCase):
             'WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`',
             go_contract,
         )
+
+    def test_safe_timing_and_debug_trace_refs_are_generated_as_typed_wire_contract(self) -> None:
+        ts_contract = GENERATED_TS_PATH.read_text(encoding="utf-8")
+        go_contract = GENERATED_GO_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("export const STAGE_TIMING_FIELDS", ts_contract)
+        self.assertIn('"agent.runtime_ms"', ts_contract)
+        self.assertIn(
+            "export type StageTimingWire = Partial<Record<StageTimingField, number>>", ts_contract
+        )
+        self.assertIn('export const DEBUG_TRACE_SINKS = ["langfuse_otlp"] as const', ts_contract)
+        self.assertIn("export interface DebugTraceRefWire", ts_contract)
+        self.assertIn("stage_timing?: StageTimingWire | null", ts_contract)
+        self.assertIn("debug_trace_refs?: DebugTraceRefWire[] | null", ts_contract)
+        self.assertIn("type StageTimingWire map[StageTimingField]float64", go_contract)
+        self.assertIn("type DebugTraceRefWire struct", go_contract)
+        self.assertIn(
+            'StageTiming          StageTimingWire           `json:"stage_timing,omitempty"`',
+            go_contract,
+        )
+        self.assertIn(
+            'DebugTraceRefs       []DebugTraceRefWire       `json:"debug_trace_refs,omitempty"`',
+            go_contract,
+        )
+        self.assertIn("func (wire StageTimingWire) Validate() error", go_contract)
+        self.assertIn("func (wire DebugTraceRefWire) Validate() error", go_contract)
 
     def test_cross_language_generated_artifacts_are_in_sync(self) -> None:
         completed = subprocess.run(

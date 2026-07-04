@@ -95,18 +95,18 @@ Repo-owned verification helper:
 ```bash
 uv run --all-packages python -m \
   scripts.verify_legacy_office_conversion_runtime
-  --output-dir .tmp/phase-h-libreoffice-runtime-productization \
+  --output-dir .tmp/legacy-office-conversion-runtime \
   --json
 ```
 
 Expected artifacts:
 
-- `.tmp/phase-h-libreoffice-runtime-productization/service-healthz.json`
-- `.tmp/phase-h-libreoffice-runtime-productization/service-readyz.json`
-- `.tmp/phase-h-libreoffice-runtime-productization/samples/manifest.json`
-- `.tmp/phase-h-libreoffice-runtime-productization/doc/result.json`
-- `.tmp/phase-h-libreoffice-runtime-productization/xls/result.json`
-- `.tmp/phase-h-libreoffice-runtime-productization/SUMMARY.md`
+- `.tmp/legacy-office-conversion-runtime/service-healthz.json`
+- `.tmp/legacy-office-conversion-runtime/service-readyz.json`
+- `.tmp/legacy-office-conversion-runtime/samples/manifest.json`
+- `.tmp/legacy-office-conversion-runtime/doc/result.json`
+- `.tmp/legacy-office-conversion-runtime/xls/result.json`
+- `.tmp/legacy-office-conversion-runtime/SUMMARY.md`
 
 The helper auto-discovers one real `.doc` and one real `.xls` from the
 authenticated notice source bucket. If operators need deterministic sample

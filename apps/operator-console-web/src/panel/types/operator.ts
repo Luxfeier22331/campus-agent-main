@@ -33,6 +33,12 @@ export interface RawOperatorOverviewRecord {
 			p95Ms: number | null;
 			p99Ms: number | null;
 		};
+		latencyBudget?: {
+			criticalFieldCount: number;
+			version: string;
+			warnFieldCount: number;
+			worstField: string | null;
+		};
 		requestVolume: {
 			accepted: number;
 			completed: number;
@@ -45,6 +51,17 @@ export interface RawOperatorOverviewRecord {
 			outboxStaleCount: number;
 			projectionFailureCount: number;
 		};
+		stageLatency?: Record<
+			string,
+			{
+				criticalCount: number;
+				p50Ms: number | null;
+				p95Ms: number | null;
+				p99Ms: number | null;
+				sampleCount: number;
+				warnCount: number;
+			}
+		>;
 	};
 	window: RawOperatorResultWindow;
 }

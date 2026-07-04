@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
 import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
@@ -72,6 +73,7 @@ describe("agent runtime HTTP handler", () => {
 		let observedProvider: unknown;
 		let observedMemoryContext: unknown;
 		let observedFinalModelContext: unknown;
+		let observedDebugTraceConfig: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
@@ -79,6 +81,7 @@ describe("agent runtime HTTP handler", () => {
 					observedProvider = input.providerConfig;
 					observedMemoryContext = input.memoryContext;
 					observedFinalModelContext = input.finalModelContext;
+					observedDebugTraceConfig = input.debugTraceConfig;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 				stream(input) {
@@ -141,6 +144,7 @@ describe("agent runtime HTTP handler", () => {
 						},
 					},
 					provider_config: validPromptProviderConfig(),
+					debug_trace_config: validDebugTraceConfig(),
 				}),
 			}),
 		);
@@ -161,6 +165,9 @@ describe("agent runtime HTTP handler", () => {
 			kind: "answer",
 			answer_text: "我是校园问答助手。",
 		});
+		expect(JSON.stringify(body)).not.toMatch(
+			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
+		);
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
 		expect(observedMemoryContext).toEqual({
 			contextBlock: "用户记忆:\n- 用户偏好先给结论",
@@ -191,6 +198,46 @@ describe("agent runtime HTTP handler", () => {
 				tokenEstimate: 320,
 			},
 		});
+		expect(observedDebugTraceConfig).toEqual({
+			includeModelIo: false,
+			langfuseOtlp: {
+				authHeader: "Basic langfuse-secret",
+				endpoint: "https://cloud.langfuse.com/api/public/otel",
+				publicTraceBaseUrl: "https://cloud.langfuse.com/project/demo/traces",
+			},
+			mode: "langfuse_otlp",
+			sampleRatio: 1,
+			schemaVersion: "llm_debug_trace_config.v1",
+		});
+	});
+
+	it("rejects incomplete enabled LLM debug trace config at the HTTP boundary", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+					debug_trace_config: {
+						schema_version: "llm_debug_trace_config.v1",
+						mode: "langfuse_otlp",
+						include_model_io: false,
+						sample_ratio: 1,
+					},
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		const body = (await response.json()) as { error?: { code?: string; message?: string } };
+		expect(body.error?.code).toBe("invalid_request");
+		expect(body.error?.message).toContain("langfuse_otlp");
 	});
 
 	it("accepts chat-completions prompt provider profiles at the HTTP boundary", async () => {
@@ -231,6 +278,7 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("streams primary agent answer deltas before the terminal result", async () => {
+		const langfuseTraceId = deriveLangfuseTraceId("trace-1");
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
@@ -268,6 +316,18 @@ describe("agent runtime HTTP handler", () => {
 							},
 							providerResponseId: "resp_stream",
 							sdkTraceRef: "trace_stream",
+							debugTraceRefs: [
+								{
+									sink: "langfuse_otlp",
+									traceId: langfuseTraceId,
+									traceRef: `langfuse://${langfuseTraceId}`,
+									url: `https://cloud.langfuse.com/project/demo/traces/${langfuseTraceId}`,
+								},
+							],
+							stageTiming: {
+								"agent.runtime_ms": 12,
+								"agent.first_delta_ms": 4,
+							},
 							selectedTools: [],
 							toolResults: [],
 							terminalReason: "answer_completed",
@@ -285,6 +345,7 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					provider_config: validPromptProviderConfig(),
+					debug_trace_config: validDebugTraceConfig(),
 				}),
 			}),
 		);
@@ -307,11 +368,26 @@ describe("agent runtime HTTP handler", () => {
 			final_output: "国家奖学金每学年评审一次。",
 			provider_response_id: "resp_stream",
 			status: "completed",
+			debug_trace_refs: [
+				{
+					sink: "langfuse_otlp",
+					trace_id: langfuseTraceId,
+					trace_ref: `langfuse://${langfuseTraceId}`,
+					url: `https://cloud.langfuse.com/project/demo/traces/${langfuseTraceId}`,
+				},
+			],
+			stage_timing: {
+				"agent.runtime_ms": 12,
+				"agent.first_delta_ms": 4,
+			},
 			terminal_envelope: {
 				answer_text: "国家奖学金每学年评审一次。",
 				kind: "answer",
 			},
 		});
+		expect(JSON.stringify(events[2]?.data)).not.toMatch(
+			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
+		);
 	});
 
 	it("fails closed when provider config is missing from an agent run request", async () => {
@@ -351,7 +427,9 @@ describe("agent runtime HTTP handler", () => {
 						terminalEnvelope: { kind: "answer", answerText: "ok" },
 						providerResponseId: "resp_signal",
 						sdkTraceRef: "trace_signal",
+						debugTraceRefs: [],
 						selectedTools: [],
+						stageTiming: {},
 						toolResults: [],
 						terminalReason: "answer_completed",
 						usage: { inputTokens: 1, outputTokens: 1 },
@@ -495,6 +573,15 @@ describe("agent runtime server env contract", () => {
 		expect(source).not.toContain("createOpenAIAgentsRunnerFromEnv");
 		expect(source).not.toContain("OPENAI_API_KEY");
 	});
+
+	it("does not use agent-runtime env for LLM debug trace config", () => {
+		const source = readFileSync(
+			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
+			"utf8",
+		);
+
+		expect(source).not.toContain("AGENT_RUNTIME_LLM_DEBUG");
+	});
 });
 
 const noToolRunner: AgentRunner = async () =>
@@ -540,6 +627,20 @@ function validPromptProviderConfig(): Record<string, unknown> {
 		model: "gpt-5-mini",
 		api_key: "provider-key",
 		timeout_ms: 30000,
+	};
+}
+
+function validDebugTraceConfig(): Record<string, unknown> {
+	return {
+		schema_version: "llm_debug_trace_config.v1",
+		mode: "langfuse_otlp",
+		include_model_io: false,
+		sample_ratio: 1,
+		langfuse_otlp: {
+			endpoint: "https://cloud.langfuse.com/api/public/otel",
+			auth_header: "Basic langfuse-secret",
+			public_trace_base_url: "https://cloud.langfuse.com/project/demo/traces",
+		},
 	};
 }
 

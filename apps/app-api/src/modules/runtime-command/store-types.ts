@@ -2,6 +2,7 @@ import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type {
+	ToolExecutionDebugTraceRef,
 	ToolExecutionModelUsageSummary,
 	ToolExecutionWorkflowTraceSummary,
 } from "../integration/tool-execution-types";
@@ -130,6 +131,8 @@ export interface RequestObservabilityFactWrite {
 	toolFailCloseReason?: string | null;
 	toolHistoricalDowngradeReason?: string | null;
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
+	stageTiming?: Record<string, unknown>;
+	debugTraceRefs?: ToolExecutionDebugTraceRef[];
 	modelProvider: string | null;
 	modelName: string | null;
 	billableStepCount: number | null;

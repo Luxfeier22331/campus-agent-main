@@ -117,6 +117,21 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
+  otlphttp/axiommetrics:
+    endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
+    compression: zstd
+    headers:
+      authorization: "${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}"
+      x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}"
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 4096
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
   otlphttp/langfuse:
     endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
     headers:
@@ -166,6 +181,7 @@ service:
         - filter/drop_marked
         - batch
       exporters:
+        - otlphttp/axiommetrics
         - debug
     logs:
       receivers:

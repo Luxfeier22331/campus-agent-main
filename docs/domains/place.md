@@ -23,8 +23,8 @@ Current product posture:
   use repo-owned `place_catalog` in the typed tool runtime.
 - The browser product path still fails closed for `place_lookup` until the map
   product surface is explicitly opened.
-- `place_card` / map consumption remains future product work, not current
-  browser capability.
+- `place_card` / map consumption is outside this capability document until a
+  product requirement and browser projection contract explicitly open it.
 
 ## Consumption
 
@@ -33,7 +33,7 @@ The intended capability chain is:
 ```text
 app-api -> execution-control -> admitted typed navigation tool
   -> repo-owned place_catalog
-  -> PlaceLookupResult / future place_card projection
+  -> PlaceLookupResult
 ```
 
 Fixed constraints:
@@ -58,7 +58,7 @@ Human-facing semantics:
 - `no_answer`: catalog truth cannot support an answer.
 - `error`: runtime failed before a safe terminal answer.
 
-When future browser `place_card` rendering opens, it may show place name, entity
+When browser `place_card` rendering opens, it may show place name, entity
 type, campus scope, location description, landmark hint, access/opening notes,
 service tags, point geometry and source refs.
 

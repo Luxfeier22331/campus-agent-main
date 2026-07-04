@@ -483,7 +483,7 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
   `target_blocking=true`，这些状态必须继续阻塞 quarantine cleanup 与 target admission。
   其中 `pending` / `failed_retryable` 对应 target admission 的 `needs_multimodal`，
   `manual_review` 对应 target admission 的 `manual_review`，不得伪装成可自动 OCR 的
-  pending work。
+  executable task。
 - `completed`、`skipped` 与 `failed_terminal` 是终态；它们可以解除对应 candidate 的
   `target_blocking`。
 - collector / OCR / preview 的非 contract 状态只能在明确的边界被规范化，例如 `ready` /
@@ -499,7 +499,7 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
   `processing_family=source_capture_repair`、`reason_codes` 包含
   `source_capture_pending` 和 `missing_collected_attachment_bytes`，
   并标记为非 target-blocking gap。
-- Phase 4 reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
+- Reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
   extraction candidate 生成输入，但其 write manifest 中的 generic consumer admission
   candidate 不得直接把 unit 级 pending 转成下游 `needs_multimodal`；typed downstream
   replay 必须重新消费 fact-state / candidate inventory 后再判定。

@@ -1,0 +1,83 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/runtime-latency-budgets.v1.schema.json",
+	"title": "campus-agent runtime latency budgets artifact",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "budget_version", "rules"],
+	"properties": {
+		"schema_version": {
+			"const": "runtime-latency-budgets-v1"
+		},
+		"budget_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"rules": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"$ref": "#/$defs/LatencyBudgetRule"
+			}
+		}
+	},
+	"$defs": {
+		"StageTimingField": {
+			"enum": [
+				"request.total_ms",
+				"stream.browser_ttft_ms",
+				"execution.admission_ms",
+				"memory.recall_ms",
+				"agent.primary_ms",
+				"agent.runtime_ms",
+				"agent.first_delta_ms",
+				"tool.total_ms",
+				"tool.knowledge_query_ms",
+				"tool.transport_schedule_lookup_ms",
+				"tool.campus_notice_discover_ms",
+				"rag.plan_ms",
+				"rag.lookup_ms",
+				"rag.rerank_ms",
+				"rag.synthesis_ms",
+				"rag.grounding_ms",
+				"finalization.write_ms",
+				"projection.closeout_ms"
+			]
+		},
+		"LatencyBudgetRule": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"field",
+				"warn_ms",
+				"critical_ms",
+				"candidate_reason",
+				"candidate_category",
+				"enabled"
+			],
+			"properties": {
+				"field": {
+					"$ref": "#/$defs/StageTimingField"
+				},
+				"warn_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"critical_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"candidate_reason": {
+					"type": "string",
+					"pattern": "^[a-z0-9_]+$"
+				},
+				"candidate_category": {
+					"const": "model_provider_or_latency_budget_fix"
+				},
+				"enabled": {
+					"type": "boolean"
+				}
+			}
+		}
+	}
+}

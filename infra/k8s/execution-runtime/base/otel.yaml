@@ -59,7 +59,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-telemetry-collector-secrets
           readinessProbe:
             httpGet:
               path: /

@@ -69,6 +69,7 @@ type Config struct {
 	AppAPIInternalSharedSecret          string
 	AppAPIInternalTimeoutMS             int
 	ProviderConfigSnapshotPath          string
+	ObservabilityConfigProjectionPath   string
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string
 	ToolReadModelTrustedTimeRFC3339     string
@@ -169,6 +170,7 @@ type envValues struct {
 	AppAPIInternalSharedSecret          string `env:"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"`
 	AppAPIInternalTimeoutMS             int    `env:"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS" envDefault:"1000"`
 	ProviderConfigSnapshotPath          string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
+	ObservabilityConfigProjectionPath   string
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	ToolReadModelTrustedTimeRFC3339     string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
@@ -366,6 +368,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		AppAPIInternalSharedSecret:          strings.TrimSpace(values.AppAPIInternalSharedSecret),
 		AppAPIInternalTimeoutMS:             values.AppAPIInternalTimeoutMS,
 		ProviderConfigSnapshotPath:          strings.TrimSpace(values.ProviderConfigSnapshotPath),
+		ObservabilityConfigProjectionPath:   strings.TrimSpace(values.ObservabilityConfigProjectionPath),
 		QueryServingScopesPath:              strings.TrimSpace(values.QueryServingScopesPath),
 		InternalQuerySharedSecret:           strings.TrimSpace(values.InternalQuerySharedSecret),
 		ToolReadModelTrustedTimeRFC3339:     strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),

@@ -8,7 +8,7 @@ updated: 2026-06-06
 ---
 # Temporal Self-Hosted Operations
 
-## Scope
+## Boundary
 
 This runbook covers the self-hosted Temporal execution substrate used by
 `apps/execution-control`.
@@ -34,7 +34,7 @@ store.
 Temporal uses a dedicated persistence / visibility Postgres database. It must not
 share the app product schema.
 
-Required backup evidence:
+Required backup closeout fields:
 
 - backup command timestamp
 - Temporal namespace list before backup
@@ -42,7 +42,7 @@ Required backup evidence:
 - backup artifact path or object-store key
 - restore drill result or explicit blocker
 
-Example evidence fields:
+Example closeout fields:
 
 ```json
 {
@@ -102,7 +102,7 @@ Examples:
 
 Do not rely on default PID / hostname identity as the operator-facing identity.
 
-## Poller Evidence
+## Poller Closeout
 
 Execution-control `/readyz` is the primary repo-owned readiness surface. It must
 report:
@@ -116,9 +116,9 @@ report:
 For release closeout, save the full `/readyz` body and the command that produced
 it.
 
-## Failure-Mode Evidence
+## Failure-Mode Closeout
 
-Release evidence must cover:
+Release closeout must cover:
 
 - Temporal unavailable: app-api / execution-control fail closed and do not enter
   a PG lease worker fallback.
@@ -132,10 +132,11 @@ Release evidence must cover:
 - Late activity completion: terminal `failed` / `canceled` projection must not be
   overwritten by a late success path.
 
-Evidence must not contain raw prompt, raw answer, raw provider response, cookie,
-authorization header, raw source body, or object-store credentials.
+Closeout artifacts must not contain raw prompt, raw answer, raw provider
+response, cookie, authorization header, raw source body, or object-store
+credentials.
 
-## Staging Durable Runtime Proof
+## Staging Durable Runtime Validation
 
 Run the durable cutover preflight before treating execution-control staging as
 Temporal-ready. The command reads only the ops-owned staging runtime env and the
@@ -152,15 +153,15 @@ written into the checkout. On `nc-arm-6c` non-login SSH shells, first confirm
 `pnpm` and `uv` are on `PATH`; the current host paths are
 `/usr/local/bin/pnpm` and `/home/deploy/.local/bin/uv`.
 
-Before runtime proof, confirm schema install/check evidence exists and reports
-`passed=true`, `schema_ready=true`, and `store=postgres`:
+Before runtime validation, confirm schema install/check closeout artifacts exist
+and report `passed=true`, `schema_ready=true`, and `store=postgres`:
 
 ```bash
 jq . .tmp/execution-control-staging/evidence/run-projection-schema-install.json
 jq . .tmp/execution-control-staging/evidence/run-projection-schema-check.json
 ```
 
-Run the repo-owned Temporal-ready HTTP proof against deployed
+Run the repo-owned Temporal-ready HTTP validation against deployed
 execution-control. It only reads `/readyz` and requires the projection store and
 Temporal runtime to be explicitly healthy:
 
@@ -173,20 +174,20 @@ go run ./cmd/temporal-runtime-http-proof \
 ```
 
 If machine ingress or app-api public deploy credentials are unavailable, local
-Temporal proof can validate the isolated staging directory substrate only:
+Temporal validation can validate the isolated staging directory substrate only:
 
 ```bash
 infra/local/staging/proof-execution-control-temporal-runtime-staging.sh
 ```
 
-That local proof cannot replace deployed
+That local validation cannot replace deployed
 `campus-staging -> app-api-staging -> execution-control -> Temporal`
-reconnect evidence. The proof passes only when `/readyz` reports both
+reconnect closeout. The validation passes only when `/readyz` reports both
 `run_projection_store.healthy=true` and `temporal_runtime.healthy=true`.
 
-## Worker Autoscaler Proof
+## Worker Autoscaler Validation
 
-### Docker Compose Transitional Proof
+### Docker Compose Transitional Validation
 
 The worker autoscaler belongs to the Execution Operations Plane. It reads
 app-api operator runtime task queue projections, reads Docker Compose replica
@@ -194,13 +195,13 @@ state, computes desired worker replicas, and publishes sanitized decision /
 actuation projections back to app-api. It does not read app-api Postgres
 directly, and it is not a default serving-loop component.
 
-On the staging host, prefer the explicit one-shot proof entrypoint:
+On the staging host, prefer the explicit one-shot closeout entrypoint:
 
 ```bash
 infra/local/staging/run-execution-control-ops-proof.sh
 ```
 
-For manual local proof, first run the task queue sampler:
+For manual local validation, first run the task queue sampler:
 
 ```bash
 cd apps/execution-control
@@ -239,7 +240,7 @@ Apply mode is allowed only for the Docker Compose service allowlist documented i
 not write workflow state, run projection, step projection, event projection,
 terminal state, or downstream budget.
 
-### Kubernetes Staging Proof
+### Kubernetes Staging Validation
 
 First-stage Kubernetes staging manifests live at:
 
@@ -254,11 +255,18 @@ env and artifact paths:
 infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
 ```
 
-The renderer creates `execution-runtime-rendered-config`,
-`execution-runtime-secrets`, `execution-runtime-provider-config-projection`, and
-`execution-runtime-qdrant-tls-ca`. The example files under
-`infra/k8s/execution-runtime/base/` are documentation samples and must not be
-applied as real staging config or credentials.
+The renderer creates `execution-runtime-rendered-config`, the profile-selected
+role-scoped Secrets, `execution-runtime-provider-config-projection`, and
+`execution-runtime-qdrant-tls-ca`. It defaults to
+`EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`, which renders only the six
+execution runtime pods' required Secret set:
+`execution-control-secrets`, `execution-worker-common-secrets`,
+`execution-agent-client-secrets`, `agent-runtime-secrets`,
+`execution-memory-client-secrets`, `execution-rag-secrets`, and
+`execution-control-internal-query-secrets`. The retired monolithic
+`execution-runtime-secrets` Secret must not be recreated. The example files
+under `infra/k8s/execution-runtime/base/` are documentation samples and must
+not be applied as real staging config or credentials.
 
 Render and apply:
 
@@ -273,7 +281,7 @@ kubectl -n campus-agent-staging wait \
   --timeout=300s
 ```
 
-The K8s staging proof must confirm:
+The K8s staging validation must confirm:
 
 - exactly one Deployment and one KEDA ScaledObject exist for each worker pool
 - every ScaledObject has `minReplicaCount=1`
@@ -286,7 +294,7 @@ The K8s staging proof must confirm:
 - `keda-hpa-posture-collector` writes fresh
   `worker_autoscaler_posture.v1`
 
-Operator-safe evidence is read through app-api only:
+Operator-safe closeout material is read through app-api only:
 
 ```bash
 curl -fsS "$APP_API_BASE_URL/api/operator/runtime/temporal-task-queues" \
@@ -301,18 +309,18 @@ KEDA/HPA owns the Kubernetes Deployments.
 
 ## Closeout
 
-A Temporal closeout is not complete until the evidence directory contains:
+A Temporal closeout is not complete until the closeout directory contains:
 
 - execution-control `/readyz` body
-- Temporal HTTP proof result
-- Docker Compose worker-autoscaler dry-run evidence, or K8s
-  `worker_autoscaler_posture.v1` evidence when KEDA/HPA owns the worker pool
+- Temporal HTTP validation result
+- Docker Compose worker-autoscaler dry-run closeout artifact, or K8s
+  `worker_autoscaler_posture.v1` closeout artifact when KEDA/HPA owns the worker pool
 - chat E2E run id / trace id
 - step trajectory projection for at least one run
-- Sentry / Axiom evidence for the same time window
-- failure-mode evidence or explicit blocker
+- Sentry / Axiom closeout artifact for the same time window
+- failure-mode closeout artifact or explicit blocker
 
-Failure-mode evidence is captured per scenario:
+Failure-mode closeout is captured per scenario:
 
 ```bash
 infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
@@ -329,6 +337,6 @@ infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
 ```
 
 Each scenario directory must contain `PASS_FAIL.md` with command, timestamp,
-host, git SHA, result, and failure reason. A cancel proof passes only when the
+host, git SHA, result, and failure reason. A cancel validation passes only when the
 sanitized synthesis attempt records `provider_connection_aborted` and no
 finalization projection is written after the canceled terminal state.

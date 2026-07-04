@@ -47,7 +47,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: agent-runtime-secrets
           readinessProbe:
             httpGet:
               path: /readyz

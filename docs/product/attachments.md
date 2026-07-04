@@ -39,7 +39,7 @@ durable chat lifecycle SSE 请求只接收当前用户消息文本，并只向 a
 - 不做长期个人文件库、文件夹、分享、搜索或跨会话资料管理。
 - 不支持任意大文件、压缩包、可执行文件或批量资料 ingestion。
 - 不支持用户通过附件提交事务、工单、支付、预约或状态变更。
-- 不要求本期建设 operator 审核、release evidence、eval 标注或人工校对后台。
+- 不要求本期建设 operator 审核、release-closeout artifact、eval 标注或人工校对后台。
 - 不在附件失败时静默退化成“只看文本继续回答”。
 
 ## 4. 用户场景

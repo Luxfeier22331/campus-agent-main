@@ -22,7 +22,7 @@ updated: 2026-06-28
 
 - provider / secret 获取方式
 - 具体 deploy/runbook 步骤
-- staging hostname、Worker route 或 release evidence
+- staging hostname、Worker route 或 release closeout artifact inventory
 
 相关文档：
 
@@ -84,7 +84,7 @@ Runtime `/readyz` is stricter than liveness:
   probe; public staging closure should use `app-api /readyz`, which performs the
   execution-control readiness probe with the configured shared secret
 - `/readyz` is still not a full deploy closure; deploy readiness also depends
-  on config truth, smoke, and evidence artifacts
+  on config truth, smoke, and runbook-owned closeout artifacts
 
 ### App API product readiness
 
@@ -126,7 +126,7 @@ Readiness is a necessary gate, not release completion.
   `docs/architecture/system/runtime-release.md` 冻结。
 - executable release closeout 由 `docs/runbooks/e2e-qa-release.md` 承接。
 - `readyz = 200` 不等于 deploy closeout；还必须有 config truth、smoke 和
-  evidence artifact。
+  runbook-owned closeout artifact。
 - 跳过 Access / auth / readyz 或用 fallback 把 readiness 标绿都无效。
 
 ## Eval Env Contract

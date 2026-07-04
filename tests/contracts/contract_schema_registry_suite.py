@@ -40,6 +40,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
             "intent-policy.v1": ["configs/runtime/intent-policy.v1.json"],
             "intent-drift-thresholds.v1": ["configs/runtime/intent-drift-thresholds.v1.json"],
             "provider-pricing.v1": ["configs/runtime/provider-pricing.v1.json"],
+            "runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
             "env-surface-policy.v1": ["configs/runtime/env-surface-policy.v1.json"],
         }
         for entry_id, validates in expected_validates.items():
@@ -236,6 +237,23 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                             "input_microusd_per_1k_tokens": -1,
                             "cached_input_microusd_per_1k_tokens": 0,
                             "output_microusd_per_1k_tokens": 1,
+                        }
+                    ],
+                },
+            ),
+            (
+                "packages/contracts/schemas/runtime-latency-budgets.v1.schema.json",
+                {
+                    "schema_version": "runtime-latency-budgets-v1",
+                    "budget_version": "bad",
+                    "rules": [
+                        {
+                            "field": "provider.queue_ms",
+                            "warn_ms": 100,
+                            "critical_ms": 200,
+                            "candidate_reason": "provider_queue_too_slow",
+                            "candidate_category": "model_provider_or_latency_budget_fix",
+                            "enabled": True,
                         }
                     ],
                 },

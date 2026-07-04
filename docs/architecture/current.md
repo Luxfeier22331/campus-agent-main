@@ -23,7 +23,7 @@ updated: 2026-06-30
 
 - 历史 phase 叙事
 - 未合入分支实现进度
-- backlog、ops closeout、release acceptance 或 planning work map
+- active planning signal、ops closeout 或 release acceptance
 - collection-specific cleanup / eval / rebuild 细节
 - 长期产品顶层入口 IA 的前向规划
 
@@ -88,7 +88,8 @@ dining.review_projections -> app-api /api/dining/* reader`
 - Docker Compose execution runtime 只保留 local / transitional evidence；长期
   production target substrate 已由 ADR-0056 与 Kubernetes execution runtime
   architecture 收口为 K8s + KEDA。live staging/prod substrate 不能只由本文
-  文档措辞推断，必须看 applied resources、runtime env、projection 与 E2E evidence。
+  文档措辞推断，必须看 applied resources、runtime env、operator projection 与
+  release closeout artifacts。
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
   启动 / 取消 `ToolExecutionWorkflow`，Temporal task queue 承担 execution substrate
@@ -136,7 +137,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   `activity_context_canceled`、`requested_before_start`、
   `provider_connection_aborted`、provider timeout 与 late completion ignored。
 - Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 handoff/server
-  code 只可通过 git history 追溯，不得作为 staging readiness、online fallback 或
+  code 只可通过 git history 追溯，不得作为 readiness dependency、online fallback 或
   active workflow branch 恢复。
 - opened deterministic structured tool 必须作为 Go-owned typed Temporal
   activity 执行并写入 sanitized projection；未完成 worker contract 的 tool
@@ -223,9 +224,10 @@ dining.review_projections -> app-api /api/dining/* reader`
 
 - protected Worker web surface
 - 负责 Operator Console 当前最小 UI：`/requests` 请求与运行值班台、
-  `/operations/provider-config` 模型服务配置
+  `/operations/provider-config` 模型服务配置、`/operations/observability`
+  观测配置
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned request /
-  runtime health / provider configuration routes
+  runtime health / provider configuration / observability configuration routes
 - 当前不承载 Official Web、authenticated notice processing、dining operations、Quality、
   Safety、Cost、standalone Audit 或离线 Eval 页面
 - 当前不 proxy `/api/official-web/*`、`/api/authenticated-notices/*`、
@@ -419,7 +421,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   `selected_tool` are current wire/projection fields.
   New active runtime descriptions should say tool handoff, tool dispatch and
   selected tool unless referring to the exact field or file name.
-- Future serving expansion is opened only by adding concrete ToolSpec entries,
+- Serving expansion is opened only by adding concrete ToolSpec entries,
   runtime profile `open_tools`, contracts, workers/read models and eval
   denominators. Product routing vocabulary remains concrete tool id only.
 
@@ -440,7 +442,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   architecture：`docs/architecture/system/identity-platform.md`
 - identity browser experience supporting
   architecture：`docs/architecture/system/identity-browser.md`
-- future muc.wiki federation supporting
+- muc.wiki federation supporting
   architecture：`docs/architecture/system/mucwiki-login.md`
 - retrieval / serving supporting
   architecture：`docs/architecture/system/retrieval-serving.md`
@@ -456,7 +458,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   architecture：`docs/architecture/domains/authenticated-notice/architecture.md`
 - operator observability supporting
   architecture：`docs/architecture/system/ops-observability.md`
-- 当前 work map 与 backlog signals：`.planning/PROJECT.md`、
+- active planning signals：`.planning/PROJECT.md`、
   `.planning/WORKSTREAMS.md`
 
 ## 不在本文维护的真相
@@ -466,6 +468,6 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 最新 benchmark artifact、release gate 结果、当前工作焦点
 - 历史 phase 排期与执行叙事
 - collection-specific normalization / rebuild / eval 证据
-- backlog、ops closeout、release acceptance 与 planning work map
+- active planning signal、ops closeout 与 release acceptance
 
 这些分别以 `.planning/`、`docs/runbooks/`、`docs/reference/` 为准。

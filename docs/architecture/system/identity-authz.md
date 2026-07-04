@@ -141,13 +141,13 @@ account / session truth。
 - raw captcha token、provider-specific risk signal 与 challenge state 不进入
   execution path、retrieval path 或 operator read model
 
-## Legacy MediaWiki Identity Compatibility
+## MediaWiki External Identity Boundary
 
-既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营。
+既有 `muc.wiki` MediaWiki 继续作为 sibling service 运营。
 
-当前 compatibility posture 固定为 `external_link_only`：
+当前 posture 固定为 `external_link_only`：
 
-- hub 只暴露 external legacy card 到 `https://muc.wiki`
+- hub 只暴露 external card 到 `https://muc.wiki`
 - `/wiki` 不是 hub internal slug
 - 不迁移 MediaWiki 用户、页面内容或上传媒体
 - 不把 MediaWiki cookie、session、user table 或 password hash 导入 `apps/app-api`

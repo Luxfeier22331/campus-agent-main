@@ -16,6 +16,12 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				estimatedCostMicrousd: 10,
 				requestId: "req_health_01",
 				retrievalAttempted: false,
+				stageTimingJson: {
+					"agent.runtime_ms": 13_000,
+					"memory.recall_ms": 2_200,
+					"rag.lookup_ms": 2_000,
+					"stream.browser_ttft_ms": 5_500,
+				},
 				startedAt: new Date("2026-03-28T08:50:00.000Z"),
 				status: "completed",
 				traceAvailable: false,
@@ -25,6 +31,11 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				estimatedCostMicrousd: 20,
 				requestId: "req_health_02",
 				retrievalAttempted: false,
+				stageTimingJson: {
+					"agent.runtime_ms": 600,
+					"rag.lookup_ms": 100,
+					"stream.browser_ttft_ms": 800,
+				},
 				startedAt: new Date("2026-03-28T08:55:00.000Z"),
 				status: "completed",
 				traceAvailable: true,
@@ -86,6 +97,38 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			outboxRetryCount: 2,
 			outboxStaleCount: 1,
 			projectionFailureCount: 1,
+		});
+		expect(result.overview.stageLatency).toMatchObject({
+			"agent.runtime_ms": {
+				criticalCount: 1,
+				p95Ms: 13_000,
+				sampleCount: 2,
+				warnCount: 1,
+			},
+			"memory.recall_ms": {
+				criticalCount: 1,
+				p95Ms: 2_200,
+				sampleCount: 1,
+				warnCount: 1,
+			},
+			"rag.lookup_ms": {
+				criticalCount: 0,
+				p95Ms: 2_000,
+				sampleCount: 2,
+				warnCount: 1,
+			},
+			"stream.browser_ttft_ms": {
+				criticalCount: 1,
+				p95Ms: 5_500,
+				sampleCount: 2,
+				warnCount: 1,
+			},
+		});
+		expect(result.overview.latencyBudget).toMatchObject({
+			criticalFieldCount: 3,
+			version: "latency-budget-v1",
+			warnFieldCount: 4,
+			worstField: "agent.runtime_ms",
 		});
 	});
 }

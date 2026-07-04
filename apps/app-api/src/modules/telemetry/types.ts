@@ -90,6 +90,7 @@ export interface AppTelemetry {
 			retryable: boolean | null;
 			selectedTool: string | null;
 			sourceDocIds: string[];
+			stageTiming?: Record<string, unknown> | null;
 			status:
 				| "completed"
 				| "error"

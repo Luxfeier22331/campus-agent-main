@@ -181,7 +181,7 @@ fail-close checks。
 
 - 这类 precheck 发生在第一次 durable accept 之后，因此 request truth 仍然可审计
 - 如果 precheck 直接拦截请求，最终状态写成 `rejected`
-- `Phase I` 的 abuse throttle key 固定为
+- 当前 abuse throttle key 固定为
   `runtime.request_execution.safety_identifier`
 - throttle truth 只允许从 app-owned durable request truth 计算，不走 in-memory only
   shortcut
@@ -189,7 +189,7 @@ fail-close checks。
   - same `safety_identifier` `> 8 requests / 60s`
   - same `safety_identifier` `> 30 requests / 10m`
   - 任一 `rate_limit_exceeded` 命中后追加 `5m` temporary throttle window
-- `Phase I` 的 abuse throttle 命中后固定写：
+- 当前 abuse throttle 命中后固定写：
   - `status=rejected`
   - `error_code=rate_limit_exceeded`
   - chat-visible result 继续走既有 `error` kind

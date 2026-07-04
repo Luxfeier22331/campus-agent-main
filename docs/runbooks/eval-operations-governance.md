@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-04-29
-updated: 2026-06-28
+updated: 2026-07-04
 ---
 # Eval Operations Governance
 
@@ -32,6 +32,71 @@ Current workflow-dispatchable lanes are:
 Both lanes must use safe projections from Langfuse traces or datasets, execute
 upstream Ragas through `packages/ragas-runner`, and publish `ragas.*` scores
 through `packages/eval-langfuse`.
+
+## Learning-Loop Candidate Operations
+
+候选选择、发布 payload 和发布后核验路径由以下命令覆盖：
+
+```bash
+pnpm --dir jobs/learning-loop-candidates test
+pnpm --dir jobs/learning-loop-candidates typecheck
+pnpm --dir packages/eval-langfuse test
+pnpm --dir packages/eval-langfuse typecheck
+```
+
+真实 Langfuse 项目中的发布后核验命令为：
+
+```bash
+APP_API_DB_URL=<app-api projection database> \
+LANGFUSE_BASE_URL=<langfuse base url> \
+LANGFUSE_PUBLIC_KEY=<project public key> \
+LANGFUSE_SECRET_KEY=<project secret key> \
+pnpm --dir jobs/learning-loop-candidates verify-published-candidates -- \
+  --since <ISO timestamp> \
+  --limit <N> \
+  --json
+```
+
+该命令不是在线回答链路的一部分。它只证明 learning-loop candidate 已经进入
+Langfuse dataset，可供 annotation / dataset / eval 工作流消费。
+
+## Supporting Surface Commands
+
+Learning-loop candidate selector:
+
+```bash
+pnpm --dir jobs/learning-loop-candidates select-candidates -- --since <ISO> --limit <N> --json
+```
+
+Learning-loop candidate publisher:
+
+```bash
+pnpm --dir jobs/learning-loop-candidates publish-candidates -- --since <ISO> --limit <N> --dry-run
+```
+
+Langfuse score config sync:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse sync-score-configs
+```
+
+Langfuse dataset sync:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse sync-datasets
+```
+
+RAG dataset manifest builder:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest
+```
+
+Runtime trace evidence verifier:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse verify-trace
+```
 
 ## Release Posture
 

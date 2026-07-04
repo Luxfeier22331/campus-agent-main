@@ -65,7 +65,7 @@ Assessment:
 Action:
 
 - Keep self-authored dining SVGs under the repository Apache-2.0 posture.
-- Keep `apps/campus-web/public/assets/dining/reviews/` empty unless future media
+- Keep `apps/campus-web/public/assets/dining/reviews/` empty unless media
   has explicit provenance and a separate publication decision.
 - Do not commit real `apps/campus-web/public/map-assets/**` assets. Use the
   existing S3-compatible derived object store and the `/map-data/*` Worker proxy
@@ -128,7 +128,7 @@ Assessment:
 Action:
 
 - Keep while it remains self-authored and low-frequency.
-- If future place data is copied from third-party maps, official basemaps or
+- If place data is copied from third-party maps, official basemaps or
   source-derived files, move it to the private content/data boundary or document
   redistribution rights before publication.
 

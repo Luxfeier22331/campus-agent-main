@@ -197,6 +197,7 @@ func (s *Server) VerifyGroundingActivity(
 	if err != nil {
 		return temporalruntime.VerifyGroundingActivityOutput{}, err
 	}
+	startedAt := time.Now().UTC()
 	result, err := temporalGroundingVerificationForRun(run, input.EvidenceRef, input.SynthesisRef)
 	if err != nil {
 		return s.failVerifyGroundingActivity(ctx, run, "grounding_verification_failed", err)
@@ -208,7 +209,7 @@ func (s *Server) VerifyGroundingActivity(
 	}); err != nil {
 		return temporalruntime.VerifyGroundingActivityOutput{}, err
 	}
-	startedAt := time.Now().UTC()
+	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
 		Tool:          "knowledge_query",
@@ -219,8 +220,8 @@ func (s *Server) VerifyGroundingActivity(
 		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.VerifyGroundingActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
-		CompletedAt:   startedAt,
-		UpdatedAt:     startedAt,
+		CompletedAt:   completedAt,
+		UpdatedAt:     completedAt,
 		ResultKind:    "grounding_verification_projection",
 		ProjectionRef: groundingRef,
 		Payload: map[string]any{
@@ -302,6 +303,19 @@ func (s *Server) WriteFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	completedAt := time.Now().UTC()
+	finalizedResponse, err = s.attachStageTimingToFinalizedResponse(
+		ctx,
+		run,
+		finalizedResponse,
+		stageTimingDuration{
+			field:    "finalization.write_ms",
+			duration: durationBetween(finalizationStartedAt, completedAt),
+		},
+	)
+	if err != nil {
+		return s.failFinalizationActivity(ctx, run, "knowledge_query", "stage_timing_unavailable", err)
+	}
 	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -327,7 +341,6 @@ func (s *Server) WriteFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	completedAt := time.Now().UTC()
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{

@@ -91,7 +91,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingBrowserE2ESource).toContain("operator-console-browser-e2e.json");
 		expect(stagingBrowserE2ESource).toContain("assertNoDirectRuntimeRequests");
 		expect(stagingBrowserE2ESource).toContain(
-			"temporal|execution-control|sentry|axiom|postgres|pg",
+			"temporal|execution-control|sentry|axiom|langfuse|postgres|pg",
 		);
 		expect(stagingBrowserE2ESource).toContain("/requests");
 		expect(stagingBrowserE2ESource).not.toContain("/observability/overview");

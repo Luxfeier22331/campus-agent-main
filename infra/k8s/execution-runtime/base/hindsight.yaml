@@ -50,7 +50,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: execution-runtime-secrets
+                  name: execution-stateful-runtime-secrets
                   key: HINDSIGHT_POSTGRES_PASSWORD
           readinessProbe:
             exec:
@@ -131,7 +131,7 @@ spec:
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-runtime-secrets
+                name: execution-stateful-runtime-secrets
           env:
             - name: HINDSIGHT_API_TENANT_EXTENSION
               value: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension

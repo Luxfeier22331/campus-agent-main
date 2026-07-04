@@ -1,6 +1,12 @@
 import { and, gte, inArray, lt, type SQL } from "drizzle-orm";
 
 import { projectionOutbox } from "../../../db/schema";
+import {
+	evaluateStageTimingBudget,
+	LATENCY_BUDGET_RULES,
+	LATENCY_BUDGET_VERSION,
+	stageTimingBudgetState,
+} from "../../latency-budget";
 import type { NormalizedOperatorOverviewFilters, OperatorOverviewResult } from "../service";
 import { loadObservabilityRows } from "./loaders";
 import type { OperatorQueryRuntime } from "./runtime";
@@ -65,6 +71,62 @@ function buildProjectionOutboxHealth(input: { now: Date; rows: unknown[] }) {
 	};
 }
 
+function numericStageTiming(value: Record<string, unknown> | null | undefined) {
+	const timing: Record<string, number> = {};
+	for (const [field, durationMs] of Object.entries(value ?? {})) {
+		if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0) {
+			timing[field] = durationMs;
+		}
+	}
+	return timing;
+}
+
+function buildStageLatencyOverview(
+	rows: Array<{ stageTimingJson?: Record<string, unknown> | null }>,
+) {
+	const output: OperatorOverviewResult["overview"]["stageLatency"] = {};
+	for (const rule of LATENCY_BUDGET_RULES) {
+		const values = rows
+			.map((row) => numericStageTiming(row.stageTimingJson)[rule.field])
+			.filter((value): value is number => typeof value === "number");
+		if (values.length === 0) {
+			continue;
+		}
+		output[rule.field] = {
+			criticalCount: values.filter(
+				(value) => stageTimingBudgetState(rule.field, value) === "critical",
+			).length,
+			p50Ms: percentile(values, 50),
+			p95Ms: percentile(values, 95),
+			p99Ms: percentile(values, 99),
+			sampleCount: values.length,
+			warnCount: values.filter(
+				(value) => stageTimingBudgetState(rule.field, value) !== "within_budget",
+			).length,
+		};
+	}
+	return output;
+}
+
+function buildLatencyBudgetOverview(
+	rows: Array<{ stageTimingJson?: Record<string, unknown> | null }>,
+) {
+	const breaches = rows.flatMap((row) => evaluateStageTimingBudget(row.stageTimingJson).breaches);
+	const worst =
+		[...breaches].sort((left, right) => {
+			if (left.severity !== right.severity) {
+				return left.severity === "critical" ? -1 : 1;
+			}
+			return right.durationMs - left.durationMs;
+		})[0] ?? null;
+	return {
+		criticalFieldCount: breaches.filter((breach) => breach.severity === "critical").length,
+		version: LATENCY_BUDGET_VERSION,
+		warnFieldCount: breaches.length,
+		worstField: worst?.field ?? null,
+	};
+}
+
 export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 	return {
 		async getOverview(filters: NormalizedOperatorOverviewFilters) {
@@ -93,6 +155,7 @@ export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 						p95Ms: percentile(durations, 95),
 						p99Ms: percentile(durations, 99),
 					},
+					latencyBudget: buildLatencyBudgetOverview(rows),
 					requestVolume: {
 						accepted: total,
 						completed: rows.filter((row) => row.status === "completed").length,
@@ -105,6 +168,7 @@ export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 						),
 						...outboxHealth,
 					},
+					stageLatency: buildStageLatencyOverview(rows),
 				},
 				window: buildResultWindow(bounds),
 			} satisfies OperatorOverviewResult;

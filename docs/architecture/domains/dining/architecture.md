@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-07-02
+updated: 2026-07-04
 ---
 # Dining Domain Architecture
 
@@ -18,7 +18,7 @@ updated: 2026-07-02
 - draft、release candidate、release、published projection 如何分层
 - `campus-web` 与 Operator Console dining workspace 分别消费什么
 - Feishu/Lark 来源同步如何进入发布投影
-- 未来问答链路如何只读消费食堂发布投影
+- 问答链路如何只读消费食堂发布投影
 - dining 与 navigation spatial truth 如何区分
 
 它不负责：
@@ -51,7 +51,7 @@ Feishu/Lark review source + manual collection
 
 campus-web -> app-api /api/dining/* -> latest published release snapshot
 
-future dining_lookup tool -> same published projection
+dining_lookup typed tool target -> same published projection
 ```
 
 `app-api` owns the HTTP reader/writer facade and Worker PG adapter. It does not
@@ -281,7 +281,7 @@ Dining source sync is an offline/runtime task, not an app-api request path.
 Allowed shapes:
 
 - local one-shot validation through `lark-cli` or `jobs/dining-sync`
-- Docker one-shot sync for local/staging proof
+- Docker one-shot sync for local runtime validation
 - Kubernetes `Job` for manual rerun
 - Kubernetes `CronJob` for scheduled production sync
 
@@ -301,7 +301,7 @@ Default scheduling posture:
 
 - production: hourly CronJob, `concurrencyPolicy: Forbid`,
   `timeZone: Asia/Shanghai`
-- staging: same manifest shape, default suspended until explicit one-shot proof
+- staging: same manifest shape, default suspended until explicit one-shot validation
 - local: explicit one-shot command only. For student-surface validation, run the
   current-worktree app-api local env wrapper with
   `node ./scripts/prepare-local-dining.mjs`; it executes shared-product
@@ -309,13 +309,11 @@ Default scheduling posture:
   snapshot contains the committed validation floorplans.
 
 Catalog sync output must be deterministic and fail closed. Catalog publish and
-dev seed import closeout must report the visible hall/floor set so missing
+dev seed import closeout must expose the visible hall/floor set so missing
 published maps are visible before browser smoke. A catalog record is
 publishable only after required source links and display fields validate.
-上线 closeout 应再执行 `jobs/dining-sync verify-published`。该命令只读 latest
-published snapshot 和 review projection，不访问 Feishu/Lark、不写 DB，用于确认学生端
-可见 hall/floor/window/assignment/menu 计数、placeholder floor 计数和 review image
-projection 没有 source-provider token 泄漏。
+Repeatable closeout steps and `verify-published` usage belong to
+`docs/runbooks/dining-sync.md`.
 Formal floorplan SVG completeness is not catalog admission. During the current
 bootstrap stage, catalog rows with valid source relationships are published even
 when the formal repo floorplan scaffold is incomplete:
@@ -374,7 +372,7 @@ online provider-config or model-visible tool catalogs.
 
 ## Tool Consumption Boundary
 
-The future model-visible food tool should be a read-only typed tool such as
+The model-visible food tool target should be a read-only typed tool such as
 `dining_lookup`.
 
 It may read:
@@ -442,21 +440,13 @@ stale instead of deleting rows. Publishing consumes active observations
 written to object storage in the current scope; object storage is used for
 review image attachment materialization.
 
-Future operator review/apply workflows, if accepted later, must be explicitly
-designed before implementation:
-
-```text
-observation captured
--> pending review
--> apply to draft OR reject
--> audit
--> optional publish
-```
-
 Observation rows do not become student-visible data by themselves. Only the
 publish job may materialize accepted catalog observations into catalog tables
 and the latest published release snapshot. The current implementation does not
 expose observation listing, apply or reject routes.
+
+Operator review/apply workflows are not owned by this active architecture until
+an explicit product requirement and operations contract accepts them.
 
 ## Navigation Boundary
 
@@ -495,8 +485,8 @@ must not carry menu, price or review truth.
 
 ## Non-Goals
 
-Dining product scope does not include the following during the current planned
-development cycle:
+Dining product scope does not include the following in the accepted domain
+boundary:
 
 - merchant self-service
 - real-time queue or live opening status

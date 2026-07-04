@@ -91,6 +91,7 @@ This index only routes endpoint families to their owners:
 - operator request list and detail: `operator.md`
 - expanded operator observability, quality, safety, cost and audit:
   `observability.md`
+- runtime stage timing safe projection: `../stage-timing.md`
 - operator ops cross-cutting rules: `operator-ops.md`
 - dining public projection: `dining.md`
 - dining operations, release and audit: `dining-ops.md`

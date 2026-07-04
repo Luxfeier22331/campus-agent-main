@@ -27,6 +27,61 @@ export interface RawRequestProjectionRecord {
 	visibilityScope: string | null;
 }
 
+export interface RawRequestOpsIndex {
+	stageTiming: Record<string, number>;
+	stageTimingBudget?: Record<
+		string,
+		{
+			budgetState: "within_budget" | "warn" | "critical";
+			budgetVersion: string;
+			criticalMs: number;
+			durationMs: number;
+			warnMs: number;
+		}
+	>;
+	debugTraceRefs: Array<{
+		sink: string;
+		traceId: string | null;
+		traceRef: string;
+		url?: string;
+	}>;
+	model: {
+		modelProvider: string | null;
+		modelName: string | null;
+		billableStepCount: number | null;
+		usageSummary: Record<string, unknown>[];
+		promptId: string | null;
+		promptVersion: string | null;
+		templateSha256: string | null;
+		executionState: string | null;
+		executionDetail: string | null;
+		inputTokens: number | null;
+		outputTokens: number | null;
+		cachedInputTokens: number | null;
+		estimatedCostMicrousd: number | null;
+	};
+	tool: {
+		requestedTool: string | null;
+		selectedTool: string | null;
+		toolBusinessOutcome: string | null;
+		failClosed: boolean | null;
+		failCloseReason: string | null;
+		historicalDowngradeReason: string | null;
+	};
+	retrieval: {
+		retrievalAttempted: boolean | null;
+		candidateCount: number | null;
+		retrievedSourceCount: number | null;
+		collection: string | null;
+		adequacyVerdict: string | null;
+		adequacyReason: string | null;
+	};
+	sinkLinks: {
+		traceAvailable: boolean;
+		projectionLagMs: number | null;
+	};
+}
+
 export interface RequestProjectionDiagnostics {
 	clarificationReason: string | null;
 	noAnswerReason: string | null;
@@ -40,6 +95,11 @@ export interface RequestProjectionRecord extends RawRequestProjectionRecord {
 	id: string;
 }
 
+export interface RequestDetailRecord {
+	request: RequestProjectionRecord | null;
+	opsIndex: RawRequestOpsIndex | null;
+}
+
 export interface RawRequestListResponse {
 	page: {
 		nextCursor: string | null;
@@ -49,6 +109,7 @@ export interface RawRequestListResponse {
 
 export interface RawRequestDetailResponse {
 	request: RawRequestProjectionRecord | null;
+	opsIndex: RawRequestOpsIndex | null;
 }
 
 export function normalizeRequestRecord(input: RawRequestProjectionRecord): RequestProjectionRecord {

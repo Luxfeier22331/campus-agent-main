@@ -113,14 +113,17 @@ type Emitter struct {
 	sampleRatio        float64
 	allowedVersion     string
 
-	tracerProvider   *sdktrace.TracerProvider
-	tracer           trace.Tracer
-	meterProvider    *sdkmetric.MeterProvider
-	meter            metric.Meter
-	requestCounter   metric.Int64Counter
-	errorCounter     metric.Int64Counter
-	activityDuration metric.Float64Histogram
-	logger           *slog.Logger
+	tracerProvider          *sdktrace.TracerProvider
+	tracer                  trace.Tracer
+	meterProvider           *sdkmetric.MeterProvider
+	meter                   metric.Meter
+	requestCounter          metric.Int64Counter
+	errorCounter            metric.Int64Counter
+	runtimeDecisionCounter  metric.Int64Counter
+	activityDuration        metric.Float64Histogram
+	queueWaitDuration       metric.Float64Histogram
+	scheduleToStartDuration metric.Float64Histogram
+	logger                  *slog.Logger
 }
 
 var ErrTelemetryUnavailable = errors.New("telemetry unavailable")
@@ -408,6 +411,18 @@ func (e *Emitter) configureMetrics() {
 	if err == nil {
 		e.activityDuration = activityDuration
 	}
+	queueWaitDuration, err := e.meter.Float64Histogram("campus.execution_control.queue_wait_ms")
+	if err == nil {
+		e.queueWaitDuration = queueWaitDuration
+	}
+	scheduleToStartDuration, err := e.meter.Float64Histogram("campus.execution_control.schedule_to_start_ms")
+	if err == nil {
+		e.scheduleToStartDuration = scheduleToStartDuration
+	}
+	runtimeDecisionCounter, err := e.meter.Int64Counter("campus.execution_control.runtime_decisions")
+	if err == nil {
+		e.runtimeDecisionCounter = runtimeDecisionCounter
+	}
 }
 
 func (e *Emitter) recordMetric(event Event) {
@@ -415,22 +430,41 @@ func (e *Emitter) recordMetric(event Event) {
 		return
 	}
 	attrs := []attribute.KeyValue{
-		attribute.String("event_name", normalizeEventName(event.Name)),
 		attribute.String("task_queue", defaultString(event.TaskQueue, "unknown")),
-		attribute.String("requested_tool", defaultString(event.RequestedTool, "unknown")),
+		attribute.String("step_kind", defaultString(event.StepKind, "unknown")),
+		attribute.String("activity_type", defaultString(event.ActivityType, "unknown")),
+		attribute.String("selected_tool", defaultString(event.SelectedTool, "unknown")),
+		attribute.String("status", defaultString(event.Status, "unknown")),
 		attribute.String("outcome", defaultString(event.Outcome, "unknown")),
-		attribute.String("failure_code", defaultString(event.FailureCode, "none")),
+		attribute.String("failure_kind", defaultString(event.FailureKind, "none")),
 	}
 	if e.requestCounter != nil {
 		e.requestCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
 	}
-	if e.errorCounter != nil && strings.TrimSpace(event.FailureCode) != "" {
+	if e.errorCounter != nil && strings.TrimSpace(event.FailureKind) != "" && event.FailureKind != "none" {
 		e.errorCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
+	}
+	if e.runtimeDecisionCounter != nil && strings.TrimSpace(event.Decision) != "" {
+		e.runtimeDecisionCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
 	}
 	if e.activityDuration != nil && event.ActivityDuration > 0 {
 		e.activityDuration.Record(
 			context.Background(),
 			float64(event.ActivityDuration)/float64(time.Millisecond),
+			metric.WithAttributes(attrs...),
+		)
+	}
+	if e.queueWaitDuration != nil && event.QueueWait > 0 {
+		e.queueWaitDuration.Record(
+			context.Background(),
+			float64(event.QueueWait)/float64(time.Millisecond),
+			metric.WithAttributes(attrs...),
+		)
+	}
+	if e.scheduleToStartDuration != nil && event.ScheduleToStart > 0 {
+		e.scheduleToStartDuration.Record(
+			context.Background(),
+			float64(event.ScheduleToStart)/float64(time.Millisecond),
 			metric.WithAttributes(attrs...),
 		)
 	}

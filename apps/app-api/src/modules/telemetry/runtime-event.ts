@@ -64,6 +64,10 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		]),
 	],
 	[
+		"request.stage_timing",
+		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "budget_state", "duration_ms", "stage_field"]),
+	],
+	[
 		"request.transport_error",
 		new Set([
 			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,

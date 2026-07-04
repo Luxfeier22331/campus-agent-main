@@ -24,18 +24,11 @@ data:
   QDRANT_TIMEOUT_SECONDS: "60"
   AGENT_RUNTIME_HOST: 0.0.0.0
   AGENT_RUNTIME_PORT: "27062"
-  AGENT_RUNTIME_TOOL_CATALOG_PATH: configs/runtime/tool-catalog.v1.json
+  AGENT_RUNTIME_TOOL_REGISTRY_PATH: configs/runtime/tools.v4.json
   AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
-  EMBEDDING_PROVIDER: openai
-  EMBEDDING_BASE_URL: https://api.openai.com/v1
-  EMBEDDING_MODEL: text-embedding-3-small
-  EMBEDDING_DIMENSIONS: "1536"
-  HINDSIGHT_API_LLM_PROVIDER: openai
-  HINDSIGHT_API_LLM_BASE_URL: https://api.openai.com/v1
-  HINDSIGHT_API_LLM_MODEL: gpt-4o-mini
-  HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
-  HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: https://api.openai.com/v1
-  HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: text-embedding-3-small
-  HINDSIGHT_API_RERANKER_PROVIDER: rrf
+  OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT: https://sentry.example.internal/api/project/integration/otlp
+  OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: https://us-east-1.aws.edge.axiom.co
+  OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: campus-agent-runtime
+  OTEL_COLLECTOR_AXIOM_METRICS_DATASET: campus-agent-runtime-metrics
   OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: https://langfuse.example.internal/api/public/otel
   OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"

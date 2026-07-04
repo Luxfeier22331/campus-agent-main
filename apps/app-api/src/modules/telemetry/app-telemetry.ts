@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
+import type { RequestedScope } from "../integration";
+import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
 import {
 	hashIdentifier,
 	normalizeString,
@@ -16,6 +18,54 @@ import { buildRuntimeEventEnvelope } from "./runtime-event-envelope";
 import { applyRequestContext, applyRequestTags } from "./sentry-scope";
 import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
+
+async function emitStageTimingEvents(input: {
+	errorCode: string | null;
+	principalType?: string | null;
+	requestId: string;
+	requestedScope?: RequestedScope | null;
+	requestedTool: string | null;
+	runtimeEventSink: RuntimeEventSink;
+	selectedTool: string | null;
+	stageTiming?: Record<string, unknown> | null;
+	status: string;
+	surface: string;
+	telemetryMetadata: Parameters<typeof buildRuntimeEventEnvelope>[1];
+	traceId: string;
+}): Promise<void> {
+	for (const [stageField, durationMs] of Object.entries(input.stageTiming ?? {})) {
+		if (
+			!(
+				isStageTimingField(stageField) &&
+				typeof durationMs === "number" &&
+				Number.isFinite(durationMs) &&
+				durationMs >= 0
+			)
+		) {
+			continue;
+		}
+		await input.runtimeEventSink.emit({
+			duration_ms: durationMs,
+			stage_field: stageField,
+			budget_state: stageTimingBudgetState(stageField, durationMs),
+			...buildRuntimeEventEnvelope(
+				{
+					errorCode: input.errorCode,
+					eventType: "request.stage_timing",
+					principalType: input.principalType,
+					requestId: input.requestId,
+					requestedTool: input.requestedTool,
+					requestedScope: input.requestedScope,
+					selectedTool: input.selectedTool,
+					status: input.status,
+					surface: input.surface,
+					traceId: input.traceId,
+				},
+				input.telemetryMetadata,
+			),
+		});
+	}
+}
 
 export function createAppTelemetry(
 	env: Pick<
@@ -285,6 +335,22 @@ export function createAppTelemetry(
 						},
 						telemetryMetadata,
 					),
+				}),
+			);
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				emitStageTimingEvents({
+					errorCode: input.errorCode,
+					principalType: input.principalType,
+					requestId: input.requestId,
+					requestedScope: input.requestedScope,
+					requestedTool: input.requestedTool,
+					runtimeEventSink,
+					selectedTool: input.selectedTool,
+					stageTiming: input.stageTiming,
+					status: input.status,
+					surface: input.surface,
+					telemetryMetadata,
+					traceId: input.traceId,
 				}),
 			);
 		},

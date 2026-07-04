@@ -28,7 +28,7 @@ updated: 2026-06-22
 - `docs/data/identity-platform.md`
   - 负责 logical schema ownership
 - `docs/architecture/system/mucwiki-login.md`
-  - 负责 future relying-party federation
+  - 负责 relying-party federation target boundary
 
 ## Core Principle
 
@@ -70,10 +70,11 @@ auth runtime adapter 负责 credential/session/provider mechanics：
 - session cookie and server-side session lookup
 - CSRF / origin / captcha admission
 - OAuth/OIDC provider plugin runtime
-- optional future passkey / social login runtime
+- optional passkey / social login runtime
 
-Current runtime adapter is Better Auth. Future replacement is allowed only if
-Identity Platform product contracts remain stable or are explicitly versioned.
+Current runtime adapter is Better Auth. Runtime adapter replacement is allowed
+only if Identity Platform product contracts remain stable or are explicitly
+versioned.
 
 ### `apps/campus-web`
 
@@ -100,8 +101,8 @@ raw profile memory tables or raw MediaWiki identity state.
 
 ### `muc.wiki`
 
-Future `muc.wiki` login integration is a relying-party relationship. MediaWiki
-owns wiki-side account linking and local user lifecycle. Identity Platform owns
+`muc.wiki` login integration is a relying-party relationship. MediaWiki owns
+wiki-side account linking and local user lifecycle. Identity Platform owns
 issuer, client policy and claims.
 
 ## Product Model
@@ -175,7 +176,7 @@ Minimum semantics:
 
 - profile memory enabled state
 - user-visible profile memory item count or summary
-- future UI and notification preferences
+- explicitly modeled UI and notification preferences
 
 Preferences can influence personalization and UX, not authorization.
 
@@ -278,7 +279,7 @@ Implemented federation runtime:
 - Do not use profile memory, preferences, chat history or retrieval evidence as
   authorization truth.
 - Do not integrate `muc.wiki` login through shared cookies, database import,
-  MediaWiki session reuse or one-off compatibility endpoints outside Identity
+  MediaWiki session reuse or one-off federation endpoints outside Identity
   Platform.
 
 ## Related Documents

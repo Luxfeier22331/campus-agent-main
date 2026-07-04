@@ -17,7 +17,7 @@ updated: 2026-06-03
 - auth runtime adapter tables
 - app-owned identity product truth
 - projection/read-model fields exposed to campus and other first-party surfaces
-- future federation client policy data
+- federation client policy data
 
 本文不替代 migration files、Better Auth adapter schema docs 或 physical table DDL。
 

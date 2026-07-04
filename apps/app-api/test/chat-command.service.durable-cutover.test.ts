@@ -281,7 +281,7 @@ describe("chat command durable runtime cutover", () => {
 		]);
 		expect(executionPayload).toMatchObject({
 			execution_contract_version: "tool_execution_v1",
-			response_contract: "execution_finalization_response_v1",
+			response_contract: "execution_finalization_response_v2",
 			effective_tool: "knowledge_query",
 			task_queue: "campus-agent.workflow",
 			requested_tool: "knowledge_query",

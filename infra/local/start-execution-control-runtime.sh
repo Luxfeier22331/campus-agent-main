@@ -96,6 +96,18 @@ execution_control_runtime_require_runtime_env() {
     echo "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH is required for provider-config runtime access." >&2
     return 1
   fi
+  if [[ -z "${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH:-}" ]]; then
+    echo "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH is required for observability-config projection mount." >&2
+    return 1
+  fi
+  if [[ ! -f "${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}" ]]; then
+    echo "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH must point to a synced observability-config projection artifact: ${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}" >&2
+    return 1
+  fi
+  if [[ -z "${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:-}" ]]; then
+    echo "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH is required for observability-config projection mount." >&2
+    return 1
+  fi
   if [[ -z "${HINDSIGHT_POSTGRES_PASSWORD:-}" ]]; then
     echo "HINDSIGHT_POSTGRES_PASSWORD is required for local Hindsight Postgres." >&2
     return 1

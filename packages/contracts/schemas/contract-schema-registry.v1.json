@@ -172,6 +172,24 @@
 			"notes": "Provider usage pricing catalog consumed by execution-control cost projection."
 		},
 		{
+			"id": "runtime-latency-budgets.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-latency-budgets.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/latency-budgets.v1.json"],
+			"notes": "Repo-owned latency budget artifact consumed by app-api and learning-loop candidate selection."
+		},
+		{
+			"id": "runtime-observability-alerts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-observability-alerts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/observability-alerts.v1.json"],
+			"notes": "Repo-owned symptom alert policy artifact for safe runtime observability signals."
+		},
+		{
 			"id": "env-surface-policy.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/env-surface-policy.v1.schema.json",

@@ -20,10 +20,6 @@ class RepoCollaborationTest(unittest.TestCase):
             ROOT / "CONTRIBUTING.md",
             ROOT / ".github" / "CODEOWNERS",
             ROOT / ".github" / "dependabot.yml",
-            ROOT / ".github" / "pull_request_template.md",
-            ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.md",
-            ROOT / ".github" / "ISSUE_TEMPLATE" / "docs_issue.md",
-            ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.md",
             ROOT / ".github" / "workflows" / "pr-checks.yml",
             ROOT / ".github" / "workflows" / "scorecard.yml",
             ROOT / ".github" / "workflows" / "scheduled-checks.yml",
@@ -180,7 +176,6 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("无条件 PR blocker", contributing)
 
     def test_secret_and_dependency_security_lanes_are_documented(self) -> None:
-        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
         lanes = (ROOT / "docs/reference/testing-and-verification-lanes.md").read_text(
             encoding="utf-8"
         )
@@ -194,8 +189,8 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("pnpm ci:secrets", pr_checks)
         self.assertIn("Gitleaks", lanes)
         self.assertIn("OSV-Scanner", lanes)
-        self.assertIn("lockfile", template)
-        self.assertIn("full commit SHA", template)
+        self.assertIn("pnpm-lock.yaml", lanes)
+        self.assertIn("full commit SHA", lanes)
 
     def test_dining_image_workflow_scans_and_generates_sbom_before_push(self) -> None:
         workflow_text = (ROOT / ".github" / "workflows" / "dining-sync-image.yml").read_text(
@@ -230,21 +225,6 @@ class RepoCollaborationTest(unittest.TestCase):
                 "CodeQL / Dependency Review / attestation PR blocker before the "
                 "private repository prerequisite is confirmed.",
             )
-
-    def test_pull_request_template_checks_public_source_data_boundary(self) -> None:
-        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
-
-        self.assertIn("Public Source / Data Boundary", template)
-        self.assertIn("source-derived documents", template)
-        self.assertIn("No internal publish/deploy workflow", template)
-
-    def test_pull_request_template_records_ci_merge_discipline(self) -> None:
-        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
-
-        self.assertIn("pr-checks / required-checks", template)
-        self.assertIn("changed-surface", template)
-        self.assertIn("manual / staging / eval lane", template)
-        self.assertIn("private repo", template)
 
     def test_contributing_records_private_repo_merge_discipline(self) -> None:
         contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")

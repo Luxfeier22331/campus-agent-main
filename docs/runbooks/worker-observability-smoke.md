@@ -20,7 +20,7 @@ updated: 2026-06-09
 
 - 本地如何确认 observability env 已经准备好
 - deploy 后如何验证 `Sentry` / `Axiom` 真实收到了事件
-- 当前 smoke 需要保留哪些证据
+- 当前 smoke 需要产出哪些 closeout artifacts
 
 它不替代：
 
@@ -39,7 +39,8 @@ updated: 2026-06-09
 判定标准不是“代码里已经接了 Sentry/Axiom”，而是：
 
 1. 在未部署前，本地 env/preflight 与 Worker smoke 可以重复通过
-1. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
+1. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯
+   closeout artifact
 
 `Pre-Deploy Readiness` 可以在真实部署前重复执行；`Post-Deploy Verification` 只在真实部署环境存在后执行。
 
@@ -88,7 +89,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink
 已收到事件。
 
-### 3. Pre-Deploy 证据
+### 3. Pre-Deploy Closeout Inputs
 
 建议在每轮 readiness 复核后保留：
 
@@ -101,7 +102,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 
 - `.tmp/observability-smoke/<timestamp>-<environment>-<release>/`
 
-建议同时保留以下证据文件：
+建议同时保留以下 closeout files：
 
 - `SUMMARY.md`
 - `chat-trace.md`
@@ -138,7 +139,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
   scripts.check_sentry_lookup_access --json
 ```
 
-确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
+确认 token 至少能读取目标 org / project，再进入 trace / event closeout artifact 留存
 
 - 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not
   have permission to perform this action.`，不要把它误判成 staging observability
@@ -158,7 +159,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
 
-- 建议先填完 handoff 与 evidence 字段，再执行真实环境 smoke
+- 建议先填完 handoff 与 closeout artifact 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
 
@@ -194,16 +195,16 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 ### 3. `app-api` 受控错误路径（可选）
 
-只在明确需要 exception evidence 时再走这条路径。
+只在明确需要 exception closeout artifact 时再走这条路径。
 
 注意：
 
 - 当前 `apps/app-api` 只会把非 `AppApiRouteError` 的未处理异常送入
   `telemetry.captureException(...)`
 - 缺失必须字段、`validation_failed`、`401/403/404/422` 这类 route error 会直接变成
-  `routeErrorResponse(...)`，不能作为 `Sentry` exception closure 证据
-- 如果当前没有显式的 non-`AppApiRouteError` probe，优先使用前两节的 trace-linked `spans` 证据完成
-  closure
+  `routeErrorResponse(...)`，不能作为 `Sentry` exception closeout artifact
+- 如果当前没有显式的 non-`AppApiRouteError` probe，优先使用前两节的 trace-linked `spans`
+  closeout artifact 完成 closure
 
 预期：
 
@@ -228,7 +229,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - raw auth header
 - raw transcript
 
-## 证据要求
+## Closeout Artifact Requirements
 
 每次 smoke 至少保留：
 
@@ -294,5 +295,5 @@ header 与 transcript 均未出现。
 - `Post-Deploy Verification` 关闭条件：
   `campus-web`、`operator-console-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
   `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或
-  controlled-error event evidence
+  controlled-error event closeout artifact
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”

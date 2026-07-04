@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -525,4 +528,95 @@ func TestEmitterEnabledWithMetricsRequiresMetricsEndpoint(t *testing.T) {
 	if status.LastError == "" {
 		t.Fatal("last error should be populated")
 	}
+}
+
+func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	emitter := &Emitter{
+		meter: provider.Meter("test"),
+	}
+	emitter.configureMetrics()
+
+	emitter.recordMetric(Event{
+		ActivityDuration: 25 * time.Millisecond,
+		ActivityType:     "RAGLookup",
+		Decision:         "admitted",
+		FailureKind:      "none",
+		Name:             "temporal.step_observation",
+		Outcome:          "completed",
+		QueueWait:        12 * time.Millisecond,
+		ScheduleToStart:  18 * time.Millisecond,
+		SelectedTool:     "knowledge_query",
+		Status:           "completed",
+		StepKind:         "retrieval",
+		TaskQueue:        "campus.execution.activity.knowledge",
+	})
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+
+	metricNames := map[string]bool{}
+	for _, scope := range rm.ScopeMetrics {
+		for _, item := range scope.Metrics {
+			metricNames[item.Name] = true
+			assertMetricAttributesAreBounded(t, item)
+		}
+	}
+	for _, name := range []string{
+		"campus.execution_control.runtime_requests",
+		"campus.execution_control.activity_duration_ms",
+		"campus.execution_control.queue_wait_ms",
+		"campus.execution_control.schedule_to_start_ms",
+		"campus.execution_control.runtime_decisions",
+	} {
+		if !metricNames[name] {
+			t.Fatalf("metric %s missing from %#v", name, metricNames)
+		}
+	}
+}
+
+func assertMetricAttributesAreBounded(t *testing.T, metric metricdata.Metrics) {
+	t.Helper()
+	allowed := map[string]bool{
+		"activity_type": true,
+		"failure_kind":  true,
+		"outcome":       true,
+		"selected_tool": true,
+		"status":        true,
+		"step_kind":     true,
+		"task_queue":    true,
+	}
+	for _, attrs := range metricAttributeSets(metric) {
+		for _, attr := range attrs.ToSlice() {
+			if !allowed[string(attr.Key)] {
+				t.Fatalf("metric %s has unbounded or unsupported attribute %q", metric.Name, attr.Key)
+			}
+		}
+	}
+}
+
+func metricAttributeSets(metric metricdata.Metrics) []attributeSet {
+	switch data := metric.Data.(type) {
+	case metricdata.Sum[int64]:
+		output := make([]attributeSet, 0, len(data.DataPoints))
+		for _, point := range data.DataPoints {
+			output = append(output, &point.Attributes)
+		}
+		return output
+	case metricdata.Histogram[float64]:
+		output := make([]attributeSet, 0, len(data.DataPoints))
+		for _, point := range data.DataPoints {
+			output = append(output, &point.Attributes)
+		}
+		return output
+	default:
+		return nil
+	}
+}
+
+type attributeSet interface {
+	ToSlice() []attribute.KeyValue
 }

@@ -183,7 +183,7 @@ canonical doc 正文交付长期采用：
   - restricted / gated docs search index admission 与 manifest resolution
   - restricted / gated citation/source-card permalink resolve
   - restricted admission
-  - future `historical / as_of / compare` tool routing
+  - separately admitted `historical / as_of / compare` tool routing
 
 当前 campus-web implementation posture：
 
@@ -314,7 +314,7 @@ admission truth。
 
 - forward product entry
 - docs browser surface ownership
-- staging/product acceptance target
+- browser delivery surface ownership
 - OAuth/account/browser navigation owner
 - canonical document truth
 - reader contract

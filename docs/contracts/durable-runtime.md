@@ -22,7 +22,7 @@ updated: 2026-06-12
 
 它不负责：
 
-- 当前代码是否已经实现这些接口
+- implementation completion status
 - 具体 HTTP path、SQL migration 文件或 worker deployment 数量
 - agent-specific payload、retrieval plan、ToolSpec 或 provider schema
 - Temporal internal workflow history schema
@@ -83,7 +83,7 @@ Run id 是一次 answer execution 的 canonical durable object id。
 - run 可以被查询、取消、订阅、投影和评估
 - run id 必须贯穿 workflow/activity projection、run events、final answer 与 eval
   trace / dataset correlation；historical PG lease / heartbeat artifact 只作为迁移审计材料
-- `request_id` 只能作为 compatibility / correlation id，不再作为 final runtime identity
+- `request_id` 只能作为 correlation id，不再作为 final runtime identity
 
 ### `step_id`
 
@@ -536,7 +536,7 @@ worker pool does not own：
 - public final response envelope
 - run / step admission truth
 
-## Compatibility Boundary
+## Retired Transport Boundary
 
 The retired legacy answer transport is not part of the active `app-api ->
 execution-control` serving path.
@@ -569,11 +569,11 @@ step/attempt/result projection，并能被 app-api operator read model 消费。
 
 ## Operator Step Trajectory Export
 
-`runtimeRun.operatorStepTrajectory` 是 app-api 面向 panel、eval、badcase 与 future
-release evidence 的唯一 canonical diagnostic export。它不是 raw Temporal replay，
+`runtimeRun.operatorStepTrajectory` 是 app-api 面向 panel、eval、badcase 与 operational
+diagnostic artifact 的唯一 canonical diagnostic export。它不是 raw Temporal replay，
 也不是 execution-control `/steps` response 的浏览器透传。`runtimeRun.stepTrajectory`
-只保留 request detail 的 bounded compatibility summary，不再是 eval / badcase /
-release-evidence-shaped fixture 的 canonical source。
+只保留 request detail 的 bounded display summary，不再是 eval / badcase /
+diagnostic fixture 的 canonical source。
 
 第一版 export contract 固定为 `operator_step_trajectory.v1`：
 
@@ -581,7 +581,7 @@ release-evidence-shaped fixture 的 canonical source。
 - source input：app-api materialized operator request detail，或测试中与该 detail
   同形的 sanitized fixture
 - consumers：Operator Console request detail、eval attribution、badcase projection、
-  release-evidence-shaped local fixture builder
+  diagnostic fixture builder
 - forbidden consumers：Temporal history reader、execution-control direct query from
   eval / panel、provider raw trace reader、raw prompt / raw answer / raw transcript
   reader、本机 object path / bucket / local artifact reverse lookup
@@ -606,10 +606,10 @@ release-evidence-shaped fixture 的 canonical source。
 - `late_completion_outcome`
 - bounded result / evidence / artifact projection refs where available
 
-Eval / badcase / release-evidence-shaped local fixture rules：
+Eval / badcase / diagnostic fixture rules：
 
 - 不允许直接消费 `workflow_trace_summary` 作为 canonical source；它只能作为 bounded
-  compatibility display summary。
+  display summary。
 - failure stage attribution 必须支持 routing / primary-agent / typed-tool /
   retrieval / rerank / selection / evidence-selection / synthesis / grounding /
   finalization / replan，以及 terminal outcome stage
@@ -617,10 +617,10 @@ Eval / badcase / release-evidence-shaped local fixture rules：
   alias；terminal outcome stage 归因到 `finalization.write`。无法匹配时仍返回
   `attribution_missing`。
 - local fixture summary 必须统计 timeout、cancel、late-completion、
-  fail-close reason 与 replan reason counts；这些 counts 是 release-evidence-shaped
-  local evidence，不等于 staging proof。
+  fail-close reason 与 replan reason counts；这些 counts 是 diagnostic local
+  evidence，不等于 deployment validation。
 - 无法把 failure stage 绑定到 step trajectory 时，必须输出
   `trajectory_missing` 或 `attribution_missing`，不得从 raw artifact 或 sink trace 猜测。
-- 真实 staging run、Temporal metrics sampling、schedule-to-start release evidence 与
-  production release closeout 不属于该 contract 的第一版实现范围；这些只能在链路成熟后接入同一
-  export contract。
+- deployment run、Temporal metrics sampling、schedule-to-start measurement 与
+  release closeout 不属于该 contract 的语义 owner；它们只能通过同一
+  export contract 形成受控诊断输入。

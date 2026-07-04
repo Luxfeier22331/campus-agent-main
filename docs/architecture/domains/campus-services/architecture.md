@@ -75,5 +75,6 @@ A campus-services tool is open only when all registries agree:
 - Go readyz/runtime tests and product-path gates pass
 
 As of this document, only `transport_schedule_lookup` satisfies this rule.
-Future generic campus service status must be redesigned as a new surface instead
-of inheriting the removed generic status lookup path.
+Generic campus service status remains closed. It can reopen only as a newly
+designed surface with its own contract, read model, runtime profile opening and
+eval denominator; it must not inherit the removed generic status lookup path.

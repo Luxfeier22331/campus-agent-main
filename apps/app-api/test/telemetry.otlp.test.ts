@@ -69,6 +69,60 @@ describe("app-api OTLP runtime event sink", () => {
 		expect(bodies.join("\n")).not.toContain("raw answer");
 	});
 
+	it("posts low-cardinality stage duration metrics for stage timing events", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+		const sink = createOtlpRuntimeEventSink(
+			{
+				APP_API_ENVIRONMENT: "staging",
+				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.example.com",
+				APP_API_OTEL_INGEST_SHARED_SECRET: "ingest-secret",
+			},
+			{
+				fetchImplementation,
+				now: () => new Date("2026-07-04T12:00:00.000Z"),
+			},
+		);
+
+		await sink.emit({
+			budget_state: "warn",
+			duration_ms: 2700,
+			event_type: "request.stage_timing",
+			occurred_at: "2026-07-04T12:00:00.000Z",
+			request_id: "req_high_cardinality",
+			selected_tool: "knowledge_query",
+			stage_field: "stream.browser_ttft_ms",
+			status: "completed",
+			surface: "campus_web",
+			trace_id: "trace_high_cardinality",
+		});
+
+		expect(fetchImplementation).toHaveBeenCalledTimes(3);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			3,
+			"https://otel-collector.example.com/v1/metrics",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					authorization: "Bearer ingest-secret",
+					"content-type": "application/json",
+				}),
+				method: "POST",
+			}),
+		);
+		const metricsBody = String(fetchImplementation.mock.calls[2]?.[1]?.body);
+		expect(metricsBody).toContain("campus.app_api.stage_duration_ms");
+		expect(metricsBody).toContain("histogram");
+		expect(metricsBody).toContain("AGGREGATION_TEMPORALITY_DELTA");
+		expect(metricsBody).toContain("stream.browser_ttft_ms");
+		expect(metricsBody).toContain("campus_web");
+		expect(metricsBody).toContain("completed");
+		expect(metricsBody).toContain("knowledge_query");
+		expect(metricsBody).toContain("warn");
+		expect(metricsBody).toContain("2700");
+		expect(metricsBody).toContain("bucketCounts");
+		expect(metricsBody).not.toContain("req_high_cardinality");
+		expect(metricsBody).not.toContain("trace_high_cardinality");
+	});
+
 	it("fails closed for deployed app-api environments when OTLP ingest config is missing", () => {
 		expect(() =>
 			createAppTelemetry({

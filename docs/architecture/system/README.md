@@ -45,6 +45,10 @@ tool-local readiness.
   - `data-plane.md`
 - Operator/eval/badcase/release diagnostic projection:
   - `ops-observability.md`
+- Runtime stage timing contract:
+  - `../../contracts/stage-timing.md`
+- User-usage learning loop and continuous improvement boundary:
+  - `learning-loop.md`
 - Langfuse LLM observability / eval platform boundary:
   - `langfuse.md`
 - Code organization, decomposition and package ownership:
@@ -69,6 +73,8 @@ tool-local readiness.
 - This directory owns cross-domain supporting truth only.
 - Domain-level source-channel details belong in `../domains/`.
 - Contract and schema details belong in `../../contracts/` or `../../data/`.
-- Staging/release proof and operational procedure belong in `../../runbooks/`,
+- Staging/release validation and operational procedure belong in `../../runbooks/`,
   `../../environment/` or `../../policies/`.
+- Completion ledgers, verification mappings and quality baselines belong in
+  `../../reference/`.
 - Workstream state and backlog signals belong in `.planning/`.

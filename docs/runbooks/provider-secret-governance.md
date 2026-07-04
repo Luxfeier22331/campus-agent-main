@@ -141,10 +141,15 @@ connection。不要为了“看起来整齐”而强制拆出独立 eval key。
 1. 运行 `scripts/sync-provider-config-projection.mjs`，确认目标 runtime 的
    `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` /
    `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 projection artifact
+1. 如果启用 LLM debug trace，先在 Operator Console 的 `观测配置` 页面确认
+   Langfuse OTLP 配置，再运行 `scripts/sync-observability-config-projection.mjs`，
+   确认目标 runtime 的 `CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH` 指向
+   0600 projection artifact，并被挂载到 runtime profile 声明的
+   `observability_config_projection_path`
 1. 对 execution-control 确认它只读取本地 projection artifact；
    `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL` 与
    `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET` 只用于 control-plane sync /
-   activation compatibility，不作为 provider runtime 热路径
+   activation migration boundary，不作为 provider runtime 热路径
 1. 再通过受控 smoke / acceptance 入口验证 provider 可用
 1. 只记录：
    - secret 是否存在

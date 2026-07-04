@@ -658,6 +658,7 @@ describe("Langfuse trace evidence", () => {
 		});
 
 		expect(evidence.repo_owned_observation_count).toBe(1);
+		expect(evidence.forbidden_check_passed).toBe(true);
 		expect((evidence.trace_identity as { request_id: string }).request_id).toBe("req-001");
 	});
 
@@ -748,10 +749,28 @@ describe("Langfuse collector contracts", () => {
 	it("checks derived collector env", () => {
 		expect(
 			checkCollectorConfig({
+				OTEL_COLLECTOR_AXIOM_AUTH_HEADER: "Bearer axiom",
+				OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: "campus-agent-runtime-events",
+				OTEL_COLLECTOR_AXIOM_METRICS_DATASET: "campus-agent-runtime-metrics",
+				OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
 				OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic abc",
 				OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4",
 				OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
 			}).passed,
 		).toBe(true);
+	});
+
+	it("requires Axiom metrics dataset for full fanout", () => {
+		const result = checkCollectorConfig({
+			OTEL_COLLECTOR_AXIOM_AUTH_HEADER: "Bearer axiom",
+			OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: "campus-agent-runtime-events",
+			OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
+			OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic abc",
+			OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4",
+			OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
+		});
+
+		expect(result.passed).toBe(false);
+		expect(result.errors).toContain("OTEL_COLLECTOR_AXIOM_METRICS_DATASET is required");
 	});
 });
