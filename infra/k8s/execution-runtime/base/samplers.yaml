@@ -34,14 +34,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-config
+            - configMapRef:
+                name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-runtime-secrets
           env:
-            - name: EXECUTION_CONTROL_APP_API_BASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: execution-runtime-secrets
-                  key: EXECUTION_CONTROL_APP_API_BASE_URL
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
@@ -92,14 +89,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-config
+            - configMapRef:
+                name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-runtime-secrets
           env:
-            - name: EXECUTION_CONTROL_APP_API_BASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: execution-runtime-secrets
-                  key: EXECUTION_CONTROL_APP_API_BASE_URL
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

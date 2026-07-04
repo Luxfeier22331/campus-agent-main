@@ -247,10 +247,18 @@ First-stage Kubernetes staging manifests live at:
 kubectl kustomize infra/k8s/execution-runtime/overlays/staging
 ```
 
-Before apply, create `execution-runtime-secrets` in `campus-agent-staging` from
-the same keys shown in
-`infra/k8s/execution-runtime/base/secret.example.yaml`. The example file is not
-part of the Kustomize resources and must not be applied as real credentials.
+Before apply, render and apply runtime env resources from the ops-owned staging
+env and artifact paths:
+
+```bash
+infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
+```
+
+The renderer creates `execution-runtime-rendered-config`,
+`execution-runtime-secrets`, `execution-runtime-provider-config-projection`, and
+`execution-runtime-qdrant-tls-ca`. The example files under
+`infra/k8s/execution-runtime/base/` are documentation samples and must not be
+applied as real staging config or credentials.
 
 Render and apply:
 

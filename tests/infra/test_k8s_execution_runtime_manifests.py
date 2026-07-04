@@ -62,6 +62,16 @@ def _deployment_container(deployment: dict[str, Any]) -> dict[str, Any]:
     return containers[0]
 
 
+def _deployment_env_from_names(deployment: dict[str, Any]) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    for entry in _deployment_container(deployment).get("envFrom", []):
+        if "configMapRef" in entry:
+            result.append(("configMapRef", entry["configMapRef"]["name"]))
+        elif "secretRef" in entry:
+            result.append(("secretRef", entry["secretRef"]["name"]))
+    return result
+
+
 def _surface_identity_values(doc: dict[str, Any]) -> list[tuple[str, str]]:
     values: list[tuple[str, str]] = []
     kind = str(doc.get("kind", "resource"))
@@ -155,6 +165,21 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                 liveness = container["livenessProbe"]["exec"]["command"]
                 self.assertEqual(readiness, [f"/usr/local/bin/{worker}", "--check-runtime"])
                 self.assertEqual(liveness, [f"/usr/local/bin/{worker}", "--check-runtime"])
+
+    def test_runtime_deployments_layer_static_config_rendered_config_then_secret(self) -> None:
+        deployments = _by_kind_name("Deployment")
+        expected = [
+            ("configMapRef", "execution-runtime-config"),
+            ("configMapRef", "execution-runtime-rendered-config"),
+            ("secretRef", "execution-runtime-secrets"),
+        ]
+
+        for name, deployment in deployments.items():
+            env_from = _deployment_env_from_names(deployment)
+            if not env_from:
+                continue
+            with self.subTest(deployment=name):
+                self.assertEqual(env_from, expected)
 
     def test_execution_control_readyz_probe_uses_internal_auth_header(self) -> None:
         deployments = _by_kind_name("Deployment")
@@ -292,6 +317,33 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
             config["EXECUTION_CONTROL_RUNTIME_RELEASE"],
             r"^execution-control@[0-9a-f]{7,40}$",
         )
+
+    def test_runtime_env_examples_keep_config_and_secret_boundaries(self) -> None:
+        rendered_config = yaml.safe_load(
+            (K8S_ROOT / "configmap-rendered.example.yaml").read_text(encoding="utf-8")
+        )["data"]
+        rendered_secret = yaml.safe_load(
+            (K8S_ROOT / "secret.example.yaml").read_text(encoding="utf-8")
+        )["stringData"]
+
+        self.assertTrue(set(rendered_config).isdisjoint(set(rendered_secret)))
+        for key in (
+            "EXECUTION_CONTROL_APP_API_BASE_URL",
+            "QDRANT_URL",
+            "EMBEDDING_MODEL",
+            "EMBEDDING_DIMENSIONS",
+            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+        ):
+            with self.subTest(non_secret_key=key):
+                self.assertIn(key, rendered_config)
+                self.assertNotIn(key, rendered_secret)
+
+        for key in rendered_config:
+            with self.subTest(config_key=key):
+                self.assertNotRegex(
+                    key,
+                    r"(SECRET|PASSWORD|API_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN)",
+                )
 
     def test_staging_overlay_keeps_runtime_identity_traceable(self) -> None:
         if shutil.which("kubectl") is None:

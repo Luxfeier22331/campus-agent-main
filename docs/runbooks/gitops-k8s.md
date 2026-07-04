@@ -87,17 +87,22 @@ infra/local/staging/preflight-execution-runtime-k8s-docker-bridge.sh
 `8888`、`4318` 只在 K8s host-bind 地址上可达，不允许 stateful dependency
 暴露到 `0.0.0.0`。
 
-K8s Secret 由远端 ops-owned env / artifact 生成，不提交到 repo。必须通过
-staging env loader 渲染，不能直接从原始 env file 创建 Secret；否则会漏掉
-provider projection、runtime release 与 runtime-generated secret：
+K8s runtime env 由远端 ops-owned env / artifact 生成，不提交到 repo。必须通过
+staging env loader 渲染，不能直接从原始 env file 创建 Secret 或 ConfigMap；否则会漏掉
+provider projection、runtime release 与 runtime-generated secret，或把非敏感配置误放进 Secret：
 
 ```bash
-infra/local/staging/render-execution-runtime-k8s-secrets.sh | kubectl apply -f -
+infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
 ```
 
 渲染前必须确认 `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 与
 `QDRANT_TLS_CA_CERT_PATH` 指向真实文件。渲染结果必须包含真实
 `EXECUTION_CONTROL_RUNTIME_RELEASE`，例如 `execution-control@<sha>`，不得使用占位值。
+渲染结果必须至少包含 `execution-runtime-rendered-config`、
+`execution-runtime-secrets`、`execution-runtime-provider-config-projection` 与
+`execution-runtime-qdrant-tls-ca`；非敏感 URL / model / endpoint / bucket
+配置进入 `execution-runtime-rendered-config`，token / password / DSN / key 进入
+`execution-runtime-secrets`。
 
 在 apply slim overlay 前，必须停止 Docker 中会重复消费 Temporal queue 的
 `execution-control`、`agent-runtime` 和 worker 容器；Temporal、Hindsight、

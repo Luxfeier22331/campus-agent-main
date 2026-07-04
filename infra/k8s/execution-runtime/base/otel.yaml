@@ -56,6 +56,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-config
+            - configMapRef:
+                name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-runtime-secrets
           readinessProbe:

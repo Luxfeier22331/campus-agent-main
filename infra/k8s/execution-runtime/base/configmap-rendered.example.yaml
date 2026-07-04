@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-runtime-rendered-config
+  namespace: campus-agent-staging
+data:
+  DEPLOYMENT_ENVIRONMENT: staging
+  EXECUTION_CONTROL_RUNTIME_PROFILE: staging
+  EXECUTION_CONTROL_RUNTIME_RELEASE: execution-control@0000000
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: /etc/campus-agent/runtime-profile.staging.json
+  EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: "false"
+  EXECUTION_CONTROL_TEMPORAL_ADDRESS: temporal:7233
+  EXECUTION_CONTROL_TEMPORAL_NAMESPACE: campus-agent-staging
+  EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: campus-agent.workflow
+  EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: http://agent-runtime:27062
+  EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: "180000"
+  EXECUTION_CONTROL_APP_API_BASE_URL: https://api-staging.example.internal
+  EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: https://api-staging.example.internal
+  EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: "30000"
+  EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: /run/campus-agent/provider-config-projection.json
+  PERSONAL_MEMORY_BASE_URL: http://hindsight-api:8888
+  QDRANT_URL: https://qdrant:6333
+  QDRANT_TLS_CA_CERT_PATH: /etc/campus-agent/qdrant/tls/ca.crt
+  QDRANT_TIMEOUT_SECONDS: "60"
+  AGENT_RUNTIME_HOST: 0.0.0.0
+  AGENT_RUNTIME_PORT: "27062"
+  AGENT_RUNTIME_TOOL_CATALOG_PATH: configs/runtime/tool-catalog.v1.json
+  AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
+  EMBEDDING_PROVIDER: openai
+  EMBEDDING_BASE_URL: https://api.openai.com/v1
+  EMBEDDING_MODEL: text-embedding-3-small
+  EMBEDDING_DIMENSIONS: "1536"
+  HINDSIGHT_API_LLM_PROVIDER: openai
+  HINDSIGHT_API_LLM_BASE_URL: https://api.openai.com/v1
+  HINDSIGHT_API_LLM_MODEL: gpt-4o-mini
+  HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+  HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: https://api.openai.com/v1
+  HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: text-embedding-3-small
+  HINDSIGHT_API_RERANKER_PROVIDER: rrf
+  OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: https://langfuse.example.internal/api/public/otel
+  OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"

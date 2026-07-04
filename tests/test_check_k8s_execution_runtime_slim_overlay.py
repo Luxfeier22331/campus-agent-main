@@ -131,10 +131,11 @@ class CheckK8sExecutionRuntimeSlimOverlayTest(unittest.TestCase):
             ],
         )
 
-    def test_runbook_uses_secret_renderer_not_raw_env_file_secret(self) -> None:
+    def test_runbook_uses_env_renderer_not_raw_env_file_secret(self) -> None:
         runbook = (ROOT / "docs/runbooks/gitops-k8s.md").read_text(encoding="utf-8")
 
-        self.assertIn("render-execution-runtime-k8s-secrets.sh | kubectl apply -f -", runbook)
+        self.assertIn("render-execution-runtime-k8s-env.sh | kubectl apply -f -", runbook)
+        self.assertNotIn("render-execution-runtime-k8s-secrets.sh", runbook)
         self.assertNotIn(
             "--from-env-file /srv/docker/campus-agent/staging/env/runtime.env", runbook
         )
