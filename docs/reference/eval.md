@@ -14,12 +14,16 @@ Repo-owned eval is now Langfuse/Ragas-first:
 
 - `packages/eval-langfuse` owns TypeScript adapters for Langfuse datasets,
   traces, score config sync, dataset sync, safe Ragas projection, score
-  publishing and trace verification.
+  publishing, trace verification and agent eval runners.
 - `packages/ragas-runner` is the only accepted Python island. It runs upstream
   Ragas over safe JSON input produced by TypeScript.
-- `packages/eval-langfuse/fixtures/rag` keeps public synthetic fixture examples
-  for Langfuse dataset/Ragas input shape: qrels and answer-quality cases. It is
-  not the real release gold corpus.
+- `packages/eval-langfuse/assets` keeps repo-authored Langfuse/Ragas-facing
+  eval asset truth. Public RAG assets under this root are source-clean synthetic
+  examples for qrels / answer-quality shape; they are not the real release gold
+  corpus.
+- `packages/eval-langfuse/assets/datasets/agent/public_web_search` keeps
+  the first tool-specific case slice for `agent-tool-use`: public-web-search
+  routing/tool selection, source quality and grounded answer review.
 - Runtime behavior, workflow orchestration, authz and product contracts belong
   to their owning apps/packages and their tests. They must not be recreated as
   broad self-built eval frameworks.
@@ -51,8 +55,9 @@ Current active lanes are:
 
 - `ragas-trace`
 - `ragas-dataset`
+- `agent-tool-use`
 
-Both lanes follow the same closed loop:
+The Ragas lanes follow this closed loop:
 
 ```text
 Langfuse traces/datasets
@@ -72,22 +77,70 @@ automation.
 carry `reference_context_ids` but no generated answer or retrieved context text;
 they must be paired with safe trace/observation projection before Ragas scoring.
 
+`agent-tool-use` is not a RAGAS lane. It validates agent tool decisions through
+`tool_trajectory.v1`: whether the request should be a direct answer, a
+fail-closed outcome or an admitted tool call; whether the selected tool is
+correct; whether arguments and result contract are valid; and whether
+tool-specific source policy checks pass when the tool returns bounded sources.
+
+The current first tool-specific slice is public web search. It runs cases where
+the expected behavior is `public_web_search`, `knowledge_query` or
+`direct_answer` through the app-api chat stream. It writes deterministic
+Langfuse scores for chosen tool, public HTTPS MUC source policy, required
+source coverage and source count. `required_answer_facts` remain review payload
+for human / Langfuse review workflows; they are not scored by Ragas.
+
+### Public Web Search Provider Bakeoff
+
+The public-web-search slice of `agent-tool-use` is also the selection lane for
+the default `public_web_search` provider profile. Provider adoption is not
+decided by architecture preference, provider branding or a single smoke result.
+
+All candidates must be evaluated against the same repo-authored agent cases,
+the same source policy and the same score registry. A candidate can become the
+default serving profile only when it has:
+
+- correct tool-selection behavior for `public_web_search`, `knowledge_query`
+  and `direct_answer` cases
+- public HTTPS MUC source-policy validity
+- required-source coverage for the expected official page or host
+- acceptable source count for answer grounding
+- recorded latency, provider error rate and provider/model identity
+- accepted unit-cost data when cost projection is claimed
+
+Candidates that expose provider-side domain allowlists should still be checked
+by the repo source-policy scorer. Candidates without an equivalent domain
+allowlist, including Linux.do Chat Completions web search and the current
+Gemini Google Search grounding adapter, must return explicit URL citations and
+pass post-search source-policy validation; they must not be treated as
+equivalent to allowlisted search APIs until eval evidence supports that default.
+Linux.do prompt model evaluation is separate from this lane;
+the public-web-search slice only compares the configured `public_web_search`
+search profile.
+
+The lane must not add provider fallback chains, result merging or
+model-selected provider routing. Compare one active provider profile at a time,
+then choose the default profile outside the model-visible tool contract.
+
 ## Platform Capabilities
 
 Active repo-owned Langfuse adapter capabilities are:
 
 - learning-loop dataset candidate payload construction and publishing
 - score config sync
-- dataset sync from repo RAG fixtures
+- dataset sync from repo RAG eval assets
 - RAG dataset manifest construction
+- public web search agent asset validation
+- public web search agent runner through app-api chat stream
+- sanitized `tool_trajectory.v1` consumption for tool-use eval
 - safe trace/dataset projection into Ragas input
 - Ragas trace and materialized-dataset scoring
 - `ragas.*` score publishing back to Langfuse
 - trace identity, observation contract and forbidden-field verification
 
 Langfuse remains the eval platform and score sink. It does not own canonical
-fixture truth, product storage, Temporal history, operator query truth, repo
-contracts or release authority.
+versioned eval asset truth, product storage, Temporal history, operator query
+truth, repo contracts or release authority.
 
 ## Safe Projection Boundary
 
@@ -101,7 +154,7 @@ retrieval backend dumps.
 
 ## Active Scores
 
-The active score family is `ragas.*`.
+The active RAG score family is `ragas.*`.
 
 Default metrics:
 
@@ -116,24 +169,39 @@ Optional metrics are enabled only through Ragas runtime config:
 - `ragas.id_context_precision`
 - `ragas.id_context_recall`
 
+The active deterministic public-web-search agent scores currently registered
+for publishing are:
+
+- `agent.tool_selection.correct`
+- `public_web_search.source_policy.valid`
+- `public_web_search.required_source.covered`
+- `public_web_search.source_count`
+
+The canonical `agent-tool-use` score family also admits these deterministic
+scores once their producers and registry entries exist:
+
+- `agent.tool_arguments.valid`
+- `agent.result_contract.valid`
+- `agent.fail_closed.correct`
+
 All score names must exist in
-`packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json` before
+`packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json` before
 publishing. Unknown score names fail closed.
 
-## Fixture Semantics
+## Eval Asset Semantics
 
-Repo-tracked RAG fixtures are synthetic, source-clean examples. They are useful
+Repo-tracked public RAG assets are synthetic, source-clean examples. They are useful
 for schema, dataset-manifest, qrels-only and safe-projection smoke coverage.
 They are not a publication of the real private gold truth.
 
 Real release denominators should enter through one of these paths:
 
-- a private fixture root passed to `build-rag-dataset-manifest --fixture-root`
+- a private asset root passed to `build-rag-dataset-manifest --asset-root`
 - existing Langfuse datasets populated from approved private release data
 - sanitized runtime trace / observation projection generated by the owning
   runtime
 
-Fixture `split` values in `packages/eval-langfuse/fixtures/rag` are descriptive
+Asset `split` values in `packages/eval-langfuse/assets` are descriptive
 dataset partitions:
 
 - `smoke`: small connectivity/projection sample
@@ -141,7 +209,7 @@ dataset partitions:
 - `regression`: accepted regression case
 - `known_gap`: known missing-source or unsupported-capability case
 
-`curated` and `regression` in public synthetic fixtures do not mean release
+`curated` and `regression` in public synthetic assets do not mean release
 admission. Release readiness is owned by product/runtime release checks and
 explicit release closeout, not by a fixture label.
 

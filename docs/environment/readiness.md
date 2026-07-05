@@ -71,8 +71,8 @@ Conditional readiness:
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
 - if runtime profile `open_tools` opens concrete campus-services or notice tools,
   doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
-  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
-  read-model/object-store runtime dependencies
+  `CAMPUS_SHARED_POSTGRES_URL`; current notice-open readiness is read-model
+  backed and does not require notice body object-store credentials
 
 Runtime `/readyz` is stricter than liveness:
 

@@ -30,6 +30,28 @@ class CheckPublicSourceTokensTest(unittest.TestCase):
         self.assertEqual(failures[0].token, "www.muc.edu.cn")
         self.assertEqual(failures[1].token, "muc.edu.cn")
 
+    def test_allows_public_web_search_owner_to_express_muc_domain_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            source = root / "apps/execution-control/internal/httpapi/public_web_search.go"
+            source.parent.mkdir(parents=True)
+            source.write_text('const host = "https://www.muc.edu.cn/page.htm";\n', encoding="utf-8")
+
+            other = root / "apps/app-api/test/unrelated.test.ts"
+            other.parent.mkdir(parents=True)
+            other.write_text('const host = "https://www.muc.edu.cn/page.htm";\n', encoding="utf-8")
+
+            with mock.patch(
+                "scripts.check_public_source_tokens.worktree_paths",
+                return_value=(source, other),
+            ):
+                failures = scan_public_source_tokens(root=root)
+
+        self.assertEqual(len(failures), 2)
+        self.assertEqual(failures[0].path.as_posix(), "apps/app-api/test/unrelated.test.ts")
+        self.assertEqual(failures[0].token, "www.muc.edu.cn")
+        self.assertEqual(failures[1].token, "muc.edu.cn")
+
     def test_repo_public_source_tokens_are_clean(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 

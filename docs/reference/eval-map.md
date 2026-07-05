@@ -39,14 +39,59 @@ authority.
 `reference_context_ids`; answer, retrieved contexts and trace identity must be
 materialized before scoring.
 
+`agent-tool-use`
+-> repo-authored agent cases grouped by tool family
+-> `packages/eval-langfuse` submits each case through the app-api chat stream
+   or consumes an approved sanitized runtime projection
+-> `packages/eval-langfuse` extracts `tool_trajectory.v1`
+-> deterministic tool-use scorers write `agent.*` and tool-specific scores to
+   Langfuse, or dry-run locally when score publishing is disabled
+
+This lane is not a RAGAS lane. It scores tool decision, argument validity,
+result contract validity, fail-closed correctness and tool-specific source
+policy checks. It does not score final answer prose, primary model choice or
+RAG answer/evidence quality.
+
+The first workflow-dispatchable slice is public web search:
+
+`agent-tool-use / public-web-search`
+-> repo-authored agent cases in
+   `packages/eval-langfuse/assets/datasets/agent/public_web_search/agent_cases.v1.json`
+-> `packages/eval-langfuse` submits each case through the app-api chat stream
+-> `packages/eval-langfuse` writes deterministic tool/source scores to Langfuse,
+   or dry-runs locally when score publishing is disabled
+
+The typed tool uses public web sources selected by the model-backed search
+provider; it does not produce RAG retrieved contexts or qrels denominators.
+`required_answer_facts` are retained as review payload instead of automatic
+model-judge scores.
+
+Provider bakeoff uses this same lane. Run one configured `public_web_search`
+provider profile per eval pass and compare the resulting deterministic scores
+plus latency, provider error rate, provider/model identity and accepted cost
+projection. The eval map does not admit provider fallback chains, merged result
+sets or model-selected provider routing.
+
 ## Active Supporting Surfaces
 
-- Learning-loop candidate selector: `jobs/learning-loop-candidates`
-- Learning-loop candidate publisher: `jobs/learning-loop-candidates`
-- Langfuse score config sync: `packages/eval-langfuse`
-- Langfuse dataset sync: `packages/eval-langfuse`
-- RAG dataset manifest builder: `packages/eval-langfuse`
-- Runtime trace evidence verifier: `packages/eval-langfuse`
+- Langfuse score config sync:
+  `pnpm --dir packages/eval-langfuse langfuse sync-score-configs`
+- Langfuse dataset sync:
+  `pnpm --dir packages/eval-langfuse langfuse sync-datasets`
+- RAG dataset manifest builder:
+  `pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest`
+- Runtime trace evidence:
+  `pnpm --dir packages/eval-langfuse langfuse verify-trace`
+- Agent tool-use eval canonical lane:
+  `agent-tool-use` over `tool_trajectory.v1`
+- Public web search agent asset validation:
+  `pnpm --dir packages/eval-langfuse langfuse validate-public-web-search-eval`
+- Public web search agent eval through app-api chat:
+  `pnpm --dir packages/eval-langfuse langfuse run-public-web-search-agent-eval
+  --app-api-base-url <url>`; this is the current public-web-search slice of
+  `agent-tool-use`
+- Learning-loop candidate selector / publisher:
+  `jobs/learning-loop-candidates`
 
 Repeatable commands for these supporting surfaces belong to
 `docs/runbooks/eval-operations-governance.md`.
@@ -88,14 +133,16 @@ safe candidate records, and writes only Langfuse dataset items through
 Langfuse annotation queues remain an official human review workflow, but the
 repo no longer owns custom queue sync/export commands.
 
-## Fixture Boundary
+## Eval Asset Boundary
 
-`packages/eval-langfuse/fixtures` keeps only Langfuse/Ragas-facing truth:
+`packages/eval-langfuse/assets` keeps only Langfuse/Ragas-facing truth:
 
 - score registry for active Langfuse score configs
 - RAG answer-quality cases that can be synced into Langfuse datasets
 - qrels / golden retrieval truth that can be projected into
   `reference_context_ids`
+- public web search agent cases for routing, source quality and grounded answer
+  review
 
 Old live gate policies, judge rubrics, release-acceptance fixtures, e2e
 profile cases, memory profile cases and public sample score-report artifacts

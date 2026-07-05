@@ -35,10 +35,6 @@ def campus_services_sdk_profiles() -> set[str]:
     }
 
 
-def profile_requires_object_store(profile: str) -> bool:
-    return profile in MULTI_STEP_WORKFLOW_PROFILES
-
-
 def profile_requires_tool_read_model_projection(profile: str) -> bool:
     return profile in campus_services_sdk_profiles() or profile == (
         "transport_notice_override_multistep"
@@ -52,10 +48,6 @@ def profile_requires_notice_read_model(profile: str) -> bool:
         or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES
         or profile in AGENTS_SDK_NOTICE_PROFILES
     )
-
-
-def profile_requires_workflow_run_store(profile: str) -> bool:
-    return profile in MULTI_STEP_WORKFLOW_PROFILES
 
 
 def profile_requires_temporary_postgres(profile: str) -> bool:
@@ -410,8 +402,6 @@ __all__ = [
     "campus_services_sdk_profiles",
     "profile_execution_run_expectation",
     "profile_requires_notice_read_model",
-    "profile_requires_object_store",
     "profile_requires_temporary_postgres",
     "profile_requires_tool_read_model_projection",
-    "profile_requires_workflow_run_store",
 ]

@@ -15,6 +15,7 @@ export const KIND_LABEL: Record<ProviderConfigKind, string> = {
 	embedding: "向量模型",
 	prompt: "生成模型",
 	rerank: "重排模型",
+	search: "搜索服务",
 };
 
 export const ROLE_LABEL: Record<ProviderConfigRole, string> = {
@@ -25,6 +26,7 @@ export const ROLE_LABEL: Record<ProviderConfigRole, string> = {
 	hindsight_llm: "记忆生成",
 	index_embedding: "索引构建向量化",
 	primary_agent: "主问答生成",
+	public_web_search: "公开官网搜索",
 	rag_query_embedding: "知识检索向量化",
 	rag_reranker: "知识检索重排",
 	rag_synthesis: "知识问答生成",
@@ -40,6 +42,9 @@ export const STATUS_LABEL = {
 export const TRANSPORT_LABEL: Record<ProviderConfigTransport, string> = {
 	chat_completions: "Chat Completions",
 	embeddings: "Embeddings",
+	gemini_google_search: "Gemini Google Search",
+	openai_responses_web_search: "OpenAI Responses Web Search",
+	perplexity_search: "Perplexity Search",
 	responses: "Responses",
 };
 
@@ -48,11 +53,13 @@ export const FEATURE_PRESET_LABEL = {
 	prompt: "生成模型",
 	prompt_embedding: "生成模型 + 向量模型",
 	rerank: "重排模型",
+	search: "搜索服务",
 } as const;
 
 export const ROLE_OPTIONS = [
 	{ kind: "prompt", role: "primary_agent" },
 	{ kind: "prompt", role: "rag_synthesis" },
+	{ kind: "search", role: "public_web_search" },
 	{ kind: "prompt", role: "hindsight_llm" },
 	{ kind: "prompt", role: "eval_ragas_llm" },
 	{ kind: "prompt", role: "eval_judge_llm" },
@@ -67,12 +74,13 @@ const SORTABLE_ROLE_ORDER: readonly ProviderConfigRole[] = ROLE_ORDER;
 
 export type FeaturePreset = keyof typeof FEATURE_PRESET_LABEL;
 export type EditableProviderConfigRole = (typeof ROLE_OPTIONS)[number]["role"];
+export type ProviderConnectionProvider = ProviderConfigConnectionCreatePayload["provider"];
 
 export interface ConnectionFormState {
 	apiKey: string;
 	baseUrl: string;
 	featurePreset: FeaturePreset;
-	provider: "openai" | "openai-compatible";
+	provider: ProviderConnectionProvider;
 }
 
 export interface ProfileFormState {
@@ -87,8 +95,14 @@ export interface ProfileFormState {
 export const connectionFormSchema = z.object({
 	apiKey: z.string().min(1, "请输入密钥。"),
 	baseUrl: z.string().url("请输入有效的服务端点。"),
-	featurePreset: z.enum(["prompt", "embedding", "prompt_embedding", "rerank"]),
-	provider: z.enum(["openai", "openai-compatible"]),
+	featurePreset: z.enum(["prompt", "embedding", "prompt_embedding", "rerank", "search"]),
+	provider: z.enum([
+		"openai",
+		"openai-compatible",
+		"perplexity",
+		"perplexity_compatible",
+		"gemini",
+	]),
 });
 
 export const profileFormSchema = z.object({
@@ -98,6 +112,7 @@ export const profileFormSchema = z.object({
 	role: z.enum([
 		"primary_agent",
 		"rag_synthesis",
+		"public_web_search",
 		"hindsight_llm",
 		"eval_ragas_llm",
 		"eval_judge_llm",
@@ -107,7 +122,14 @@ export const profileFormSchema = z.object({
 		"eval_ragas_embedding",
 	]),
 	timeoutMs: z.string().regex(/^\d+$/, "请输入数字。"),
-	transport: z.enum(["responses", "chat_completions", "embeddings"]),
+	transport: z.enum([
+		"responses",
+		"chat_completions",
+		"embeddings",
+		"perplexity_search",
+		"openai_responses_web_search",
+		"gemini_google_search",
+	]),
 });
 
 export function initialConnectionForm(): ConnectionFormState {
@@ -126,13 +148,16 @@ export function initialProfileForm(): ProfileFormState {
 		model: "",
 		role: "primary_agent",
 		timeoutMs: "30000",
-		transport: "responses",
+		transport: defaultTransportForRole("primary_agent"),
 	};
 }
 
 export function kindForRole(role: ProviderConfigRole): ProviderConfigKind {
 	if (role === "rag_reranker") {
 		return "rerank";
+	}
+	if (role === "public_web_search") {
+		return "search";
 	}
 	return role.endsWith("_embedding") ? "embedding" : "prompt";
 }
@@ -177,6 +202,7 @@ export function buildConnectionCreatePayload(
 
 export function buildProfileCreatePayload(
 	form: ProfileFormState,
+	connections: ProviderConfigConnection[] = [],
 ): ProviderConfigProfileCreatePayload {
 	const kind = kindForRole(form.role);
 	const payload: ProviderConfigProfileCreatePayload = {
@@ -185,7 +211,11 @@ export function buildProfileCreatePayload(
 		model: form.model,
 		role: form.role,
 		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : form.transport,
+		transport: transportForPayload(
+			form.role,
+			form.transport,
+			selectedConnection(form, connections),
+		),
 	};
 	if (kind === "embedding") {
 		payload.dimensions = Number.parseInt(form.dimensions, 10);
@@ -195,18 +225,48 @@ export function buildProfileCreatePayload(
 
 export function buildProfileUpdatePayload(
 	form: ProfileFormState,
+	connections: ProviderConfigConnection[] = [],
 ): ProviderConfigProfileUpdatePayload {
 	const kind = kindForRole(form.role);
 	const payload: ProviderConfigProfileUpdatePayload = {
 		connectionId: form.connectionId,
 		model: form.model,
 		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : form.transport,
+		transport: transportForPayload(
+			form.role,
+			form.transport,
+			selectedConnection(form, connections),
+		),
 	};
 	if (kind === "embedding") {
 		payload.dimensions = Number.parseInt(form.dimensions, 10);
 	}
 	return payload;
+}
+
+export function defaultTransportForRole(role: ProviderConfigRole): ProviderConfigTransport {
+	if (role === "public_web_search") {
+		return "perplexity_search";
+	}
+	return kindForRole(role) === "embedding" ? "embeddings" : "responses";
+}
+
+function transportForPayload(
+	role: ProviderConfigRole,
+	transport: ProviderConfigTransport,
+	connection?: ProviderConfigConnection,
+): ProviderConfigTransport {
+	if (role === "public_web_search") {
+		return searchTransportForConnection(connection);
+	}
+	return kindForRole(role) === "embedding" ? "embeddings" : transport;
+}
+
+function selectedConnection(
+	form: ProfileFormState,
+	connections: ProviderConfigConnection[],
+): ProviderConfigConnection | undefined {
+	return connections.find((connection) => connection.connectionId === form.connectionId);
 }
 
 export function formFromProfile(profile: ProviderConfigProfile): ProfileFormState {
@@ -245,13 +305,38 @@ export function roleLabel(value: ProviderConfigRole): string {
 }
 
 export function transportLabel(value: string): string {
+	if (isProviderConfigTransport(value)) {
+		return TRANSPORT_LABEL[value];
+	}
 	const normalized = normalizeTransport(value, value === "embeddings" ? "embedding" : "prompt");
 	return TRANSPORT_LABEL[normalized] ?? value;
+}
+
+export function searchTransportForConnection(
+	connection?: Pick<ProviderConfigConnection, "provider">,
+): ProviderConfigTransport {
+	if (connection?.provider === "gemini") {
+		return "gemini_google_search";
+	}
+	if (connection?.provider === "openai") {
+		return "openai_responses_web_search";
+	}
+	return "perplexity_search";
 }
 
 function normalizeTransport(value: string, kind: ProviderConfigKind): ProviderConfigTransport {
 	if (kind === "embedding") {
 		return "embeddings";
 	}
+	if (kind === "search") {
+		if (value === "gemini_google_search" || value === "openai_responses_web_search") {
+			return value;
+		}
+		return "perplexity_search";
+	}
 	return value === "chat_completions" ? "chat_completions" : "responses";
+}
+
+function isProviderConfigTransport(value: string): value is ProviderConfigTransport {
+	return value in TRANSPORT_LABEL;
 }

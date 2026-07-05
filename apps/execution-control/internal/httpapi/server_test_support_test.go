@@ -464,16 +464,6 @@ func (s *fakeStructuredReadModelStore) LoadBundleForRelease(
 	return s.bundle, nil
 }
 
-type fakeHealthyNoticeBodyStore struct{}
-
-func (fakeHealthyNoticeBodyStore) HealthCheck(context.Context) error {
-	return nil
-}
-
-func (fakeHealthyNoticeBodyStore) GetNoticeBody(context.Context, string) (string, error) {
-	return "notice body", nil
-}
-
 func anySlice(values []string) []any {
 	result := make([]any, 0, len(values))
 	for _, value := range values {

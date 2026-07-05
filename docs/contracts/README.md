@@ -30,6 +30,7 @@ updated: 2026-06-26
 - `app-api/dining.md`
 - `app-api/dining-ops.md`
 - `tool-read-model.md`
+- `tool-trajectory.md`
 - `durable-runtime.md`
 - `operator-runtime.md`
 - `langfuse-runtime.md`
@@ -89,6 +90,9 @@ updated: 2026-06-26
 
 - contract 只写稳定 seam，不写执行历史
 - request/response shape 的 current truth 以这里为准，不以 panel UI 或 sink payload 为准
+- `tool-trajectory.md` 是 tool-use 观测 / eval 的 sanitized trajectory
+  contract；Langfuse score payload、Operator Console 展示和本地 eval runner
+  都只能消费它或它的更窄投影，不反向定义工具轨迹字段
 - 跨语言或跨 runtime 的 contract 默认使用 JSON Schema / OpenAPI 作为 canonical
   source；Python dataclass、Go struct、TS interface / Zod parser 是消费侧 helper、
   runtime parser 或生成物，不单独成为跨语言真相源

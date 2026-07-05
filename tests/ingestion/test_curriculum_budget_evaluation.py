@@ -329,7 +329,7 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             {"synthetic-narrative"},
         )
 
-    def test_baseline_candidate_clears_runtime_fixture_oversize_and_structure_failures(
+    def test_baseline_candidate_clears_runtime_validation_asset_oversize_and_structure_failures(
         self,
     ) -> None:
         baseline = next(

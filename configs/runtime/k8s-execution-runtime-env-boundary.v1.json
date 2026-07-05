@@ -22,35 +22,34 @@
 			"EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
 			"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
 			"EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
-			"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-			"OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
-			"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
-			"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
-			"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
-			"OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
 			"PERSONAL_MEMORY_BASE_URL",
 			"QDRANT_TIMEOUT_SECONDS",
 			"QDRANT_TLS_CA_CERT_PATH",
 			"QDRANT_URL"
+		],
+		"execution-telemetry-collector-config": [
+			"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+			"OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
+			"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+			"OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT",
+			"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
+			"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+			"OTEL_COLLECTOR_MEMORY_LIMIT_MIB",
+			"OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB",
+			"OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT",
+			"OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT",
+			"OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT"
 		]
 	},
 	"secrets": {
 		"execution-control-secrets": [
 			"API_WORKER_SHARED_SECRET",
-			"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET",
-			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
-			"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
-			"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
-			"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
-			"PERSONAL_MEMORY_API_SECRET",
-			"PERSONAL_MEMORY_OWNER_SALT"
+			"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"
 		],
-		"execution-worker-common-secrets": [
-			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
-			"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
-			"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
-			"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"
-		],
+		"execution-temporal-workflow-secrets": ["EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"],
+		"execution-telemetry-client-secrets": ["EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"],
+		"execution-run-projection-secrets": ["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"],
+		"execution-control-metrics-secrets": ["EXECUTION_CONTROL_METRICS_BEARER_TOKEN"],
 		"execution-agent-client-secrets": ["EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"],
 		"agent-runtime-secrets": [
 			"AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
@@ -58,6 +57,7 @@
 		],
 		"execution-memory-client-secrets": ["PERSONAL_MEMORY_API_SECRET", "PERSONAL_MEMORY_OWNER_SALT"],
 		"execution-rag-secrets": ["QDRANT_QUERY_API_KEY"],
+		"execution-tool-read-model-secrets": ["CAMPUS_SHARED_POSTGRES_URL"],
 		"execution-control-internal-query-secrets": ["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
 		"execution-app-api-internal-secrets": ["EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"],
 		"execution-stateful-runtime-secrets": [
@@ -73,13 +73,7 @@
 			"OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
 			"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
 			"OTEL_COLLECTOR_SENTRY_AUTH_VALUE"
-		],
-		"notice-tool-secrets": [
-			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
-			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
-			"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
-		],
-		"qdrant-admin-secrets": ["QDRANT_API_KEY", "QDRANT_READ_ONLY_API_KEY"]
+		]
 	},
 	"files": {
 		"execution-runtime-provider-config-projection": ["provider-config-projection.json"],
@@ -92,30 +86,39 @@
 				"agent-runtime-secrets",
 				"execution-agent-client-secrets",
 				"execution-control-internal-query-secrets",
+				"execution-control-metrics-secrets",
 				"execution-control-secrets",
 				"execution-memory-client-secrets",
 				"execution-rag-secrets",
-				"execution-worker-common-secrets"
+				"execution-run-projection-secrets",
+				"execution-temporal-workflow-secrets",
+				"execution-tool-read-model-secrets",
+				"execution-telemetry-client-secrets"
 			],
 			"files": ["execution-runtime-provider-config-projection", "execution-runtime-qdrant-tls-ca"]
 		},
 		"staging-full": {
-			"configmaps": ["execution-runtime-rendered-config"],
+			"configmaps": ["execution-runtime-rendered-config", "execution-telemetry-collector-config"],
 			"secrets": [
 				"agent-runtime-secrets",
 				"execution-agent-client-secrets",
 				"execution-app-api-internal-secrets",
 				"execution-control-internal-query-secrets",
+				"execution-control-metrics-secrets",
 				"execution-control-secrets",
 				"execution-memory-client-secrets",
 				"execution-rag-secrets",
+				"execution-run-projection-secrets",
 				"execution-stateful-runtime-secrets",
+				"execution-temporal-workflow-secrets",
+				"execution-telemetry-client-secrets",
 				"execution-telemetry-collector-secrets",
-				"execution-worker-common-secrets"
+				"execution-tool-read-model-secrets"
 			],
 			"files": ["execution-runtime-provider-config-projection", "execution-runtime-qdrant-tls-ca"]
 		}
 	},
+	"slim_forbidden_configmaps": ["execution-telemetry-collector-config"],
 	"slim_forbidden_secrets": [
 		"execution-app-api-internal-secrets",
 		"execution-stateful-runtime-secrets",
@@ -123,5 +126,11 @@
 		"notice-tool-secrets",
 		"qdrant-admin-secrets"
 	],
-	"retired_secret_names": ["execution-runtime-secrets"]
+	"retired_secret_names": [
+		"execution-runtime-common-secrets",
+		"execution-runtime-secrets",
+		"execution-worker-common-secrets",
+		"notice-tool-secrets",
+		"qdrant-admin-secrets"
+	]
 }

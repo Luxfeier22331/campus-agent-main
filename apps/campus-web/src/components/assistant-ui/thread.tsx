@@ -68,6 +68,7 @@ export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
  */
 export interface ThreadComponents {
 	AssistantMessage?: ComponentType | undefined;
+	Registrations?: ComponentType | undefined;
 	Welcome?: ComponentType | undefined;
 	ToolFallback?: ToolCallMessagePartComponent | undefined;
 	ToolGroup?: ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>> | undefined;
@@ -124,7 +125,7 @@ export const Thread: FC<ThreadProps> = ({
 };
 
 const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
-	const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
+	const { Registrations, Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
 
 	return (
 		<ThreadPrimitive.Root
@@ -137,6 +138,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 				["--composer-padding" as string]: "8px",
 			}}
 		>
+			{Registrations ? <Registrations /> : null}
 			<ThreadPrimitive.Viewport
 				turnAnchor="top"
 				data-slot="aui_thread-viewport"

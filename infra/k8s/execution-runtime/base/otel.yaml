@@ -55,9 +55,9 @@ spec:
               containerPort: 13133
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
+            - configMapRef:
+                name: execution-telemetry-collector-config
             - secretRef:
                 name: execution-telemetry-collector-secrets
           readinessProbe:

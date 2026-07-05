@@ -220,7 +220,7 @@ def _is_langfuse_path(path: str) -> bool:
 """,
     )
     _write_json(
-        root / "packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json",
+        root / "packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json",
         {
             "schema_version": "langfuse_score_registry.v1",
             "scores": [

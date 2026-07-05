@@ -12,6 +12,30 @@ from scripts.worktree_file_discovery import worktree_paths
 
 _DEFAULT_POLICY_PATH = Path("configs/runtime/env-surface-policy.v1.json")
 _ENV_ENTRY_PATTERN = re.compile(r"^([A-Z][A-Z0-9_]*)=")
+_SECRET_LIKE_KEY_PATTERN = re.compile(
+    r"(SECRET|PASSWORD|API_KEY|ACCESS_KEY|PRIVATE_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|DSN|TOKEN|SALT)",
+    re.IGNORECASE,
+)
+_ROOT_FORBIDDEN_PREFIXES = (
+    "LLM_",
+    "EMBEDDING_",
+    "RERANK_",
+    "PUBLIC_WEB_SEARCH_",
+    "OBJECT_STORE_",
+    "QDRANT_",
+    "OTEL_",
+    "LANGFUSE_",
+    "SENTRY_",
+    "AUTHENTICATED_NOTICE_",
+    "OFFICIAL_WEB_",
+    "WECHAT_OFFICIAL_ACCOUNT_",
+)
+_ROOT_ALLOWED_KEYS = frozenset(
+    {
+        "CAMPUS_SHARED_POSTGRES_URL",
+        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -106,6 +130,19 @@ def audit_env_surface_policy(
             if key in policy.retired_keys:
                 failures.append(f"{template_path}:{line_number}: retired env key '{key}'")
                 continue
+            if scope == "root" and (
+                key not in _ROOT_ALLOWED_KEYS
+                or any(key.startswith(prefix) for prefix in _ROOT_FORBIDDEN_PREFIXES)
+            ):
+                failures.append(
+                    f"{template_path}:{line_number}: root env key '{key}' is outside the shared root env contract"
+                )
+                continue
+            if _is_secret_like_key(key) and key not in policy.key_scopes:
+                failures.append(
+                    f"{template_path}:{line_number}: secret-like env key '{key}' must be explicitly registered"
+                )
+                continue
             if not _key_allowed_for_scope(key, scope, policy):
                 failures.append(
                     f"{template_path}:{line_number}: unregistered env key '{key}' for scope '{scope}'"
@@ -170,6 +207,10 @@ def _key_allowed_for_scope(key: str, scope: str, policy: EnvPolicy) -> bool:
         key.startswith(prefix) and scope in scopes
         for prefix, scopes in policy.prefix_scopes.items()
     )
+
+
+def _is_secret_like_key(key: str) -> bool:
+    return bool(_SECRET_LIKE_KEY_PATTERN.search(key))
 
 
 def _audit_retired_key_text(root: Path, policy: EnvPolicy) -> tuple[str, ...]:

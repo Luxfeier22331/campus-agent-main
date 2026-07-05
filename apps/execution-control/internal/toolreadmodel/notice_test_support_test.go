@@ -63,20 +63,6 @@ func (s *fakeNoticeReadModelStore) GetNoticeByID(
 	return *s.getRow, true, nil
 }
 
-type fakeNoticeBodyStore struct {
-	bodies    map[string]string
-	readCount int
-}
-
-func (s *fakeNoticeBodyStore) GetNoticeBody(ctx context.Context, objectKey string) (string, error) {
-	s.readCount++
-	body, ok := s.bodies[objectKey]
-	if !ok {
-		return "", errNoticeBodyUnavailable
-	}
-	return body, nil
-}
-
 func equalStrings(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false

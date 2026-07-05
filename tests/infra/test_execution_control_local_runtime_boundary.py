@@ -182,10 +182,6 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         self.assertEqual(projected["PERSONAL_MEMORY_BASE_URL"], "http://hindsight-api:8888")
         self.assertRegex(projected["TEMPORAL_POSTGRES_PASSWORD"], r"^[A-Za-z0-9_-]{32,}$")
         self.assertRegex(
-            projected["EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"],
-            r"^[A-Za-z0-9_-]{32,}$",
-        )
-        self.assertRegex(
             projected["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
             r"^[A-Za-z0-9_-]{32,}$",
         )

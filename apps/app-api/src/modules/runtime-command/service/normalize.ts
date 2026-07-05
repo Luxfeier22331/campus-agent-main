@@ -9,15 +9,16 @@ import {
 } from "../../version-query";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
-import { resultEvidenceSources } from "./normalize-structured-parts";
+import { resultEvidenceSources } from "./normalize-source-items";
 import { resolveRequestedToolForSurface } from "./tool-policy";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
+
+export { normalizeSourceItemsPart } from "./normalize-source-items";
 
 export {
 	normalizeCampusServiceTracePart,
 	normalizeChatResponseStructuredParts,
 	normalizePlaceCardPart,
-	normalizeSourceItemsPart,
 } from "./normalize-structured-parts";
 
 function normalizeString(value: unknown): string {

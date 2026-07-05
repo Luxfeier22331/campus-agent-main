@@ -142,6 +142,7 @@ describe("tool catalog", () => {
 
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
 			"knowledge_query",
+			"public_web_search",
 			"transport_schedule_lookup",
 			"campus_notice_discover",
 		]);

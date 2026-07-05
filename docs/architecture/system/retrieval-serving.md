@@ -258,7 +258,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   release admission 必须 fail closed，并在 release manifest / quality summary 中记录
   `answer_ready_contract_status`
 - alias publish 前的 qrels coverage gate；默认 query-enabled scope 必须有 declared scenario
-  denominator，缺 fixture、缺 required class 或缺 required scenario 都 fail closed
+  denominator，缺 qrels asset、缺 required class 或缺 required scenario 都 fail closed
 - release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning、
   query instruction provenance、profile identity hash、显式 reranker opt-in provenance，以及
   quality gate / chunk quality / qrels coverage / release metadata consistency status

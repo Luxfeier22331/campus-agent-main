@@ -47,6 +47,7 @@ fact or which document wins a conflict.
   - [product/langfuse-evals.md](./product/langfuse-evals.md)
   - [architecture/system/langfuse.md](./architecture/system/langfuse.md)
   - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
+  - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
   - [contracts/stage-timing.md](./contracts/stage-timing.md)
   - [reference/observability-ledger.md](./reference/observability-ledger.md)
   - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
@@ -65,8 +66,11 @@ fact or which document wins a conflict.
 - Tool or domain readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)
+  - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
 - Campus shuttle timetable capability:
   - [domains/transport.md](./domains/transport.md)
+- Public official-web search capability:
+  - [domains/public-web-search.md](./domains/public-web-search.md)
 - Authenticated notice / internal notice document routing:
   - [architecture/domains/authenticated-notice/architecture.md](./architecture/domains/authenticated-notice/architecture.md)
   - [data/authenticated-notice.md](./data/authenticated-notice.md)

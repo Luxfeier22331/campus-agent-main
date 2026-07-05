@@ -411,7 +411,6 @@ describe("request projection projector", () => {
 						retrievalAdequacyVerdict: "insufficient",
 						retrievalPlanSummary: null,
 						retrievedTitleSummary: ["本科人才培养方案"],
-						rewrittenQuery: null,
 						scopeClass: null,
 						semanticOutcome: "unsupported_by_evidence",
 						sessionProgram: null,
@@ -538,8 +537,6 @@ describe("request projection projector", () => {
 						sessionProgram: null,
 						sessionSemester: null,
 						unsupportedFields: [],
-						rewrittenQuery:
-							"示例大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
 					},
 				}),
 			),
@@ -585,7 +582,6 @@ describe("request projection projector", () => {
 					sessionProgramFamily: null,
 					sessionSemester: null,
 					unsupportedFields: [],
-					rewrittenQuery: "示例大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
 				}),
 			}),
 		);

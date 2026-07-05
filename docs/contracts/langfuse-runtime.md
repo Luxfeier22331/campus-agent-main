@@ -26,6 +26,12 @@ Eval score publishing uses the same boundary: `packages/eval-langfuse` may write
 sanitized score payloads to Langfuse, but Langfuse score schemas do not become
 repo DTOs and must not leak into `packages/contracts`.
 
+Agent tool-use eval consumes the repo-owned `tool_trajectory.v1` projection
+defined in `tool-trajectory.md`. Langfuse may receive sanitized trajectory
+attributes, observations and score metadata derived from that projection, but
+Langfuse does not own the trajectory contract and must not require raw tool,
+provider or source payloads.
+
 RAGAS score publishing may be based on Langfuse traces, Langfuse datasets,
 repo-owned safe eval artifacts or golden dataset execution results. Langfuse
 traces and datasets may act as RAGAS sample sources only through repo-owned safe
@@ -130,6 +136,11 @@ raw answer, raw transcript, provider raw response, raw retrieved snippet,
 unrestricted source body, raw memory text or auth material. They are the only
 Langfuse lane eligible for app-api/operator-safe summary projection.
 
+Tool trajectory observations may additionally provide the field families
+allowed by `tool_trajectory.v1`, including tool decision kind, available tools,
+selected tool, argument shape/hash, result kind, provider summary and bounded
+source-policy summary.
+
 ## LLM Debug Trace Lane
 
 LLM debug observations may be exported by SDK tracing, provider instrumentation
@@ -172,8 +183,8 @@ Rules:
 
 ## Score Payloads
 
-Active eval publishing writes Ragas-derived numeric Langfuse scores from
-sanitized trace or dataset projections. Scores are evidence for eval review;
+Active eval publishing writes numeric Langfuse scores from sanitized trace,
+dataset or tool-trajectory projections. Scores are evidence for eval review;
 they are not repo-owned release verdicts.
 
 Allowed score fields:
@@ -182,7 +193,7 @@ Allowed score fields:
 - `observationId`
 - `datasetRunId`
 - `datasetItemId`
-- `name`: registered `ragas.*` score name
+- `name`: registered `ragas.*`, `agent.*` or tool-specific score name
 - `value`: numeric metric value
 - `dataType`: `NUMERIC`
 - `source`: `API`
@@ -195,11 +206,11 @@ Allowed score fields:
 - `metadata.schema_version`
 - `metadata.failure_class`
 
-Uncorrelated Ragas results are skipped rather than guessed. Langfuse request
-failures fail the publish command; they are not downgraded to warnings. SDK score
-writes are flushed before the publish command returns. Score environment is
-resolved by Langfuse SDK/runtime environment configuration, not by duplicating a
-repo-owned score DTO field.
+Uncorrelated eval results are skipped rather than guessed. Langfuse request
+failures fail the publish command; they are not downgraded to warnings. SDK
+score writes are flushed before the publish command returns. Score environment
+is resolved by Langfuse SDK/runtime environment configuration, not by
+duplicating a repo-owned score DTO field.
 
 ## Forbidden Payloads
 

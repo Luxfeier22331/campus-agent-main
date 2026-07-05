@@ -71,8 +71,8 @@ projection are present, including `entitlement_groups`, `visibility_scope`,
 1. Record collection schema, point count, payload sample and registry backlink
    sample.
 1. Sync Langfuse-bound qrels / answer-quality data when the denominator
-   changed. For real release denominators, use an approved private fixture root
-   or existing Langfuse dataset, not the public synthetic repo fixtures.
+   changed. For real release denominators, use an approved private asset root
+   or existing Langfuse dataset, not the public synthetic repo assets.
 1. Materialize safe trace or dataset projection from the real runtime path.
 1. Run Ragas trace or materialized-dataset scoring in validate-only mode before
    publishing scores.
@@ -84,7 +84,7 @@ Expected result artifact names:
 - `student_rules_release_acceptance.v1.result.json`
 - `curriculum_plan_release_acceptance.v1.result.json`
 
-## Surface-Specific Fixtures
+## Surface-Specific Eval Assets
 
 The repo paths below are public synthetic examples. They validate dataset shape
 and smoke projection only. Real gold qrels / answer-quality truth must be
@@ -93,14 +93,14 @@ provided by private release data or Langfuse datasets.
 `student_rules`:
 
 - retrieval qrels:
-  `packages/eval-langfuse/fixtures/rag/student_rules/retrieval_qrels.json`
+  `packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json`
 - release acceptance interpretation:
   `../reference/student-handbook-eval-metrics.md`
 
 `curriculum/curriculum_plan`:
 
 - retrieval qrels:
-  `packages/eval-langfuse/fixtures/rag/curriculum_plan/retrieval_qrels.json`
+  `packages/eval-langfuse/assets/qrels/rag/curriculum_plan/retrieval_qrels.json`
 - release acceptance interpretation:
   `../reference/curriculum-plan-eval-metrics.md`
 
@@ -140,7 +140,7 @@ Every fresh release acceptance should record:
 - collection schema and point count
 - payload sample and registry backlink sample
 - retrieval benchmark aggregate / split summary
-- hybrid fixture top hit / failure reason
+- hybrid benchmark top hit / failure reason
 - workflow status distribution where applicable
 - deterministic release gate / error gate summary where applicable
 - runtime observation summaries if provider execution participated

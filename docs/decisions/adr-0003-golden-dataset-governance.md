@@ -11,7 +11,7 @@ updated: 2026-03-22
 
 适用范围：`campus-agent` v2 中 repo-owned golden dataset、baseline 与回归真值资产。
 ADR-0061 已将旧 `packages/evals` package 退役，当前 Langfuse-bound truth 由
-`packages/eval-langfuse/fixtures` 承接。
+`packages/eval-langfuse/assets` 承接。
 
 ## 目标
 
@@ -32,8 +32,8 @@ ADR-0061 已将旧 `packages/evals` package 退役，当前 Langfuse-bound truth
 
 ## 决策 1：Golden Dataset 的角色
 
-- golden dataset 是 repo-owned canonical truth asset，当前 Langfuse-bound fixture
-  truth 由 `packages/eval-langfuse/fixtures` 承接
+- golden dataset 是 repo-owned canonical truth asset，当前 Langfuse-bound eval
+  asset truth 由 `packages/eval-langfuse/assets` 承接
 - 它服务回归、release gate、incident backfill 与长期质量校准
 - 它不从属于 `ragas`、OpenAI graders 或其他第三方评测框架的数据格式
 - 任何 scorer/runtime 都只能消费 golden dataset，而不能反向定义它的真值结构

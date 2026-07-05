@@ -17,23 +17,7 @@ STAGING_DIR = ROOT / "infra/local/staging"
 
 _PROJECTED_STAGING_KEYS = [
     "CAMPUS_SHARED_POSTGRES_URL",
-    "DOCUMENT_REGISTRY_DATABASE_URL",
-    "RAW_ASSET_REGISTRY_DATABASE_URL",
-    "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
-    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
     "CAMPUS_SHARED_POSTGRES_DOCKER_URL",
-    "DOCUMENT_REGISTRY_DOCKER_DATABASE_URL",
-    "RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL",
-    "OBJECT_STORE_ENDPOINT",
-    "OBJECT_STORE_DOCKER_ENDPOINT",
-    "OBJECT_STORE_DERIVED_ACCESS_KEY",
-    "OBJECT_STORE_BUCKET_DERIVED",
-    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
-    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
-    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
-    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
-    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
     "QDRANT_URL",
     "QDRANT_DOCKER_URL",
     "QDRANT_QUERY_API_KEY",
@@ -58,12 +42,9 @@ _PROJECTED_STAGING_KEYS = [
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_NAME",
+    "HINDSIGHT_API_DATABASE_URL",
     "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
     "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL",
     "HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL",
@@ -73,6 +54,7 @@ _PROJECTED_STAGING_KEYS = [
     "HINDSIGHT_API_LLM_MODEL",
     "HINDSIGHT_API_LLM_PROVIDER",
     "HINDSIGHT_API_RERANKER_PROVIDER",
+    "HINDSIGHT_API_TENANT_API_KEY",
     "SPARSE_PROVIDER",
     "SPARSE_MODEL",
     "SPARSE_TOKENIZER",
@@ -81,7 +63,6 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_DB",
     "EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_USER",
     "EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_PORT",
-    "EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY",
     "EXECUTION_CONTROL_STAGING_UV_BIN",
     "EXECUTION_CONTROL_STAGING_COMPOSE_FILES",
     "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES",
@@ -89,12 +70,17 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
     "EXECUTION_CONTROL_STAGING_HOST",
     "EXECUTION_CONTROL_STAGING_PORT",
+    "EXECUTION_CONTROL_STAGING_TOOL_READ_MODEL_RUNTIME_REQUIRED",
+    "EXECUTION_CONTROL_STAGING_NOTICE_RUNTIME_REQUIRED",
+    "EXECUTION_CONTROL_RUNTIME_PROFILE",
     "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
+    "EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
     "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL",
     "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
     "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
     "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
+    "AGENT_RUNTIME_HOST",
     "AGENT_RUNTIME_SHARED_SECRET",
     "AGENT_RUNTIME_TOOL_REGISTRY_PATH",
     "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
@@ -102,13 +88,13 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
     "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
     "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
+    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
     "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY",
-    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
     "PERSONAL_MEMORY_BASE_URL",
     "PERSONAL_MEMORY_API_SECRET",
@@ -149,7 +135,6 @@ _PROJECTED_STAGING_KEYS = [
     "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
     "EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS",
     "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",
-    "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_MINIO",
     "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_QDRANT",
 ]
 
@@ -162,12 +147,7 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_UID",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_OWNER_GID",
-    "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",
     "DOCUMENT_REGISTRY_DATABASE_URL",
-    "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
     "QDRANT_QUERY_API_KEY",
     "QDRANT_API_KEY",
@@ -184,7 +164,6 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
-    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
     "PERSONAL_MEMORY_BASE_URL",
     "PERSONAL_MEMORY_API_SECRET",
@@ -215,12 +194,12 @@ _VALID_TEMPORAL_ENV = {
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS": "temporal:7233",
     "EXECUTION_CONTROL_TEMPORAL_NAMESPACE": "campus-agent-staging",
     "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE": "campus-agent.workflow",
+    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT": "workflow-salt",
     "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY": "staging:execution-control:001",
     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY": "staging:workflow-worker:001",
     "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY": "staging:activity-core:001",
     "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY": "staging:activity-agent:001",
     "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY": "staging:activity-knowledge:001",
-    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT": "workflow-salt",
     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS": "5000",
 }
 
@@ -241,13 +220,21 @@ def copy_staging_modules_for_tests(target_root: Path) -> Path:
         )
     scripts_dir = target_root / "scripts"
     scripts_dir.mkdir()
-    for script_name in (
-        "sync-provider-config-projection.mjs",
-        "sync-observability-config-projection.mjs",
+    sync_script = ROOT / "scripts" / "sync-provider-config-projection.mjs"
+    (scripts_dir / sync_script.name).write_text(
+        sync_script.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    runtime_profile_dir = target_root / "configs" / "runtime" / "execution-control"
+    runtime_profile_dir.mkdir(parents=True)
+    for profile_name in (
+        "runtime-profile.local.json",
+        "runtime-profile.local-real-provider.json",
+        "runtime-profile.staging.json",
     ):
-        sync_script = ROOT / "scripts" / script_name
-        (scripts_dir / sync_script.name).write_text(
-            sync_script.read_text(encoding="utf-8"),
+        source_path = ROOT / "configs" / "runtime" / "execution-control" / profile_name
+        (runtime_profile_dir / profile_name).write_text(
+            source_path.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
     return staging_dir / "execution-control-staging-common.sh"
@@ -259,27 +246,34 @@ def run_common_script_with_env(
     staging_env: str,
     app_api_dev_vars: str | None = None,
     include_observability_sink_fixture: bool = True,
+    runtime_profile_open_tools: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         temp_root = Path(temp_dir)
         common_path = copy_staging_modules_for_tests(temp_root)
+        if runtime_profile_open_tools is not None:
+            profile_path = (
+                temp_root
+                / "configs"
+                / "runtime"
+                / "execution-control"
+                / "runtime-profile.staging.json"
+            )
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+            profile["open_tools"] = runtime_profile_open_tools
+            profile_path.write_text(json.dumps(profile, ensure_ascii=True) + "\n", encoding="utf-8")
         if repo_env:
             (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
         runtime_env_path.parent.mkdir(parents=True)
         projection_path = temp_root / "ops" / "staging" / "provider-config-projection.json"
-        observability_projection_path = (
-            temp_root / "ops" / "staging" / "observability-config-projection.json"
-        )
         write_provider_config_projection_for_tests(projection_path)
-        write_observability_config_projection_for_tests(observability_projection_path)
         runtime_env_path.write_text(
             _with_valid_staging_fixture_env(
                 "\n".join(
                     [
                         "APP_API_INTERNAL_BASE_URL={app_api_base_url}",
                         f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
-                        f"CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH={observability_projection_path}",
                         staging_env,
                     ]
                 ),
@@ -398,11 +392,7 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         projection_path = (
             temp_root / "infra" / "local" / ".generated" / "provider-config-projection.json"
         )
-        observability_projection_path = (
-            temp_root / "infra" / "local" / ".generated" / "observability-config-projection.json"
-        )
         write_provider_config_projection_for_tests(projection_path)
-        write_observability_config_projection_for_tests(observability_projection_path)
         command = f"""
         set -euo pipefail
         {shlex.quote(str(script_path))} __campus_agent_print_projected_env > projected.env0
@@ -437,6 +427,7 @@ def write_provider_config_projection_for_tests(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     profiles = {
         "primary_agent": _prompt_profile("primary_agent"),
+        "public_web_search": _search_profile("public_web_search"),
         "rag_synthesis": _prompt_profile("rag_synthesis"),
         "rag_query_embedding": _embedding_profile("rag_query_embedding"),
         "rag_reranker": {
@@ -463,32 +454,6 @@ def write_provider_config_projection_for_tests(path: Path) -> None:
         encoding="utf-8",
     )
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-
-
-def write_observability_config_projection_for_tests(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": "observability_config_projection.v1",
-                "generated_at": "2026-07-02T00:00:00Z",
-                "llm_debug_trace": observability_config_stub_snapshot(),
-            },
-            ensure_ascii=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-
-
-def observability_config_stub_snapshot() -> dict[str, object]:
-    return {
-        "schema_version": "llm_debug_trace_config.v1",
-        "mode": "off",
-        "include_model_io": False,
-        "sample_ratio": 1,
-    }
 
 
 def _prompt_profile(role: str) -> dict[str, object]:
@@ -522,6 +487,21 @@ def _embedding_profile(role: str) -> dict[str, object]:
     }
 
 
+def _search_profile(role: str) -> dict[str, object]:
+    return {
+        "api_key": "search-key",
+        "base_url": "https://api.perplexity.ai",
+        "kind": "search",
+        "model": "sonar",
+        "profile_id": f"provider_profile_{role}",
+        "provider": "perplexity",
+        "revision": 1,
+        "role": role,
+        "timeout_ms": 30000,
+        "transport": "perplexity_search",
+    }
+
+
 class ProviderConfigStubServer:
     def __init__(self, prompt_transport: str = "responses") -> None:
         self.auth_headers: list[str] = []
@@ -546,16 +526,8 @@ class ProviderConfigStubServer:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
-                owner.auth_headers.append(self.headers.get("x-app-internal-auth", ""))
-                if parsed.path == "/api/internal/observability-config/llm-debug-trace":
-                    self.send_response(200)
-                    self.send_header("content-type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(
-                        json.dumps({"config": observability_config_stub_snapshot()}).encode("utf-8")
-                    )
-                    return
                 role = parse_qs(parsed.query).get("role", [""])[0]
+                owner.auth_headers.append(self.headers.get("x-app-internal-auth", ""))
                 owner.roles.append(role)
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
@@ -579,6 +551,8 @@ class ProviderConfigStubServer:
 def provider_config_stub_profile_for_role(
     role: str, prompt_transport: str = "responses"
 ) -> dict[str, object]:
+    if role == "public_web_search":
+        return _search_profile(role)
     kind = "embedding" if role.endswith("_embedding") else "prompt"
     profile: dict[str, object] = {
         "api_key": "embedding-key" if kind == "embedding" else "llm-key",

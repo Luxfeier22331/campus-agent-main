@@ -30,6 +30,10 @@ Cloudflare Worker secrets remain in the Cloudflare Worker secret store and are
 audited through Worker deploy/preflight tooling. Worker secrets are not mirrored
 through K8s.
 
+External Secrets Operator is only the Kubernetes delivery layer. It does not
+own Cloudflare Worker secrets, Docker local secrets or app-api provider-config
+active profiles.
+
 ## Consequences
 
 - K8s `secret.example.yaml` files remain examples and bootstrap aids, not
@@ -40,6 +44,9 @@ through K8s.
   secrets in GitOps manifests and Helm values.
 - The concrete external secret backend can be selected later without changing
   workload consumption contracts.
+- Repo policy checks may verify Secret/ConfigMap separation, retired Secret
+  names and forbidden key placement, but real secret material remains outside
+  git.
 
 ## Alternatives Considered
 

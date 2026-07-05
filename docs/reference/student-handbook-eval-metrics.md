@@ -29,14 +29,14 @@ updated: 2026-06-27
 repo-tracked 基线入口固定为：
 
 - retrieval qrels：
-  `packages/eval-langfuse/fixtures/rag/student_rules/retrieval_qrels.json`
+  `packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json`
 - answer quality cases：
-  `packages/eval-langfuse/fixtures/rag/student_rules/answer_quality_cases.v1.json`
+  `packages/eval-langfuse/assets/datasets/rag/student_rules/answer_quality_cases.v1.json`
 
-这些 repo-tracked fixtures 是公开 source-clean synthetic examples，只验证
+这些 repo-tracked assets 是公开 source-clean synthetic examples，只验证
 schema、dataset manifest、qrels-only projection 和 answer-quality contract
-形状。真实 handbook gold truth / release denominator 不在公开仓库 fixtures 中
-发布，应通过私有 fixture root 或 Langfuse dataset 进入 eval loop。
+形状。真实 handbook gold truth / release denominator 不在公开仓库 assets 中
+发布，应通过私有 asset root 或 Langfuse dataset 进入 eval loop。
 
 历史 workflow / release acceptance fixture 与 judge policy fixture 已从
 `packages/eval-langfuse` active package 删除。后续 release-closeout observation 应由 owning

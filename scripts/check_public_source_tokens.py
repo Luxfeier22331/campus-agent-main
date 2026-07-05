@@ -80,6 +80,41 @@ TOKEN_OWNER_PATHS = frozenset(
         "tests/test_check_public_source_tokens.py",
     }
 )
+PUBLIC_WEB_SEARCH_SOURCE_TOKEN_PATHS = frozenset(
+    {
+        "apps/app-api/scripts/public-web-search-smoke-staging.ts",
+        "apps/app-api/src/modules/chat/model.ts",
+        "apps/app-api/src/modules/provider-config/validators.ts",
+        "apps/app-api/src/modules/runtime-command/service/normalize-source-items.ts",
+        "apps/app-api/test/chat-structured-parts.test.ts",
+        "apps/app-api/test/provider-config.search-validator.test.ts",
+        "apps/app-api/test/public-web-search-smoke-staging.test.ts",
+        "apps/campus-web/test/source-items.test.tsx",
+        "apps/execution-control/internal/httpapi/public_web_search.go",
+        "apps/execution-control/internal/httpapi/public_web_search_test.go",
+        "apps/execution-control/internal/provider/gemini_google_search_client_test.go",
+        "apps/execution-control/internal/provider/openai_web_search_client_test.go",
+        "apps/execution-control/internal/httpapi/provider_config_resolver_public_web_search_test.go",
+        "apps/execution-control/internal/provider/perplexity_search_client_test.go",
+        "docs/decisions/adr-0067-public-web-search-provider-boundary.md",
+        "docs/domains/public-web-search.md",
+        "docs/runbooks/execution-smoke.md",
+        "packages/eval-langfuse/src/public-web-search-agent-runner.ts",
+        "packages/eval-langfuse/src/public-web-search-eval.ts",
+        "packages/eval-langfuse/test/public-web-search-agent-runner.test.ts",
+        "packages/eval-langfuse/test/public-web-search-eval.test.ts",
+    }
+)
+PUBLIC_WEB_SEARCH_SOURCE_TOKEN_PREFIXES = (
+    "packages/eval-langfuse/assets/datasets/agent/public_web_search/",
+)
+PUBLIC_WEB_SEARCH_ALLOWED_SOURCE_TOKENS = frozenset(
+    {
+        "muc.edu.cn",
+        "my.muc.edu.cn",
+        "www.muc.edu.cn",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,8 +151,11 @@ def scan_public_source_tokens(
     failures: list[PublicSourceTokenFailure] = []
     for path in public_source_token_candidate_paths(root=base):
         relative_path = path.relative_to(base)
+        relative_text = relative_path.as_posix()
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             for token in FORBIDDEN_SOURCE_TOKENS:
+                if _allowed_public_web_search_source_token(relative_text, token):
+                    continue
                 if token in line:
                     failures.append(
                         PublicSourceTokenFailure(
@@ -127,6 +165,14 @@ def scan_public_source_tokens(
                         )
                     )
     return tuple(failures)
+
+
+def _allowed_public_web_search_source_token(relative_path: str, token: str) -> bool:
+    if token not in PUBLIC_WEB_SEARCH_ALLOWED_SOURCE_TOKENS:
+        return False
+    if relative_path in PUBLIC_WEB_SEARCH_SOURCE_TOKEN_PATHS:
+        return True
+    return relative_path.startswith(PUBLIC_WEB_SEARCH_SOURCE_TOKEN_PREFIXES)
 
 
 def main() -> int:

@@ -127,8 +127,6 @@ spec:
               containerPort: 8888
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-stateful-runtime-secrets

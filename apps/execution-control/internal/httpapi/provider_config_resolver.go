@@ -17,6 +17,7 @@ type providerConfigRole string
 const (
 	providerConfigRoleIndexEmbedding    providerConfigRole = "index_embedding"
 	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
+	providerConfigRolePublicWebSearch   providerConfigRole = "public_web_search"
 	providerConfigRoleRAGSynthesis      providerConfigRole = "rag_synthesis"
 	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
 	providerConfigRoleRAGReranker       providerConfigRole = "rag_reranker"
@@ -55,9 +56,6 @@ var errProviderConfigResolverNotConfigured = errors.New("provider config resolve
 func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error) {
 	path := strings.TrimSpace(cfg.ProviderConfigSnapshotPath)
 	if path == "" {
-		if strings.TrimSpace(cfg.AppAPIInternalBaseURL) != "" || strings.TrimSpace(cfg.AppAPIInternalSharedSecret) != "" {
-			return nil, errors.New("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH is required for provider-config runtime; app-api internal provider lookup is control-plane only")
-		}
 		return nil, errProviderConfigResolverNotConfigured
 	}
 	return fileProviderConfigResolver{path: path}, nil
@@ -185,6 +183,17 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 	}
 	if isRerankProviderConfigRole(role) && strings.TrimSpace(snapshot.Kind) != "rerank" {
 		return errors.New("rerank provider config snapshot kind must be rerank")
+	}
+	if role == providerConfigRolePublicWebSearch {
+		if strings.TrimSpace(snapshot.Kind) != "search" {
+			return errors.New("public_web_search provider config snapshot kind must be search")
+		}
+		if !publicWebSearchProviderAdmitted(snapshot.Provider) {
+			return errors.New("public_web_search provider config snapshot provider is not admitted")
+		}
+		if !publicWebSearchProviderTransportAdmitted(snapshot.Provider, snapshot.Transport) {
+			return errors.New("public_web_search provider config snapshot provider/transport pair is not admitted")
+		}
 	}
 	return nil
 }

@@ -33,8 +33,6 @@ spec:
               done
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-app-api-internal-secrets
@@ -87,8 +85,6 @@ spec:
                 sleep "$${KEDA_HPA_POSTURE_COLLECTOR_INTERVAL_SECONDS:-30}"
               done
           envFrom:
-            - configMapRef:
-                name: execution-runtime-config
             - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:

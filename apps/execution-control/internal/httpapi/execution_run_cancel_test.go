@@ -48,6 +48,45 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	}
 }
 
+func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-temporal-cancel-invalid-reason",
+		"conv-temporal-cancel-invalid-reason",
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs/run-temporal-cancel-invalid-reason/cancel",
+		strings.NewReader(`{"reason":"operator typed free text"}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+	if starter.cancelRunID != "" || starter.cancelReason != "" {
+		t.Fatalf("Temporal cancel must not be called for invalid reason: run=%q reason=%q", starter.cancelRunID, starter.cancelReason)
+	}
+	run, err := store.GetRun(context.Background(), "run-temporal-cancel-invalid-reason")
+	if err != nil {
+		t.Fatalf("get run after invalid cancel: %v", err)
+	}
+	if run.Status == execution.DurableRunStatusCanceled {
+		t.Fatal("invalid cancel reason must not mark projection canceled")
+	}
+}
+
 func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}

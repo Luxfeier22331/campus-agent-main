@@ -31,7 +31,9 @@ snapshot 消费。
 
 ### Rule 1: local `.env` is not deploy truth
 
-repo root `.env` 只用于本地工作区开发。
+repo root `.env` 只用于本地共享数据库句柄。provider-config seed input 使用
+`env/commands/provider-config-seed.env`，并通过 app-api seed command 写入
+provider-config active profiles。
 
 它不是：
 
@@ -62,6 +64,7 @@ online serving 的 active provider truth 来自 app-api provider-config profile�
 
 - prompt roles: `primary_agent`、`rag_synthesis`
 - embedding roles: `rag_query_embedding`
+- search role: `public_web_search`
 - `index_embedding` 只服务 offline indexing / rebuild 语义
 
 eval provider truth 同样来自 app-api provider-config profile：
@@ -71,6 +74,9 @@ eval provider truth 同样来自 app-api provider-config profile：
 
 只有当 eval 需要独立预算、独立限流或独立 provider 时，才给这些 roles 绑定独立
 connection。不要为了“看起来整齐”而强制拆出独立 eval key。
+
+`env/commands/provider-config-seed.env` 只能作为 profile seed 输入。它不是 K8s
+ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源。
 
 ### Rule 4: rotate and revoke are normal operations
 
@@ -147,9 +153,13 @@ connection。不要为了“看起来整齐”而强制拆出独立 eval key。
    0600 projection artifact，并被挂载到 runtime profile 声明的
    `observability_config_projection_path`
 1. 对 execution-control 确认它只读取本地 projection artifact；
+   provider-config projection sync 使用 `APP_API_INTERNAL_BASE_URL` /
+   `APP_API_INTERNAL_SHARED_SECRET`，runtime projection publishers 使用
+   `EXECUTION_CONTROL_APP_API_BASE_URL` /
+   `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`；
    `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL` 与
    `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET` 只用于 control-plane sync /
-   activation migration boundary，不作为 provider runtime 热路径
+   activation migration boundary。以上通道都不得作为 provider runtime 热路径
 1. 再通过受控 smoke / acceptance 入口验证 provider 可用
 1. 只记录：
    - secret 是否存在

@@ -65,6 +65,8 @@ def run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProcess
         export first_api_secret="${{PERSONAL_MEMORY_API_SECRET}}"
         export first_owner_salt="${{PERSONAL_MEMORY_OWNER_SALT}}"
         export first_postgres_password="${{HINDSIGHT_POSTGRES_PASSWORD}}"
+        export first_api_database_url="${{HINDSIGHT_API_DATABASE_URL}}"
+        export first_api_tenant_api_key="${{HINDSIGHT_API_TENANT_API_KEY}}"
         execution_control_staging_load_env
         node - <<'NODE'
         console.log(JSON.stringify({{
@@ -73,12 +75,16 @@ def run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProcess
             apiSecret: process.env.first_api_secret,
             ownerSalt: process.env.first_owner_salt,
             postgresPassword: process.env.first_postgres_password,
+            apiDatabaseUrl: process.env.first_api_database_url,
+            apiTenantApiKey: process.env.first_api_tenant_api_key,
           }},
           second: {{
             baseUrl: process.env.PERSONAL_MEMORY_BASE_URL,
             apiSecret: process.env.PERSONAL_MEMORY_API_SECRET,
             ownerSalt: process.env.PERSONAL_MEMORY_OWNER_SALT,
             postgresPassword: process.env.HINDSIGHT_POSTGRES_PASSWORD,
+            apiDatabaseUrl: process.env.HINDSIGHT_API_DATABASE_URL,
+            apiTenantApiKey: process.env.HINDSIGHT_API_TENANT_API_KEY,
           }},
         }}));
         NODE
@@ -154,7 +160,6 @@ def run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Comple
             export first_qdrant_read_only_key="${{QDRANT_READ_ONLY_API_KEY}}"
             export first_temporal_address="${{EXECUTION_CONTROL_TEMPORAL_ADDRESS}}"
             export first_temporal_postgres_password="${{TEMPORAL_POSTGRES_PASSWORD}}"
-            export first_workflow_id_salt="${{EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}}"
             export first_internal_query_secret="${{EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET}}"
             export first_metrics_token="${{EXECUTION_CONTROL_METRICS_BEARER_TOKEN}}"
             export first_run_projection_url="${{EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}}"
@@ -177,9 +182,6 @@ def run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Comple
                 temporalPostgresPassword:
                   process.env[`${{prefix}}_temporal_postgres_password`] ||
                   process.env.TEMPORAL_POSTGRES_PASSWORD,
-                workflowIDSalt:
-                  process.env[`${{prefix}}_workflow_id_salt`] ||
-                  process.env.EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT,
                 internalQuerySecret:
                   process.env[`${{prefix}}_internal_query_secret`] ||
                   process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET,
@@ -264,7 +266,6 @@ def run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProcess
                     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
                     "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001",
                     "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
-                    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
                     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
                 )
             )

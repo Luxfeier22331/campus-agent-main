@@ -11,24 +11,24 @@ import {
 } from "./shared";
 
 export function buildRagDatasetManifest(input: {
-	fixtureRoot: string;
+	assetRoot: string;
 	outputPath?: string;
 	sourceGitHead: string;
 }): JsonObject {
-	const fixtureRoot = resolve(input.fixtureRoot);
+	const assetRoot = resolve(input.assetRoot);
 	const manifestDir = input.outputPath ? dirname(resolve(input.outputPath)) : process.cwd();
-	const datasets = collectRagFixturePaths(fixtureRoot).map((fixturePath) =>
+	const datasets = collectRagAssetPaths(assetRoot).map((assetPath) =>
 		datasetManifestEntry({
-			fixturePath,
+			assetPath,
 			manifestDir,
-			payload: loadJsonObject(fixturePath),
-			root: fixtureRoot,
+			payload: loadJsonObject(assetPath),
+			root: assetRoot,
 		}),
 	);
 	const manifest = {
 		datasets,
-		schema_version: "langfuse_dataset_manifest.v1",
-		source_fixture_root: relativePath(manifestDir, fixtureRoot),
+		schema_version: "langfuse_dataset_manifest.v2",
+		source_asset_root: relativePath(manifestDir, assetRoot),
 		source_git_head: input.sourceGitHead,
 	};
 	if (input.outputPath) {
@@ -37,19 +37,28 @@ export function buildRagDatasetManifest(input: {
 	return manifest;
 }
 
-function collectRagFixturePaths(root: string): string[] {
+function collectRagAssetPaths(root: string): string[] {
+	const answerQualityRoot = resolve(root, "datasets/rag");
+	const qrelsRoot = resolve(root, "qrels/rag");
+	return [
+		...collectNamedAssetPaths(answerQualityRoot, new Set(["answer_quality_cases.v1.json"])),
+		...collectNamedAssetPaths(qrelsRoot, new Set(["retrieval_qrels.json"])),
+	].sort();
+}
+
+function collectNamedAssetPaths(root: string, allowedNames: Set<string>): string[] {
 	const paths: string[] = [];
 	for (const entry of readdirSync(root, { withFileTypes: true })) {
 		const path = resolve(root, entry.name);
 		if (entry.isDirectory()) {
-			paths.push(...collectRagFixturePaths(path));
+			paths.push(...collectNamedAssetPaths(path, allowedNames));
 			continue;
 		}
 		if (!entry.isFile()) {
 			continue;
 		}
 		const name = basename(path);
-		if (name === "retrieval_qrels.json" || name === "answer_quality_cases.v1.json") {
+		if (allowedNames.has(name)) {
 			paths.push(path);
 		}
 	}
@@ -57,44 +66,44 @@ function collectRagFixturePaths(root: string): string[] {
 }
 
 function datasetManifestEntry(input: {
-	fixturePath: string;
+	assetPath: string;
 	manifestDir: string;
 	payload: JsonObject;
 	root: string;
 }): JsonObject {
-	const collection = collectionKey(input.payload, input.fixturePath);
-	const fixtureName = basename(input.fixturePath);
-	const kind = fixtureKind(fixtureName);
-	const suffix = datasetSuffix(fixtureName);
+	const collection = collectionKey(input.payload, input.assetPath);
+	const assetName = basename(input.assetPath);
+	const kind = assetKind(assetName);
+	const suffix = datasetSuffix(assetName);
 	const slug = `rag-${collection}-${suffix}`;
 	return {
 		collection,
-		fixture_path: relativePath(input.manifestDir, input.fixturePath),
+		asset_path: relativePath(input.manifestDir, input.assetPath),
 		kind,
 		name: `campus/rag/${collection}/${suffix}`,
 		slug,
-		source_fixture_kind: fixtureName,
+		source_asset_kind: assetName,
 		surface_key: surfaceKey(input.payload, collection),
 	};
 }
 
-function collectionKey(payload: JsonObject, fixturePath: string): string {
+function collectionKey(payload: JsonObject, assetPath: string): string {
 	const collection = optionalString(payload.collection);
 	if (collection) {
 		return collection;
 	}
-	return basename(dirname(fixturePath));
+	return basename(dirname(assetPath));
 }
 
-function fixtureKind(fixtureName: string): string {
-	if (fixtureName === "answer_quality_cases.v1.json") {
+function assetKind(assetName: string): string {
+	if (assetName === "answer_quality_cases.v1.json") {
 		return "answer_quality";
 	}
 	return "rag_qrels";
 }
 
-function datasetSuffix(fixtureName: string): string {
-	if (fixtureName === "answer_quality_cases.v1.json") {
+function datasetSuffix(assetName: string): string {
+	if (assetName === "answer_quality_cases.v1.json") {
 		return "answer-quality";
 	}
 	return "qrels";

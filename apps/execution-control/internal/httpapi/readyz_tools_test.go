@@ -133,8 +133,7 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["notice_read_model_configured"] != false ||
-		toolReadModelRuntime["notice_body_store_configured"] != false {
+	if toolReadModelRuntime["notice_read_model_configured"] != false {
 		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
 	}
 }
@@ -144,11 +143,6 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 		cfg.OpenTools = []string{"campus_notice_discover"}
 		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
 		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
-		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
-		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
-		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
-		cfg.NoticeBodyObjectStoreBucket = "notice-body"
-		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())
@@ -162,19 +156,17 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["notice_read_model_configured"] != true ||
-		toolReadModelRuntime["notice_body_store_configured"] != true {
+	if toolReadModelRuntime["notice_read_model_configured"] != true {
 		t.Fatalf("notice runtime should be configured: %#v", toolReadModelRuntime)
 	}
-	if toolReadModelRuntime["notice_read_model_healthy"] != false ||
-		toolReadModelRuntime["notice_body_store_healthy"] != false {
+	if toolReadModelRuntime["notice_read_model_healthy"] != false {
 		t.Fatalf("notice runtime health should fail closed: %#v", toolReadModelRuntime)
 	}
 	lastError, _ := toolReadModelRuntime["notice_runtime_last_error"].(string)
 	if lastError == "" {
 		t.Fatalf("notice_runtime_last_error = %q, want stable reason", lastError)
 	}
-	for _, secret := range []string{"secret-pass", "secret-object-key", "127.0.0.1:1"} {
+	for _, secret := range []string{"secret-pass", "127.0.0.1:1"} {
 		if strings.Contains(lastError, secret) {
 			t.Fatalf("notice_runtime_last_error leaked %q: %s", secret, lastError)
 		}
@@ -185,11 +177,6 @@ func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
 		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
-		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
-		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
-		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
-		cfg.NoticeBodyObjectStoreBucket = "notice-body"
-		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())

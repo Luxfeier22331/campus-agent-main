@@ -94,6 +94,7 @@
 						"campus_notice_change_set_lookup",
 						"campus_notice_period_summary",
 						"campus_notice_get",
+						"public_web_search",
 						"execution-control"
 					]
 				},
@@ -181,7 +182,8 @@
 						"campus_notice_discover",
 						"campus_notice_change_set_lookup",
 						"campus_notice_period_summary",
-						"campus_notice_get"
+						"campus_notice_get",
+						"public_web_search"
 					]
 				},
 				"tool_name": {

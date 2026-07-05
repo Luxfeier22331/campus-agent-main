@@ -327,6 +327,40 @@ describe("chat durable run routes", () => {
 		});
 	});
 
+	it("rejects unsupported run cancel reason codes", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn(),
+			listEvents: vi.fn(),
+			listSteps: vi.fn(),
+			subscribeEvents: vi.fn(),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+				body: JSON.stringify({ reason: "stop because this text must not enter audit" }),
+				headers: {
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "invalid_request",
+				message: "reason must be user_requested.",
+				retryable: false,
+			},
+		});
+		expect(runtimeRunService.cancel).not.toHaveBeenCalled();
+	});
+
 	it("maps run ownership misses to the shared not-found envelope", async () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),

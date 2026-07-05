@@ -1,7 +1,13 @@
-export type ProviderConfigKind = "embedding" | "prompt" | "rerank";
-export type ProviderConfigTransport = "chat_completions" | "embeddings" | "responses";
+export type ProviderConfigKind = "embedding" | "prompt" | "rerank" | "search";
+export type ProviderConfigTransport =
+	| "chat_completions"
+	| "embeddings"
+	| "gemini_google_search"
+	| "openai_responses_web_search"
+	| "perplexity_search"
+	| "responses";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
-export type ProviderConfigFeature = "embedding" | "prompt" | "rerank";
+export type ProviderConfigFeature = "embedding" | "prompt" | "rerank" | "search";
 export type ProviderConfigRole =
 	| "eval_judge_llm"
 	| "eval_ragas_embedding"
@@ -10,6 +16,7 @@ export type ProviderConfigRole =
 	| "hindsight_llm"
 	| "index_embedding"
 	| "primary_agent"
+	| "public_web_search"
 	| "rag_query_embedding"
 	| "rag_reranker"
 	| "rag_synthesis";
@@ -64,7 +71,7 @@ export interface ProviderConfigConnectionCreatePayload {
 	baseUrl: string;
 	featureConfig?: Record<string, unknown>;
 	features: ProviderConfigFeature[];
-	provider: "openai" | "openai-compatible";
+	provider: "gemini" | "openai" | "openai-compatible" | "perplexity" | "perplexity_compatible";
 }
 
 export interface ProviderConfigConnectionUpdatePayload {
@@ -72,7 +79,7 @@ export interface ProviderConfigConnectionUpdatePayload {
 	baseUrl?: string;
 	featureConfig?: Record<string, unknown>;
 	features?: ProviderConfigFeature[];
-	provider?: "openai" | "openai-compatible";
+	provider?: "gemini" | "openai" | "openai-compatible" | "perplexity" | "perplexity_compatible";
 }
 
 export interface ProviderConfigProfileCreatePayload {

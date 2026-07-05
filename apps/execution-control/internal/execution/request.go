@@ -411,6 +411,7 @@ func isAllowedRequestedTool(requestedTool string) bool {
 	switch requestedTool {
 	case "knowledge_query",
 		"place_lookup",
+		"public_web_search",
 		"transport_schedule_lookup",
 		"campus_notice_discover":
 		return true

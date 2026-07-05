@@ -446,7 +446,7 @@ export function createRequestScopeFactory(input: {
 
 				observabilityConfigService = buildObservabilityConfigService({
 					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
-					store: createPgObservabilityConfigStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgObservabilityConfigStore(input.env, { getDb: runtime.getDb }),
 				});
 				return observabilityConfigService;
 			}

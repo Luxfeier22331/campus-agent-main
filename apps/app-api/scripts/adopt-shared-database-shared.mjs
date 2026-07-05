@@ -21,7 +21,7 @@ export const POSTGRES_IDENTIFIER_MAX_BYTES = 63;
 export const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 export const CREATE_TABLE_RE = /^CREATE TABLE(?: IF NOT EXISTS)? "([^"]+)"\."([^"]+)" \(/i;
 export const ALTER_TABLE_ADD_COLUMN_RE =
-	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN(?: IF NOT EXISTS)? "([^"]+)"/i;
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+"([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_DEFAULT_RE =

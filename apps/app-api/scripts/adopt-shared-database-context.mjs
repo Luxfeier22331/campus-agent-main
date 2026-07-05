@@ -48,10 +48,10 @@ export function loadSnapshot(entryOrTag) {
 	return JSON.parse(fs.readFileSync(resolveSnapshotPath(entryOrTag), "utf8"));
 }
 
-function splitMigrationStatements(statement) {
+export function splitMigrationStatements(statement) {
 	return statement
 		.trim()
-		.split(/;\s*(?=(?:ALTER|CREATE|DROP|INSERT|UPDATE)\b|$)/i)
+		.split(/;\s*(?=(?:ALTER|CREATE|DROP|INSERT|UPDATE|DELETE)\b|$)/i)
 		.map((item) => item.trim())
 		.filter(Boolean)
 		.map((item) => (item.endsWith(";") ? item : `${item};`))
@@ -59,19 +59,20 @@ function splitMigrationStatements(statement) {
 }
 
 function expandMultiClauseAlterTableStatement(statement) {
-	const match = statement.trim().match(/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+([\s\S]+);$/i);
+	const match = statement.match(/^(ALTER TABLE "[^"]+"\."[^"]+")\s+([\s\S]+?);?$/i);
 	if (!match) {
 		return [statement];
 	}
-	const [, schema, table, body] = match;
-	const clauses = body
+
+	const clauses = match[2]
 		.split(/,\s*(?=(?:ADD\s+COLUMN|ALTER\s+COLUMN|DROP\s+COLUMN)\b)/i)
 		.map((item) => item.trim())
 		.filter(Boolean);
 	if (clauses.length <= 1) {
 		return [statement];
 	}
-	return clauses.map((clause) => `ALTER TABLE "${schema}"."${table}"\n${clause};`);
+
+	return clauses.map((clause) => `${match[1]}\n${clause.replace(/;$/u, "")};`);
 }
 
 export function loadMigrationContext() {

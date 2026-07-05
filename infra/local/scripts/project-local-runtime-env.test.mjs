@@ -56,7 +56,6 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 			"APP_API_INTERNAL_SHARED_SECRET=generated-internal-secret",
 			"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY=generated-provider-secret",
 			"QDRANT_READ_ONLY_API_KEY=readonly-qdrant-secret",
-			"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
 			"TEMPORAL_POSTGRES_PASSWORD=temporal-password",
 			"HINDSIGHT_POSTGRES_PASSWORD=hindsight-password",
 			"PERSONAL_MEMORY_API_SECRET=memory-secret",
@@ -98,6 +97,8 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 			"postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
 		);
 		assert.equal(result.env.EXECUTION_CONTROL_COMPOSE_PROJECT_NAME, "campus-runtime-test");
+		assert.equal(result.env.QDRANT_API_KEY, undefined);
+		assert.equal(result.env.QDRANT_READ_ONLY_API_KEY, undefined);
 		assert.match(result.env.EXECUTION_CONTROL_RUNTIME_RELEASE, /^execution-control@/);
 		assert.equal(
 			result.env.CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH,
@@ -160,7 +161,7 @@ test("projectLocalRuntimeEnv keeps non-Hindsight explicit process overrides over
 	await writeFile(appApiDevVarsPath, "APP_API_INTERNAL_SHARED_SECRET=file-internal\n");
 	await writeFile(
 		generatedRuntimeEnvPath,
-		"QDRANT_READ_ONLY_API_KEY=file-qdrant-readonly\nEXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=salt\n",
+		"QDRANT_READ_ONLY_API_KEY=file-qdrant-readonly\n",
 	);
 	await writeProviderConfigProjection(providerConfigSnapshotHostPath);
 
@@ -227,6 +228,51 @@ test("projectLocalRuntimeEnv fails closed without provider projection artifact",
 		await rm(tmp, { force: true, recursive: true });
 	}
 });
+
+for (const retiredKey of [
+	"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+	"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+	"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+	"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+	"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
+]) {
+	test(`projectLocalRuntimeEnv rejects retired ${retiredKey}`, async () => {
+		const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
+		const providerConfigSnapshotHostPath = path.join(
+			tmp,
+			"infra/local/.generated/provider-config-projection.json",
+		);
+		const repoEnvPath = path.join(tmp, ".env");
+		const appApiEnvPath = path.join(tmp, "app-api.env");
+		const appApiDevVarsPath = path.join(tmp, ".dev.vars");
+		const generatedRuntimeEnvPath = path.join(tmp, "runtime.env");
+
+		await writeFile(repoEnvPath, `${retiredKey}=retired-value\n`);
+		await writeFile(appApiEnvPath, "");
+		await writeFile(appApiDevVarsPath, "");
+		await writeFile(generatedRuntimeEnvPath, "");
+		await writeProviderConfigProjection(providerConfigSnapshotHostPath);
+
+		try {
+			await assert.rejects(
+				() =>
+					projectLocalRuntimeEnv({
+						appApiDevVarsPath,
+						appApiEnvPath,
+						composeProjectName: "campus-runtime-test",
+						env: {},
+						generatedRuntimeEnvPath,
+						providerConfigSnapshotHostPath,
+						repoEnvPath,
+						repoRoot: tmp,
+					}),
+				new RegExp(`${retiredKey} is retired`),
+			);
+		} finally {
+			await rm(tmp, { force: true, recursive: true });
+		}
+	});
+}
 
 test("projectLocalRuntimeEnv derives Langfuse collector values from canonical keys", async () => {
 	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));

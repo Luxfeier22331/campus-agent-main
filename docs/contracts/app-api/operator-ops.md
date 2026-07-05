@@ -288,6 +288,7 @@ Accepted roles:
 - embedding: `rag_query_embedding`, `index_embedding`,
   `hindsight_embedding`, `eval_ragas_embedding`
 - rerank: `rag_reranker`
+- search: `public_web_search`
 
 Rules:
 

@@ -7,7 +7,10 @@ import {
 	loadMigrationContext,
 	makeInventory,
 } from "../scripts/adopt-shared-database.mjs";
-import { buildSharedDatabaseDriftReconcilePlan } from "../scripts/reconcile-shared-db-drift.mjs";
+import {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	buildSharedDatabaseDriftReconcilePlan,
+} from "../scripts/reconcile-shared-db-drift.mjs";
 
 const migrationContext = loadMigrationContext();
 function requireSnapshot(key: string) {
@@ -19,7 +22,7 @@ function requireSnapshot(key: string) {
 }
 
 const snapshot0009 = requireSnapshot("0009_melted_nightmare");
-const latestSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
+const latestSpecs = buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot);
 const snapshot0009Specs = buildExpectedTableSpecs(snapshot0009);
 const DINING_TABLES = [
 	"dining.audit_events",
@@ -34,7 +37,9 @@ const DINING_TABLES = [
 	"dining.release_schedule_jobs",
 	"dining.release_snapshots",
 	"dining.releases",
+	"dining.review_projections",
 	"dining.source_observations",
+	"dining.source_sync_runs",
 	"dining.stall_profiles",
 	"dining.window_assignments",
 	"dining.windows",

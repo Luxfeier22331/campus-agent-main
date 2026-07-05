@@ -25,7 +25,7 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
             relative_paths,
         )
         self.assertIn(
-            "packages/eval-langfuse/fixtures/rag/student_rules/retrieval_qrels.json",
+            "packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json",
             relative_paths,
         )
         self.assertIn(
@@ -50,6 +50,7 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                     (
                         "tests/fixtures/",
                         "packages/contracts/fixtures/",
+                        "packages/eval-langfuse/assets/",
                         "packages/eval-langfuse/fixtures/",
                         "packages/ingestion-core/testdata/",
                         "apps/official-web-collector/test/",
@@ -107,6 +108,7 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                 "--exclude-standard",
                 "tests/fixtures/**",
                 "packages/contracts/fixtures/**",
+                "packages/eval-langfuse/assets/**",
                 "packages/eval-langfuse/fixtures/**",
                 "packages/ingestion-core/testdata/**",
                 "apps/official-web-collector/test/**",
@@ -125,6 +127,7 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                 (
                     "tests/fixtures/",
                     "packages/contracts/fixtures/",
+                    "packages/eval-langfuse/assets/",
                     "packages/eval-langfuse/fixtures/",
                     "packages/ingestion-core/testdata/",
                     "apps/official-web-collector/test/",

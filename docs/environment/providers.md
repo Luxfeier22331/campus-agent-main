@@ -38,9 +38,50 @@ Reading model:
 - Required roles: `primary_agent`, `rag_synthesis`, `hindsight_llm`.
 - Local seed keys: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, optional
   `RAG_SYNTHESIS_MODEL`.
+- Local seed template: `env/commands/provider-config-seed.env.example`.
 - Runtime truth: `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH`.
 - Validation: create, validate and activate profiles through Operator Console;
   raw keys must not return to browser surfaces.
+- Search-provider pricing must not be represented as zero when unknown. Add a
+  `provider-pricing.v1` entry only after the configured provider/model has a
+  real accepted rate; otherwise public-web-search readiness and eval evidence
+  should report provider/model identity without cost projection.
+
+### Search
+
+- Owner: `apps/app-api` provider-config connection/profile.
+- Role: `public_web_search`.
+- Scope: this section is only the admitted provider inventory. Provider class
+  taxonomy, candidate matrix and default-provider bakeoff rules live in
+  `../domains/public-web-search.md` and `../reference/eval.md`.
+- Current admitted provider identities:
+
+| role | provider | kind | transport |
+| --- | --- | --- | --- |
+| `public_web_search` | `perplexity` | `search` | `perplexity_search` |
+| `public_web_search` | `perplexity_compatible` | `search` | `perplexity_search` |
+| `public_web_search` | `openai` | `search` | `openai_responses_web_search` |
+| `public_web_search` | `gemini` | `search` | `gemini_google_search` |
+| `public_web_search` | `linux_do` | `search` | `openai_chat_completions_web_search` |
+
+- `provider` is the real provider identity. `transport` is the wire contract.
+  `perplexity_compatible` must not be recorded as official `perplexity`.
+- Linux.do prompt profiles and Linux.do public-web-search profiles are
+  separate. `public_web_search` with Linux.do must be `kind=search` and
+  `transport=openai_chat_completions_web_search`, not a generic
+  `chat_completions` prompt profile.
+- Provider adoption is an eval decision. Candidate search providers must be
+  configured as explicit provider/transport pairs and scored through the same
+  public-web-search eval pipeline before becoming a default runtime profile.
+- Local seed keys: `PUBLIC_WEB_SEARCH_BASE_URL`,
+  `PUBLIC_WEB_SEARCH_API_KEY`, `PUBLIC_WEB_SEARCH_MODEL`,
+  `PUBLIC_WEB_SEARCH_PROVIDER`, `PUBLIC_WEB_SEARCH_TRANSPORT`.
+- Local seed template: `env/commands/provider-config-seed.env.example`.
+- Consumer: `apps/execution-control` `public_web_search` typed tool.
+- Rule: search profile output is sanitized online evidence only; it must not
+  mutate official-web source truth, object storage, Qdrant or release manifests.
+- Rule: no provider fallback chain, provider auto-detection, result merge or
+  model-selected provider routing is admitted for this role.
 
 ### Embeddings
 
@@ -51,6 +92,7 @@ Reading model:
   `eval_ragas_embedding`.
 - Local seed keys: `EMBEDDING_BASE_URL`, `EMBEDDING_API_KEY`,
   `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`.
+- Local seed template: `env/commands/provider-config-seed.env.example`.
 - Runtime truth: provider projection artifact plus collection runtime profile.
 - References:
   - `../decisions/adr-0007-phase1-retrieval-baseline-update.md`
@@ -62,6 +104,7 @@ Reading model:
 - Role: `rag_reranker`.
 - Local seed keys: `RERANK_BASE_URL`, `RERANK_API_KEY`, `RERANK_PATH`,
   `RERANK_MODEL`.
+- Local seed template: `env/commands/provider-config-seed.env.example`.
 - Runtime truth: local provider projection artifact.
 - Rule: runtime profile must explicitly enable rerank; missing profile, path,
   score or provider response fails closed.
@@ -73,6 +116,8 @@ Reading model:
   and generated keys.
 - Online runtime uses read-only `QDRANT_QUERY_API_KEY`.
 - Admin `QDRANT_API_KEY` is only for lifecycle, backup, restore or ingestion.
+- K8s execution-runtime Secret inventory must not carry `QDRANT_API_KEY` or
+  `QDRANT_READ_ONLY_API_KEY`; it consumes only `QDRANT_QUERY_API_KEY`.
 - External endpoint override belongs in ops-owned runtime env and must use HTTPS
   plus `QDRANT_TLS_CA_CERT_PATH` when crossing substrate/public ingress.
 - Reference: `../architecture/system/data-plane.md`.
@@ -265,6 +310,8 @@ Reading model:
 Required:
 
 - root `.env`: shared Postgres handles only
+- `env/commands/provider-config-seed.env`: only when seeding/updating app-api
+  provider-config profiles
 - app-api provider-config active profiles:
   `primary_agent`, `rag_synthesis`, `rag_query_embedding`
 - local runtime lifecycle projection for Qdrant and generated runtime secrets

@@ -7,34 +7,26 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
 type Event struct {
-	ActivityDuration      time.Duration
-	CancelDeliveryStatus  string
-	ContextPreflightState string
-	Decision              string
-	Duration              time.Duration
-	EventType             string
-	FailureKind           string
-	HTTPStatus            int
-	OccurredAt            time.Time
-	PlanningOutcome       string
-	PolicyGateDecision    string
-	QueueWait             time.Duration
-	RequestID             string
-	RequestedTool         string
-	Retryable             bool
-	RoutingNextAction     string
-	ScopeGateDecision     string
-	SelectedTool          string
-	TaskQueue             string
-	TerminalOutcome       string
-	FailCloseReason       string
-	TraceID               string
+	ActivityDuration time.Duration
+	Decision         string
+	Duration         time.Duration
+	EventType        string
+	FailureKind      string
+	HTTPStatus       int
+	OccurredAt       time.Time
+	QueueWait        time.Duration
+	RequestID        string
+	RequestedTool    string
+	Retryable        bool
+	TaskQueue        string
+	TraceID          string
 }
 
 type Status struct {
@@ -46,6 +38,8 @@ type Status struct {
 }
 
 type Emitter struct {
+	mu sync.Mutex
+
 	enabled    bool
 	configured bool
 
@@ -116,6 +110,9 @@ func (e *Emitter) Status() Status {
 	if e == nil {
 		return Status{}
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	return Status{
 		Configured:   e.configured,
 		EmittedCount: e.emittedCount,

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,14 +29,11 @@ func TestProviderConfigResolverLoadsLocalProjectionArtifact(t *testing.T) {
 	}
 }
 
-func TestProviderConfigResolverRejectsAppAPIRuntimeLookup(t *testing.T) {
-	_, err := newProviderConfigResolver(config.Config{
-		AppAPIInternalBaseURL:      "https://app-api.internal",
-		AppAPIInternalSharedSecret: "secret",
-	})
+func TestProviderConfigResolverWithoutProjectionIsNotConfigured(t *testing.T) {
+	_, err := newProviderConfigResolver(config.Config{})
 
-	if err == nil || !strings.Contains(err.Error(), "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") {
-		t.Fatalf("error = %v, want snapshot path requirement", err)
+	if err == nil || !errors.Is(err, errProviderConfigResolverNotConfigured) {
+		t.Fatalf("error = %v, want not configured", err)
 	}
 }
 

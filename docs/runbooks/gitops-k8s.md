@@ -100,15 +100,36 @@ infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
 `EXECUTION_CONTROL_RUNTIME_RELEASE`，例如 `execution-control@<sha>`，不得使用占位值。
 默认 `EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`，渲染结果必须包含
 `execution-runtime-rendered-config`、`execution-control-secrets`、
-`execution-worker-common-secrets`、`execution-agent-client-secrets`、
+`execution-control-metrics-secrets`、`execution-telemetry-client-secrets`、
+`execution-run-projection-secrets`、`execution-temporal-workflow-secrets`、
+`execution-agent-client-secrets`、
 `agent-runtime-secrets`、`execution-memory-client-secrets`、
-`execution-rag-secrets`、`execution-control-internal-query-secrets`、
-`execution-runtime-provider-config-projection` 与
+`execution-rag-secrets`、`execution-tool-read-model-secrets`、
+`execution-control-internal-query-secrets`、`execution-runtime-provider-config-projection` 与
 `execution-runtime-qdrant-tls-ca`。不要创建已退役的单体
-`execution-runtime-secrets`。非敏感 endpoint / path / runtime release 配置进入
+`execution-runtime-secrets`、`execution-runtime-common-secrets` 或
+`execution-worker-common-secrets`。非敏感 endpoint / path / runtime release 配置进入
 `execution-runtime-rendered-config`，token / password / DSN / key 进入对应
 role-scoped Secret。模型/provider active profile 不进入 ConfigMap / Secret；online
-runtime 通过 `execution-runtime-provider-config-projection` 文件消费。
+runtime 通过 `execution-runtime-provider-config-projection` 文件消费。typed
+read-model tools 通过 `execution-tool-read-model-secrets` 消费
+`CAMPUS_SHARED_POSTGRES_URL`。
+`EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` 是 product/operator sanitized run
+projection store；`EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL` 是 trace-observability
+workflow-run store。二者不得互相替代，也不得从 `CAMPUS_SHARED_POSTGRES_URL` 隐式推导。
+`staging-full` profile 仅用于全量 K8s proof，会额外渲染
+`execution-telemetry-collector-config`、`execution-telemetry-collector-secrets` 与
+`execution-app-api-internal-secrets`、`execution-stateful-runtime-secrets`，分别服务
+in-cluster OTel collector、app-api internal projection publishers、Hindsight /
+Temporal stateful runtime；这些资源不是 `nc-arm-6c-slim` 默认 inventory。
+`execution-runtime-provider-config-projection` 只能由渲染器从
+`CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 指向的
+`provider_config_projection.v1` artifact 创建，不能在
+`infra/k8s/execution-runtime/base/secret.example.yaml` 中手写 profile。notice body
+object-store 凭据与 Qdrant admin/read-only lifecycle key 不属于当前
+`nc-arm-6c-slim` execution-runtime Secret inventory；notice body 路径开放或
+ingestion / backup / restore 任务需要这些 key 时，必须由对应 owner 的 delivery
+contract 单独声明。
 
 在 apply slim overlay 前，必须停止 Docker 中会重复消费 Temporal queue 的
 `execution-control`、`agent-runtime` 和 worker 容器；Temporal、Hindsight、

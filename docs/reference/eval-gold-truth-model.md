@@ -11,7 +11,7 @@ updated: 2026-06-29
 ## 目的
 
 本文固定 repo-owned golden case 的长期 truth 分层。当前 Langfuse-bound truth 位于
-`packages/eval-langfuse/fixtures`，runtime-local truth 位于 owning runtime testdata；
+`packages/eval-langfuse/assets`，runtime-local truth 位于 owning runtime testdata；
 旧 `packages/evals` package 已退役。目标是避免继续把 runtime-owner acceptance、
 RAGAS reference 和 retrieval/context truth 混写成一份过薄 case。
 
@@ -26,8 +26,8 @@ candidate review manifest，不能直接写入 golden truth。
    input。
 2. TS eval lane 或 owning runtime 生成 `pending_review` manifest。
 3. eval reviewer 完成 dedupe、边界判断和 expected truth 修订后，由 repo-owned
-   apply step 生成 reviewed manifest 与 accepted fixture。
-4. 接收入 fixture 后，才允许它进入对应 Langfuse dataset 或 owning runtime regression
+   apply step 生成 reviewed manifest 与 accepted asset。
+4. 接收入 asset 后，才允许它进入对应 Langfuse dataset 或 owning runtime regression
    denominator。
 5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 Operator Console 只能消费
    artifact 或 backlink，不改写 canonical truth。
@@ -139,7 +139,7 @@ Fresh news historical seed baseline：
 
 Fresh news baseline 只覆盖 exact-title seed validation，不覆盖 `今天`、`最新`
 或 `最近` 这类 freshness-sensitive asks。它当前不是 active
-`packages/eval-langfuse` fixture path；恢复时必须进入 Langfuse/Ragas lane 或
+`packages/eval-langfuse` asset path；恢复时必须进入 Langfuse/Ragas lane 或
 owning runtime tests，不能恢复 `packages/evals`。
 
 ## 当前字段语义
@@ -175,7 +175,7 @@ owning runtime tests，不能恢复 `packages/evals`。
   `error` 并 fast-fail
 - 正确归宿通常是：
   - `needs_clarification` workflow case
-  - 或 diagnostic / annotation fixture
+  - 或 diagnostic / annotation asset
 
 判断标准：
 

@@ -43,6 +43,14 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
             self.assertEqual(runtime_profile["open_tools"], ["campus_notice_discover"])
             self.assertFalse(runtime_profile["otel"]["enabled"])
             self.assertFalse(runtime_profile["execution_audit"]["enabled"])
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", env)
+            self.assertNotIn(
+                "s3-smoke-object-store",
+                {process.label for process in plan.processes},
+            )
 
     def test_multi_step_profile_writes_runtime_config_instead_of_profile_owned_env(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -61,6 +69,14 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
             runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
             self.assertEqual(runtime_profile["open_tools"], ["transport_schedule_lookup"])
             self.assertTrue(runtime_profile["multi_step_workflow_enabled"])
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", env)
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", env)
+            self.assertNotIn(
+                "s3-smoke-object-store",
+                {process.label for process in plan.processes},
+            )
 
 
 def _execution_control_env(plan: object) -> dict[str, str]:

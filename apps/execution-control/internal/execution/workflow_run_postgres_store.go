@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -366,11 +365,6 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 		run.ToolCallSummaries = []ToolCallSummary{}
 	}
 	return run, validateWorkflowRun(run)
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 const workflowRunSelectSQL = `select

@@ -150,6 +150,8 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
+		expect(freshDbReferences).toHaveLength(4);
 
 		for (const resolverName of [
 			"resolveAuthenticatedNoticeProcessingCommandService",

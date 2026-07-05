@@ -3,9 +3,17 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
+const PUBLIC_WEB_SEARCH_PROVIDER_TRANSPORTS = new Map([
+	["gemini", new Set(["gemini_google_search"])],
+	["openai", new Set(["openai_responses_web_search"])],
+	["perplexity", new Set(["perplexity_search"])],
+	["perplexity_compatible", new Set(["perplexity_search"])],
+]);
+
 const DEFAULT_ROLES = [
 	"primary_agent",
 	"rag_synthesis",
+	"public_web_search",
 	"rag_query_embedding",
 	"rag_reranker",
 	"hindsight_llm",
@@ -137,6 +145,18 @@ function requireProfile(profile, role) {
 	) {
 		throw new Error(`active provider profile ${role} missing dimensions`);
 	}
+	if (role === "public_web_search") {
+		if (profile.kind !== "search") {
+			throw new Error(`active provider profile ${role} must use search kind`);
+		}
+		if (!publicWebSearchProviderTransportAdmitted(profile.provider, profile.transport)) {
+			throw new Error(`active provider profile ${role} uses an unadmitted provider/transport pair`);
+		}
+	}
+}
+
+function publicWebSearchProviderTransportAdmitted(provider, transport) {
+	return PUBLIC_WEB_SEARCH_PROVIDER_TRANSPORTS.get(provider)?.has(transport) ?? false;
 }
 
 async function writeProjection(output, payload) {

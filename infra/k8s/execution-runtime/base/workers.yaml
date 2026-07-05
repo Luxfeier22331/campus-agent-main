@@ -32,11 +32,11 @@ spec:
           command: ["/usr/local/bin/workflow-worker"]
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-worker-common-secrets
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
@@ -96,20 +96,29 @@ spec:
           command: ["/usr/local/bin/activity-worker-core"]
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-worker-common-secrets
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
             - secretRef:
                 name: execution-memory-client-secrets
             - secretRef:
                 name: execution-control-internal-query-secrets
+            - secretRef:
+                name: execution-tool-read-model-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
           readinessProbe:
             exec:
               command: ["/usr/local/bin/activity-worker-core", "--check-runtime"]
@@ -129,6 +138,14 @@ spec:
               memory: 256Mi
             limits:
               memory: 1Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -164,11 +181,13 @@ spec:
           command: ["/usr/local/bin/activity-worker-agent"]
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-worker-common-secrets
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
             - secretRef:
                 name: execution-agent-client-secrets
           env:
@@ -176,6 +195,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
           readinessProbe:
             exec:
               command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
@@ -195,6 +219,14 @@ spec:
               memory: 512Mi
             limits:
               memory: 1Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -230,13 +262,13 @@ spec:
           command: ["/usr/local/bin/activity-worker-knowledge"]
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
-                name: execution-worker-common-secrets
+                name: execution-temporal-workflow-secrets
             - secretRef:
-                name: execution-agent-client-secrets
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
             - secretRef:
                 name: execution-rag-secrets
           env:
@@ -244,6 +276,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
           readinessProbe:
             exec:
               command: ["/usr/local/bin/activity-worker-knowledge", "--check-runtime"]
@@ -263,3 +303,14 @@ spec:
               memory: 512Mi
             limits:
               memory: 2Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

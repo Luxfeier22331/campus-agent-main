@@ -37,6 +37,7 @@ import {
 	buildProfileUpdatePayload,
 	type ConnectionFormState,
 	connectionFormSchema,
+	defaultTransportForRole,
 	FEATURE_PRESET_LABEL,
 	featureLabel,
 	formFromProfile,
@@ -52,6 +53,7 @@ import {
 	ROLE_OPTIONS,
 	roleLabel,
 	STATUS_LABEL,
+	searchTransportForConnection,
 	sortConnections,
 	sortProfiles,
 	transportLabel,
@@ -90,6 +92,15 @@ export function ProviderConfigPage() {
 	const compatibleConnections = connections.filter((connection) =>
 		connection.features.includes(selectedKind),
 	);
+	const selectedConnection = connections.find(
+		(connection) => connection.connectionId === selectedConnectionId,
+	);
+	const displayedTransport =
+		selectedKind === "embedding"
+			? "embeddings"
+			: selectedKind === "search"
+				? searchTransportForConnection(selectedConnection)
+				: selectedTransport;
 	const profiles = sortProfiles(profilesQuery.data?.profiles ?? []);
 
 	useEffect(() => {
@@ -200,6 +211,9 @@ export function ProviderConfigPage() {
 										<SelectContent>
 											<SelectItem value="openai-compatible">OpenAI-compatible</SelectItem>
 											<SelectItem value="openai">OpenAI</SelectItem>
+											<SelectItem value="perplexity">Perplexity</SelectItem>
+											<SelectItem value="perplexity_compatible">Perplexity-compatible</SelectItem>
+											<SelectItem value="gemini">Gemini</SelectItem>
 										</SelectContent>
 									</Select>
 								</Field>
@@ -335,12 +349,12 @@ export function ProviderConfigPage() {
 							setProfileFormError(null);
 							if (editingProfileId) {
 								updateProfileMutation.mutate({
-									payload: buildProfileUpdatePayload(values),
+									payload: buildProfileUpdatePayload(values, connections),
 									profileId: editingProfileId,
 								});
 								return;
 							}
-							createProfileMutation.mutate(buildProfileCreatePayload(values));
+							createProfileMutation.mutate(buildProfileCreatePayload(values, connections));
 						})}
 					>
 						<Controller
@@ -352,16 +366,22 @@ export function ProviderConfigPage() {
 									<Select
 										disabled={isEditing}
 										onValueChange={(value) => {
-											field.onChange(value);
 											const nextKind = kindForRole(value as ProviderConfigRole);
+											field.onChange(value);
 											profileForm.setValue(
 												"transport",
-												nextKind === "embedding" ? "embeddings" : "responses",
+												defaultTransportForRole(value as ProviderConfigRole),
 											);
 											const nextConnection = connections.find((connection) =>
 												connection.features.includes(nextKind),
 											);
 											profileForm.setValue("connectionId", nextConnection?.connectionId ?? "");
+											if (nextKind === "search") {
+												profileForm.setValue(
+													"transport",
+													searchTransportForConnection(nextConnection),
+												);
+											}
 										}}
 										value={field.value}
 									>
@@ -385,7 +405,18 @@ export function ProviderConfigPage() {
 							render={({ field }) => (
 								<Field>
 									<FieldLabel htmlFor="provider-profile-connection">模型连接</FieldLabel>
-									<Select onValueChange={field.onChange} value={field.value}>
+									<Select
+										onValueChange={(value) => {
+											field.onChange(value);
+											if (selectedKind === "search") {
+												const connection = connections.find(
+													(candidate) => candidate.connectionId === value,
+												);
+												profileForm.setValue("transport", searchTransportForConnection(connection));
+											}
+										}}
+										value={field.value}
+									>
 										<SelectTrigger id="provider-profile-connection">
 											<SelectValue placeholder="选择连接" />
 										</SelectTrigger>
@@ -433,9 +464,9 @@ export function ProviderConfigPage() {
 								<Field>
 									<FieldLabel htmlFor="provider-profile-transport">接口协议</FieldLabel>
 									<Select
-										disabled={selectedKind === "embedding"}
+										disabled={selectedKind === "embedding" || selectedKind === "search"}
 										onValueChange={field.onChange}
-										value={selectedKind === "embedding" ? "embeddings" : selectedTransport}
+										value={displayedTransport}
 									>
 										<SelectTrigger id="provider-profile-transport">
 											<SelectValue />
@@ -446,6 +477,11 @@ export function ProviderConfigPage() {
 											{selectedKind === "embedding" ? (
 												<SelectItem value="embeddings">Embeddings</SelectItem>
 											) : null}
+											{selectedKind === "search" ? (
+												<SelectItem value={displayedTransport}>
+													{transportLabel(displayedTransport)}
+												</SelectItem>
+											) : null}
 										</SelectContent>
 									</Select>
 								</Field>
@@ -454,14 +490,16 @@ export function ProviderConfigPage() {
 						<Field>
 							<FieldLabel htmlFor="provider-profile-dimensions">向量维度</FieldLabel>
 							<Input
-								disabled={selectedKind === "prompt"}
+								disabled={selectedKind !== "embedding"}
 								id="provider-profile-dimensions"
 								inputMode="numeric"
 								{...profileForm.register("dimensions")}
 							/>
-							{selectedKind === "prompt" ? (
-								<span className="mt-1 text-slate-500 text-xs">生成模型不需要向量维度</span>
-							) : null}
+							{selectedKind === "embedding" ? null : (
+								<span className="mt-1 text-slate-500 text-xs">
+									{KIND_LABEL[selectedKind]}不需要向量维度
+								</span>
+							)}
 							{selectedKind === "embedding" && profileForm.formState.errors.dimensions ? (
 								<FieldError>{profileForm.formState.errors.dimensions.message}</FieldError>
 							) : null}

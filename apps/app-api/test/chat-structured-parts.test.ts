@@ -390,6 +390,61 @@ describe("chat structured parts", () => {
 		});
 	});
 
+	it("projects public web search results as browser-safe source items", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				model: "gpt-5-search-api-2025-10-14",
+				provider: "linux_do",
+				query_text: "校园网密码怎么改",
+				result_kind: "public_web_evidence",
+				sources: [
+					{
+						content_hash: "sha256:web-source",
+						evidence_id: "public_web:abc123",
+						publisher_label: "中央民族大学",
+						snippet: "校园网用户可通过数字校园相关页面查看上网指南。",
+						source_kind: "public_web",
+						target_kind: "public_web_url",
+						title: "上网指南",
+						url: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
+					},
+					{
+						snippet: "外部污染不应进入结果。",
+						source_kind: "public_web",
+						target_kind: "public_web_url",
+						title: "外部污染",
+						url: "https://example.com/muc",
+					},
+				],
+			},
+			selectedTool: "public_web_search",
+			status: "completed",
+		});
+
+		expect(parts).toEqual([
+			{
+				sourceItems: [
+					expect.objectContaining({
+						collectionLabel: "公开网页",
+						contentHash: "sha256:web-source",
+						evidenceId: "public_web:abc123",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
+							label: "打开网页",
+						},
+						publisherLabel: "中央民族大学",
+						sourceKind: "public_web",
+						targetKind: "public_web_url",
+						title: "上网指南",
+					}),
+				],
+				type: "source_items",
+			},
+		]);
+	});
+
 	it("requires an explicit allowlist for public notice URL source cards", () => {
 		const result = {
 			evidence: {
@@ -431,6 +486,26 @@ describe("chat structured parts", () => {
 				type: "source_items",
 			},
 		]);
+	});
+
+	it("does not treat public notice allowlist as public web search allowlist", () => {
+		const parts = normalizeSourceItemsPart({
+			allowedPublicNoticeHosts: ["www.example.edu"],
+			result: {
+				sources: [
+					{
+						source_kind: "public_web",
+						target_kind: "public_web_url",
+						title: "外部网页",
+						url: "https://www.example.edu/info/1041/12345.htm",
+					},
+				],
+			},
+			selectedTool: "public_web_search",
+			status: "completed",
+		});
+
+		expect(parts).toEqual([]);
 	});
 
 	it("drops legacy source_cards instead of normalizing them into typed source items", async () => {

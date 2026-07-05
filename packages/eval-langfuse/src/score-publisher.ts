@@ -18,7 +18,7 @@ import {
 export const SCORE_REGISTRY_SCHEMA_VERSION = "langfuse_score_registry.v1";
 const DEFAULT_REGISTRY_PATH = resolve(
 	import.meta.dirname,
-	"../fixtures/ops/langfuse_score_registry.v1.json",
+	"../assets/registries/langfuse_score_registry.v1.json",
 );
 const SCORE_DATA_TYPES = new Set(["BOOLEAN", "NUMERIC", "CATEGORICAL", "TEXT"]);
 export const LANGFUSE_SCORE_METADATA_ALLOWLIST = new Set([

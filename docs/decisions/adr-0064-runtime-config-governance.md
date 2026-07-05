@@ -41,10 +41,29 @@ embedding, rerank and public web search provider active profiles. K8s
 ConfigMap/Secret, Helm values, Wrangler vars/secrets and local `.env` files
 must not become provider active-profile truth.
 
+This ADR does not introduce a repo-owned configuration platform. Mature
+delivery mechanisms keep their native ownership:
+
+- Kubernetes ConfigMaps carry non-secret deploy bootstrap config.
+- Kubernetes Secrets carry delivered secret material.
+- External Secrets Operator syncs external secret-store values into Kubernetes
+  Secrets.
+- Cloudflare Worker vars/secrets remain in Wrangler / Cloudflare Worker deploy
+  workflows.
+- Docker Compose env and secrets remain local-runtime bootstrap surfaces.
+- app-api provider-config owns app-operational provider profile truth.
+
+Repo-tracked policy files and static checks only express cross-substrate
+contracts and fail-closed drift detection. They must not replace Kubernetes,
+Wrangler, Docker Compose, External Secrets Operator or app-api provider-config.
+
 ## Consequences
 
 - Local seed env may initialize provider-config, but serving runtimes consume
   explicit provider-config projections where needed.
+- Local provider seed input lives in a command-scoped template, not root
+  `.env.example`. Root `.env.example` is limited to shared local Postgres
+  handles.
 - K8s ConfigMap/Secret and Cloudflare Worker vars/secrets may carry bootstrap
   handles and secret material, not app-level provider decisions.
 - GitOps and deployment tools reconcile desired runtime resources; they do not
@@ -63,6 +82,12 @@ would bypass Operator Console / app-api audit, validation and activation.
 
 Rejected. It preserves the drift that caused repeated staging mismatch and
 provider confusion.
+
+### Build a repo-owned env registry/config platform
+
+Rejected. The repo needs cross-surface policy and static checks, not a new
+runtime configuration system. Native platform components remain the delivery
+and secret owners.
 
 ### Move provider profiles into Cloudflare Worker secrets
 

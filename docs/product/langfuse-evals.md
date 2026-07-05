@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-19
-updated: 2026-06-29
+updated: 2026-07-03
 ---
 
 # Langfuse Evals
@@ -13,7 +13,7 @@ updated: 2026-06-29
 
 Langfuse is the LLM observability and eval platform for campus-agent. It can
 hold traces, datasets, experiments, annotation workflows, scores and score
-analytics. It does not replace repo-owned fixture truth, Temporal history,
+analytics. It does not replace repo-owned versioned eval asset truth, Temporal history,
 app-api projection, operator backend contracts or release authority.
 
 Eval migration is Langfuse/Ragas-first. The active product requirement is to
@@ -25,7 +25,10 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - Langfuse can correlate request / run / workflow / eval identity.
 - Langfuse can store `ragas.*` scores published from repo-owned safe
   projections.
-- Langfuse datasets can be synced from repo RAG fixtures without fabricating
+- Agent tool-use cases can be stored as Langfuse datasets / experiments for
+  routing, tool selection, source quality and fail-closed review. Public web
+  search is the first tool-specific slice.
+- Langfuse datasets can be synced from repo RAG eval assets without fabricating
   answers or retrieved contexts.
 - Langfuse experiments and annotation queues can be used as official platform
   workflows without repo-owned experiment or review-manifest automation.
@@ -70,9 +73,12 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 
 ### 5.2 Score Registry And Publishing
 
-- Active score names are `ragas.*`.
+- Active score names are the names registered in
+  `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
+  Current families include `ragas.*`, `agent.*` and tool-specific scores such
+  as `public_web_search.*`.
 - Every published score must exist in
-  `packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json`.
+  `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
 - Unknown score names, invalid target identity or forbidden metadata must fail
   closed.
 - Score publication targets Langfuse scores, not repo-owned release verdict
@@ -80,18 +86,18 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 
 ### 5.3 Dataset Sync
 
-- Repo RAG fixtures remain the source for Langfuse-bound qrels,
+- Repo RAG eval assets remain the source for Langfuse-bound qrels,
   answer-quality and known-gap cases.
-- Dataset sync must preserve source fixture path, case id, source git head and
-  fixture hash.
+- Dataset sync must preserve source asset path, case id, source git head and
+  asset hash.
 - Dataset sync must not invent generated answers or retrieved context text for
   qrels-only cases.
 
 ### 5.4 Annotation And Review
 
 - Langfuse annotation queues remain the official human review workflow.
-- Reviewer output can inform backlog or fixture candidates, but cannot directly
-  overwrite canonical fixture truth or release verdicts.
+- Reviewer output can inform backlog or asset candidates, but cannot directly
+  overwrite canonical versioned eval asset truth or release verdicts.
 - The repo no longer owns custom annotation queue sync/export commands.
 
 ### 5.5 Operator-Safe Projection
@@ -104,6 +110,23 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
   Index contract.
 - The retired eval coverage / diagnostic-badcase / Langfuse backlink projection
   paths must not be restored as product requirements.
+
+### 5.6 Public Web Search Agent Eval
+
+- Public-web-search eval is the first `agent-tool-use` slice: routing/tool
+  selection, source quality and grounded answer review.
+- Its repo eval asset lives under
+  `packages/eval-langfuse/assets/datasets/agent/public_web_search/`.
+- Asset validation is owned by `packages/eval-langfuse`:
+  `pnpm --dir packages/eval-langfuse langfuse validate-public-web-search-eval`.
+- Tool-use scoring consumes `tool_trajectory.v1`; it must not infer routing
+  from raw prompt, provider response or final answer prose.
+- It must not be scored through RAGAS unless a dedicated case explicitly evaluates
+  RAG answer synthesis over materialized retrieval contexts. The public web
+  typed tool readiness smoke is not an eval run.
+- Default provider selection for this tool is governed by the public-web-search
+  provider bakeoff rules in [Eval Reference](../reference/eval.md), not by this
+  product requirement document.
 
 ## 6. Data Boundary
 
@@ -127,11 +150,13 @@ Forbidden:
   and validates score payloads.
 - `ragas-score-dataset --validate-only` fails closed for qrels-only dataset
   items and succeeds for materialized dataset items.
-- `sync-score-configs --dry-run` covers all active `ragas.*` scores.
+- `sync-score-configs --dry-run` covers all active registered scores.
 - `sync-datasets --dry-run` reports dataset changes without writing platform
   state.
 - `verify-trace` distinguishes repo-owned observations from SDK /
   infrastructure observations and rejects forbidden payload fields.
+- `validate-public-web-search-eval` validates public web search agent cases,
+  expected tool labels and public HTTPS MUC URL constraints.
 
 ## 8. References
 
@@ -140,6 +165,7 @@ Forbidden:
 - [ADR-0062 Ragas And Langfuse Collaboration](../decisions/adr-0062-ragas-langfuse.md)
 - [Langfuse Architecture](../architecture/system/langfuse.md)
 - [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
+- [Tool Trajectory Contract](../contracts/tool-trajectory.md)
 - [Eval Reference](../reference/eval.md)
 - [Eval Map](../reference/eval-map.md)
 - [Eval Ragas Runbook](../runbooks/eval-ragas.md)

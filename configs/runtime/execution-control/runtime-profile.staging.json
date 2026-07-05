@@ -11,7 +11,7 @@
 	"provider_pricing_path": "/etc/campus-agent/provider-pricing.v1.json",
 	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v1.json",
 	"tool_read_model_timeout_ms": 1000,
-	"open_tools": [],
+	"open_tools": ["public_web_search"],
 	"multi_step_workflow_enabled": false,
 	"otel": {
 		"enabled": true,

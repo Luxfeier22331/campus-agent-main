@@ -12,21 +12,24 @@ const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
 	"execution.activity_failed",
 	"execution.timed_out",
 ]);
-const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
-	"answer",
-	"auth_header",
-	"authorization",
-	"cookie",
-	"jwt",
-	"prompt",
-	"raw_answer",
-	"raw_jwt",
-	"raw_prompt",
-	"retrieval_payload",
-	"token",
-	"transcript",
-	"user_goal",
+const ALLOWED_EXECUTION_AUDIT_FIELDS = new Set([
+	"activity_duration_ms",
+	"decision",
+	"duration_ms",
+	"event_id",
+	"event_type",
+	"failure_kind",
+	"http_status",
+	"occurred_at",
+	"queue_wait_ms",
+	"request_id",
+	"requested_tool",
+	"retryable",
+	"task_queue",
+	"trace_id",
 ]);
+const EXECUTION_AUDIT_MAX_BATCH_SIZE = 100;
+const EXECUTION_AUDIT_MAX_STRING_LENGTH = 200;
 
 export interface OperatorExecutionAuditEventPayloadItem {
 	activity_duration_ms?: unknown;
@@ -88,12 +91,32 @@ export interface OperatorObservabilityCommandServiceDependencies {
 	};
 }
 
-function normalizeString(value: unknown): string {
-	return typeof value === "string" ? value.trim() : "";
+function validationError(field: string, message: string): AppApiRouteError {
+	return new AppApiRouteError({
+		code: "validation_failed",
+		details: { field },
+		message,
+		retryable: false,
+		status: 422,
+	});
 }
 
-function normalizeNullableString(value: unknown): string | null {
-	const normalized = normalizeString(value);
+function normalizeString(value: unknown, field: string): string {
+	if (typeof value !== "string") {
+		throw validationError(field, `${field} must be a string.`);
+	}
+	const normalized = value.trim();
+	if (normalized.length > EXECUTION_AUDIT_MAX_STRING_LENGTH) {
+		throw validationError(field, `${field} is too long.`);
+	}
+	return normalized;
+}
+
+function normalizeNullableString(value: unknown, field: string): string | null {
+	if (value === null || value === undefined || value === "") {
+		return null;
+	}
+	const normalized = normalizeString(value, field);
 	return normalized || null;
 }
 
@@ -102,13 +125,7 @@ function normalizeNullableBoolean(value: unknown, field: string): boolean | null
 		return null;
 	}
 	if (typeof value !== "boolean") {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be a boolean.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} must be a boolean.`);
 	}
 	return value;
 }
@@ -123,53 +140,40 @@ function normalizeNullableNonNegativeInteger(value: unknown, field: string): num
 		!Number.isFinite(value) ||
 		value < 0
 	) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be a non-negative integer.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} must be a non-negative integer.`);
 	}
 	return value;
 }
 
+function normalizeNullableHttpStatus(value: unknown, field: string): number | null {
+	const status = normalizeNullableNonNegativeInteger(value, field);
+	if (status === null) {
+		return null;
+	}
+	if (status < 100 || status > 599) {
+		throw validationError(field, `${field} must be a valid HTTP status code.`);
+	}
+	return status;
+}
+
 function normalizeIsoTimestamp(value: unknown, field: string): string {
-	const normalized = normalizeString(value);
+	const normalized = normalizeString(value, field);
 	if (!normalized) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} is required.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} is required.`);
 	}
 
 	const timestamp = new Date(normalized);
 	if (Number.isNaN(timestamp.valueOf())) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be a valid ISO timestamp.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} must be a valid ISO timestamp.`);
 	}
 
 	return timestamp.toISOString();
 }
 
 function normalizeRequiredString(value: unknown, field: string): string {
-	const normalized = normalizeString(value);
+	const normalized = normalizeString(value, field);
 	if (!normalized) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} is required.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} is required.`);
 	}
 
 	return normalized;
@@ -177,16 +181,26 @@ function normalizeRequiredString(value: unknown, field: string): string {
 
 function ensureArray<T>(value: unknown, field: string): T[] {
 	if (!Array.isArray(value)) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field },
-			message: `${field} must be an array.`,
-			retryable: false,
-			status: 422,
-		});
+		throw validationError(field, `${field} must be an array.`);
+	}
+	if (value.length > EXECUTION_AUDIT_MAX_BATCH_SIZE) {
+		throw validationError(
+			field,
+			`${field} must contain at most ${EXECUTION_AUDIT_MAX_BATCH_SIZE} items.`,
+		);
 	}
 
 	return value as T[];
+}
+
+function ensureExecutionAuditEventItem(
+	value: unknown,
+	field: string,
+): OperatorExecutionAuditEventPayloadItem {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw validationError(field, `${field} must be an object.`);
+	}
+	return value as OperatorExecutionAuditEventPayloadItem;
 }
 
 function normalizeExecutionAuditEventType(value: unknown, field: string): string {
@@ -203,20 +217,51 @@ function normalizeExecutionAuditEventType(value: unknown, field: string): string
 	return normalized;
 }
 
-function assertNoForbiddenExecutionAuditFields(
+function executionAuditTelemetryStatus(eventType: string): string {
+	if (eventType === "execution.admission_rejected") {
+		return "rejected";
+	}
+	if (eventType === "execution.cancel_requested") {
+		return "accepted";
+	}
+	if (eventType === "execution.cancelled") {
+		return "cancelled";
+	}
+	return "error";
+}
+
+function assertAllowedExecutionAuditFields(
 	item: OperatorExecutionAuditEventPayloadItem,
 	prefix: string,
 ) {
 	for (const key of Object.keys(item)) {
-		if (FORBIDDEN_EXECUTION_AUDIT_FIELDS.has(key.toLowerCase())) {
+		if (!ALLOWED_EXECUTION_AUDIT_FIELDS.has(key)) {
 			throw new AppApiRouteError({
 				code: "validation_failed",
 				details: { field: `${prefix}.${key}` },
-				message: `${prefix}.${key} is forbidden in execution audit events.`,
+				message: `${prefix}.${key} is not allowed in execution audit events.`,
 				retryable: false,
 				status: 422,
 			});
 		}
+	}
+}
+
+function assertExecutionAuditEventIdMatches(input: {
+	eventId: string;
+	eventType: string;
+	prefix: string;
+	requestId: string;
+}) {
+	const expected = `execution-control:${input.requestId}:${input.eventType}`;
+	if (input.eventId !== expected) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field: `${input.prefix}.event_id` },
+			message: `${input.prefix}.event_id must match request_id and event_type.`,
+			retryable: false,
+			status: 422,
+		});
 	}
 }
 
@@ -250,13 +295,14 @@ export function buildOperatorObservabilityCommandService(
 			}> = [];
 
 			for (let index = 0; index < events.length; index += 1) {
-				const item = events[index] ?? {};
 				const prefix = `events[${index}]`;
-				assertNoForbiddenExecutionAuditFields(item, prefix);
+				const item = ensureExecutionAuditEventItem(events[index], prefix);
+				assertAllowedExecutionAuditFields(item, prefix);
 				const eventId = normalizeRequiredString(item.event_id, `${prefix}.event_id`);
 				const requestId = normalizeRequiredString(item.request_id, `${prefix}.request_id`);
 				const traceId = normalizeRequiredString(item.trace_id, `${prefix}.trace_id`);
 				const eventType = normalizeExecutionAuditEventType(item.event_type, `${prefix}.event_type`);
+				assertExecutionAuditEventIdMatches({ eventId, eventType, prefix, requestId });
 				const occurredAt = normalizeIsoTimestamp(item.occurred_at, `${prefix}.occurred_at`);
 				const activityDurationMs = normalizeNullableNonNegativeInteger(
 					item.activity_duration_ms,
@@ -266,19 +312,19 @@ export function buildOperatorObservabilityCommandService(
 					item.duration_ms,
 					`${prefix}.duration_ms`,
 				);
-				const httpStatus = normalizeNullableNonNegativeInteger(
-					item.http_status,
-					`${prefix}.http_status`,
-				);
+				const httpStatus = normalizeNullableHttpStatus(item.http_status, `${prefix}.http_status`);
 				const queueWaitMs = normalizeNullableNonNegativeInteger(
 					item.queue_wait_ms,
 					`${prefix}.queue_wait_ms`,
 				);
 				const retryable = normalizeNullableBoolean(item.retryable, `${prefix}.retryable`);
-				const decision = normalizeNullableString(item.decision);
-				const failureKind = normalizeNullableString(item.failure_kind);
-				const taskQueue = normalizeNullableString(item.task_queue);
-				const requestedTool = normalizeNullableString(item.requested_tool);
+				const decision = normalizeNullableString(item.decision, `${prefix}.decision`);
+				const failureKind = normalizeNullableString(item.failure_kind, `${prefix}.failure_kind`);
+				const taskQueue = normalizeNullableString(item.task_queue, `${prefix}.task_queue`);
+				const requestedTool = normalizeNullableString(
+					item.requested_tool,
+					`${prefix}.requested_tool`,
+				);
 
 				const seed = await dependencies.store.getRequestObservabilitySeed(requestId);
 				if (!seed) {
@@ -324,7 +370,7 @@ export function buildOperatorObservabilityCommandService(
 					...payload,
 					eventType,
 					requestId,
-					status: eventType === "execution.admission_rejected" ? "rejected" : "error",
+					status: executionAuditTelemetryStatus(eventType),
 					surface: seed.surface,
 				});
 			}

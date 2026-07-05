@@ -156,6 +156,9 @@ Rules:
 - It is not reconstructed from chat messages, raw logs or telemetry sinks.
 - It must not expose raw prompt, raw answer, raw transcript, raw retrieval
   payload or raw sink data.
+- Safe diagnostics summary means compact ids, titles, reason codes, verdicts,
+  counts and latency/status summaries. It must not include query rewrite text,
+  retrieval query text, source snippets or raw tool/provider diagnostics.
 
 ## `GET /api/operator/requests/:requestId`
 
@@ -206,6 +209,11 @@ Top-level response shape:
 `opsIndex` may contain only:
 
 - request identity and terminal state
+- minimal runtime health/correlation summary for that request
+- external sink link entries generated from safe templates or allowlisted
+  dashboard metadata
+- compact reason-code diagnostics
+- compact retrieval plan summary without query text or raw filter payload
 - `stageTiming`: `stage_timing.v1` allowlisted numeric duration map; see
   `docs/contracts/stage-timing.md`
 - `stageTimingBudget`: per canonical timing field budget projection derived

@@ -141,6 +141,7 @@ class DocsStructureTest(unittest.TestCase):
             {
                 "README.md",
                 "place.md",
+                "public-web-search.md",
                 "source-card.md",
                 "transport.md",
             },

@@ -56,6 +56,35 @@
 			"eval_kinds": ["ragas"],
 			"value_range": [0, 1],
 			"description": "RAGAS ID-based context recall score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
+		},
+		{
+			"name": "agent.tool_selection.correct",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["public_web_search_agent"],
+			"description": "Deterministic public-web-search agent eval score for expected tool selection."
+		},
+		{
+			"name": "public_web_search.source_policy.valid",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["public_web_search_agent"],
+			"description": "Deterministic public-web-search agent eval score for browser-facing source URL policy."
+		},
+		{
+			"name": "public_web_search.required_source.covered",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["public_web_search_agent"],
+			"description": "Deterministic public-web-search agent eval score for expected official public web source coverage."
+		},
+		{
+			"name": "public_web_search.source_count",
+			"data_type": "NUMERIC",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["public_web_search_agent"],
+			"value_range": [0, 5],
+			"description": "Browser-facing public web source item count observed for a public-web-search agent eval case."
 		}
 	]
 }

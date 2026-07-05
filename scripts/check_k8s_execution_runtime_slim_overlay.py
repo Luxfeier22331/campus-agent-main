@@ -41,10 +41,14 @@ _SECRET_LIKE_PATTERN = (
     "SECRET",
     "PASSWORD",
     "API_KEY",
+    "ACCESS_KEY",
+    "PRIVATE_KEY",
     "AUTH_HEADER",
     "AUTH_VALUE",
     "DATABASE_URL",
     "BEARER_TOKEN",
+    "TOKEN",
+    "SALT",
 )
 
 
@@ -79,7 +83,15 @@ def audit_slim_overlay(*, root: Path | None = None) -> tuple[SlimOverlayIssue, .
     retired_secret_names = set(boundary.get("retired_secret_names", []))
     slim_forbidden_secrets = set(boundary.get("slim_forbidden_secrets", []))
     configmap_keys = {key for keys in boundary.get("configmaps", {}).values() for key in keys}
+    slim_profile = boundary.get("profiles", {}).get("nc-arm-6c-slim", {})
+    slim_configmap_refs = set(slim_profile.get("configmaps", []))
+    slim_config_keys = {
+        key
+        for name in slim_configmap_refs
+        for key in boundary.get("configmaps", {}).get(str(name), [])
+    }
     secret_keys = {key for keys in boundary.get("secrets", {}).values() for key in keys}
+    issues.extend(_audit_boundary_profile_references(boundary))
 
     for doc in docs:
         kind = str(doc.get("kind", ""))
@@ -197,6 +209,7 @@ def audit_slim_overlay(*, root: Path | None = None) -> tuple[SlimOverlayIssue, .
             )
 
     issues.extend(_audit_workload_secret_boundaries(docs, boundary))
+    issues.extend(_audit_workload_config_boundaries(docs, slim_configmap_refs, slim_config_keys))
 
     return tuple(issues)
 
@@ -211,6 +224,72 @@ def _load_boundary(base: Path) -> tuple[dict[str, Any], str | None]:
     if payload.get("schema_version") != "campus_k8s_execution_runtime_env_boundary.v1":
         return {}, "unsupported schema_version"
     return payload, None
+
+
+def _audit_boundary_profile_references(boundary: dict[str, Any]) -> tuple[SlimOverlayIssue, ...]:
+    issues: list[SlimOverlayIssue] = []
+    sections = ("configmaps", "secrets", "files")
+    profile_refs = {section: set() for section in sections}
+    for profile_name, profile in boundary.get("profiles", {}).items():
+        if not isinstance(profile, dict):
+            issues.append(
+                SlimOverlayIssue(
+                    path=_BOUNDARY.as_posix(),
+                    message=f"profile {profile_name} must be an object",
+                )
+            )
+            continue
+        for section in sections:
+            refs = profile.get(section, [])
+            if not isinstance(refs, list):
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_BOUNDARY.as_posix(),
+                        message=f"profile {profile_name}.{section} must be a list",
+                    )
+                )
+                continue
+            profile_refs[section].update(str(ref) for ref in refs)
+
+    for section in sections:
+        defined = set(boundary.get(section, {}))
+        unused = sorted(defined - profile_refs[section])
+        for name in unused:
+            issues.append(
+                SlimOverlayIssue(
+                    path=_BOUNDARY.as_posix(),
+                    message=f"{section}.{name} is not referenced by any profile",
+                )
+            )
+    issues.extend(_audit_unique_secret_keys(boundary))
+    return tuple(issues)
+
+
+def _audit_unique_secret_keys(boundary: dict[str, Any]) -> tuple[SlimOverlayIssue, ...]:
+    issues: list[SlimOverlayIssue] = []
+    owners: dict[str, str] = {}
+    for name, keys in boundary.get("secrets", {}).items():
+        if not isinstance(keys, list):
+            issues.append(
+                SlimOverlayIssue(
+                    path=_BOUNDARY.as_posix(),
+                    message=f"secrets.{name} must be a list",
+                )
+            )
+            continue
+        for raw_key in keys:
+            key = str(raw_key)
+            previous = owners.get(key)
+            if previous is not None:
+                issues.append(
+                    SlimOverlayIssue(
+                        path=_BOUNDARY.as_posix(),
+                        message=f"secret key {key} appears in both {previous} and {name}",
+                    )
+                )
+                continue
+            owners[key] = str(name)
+    return tuple(issues)
 
 
 def _resource_data_keys(doc: dict[str, Any]) -> set[str]:
@@ -236,24 +315,38 @@ def _audit_workload_secret_boundaries(
     expected_by_deployment = {
         "execution-control": {
             "execution-control-secrets",
-            "execution-agent-client-secrets",
-            "execution-control-internal-query-secrets",
-            "execution-rag-secrets",
-        },
-        "agent-runtime": {"agent-runtime-secrets"},
-        "workflow-worker": {"execution-worker-common-secrets"},
-        "activity-worker-core": {
-            "execution-worker-common-secrets",
+            "execution-control-metrics-secrets",
+            "execution-temporal-workflow-secrets",
+            "execution-telemetry-client-secrets",
+            "execution-run-projection-secrets",
             "execution-memory-client-secrets",
             "execution-control-internal-query-secrets",
+            "execution-rag-secrets",
+            "execution-tool-read-model-secrets",
+        },
+        "agent-runtime": {"agent-runtime-secrets"},
+        "workflow-worker": {
+            "execution-temporal-workflow-secrets",
+            "execution-telemetry-client-secrets",
+        },
+        "activity-worker-core": {
+            "execution-temporal-workflow-secrets",
+            "execution-telemetry-client-secrets",
+            "execution-run-projection-secrets",
+            "execution-memory-client-secrets",
+            "execution-control-internal-query-secrets",
+            "execution-tool-read-model-secrets",
         },
         "activity-worker-agent": {
-            "execution-worker-common-secrets",
+            "execution-temporal-workflow-secrets",
+            "execution-telemetry-client-secrets",
+            "execution-run-projection-secrets",
             "execution-agent-client-secrets",
         },
         "activity-worker-knowledge": {
-            "execution-worker-common-secrets",
-            "execution-agent-client-secrets",
+            "execution-temporal-workflow-secrets",
+            "execution-telemetry-client-secrets",
+            "execution-run-projection-secrets",
             "execution-rag-secrets",
         },
     }
@@ -294,6 +387,46 @@ def _deployment_secret_refs(doc: dict[str, Any]) -> set[str]:
             if isinstance(secret_ref, dict) and secret_ref.get("name"):
                 refs.add(str(secret_ref["name"]))
     return refs
+
+
+def _audit_workload_config_boundaries(
+    docs: tuple[dict[str, Any], ...],
+    allowed_configmap_refs: set[str],
+    slim_config_keys: set[str],
+) -> tuple[SlimOverlayIssue, ...]:
+    issues: list[SlimOverlayIssue] = []
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        name = _resource_name(doc)
+        for container in _deployment_containers(doc):
+            for entry in container.get("envFrom", []):
+                config_map_ref = entry.get("configMapRef") if isinstance(entry, dict) else None
+                if not isinstance(config_map_ref, dict):
+                    continue
+                ref_name = str(config_map_ref.get("name", ""))
+                if ref_name not in allowed_configmap_refs:
+                    issues.append(
+                        SlimOverlayIssue(
+                            path=_OVERLAY.as_posix(),
+                            message=(f"Deployment {name} references non-slim ConfigMap {ref_name}"),
+                        )
+                    )
+            for env in container.get("env", []):
+                if not isinstance(env, dict):
+                    continue
+                key = str(env.get("name", ""))
+                if key in slim_config_keys:
+                    issues.append(
+                        SlimOverlayIssue(
+                            path=_OVERLAY.as_posix(),
+                            message=(
+                                f"Deployment {name} redeclares rendered ConfigMap key {key} "
+                                "as Pod env"
+                            ),
+                        )
+                    )
+    return tuple(issues)
 
 
 def _deployment_containers(doc: dict[str, Any]) -> tuple[dict[str, Any], ...]:

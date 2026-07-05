@@ -9,7 +9,7 @@ This directory holds the repo-tracked config scaffold for the
   regulation documents
 - `chunk-profile.json`: chunk-preparation contract for canonical regulation text
 - `query-planning.json`: runtime policy-object registry for title-targeted
-  retrieval planning; it is not a qrels fixture
+  retrieval planning; it is not a qrels asset
 - `source-projections.v1.json`: promotion-facing projection scaffold from
   `campus_notices/internal_notice`
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`:

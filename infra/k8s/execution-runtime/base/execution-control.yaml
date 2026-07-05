@@ -48,17 +48,25 @@ spec:
               containerPort: 8000
           envFrom:
             - configMapRef:
-                name: execution-runtime-config
-            - configMapRef:
                 name: execution-runtime-rendered-config
             - secretRef:
                 name: execution-control-secrets
             - secretRef:
-                name: execution-agent-client-secrets
+                name: execution-control-metrics-secrets
+            - secretRef:
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
+            - secretRef:
+                name: execution-memory-client-secrets
             - secretRef:
                 name: execution-control-internal-query-secrets
             - secretRef:
                 name: execution-rag-secrets
+            - secretRef:
+                name: execution-tool-read-model-secrets
           env:
             - name: CAMPUS_AGENT_HTTP_HOST
               value: 0.0.0.0
@@ -70,6 +78,14 @@ spec:
                   fieldPath: metadata.name
             - name: API_AUTH_MODE
               value: trusted-worker
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
           readinessProbe:
             exec:
               command:
@@ -97,3 +113,14 @@ spec:
               memory: 512Mi
             limits:
               memory: 2Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

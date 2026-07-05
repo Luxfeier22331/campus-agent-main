@@ -18,6 +18,14 @@ type providerConfigGate struct {
 	Source     string `json:"source"`
 }
 
+func providerConfigGateRequiredRoles(cfg config.Config) []providerConfigRole {
+	roles := []providerConfigRole{}
+	if cfg.ToolOpen("public_web_search") {
+		roles = append(roles, providerConfigRolePublicWebSearch)
+	}
+	return roles
+}
+
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
 	if !s.readinessAuthorized(request) {
 		setOutcome(response, "unauthorized")
@@ -264,44 +272,20 @@ func (s *Server) evaluateProviderConfigGate() providerConfigGate {
 			Source:     "provider-config-projection",
 		}
 	}
+	for _, role := range providerConfigGateRequiredRoles(s.config) {
+		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), role); err != nil {
+			return providerConfigGate{
+				Configured: false,
+				Reason:     "provider_config_projection_invalid_for_" + string(role),
+				Source:     "provider-config-projection",
+			}
+		}
+	}
 	return providerConfigGate{
 		Configured: true,
 		Reason:     "",
 		Source:     "provider-config-projection",
 	}
-}
-
-func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
-	configured := s.workflowRuns != nil
-	status := map[string]any{
-		"configured": configured,
-		"enabled":    s.config.MultiStepWorkflowEnabled,
-		"healthy":    !s.config.MultiStepWorkflowEnabled,
-		"last_error": "",
-	}
-	if s.workflowRunsErr != nil {
-		status["last_error"] = "workflow run store could not be initialized"
-		return status
-	}
-	if !configured {
-		if s.config.MultiStepWorkflowEnabled {
-			status["last_error"] = "workflow run store is required when multi-step workflow is enabled"
-		}
-		return status
-	}
-	checker, ok := s.workflowRuns.(interface{ HealthCheck(context.Context) error })
-	if !ok {
-		status["healthy"] = true
-		return status
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
-	defer cancel()
-	if err := checker.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "workflow run store health check failed"
-		return status
-	}
-	status["healthy"] = true
-	return status
 }
 
 func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
@@ -373,10 +357,7 @@ func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bo
 	if (s.config.ToolOpen("campus_notice_change_set_lookup") ||
 		s.config.ToolOpen("campus_notice_discover") ||
 		s.config.ToolOpen("campus_notice_period_summary")) &&
-		(!status.NoticeReadModelConfigured ||
-			!status.NoticeBodyStoreConfigured ||
-			!status.NoticeReadModelHealthy ||
-			!status.NoticeBodyStoreHealthy) {
+		(!status.NoticeReadModelConfigured || !status.NoticeReadModelHealthy) {
 		return false
 	}
 	return true

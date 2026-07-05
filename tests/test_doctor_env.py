@@ -30,7 +30,6 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001",
         "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001",
         "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
-        "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
         "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
     ]
 
@@ -303,7 +302,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
             self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
 
-    def test_collect_env_doctor_status_execution_control_enforces_notice_runtime_when_opened(
+    def test_collect_env_doctor_status_execution_control_accepts_notice_discover_with_read_model(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -331,12 +330,45 @@ class DoctorEnvTest(unittest.TestCase):
                     surface="execution-control",
                 )
 
+            self.assertTrue(status["overall_ready"])
+            condition = status["conditions"]["notice_runtime_contract"]
+            self.assertTrue(condition["required"])
+            self.assertTrue(condition["ready"])
+            self.assertIsNone(condition["error"])
+
+    def test_collect_env_doctor_status_execution_control_enforces_notice_read_model_when_opened(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        *_execution_control_required_env(),
+                        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                    ]
+                )
+                + "\n",
+            )
+            _write_execution_control_runtime_profile(
+                repo_root,
+                open_tools=["campus_notice_discover"],
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="execution-control",
+                )
+
             self.assertFalse(status["overall_ready"])
             condition = status["conditions"]["notice_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
-            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
+            self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
+            self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE", condition["error"])
 
     def test_collect_env_doctor_status_execution_control_rejects_axiom_collector_signal_path(
         self,

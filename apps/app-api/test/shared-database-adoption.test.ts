@@ -205,6 +205,14 @@ ON "official_web"."crawl_runs" USING btree (
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER TABLE "dining"."source_observations" ADD COLUMN IF NOT EXISTS "source_base_token" text;',
+			),
+		).toMatchObject({
+			existsKey: "dining.source_observations:source_base_token",
+			kind: "column",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
 			),
 		).toMatchObject({
@@ -224,43 +232,40 @@ DROP COLUMN "actor_groups_json";`),
 		});
 	});
 
-	it("loads multi-clause dining adoption migrations as single-target statements", () => {
+	it("loads data statements and compound ALTER TABLE clauses as independent migration targets", () => {
 		const migration = migrationContext.migrations.find(
-			(item: { tag: string }) => item.tag === "0056_dining_source_observation_incremental",
+			(item) => item.tag === "0056_dining_source_observation_incremental",
 		);
 
 		expect(migration?.statements).toEqual(
 			expect.arrayContaining([
-				expect.stringContaining(
-					'ALTER TABLE "dining"."source_observations"\nADD COLUMN IF NOT EXISTS "source_base_token" text;',
+				...["source_base_token", "last_seen_run_id"].map((column) =>
+					expect.stringContaining(
+						`ALTER TABLE "dining"."source_observations"\nADD COLUMN IF NOT EXISTS "${column}" text;`,
+					),
 				),
 				expect.stringContaining('UPDATE "dining"."source_observations"\nSET\n    "content_hash"'),
-				expect.stringContaining(
-					'ALTER TABLE "dining"."source_observations"\nALTER COLUMN "content_hash" SET NOT NULL;',
+				...["content_hash", "last_seen_run_id"].map((column) =>
+					expect.stringContaining(
+						`ALTER TABLE "dining"."source_observations"\nALTER COLUMN "${column}" SET NOT NULL;`,
+					),
 				),
 			]),
 		);
-		expect(
-			migration?.statements.some(
-				(statement: string) =>
-					statement.includes('ADD COLUMN IF NOT EXISTS "source_base_token"') &&
-					statement.includes('ADD COLUMN IF NOT EXISTS "source_table_id"'),
-			),
-		).toBe(false);
-		expect(
-			migration?.statements.some(
-				(statement: string) =>
-					statement.includes('ADD COLUMN IF NOT EXISTS "stale_at"') &&
-					statement.includes('UPDATE "dining"."source_observations"'),
-			),
-		).toBe(false);
-		expect(
-			migration?.statements.some(
-				(statement: string) =>
-					statement.includes('ALTER COLUMN "content_hash" SET NOT NULL') &&
-					statement.includes('ALTER COLUMN "first_seen_at" SET NOT NULL'),
-			),
-		).toBe(false);
+		for (const [first, second] of [
+			[
+				'ADD COLUMN IF NOT EXISTS "source_base_token"',
+				'ADD COLUMN IF NOT EXISTS "source_table_id"',
+			],
+			['ADD COLUMN IF NOT EXISTS "stale_at"', 'UPDATE "dining"."source_observations"'],
+			['ALTER COLUMN "content_hash" SET NOT NULL', 'ALTER COLUMN "first_seen_at" SET NOT NULL'],
+		]) {
+			expect(
+				migration?.statements.some(
+					(statement: string) => statement.includes(first) && statement.includes(second),
+				),
+			).toBe(false);
+		}
 	});
 
 	it("classifies non-owned shared schemas as fresh for app-api adoption", () => {

@@ -17,8 +17,10 @@ data:
   EXECUTION_CONTROL_APP_API_BASE_URL: https://api-staging.example.internal
   EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: https://api-staging.example.internal
   EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: "30000"
+  EXECUTION_CONTROL_EXECUTION_AUDIT_URL: https://api-staging.example.internal/api/internal/execution/audit-events
   EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: /run/campus-agent/provider-config-projection.json
   PERSONAL_MEMORY_BASE_URL: http://hindsight-api:8888
+  EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: "5000"
   QDRANT_URL: https://qdrant:6333
   QDRANT_TLS_CA_CERT_PATH: /etc/campus-agent/qdrant/tls/ca.crt
   QDRANT_TIMEOUT_SECONDS: "60"
@@ -26,9 +28,21 @@ data:
   AGENT_RUNTIME_PORT: "27062"
   AGENT_RUNTIME_TOOL_REGISTRY_PATH: configs/runtime/tools.v4.json
   AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
-  OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT: https://sentry.example.internal/api/project/integration/otlp
-  OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: https://us-east-1.aws.edge.axiom.co
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-telemetry-collector-config
+  namespace: campus-agent-staging
+data:
+  OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT: 0.0.0.0:4317
+  OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT: 0.0.0.0:4318
+  OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT: 0.0.0.0:13133
+  OTEL_COLLECTOR_MEMORY_LIMIT_MIB: "512"
+  OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB: "128"
   OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: campus-agent-runtime
   OTEL_COLLECTOR_AXIOM_METRICS_DATASET: campus-agent-runtime-metrics
+  OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: https://us-east-1.aws.edge.axiom.co
   OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: https://langfuse.example.internal/api/public/otel
   OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"
+  OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT: https://sentry.example.internal/api/project/integration/otlp

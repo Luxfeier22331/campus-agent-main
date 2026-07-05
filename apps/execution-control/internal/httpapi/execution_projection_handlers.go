@@ -213,7 +213,7 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		"steps":                         bodySteps,
 		"attempts":                      bodyAttempts,
 		"results":                       bodyResults,
-		"agent_runtime_eval_projection": buildAgentRuntimeEvalProjection(run, steps, results),
+		"agent_runtime_eval_projection": buildAgentRuntimeEvalProjection(run, steps, attempts, results),
 	})
 }
 
@@ -447,6 +447,7 @@ func stepResultProjectionResponse(result execution.StepResultProjection) map[str
 func buildAgentRuntimeEvalProjection(
 	run execution.DurableRun,
 	steps []execution.RunStepProjection,
+	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
 	selectedTool := firstNonEmptyText(
@@ -470,10 +471,115 @@ func buildAgentRuntimeEvalProjection(
 			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
 			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
 		},
-		"planning": projectedPlanningForEval(results),
-		"rag":      projectedRAGForEval(results),
-		"memory":   projectedMemoryForEval(results),
+		"tool_trajectory": buildToolTrajectoryProjection(run, steps, attempts, results, selectedTool),
+		"planning":        projectedPlanningForEval(results),
+		"rag":             projectedRAGForEval(results),
+		"memory":          projectedMemoryForEval(results),
 	}
+}
+
+func buildToolTrajectoryProjection(
+	run execution.DurableRun,
+	steps []execution.RunStepProjection,
+	attempts []execution.StepAttemptProjection,
+	results []execution.StepResultProjection,
+	selectedTool string,
+) map[string]any {
+	toolCalls := projectedToolTrajectoryCalls(results, attempts)
+	decisionKind := "direct_answer"
+	if run.FailCloseReason != "" || run.TerminalReason == execution.DurableTerminalReasonPolicyRejected ||
+		run.TerminalReason == execution.DurableTerminalReasonToolClosed ||
+		run.TerminalReason == execution.DurableTerminalReasonRuntimeInvariant {
+		decisionKind = "fail_closed"
+	} else if len(toolCalls) > 0 || selectedTool != "" && selectedTool != "none" {
+		decisionKind = "tool_call"
+	}
+	projection := map[string]any{
+		"schema_version":  "tool_trajectory.v1",
+		"request_id":      run.RequestID,
+		"run_id":          run.RunID,
+		"trace_id":        run.TraceID,
+		"conversation_id": run.ConversationID,
+		"surface":         run.Surface,
+		"environment":     firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
+		"release":         firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
+		"available_tools": projectedAvailableTools(steps, results),
+		"decision_kind":   decisionKind,
+		"selected_tool":   selectedTool,
+		"tool_calls":      toolCalls,
+	}
+	if run.FailCloseReason != "" {
+		projection["fail_close_reason"] = run.FailCloseReason
+	}
+	return sanitizeProjectionPayload(projection)
+}
+
+func projectedAvailableTools(
+	steps []execution.RunStepProjection,
+	results []execution.StepResultProjection,
+) []string {
+	values := []string{}
+	for _, step := range steps {
+		appendUniqueProjectionString(&values, step.Tool)
+	}
+	for _, result := range results {
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		appendUniqueProjectionString(&values, firstNonEmptyText(payload["selected_tool"]))
+		for _, tool := range stringSliceFromAny(payload["selected_tools"]) {
+			appendUniqueProjectionString(&values, tool)
+		}
+	}
+	return values
+}
+
+func projectedToolTrajectoryCalls(
+	results []execution.StepResultProjection,
+	attempts []execution.StepAttemptProjection,
+) []map[string]any {
+	calls := []map[string]any{}
+	attemptByID := map[string]execution.StepAttemptProjection{}
+	for _, attempt := range attempts {
+		attemptByID[attempt.AttemptID] = attempt
+	}
+	for _, result := range results {
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		toolName := firstNonEmptyText(payload["selected_tool"], payload["tool_name"])
+		record := optionalMapFromMap(payload, "tool_call")
+		if recordTool := firstNonEmptyText(record["selected_tool"], record["tool_name"]); recordTool != "" {
+			toolName = recordTool
+		}
+		if toolName == "" {
+			continue
+		}
+		call := map[string]any{
+			"tool_name":    toolName,
+			"tool_call_id": firstNonEmptyText(record["tool_call_id"], result.ResultID),
+			"status":       result.Status,
+			"result_kind":  result.ResultKind,
+		}
+		if argumentsShape, ok := record["arguments_shape"]; ok {
+			call["arguments_shape"] = sanitizeProjectionValue(argumentsShape)
+		}
+		if argumentsHash := firstNonEmptyText(record["arguments_hash"], payload["arguments_hash"]); argumentsHash != "" {
+			call["arguments_hash"] = argumentsHash
+		}
+		if reason := firstNonEmptyText(record["fail_close_reason"], payload["fail_close_reason"]); reason != "" {
+			call["fail_close_reason"] = reason
+		}
+		if attempt, ok := attemptByID[result.AttemptID]; ok {
+			if attempt.DurationMS > 0 {
+				call["duration_ms"] = attempt.DurationMS
+			}
+			if provider := strings.TrimSpace(attempt.ModelProvider); provider != "" {
+				call["provider"] = provider
+			}
+			if model := strings.TrimSpace(attempt.ModelName); model != "" {
+				call["model"] = model
+			}
+		}
+		calls = append(calls, sanitizeProjectionPayload(call))
+	}
+	return calls
 }
 
 func firstStepTool(steps []execution.RunStepProjection) string {

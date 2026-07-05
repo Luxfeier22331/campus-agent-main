@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -184,6 +185,7 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 	case "":
 		tools := []string{"knowledge_query"}
 		for _, toolName := range []string{
+			"public_web_search",
 			"transport_schedule_lookup",
 			"campus_notice_discover",
 		} {
@@ -194,6 +196,11 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 		return tools, nil
 	case "knowledge_query":
 		return []string{"knowledge_query"}, nil
+	case "public_web_search":
+		if !s.config.ToolOpen("public_web_search") {
+			return nil, fmt.Errorf("tool public_web_search is not open in runtime profile")
+		}
+		return []string{"public_web_search"}, nil
 	case "transport_schedule_lookup":
 		if !s.config.ToolOpen("transport_schedule_lookup") {
 			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime profile")
@@ -253,9 +260,11 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusBadRequest, "invalid_request", "Cancel request body must be a JSON object.", false)
 		return
 	}
-	reason := optionalStringFromMap(payload, "reason")
-	if reason == "" {
-		reason = "user_requested"
+	reason, err := requiredRunCancelReason(payload)
+	if err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
+		return
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
@@ -292,6 +301,12 @@ func (s *Server) handleExecutionRunCancel(
 		)
 		return
 	}
+	s.emitExecutionRunAuditEvent(run, executionaudit.Event{
+		Decision:   reason,
+		EventType:  "execution.cancel_requested",
+		OccurredAt: time.Now().UTC(),
+		Retryable:  false,
+	})
 	canceledAt := time.Now().UTC()
 	canceled, err := s.runProjectionStore.CancelRunProjection(
 		request.Context(),
@@ -318,6 +333,12 @@ func (s *Server) handleExecutionRunCancel(
 		return
 	}
 	setOutcome(response, "execution_run_canceled")
+	s.emitExecutionRunAuditEvent(canceled, executionaudit.Event{
+		Decision:   reason,
+		EventType:  "execution.cancelled",
+		OccurredAt: canceledAt,
+		Retryable:  false,
+	})
 	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled))
 }
 
@@ -385,6 +406,14 @@ func (s *Server) projectCanceledRunSteps(
 		}
 	}
 	return nil
+}
+
+func requiredRunCancelReason(payload map[string]any) (string, error) {
+	reason := optionalStringFromMap(payload, "reason")
+	if reason != "user_requested" {
+		return "", errors.New("cancel reason must be user_requested")
+	}
+	return reason, nil
 }
 
 func executionRunIDFromPath(path string, suffix string) (string, bool) {

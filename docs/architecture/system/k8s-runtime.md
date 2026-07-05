@@ -222,6 +222,30 @@ The `nc-arm-6c-staging` overlay is a constrained migration overlay, not a new
 architecture truth for stateful services. Stateful HA decisions remain separate
 and require multiple failure domains or managed services.
 
+### Runtime Config And Secret Resources
+
+Execution-runtime K8s config follows the runtime config taxonomy in
+ADR-0064. Workloads consume non-secret deploy bootstrap values from
+`execution-runtime-rendered-config` and role-scoped secret material from
+separate Secrets such as `execution-control-secrets`,
+`execution-control-metrics-secrets`,
+`execution-telemetry-client-secrets`,
+`execution-run-projection-secrets`, `execution-memory-client-secrets`,
+`execution-rag-secrets`, `execution-tool-read-model-secrets`,
+`execution-agent-client-secrets` and `agent-runtime-secrets`.
+
+`execution-runtime-config` is repo-static only and currently owns the
+OTel collector config file. It must not own runtime env keys, provider active
+profiles, DSNs, tokens or release identity. Provider active profiles remain
+app-api provider-config truth and enter K8s only through the generated
+`execution-runtime-provider-config-projection` artifact.
+
+The `nc-arm-6c-slim` profile intentionally excludes in-cluster stateful and
+telemetry resources. `staging-full` may additionally consume
+`execution-stateful-runtime-secrets`,
+`execution-telemetry-collector-config` and
+`execution-telemetry-collector-secrets` for all-in-K8s proof.
+
 ### GitOps And Helm Boundary
 
 Target K8s desired state is managed by Argo CD once a K8s staging/prod

@@ -26,13 +26,13 @@ function requireObjectBody(value: unknown): Record<string, unknown> {
 
 function readRunCancelReason(body: Record<string, unknown>): string {
 	const reason = body.reason;
-	if (typeof reason === "string" && reason.trim()) {
-		return reason.trim();
+	if (reason === "user_requested") {
+		return "user_requested";
 	}
 
 	throw new AppApiRouteError({
 		code: "invalid_request",
-		message: "reason is required.",
+		message: "reason must be user_requested.",
 		retryable: false,
 		status: 400,
 	});

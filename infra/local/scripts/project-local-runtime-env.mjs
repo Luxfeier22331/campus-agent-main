@@ -49,6 +49,7 @@ export async function projectLocalRuntimeEnv(input = {}) {
 	if (!input.skipHindsightProviderConfig) {
 		await projectHindsightProviderConfig(env);
 	}
+	rejectRetiredRuntimeEnv(env);
 
 	if (input.syncAppApiDevVars) {
 		await syncAppApiDevVars(appApiDevVarsPath, env);
@@ -146,10 +147,9 @@ function deriveRuntimeEnv(env, input) {
 	}
 
 	const appApiInternalBaseUrl =
-		read(env, "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL") ||
 		read(env, "APP_API_INTERNAL_BASE_URL") ||
+		read(env, "APP_API_BASE_URL") ||
 		"http://host.docker.internal:27031";
-	setValue(env, "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
 	setDefault(env, "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "30000");
 	setDefault(env, "EXECUTION_CONTROL_APP_API_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
 	const appApiInternalSharedSecret =
@@ -288,6 +288,36 @@ function projectSnapshotProjectionFile(env, snapshotHostPath, ownerUIDKey, owner
 		setValue(env, ownerGIDKey, String(snapshotStat.gid));
 	} catch {
 		return;
+	}
+}
+
+function rejectRetiredRuntimeEnv(env) {
+	const retired = new Map([
+		[
+			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+			"execution runtime serves notice read models only",
+		],
+		[
+			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+			"execution runtime serves notice read models only",
+		],
+		[
+			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+			"execution runtime serves notice read models only",
+		],
+		[
+			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+			"execution runtime serves notice read models only",
+		],
+		[
+			"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
+			"execution runtime serves notice read models only",
+		],
+	]);
+	for (const [key, message] of retired.entries()) {
+		if (read(env, key)) {
+			throw new Error(`${key} is retired; ${message}`);
+		}
 	}
 }
 
@@ -505,7 +535,7 @@ function projectContainerValue(key, value) {
 	if (key === "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT") {
 		return projectLocalServiceDns(value, "langfuse-web");
 	}
-	if (key === "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL") {
+	if (key === "EXECUTION_CONTROL_APP_API_BASE_URL") {
 		return projectLocalServiceDns(value, "host.docker.internal");
 	}
 	if (key === "HINDSIGHT_API_LLM_BASE_URL" || key === "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL") {

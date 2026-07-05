@@ -137,6 +137,9 @@ Historical / superseded：
 ## Official Web 决策
 
 - `adr-0018-app-api-official-web-control-plane-ownership.md`
+- `adr-0067-public-web-search-provider-boundary.md`
+  - 公开官网搜索是 `public_web_search` typed tool 内部 provider adapter，不新增
+    provider-specific model-visible tool，也不把搜索结果写回 official-web source truth。
 
 ## Authenticated Notice / Source Channel 决策
 

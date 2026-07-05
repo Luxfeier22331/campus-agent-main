@@ -9,11 +9,15 @@ from scripts.worktree_file_discovery import worktree_paths
 FIXTURE_ROOTS = (
     "tests/fixtures/",
     "packages/contracts/fixtures/",
+    "packages/eval-langfuse/assets/",
     "packages/eval-langfuse/fixtures/",
     "packages/ingestion-core/testdata/",
     "apps/official-web-collector/test/",
     "apps/official-web-collector/test/fixtures/pages/",
     "apps/campus-web/test/fixtures/",
+)
+PUBLIC_WEB_SEARCH_AGENT_ASSET_PREFIX = (
+    "packages/eval-langfuse/assets/datasets/agent/public_web_search/"
 )
 TEXT_SUFFIXES = frozenset({".html", ".json", ".jsonl", ".md", ".ts", ".txt", ".yaml", ".yml"})
 FORBIDDEN_SOURCE_TOKENS = (
@@ -53,6 +57,7 @@ def public_fixture_text_files(*, root: Path | None = None) -> tuple[Path, ...]:
         for path in worktree_paths(
             "tests/fixtures/**",
             "packages/contracts/fixtures/**",
+            "packages/eval-langfuse/assets/**",
             "packages/eval-langfuse/fixtures/**",
             "packages/ingestion-core/testdata/**",
             "apps/official-web-collector/test/**",
@@ -76,6 +81,8 @@ def scan_public_fixture_source_tokens(
         relative_path = path.relative_to(base)
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             for token in FORBIDDEN_SOURCE_TOKENS:
+                if _allowed_public_web_search_agent_token(relative_path.as_posix(), token):
+                    continue
                 if token in line:
                     failures.append(
                         FixtureSourceCleanFailure(
@@ -89,6 +96,13 @@ def scan_public_fixture_source_tokens(
 
 def _is_public_fixture_path(relative_path: str) -> bool:
     return any(relative_path.startswith(root) for root in FIXTURE_ROOTS)
+
+
+def _allowed_public_web_search_agent_token(relative_path: str, token: str) -> bool:
+    return relative_path.startswith(PUBLIC_WEB_SEARCH_AGENT_ASSET_PREFIX) and token in {
+        "中央民族大学",
+        "muc.edu.cn",
+    }
 
 
 def main() -> int:

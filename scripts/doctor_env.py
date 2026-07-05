@@ -301,19 +301,10 @@ def _collect_surface_conditions(
         )
         or shared_postgres_present
     )
-    if notice_tools_open:
-        if not notice_read_model_present:
-            notice_missing.append(
-                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
-            )
-        if not _setting_present(optional_settings, "notice_object_store_endpoint"):
-            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
-        if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
-        if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
-        if not _setting_present(optional_settings, "notice_object_store_bucket"):
-            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET")
+    if notice_tools_open and not notice_read_model_present:
+        notice_missing.append(
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+        )
     conditions["notice_runtime_contract"] = {
         "required": notice_tools_open,
         "open_tools": sorted(_notice_tools(opened_tools)),

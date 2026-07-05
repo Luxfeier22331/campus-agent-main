@@ -42,7 +42,7 @@ updated: 2026-06-29
 
 - corpus-specific Python live runner 已删除；fresh release acceptance artifact
   由当前 TS/Go runtime owner 产出，再输入 Langfuse/Ragas tooling
-- Ragas / judge policy fixture 已从 active eval package 删除；当前 supplemental
+- Ragas / judge policy assets 已从 active eval package 删除；当前 supplemental
   scoring 通过 Langfuse traces / datasets -> Ragas -> Langfuse scores 进入。
   当前 Ragas metric set：
   - `ragas.faithfulness`
@@ -60,13 +60,13 @@ repo fixture 中发布。
 
 当前公开合成基线包括：
 
-- retrieval qrels：`packages/eval-langfuse/fixtures/rag/curriculum_plan/retrieval_qrels.json`
+- retrieval qrels：`packages/eval-langfuse/assets/qrels/rag/curriculum_plan/retrieval_qrels.json`
   - total cases：`6`
   - `smoke = 3`
   - `curated = 1`
   - `regression = 2`
-- answer-quality public fixture：不在 repo 中保留；真实 answer-quality
-  denominator 通过私有 fixture root 或 Langfuse dataset 进入。
+- answer-quality cases：
+  `packages/eval-langfuse/assets/datasets/rag/curriculum_plan/answer_quality_cases.v1.json`
 
 Historical hybrid query and release acceptance fixtures were removed from the
 active eval package. Their denominator counts below are retained only as
@@ -159,10 +159,11 @@ baseline interpretation, not as current file paths.
 
 ## Verification Notes
 
-旧 Python `campus_evals` verification commands 已退役。公开仓库中的
-`packages/eval-langfuse/fixtures` 只承载 synthetic qrels / answer-quality
-examples；fresh runtime evidence 和真实 gold truth 由 Go/TS runtime owner 产出
-sanitized artifact 或私有 Langfuse dataset 后，再进入 Langfuse / Ragas scoring。
+旧 Python `campus_evals` verification commands 已退役。当前稳定 truth 是
+`packages/eval-langfuse/assets` 中的 source-clean synthetic qrels /
+answer-quality assets；fresh runtime evidence 和真实 gold truth 由 Go/TS
+runtime owner 产出 sanitized artifact 或私有 Langfuse dataset 后，再进入
+Langfuse / Ragas scoring。
 
 旧 Go first-stage candidate runner 已退役。Retrieval / RAG 评价应从 Langfuse /
 OTel safe projection 取得 retrieved context ids，并把 qrels / golden truth 投影为

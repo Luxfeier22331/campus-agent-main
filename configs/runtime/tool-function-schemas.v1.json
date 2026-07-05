@@ -25,6 +25,29 @@
 		},
 		{
 			"type": "function",
+			"name": "public_web_search",
+			"description": "Search current public MUC official-web pages for evidence when governed RAG is missing or likely stale.",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query_text": {
+						"type": "string",
+						"description": "Original public official-web question to search for evidence."
+					},
+					"max_results": {
+						"type": ["integer", "null"],
+						"description": "Optional positive maximum source count. Runtime caps this at 5.",
+						"minimum": 1,
+						"maximum": 5
+					}
+				},
+				"required": ["query_text", "max_results"]
+			}
+		},
+		{
+			"type": "function",
 			"name": "transport_schedule_lookup",
 			"description": "Lookup campus shuttle schedule snapshots, departures, and service windows.",
 			"strict": true,

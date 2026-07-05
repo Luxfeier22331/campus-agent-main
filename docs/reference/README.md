@@ -18,7 +18,7 @@ updated: 2026-07-04
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `testing-and-verification-lanes.md`
 - `eval.md`
-  - Active eval shape: Langfuse/Ragas lanes, fixture semantics and operator
+  - Active eval shape: Langfuse/Ragas lanes, eval asset semantics and operator
     coverage projection contract.
 - `eval-map.md`
   - eval lane cases、observation producer、pass/fail rule 与 Langfuse score name

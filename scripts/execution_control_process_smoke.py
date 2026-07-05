@@ -24,7 +24,6 @@ from scripts.execution_control_process_smoke_profiles import (
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     campus_services_sdk_profiles,
     profile_execution_run_expectation,
-    profile_requires_object_store,
 )
 
 DEFAULT_STARTUP_TIMEOUT_SECONDS = 180.0
@@ -69,7 +68,6 @@ def build_process_smoke_plan(
         "execution-control-internal-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
-    object_store_base_url = f"http://{object_store_host}:{object_store_port}"
     output_dir.mkdir(parents=True, exist_ok=True)
     runtime_config_path = _write_process_smoke_runtime_profile(
         repo_root=repo_root,
@@ -78,7 +76,6 @@ def build_process_smoke_plan(
     )
     profile_api_env = _profile_resource_env(
         profile,
-        object_store_base_url=object_store_base_url,
         internal_query_secret=internal_query_secret,
     )
     api_env = {
@@ -106,31 +103,6 @@ def build_process_smoke_plan(
             log_path=output_dir / "execution-control.log",
         ),
     )
-    if profile_requires_object_store(profile):
-        processes = (
-            ProcessCommandSpec(
-                label="s3-smoke-object-store",
-                command=(
-                    "uv",
-                    "run",
-                    "--all-packages",
-                    "python",
-                    "-m",
-                    "scripts.smoke_s3_object_store",
-                    "--host",
-                    object_store_host,
-                    "--port",
-                    str(object_store_port),
-                ),
-                cwd=repo_root,
-                env={
-                    "SMOKE_S3_BUCKET": "campus-agent-derived",
-                    "SMOKE_S3_RESPONSE_BODY": _notice_smoke_body(),
-                },
-                log_path=output_dir / "s3-smoke-object-store.log",
-            ),
-            *processes,
-        )
     return ProcessSmokePlan(
         repo_root=repo_root,
         output_dir=output_dir,
@@ -218,7 +190,6 @@ def _profile_open_tools(profile: str) -> list[str]:
 def _profile_resource_env(
     profile: str,
     *,
-    object_store_base_url: str,
     internal_query_secret: str,
 ) -> dict[str, str]:
     if profile in campus_services_sdk_profiles():
@@ -229,27 +200,12 @@ def _profile_resource_env(
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
         }
     if profile == "notice_discover_sdk_opened":
-        env = {
+        return {
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
         }
-        if profile_requires_object_store(profile):
-            env.update(
-                {
-                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
-                }
-            )
-        return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
         env = {
-            "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
-            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
             env["EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"] = (
@@ -276,19 +232,10 @@ def _temporal_env() -> dict[str, str]:
             "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
             "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
             "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
-            "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
             "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
         )
     }
     return {key: value for key, value in values.items() if value}
-
-
-def _notice_smoke_body() -> str:
-    return (
-        "# 烟雾测试通知\n\n"
-        "这是一条用于 notice direct runtime smoke 的通知正文。"
-        "通知事项需要结合学生手册相关规定理解。\n"
-    )
 
 
 def run_process_smoke(

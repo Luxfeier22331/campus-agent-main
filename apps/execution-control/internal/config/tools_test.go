@@ -46,7 +46,7 @@ func TestLoadFromEnvRejectsUnknownOpenTools(t *testing.T) {
 func TestLoadFromEnvAcceptsOpenTool(t *testing.T) {
 	setRuntimeConfigProfile(t, `{
   "schema_version": "campus_execution_control_runtime_profile.v1",
-  "open_tools": ["transport_schedule_lookup"]
+  "open_tools": ["public_web_search", "transport_schedule_lookup"]
 }`)
 
 	cfg, err := LoadFromEnv()
@@ -54,8 +54,10 @@ func TestLoadFromEnvAcceptsOpenTool(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if len(cfg.OpenTools) != 1 || cfg.OpenTools[0] != "transport_schedule_lookup" {
-		t.Fatalf("open tools = %#v, want transport_schedule_lookup", cfg.OpenTools)
+	if len(cfg.OpenTools) != 2 ||
+		cfg.OpenTools[0] != "public_web_search" ||
+		cfg.OpenTools[1] != "transport_schedule_lookup" {
+		t.Fatalf("open tools = %#v, want public_web_search + transport_schedule_lookup", cfg.OpenTools)
 	}
 }
 

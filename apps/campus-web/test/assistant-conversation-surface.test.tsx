@@ -13,7 +13,7 @@ vi.mock("@/components/assistant-ui/thread", () => ({
 	}: {
 		allowAttachments?: boolean;
 		assistantAvatarFallback?: string;
-		components?: { ToolFallback?: unknown };
+		components?: { Registrations?: unknown; ToolFallback?: unknown };
 		composerPlaceholder?: string;
 		welcomeMessage?: string;
 	}) => (
@@ -21,6 +21,7 @@ vi.mock("@/components/assistant-ui/thread", () => ({
 			data-allow-attachments={String(allowAttachments ?? false)}
 			data-assistant-avatar={assistantAvatarFallback ?? ""}
 			data-has-tool-fallback={String(Boolean(components?.ToolFallback))}
+			data-has-registrations={String(Boolean(components?.Registrations))}
 			data-placeholder={composerPlaceholder ?? ""}
 			data-testid="assistant-ui-registry-thread"
 			data-welcome={welcomeMessage ?? ""}
@@ -44,6 +45,7 @@ describe("AssistantConversationSurface", () => {
 		expect(thread).toHaveAttribute("data-placeholder", "输入校园问题");
 		expect(thread).toHaveAttribute("data-assistant-avatar", "问");
 		expect(thread).toHaveAttribute("data-has-tool-fallback", "true");
+		expect(thread).toHaveAttribute("data-has-registrations", "true");
 		expect(thread).toHaveAttribute("data-allow-attachments", "false");
 	});
 });

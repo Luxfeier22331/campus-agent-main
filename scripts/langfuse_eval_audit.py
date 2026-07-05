@@ -11,10 +11,12 @@ TS_OWNED_WORKFLOW_PROFILE_IDS = (
     "ragas-trace",
     "ragas-dataset",
 )
-SCORE_REGISTRY_PATH = Path("packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json")
+SCORE_REGISTRY_PATH = Path(
+    "packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json"
+)
 EVAL_MAP_PATH = Path("docs/reference/eval-map.md")
 LANGFUSE_CLI_PATH = Path("packages/eval-langfuse/src/cli.ts")
-RAG_FIXTURE_ROOT = Path("packages/eval-langfuse/fixtures/rag")
+RAG_ASSET_ROOT = Path("packages/eval-langfuse/assets")
 CI_SURFACE_DETECTOR_PATH = Path("scripts/detect_ci_changed_surfaces.py")
 LANGFUSE_RUNTIME_CONTRACT_PATH = Path("docs/contracts/langfuse-runtime.md")
 APP_API_EVAL_INGRESS_CONTRACT_PATH = Path("docs/contracts/app-api/eval-benchmark.md")
@@ -200,7 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     audit_parser = subparsers.add_parser(
         "audit",
-        help="Audit TS/Langfuse eval workflow and fixture coverage.",
+        help="Audit TS/Langfuse eval workflow and asset coverage.",
     )
     audit_parser.add_argument("--repo-root", default=".")
     audit_parser.add_argument("--json", action="store_true")
@@ -254,7 +256,7 @@ def audit_langfuse_eval_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_active_eval_doc_regression_tokens_absent(repo_root),
         _audit_app_api_eval_ingress_is_materialization_only(repo_root),
         _audit_retired_eval_policy_paths_absent(repo_root),
-        _audit_retired_fixture_splits_absent(repo_root),
+        _audit_retired_asset_splits_absent(repo_root),
         _audit_eval_map_retired_lanes_absent(repo_root),
         _audit_langfuse_ci_surface_contract_path(repo_root),
         _audit_unique_literal_list(
@@ -597,8 +599,8 @@ def _audit_retired_eval_policy_paths_absent(repo_root: Path) -> dict[str, object
     }
 
 
-def _audit_retired_fixture_splits_absent(repo_root: Path) -> dict[str, object]:
-    root = repo_root / RAG_FIXTURE_ROOT
+def _audit_retired_asset_splits_absent(repo_root: Path) -> dict[str, object]:
+    root = repo_root / RAG_ASSET_ROOT
     present: list[dict[str, str]] = []
     if root.exists():
         for path in root.rglob("*.json"):
@@ -607,7 +609,7 @@ def _audit_retired_fixture_splits_absent(repo_root: Path) -> dict[str, object]:
                 if token in text:
                     present.append({"path": str(path.relative_to(repo_root)), "token": token})
     return {
-        "check_id": "retired_fixture_splits_absent",
+        "check_id": "retired_asset_splits_absent",
         "passed": not present,
         "present": present,
     }

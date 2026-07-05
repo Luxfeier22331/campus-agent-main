@@ -89,6 +89,7 @@ ONLINE_LEASE_FORBIDDEN_PATTERNS = (
 
 ONLINE_LEASE_ALLOWED_PATH_PARTS = (
     "/apps/app-api/scripts/reconcile-shared-db-drift.mjs",
+    "/apps/app-api/scripts/reconcile-shared-db-drift-plan.mjs",
     "/tests/infra/test_execution_control_architecture_residue.py",
     "/apps/execution-control/internal/execution/run_projection_postgres_store_test.go",
     "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
@@ -109,6 +110,38 @@ READYZ_FORBIDDEN_PATTERNS = ("workflow_run_runtime",)
 READYZ_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
     "/apps/execution-control/internal/httpapi/run_projection_store_wiring_test.go",
+)
+
+NOTICE_BODY_OBJECT_STORE_FORBIDDEN_PATTERNS = (
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
+)
+
+NOTICE_BODY_OBJECT_STORE_ALLOWED_PATH_PARTS = (
+    "/docs/environment/readiness.md",
+    "/docs/runbooks/gitops-k8s.md",
+    "/infra/local/scripts/project-local-runtime-env.mjs",
+    "/infra/local/scripts/project-local-runtime-env.test.mjs",
+    "/tests/infra/test_execution_control_architecture_residue.py",
+    "/tests/infra/test_execution_control_notice_runtime_env_boundary.py",
+    "/tests/infra/test_execution_runtime_k8s_secret_renderer.py",
+    "/tests/test_execution_control_process_smoke_plan.py",
+)
+
+EXECUTION_RUNTIME_ADMIN_QDRANT_ALLOWED_PATH_PARTS = (
+    "/configs/runtime/k8s-execution-runtime-env-boundary.v1.json",
+    "/docs/architecture/system/data-plane.md",
+    "/docs/environment/providers.md",
+    "/docs/runbooks/gitops-k8s.md",
+    "/infra/gitops/secrets/README.md",
+    "/infra/k8s/execution-runtime/base/secret.example.yaml",
+    "/tests/infra/test_execution_control_architecture_residue.py",
+    "/tests/infra/test_execution_control_staging_deploy_boundary.py",
+    "/tests/infra/test_execution_control_notice_runtime_env_boundary.py",
+    "/tests/infra/test_execution_runtime_k8s_secret_renderer.py",
 )
 
 ONLINE_PYTHON_BRIDGE_FORBIDDEN_PATTERNS = (
@@ -424,6 +457,52 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
                 continue
             text = read_text(path)
             for pattern in READYZ_FORBIDDEN_PATTERNS:
+                if pattern in text:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual(offenders, [])
+
+    def test_online_execution_runtime_env_does_not_reintroduce_notice_body_object_store(
+        self,
+    ) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if is_historical(path):
+                continue
+            if any(part in relative for part in NOTICE_BODY_OBJECT_STORE_ALLOWED_PATH_PARTS):
+                continue
+            if not is_under(
+                path, ACTIVE_RUNTIME_PREFIXES + ACTIVE_PLANNING_ENTRY_PREFIXES + ("/tests/",)
+            ):
+                continue
+            text = read_text(path)
+            for pattern in NOTICE_BODY_OBJECT_STORE_FORBIDDEN_PATTERNS:
+                if pattern in text:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual(offenders, [])
+
+    def test_k8s_execution_runtime_inventory_does_not_consume_qdrant_admin_keys(self) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if is_historical(path):
+                continue
+            if any(part in relative for part in EXECUTION_RUNTIME_ADMIN_QDRANT_ALLOWED_PATH_PARTS):
+                continue
+            if not relative.startswith(
+                (
+                    "/infra/k8s/execution-runtime/",
+                    "/env/commands/execution-control-runtime",
+                    "/configs/runtime/k8s-execution-runtime",
+                )
+            ):
+                continue
+            text = read_text(path)
+            for pattern in ("QDRANT_API_KEY", "QDRANT_READ_ONLY_API_KEY"):
                 if pattern in text:
                     offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
 

@@ -49,8 +49,8 @@ Make TypeScript plus Langfuse the default eval runtime and platform path.
   experiments and annotation queues remain official platform workflows, but
   repo-owned custom experiment / review manifest automation is retired.
 - The old `packages/evals` package is retired from the active workspace.
-  Repo-tracked eval fixtures and qrels that feed Langfuse now live under
-  `packages/eval-langfuse/fixtures`; runtime-owned test fixtures live with the
+  Repo-tracked eval assets and qrels that feed Langfuse now live under
+  `packages/eval-langfuse/assets`; runtime-owned test fixtures live with the
   owning runtime. No package metadata, Python modules, runners, publishers,
   provider transport code or release gates may be reintroduced there.
 - `packages/ragas-runner` is the only accepted Python exception for RAGAS
@@ -120,7 +120,7 @@ scores.
 ADR-0003 and ADR-0004 remain active for golden dataset governance and metric
 semantics. This ADR supersedes their older implementation wording that named
 `packages/evals` as the concrete owner. Current active ownership is
-`packages/eval-langfuse` for Langfuse-bound fixtures / artifacts, owning runtime
+`packages/eval-langfuse` for Langfuse-bound eval assets / artifacts, owning runtime
 testdata for runtime-local truth, and `packages/ragas-runner` for the isolated
 RAGAS execution island.
 
@@ -141,5 +141,5 @@ RAGAS execution island.
   sample/score artifact contracts or TS Langfuse score path first. They must
   not reintroduce provider projection, HTTP transport tuning, Langfuse
   publishing or release gate ownership into the Python island.
-- Documentation that states `packages/evals` owns active eval runtime or fixture
+- Documentation that states `packages/evals` owns active eval runtime or eval asset
   truth must be updated to the retired-package boundary above.

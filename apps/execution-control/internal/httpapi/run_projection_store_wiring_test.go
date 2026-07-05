@@ -20,18 +20,6 @@ func TestNewRunProjectionStoreIsNilWhenDatabaseURLIsNotConfigured(t *testing.T) 
 	}
 }
 
-func TestNewRunProjectionStoreDoesNotFallbackToWorkflowRunDatabaseURL(t *testing.T) {
-	store, err := newRunProjectionStore(config.Config{
-		WorkflowRunDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-	})
-	if err != nil {
-		t.Fatalf("new run projection store with only workflow database url: %v", err)
-	}
-	if store != nil {
-		t.Fatalf("run projection store = %#v, want nil without explicit run projection database url", store)
-	}
-}
-
 func TestNewRunProjectionStoreReturnsConnectionErrorForExplicitInvalidDatabaseURL(t *testing.T) {
 	store, err := newRunProjectionStore(config.Config{
 		RunProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",

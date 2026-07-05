@@ -18,6 +18,7 @@
 			"enum": [
 				"knowledge_query",
 				"place_lookup",
+				"public_web_search",
 				"transport_schedule_lookup",
 				"campus_notice_discover",
 				"campus_notice_change_set_lookup",

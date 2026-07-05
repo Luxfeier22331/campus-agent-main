@@ -218,7 +218,6 @@ answer path 会得到真实 fail-closed 诊断。
 - `campus_execution_control_execution_audit_enabled`
 - `campus_execution_control_execution_audit_configured`
 - `campus_execution_control_execution_audit_emitted_total`
-- `campus_execution_control_execution_audit_dropped_total`
 - `campus_execution_control_execution_audit_failed_total`
 - `campus_execution_control_telemetry_enabled`
 - Temporal task queue / poller readiness and RAG activity evidence must be

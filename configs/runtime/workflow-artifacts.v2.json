@@ -120,6 +120,21 @@
 			"notes": "Bounded evidence summary only; raw snippets and backend dumps remain forbidden."
 		},
 		{
+			"kind": "public_web_evidence",
+			"display_name": "PublicWebEvidence",
+			"owner_tool_boundary": "public_web_search",
+			"producer_tools": ["public_web_search"],
+			"source_truth_owner": "public_web_search_provider_projection",
+			"visibility": "tool_private",
+			"current_projection_support": "supported_go_runtime",
+			"answer_eligible": true,
+			"requires_grounding": true,
+			"freshness_policy": "provider_current_public_web",
+			"allowed_consumers": ["execution-control-finalizer"],
+			"forbidden_raw_payload_keys": ["provider_raw_response", "raw_response", "raw_html"],
+			"notes": "Bounded public official-web URL evidence from the public_web_search tool; raw provider output and page bodies remain forbidden."
+		},
+		{
 			"kind": "grounding_verdict",
 			"display_name": "GroundingVerdict",
 			"owner_tool_boundary": "knowledge_query",
@@ -213,6 +228,19 @@
 			"eval_denominator": ["workflow_trace", "deterministic_answer", "release_gate"],
 			"priority": 2,
 			"notes": "Grounding verdict derived from bounded evidence."
+		},
+		{
+			"binding_id": "public_web_search.public_web_evidence.lookup",
+			"owner_tool_boundary": "public_web_search",
+			"tool_name": "public_web_search",
+			"produces": ["public_web_evidence"],
+			"consumes": [],
+			"required_inputs": ["request:user_query"],
+			"state_changing": false,
+			"opening_gate": "open",
+			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
+			"priority": 1,
+			"notes": "Public official-web search emits sanitized URL evidence only."
 		},
 		{
 			"binding_id": "place_lookup.place_context.deferred",

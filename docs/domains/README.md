@@ -15,6 +15,9 @@ updated: 2026-06-11
 
 - `place.md`
   - `place_lookup` / `place_finding` 窄能力、place catalog 消费与 opening gate
+- `public-web-search.md`
+  - `public_web_search` typed tool、公开官网搜索 provider adapter 与
+    public official-web evidence boundary
 - `source-card.md`
   - Q&A source-card、docs reader permalink、anchor 与 highlight 语义
 - `transport.md`

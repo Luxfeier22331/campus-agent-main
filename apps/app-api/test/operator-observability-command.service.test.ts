@@ -130,6 +130,243 @@ describe("operator observability command service", () => {
 		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
 	});
 
+	it("rejects execution audit events with unknown fields", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							event_id: "execution-control:req_01HQ:execution.activity_failed",
+							event_type: "execution.activity_failed",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+							unknown_debug_field: "must fail closed",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("rejects execution audit events with mismatched event ids", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							event_id: "execution-control:req_other:execution.activity_failed",
+							event_type: "execution.activity_failed",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("rejects malformed execution audit event items", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: ["execution.activity_failed"],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("rejects execution audit batches over the bounded ingest size", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: Array.from({ length: 101 }, (_, index) => ({
+						event_id: `execution-control:req_${index}:execution.activity_failed`,
+						event_type: "execution.activity_failed",
+						occurred_at: "2026-04-24T10:00:00.000Z",
+						request_id: `req_${index}`,
+						trace_id: `trace_${index}`,
+					})),
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("rejects execution audit optional strings with invalid types or excessive length", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							decision: { raw: "must fail closed" },
+							event_id: "execution-control:req_01HQ:execution.cancelled",
+							event_type: "execution.cancelled",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							decision: "x".repeat(201),
+							event_id: "execution-control:req_01HQ:execution.cancelled",
+							event_type: "execution.cancelled",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("rejects execution audit HTTP status outside the HTTP status range", async () => {
+		const store = createStoreMock();
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							event_id: "execution-control:req_01HQ:execution.activity_failed",
+							event_type: "execution.activity_failed",
+							http_status: 42,
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
+	});
+
+	it("keeps cancellation audit telemetry out of error status", async () => {
+		const store = createStoreMock();
+		store.getRequestObservabilitySeed.mockResolvedValue({
+			collection: null,
+			modelName: null,
+			principalType: "student",
+			requestId: "req_cancel",
+			requestedScopeSummary: null,
+			requestedTool: "knowledge_query",
+			selectedTool: "knowledge_query",
+			surface: "campus_web",
+			traceId: "trace_cancel",
+		});
+		const telemetry = {
+			recordExecutionAuditEvent: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			store,
+			telemetry,
+		});
+
+		await expect(
+			service.ingestExecutionAuditEvents({
+				payload: {
+					events: [
+						{
+							event_id: "execution-control:req_cancel:execution.cancel_requested",
+							event_type: "execution.cancel_requested",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							request_id: "req_cancel",
+							retryable: false,
+							trace_id: "trace_cancel",
+						},
+						{
+							event_id: "execution-control:req_cancel:execution.cancelled",
+							event_type: "execution.cancelled",
+							occurred_at: "2026-04-24T10:00:01.000Z",
+							request_id: "req_cancel",
+							retryable: false,
+							trace_id: "trace_cancel",
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({ accepted: 2 });
+
+		expect(telemetry.recordExecutionAuditEvent).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				eventType: "execution.cancel_requested",
+				status: "accepted",
+			}),
+		);
+		expect(telemetry.recordExecutionAuditEvent).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				eventType: "execution.cancelled",
+				status: "cancelled",
+			}),
+		);
+	});
+
 	it("persists Temporal task queue snapshots and autoscaler projections", async () => {
 		const store = createStoreMock();
 		const service = buildOperatorObservabilityCommandService({

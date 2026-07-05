@@ -263,14 +263,14 @@ describe("Langfuse score publisher", () => {
 });
 
 describe("RAG dataset manifest builder", () => {
-	it("projects RAG fixtures into Langfuse dataset manifests without fabricating Ragas answers", () => {
+	it("projects RAG assets into Langfuse dataset manifests without fabricating Ragas answers", () => {
 		const manifest = buildRagDatasetManifest({
-			fixtureRoot: resolve(repoRoot, "packages/eval-langfuse/fixtures/rag"),
+			assetRoot: resolve(repoRoot, "packages/eval-langfuse/assets"),
 			sourceGitHead: "test-head",
 		});
 
 		expect(manifest).toMatchObject({
-			schema_version: "langfuse_dataset_manifest.v1",
+			schema_version: "langfuse_dataset_manifest.v2",
 			source_git_head: "test-head",
 		});
 		expect((manifest.datasets as Array<{ name: string }>).map((dataset) => dataset.name)).toContain(
@@ -279,24 +279,25 @@ describe("RAG dataset manifest builder", () => {
 		expect((manifest.datasets as Array<{ name: string }>).map((dataset) => dataset.name)).toContain(
 			"campus/rag/student_rules/answer-quality",
 		);
+		expect(JSON.stringify(manifest)).not.toContain("fixture_");
 	});
 
 	it("builds qrels dataset items with reference context ids only", () => {
-		const fixturePath = resolve(
+		const assetPath = resolve(
 			repoRoot,
-			"packages/eval-langfuse/fixtures/rag/student_rules/retrieval_qrels.json",
+			"packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json",
 		);
 		const items = buildLangfuseDatasetItems({
 			dataset: {
 				collection: "student_rules",
-				fixture_path: fixturePath,
+				asset_path: assetPath,
 				kind: "rag_qrels",
 				name: "campus/rag/student_rules/qrels",
 				slug: "rag-student-rules-qrels",
 				surface_key: "regulations/student_rules",
 			},
-			fixtureHash: "fixture-hash",
-			fixturePath,
+			assetHash: "asset-hash",
+			assetPath,
 			sourceGitHead: "test-head",
 		});
 		const item = items.find(
@@ -321,10 +322,12 @@ describe("RAG dataset manifest builder", () => {
 			},
 			metadata: {
 				case_id: "synthetic-policy-title-medical",
-				fixture_hash: "fixture-hash",
+				asset_hash: "asset-hash",
 				source_git_head: "test-head",
+				source_asset_path: assetPath,
 			},
 		});
+		expect(JSON.stringify(item)).not.toContain("fixture_");
 		expect(item?.input).not.toHaveProperty("answer");
 		expect(item?.input).not.toHaveProperty("retrieved_contexts");
 	});

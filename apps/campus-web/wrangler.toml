@@ -26,6 +26,12 @@ AUTH_TURNSTILE_EXECUTION = "render"
 CAMPUS_WEB_HOSTNAME = "campus-staging.mucwiki-edge.link"
 SENTRY_ENVIRONMENT = "staging"
 
+[env.local.secrets]
+required = ["SENTRY_DSN"]
+
+[env.staging.secrets]
+required = ["SENTRY_DSN"]
+
 [[env.staging.routes]]
 pattern = "campus-staging.mucwiki-edge.link"
 custom_domain = true

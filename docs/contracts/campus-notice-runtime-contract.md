@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
-updated: 2026-06-28
+updated: 2026-07-04
 ---
 # Campus Notice Runtime Contract
 
@@ -53,6 +53,13 @@ Notice user-facing output is card-first and source-link-first.
 Raw notice body and media-derived text still belong in source-truth, bounded
 context extraction, fact extraction and downstream materialization. They are not
 default public answer material.
+
+Current serving dependency is the notice read model. `campus_notice_discover`
+and the internal selected-notice resolve path consume notice cards, references,
+excerpts and bounded summaries from the read model; they do not require notice
+body object-store credentials for readiness. Opening a body-backed
+serving path requires a separate delivery contract and must not be implied by
+the current model-visible `campus_notice_discover` tool.
 
 ## Tool And Function Boundary
 

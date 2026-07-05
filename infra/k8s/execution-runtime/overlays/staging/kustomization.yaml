@@ -10,5 +10,3 @@ images:
     newTag: staging
   - name: campus-agent/hindsight-api
     newTag: 0.8.2-openai-default-headers
-patches:
-  - path: patch-staging-env.yaml

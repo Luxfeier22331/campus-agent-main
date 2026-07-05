@@ -159,9 +159,9 @@ Rules:
 
 ## Provider Configuration Workspace
 
-Provider configuration manages provider connections plus prompt, embedding and
-rerank runtime profiles for the online answer path. It is not a generic secrets
-vault or provider marketplace.
+Provider configuration manages provider connections plus prompt, embedding,
+rerank and search runtime profiles for the online answer path. It is not a
+generic secrets vault or provider marketplace.
 
 The browser UI must describe profile `role` as operator-facing `使用位置`.
 Internal role identifiers remain API/profile fields, but they must not become
@@ -169,9 +169,12 @@ the primary user-facing copy.
 
 Accepted profile roles:
 
-- prompt: `primary_agent`, `rag_synthesis`
-- embedding: `rag_query_embedding`, `index_embedding`
+- prompt: `primary_agent`, `rag_synthesis`, `hindsight_llm`,
+  `eval_ragas_llm`, `eval_judge_llm`
+- embedding: `rag_query_embedding`, `index_embedding`,
+  `hindsight_embedding`, `eval_ragas_embedding`
 - rerank: `rag_reranker`
+- search: `public_web_search`
 
 Accepted commands:
 

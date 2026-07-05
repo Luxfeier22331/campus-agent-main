@@ -116,8 +116,8 @@ truth or release closeout.
   `fail_closed`、`acl_anomaly_code`、`source_doc_ids`；当 event type 为
   `execution.*` 时，可以额外保存 lane、decision、failure kind、HTTP status、
   retryable、duration、queue wait 与 activity duration
-- 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor
-  sink blob
+- 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload、query
+  rewrite text、retrieval query text、source snippet 或 vendor sink blob
 
 ## `operator.authenticated_notice_processing_projection`
 

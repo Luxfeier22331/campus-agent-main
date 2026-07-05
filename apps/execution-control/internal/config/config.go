@@ -255,7 +255,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := validateEnvValues(values, runtimeProfile, otelEnabled); err != nil {
+	if err := validateEnvValues(values, runtimeProfile, runtimeRole, otelEnabled); err != nil {
 		return Config{}, err
 	}
 	workerProfiles, err := readWorkerProfilesStrict(values)
@@ -423,7 +423,7 @@ func parseEnvValues() (envValues, error) {
 	return values, nil
 }
 
-func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool) error {
+func validateEnvValues(values envValues, runtimeProfile string, runtimeRole string, otelEnabled bool) error {
 	checks := []struct {
 		name  string
 		value int
@@ -497,13 +497,59 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 	if otelEnabled && strings.TrimSpace(values.RuntimeRelease) == "" {
 		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime profile otel.enabled=true")
 	}
-	if runtimeProfile != "local" && strings.TrimSpace(values.MetricsBearerToken) == "" {
+	if runtimeProfile != "local" &&
+		roleRequiresMetricsBearerToken(runtimeRole) &&
+		strings.TrimSpace(values.MetricsBearerToken) == "" {
 		return fmt.Errorf(
 			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
 			runtimeProfile,
 		)
 	}
+	if runtimeProfile != "local" &&
+		roleRequiresRunProjectionDatabaseURL(runtimeRole) &&
+		strings.TrimSpace(values.RunProjectionDatabaseURL) == "" {
+		return fmt.Errorf(
+			"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL is required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
+			runtimeProfile,
+		)
+	}
+	if runtimeProfile != "local" &&
+		roleRequiresAgentRuntimeClient(runtimeRole) &&
+		(strings.TrimSpace(values.AgentRuntimeBaseURL) == "" ||
+			strings.TrimSpace(values.AgentRuntimeSharedSecret) == "") {
+		return fmt.Errorf(
+			"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL and EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET are required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
+			runtimeProfile,
+		)
+	}
 	return nil
+}
+
+func roleRequiresMetricsBearerToken(runtimeRole string) bool {
+	switch normalizeRuntimeRole(runtimeRole) {
+	case "", "execution-control":
+		return true
+	default:
+		return false
+	}
+}
+
+func roleRequiresRunProjectionDatabaseURL(runtimeRole string) bool {
+	switch normalizeRuntimeRole(runtimeRole) {
+	case "workflow", "personal-memory-runtime":
+		return false
+	default:
+		return true
+	}
+}
+
+func roleRequiresAgentRuntimeClient(runtimeRole string) bool {
+	switch normalizeRuntimeRole(runtimeRole) {
+	case "activity-agent":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateTemporalSettings(values envValues, runtimeProfile string) error {
@@ -579,6 +625,8 @@ func normalizeRuntimeRole(value string) string {
 		return "workflow"
 	case "execution-control":
 		return "execution-control"
+	case "personal-memory-runtime":
+		return "personal-memory-runtime"
 	default:
 		return strings.TrimSpace(value)
 	}

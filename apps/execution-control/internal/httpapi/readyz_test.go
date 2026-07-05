@@ -316,6 +316,27 @@ func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
 	}
 }
 
+func TestReadyzRequiresPublicWebSearchProviderConfigWhenToolIsOpen(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenTools = []string{"public_web_search"}
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["configured"] != false {
+		t.Fatalf("provider_config_gate.configured = %v, want false", providerConfigGate["configured"])
+	}
+	if providerConfigGate["reason"] != "provider_config_projection_invalid_for_public_web_search" {
+		t.Fatalf("provider_config_gate.reason = %v", providerConfigGate["reason"])
+	}
+}
+
 func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:              "campus-agent",

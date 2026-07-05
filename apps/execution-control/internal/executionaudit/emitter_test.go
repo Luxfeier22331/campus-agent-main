@@ -53,6 +53,39 @@ func TestEmitterStatusRedactsDeliveryErrorDetails(t *testing.T) {
 	}
 }
 
+func TestEmitterFailureLogRedactsDeliveryErrorDetails(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+	emitter := NewEmitter(context.Background(), config.Config{
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    50,
+		ExecutionAuditURL:          "http://127.0.0.1:1/ingest?token=secret-token",
+	}, logger)
+
+	err := emitter.Emit(context.Background(), Event{
+		EventType: "execution.activity_failed",
+		RequestID: "req-audit-log-redaction",
+		TraceID:   "trace-audit-log-redaction",
+	})
+
+	if err == nil {
+		t.Fatal("expected audit delivery failure")
+	}
+	logged := logBuffer.String()
+	if !strings.Contains(logged, "execution_control.execution_audit_failed") {
+		t.Fatalf("log output = %q, want execution_control.execution_audit_failed", logged)
+	}
+	for _, secret := range []string{"secret-token", "127.0.0.1:1", "token="} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("log output leaked %q: %s", secret, logged)
+		}
+	}
+	if !strings.Contains(logged, "execution audit delivery error") {
+		t.Fatalf("log output = %q, want redacted delivery error", logged)
+	}
+}
+
 func TestEmitterEmitFailsWhenDeliveryFails(t *testing.T) {
 	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.WriteHeader(http.StatusBadGateway)
@@ -180,25 +213,19 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	if err := emitter.Emit(context.Background(), Event{
-		ActivityDuration:      35 * time.Second,
-		ContextPreflightState: "not_follow_up",
-		Decision:              "queue_full",
-		Duration:              35*time.Second + 12*time.Millisecond,
-		EventType:             "execution.activity_failed",
-		FailureKind:           "timeout",
-		HTTPStatus:            http.StatusGatewayTimeout,
-		OccurredAt:            time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC),
-		PlanningOutcome:       "not_preplanned",
-		PolicyGateDecision:    "out_of_scope",
-		QueueWait:             12 * time.Millisecond,
-		RequestID:             "req-001",
-		RequestedTool:         "knowledge_query",
-		Retryable:             true,
-		RoutingNextAction:     "out_of_scope",
-		ScopeGateDecision:     "out_of_scope",
-		TerminalOutcome:       "no_answer",
-		FailCloseReason:       "product_scope_boundary",
-		TraceID:               "trace-001",
+		ActivityDuration: 35 * time.Second,
+		Decision:         "queue_full",
+		Duration:         35*time.Second + 12*time.Millisecond,
+		EventType:        "execution.activity_failed",
+		FailureKind:      "timeout",
+		HTTPStatus:       http.StatusGatewayTimeout,
+		OccurredAt:       time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC),
+		QueueWait:        12 * time.Millisecond,
+		RequestID:        "req-001",
+		RequestedTool:    "knowledge_query",
+		Retryable:        true,
+		TaskQueue:        "campus-agent.workflow",
+		TraceID:          "trace-001",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
 	}
@@ -222,18 +249,35 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		if _, ok := event["user_goal"]; ok {
 			t.Fatal("audit event must not include raw user_goal")
 		}
-		expectedRuntimeFields := map[string]string{
-			"scope_gate_decision":     "out_of_scope",
-			"policy_gate_decision":    "out_of_scope",
-			"context_preflight_state": "not_follow_up",
-			"routing_next_action":     "out_of_scope",
-			"planning_outcome":        "not_preplanned",
-			"terminal_outcome":        "no_answer",
-			"fail_close_reason":       "product_scope_boundary",
+		expectedFields := map[string]any{
+			"activity_duration_ms": float64(35000),
+			"decision":             "queue_full",
+			"duration_ms":          float64(35012),
+			"failure_kind":         "timeout",
+			"http_status":          float64(http.StatusGatewayTimeout),
+			"queue_wait_ms":        float64(12),
+			"requested_tool":       "knowledge_query",
+			"retryable":            true,
+			"task_queue":           "campus-agent.workflow",
+			"trace_id":             "trace-001",
 		}
-		for key, want := range expectedRuntimeFields {
+		for key, want := range expectedFields {
 			if event[key] != want {
-				t.Fatalf("audit field %s = %v, want %q", key, event[key], want)
+				t.Fatalf("audit field %s = %v, want %#v", key, event[key], want)
+			}
+		}
+		for _, key := range []string{
+			"context_preflight_state",
+			"planning_outcome",
+			"policy_gate_decision",
+			"routing_next_action",
+			"scope_gate_decision",
+			"selected_tool",
+			"terminal_outcome",
+			"fail_close_reason",
+		} {
+			if _, ok := event[key]; ok {
+				t.Fatalf("audit event contains non-backflow field %q: %#v", key, event)
 			}
 		}
 	case <-time.After(time.Second):

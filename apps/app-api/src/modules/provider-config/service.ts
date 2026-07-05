@@ -3,10 +3,14 @@ import { randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import { decryptAppApiSecret, encryptAppApiSecret, secretRefFromPlaintext } from "../secret-crypto";
+import {
+	profilePolicyViolation,
+	providerProfilePolicyViolation,
+	roleForKind,
+	runtimeRole,
+} from "./role-policy";
 import type { ProviderConfigStore } from "./store";
 import type {
-	EmbeddingProviderRole,
-	PromptProviderRole,
 	ProviderConfigActor,
 	ProviderConfigConnection,
 	ProviderConfigConnectionCreatePayload,
@@ -24,13 +28,13 @@ import type {
 	ProviderConfigUpdatePayload,
 	ProviderConfigValidationResult,
 	ProviderConfigValidators,
-	RerankProviderRole,
 } from "./types";
 import {
 	defaultEmbeddingCompatibilityCheck,
 	defaultValidateEmbeddingProvider,
 	defaultValidatePromptProvider,
 	defaultValidateRerankProvider,
+	defaultValidateSearchProvider,
 	validateByKind,
 } from "./validators";
 
@@ -44,21 +48,7 @@ export interface ProviderConfigServiceDependencies {
 	validators?: Partial<ProviderConfigValidators>;
 }
 
-const PROMPT_ROLES = new Set<PromptProviderRole>([
-	"eval_judge_llm",
-	"eval_ragas_llm",
-	"hindsight_llm",
-	"primary_agent",
-	"rag_synthesis",
-]);
-const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>([
-	"eval_ragas_embedding",
-	"hindsight_embedding",
-	"index_embedding",
-	"rag_query_embedding",
-]);
-const RERANK_ROLES = new Set<RerankProviderRole>(["rag_reranker"]);
-const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank"]);
+const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank", "search"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function buildProviderConfigService(
@@ -80,6 +70,7 @@ export function buildProviderConfigService(
 			dependencies.validators?.validateEmbedding ?? defaultValidateEmbeddingProvider,
 		validatePrompt: dependencies.validators?.validatePrompt ?? defaultValidatePromptProvider,
 		validateRerank: dependencies.validators?.validateRerank ?? defaultValidateRerankProvider,
+		validateSearch: dependencies.validators?.validateSearch ?? defaultValidateSearchProvider,
 	};
 
 	return {
@@ -107,6 +98,7 @@ export function buildProviderConfigService(
 			const actor = ensureOperatorPrincipal(input.principal);
 			const profile = await requireProfile(dependencies.store, input.profileId);
 			const connection = await requireConnection(dependencies.store, profile.connectionId);
+			validateProfileConnection(profile, connection);
 			if (!profile.validation?.ok) {
 				throw routeError({
 					code: "provider_profile_not_validated",
@@ -152,7 +144,14 @@ export function buildProviderConfigService(
 			const actor = ensureOperatorPrincipal(input.principal);
 			const normalized = normalizeCreatePayload(input.payload);
 			const connection = await requireConnection(dependencies.store, normalized.connectionId);
-			requireConnectionTool(connection, normalized.kind);
+			validateProviderProfilePolicy({
+				connectionId: connection.connectionId,
+				features: connection.features,
+				kind: normalized.kind,
+				provider: connection.provider,
+				role: normalized.role,
+				transport: normalized.transport,
+			});
 			const createdAt = now().toISOString();
 			const profile: ProviderConfigProfile = {
 				active: false,
@@ -199,6 +198,7 @@ export function buildProviderConfigService(
 				});
 			}
 			const connection = await requireConnection(dependencies.store, profile.connectionId);
+			validateProfileConnection(profile, connection);
 			return {
 				profile: runtimeSnapshotFromProfile(
 					profile,
@@ -233,7 +233,6 @@ export function buildProviderConfigService(
 			let connection = await requireConnection(dependencies.store, current.connectionId);
 			if (normalized.connectionId) {
 				connection = await requireConnection(dependencies.store, normalized.connectionId);
-				requireConnectionTool(connection, current.kind);
 			}
 			const updated: ProviderConfigProfile = {
 				...current,
@@ -269,7 +268,7 @@ export function buildProviderConfigService(
 			const actor = ensureOperatorPrincipal(input.principal);
 			const current = await requireProfile(dependencies.store, input.profileId);
 			const connection = await requireConnection(dependencies.store, current.connectionId);
-			requireConnectionTool(connection, current.kind);
+			validateProfileConnection(current, connection);
 			const apiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 			const validatorInput = {
 				apiKey,
@@ -512,7 +511,12 @@ async function normalizeUpdatePayload(
 
 function normalizeKind(value: unknown): ProviderConfigKind {
 	const normalized = normalizeRequiredString(value, "kind");
-	if (normalized !== "prompt" && normalized !== "embedding" && normalized !== "rerank") {
+	if (
+		normalized !== "prompt" &&
+		normalized !== "embedding" &&
+		normalized !== "rerank" &&
+		normalized !== "search"
+	) {
 		throw validationError("kind is not supported.", { field: "kind" });
 	}
 	return normalized;
@@ -520,28 +524,44 @@ function normalizeKind(value: unknown): ProviderConfigKind {
 
 function normalizeRole(value: unknown, kind: ProviderConfigKind): ProviderConfigRole {
 	const normalized = normalizeRequiredString(value, "role");
-	if (kind === "prompt" && PROMPT_ROLES.has(normalized as PromptProviderRole)) {
-		return normalized as PromptProviderRole;
-	}
-	if (kind === "embedding" && EMBEDDING_ROLES.has(normalized as EmbeddingProviderRole)) {
-		return normalized as EmbeddingProviderRole;
-	}
-	if (kind === "rerank" && RERANK_ROLES.has(normalized as RerankProviderRole)) {
-		return normalized as RerankProviderRole;
+	const role = roleForKind(normalized, kind);
+	if (role) {
+		return role;
 	}
 	throw validationError("role is not supported for provider kind.", { field: "role", kind });
 }
 
 function normalizeRuntimeRole(value: string): ProviderConfigRole {
 	const normalized = value.trim();
-	if (
-		PROMPT_ROLES.has(normalized as PromptProviderRole) ||
-		EMBEDDING_ROLES.has(normalized as EmbeddingProviderRole) ||
-		RERANK_ROLES.has(normalized as RerankProviderRole)
-	) {
-		return normalized as ProviderConfigRole;
+	const role = runtimeRole(normalized);
+	if (role) {
+		return role;
 	}
 	throw validationError("role is not supported.", { field: "role" });
+}
+
+function validateProfileConnection(
+	profile: ProviderConfigProfile,
+	connection: ProviderConfigConnection,
+): void {
+	const violation = profilePolicyViolation(profile, connection);
+	if (violation) {
+		throw validationError(violation.message, violation.details);
+	}
+}
+
+function validateProviderProfilePolicy(input: {
+	connectionId: string;
+	features: ProviderConfigKind[];
+	kind: ProviderConfigKind;
+	provider: string;
+	role: ProviderConfigRole;
+	transport: string;
+}): void {
+	const violation = providerProfilePolicyViolation(input);
+	if (violation) {
+		throw validationError(violation.message, violation.details);
+	}
 }
 
 function normalizeProvider(value: unknown): string {
@@ -565,11 +585,25 @@ function normalizeTransport(value: unknown, kind: ProviderConfigKind): string {
 	if (kind === "embedding" && transport !== "embeddings" && transport !== "openai_embeddings") {
 		throw validationError("transport must be embeddings.", { field: "transport" });
 	}
+	if (
+		kind === "search" &&
+		transport !== "perplexity_search" &&
+		transport !== "openai_responses_web_search" &&
+		transport !== "openai_chat_completions_web_search" &&
+		transport !== "gemini_google_search"
+	) {
+		throw validationError(
+			"transport must be perplexity_search, openai_responses_web_search, openai_chat_completions_web_search, or gemini_google_search.",
+			{
+				field: "transport",
+			},
+		);
+	}
 	return transport;
 }
 
 function normalizeDimensions(value: unknown, kind: ProviderConfigKind): number | null {
-	if (kind === "prompt" || kind === "rerank") {
+	if (kind === "prompt" || kind === "rerank" || kind === "search") {
 		return null;
 	}
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
@@ -657,18 +691,6 @@ function normalizeToolConfig(value: unknown): ProviderConfigFeatureConfig {
 		});
 	}
 	return structuredClone(value as ProviderConfigFeatureConfig);
-}
-
-function requireConnectionTool(
-	connection: ProviderConfigConnection,
-	kind: ProviderConfigKind,
-): void {
-	if (!connection.features.includes(kind)) {
-		throw validationError("connection does not support provider profile kind.", {
-			connectionId: connection.connectionId,
-			kind,
-		});
-	}
 }
 
 function normalizeTimeoutMs(value: unknown): number {

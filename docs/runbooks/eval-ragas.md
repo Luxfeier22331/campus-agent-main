@@ -95,7 +95,7 @@ or links to safe RAG eval projection fields: question or `user_input`, answer,
 retrieved contexts, optional retrieved/reference context ids, trace id and
 dataset item identity.
 
-Repo qrels fixtures do not contain generated answers or retrieved context text,
+Repo qrels assets do not contain generated answers or retrieved context text,
 so qrels-only dataset items fail closed. They can be synced as Langfuse dataset
 truth, then materialized by a dataset run or linked trace / observation before
 `ragas-score-dataset` is invoked.
@@ -105,7 +105,7 @@ truth, then materialized by a dataset run or linked trace / observation before
 The registry is:
 
 ```text
-packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json
+packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json
 ```
 
 It currently contains active `ragas.*` score configs:
@@ -122,7 +122,7 @@ Dry-run:
 
 ```bash
 pnpm --dir packages/eval-langfuse langfuse sync-score-configs \
-  --registry packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json \
+  --registry packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json \
   --dry-run --json
 ```
 
@@ -130,7 +130,7 @@ Remove `--dry-run` to create missing Langfuse score configs.
 
 ## Dataset Manifest And Sync
 
-Build a manifest from active repo RAG fixtures:
+Build a manifest from active repo RAG eval assets:
 
 ```bash
 pnpm --dir packages/eval-langfuse langfuse \
@@ -141,8 +141,8 @@ pnpm --dir packages/eval-langfuse langfuse \
 
 The builder includes:
 
-- qrels and golden qrels fixtures as `rag_qrels`
-- answer-quality fixtures as `answer_quality`
+- qrels and golden qrels assets as `rag_qrels`
+- answer-quality assets as `answer_quality`
 
 `rag_qrels` dataset items carry query identity and `reference_context_ids`.
 They deliberately do not invent `answer` or `retrieved_contexts`.
@@ -155,7 +155,7 @@ pnpm --dir packages/eval-langfuse langfuse \
   --json
 ```
 
-Dataset manifests should point at repo fixtures that can become Langfuse
+Dataset manifests should point at repo eval assets that can become Langfuse
 dataset items. Current accepted kinds are RAG / answer-quality / agent dataset
 shapes handled by `packages/eval-langfuse/src/platform.ts`; the retired
 `online_answer_path` profile shape is not accepted.

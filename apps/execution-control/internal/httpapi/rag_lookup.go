@@ -698,29 +698,6 @@ func retrievalAccessFromRAGPlan(plan ragruntime.PlanProjection) retrievalruntime
 	}
 }
 
-func firstNonEmptyText(values ...any) string {
-	for _, value := range values {
-		text := strings.TrimSpace(optionalStringFromAny(value))
-		if text != "" {
-			return text
-		}
-	}
-	return ""
-}
-
-func optionalStringFromAny(value any) string {
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case fmt.Stringer:
-		return typed.String()
-	case nil:
-		return ""
-	default:
-		return fmt.Sprint(typed)
-	}
-}
-
 func optionalBoolFromAny(values ...any) bool {
 	for _, value := range values {
 		switch typed := value.(type) {

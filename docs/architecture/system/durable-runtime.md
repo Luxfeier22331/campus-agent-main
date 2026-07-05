@@ -153,6 +153,10 @@ canceled / expired`
   failure summary。
 - run state 必须可以被查询、取消、审计和投影。
 - run state 不得只存在于 HTTP handler、goroutine、SSE connection 或 worker process 内存。
+- `WorkflowRun` 只允许作为 workflow trace / finalizer projection DTO，表达 single-step
+  或 multi-step agent/tool graph。它不拥有独立 Postgres store；旧
+  `runtime.workflow_runs` store 与 `EXECUTION_CONTROL_WORKFLOW_RUN_*` env 已退役。
+  online serving 的持久化只使用 run projection store 与 Temporal workflow history。
 
 ### Run Event
 

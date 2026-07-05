@@ -14,10 +14,6 @@ execution_control_staging_requires_local_postgres_dependency() {
   [[ "${EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES:-false}" == "true" ]]
 }
 
-execution_control_staging_requires_local_minio_dependency() {
-  [[ "${EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_MINIO:-false}" == "true" ]]
-}
-
 execution_control_staging_requires_local_qdrant_dependency() {
   [[ "${EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_QDRANT:-false}" == "true" ]]
 }
@@ -53,20 +49,6 @@ execution_control_staging_postgres_compose() {
   )
 }
 
-execution_control_staging_minio_compose() {
-  local docker_bin
-  docker_bin="$(execution_control_staging_require_command docker)"
-
-  (
-    cd "${execution_control_staging_repo_root}" || exit
-    COMPOSE_PROJECT_NAME="${execution_control_staging_minio_compose_project_name}" \
-    CAMPUS_AGENT_DATA_PLANE_NETWORK="${execution_control_staging_data_plane_network}" \
-    OBJECT_STORE_ACCESS_KEY="${EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY:?EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY is required}" \
-    OBJECT_STORE_SECRET_KEY="${EXECUTION_CONTROL_STAGING_LOCAL_MINIO_SECRET_KEY:?EXECUTION_CONTROL_STAGING_LOCAL_MINIO_SECRET_KEY is required}" \
-    "${docker_bin}" compose -f "${execution_control_staging_minio_compose_file}" "$@"
-  )
-}
-
 execution_control_staging_qdrant_compose() {
   local docker_bin
   local qdrant_tls_dir
@@ -87,32 +69,10 @@ execution_control_staging_qdrant_compose() {
   )
 }
 
-execution_control_staging_ensure_local_minio_volume() {
-  local docker_bin
-  docker_bin="$(execution_control_staging_require_command docker)"
-  "${docker_bin}" volume create local_minio-data >/dev/null
-}
-
-execution_control_staging_ensure_local_minio_bucket() {
-  execution_control_staging_wait_for_http_ok "http://127.0.0.1:9000/minio/health/ready" 45 2
-  execution_control_staging_uv_run --all-packages python - <<'PY'
-from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
-from campus_ingestion_core.settings import ObjectStoreSettings
-
-settings = ObjectStoreSettings.from_env()
-S3ObjectStoreAdmin(settings).ensure_bucket(bucket=settings.bucket_derived)
-PY
-}
-
 execution_control_staging_ensure_self_hosted_data_plane_dependencies() {
   execution_control_staging_ensure_data_plane_network
   if execution_control_staging_requires_local_postgres_dependency; then
     execution_control_staging_postgres_compose up -d postgres
-  fi
-  if execution_control_staging_requires_local_minio_dependency; then
-    execution_control_staging_ensure_local_minio_volume
-    execution_control_staging_minio_compose up -d
-    execution_control_staging_ensure_local_minio_bucket
   fi
   if execution_control_staging_requires_local_qdrant_dependency; then
     execution_control_staging_qdrant_compose up -d

@@ -18,7 +18,6 @@ from scripts.execution_control_process_smoke_profiles import (
     profile_requires_notice_read_model,
     profile_requires_temporary_postgres,
     profile_requires_tool_read_model_projection,
-    profile_requires_workflow_run_store,
 )
 
 
@@ -93,15 +92,6 @@ def _prepare_process_smoke_runtime(
                 "schema": "runtime.agent_runs",
             }
         )
-        if profile_requires_workflow_run_store(plan.profile):
-            env_overlay["EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL"] = runtime_database_url
-            env_overlay["EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE"] = "true"
-            artifacts.append(
-                {
-                    "kind": "temporary_postgres_workflow_run_store",
-                    "schema": "runtime.workflow_runs",
-                }
-            )
     except Exception:
         cleanup()
         raise

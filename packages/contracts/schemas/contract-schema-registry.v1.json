@@ -96,6 +96,14 @@
 			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
 		},
 		{
+			"id": "public-web-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/public-web-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Canonical JSON Schema for the public_web_search typed tool payload/result packets."
+		},
+		{
 			"id": "runtime-tools.v4",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/runtime-tools.v4.schema.json",

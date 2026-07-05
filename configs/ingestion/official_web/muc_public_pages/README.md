@@ -1,6 +1,6 @@
 # muc_public_pages collection config
 
-This directory holds the repo-tracked runtime profile and retrieval fixture
+This directory holds the repo-tracked runtime profile and retrieval validation
 manifest for the `muc_public_pages` collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under

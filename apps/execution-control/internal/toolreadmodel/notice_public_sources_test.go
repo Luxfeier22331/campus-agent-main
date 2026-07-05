@@ -2,17 +2,8 @@ package toolreadmodel
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 )
-
-func TestReadNoticeBodyLimitedRejectsOversizedBody(t *testing.T) {
-	_, err := readNoticeBodyLimited(strings.NewReader("0123456789abcdef"), 8)
-	if !errors.Is(err, errNoticeBodyTooLarge) {
-		t.Fatalf("err = %v, want errNoticeBodyTooLarge", err)
-	}
-}
 
 func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
@@ -20,7 +11,6 @@ func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
 	})
 
@@ -277,23 +267,15 @@ func TestLookupCampusNoticeGetNotFoundKeepsDefaultDisplayPolicy(t *testing.T) {
 	}
 }
 
-func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
+func TestNewRuntimeConfiguresNoticeReadModelFromOptions(t *testing.T) {
 	runtime := NewRuntime(Options{
-		NoticeReadModelDatabaseURL:     "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:           "ingestion_projection.internal_notice_read_model",
-		NoticeBodyObjectStoreEndpoint:  "http://minio:9000",
-		NoticeBodyObjectStoreAccessKey: "access",
-		NoticeBodyObjectStoreSecretKey: "secret",
-		NoticeBodyObjectStoreRegion:    "us-east-1",
-		NoticeBodyObjectStoreBucket:    "notice-body",
+		NoticeReadModelDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
+		NoticeReadModelTable:       "ingestion_projection.internal_notice_read_model",
 	})
 
 	status := runtime.Status(context.Background())
 	if !status.NoticeReadModelConfigured {
 		t.Fatal("notice read model should be configured")
-	}
-	if !status.NoticeBodyStoreConfigured {
-		t.Fatal("notice body store should be configured")
 	}
 }
 

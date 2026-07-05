@@ -222,6 +222,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL"],
             "http://execution-control:8000",
         )
+        self.assertEqual(projected["AGENT_RUNTIME_HOST"], "0.0.0.0")
         self.assertEqual(
             projected["AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET"],
             "query-secret",
@@ -243,6 +244,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertEqual(projected["QDRANT_API_KEY"], "qdrant-key")
         self.assertEqual(projected["QDRANT_READ_ONLY_API_KEY"], "qdrant-readonly-key")
         self.assertEqual(projected["QDRANT_QUERY_API_KEY"], "qdrant-readonly-key")
+        self.assertEqual(projected["QDRANT_TIMEOUT_SECONDS"], "60")
         self.assertEqual(
             projected["QDRANT_TLS_DIR"],
             "/srv/docker/campus-agent/staging/qdrant/tls",
@@ -279,6 +281,8 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
         )
+        self.assertEqual(projected["EXECUTION_CONTROL_RUNTIME_PROFILE"], "staging")
+        self.assertEqual(projected["EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE"], "false")
         self.assertTrue(projected["EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"])
         self.assertEqual(
             projected["EXECUTION_CONTROL_COMPOSE_PROJECT_NAME"],
@@ -449,6 +453,17 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertRegex(projected["first"]["apiSecret"], r"^[A-Za-z0-9_-]{32,}$")
         self.assertRegex(projected["first"]["ownerSalt"], r"^[A-Za-z0-9_-]{32,}$")
         self.assertRegex(projected["first"]["postgresPassword"], r"^[A-Za-z0-9_-]{32,}$")
+        self.assertEqual(
+            projected["first"]["apiDatabaseUrl"],
+            (
+                "postgresql://hindsight:"
+                f"{projected['first']['postgresPassword']}@hindsight-postgres:5432/hindsight"
+            ),
+        )
+        self.assertEqual(
+            projected["first"]["apiTenantApiKey"],
+            projected["first"]["apiSecret"],
+        )
         self.assertEqual(projected["first"], projected["second"])
 
     def test_env_loader_projects_self_hosted_runtime_defaults_without_manual_internal_env(
@@ -470,7 +485,6 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "qdrantAdminKey",
             "qdrantReadOnlyKey",
             "temporalPostgresPassword",
-            "workflowIDSalt",
             "internalQuerySecret",
             "metricsToken",
         ):
@@ -602,15 +616,14 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             script.index('"${script_dir}/status-execution-control-staging.sh" --check'),
         )
 
-    def test_local_minio_bucket_probe_python_heredoc_starts_at_column_zero(self) -> None:
+    def test_execution_control_staging_data_plane_does_not_manage_minio(self) -> None:
         script = (STAGING_DIR / "execution-control-staging-data-plane.sh").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn(
-            "<<'PY'\nfrom campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin",
-            script,
-        )
+        self.assertNotIn("execution_control_staging_minio_compose", script)
+        self.assertNotIn("execution_control_staging_ensure_local_minio_bucket", script)
+        self.assertNotIn("campus_ingestion_core.object_store_admin", script)
 
     def test_personal_memory_probe_receives_runtime_release(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(

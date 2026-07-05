@@ -72,7 +72,7 @@ const profile = payload.profiles?.[profileName];
 if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
   throw new Error(`unsupported K8s env render profile ${profileName}`);
 }
-const secretLike = /(SECRET|PASSWORD|API_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN)/;
+const secretLike = /(SECRET|PASSWORD|API_KEY|ACCESS_KEY|PRIVATE_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN|TOKEN|SALT)/;
 const seen = new Map();
 for (const [name, keys] of Object.entries(payload.configmaps ?? {})) {
   for (const key of keys) {
@@ -92,6 +92,7 @@ for (const [name, keys] of Object.entries(payload.secrets ?? {})) {
     if (previous) {
       throw new Error(`${key} appears in both ${previous} and Secret ${name}.`);
     }
+    seen.set(key, `Secret ${name}`);
   }
 }
 for (const section of ["configmaps", "secrets", "files"]) {
@@ -99,6 +100,15 @@ for (const section of ["configmaps", "secrets", "files"]) {
   for (const name of profile[section] ?? []) {
     if (!Object.hasOwn(names, name)) {
       throw new Error(`profile ${profileName} references undefined ${section}.${name}`);
+    }
+  }
+  const referenced = new Set(
+    Object.values(payload.profiles ?? {})
+      .flatMap((candidateProfile) => Array.isArray(candidateProfile?.[section]) ? candidateProfile[section] : [])
+  );
+  for (const name of Object.keys(names)) {
+    if (!referenced.has(name)) {
+      throw new Error(`${section}.${name} is not referenced by any profile`);
     }
   }
 }
@@ -164,9 +174,7 @@ execution_runtime_k8s_create_env_resources() {
     mapfile -t keys < <(execution_runtime_k8s_boundary_keys "${section}" "${name}")
     output_file="${temp_dir}/${name}.env"
     execution_runtime_k8s_write_env_file "${output_file}" "${keys[@]}"
-    if [[ "${kind}" == "secret" ]]; then
-      execution_runtime_k8s_require_env_keys "${name}" "${keys[@]}"
-    fi
+    execution_runtime_k8s_require_env_keys "${name}" "${keys[@]}"
     if (( first != 1 )); then
       printf '%s\n' "---"
     fi
@@ -232,17 +240,48 @@ execution_runtime_k8s_require_env_keys() {
     fi
   done
   if (( ${#missing[@]} > 0 )); then
-    printf '%s requires missing secret env keys: %s\n' \
+    printf '%s requires missing env keys: %s\n' \
       "${resource_name}" \
       "${missing[*]}" >&2
     exit 1
   fi
 }
 
+execution_runtime_k8s_assert_open_tool_profile_support() {
+  if [[ "${EXECUTION_CONTROL_STAGING_TOOL_READ_MODEL_RUNTIME_REQUIRED:-false}" != "true" ]]; then
+    return 0
+  fi
+
+  node - "${boundary_path}" "${render_profile}" <<'NODE'
+const fs = require("node:fs");
+const [boundaryPath, profileName] = process.argv.slice(2);
+const payload = JSON.parse(fs.readFileSync(boundaryPath, "utf8"));
+const profile = payload.profiles?.[profileName];
+if (!profile) {
+  throw new Error(`unsupported K8s env render profile ${profileName}`);
+}
+const profileKeys = new Set();
+for (const section of ["configmaps", "secrets"]) {
+  for (const name of profile[section] ?? []) {
+    for (const key of payload[section]?.[name] ?? []) {
+      profileKeys.add(key);
+    }
+  }
+}
+const missing = [];
+if (!profileKeys.has("CAMPUS_SHARED_POSTGRES_URL")) {
+  missing.push("CAMPUS_SHARED_POSTGRES_URL");
+}
+if (missing.length > 0) {
+  throw new Error(
+    `K8s env profile ${profileName} cannot render typed tool read-model runtime; missing profile-owned delivery keys: ${missing.join(", ")}. Keep typed read-model tools closed or add a role-scoped tool read-model resource.`,
+  );
+}
+NODE
+}
+
 execution_runtime_k8s_project_postgres_url "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL" "campus-agent-postgres"
-execution_runtime_k8s_project_postgres_url "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL" "campus-agent-postgres"
 execution_runtime_k8s_project_postgres_url "CAMPUS_SHARED_POSTGRES_URL" "campus-agent-postgres"
-execution_runtime_k8s_project_postgres_url "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL" "campus-agent-postgres"
 execution_runtime_k8s_project_postgres_url "HINDSIGHT_API_DATABASE_URL" "hindsight-postgres"
 
 provider_projection_path="${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:-${provider_projection_path}}"
@@ -260,6 +299,7 @@ fi
 temp_dir="$(mktemp -d)"
 
 execution_runtime_k8s_assert_env_contract
+execution_runtime_k8s_assert_open_tool_profile_support
 
 execution_runtime_k8s_create_env_resources "configmaps" "configmap"
 printf '%s\n' "---"

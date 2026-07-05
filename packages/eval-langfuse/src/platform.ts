@@ -18,11 +18,11 @@ import {
 
 export function buildLangfuseDatasetItems(input: {
 	dataset: JsonObject;
-	fixtureHash: string;
-	fixturePath: string;
+	assetHash: string;
+	assetPath: string;
 	sourceGitHead: string;
 }): JsonObject[] {
-	const payload = loadJsonObject(input.fixturePath);
+	const payload = loadJsonObject(input.assetPath);
 	const cases = Array.isArray(payload.cases)
 		? mappingList(payload.cases, "cases")
 		: mappingList(payload.items, "items");
@@ -31,8 +31,8 @@ export function buildLangfuseDatasetItems(input: {
 			caseItem: item,
 			dataset: input.dataset,
 			expectedOutput: expectedPayload(input.dataset, item),
-			fixtureHash: input.fixtureHash,
-			fixturePath: input.fixturePath,
+			assetHash: input.assetHash,
+			assetPath: input.assetPath,
 			inputPayload: inputPayload(input.dataset, item),
 			sourceGitHead: input.sourceGitHead,
 		}),
@@ -79,7 +79,7 @@ export async function syncLangfuseDatasets(input: {
 	settings: LangfuseSettings;
 }): Promise<JsonObject> {
 	const manifest = loadJsonObject(input.manifestPath);
-	requireEqual(manifest.schema_version, "langfuse_dataset_manifest.v1", "schema_version");
+	requireEqual(manifest.schema_version, "langfuse_dataset_manifest.v2", "schema_version");
 	const sourceGitHead = stringField(manifest.source_git_head, "source_git_head");
 	const langfuse = createLangfuseEvalClient({
 		fetchImpl: input.fetchImpl,
@@ -169,8 +169,8 @@ function datasetItem(input: {
 	caseItem: JsonObject;
 	dataset: JsonObject;
 	expectedOutput: JsonObject;
-	fixtureHash: string;
-	fixturePath: string;
+	assetHash: string;
+	assetPath: string;
 	inputPayload: JsonObject;
 	sourceGitHead: string;
 }): JsonObject {
@@ -184,9 +184,9 @@ function datasetItem(input: {
 		metadata: {
 			case_id: caseId,
 			dataset_slug: slugValue,
-			fixture_hash: input.fixtureHash,
-			schema_version: "langfuse_dataset_manifest.v1",
-			source_fixture_path: input.fixturePath,
+			asset_hash: input.assetHash,
+			schema_version: "langfuse_dataset_manifest.v2",
+			source_asset_path: input.assetPath,
 			source_git_head: input.sourceGitHead,
 			surface_key: stringField(input.dataset.surface_key, "surface_key"),
 		},
@@ -203,15 +203,15 @@ async function syncOneDataset(input: {
 	sourceGitHead: string;
 }): Promise<JsonObject> {
 	const name = stringField(input.dataset.name, "datasets[].name");
-	const rawFixturePath = stringField(input.dataset.fixture_path, "fixture_path");
-	const fixturePath = rawFixturePath.startsWith("/")
-		? rawFixturePath
-		: resolve(input.manifestPath, "..", rawFixturePath);
-	const fixtureHash = sha256Bytes(readFileSync(fixturePath));
+	const rawAssetPath = stringField(input.dataset.asset_path, "asset_path");
+	const assetPath = rawAssetPath.startsWith("/")
+		? rawAssetPath
+		: resolve(input.manifestPath, "..", rawAssetPath);
+	const assetHash = sha256Bytes(readFileSync(assetPath));
 	const desired = buildLangfuseDatasetItems({
 		dataset: input.dataset,
-		fixtureHash,
-		fixturePath,
+		assetHash,
+		assetPath,
 		sourceGitHead: input.sourceGitHead,
 	});
 	if (!(input.dryRun || input.existingNames.has(name))) {
@@ -226,8 +226,8 @@ async function syncOneDataset(input: {
 		created: input.dryRun ? 0 : desired.length,
 		desired_items: desired,
 		dry_run: input.dryRun,
-		fixture_hash: fixtureHash,
-		fixture_path: fixturePath,
+		asset_hash: assetHash,
+		asset_path: assetPath,
 		name,
 		planned_create: input.dryRun ? desired.length : 0,
 	};

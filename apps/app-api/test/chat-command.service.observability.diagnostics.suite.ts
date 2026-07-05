@@ -67,8 +67,6 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 						resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
 						resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
 						retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
-						rewrittenQuery:
-							"示例大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
 						scopeClass: null,
 						semanticOutcome: null,
 					},
@@ -82,8 +80,6 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 					resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
 					resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
 					retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
-					rewrittenQuery:
-						"示例大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
 					scopeClass: null,
 					semanticOutcome: null,
 				},

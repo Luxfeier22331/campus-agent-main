@@ -141,7 +141,6 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
 	})
 
@@ -407,7 +406,6 @@ func TestLookupCampusNoticeDiscoverFailsClosedWhenRestrictedRowLacksAuthzProject
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
 	})
 
@@ -458,7 +456,6 @@ func TestLookupCampusNoticeDiscoverFailsClosedWhenMinimumCardFieldsAreMissing(t 
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
 	})
 
@@ -504,14 +501,8 @@ func TestLookupCampusNoticeGetFailsClosedForRestrictedRowWithoutEntitlementOverl
 			PolicyProjectionVersion:    "phase1-authorization-projection-v1",
 		},
 	}
-	bodyStore := &fakeNoticeBodyStore{
-		bodies: map[string]string{
-			"campus_notices/documents/internal_notice/355222/canonical.md": "# 采购公告\n\n供应商应按要求投标。",
-		},
-	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      bodyStore,
 	})
 
 	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
@@ -541,9 +532,6 @@ func TestLookupCampusNoticeGetFailsClosedForRestrictedRowWithoutEntitlementOverl
 	if result.FailCloseReason != "source_truth_unavailable" {
 		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
 	}
-	if bodyStore.readCount != 0 {
-		t.Fatalf("body read count = %d, want 0", bodyStore.readCount)
-	}
 }
 
 func TestLookupCampusNoticeDiscoverFiltersByTargetSurface(t *testing.T) {
@@ -565,7 +553,6 @@ func TestLookupCampusNoticeDiscoverFiltersByTargetSurface(t *testing.T) {
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
 	})
 
@@ -613,7 +600,6 @@ func TestLookupCampusNoticeDiscoverClampsMaxResults(t *testing.T) {
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
 	})
 
 	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
@@ -663,14 +649,8 @@ func TestLookupCampusNoticeGetReturnsSourceCardWithoutCanonicalBody(t *testing.T
 			ProvenanceRefs:             []string{"notice:example_internal_portal:355222"},
 		},
 	}
-	bodyStore := &fakeNoticeBodyStore{
-		bodies: map[string]string{
-			"campus_notices/documents/internal_notice/355222/canonical.md": "# 采购公告\n\n供应商应按要求投标。",
-		},
-	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore:      bodyStore,
 	})
 
 	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
@@ -720,9 +700,6 @@ func TestLookupCampusNoticeGetReturnsSourceCardWithoutCanonicalBody(t *testing.T
 	if result.PrimaryRole != "notice_window" {
 		t.Fatalf("primary_role = %q", result.PrimaryRole)
 	}
-	if bodyStore.readCount != 0 {
-		t.Fatalf("body read count = %d, want 0 for card-first notice get", bodyStore.readCount)
-	}
 }
 
 func TestLookupCampusNoticeGetFiltersByTargetSurface(t *testing.T) {
@@ -738,11 +715,6 @@ func TestLookupCampusNoticeGetFiltersByTargetSurface(t *testing.T) {
 	}
 	runtime := NewRuntime(Options{
 		NoticeReadModelStore: store,
-		NoticeBodyStore: &fakeNoticeBodyStore{
-			bodies: map[string]string{
-				"campus_notices/documents/internal_notice/355222/canonical.md": "# 采购公告",
-			},
-		},
 	})
 
 	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{

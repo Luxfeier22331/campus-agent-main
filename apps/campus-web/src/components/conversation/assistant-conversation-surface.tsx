@@ -1,5 +1,7 @@
+import { useAssistantDataUI } from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import { SourceItemsDataPart } from "@/components/conversation/source-items";
 import { cn } from "@/lib/utils";
 
 interface AssistantConversationSurfaceProps {
@@ -14,10 +16,15 @@ export function AssistantConversationSurface({
 			<Thread
 				allowAttachments={false}
 				assistantAvatarFallback="问"
-				components={{ ToolFallback }}
+				components={{ Registrations: ConversationDataRegistrations, ToolFallback }}
 				composerPlaceholder="输入校园问题"
 				welcomeMessage="今天想了解什么校园信息？"
 			/>
 		</section>
 	);
+}
+
+function ConversationDataRegistrations() {
+	useAssistantDataUI({ name: "source_items", render: SourceItemsDataPart });
+	return null;
 }

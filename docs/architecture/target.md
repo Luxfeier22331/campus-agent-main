@@ -700,7 +700,7 @@ external sink / eval platform review`
 - production aggregate、sampled grades、release-gate verdict 与 golden truth 不得混成一张表
 - candidate review 必须记录 accept / reject / duplicate / deprecated / needs-info 等
   lifecycle decision，以及 reviewer、reason、source request 与 target suite
-- accepted case 必须写入 repo-owned case fixture / artifact truth，而不是只留在 panel、
+- accepted case 必须写入 repo-owned case asset / artifact truth，而不是只留在 panel、
   sink dashboard 或临时 JSON
 - release-gate artifact 必须保留 request correlation、runtime versions、case-set version、
   deterministic verdict、supplemental verdict 与 publish summary
@@ -739,7 +739,7 @@ workflow trace correctness 至少需要覆盖：
     sanitized artifact
 
 外部 agent / trace 工具可以降低 trace capture 与 grader adapter 的实现成本，但不能成为
-`workflow_trace` 的 canonical truth；repo-owned case fixture、expected truth、artifact
+`workflow_trace` 的 canonical truth；repo-owned case assets、expected truth、artifact
 projection 与 release verdict 仍由 repo-owned eval truth 拥有，目标 runner / publish
 automation 由 TS/Langfuse lane 承接。
 

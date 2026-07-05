@@ -37,6 +37,11 @@ func setStagingPersonalMemoryEnv(t *testing.T) {
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "staging-memory-salt")
 }
 
+func setStagingTemporalWorkflowIDSalt(t *testing.T) {
+	t.Helper()
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "staging-workflow-id-salt")
+}
+
 func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
@@ -65,17 +70,10 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", "")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("EXECUTION_PROMPT_MODEL", "")
@@ -160,12 +158,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.MultiStepWorkflowEnabled {
 		t.Fatal("multi-step workflow must be disabled by default")
 	}
-	if cfg.WorkflowRunDatabaseURL != "" {
-		t.Fatalf("workflow run database url = %q, want empty", cfg.WorkflowRunDatabaseURL)
-	}
-	if cfg.WorkflowRunAutoMigrate {
-		t.Fatal("workflow run auto migrate must be disabled by default")
-	}
 	if cfg.RunProjectionDatabaseURL != "" {
 		t.Fatalf("run projection database url = %q, want empty", cfg.RunProjectionDatabaseURL)
 	}
@@ -176,15 +168,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.TemporalNamespace != "" ||
 		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
 		cfg.TemporalWorkerIdentity != "" ||
-		cfg.TemporalWorkflowIDSalt != "" ||
 		cfg.TemporalStartTimeoutMS != 5000 {
 		t.Fatalf("unexpected temporal defaults: %#v", cfg)
-	}
-	if cfg.NoticeBodyObjectStoreBucket != "" {
-		t.Fatalf("notice body object store bucket = %q, want empty", cfg.NoticeBodyObjectStoreBucket)
-	}
-	if cfg.NoticeBodyObjectStoreBodyLimitBytes != 1_048_576 {
-		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
 	if cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryBaseURL != "" ||
@@ -220,10 +205,11 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "salt")
+	setStagingTemporalWorkflowIDSalt(t)
 
 	if _, err := LoadFromEnv(); err == nil {
 		t.Fatal("LoadFromEnv returned nil error, want missing Temporal address failure")
@@ -233,12 +219,13 @@ func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
 func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE", "campus-agent.workflow")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "7000")
+	setStagingTemporalWorkflowIDSalt(t)
 	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
@@ -249,7 +236,6 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 		cfg.TemporalNamespace != "campus-agent-staging" ||
 		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
 		cfg.TemporalWorkerIdentity != "staging:gateway:001" ||
-		cfg.TemporalWorkflowIDSalt != "workflow-salt" ||
 		cfg.TemporalStartTimeoutMS != 7000 {
 		t.Fatalf("unexpected Temporal settings: %#v", cfg)
 	}
@@ -258,10 +244,11 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingTemporalWorkflowIDSalt(t)
 
 	if _, err := LoadFromEnv(); err == nil {
 		t.Fatal("expected deployed personal memory settings to be required")
@@ -271,10 +258,13 @@ func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
+	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
+	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingTemporalWorkflowIDSalt(t)
 
 	if _, err := LoadFromEnvForRole("workflow"); err != nil {
 		t.Fatalf("workflow worker must not require personal memory config: %v", err)
@@ -356,9 +346,6 @@ func TestLoadFromEnvReadsRunProjectionDatabaseSettingsExplicitly(t *testing.T) {
 	}
 	if !cfg.RunProjectionAutoMigrate {
 		t.Fatal("run projection auto migrate = false, want true")
-	}
-	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/campus_agent" {
-		t.Fatalf("workflow run database url = %q, want shared postgres normalized", cfg.WorkflowRunDatabaseURL)
 	}
 }
 
@@ -454,15 +441,30 @@ func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvForRoleDoesNotRequireServerMetricsToken(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@worker-test")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
+	setStagingTemporalWorkflowIDSalt(t)
+
+	if _, err := LoadFromEnvForRole("workflow"); err != nil {
+		t.Fatalf("workflow worker must not require HTTP metrics token: %v", err)
+	}
+}
+
 func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@staging-test")
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingTemporalWorkflowIDSalt(t)
 	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
@@ -493,7 +495,6 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 
 func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "   ")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -501,9 +502,6 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	}
 	if cfg.AuthMode != "bearer" {
 		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
-	}
-	if cfg.NoticeBodyObjectStoreRegion != "us-east-1" {
-		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeBodyObjectStoreRegion)
 	}
 }
 
@@ -540,9 +538,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 }`)
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "4096")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -574,10 +569,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		len(cfg.OpenTools) != 2 ||
 		cfg.OpenTools[0] != "transport_schedule_lookup" ||
 		cfg.OpenTools[1] != "campus_notice_discover" ||
-		!cfg.MultiStepWorkflowEnabled ||
-		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
-		!cfg.WorkflowRunAutoMigrate ||
-		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
+		!cfg.MultiStepWorkflowEnabled {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }
@@ -658,7 +650,7 @@ func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" || cfg.ProviderConfigSnapshotPath != "" {
+	if cfg.ProviderConfigSnapshotPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from LLM_*: %#v", cfg)
 	}
 }
@@ -671,7 +663,7 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" || cfg.ProviderConfigSnapshotPath != "" {
+	if cfg.ProviderConfigSnapshotPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from agent runtime provider: %#v", cfg)
 	}
 }

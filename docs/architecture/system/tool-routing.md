@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-04-23
-updated: 2026-06-27
+updated: 2026-07-03
 ---
 # Tool Routing And Admission Architecture
 
@@ -115,6 +115,10 @@ Guardrails:
   admission, runtime profile opening and the repo tool registry.
 - Routing decisions must be projected into operator/eval-safe facts; a hidden
   prompt-only route is not sufficient for durable execution.
+- Tool-use observation and eval consume the sanitized `tool_trajectory.v1`
+  contract in `../../contracts/tool-trajectory.md`; SDK trace payloads,
+  provider responses and Langfuse observations do not define the tool trajectory
+  contract.
 
 ## Layered Execution Shape
 
@@ -233,6 +237,12 @@ session / actor / surface context、repo-global invariants、allowed tool set
   projection，避免 tool 可调用性只停留在 SDK trace 或 finalization payload。
   这些工具的 payload/result contract 以已登记 JSON Schema `$defs` 为准；
   Python dataclass、Zod parser 或 Go struct 只属于本地解析 / helper 层。
+
+Tool selection must also be reconstructable as `tool_trajectory.v1`: available
+tools, decision kind, selected tool, argument shape/hash, result kind,
+fail-close reason and safe provider/source summaries. A model-selected tool
+that is only visible inside prompt logs, SDK internal trace, provider response
+or final answer prose is not accepted as a durable tool-routing fact.
 
 OpenAI 官方 Responses / tools 文档给出的成熟 agent 形态是：通过系统级
 instructions 约束模型，并把工具以结构化 `tools` 配置暴露给模型，由模型基于

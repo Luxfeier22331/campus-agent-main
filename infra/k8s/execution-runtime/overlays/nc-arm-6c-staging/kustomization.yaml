@@ -13,10 +13,7 @@ images:
 patches:
   - path: patch-delete-stateful.yaml
   - path: patch-external-services.yaml
-  - path: patch-nc-arm-6c-config.yaml
   - path: patch-runtime-resources.yaml
-  - path: patch-provider-config-mounts.yaml
   - path: patch-execution-control-hostport.yaml
   - path: patch-worker-identities.yaml
-  - path: patch-endpoint-env.yaml
   - path: patch-network-policy.yaml

@@ -103,24 +103,24 @@ schedule tool/status surface.
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
 
-### Retrieval Qrels Fixture
+### Retrieval Qrels Asset
 
 定义：
 
 - deterministic retrieval truth denominator lives in
-  `packages/eval-langfuse/fixtures/rag/<surface>/` qrels files. The old
+  `packages/eval-langfuse/assets/qrels/rag/<surface>/` qrels files. The old
   `packages/evals/fixtures/registry.v1.json` registry has been retired.
 
 说明：
 
-- qrels fixture 以 `case_id`、query、scope、expected / forbidden source refs、authz /
+- qrels asset 以 `case_id`、query、scope、expected / forbidden source refs、authz /
   version request overrides 表达 retrieval gate truth
-- 当前默认 query-enabled scope 必须都有 qrels fixture：
+- 当前默认 query-enabled scope 必须都有 qrels asset：
   - `regulations/student_rules`
   - `regulations/institutional_rules`
   - `curriculum/curriculum_plan`
   - `official_web/stable_reference`
-- qrels fixture 不等于 source truth、registry truth 或 release manifest；它是 eval / release
+- qrels asset 不等于 source truth、registry truth 或 release manifest；它是 eval / release
   gate 的 denominator
 
 ### Retrieval Eval Manifest
@@ -147,7 +147,7 @@ schedule tool/status surface.
 
 说明：
 
-- 输入是 qrels fixture 与一个或多个 candidate run-results
+- 输入是 qrels asset 与一个或多个 candidate run-results
 - candidate profile 可覆盖 dense / sparse prefetch、RRF 参数与 no-hit threshold
 - 输出包含 positive hit / recall / MRR、forbidden hit rate、no-hit success、version-locked
   recall 与 `recommended_profile_patch`

@@ -241,6 +241,47 @@ pnpm --dir apps/app-api hindsight:memory:e2e:staging
 - 不保存 raw transcript、provider raw response、Hindsight raw payload 或 API key
 - 不用 `not_collected`、离线 fixture 或退休 Python eval gate 冒充 live smoke
 
+公开官网搜索 typed tool 的 readiness smoke 通过 staging smoke runner 直连
+execution-control internal query endpoint：
+
+```bash
+(
+  cd apps/app-api &&
+  node ./scripts/run-with-staging-smoke-env.mjs \
+    pnpm exec tsx ./scripts/public-web-search-smoke-staging.ts
+)
+```
+
+这条命令只证明 `public_web_search` provider profile、machine ingress、
+`x-execution-query-auth` 与 sanitized source projection 可用。通过标准是
+`passed=true`，每个 sample 都返回 `resultKind=public_web_evidence`，且所有
+source URL 都是 HTTPS `muc.edu.cn` 或其公开子域，不包含 `my.muc.edu.cn`、
+显式端口、外部域名、raw provider response、raw HTML 或 source body。它不是
+RAGAS 评分，也不替代主链路 chat smoke。
+
+公开官网搜索 agent eval 必须走 app-api chat stream，而不是直连 tool endpoint：
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse run-public-web-search-agent-eval \
+  --app-api-base-url https://campus-staging.mucwiki-edge.link \
+  --provider perplexity_compatible \
+  --provider-profile-id provider_profile_public_web_search \
+  --provider-model sonar-compatible \
+  --staging-smoke-auth-secret "$APP_API_STAGING_SMOKE_AUTH_SECRET"
+```
+
+provider bakeoff 每次只评估一个已配置的 `public_web_search` active profile；
+`--provider` 只能是 `perplexity`、`perplexity_compatible`、`openai`、`gemini`
+或 `linux_do`。Linux.do 搜索 profile 必须是
+`transport=openai_chat_completions_web_search`，不要复用 prompt
+`chat_completions` profile。输出必须记录 provider、transport、model、profile
+id、latency、provider error count 与 source-policy scores。没有已接受单价时，
+成本字段保持 `cost_projection_status=unavailable`，不得写成 0。
+
+默认是 dry-run，只输出确定性 score artifact。需要写入 Langfuse 时显式加
+`--publish-scores`，并确保 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、
+`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_ENVIRONMENT` 已配置。
+
 ## Step 5. 记录链路 closeout artifact
 
 至少记录：
@@ -248,6 +289,10 @@ pnpm --dir apps/app-api hindsight:memory:e2e:staging
 - `infra/local/staging/status-execution-control-staging.sh --check`
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
+- `pnpm --dir apps/app-api public-web-search:smoke:staging` 的 JSON 摘要（仅当本轮改动触及
+  `public_web_search` tool/provider/config）
+- `pnpm --dir packages/eval-langfuse langfuse run-public-web-search-agent-eval ...`
+  的 JSON 摘要（仅当本轮改动触及 public web search agent/tool routing/source projection）
 - 当前 app-api Worker 配置的
   `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link`
   与 Access service-token secret presence

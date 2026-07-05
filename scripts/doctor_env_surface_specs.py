@@ -154,7 +154,6 @@ SURFACE_SPECS = {
             "temporal_knowledge_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
             ),
-            "temporal_workflow_id_salt": ("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",),
             "temporal_start_timeout_ms": ("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",),
         },
         "optional_settings": {
@@ -169,16 +168,6 @@ SURFACE_SPECS = {
             "internal_query_shared_secret": ("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
             "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
-            "notice_object_store_endpoint": (
-                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
-            ),
-            "notice_object_store_access_key": (
-                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
-            ),
-            "notice_object_store_secret_key": (
-                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
-            ),
-            "notice_object_store_bucket": ("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",),
         },
         "files": {},
     },

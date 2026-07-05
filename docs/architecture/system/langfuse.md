@@ -22,7 +22,7 @@ Collector -> Langfuse`
 
 The target eval platform chain is:
 
-`Langfuse traces / datasets + repo fixture / qrels / review policy -> safe eval
+`Langfuse traces / datasets + repo assets / qrels / review policy -> safe eval
 projection -> Ragas / TS eval runner -> Langfuse scores / annotation ->
 app-api sanitized projection or backlink`
 
@@ -39,6 +39,10 @@ RAGAS is used as an eval scorer, not as trace truth. The default scorer path
 uses Ragas `metrics.collections` and direct metric `score` / `ascore` execution.
 Deprecated `ragas.evaluate()` usage is limited to explicit tests or staged
 repair callers that inject the deprecated function.
+
+Agent tool-use eval uses the repo-owned `tool_trajectory.v1` contract plus
+deterministic TS scorers. It does not use RAGAS and does not ask Langfuse to
+own routing, tool arguments or source-policy contracts.
 
 ## Runtime Mapping
 
@@ -99,7 +103,12 @@ score analytics help run, compare, review and inspect evals. They do not own the
 repo's eval truth.
 
 - `packages/eval-langfuse` owns TS Langfuse platform sync, safe Ragas
-  projection, score publishing, dataset manifests and annotation automation.
+  projection, tool-trajectory consumption, score publishing, dataset manifests
+  and annotation automation.
+- Agent tool-use eval follows the repo contract shape:
+  `tool_trajectory.v1 -> deterministic TS scorer -> Langfuse agent/tool scores`.
+  It may use Langfuse datasets, runs, scores and annotation queues, but the repo
+  owns case truth, safe projection and score semantics.
 - RAGAS follows the official Langfuse collaboration shape:
   `Langfuse traces / datasets -> Ragas evaluation -> Langfuse scores`.
   `packages/eval-langfuse` owns trace / dataset selection and safe projection.
@@ -109,7 +118,7 @@ repo's eval truth.
   `ragas_score_batch.v1`, and does not own case truth, trace selection,
   orchestration, Langfuse publishing, provider projection or release verdicts.
 - The old `packages/evals` package is retired from active workspace ownership.
-  Langfuse-bound fixtures and qrels live under `packages/eval-langfuse/fixtures`;
+  Langfuse-bound eval assets and qrels live under `packages/eval-langfuse/assets`;
   runtime-local eval truth lives with the owning runtime testdata. Recreating
   `packages/evals` as a fixture, runner or Python package is outside the accepted
   eval architecture.

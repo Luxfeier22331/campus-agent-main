@@ -46,6 +46,12 @@ course-map`、`handbook service navigation` 等离线/领域链路只把必备 c
 base URL、reasoning effort、max output tokens、transport 等 tuning 走代码默认、CLI 参数或领域配置，
 不回流成 root env contract。
 
+provider-config 本地 seed 输入也不放在 root `.env.example`。需要初始化或更新
+app-api provider-config active profiles 时，使用 command-scoped
+[`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)。
+该模板只服务 seed command；online serving 仍消费 app-api provider-config 与显式
+projection artifact。
+
 ### App-local env template
 
 每个 app 在自己的 runtime boundary 下维护自己的模板，不再由 repo root `.env.example` 代管。
@@ -87,6 +93,7 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 ### Command-scoped override
 
 - [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
+- [`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)
 - [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
 
 ## Override Rules
@@ -102,6 +109,8 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   输出或 closeout 脚本派生值，不应作为手工维护的第二份 truth
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
+- K8s / Worker / Docker / app-api provider-config 各自使用成熟组件交付配置；
+  repo 级 policy 只做跨 surface contract 与 static drift check，不承担运行时配置平台职责
 - `OCR_PROVIDER_MODE` 必须显式设置，不依赖 `OCR_BASE_URL` 推断 provider
 - `OCR_MINERU_*` 只表示附加 MinerU lane config，不表示 repo 级“second provider canonical
   truth”

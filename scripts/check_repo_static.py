@@ -35,6 +35,7 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("editorconfig", (py, "-m", "scripts.check_editorconfig_tracked")),
         StaticCheck("env examples", (py, "-m", "scripts.check_env_example_tracked")),
         StaticCheck("env surface policy", (py, "-m", "scripts.check_env_surface_policy")),
+        StaticCheck("worker config surface", (py, "-m", "scripts.check_worker_config_surface")),
         StaticCheck("gitops skeleton", (py, "-m", "scripts.check_gitops_skeleton")),
         StaticCheck(
             "k8s execution runtime slim overlay",
@@ -140,6 +141,15 @@ def affected_repo_static_checks(
                 StaticCheck(
                     "env surface policy", (python, "-m", "scripts.check_env_surface_policy")
                 ),
+            )
+        )
+    if any(
+        path in {"scripts/check_worker_config_surface.py"} or _is_worker_config_surface_path(path)
+        for path in paths
+    ):
+        checks.append(
+            StaticCheck(
+                "worker config surface", (python, "-m", "scripts.check_worker_config_surface")
             )
         )
     if any(
@@ -296,6 +306,14 @@ def _is_editorconfig_path(path: str) -> bool:
 
 def _is_env_path(path: str) -> bool:
     return path.endswith((".env.example", ".local.example", ".dev.vars.example"))
+
+
+def _is_worker_config_surface_path(path: str) -> bool:
+    parts = Path(path).parts
+    if len(parts) != 3 or parts[0] != "apps":
+        return False
+    name = parts[2]
+    return name == ".dev.vars.example" or name.startswith("wrangler") and name.endswith(".toml")
 
 
 def _is_sql_path(path: str) -> bool:

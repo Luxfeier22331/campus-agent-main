@@ -6,19 +6,22 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 import {
-	buildExpectedTableSpecs,
 	inspectSharedDatabase,
 	loadMigrationContext,
 	runSharedDatabaseAdoption,
 } from "./adopt-shared-database.mjs";
 import {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
 	buildSharedDatabaseDriftReconcilePlan,
 	collectExtraTables,
 	formatSharedDatabaseDriftReconcilePlan,
 	quoteIdentifier,
 } from "./reconcile-shared-db-drift-plan.mjs";
 
-export { buildSharedDatabaseDriftReconcilePlan } from "./reconcile-shared-db-drift-plan.mjs";
+export {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	buildSharedDatabaseDriftReconcilePlan,
+} from "./reconcile-shared-db-drift-plan.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = dirname(scriptsDir);
@@ -177,7 +180,10 @@ export async function runSharedDatabaseDriftReconcile({
 	try {
 		const rowCounts = await readExtraTableRowCounts(
 			client,
-			collectExtraTables(inventory, buildExpectedTableSpecs(migrationContext.latestSnapshot)),
+			collectExtraTables(
+				inventory,
+				buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot),
+			),
 		);
 		const plan = buildSharedDatabaseDriftReconcilePlan({
 			extraTableRowCounts: rowCounts,
@@ -224,7 +230,7 @@ export async function runSharedDatabaseDriftReconcile({
 			client,
 			collectExtraTables(
 				reconciledInventory,
-				buildExpectedTableSpecs(migrationContext.latestSnapshot),
+				buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot),
 			),
 		);
 		const reconciledPlan = buildSharedDatabaseDriftReconcilePlan({

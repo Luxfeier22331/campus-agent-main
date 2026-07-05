@@ -92,7 +92,7 @@ func runRuntimeCommand(ctx context.Context, options runtimeOptions) (runtimeRepo
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	cfg, err := config.LoadFromEnvForRole("activity-core")
+	cfg, err := config.LoadFromEnvForRole("personal-memory-runtime")
 	if err != nil {
 		return runtimeReport{}, err
 	}

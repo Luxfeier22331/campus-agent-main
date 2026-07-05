@@ -48,7 +48,6 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001
     EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001
     EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001
-    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
     """
 ).strip()
@@ -136,7 +135,6 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
                     EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001
                     EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001
-                    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
                     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
                     """
                 ).strip(),

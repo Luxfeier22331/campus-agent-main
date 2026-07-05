@@ -1,8 +1,7 @@
-import {
-	APP_API_MIGRATIONS_SCHEMA,
-	APP_API_MIGRATIONS_TABLE,
-	buildExpectedTableSpecs,
-} from "./adopt-shared-database.mjs";
+import { APP_API_MIGRATIONS_SCHEMA, APP_API_MIGRATIONS_TABLE } from "./adopt-shared-database.mjs";
+import { buildCurrentSharedDatabaseExpectedTableSpecs } from "./shared-product-current-schema.mjs";
+
+export { buildCurrentSharedDatabaseExpectedTableSpecs } from "./shared-product-current-schema.mjs";
 
 const RECONCILABLE_EXTRA_TABLES = new Set([
 	"official_web.page_freshness",
@@ -488,7 +487,9 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	inventory,
 	migrationContext,
 }) {
-	const expectedTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
+	const expectedTables = buildCurrentSharedDatabaseExpectedTableSpecs(
+		migrationContext.latestSnapshot,
+	);
 	const legacyColumnResolutions = collectLegacyColumnResolutions(inventory, expectedTables);
 	const legacyIndexResolutions = collectLegacyIndexResolutions(inventory, expectedTables);
 	const resolvedExtraColumnKeys = new Set(

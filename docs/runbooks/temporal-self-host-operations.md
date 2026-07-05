@@ -260,13 +260,29 @@ role-scoped Secrets, `execution-runtime-provider-config-projection`, and
 `execution-runtime-qdrant-tls-ca`. It defaults to
 `EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`, which renders only the six
 execution runtime pods' required Secret set:
-`execution-control-secrets`, `execution-worker-common-secrets`,
-`execution-agent-client-secrets`, `agent-runtime-secrets`,
-`execution-memory-client-secrets`, `execution-rag-secrets`, and
-`execution-control-internal-query-secrets`. The retired monolithic
-`execution-runtime-secrets` Secret must not be recreated. The example files
-under `infra/k8s/execution-runtime/base/` are documentation samples and must
-not be applied as real staging config or credentials.
+`execution-control-secrets`, `execution-control-metrics-secrets`,
+`execution-telemetry-client-secrets`, `execution-run-projection-secrets`,
+`execution-temporal-workflow-secrets`, `execution-agent-client-secrets`, `agent-runtime-secrets`,
+`execution-memory-client-secrets`, `execution-rag-secrets`,
+`execution-tool-read-model-secrets`, and `execution-control-internal-query-secrets`.
+`EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` owns sanitized product/operator
+projection. `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`, when configured, owns
+the trace-observability workflow-run store and must not be treated as the same
+database role. The retired monolithic
+`execution-runtime-secrets` and `execution-worker-common-secrets` Secrets must
+not be recreated. The provider-config
+projection Secret is generated from the synced `provider_config_projection.v1`
+artifact by the renderer; it is not a handwritten example Secret. The example
+files under `infra/k8s/execution-runtime/base/` are documentation samples and
+must not be applied as real staging config or credentials.
+
+Set `EXECUTION_RUNTIME_K8S_ENV_PROFILE=staging-full` only for all-in-K8s proof.
+That profile additionally renders `execution-telemetry-collector-config`,
+`execution-telemetry-collector-secrets`, and
+`execution-app-api-internal-secrets`, `execution-stateful-runtime-secrets` for
+in-cluster OTel collector, app-api internal projection publishers, Hindsight,
+and Temporal stateful components. These resources are intentionally absent from
+the `nc-arm-6c-slim` Docker-stateful deployment shape.
 
 Render and apply:
 

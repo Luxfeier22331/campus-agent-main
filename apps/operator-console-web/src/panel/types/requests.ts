@@ -88,7 +88,6 @@ export interface RequestProjectionDiagnostics {
 	resolvedPolicyDocumentId: string | null;
 	resolvedPolicyTitle: string | null;
 	retrievedTitleSummary: string[];
-	rewrittenQuery: string | null;
 }
 
 export interface RequestProjectionRecord extends RawRequestProjectionRecord {

@@ -23,6 +23,7 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	}
 	wantVisible := []string{
 		"knowledge_query",
+		"public_web_search",
 		"transport_schedule_lookup",
 		"campus_notice_discover",
 	}
@@ -31,6 +32,9 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	}
 	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/campus-services/transport-schedule"); !sameStrings(got, []string{"transport_schedule_lookup"}) {
 		t.Fatalf("transport endpoint tools = %#v, want transport_schedule_lookup", got)
+	}
+	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/public-web/search"); !sameStrings(got, []string{"public_web_search"}) {
+		t.Fatalf("public web endpoint tools = %#v, want public_web_search", got)
 	}
 	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/notices/discover"); !sameStrings(got, []string{"campus_notice_discover"}) {
 		t.Fatalf("discover endpoint tools = %#v, want campus_notice_discover", got)

@@ -19,7 +19,7 @@ ACCESS_TEAM_DOMAIN = "http://127.0.0.1:27062"
 ACCESS_POLICY_AUD = "operator-console-local-smoke"
 
 [env.local.secrets]
-required = ["OPERATOR_CONSOLE_APP_API_SHARED_SECRET"]
+required = ["OPERATOR_CONSOLE_APP_API_SHARED_SECRET", "SENTRY_DSN"]
 
 [[env.local.services]]
 binding = "APP_API"
