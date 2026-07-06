@@ -94,6 +94,7 @@ export {
 } from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+export { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -196,6 +197,7 @@ import {
 } from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+import { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -268,6 +270,8 @@ export const appApiSchema = {
 	llmDebugTraceConfig,
 	providerConfigConnections,
 	providerConfigProfiles,
+	replayPacketAccessAudit,
+	replayPacketIndex,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,

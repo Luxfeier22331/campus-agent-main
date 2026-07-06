@@ -1,4 +1,4 @@
-import { getDiningFloorplanByFloor } from "dining-floorplans";
+import { getDiningFloorplanByFloor } from "@campus-agent/dining/floorplans";
 import { Maximize2 } from "lucide-react";
 import { useEffect } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";

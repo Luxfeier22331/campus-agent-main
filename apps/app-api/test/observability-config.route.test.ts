@@ -54,11 +54,28 @@ describe("observability config routes", () => {
 
 	it("exposes decrypted runtime snapshot only to internal callers", async () => {
 		const service = buildTestObservabilityConfigService();
+		const rawCapturePolicy = {
+			schema_version: "raw_capture_policy.v1",
+			mode: "manual_run_capture",
+			capture_reason: "diagnose badcase req_debug_001",
+			ttl_days: 7,
+			allowed_sinks: ["openai_agents_trace", "langfuse_otlp"],
+			allowed_raw_fields: ["rendered_messages", "provider_request_body"],
+			operator_principal: "operator:test",
+			approval_ref: "approval:test:raw-capture",
+			request_id: "req_rag_01",
+			run_id: "run_rag_01",
+			trace_id: "trace_rag_01",
+			audit_required: true,
+			dsar_delete_linkage_required: true,
+		};
 		await service.updateConfig({
 			payload: {
 				authHeader: "Basic langfuse-secret",
+				includeModelIo: true,
 				mode: "langfuse_otlp",
 				otlpEndpoint: "https://cloud.langfuse.com/api/public/otel",
+				rawCapturePolicy,
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -80,11 +97,13 @@ describe("observability config routes", () => {
 		expect(authorized.status).toBe(200);
 		await expect(authorized.json()).resolves.toMatchObject({
 			config: {
+				include_model_io: true,
 				langfuse_otlp: {
 					auth_header: "Basic langfuse-secret",
 					endpoint: "https://cloud.langfuse.com/api/public/otel",
 				},
 				mode: "langfuse_otlp",
+				raw_capture_policy: rawCapturePolicy,
 				schema_version: "llm_debug_trace_config.v1",
 			},
 		});

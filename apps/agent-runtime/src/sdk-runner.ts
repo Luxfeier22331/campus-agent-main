@@ -4,6 +4,7 @@ import { beginDebugTrace } from "./debug-trace.ts";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
+	AgentRunnerInput,
 	PromptProviderRuntimeConfig,
 	RunnerToolCall,
 	StreamingAgentRunner,
@@ -135,7 +136,7 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 				modelProvider: requestOptions.modelProvider,
 				traceId: input.traceId,
 				workflowName: "campus-agent.primary-agent",
-				traceIncludeSensitiveData: false,
+				traceIncludeSensitiveData: shouldIncludeSensitiveTraceData(input.debugTraceConfig),
 				signal: input.signal,
 			});
 			const projected = agentRunnerResultFromSDKResult(result);
@@ -197,7 +198,7 @@ export function createStreamingOpenAIAgentsRunner(
 				modelProvider: requestOptions.modelProvider,
 				traceId: input.traceId,
 				workflowName: "campus-agent.primary-agent",
-				traceIncludeSensitiveData: false,
+				traceIncludeSensitiveData: shouldIncludeSensitiveTraceData(input.debugTraceConfig),
 				signal: input.signal,
 			});
 			let rawOutputText = "";
@@ -291,6 +292,26 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 		stream: true,
 	}) as unknown as Promise<OpenAIAgentsStreamRunResultLike>;
 };
+
+function shouldIncludeSensitiveTraceData(config: AgentRunnerInput["debugTraceConfig"]): boolean {
+	if (
+		!(config?.includeModelIo && config.rawCapturePolicy) ||
+		config.rawCapturePolicy.mode === "off"
+	) {
+		return false;
+	}
+	const admitsModelIOSink = config.rawCapturePolicy.allowed_sinks.some(
+		(sink) => sink === "openai_agents_trace" || sink === "langfuse_otlp",
+	);
+	const admitsModelIOField = config.rawCapturePolicy.allowed_raw_fields.some(
+		(field) =>
+			field === "rendered_messages" ||
+			field === "provider_request_body" ||
+			field === "provider_response_body" ||
+			field === "provider_stream_deltas",
+	);
+	return admitsModelIOSink && admitsModelIOField;
+}
 
 function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
 	const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);

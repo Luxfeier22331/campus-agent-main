@@ -81,14 +81,17 @@ func (f *fakeRAGLookupExecutor) Lookup(
 }
 
 type fakeRAGSynthesisExecutor struct {
-	answerText string
-	calls      int
-	err        error
-	grounding  string
-	onExecute  func(context.Context)
-	status     int
-	seenPacket ragSynthesisPacket
-	summary    provider.ExecutionSummary
+	answerText       string
+	calls            int
+	err              error
+	grounding        string
+	llmIOFingerprint map[string]any
+	onExecute        func(context.Context)
+	promptTrace      map[string]any
+	status           int
+	seenPacket       ragSynthesisPacket
+	summary          provider.ExecutionSummary
+	traceID          string
 }
 
 func (f *fakeRAGSynthesisExecutor) HealthCheck(context.Context) error {
@@ -111,13 +114,49 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	if answerText == "" {
 		answerText = "学生应按学校规定办理请假手续。"
 	}
+	promptTrace := f.promptTrace
+	if promptTrace == nil {
+		promptTrace = ragSynthesisPromptTrace("openai", "gpt-5-mini")
+	}
+	llmIOFingerprint := f.llmIOFingerprint
+	if llmIOFingerprint == nil {
+		traceID := strings.TrimSpace(f.traceID)
+		if traceID == "" {
+			traceID = "trace-executor-001"
+		}
+		fingerprint, fingerprintErr := ragSynthesisLLMIOFingerprint(ragSynthesisFingerprintInput{
+			modelName:     "gpt-5-mini",
+			modelProvider: "openai",
+			packet:        packet,
+			providerProfileRevision: providerProfileRevisionFingerprint(providerConfigSnapshot{
+				Role:      string(providerConfigRoleRAGSynthesis),
+				ProfileID: "rag-default",
+				Revision:  3,
+			}),
+			renderedInput: ragProviderInput(packet),
+			requestID:     packet.RequestID,
+			run: execution.DurableRun{
+				RequestID: packet.RequestID,
+				RunID:     packet.RunID,
+				TraceID:   traceID,
+			},
+			runtimeRelease: "execution-control@test",
+		})
+		if fingerprintErr != nil {
+			return ragSynthesisResult{}, fingerprintErr
+		}
+		llmIOFingerprint = fingerprint
+	}
 	return ragSynthesisResult{
-		AnswerText:       answerText,
-		Confidence:       "high",
-		GroundingVerdict: strings.TrimSpace(f.grounding),
-		ProviderStatus:   f.status,
-		ProviderSummary:  f.summary,
-		SemanticOutcome:  "answer_from_selected_evidence",
+		AnswerText:              answerText,
+		Confidence:              "high",
+		GroundingVerdict:        strings.TrimSpace(f.grounding),
+		LLMIOFingerprint:        llmIOFingerprint,
+		PromptTrace:             promptTrace,
+		ProviderProfileRevision: "rag_synthesis:rag-default:3",
+		ProviderStatus:          f.status,
+		ProviderSummary:         f.summary,
+		SemanticOutcome:         "answer_from_selected_evidence",
 	}, nil
 }
 

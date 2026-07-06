@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-06-28
-updated: 2026-07-03
+updated: 2026-07-06
 ---
 # Eval
 
@@ -28,7 +28,7 @@ Repo-owned eval is now Langfuse/Ragas-first:
   to their owning apps/packages and their tests. They must not be recreated as
   broad self-built eval frameworks.
 
-The completed platform loop is:
+The active safe platform scoring loop is:
 
 ```text
 Langfuse traces / datasets
@@ -36,6 +36,10 @@ Langfuse traces / datasets
 -> packages/ragas-runner upstream Ragas
 -> packages/eval-langfuse Langfuse scores
 ```
+
+The target restricted replay extension adds policy-admitted replay-backed
+projection to that loop after `llm_replay_packet.v1` implementation and access
+controls exist.
 
 This is the scoring part of the broader learning loop defined in
 `docs/architecture/system/learning-loop.md`. Eval lanes validate and compare
@@ -46,7 +50,9 @@ Candidate selection is owned by `jobs/learning-loop-candidates`. It reads safe
 online feedback/runtime projections, selects review candidates and can publish
 dataset items to Langfuse dataset `online-answer/candidates` through
 `packages/eval-langfuse`. It does not run RAGAS, publish scores, query raw
-Langfuse traces or expose an Operator Console review UI.
+Langfuse traces or expose an Operator Console review UI. Raw badcase
+reproduction, when needed, uses `llm_replay_packet.v1` under
+`raw_capture_policy.v1` rather than app-api raw copies.
 
 ## Active Lanes
 
@@ -134,6 +140,8 @@ Active repo-owned Langfuse adapter capabilities are:
 - public web search agent runner through app-api chat stream
 - sanitized `tool_trajectory.v1` consumption for tool-use eval
 - safe trace/dataset projection into Ragas input
+- restricted replay-backed projection into Ragas input when
+  `raw_capture_policy.v1` admits the packet
 - Ragas trace and materialized-dataset scoring
 - `ragas.*` score publishing back to Langfuse
 - trace identity, observation contract and forbidden-field verification
@@ -151,6 +159,24 @@ optional reference text when those fields are approved for eval storage.
 Forbidden fields include secrets, auth material, raw prompts, raw transcripts,
 provider raw responses, unrestricted source bodies, object-store paths and
 retrieval backend dumps.
+
+This boundary applies to default safe projection, datasets, score metadata and
+operator-safe summaries. Restricted replay-backed eval may consume raw or
+near-raw LLM I/O only through `docs/contracts/replay-capture.md`; it must not
+mirror raw packet bodies into score metadata or app-api projection.
+
+Replay-backed eval has two modes:
+
+- `safe_replay` uses safe refs, prompt registry / primary / tool-runtime
+  attestation, provider request safe hash, model params projection and
+  `evidence_replay_index.v1`.
+- `raw_replay` reads `llm_replay_packet.v1` only after `raw_capture_policy.v1`,
+  RBAC, retention, DSAR deletion linkage and access audit admit the action.
+
+`replay_result_diff.v1` may enter eval evidence, but its summaries remain safe.
+Score metadata must carry replay ids, safe fingerprint fields, verdicts and
+diff summaries only; it must not carry rendered messages, provider request /
+response bodies, selected evidence body, raw answer or raw memory text.
 
 ## Active Scores
 

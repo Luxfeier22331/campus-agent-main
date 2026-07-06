@@ -10,7 +10,10 @@ export const EXECUTION_FINALIZATION_STATUSES = [
 
 export const EXECUTION_FINALIZATION_CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
 
-export const EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS = ["langfuse_otlp"] as const;
+export const EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS = [
+	"execution_control_projection",
+	"langfuse_otlp",
+] as const;
 
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",

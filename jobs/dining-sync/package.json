@@ -10,9 +10,9 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@campus-agent/dining": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1079.0",
 		"@aws-sdk/s3-request-presigner": "^3.1079.0",
-		"dining-domain": "file:../../packages/dining-domain",
 		"pg": "^8.22.0"
 	},
 	"devDependencies": {

@@ -135,6 +135,7 @@ describe("request observability usage summary", () => {
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_usage_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({

@@ -1,0 +1,64 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/truncation-summary.v1.schema.json",
+	"title": "campus-agent context truncation summary",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"policy_version",
+		"reason",
+		"model_visible_before_count",
+		"model_visible_after_count",
+		"runtime_only_before_count",
+		"runtime_only_after_count",
+		"token_estimate_before",
+		"token_estimate_after",
+		"dropped_category_counts"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "truncation_summary.v1"
+		},
+		"policy_version": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"reason": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"model_visible_before_count": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"model_visible_after_count": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"runtime_only_before_count": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"runtime_only_after_count": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"token_estimate_before": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"token_estimate_after": {
+			"$ref": "#/$defs/NonNegativeInteger"
+		},
+		"dropped_category_counts": {
+			"type": "object",
+			"additionalProperties": {
+				"$ref": "#/$defs/NonNegativeInteger"
+			}
+		}
+	},
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1
+		},
+		"NonNegativeInteger": {
+			"type": "integer",
+			"minimum": 0
+		}
+	}
+}

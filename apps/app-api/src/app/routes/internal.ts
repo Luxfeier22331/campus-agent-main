@@ -19,6 +19,7 @@ import {
 	hasMatchingInternalSecret,
 	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
+	mapOperatorHeadersToPrincipal,
 	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
@@ -78,6 +79,32 @@ function hasMatchingInternalBearerSecret(
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
 	const value = payload[fieldName];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readStringFieldFromSearch(request: Request, fieldName: string): string | null {
+	const value = new URL(request.url).searchParams.get(fieldName);
+	return value?.trim() ? value.trim() : null;
+}
+
+function resolveReplayOperatorPrincipal(request: Request, env: Env): ResolvedAppPrincipal {
+	const principal = mapOperatorHeadersToPrincipal(request, env);
+	if (!principal?.permissions.operator) {
+		throw new AppApiRouteError({
+			code: "operator_access_required",
+			message: "Replay packet access requires an admitted operator principal.",
+			retryable: false,
+			status: 403,
+		});
+	}
+	return principal;
+}
+
+function replayActorPrincipal(principal: ResolvedAppPrincipal): string {
+	return (
+		principal.principal.email?.trim() ||
+		principal.actor.principalId ||
+		principal.principal.principalId
+	);
 }
 
 function readBooleanField(payload: Record<string, unknown>, fieldName: string): boolean {
@@ -461,6 +488,73 @@ export function registerInternalRoutes(input: {
 		}
 
 		return jsonResponse(result);
+	});
+
+	input.app.post("/api/internal/observability/replay-packet-index", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		const action = readStringFieldFromSearch(c.req.raw, "action");
+		const record =
+			payload && typeof payload === "object" && !Array.isArray(payload)
+				? (payload as Record<string, unknown>)
+				: {};
+		if (action === "read" || action === "export" || action === "replay") {
+			const principal = resolveReplayOperatorPrincipal(c.req.raw, input.env);
+			return jsonResponse(
+				await scope.resolveReplayCaptureService().getReplayPacketIndex({
+					accessKind: action,
+					actorPrincipal: replayActorPrincipal(principal),
+					approvalRef: readStringField(record, "approval_ref") ?? undefined,
+					packetId: readStringField(record, "packet_id") ?? "",
+					purpose: readStringField(record, "purpose") ?? "",
+				}),
+			);
+		}
+		if (action === "delete") {
+			const mode = readStringField(record, "mode");
+			if (mode === "hard_delete") {
+				return routeErrorResponse(
+					new AppApiRouteError({
+						code: "replay_packet_hard_delete_not_configured",
+						message:
+							"Replay packet hard_delete requires object-store deletion and is not enabled on this route.",
+						retryable: false,
+						status: 409,
+					}),
+				);
+			}
+			if (mode !== "mark_deleted") {
+				return routeErrorResponse(
+					new AppApiRouteError({
+						code: "validation_failed",
+						message: "Replay packet delete mode must be mark_deleted.",
+						retryable: false,
+						status: 422,
+					}),
+				);
+			}
+			const principal = resolveReplayOperatorPrincipal(c.req.raw, input.env);
+			return jsonResponse(
+				await scope.resolveReplayCaptureService().deleteReplayPacketsByLinkage({
+					actorPrincipal: replayActorPrincipal(principal),
+					approvalRef: readStringField(record, "approval_ref") ?? undefined,
+					mode,
+					purpose: readStringField(record, "purpose") ?? "",
+					requestId: readStringField(record, "request_id") ?? undefined,
+					subjectRef: readStringField(record, "subject_ref") ?? undefined,
+					traceId: readStringField(record, "trace_id") ?? undefined,
+				}),
+			);
+		}
+		return jsonResponse(
+			await scope.resolveReplayCaptureService().ingestReplayPacketIndex({
+				payload,
+			}),
+		);
 	});
 
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {

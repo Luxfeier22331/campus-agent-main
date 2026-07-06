@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-07-03
+updated: 2026-07-05
 ---
 # Langfuse Observability And Eval Architecture
 
@@ -22,15 +22,17 @@ Collector -> Langfuse`
 
 The target eval platform chain is:
 
-`Langfuse traces / datasets + repo assets / qrels / review policy -> safe eval
-projection -> Ragas / TS eval runner -> Langfuse scores / annotation ->
+`Langfuse traces / datasets + repo assets / qrels / review policy +
+policy-admitted replay artifacts -> safe eval projection or restricted
+replay-backed eval -> Ragas / TS eval runner -> Langfuse scores / annotation ->
 app-api sanitized projection or backlink`
 
 The broader learning loop is:
 
-`online usage -> safe projection / trace refs / feedback -> candidate selection
--> Langfuse annotation / dataset / scores -> improvement action -> offline
-eval / experiment -> release -> post-release comparison`
+`online usage -> safe projection / trace refs / feedback / optional
+raw_capture_policy.v1-admitted replay packet -> candidate selection -> Langfuse
+annotation / dataset / scores -> improvement action -> offline eval / experiment
+or replay diff -> release -> post-release comparison`
 
 That loop is defined in `learning-loop.md`. This document only defines how
 Langfuse participates in it.
@@ -60,7 +62,10 @@ Langfuse may help inspect the same run, but it does not replace the spine.
 
 ## Attribute Boundary
 
-Langfuse-bound telemetry must be sanitized before exporter fan-out.
+Langfuse-bound `repo_observation` telemetry must be sanitized before exporter
+fan-out. `llm_debug_trace` and restricted replay-backed eval are separate
+controlled lanes; they may contain raw or near-raw LLM I/O only when admitted by
+`raw_capture_policy.v1` in `docs/contracts/replay-capture.md`.
 
 Allowed fields include:
 
@@ -75,12 +80,26 @@ Allowed fields include:
   count, reference count, citation coverage, grounding status, retrieved /
   reference context ids and eval-safe context excerpts when explicitly admitted
 
-Forbidden fields include raw prompt, raw answer, raw transcript, unrestricted
-source body, raw retrieved snippet, raw retrieved backend dump, raw memory text,
+Forbidden fields for `repo_observation`, score metadata and default safe eval
+projection include raw prompt, raw answer, raw transcript, unrestricted source
+body, raw retrieved snippet, raw retrieved backend dump, raw memory text,
 Hindsight bank / operation / runtime document refs, provider raw response,
 cookies, JWT, authorization headers, API keys, database URLs and
 object-store/provider secrets. Eval-safe input, answer and context excerpts may
 be exported only through explicit allowlisted projection fields.
+
+Restricted debug and replay lanes are narrower than product observability:
+
+- `llm_debug_trace` may carry model / tool / provider details inside controlled
+  Langfuse / OpenAI / OTel sinks only when a request-scoped
+  `raw_capture_policy.v1` admits the fields.
+- `llm_replay_packet.v1` is the canonical repo-owned replay artifact identity,
+  TTL, checksum and deletion-linkage contract. Langfuse trace bodies do not
+  become canonical replay packets.
+- App-api, Operator Console, Temporal metadata, repo-owned run / step
+  projections and score metadata must not inline raw replay packet bodies.
+- Secrets, auth material, credentials and raw Hindsight refs remain forbidden in
+  every lane.
 
 ## Temporal Collaboration
 
@@ -124,9 +143,10 @@ repo's eval truth.
   eval architecture.
 - Langfuse stores dataset, experiment, score and review workflow artifacts.
 - Langfuse consumes sanitized artifacts, datasets, experiments, scores,
-  annotations, trace drill-down metadata and Ragas-safe eval projection. It must
-  not receive raw prompt, raw transcript, unrestricted source body, provider raw
-  response or secrets.
+  annotations, trace drill-down metadata and Ragas-safe eval projection by
+  default. Restricted raw debug traces or replay-backed eval payloads may enter
+  Langfuse only through `raw_capture_policy.v1`; they must not be mirrored into
+  score metadata, app-api projections or Operator Console payloads.
 - The repo remains the owner for canonical qrels / golden truth, business
   contract truth, authz / privacy boundaries, minimal app-api Ops Index and
   fail-closed release verdicts.
@@ -145,9 +165,23 @@ repo's eval truth.
   isolated in `packages/ragas-runner`. ADR-0062 supersedes the earlier
   artifact-only RAGAS input assumption and aligns RAGAS with the official
   Langfuse trace / dataset scoring workflow.
+- ADR-0068 narrows the former blanket raw-payload prohibition: safe projection
+  remains raw-free, while restricted raw replay / capture is allowed only in the
+  separate policy-governed data plane defined by
+  `docs/contracts/replay-capture.md`.
 
 Trace closeout is capability-aware: a memory-enabled product path must prove
 the corresponding repo-owned observations exist, starting with `memory.recall`.
 When a flow evaluates retain materialization or reflection, closeout may require
 `memory.append`, `memory.operation_status` or `memory.reflect` as explicit step
 ids rather than inferring success from trace presence alone.
+
+## Related Documents
+
+- `docs/contracts/langfuse-runtime.md`
+- `docs/contracts/replay-capture.md`
+- `docs/contracts/stage-timing.md`
+- `docs/architecture/system/learning-loop.md`
+- `docs/product/langfuse-evals.md`
+- `docs/decisions/adr-0059-langfuse-observability-and-eval-platform.md`
+- `docs/decisions/adr-0068-raw-replay-capture.md`

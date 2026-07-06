@@ -41,7 +41,7 @@ Postgres, not two logical databases. Read-after-write-sensitive paths must be
 explicitly admitted by the data owner docs.
 
 Dining student routes read published `dining.*` projections. Dining catalog
-fixture truth belongs to `packages/dining-domain`; import/review sync belongs to
+fixture truth belongs to `packages/domains/dining`; import/review sync belongs to
 `jobs/dining-sync`, not the app-api request path.
 
 Repeatable local / staging database artifacts stay under `apps/app-api/scripts`

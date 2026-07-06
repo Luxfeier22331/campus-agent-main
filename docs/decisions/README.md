@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: active
 created: 2026-04-12
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 # Decisions
 
@@ -46,6 +46,9 @@ owner-boundary 映射。
 - `adr-0062-ragas-langfuse.md`
   - Ragas 与 Langfuse 按官方协作形态收口：Langfuse traces / datasets 经
     repo-owned safe projection 进入 Ragas，再将 scores 写回 Langfuse。
+- `adr-0068-raw-replay-capture.md`
+  - 安全投影继续 raw-free；诊断与 eval 所需 raw / near-raw LLM I/O 只能进入
+    `raw_capture_policy.v1` 准入的受控 replay / debug 数据面。
 
 ## 核心架构与 runtime
 

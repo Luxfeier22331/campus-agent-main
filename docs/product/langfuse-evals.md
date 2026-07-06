@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-19
-updated: 2026-07-03
+updated: 2026-07-05
 ---
 
 # Langfuse Evals
@@ -34,7 +34,9 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
   workflows without repo-owned experiment or review-manifest automation.
 - Operator-facing surfaces consume only app-api sanitized projections and safe
   runtime quality candidates; they do not query Langfuse directly.
-- Langfuse-bound payloads obey the forbidden-field policy.
+- Default Langfuse-bound safe payloads obey the forbidden-field policy.
+- Restricted replay-backed eval can use `llm_replay_packet.v1` only after
+  request-scoped `raw_capture_policy.v1` admission.
 
 ## 3. Non-Goals
 
@@ -47,7 +49,9 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - Do not leak Langfuse SDK/API types into `packages/contracts`.
 - Do not send raw prompts, raw answers, transcripts, retrieved snippets,
   unrestricted source bodies, provider raw responses, auth material or secrets
-  to Langfuse.
+  to default safe eval datasets, score metadata or operator-safe projections.
+- Do not treat restricted replay-backed eval as ordinary production dataset
+  sync, training data, Operator Console payload or release verdict truth.
 
 ## 4. Users And Scenarios
 
@@ -70,6 +74,9 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
   with safe trace/observation projection before Ragas scoring.
 - Missing trace identity, missing answer, missing retrieved contexts,
   denominator drift or forbidden payloads must fail closed.
+- Restricted replay-backed scoring must reference `llm_replay_packet.v1` by
+  packet metadata and policy identity. It must not copy raw packet bodies into
+  score metadata or app-api projections.
 
 ### 5.2 Score Registry And Publishing
 
@@ -138,11 +145,28 @@ Allowed in safe eval projection:
 - retrieved contexts and optional retrieved/reference context ids
 - surface, variant, release and metric applicability metadata
 
+Allowed only in restricted replay-backed eval:
+
+- raw or near-raw rendered messages
+- provider request / response bodies
+- provider stream deltas
+- selected evidence packet text
+- selected memory context text
+- tool call / tool result payloads
+
+These fields require `raw_capture_policy.v1`, encrypted object storage, TTL,
+RBAC, access audit and deletion linkage as defined by
+`docs/contracts/replay-capture.md`.
+
 Forbidden:
 
 - raw prompt, raw transcript, raw provider response
 - unrestricted source body, object-store path, retrieval backend dump
 - JWT, cookie, authorization header, API key, provider secret or database URL
+
+The forbidden list above applies to safe eval projection, safe datasets, score
+metadata and Operator-facing projection. Restricted replay artifacts have their
+own narrower contract and never allow secrets or auth material.
 
 ## 7. Acceptance
 
@@ -155,6 +179,9 @@ Forbidden:
   state.
 - `verify-trace` distinguishes repo-owned observations from SDK /
   infrastructure observations and rejects forbidden payload fields.
+- Restricted replay-backed eval validates packet TTL, policy mode,
+  allowed_raw_fields, RBAC/audit requirements and deletion linkage before
+  consuming a packet.
 - `validate-public-web-search-eval` validates public web search agent cases,
   expected tool labels and public HTTPS MUC URL constraints.
 
@@ -163,8 +190,10 @@ Forbidden:
 - [ADR-0059 Langfuse Observability And Eval Platform](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
 - [ADR-0061 Eval Runtime](../decisions/adr-0061-eval-runtime.md)
 - [ADR-0062 Ragas And Langfuse Collaboration](../decisions/adr-0062-ragas-langfuse.md)
+- [ADR-0068 Raw Replay Capture](../decisions/adr-0068-raw-replay-capture.md)
 - [Langfuse Architecture](../architecture/system/langfuse.md)
 - [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
+- [Replay Capture Contract](../contracts/replay-capture.md)
 - [Tool Trajectory Contract](../contracts/tool-trajectory.md)
 - [Eval Reference](../reference/eval.md)
 - [Eval Map](../reference/eval-map.md)

@@ -162,10 +162,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!pnpm-workspace.yaml",
                 "!jobs/dining-sync/",
                 "!jobs/dining-sync/**",
-                "!packages/dining-domain/",
-                "!packages/dining-domain/**",
-                "!packages/dining-floorplans/",
-                "!packages/dining-floorplans/**",
+                "!packages/domains/",
+                "!packages/domains/**",
             }.issubset(patterns)
         )
 
@@ -246,8 +244,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!apps/agent-runtime/**",
                 "!apps/ingestion-control/**",
                 "!jobs/dining-sync/**",
-                "!packages/dining-domain/**",
-                "!packages/dining-floorplans/**",
+                "!packages/domains/**",
             )
         )
 

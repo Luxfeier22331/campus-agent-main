@@ -2,7 +2,9 @@ import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type {
+	ToolExecutionAnswerEvalFingerprint,
 	ToolExecutionDebugTraceRef,
+	ToolExecutionLlmIoFingerprint,
 	ToolExecutionModelUsageSummary,
 	ToolExecutionWorkflowTraceSummary,
 } from "../integration/tool-execution-types";
@@ -133,6 +135,8 @@ export interface RequestObservabilityFactWrite {
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	stageTiming?: Record<string, unknown>;
 	debugTraceRefs?: ToolExecutionDebugTraceRef[];
+	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
+	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
 	modelProvider: string | null;
 	modelName: string | null;
 	billableStepCount: number | null;

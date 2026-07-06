@@ -18,15 +18,19 @@ var errRAGSynthesisPacketMissing = errors.New("rag synthesis packet missing")
 type ragSynthesisPacket = ragruntime.SynthesisPacketProjection
 
 type ragSynthesisResult struct {
-	AnswerText       string
-	Confidence       string
-	GroundingNotes   string
-	ProviderStatus   int
-	ProviderSummary  provider.ExecutionSummary
-	ProviderBody     []byte
-	SemanticOutcome  string
-	UsedEvidenceRefs []string
-	GroundingVerdict string
+	AnswerText              string
+	Confidence              string
+	GroundingNotes          string
+	LLMIOFingerprint        map[string]any
+	PromptTrace             map[string]any
+	ProviderProfileRevision string
+	ProviderRequestBody     map[string]any
+	ProviderStatus          int
+	ProviderSummary         provider.ExecutionSummary
+	ProviderBody            []byte
+	SemanticOutcome         string
+	UsedEvidenceRefs        []string
+	GroundingVerdict        string
 }
 
 type ragSynthesisExecutor interface {
@@ -40,6 +44,7 @@ type providerBackedRAGSynthesisExecutor struct {
 	generationControls provider.ResponsesGenerationControls
 	pricing            provider.PricingCatalog
 	providerTimeout    time.Duration
+	runtimeRelease     string
 }
 
 func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
@@ -55,40 +60,128 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		executeCtx, cancel = context.WithTimeout(ctx, e.providerTimeout)
 	}
 	defer cancel()
-	client, err := e.resolveClient(executeCtx)
+	client, snapshot, err := e.resolveClient(executeCtx)
 	if err != nil {
 		return ragSynthesisResult{}, err
 	}
-	result := client.Execute(executeCtx, provider.ResponsesRequest{
-		Input:              ragProviderInput(packet),
+	renderedInput := ragProviderInput(packet)
+	providerRequest := provider.ResponsesRequest{
+		Input:              renderedInput,
 		ProviderRequestRef: providerRequestRefForPacket(packet),
 		Text:               ragProviderTextSchema(packet),
+	}
+	providerRequestBody := ragProviderRequestBodyForReplay(
+		snapshot,
+		e.generationControls,
+		modelNameFromSnapshotOrClient(snapshot),
+		providerRequest,
+	)
+	result := client.Execute(executeCtx, providerRequest)
+	modelProvider := defaultStringIfUnknown(
+		strings.TrimSpace(snapshot.Provider),
+		strings.TrimSpace(result.Summary.ModelProvider),
+	)
+	modelName := defaultStringIfUnknown(
+		strings.TrimSpace(snapshot.Model),
+		strings.TrimSpace(result.Summary.ModelName),
+	)
+	providerProfileRevision := providerProfileRevisionFingerprint(snapshot)
+	if strings.Trim(providerProfileRevision, ":") == "" {
+		providerProfileRevision = "rag_synthesis:unknown:0"
+	}
+	promptTrace := ragSynthesisPromptTrace(modelProvider, modelName)
+	llmIOFingerprint, err := ragSynthesisLLMIOFingerprint(ragSynthesisFingerprintInput{
+		generationControls:      e.generationControls,
+		modelName:               modelName,
+		modelProvider:           modelProvider,
+		packet:                  packet,
+		providerProfileRevision: providerProfileRevision,
+		renderedInput:           renderedInput,
+		requestID:               packet.RequestID,
+		run: execution.DurableRun{
+			RequestID: packet.RequestID,
+			RunID:     packet.RunID,
+		},
+		runtimeRelease: e.runtimeRelease,
 	})
+	if err != nil {
+		return ragSynthesisResult{}, err
+	}
 	if result.Err != nil {
 		return ragSynthesisResult{
-			ProviderBody:    result.Body,
-			ProviderStatus:  result.Status,
-			ProviderSummary: result.Summary,
+			LLMIOFingerprint:        llmIOFingerprint,
+			PromptTrace:             promptTrace,
+			ProviderProfileRevision: providerProfileRevision,
+			ProviderRequestBody:     providerRequestBody,
+			ProviderBody:            result.Body,
+			ProviderStatus:          result.Status,
+			ProviderSummary:         result.Summary,
 		}, result.Err
 	}
 	output, err := extractRAGSynthesisOutput(result.Body, packet.SelectedEvidence)
 	if err != nil {
 		return ragSynthesisResult{
-			ProviderBody:    result.Body,
-			ProviderStatus:  result.Status,
-			ProviderSummary: result.Summary,
+			LLMIOFingerprint:        llmIOFingerprint,
+			PromptTrace:             promptTrace,
+			ProviderProfileRevision: providerProfileRevision,
+			ProviderRequestBody:     providerRequestBody,
+			ProviderBody:            result.Body,
+			ProviderStatus:          result.Status,
+			ProviderSummary:         result.Summary,
 		}, err
 	}
 	return ragSynthesisResult{
-		AnswerText:       output.AnswerText,
-		Confidence:       output.Confidence,
-		GroundingNotes:   output.GroundingNotes,
-		ProviderStatus:   result.Status,
-		ProviderSummary:  result.Summary,
-		ProviderBody:     result.Body,
-		SemanticOutcome:  output.SemanticOutcome,
-		UsedEvidenceRefs: output.UsedEvidenceRefs,
+		AnswerText:              output.AnswerText,
+		Confidence:              output.Confidence,
+		GroundingNotes:          output.GroundingNotes,
+		LLMIOFingerprint:        llmIOFingerprint,
+		PromptTrace:             promptTrace,
+		ProviderProfileRevision: providerProfileRevision,
+		ProviderRequestBody:     providerRequestBody,
+		ProviderStatus:          result.Status,
+		ProviderSummary:         result.Summary,
+		ProviderBody:            result.Body,
+		SemanticOutcome:         output.SemanticOutcome,
+		UsedEvidenceRefs:        output.UsedEvidenceRefs,
 	}, nil
+}
+
+func ragProviderRequestBodyForReplay(
+	snapshot providerConfigSnapshot,
+	controls provider.ResponsesGenerationControls,
+	modelName string,
+	request provider.ResponsesRequest,
+) map[string]any {
+	model := strings.TrimSpace(modelName)
+	if model == "" {
+		model = strings.TrimSpace(snapshot.Model)
+	}
+	payload := map[string]any{
+		"input":  request.Input,
+		"model":  model,
+		"stream": false,
+	}
+	if controls.MaxOutputTokens > 0 {
+		payload["max_output_tokens"] = controls.MaxOutputTokens
+	}
+	if strings.TrimSpace(controls.ReasoningEffort) != "" {
+		payload["reasoning"] = map[string]any{"effort": strings.TrimSpace(controls.ReasoningEffort)}
+	}
+	if controls.Store != nil {
+		payload["store"] = *controls.Store
+	}
+	if request.Text != nil {
+		text := cloneAnyMapFromMetadata(request.Text)
+		if strings.TrimSpace(controls.TextVerbosity) != "" {
+			text["verbosity"] = strings.TrimSpace(controls.TextVerbosity)
+		}
+		payload["text"] = text
+	}
+	return payload
+}
+
+func modelNameFromSnapshotOrClient(snapshot providerConfigSnapshot) string {
+	return strings.TrimSpace(snapshot.Model)
 }
 
 func (e providerBackedRAGSynthesisExecutor) HealthCheck(context.Context) error {
@@ -100,27 +193,32 @@ func (e providerBackedRAGSynthesisExecutor) HealthCheck(context.Context) error {
 
 func (e providerBackedRAGSynthesisExecutor) resolveClient(
 	ctx context.Context,
-) (*provider.ResponsesClient, error) {
+) (*provider.ResponsesClient, providerConfigSnapshot, error) {
 	if e.clientFactory != nil && e.configResolver == nil {
-		client := e.clientFactory(providerConfigSnapshot{})
-		if client == nil {
-			return nil, errors.New("rag synthesis provider client is not configured")
+		snapshot := providerConfigSnapshot{
+			Model:    "unknown",
+			Provider: "unknown",
+			Role:     string(providerConfigRoleRAGSynthesis),
 		}
-		return client, nil
+		client := e.clientFactory(snapshot)
+		if client == nil {
+			return nil, providerConfigSnapshot{}, errors.New("rag synthesis provider client is not configured")
+		}
+		return client, snapshot, nil
 	}
 	if e.configResolver == nil {
-		return nil, errors.New("rag synthesis provider config resolver is not configured")
+		return nil, providerConfigSnapshot{}, errors.New("rag synthesis provider config resolver is not configured")
 	}
 	snapshot, err := e.configResolver.ResolveActiveProviderConfig(ctx, providerConfigRoleRAGSynthesis)
 	if err != nil {
-		return nil, err
+		return nil, providerConfigSnapshot{}, err
 	}
 	if e.clientFactory != nil {
 		client := e.clientFactory(snapshot)
 		if client == nil {
-			return nil, errors.New("rag synthesis provider client is not configured")
+			return nil, providerConfigSnapshot{}, errors.New("rag synthesis provider client is not configured")
 		}
-		return client, nil
+		return client, snapshot, nil
 	}
 	return provider.NewResponsesClient(provider.ResponsesClientConfig{
 		APIKey:             snapshot.APIKey,
@@ -129,7 +227,7 @@ func (e providerBackedRAGSynthesisExecutor) resolveClient(
 		ModelName:          snapshot.Model,
 		ModelProvider:      snapshot.Provider,
 		Pricing:            e.pricing,
-	}), nil
+	}), snapshot, nil
 }
 
 func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
@@ -403,7 +501,8 @@ func ragSynthesisFinalizedResponse(
 	run execution.DurableRun,
 	packet ragSynthesisPacket,
 	result ragSynthesisResult,
-) map[string]any {
+	replayPacketRef *ragReplayPacketIndexRef,
+) (map[string]any, error) {
 	confidence := strings.TrimSpace(result.Confidence)
 	if confidence == "" {
 		confidence = "medium"
@@ -413,10 +512,60 @@ func ragSynthesisFinalizedResponse(
 		semanticOutcome = "answer_from_selected_evidence"
 	}
 	groundingVerdict := strings.TrimSpace(result.GroundingVerdict)
+	promptTrace, err := ragSynthesisFinalPromptTrace(result)
+	if err != nil {
+		return nil, err
+	}
+	llmIOFingerprint, err := ragSynthesisFinalLLMIOFingerprint(run, packet, result)
+	if err != nil {
+		return nil, err
+	}
+	answerEvalStageProfile := ragSynthesisAnswerEvalStageProfile(packet)
+	answerEvalEvidenceReplayIndexSHA256 := sha256JSONRef(
+		ragReplayPacketEvidenceReplayIndex(packet, llmIOFingerprint),
+	)
+	replayPacketRefMap := map[string]any(nil)
+	if replayPacketRef != nil {
+		replayPacketRefMap = replayPacketRef.ToMap()
+	}
+	debugTraceRefs := []map[string]any{
+		{
+			"sink":      "execution_control_projection",
+			"trace_id":  strings.TrimSpace(run.TraceID),
+			"trace_ref": "projection://runs/" + strings.TrimSpace(run.RunID) + "/synthesis/observability",
+		},
+	}
+	observability := map[string]any{
+		"llm_io_fingerprint":     llmIOFingerprint,
+		"model_name":             result.ProviderSummary.ModelName,
+		"model_provider":         result.ProviderSummary.ModelProvider,
+		"selected_tool":          "knowledge_query",
+		"result_outcome":         semanticOutcome,
+		"model_execution_state":  "go_provider_synthesis_completed",
+		"model_execution_detail": result.ProviderSummary.SchemaVersion,
+		"prompt_trace":           promptTrace,
+		"provider_request_ref":   result.ProviderSummary.ProviderRequestRef,
+		"provider_response_id":   result.ProviderSummary.ProviderResponseID,
+	}
+	observability["answer_eval_fingerprint"] = answerEvalFingerprint(answerEvalFingerprintInput{
+		BranchKind:                "rag_synthesis",
+		EvidenceReplayIndexSHA256: answerEvalEvidenceReplayIndexSHA256,
+		LLMIOFingerprint:          llmIOFingerprint,
+		RunID:                     run.RunID,
+		SelectedTool:              "knowledge_query",
+		SelectedTools:             []string{"knowledge_query"},
+		StageTiming:               answerEvalStageProfile,
+		TerminalOutcome:           ragSynthesisAnswerTerminalOutcome(semanticOutcome),
+		WorkflowMode:              "single_step",
+	})
+	if replayPacketRefMap != nil {
+		observability["replay_packet_ref"] = replayPacketRefMap
+	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedTool:     ptrString("knowledge_query"),
 		Status:           "completed",
 		AnswerText:       strings.TrimSpace(result.AnswerText),
+		DebugTraceRefs:   debugTraceRefs,
 		Error:            nil,
 		FollowUpQuestion: "",
 		Confidence:       confidence,
@@ -433,6 +582,7 @@ func ragSynthesisFinalizedResponse(
 				"verification_kind":      "evidence_integrity",
 				"model_execution_state":  "go_provider_synthesis_completed",
 				"model_execution_detail": result.ProviderSummary.SchemaVersion,
+				"prompt_trace":           promptTrace,
 				"answer_artifact_ref":    providerRequestRefForPacket(packet),
 				"provider_response_ref":  result.ProviderSummary.ProviderResponseID,
 				"provider_pricing_ref":   result.ProviderSummary.PricingVersion,
@@ -442,12 +592,7 @@ func ragSynthesisFinalizedResponse(
 				"step_projection_schema": "step-result-projection-v1",
 			},
 		},
-		Observability: map[string]any{
-			"selected_tool":          "knowledge_query",
-			"result_outcome":         semanticOutcome,
-			"model_execution_state":  "go_provider_synthesis_completed",
-			"model_execution_detail": result.ProviderSummary.SchemaVersion,
-		},
+		Observability: observability,
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":         "single_step",
 			"selected_tool":         "knowledge_query",
@@ -460,7 +605,15 @@ func ragSynthesisFinalizedResponse(
 			},
 		},
 		TraceID: run.TraceID,
-	})
+	}), nil
+}
+
+func ragSynthesisAnswerEvalStageProfile(packet ragSynthesisPacket) map[string]any {
+	return map[string]any{
+		"rag.selected_evidence_count": float64(len(packet.SelectedEvidence)),
+		"rag.memory_context_count":    float64(len(packet.MemoryContext)),
+		"rag.previous_context_count":  float64(len(packet.PreviousEvidenceContext)),
+	}
 }
 
 func ragEvidenceSourcesForFinalization(evidence []ragruntime.EvidenceRef) []map[string]any {

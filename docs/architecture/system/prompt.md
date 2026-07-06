@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-05
-updated: 2026-06-28
+updated: 2026-07-06
 ---
 
 # Prompt And Instruction Architecture
@@ -172,13 +172,14 @@ adding a separate synthetic `assistant_intro` or `product_meta` prompt family.
 
 Knowledge path prompt families:
 
-- `rag_answer_v1`
-- `rag_clarify_v1`
-- `rag_no_answer_v1`
-- `rag_unsupported_v1`
+- `rag_synthesis_answer`: current Go-owned RAG synthesis prompt identity for
+  `rag_answer_v2` structured output.
 
 Possible RAG families after explicit admission:
 
+- `rag_clarify_v1`
+- `rag_no_answer_v1`
+- `rag_unsupported_v1`
 - `rag_rewrite_v1`
 - `rag_compare_answer_v1`
 - `rag_historical_answer_v1`
@@ -186,6 +187,27 @@ Possible RAG families after explicit admission:
 Full agentic retrieval after explicit admission uses planner / clarification /
 synthesis / semantic verification families. Planner prompt only outputs typed
 retrieval plans inside admitted scope and cannot return final user answers.
+
+## Prompt Registry And Attestation
+
+Every provider-backed prompt family must be identifiable from safe metadata
+before the provider call starts.
+
+Prompt registry identity is carried through `prompt_registry_attestation.v1` in
+`llm_io_fingerprint.v1`. The attestation binds `prompt_id`, prompt registry
+version, prompt template hash, prompt variables schema version and output schema
+identity. It is not a copy of the rendered prompt or variables.
+
+Primary topology identity is carried through `primary_attestation.v1`.
+`agent.primary` calls attest that `apps/agent-runtime` produced the primary
+agent LLM call. `rag.synthesis` calls attest that the primary agent admitted the
+request into the Go-owned `knowledge_query` graph; this keeps RAG synthesis
+inside the admitted path instead of reintroducing a hidden top-level retrieval
+agent.
+
+If prompt registry attestation or primary attestation cannot be constructed, the
+runtime must fail closed before producing a provider-backed answer whose prompt
+identity cannot be replayed or compared.
 
 ## Result Semantics
 
@@ -218,6 +240,10 @@ Default observability records prompt/runtime metadata, not raw prompt bodies:
 
 - model / provider identity
 - request and run identity
+- prompt id
+- prompt template sha256
+- prompt variables schema version
+- rendered prompt sha256
 - mode and output schema version
 - provider response id
 - terminal envelope kind
@@ -234,6 +260,29 @@ Do not record by default:
 
 Debug payloads require explicit opt-in, redaction and minimization. They are not
 long-term log truth.
+
+Policy-admitted raw replay is the only lane where rendered prompt messages may
+be retained. When `raw_capture_policy.v1` admits a run, rendered prompts may
+enter `llm_replay_packet.v1` together with prompt metadata, model params,
+context/evidence hashes and output schema identity. Safe projection still stores
+only `llm_io_fingerprint.v1` fields such as prompt registry attestation,
+primary attestation, `prompt_template_sha256`,
+`prompt_variables_schema_version`, `rendered_prompt_sha256`,
+`model_params_projection` and `provider_request_safe_hash`.
+
+This requirement applies to every provider-backed model call, including
+`agent.primary` and Go-owned `rag.synthesis`. RAG synthesis must not hide prompt
+identity inside `result.diagnostics`; it must publish safe identity through
+`observability.prompt_trace` and `observability.llm_io_fingerprint`.
+
+For Go-owned `rag.synthesis`, the provider call is not allowed to begin until
+the request-scoped observability config projection has been resolved. If that
+projection is unavailable or malformed, synthesis fails closed with a diagnostic
+runtime failure instead of producing an answer whose prompt trace, fingerprint or
+raw replay policy cannot be verified. When raw replay is admitted, the raw
+rendered messages and provider payloads go only to `llm_replay_packet.v1`; app-api
+receives only the `llm_replay_packet_index.v1` safe metadata and the
+`llm_replay_packet_index_ref.v1` observability ref.
 
 ## Eval And Release Gate
 
@@ -263,3 +312,4 @@ Stable internal neighbors:
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/decisions/adr-0060-agent-llm-io-contract.md`
+- `docs/contracts/replay-capture.md`

@@ -49,12 +49,16 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
             "k8s execution runtime full overlay",
             (py, "-m", "scripts.check_k8s_execution_runtime_full_overlay"),
         ),
-        StaticCheck("html tracked files", (py, "-m", "scripts.check_html_tracked")),
-        StaticCheck("yaml tracked files", (py, "-m", "scripts.check_yaml_tracked")),
-        StaticCheck("toml syntax", (py, "-m", "scripts.check_toml_syntax")),
+        StaticCheck(
+            "tracked text formats",
+            (
+                "pnpm",
+                "exec",
+                "tsx",
+                "scripts/check_tracked_text_formats.ts",
+            ),
+        ),
         StaticCheck("shell tracked files", (py, "-m", "scripts.check_shell_tracked")),
-        StaticCheck("xml tracked files", (py, "-m", "scripts.check_xml_tracked")),
-        StaticCheck("jsonl tracked files", (py, "-m", "scripts.check_jsonl_tracked")),
         StaticCheck(
             "public fixture source cleanliness",
             (py, "-m", "scripts.check_public_fixture_source_clean"),
@@ -83,7 +87,6 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
             "object-store bucket policy",
             (py, "-m", "scripts.check_object_store_bucket_policy"),
         ),
-        StaticCheck("sql tracked files", (py, "-m", "scripts.check_sql_tracked")),
         StaticCheck("docker tracked files", (py, "-m", "scripts.check_dockerfile_tracked")),
         StaticCheck("pnpm lock", (py, "-m", "scripts.check_pnpm_lock_tracked")),
         StaticCheck("uv lock", (py, "-m", "scripts.check_uv_lock")),
@@ -205,14 +208,25 @@ def affected_repo_static_checks(
         )
     if any(path.endswith(".html") for path in paths):
         checks.append(
-            StaticCheck("html tracked files", (python, "-m", "scripts.check_html_tracked"))
+            StaticCheck(
+                "html tracked files",
+                _tracked_text_format_command("html"),
+            )
         )
     if any(path.endswith((".yaml", ".yml")) for path in paths):
         checks.append(
-            StaticCheck("yaml tracked files", (python, "-m", "scripts.check_yaml_tracked"))
+            StaticCheck(
+                "yaml tracked files",
+                _tracked_text_format_command("yaml"),
+            )
         )
     if any(path.endswith(".toml") for path in paths):
-        checks.append(StaticCheck("toml syntax", (python, "-m", "scripts.check_toml_syntax")))
+        checks.append(
+            StaticCheck(
+                "toml syntax",
+                _tracked_text_format_command("toml"),
+            )
+        )
     if any(path.endswith(".sh") for path in paths):
         checks.append(
             StaticCheck(
@@ -221,13 +235,26 @@ def affected_repo_static_checks(
             )
         )
     if any(path.endswith(".xml") for path in paths):
-        checks.append(StaticCheck("xml tracked files", (python, "-m", "scripts.check_xml_tracked")))
+        checks.append(
+            StaticCheck(
+                "xml tracked files",
+                _tracked_text_format_command("xml"),
+            )
+        )
     if any(path.endswith(".jsonl") for path in paths):
         checks.append(
-            StaticCheck("jsonl tracked files", (python, "-m", "scripts.check_jsonl_tracked"))
+            StaticCheck(
+                "jsonl tracked files",
+                _tracked_text_format_command("jsonl"),
+            )
         )
     if any(_is_sql_path(path) for path in paths):
-        checks.append(StaticCheck("sql tracked files", (python, "-m", "scripts.check_sql_tracked")))
+        checks.append(
+            StaticCheck(
+                "sql tracked files",
+                _tracked_text_format_command("sql"),
+            )
+        )
     if any(_is_docker_path(path) for path in paths):
         checks.append(
             StaticCheck(
@@ -308,6 +335,17 @@ def _dedupe_checks(checks: tuple[StaticCheck, ...]) -> tuple[StaticCheck, ...]:
         seen.add(key)
         result.append(check)
     return tuple(result)
+
+
+def _tracked_text_format_command(text_format: str) -> tuple[str, ...]:
+    return (
+        "pnpm",
+        "exec",
+        "tsx",
+        "scripts/check_tracked_text_formats.ts",
+        "--format",
+        text_format,
+    )
 
 
 def _is_biome_path(path: str) -> bool:

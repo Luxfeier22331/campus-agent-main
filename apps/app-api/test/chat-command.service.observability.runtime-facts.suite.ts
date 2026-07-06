@@ -56,7 +56,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -142,7 +142,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				selectedTool: "knowledge_query",
 				status: "completed",
 				traceAvailable: true,
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			},
 		});
 	});

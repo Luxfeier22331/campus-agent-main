@@ -112,19 +112,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
-	var finalizationResponse map[string]any
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
-			var ok bool
-			finalizationResponse, ok = event.Payload["response"].(map[string]any)
-			if !ok {
-				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
-			}
-		}
-	}
-	if finalizationResponse == nil {
-		t.Fatal("finalization.completed event missing")
-	}
+	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
 	if finalizationResponse["selected_tool"] != nil {
 		t.Fatalf("selected_tool = %#v, want nil for direct no-tool branch", finalizationResponse["selected_tool"])
 	}
@@ -217,19 +205,7 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
-	var finalizationResponse map[string]any
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
-			var ok bool
-			finalizationResponse, ok = event.Payload["response"].(map[string]any)
-			if !ok {
-				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
-			}
-		}
-	}
-	if finalizationResponse == nil {
-		t.Fatal("finalization.completed event missing")
-	}
+	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
 	if finalizationResponse["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("selected_tool = %#v, want transport_schedule_lookup", finalizationResponse["selected_tool"])
 	}
@@ -331,16 +307,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
-	var finalizationResponse map[string]any
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
-			var ok bool
-			finalizationResponse, ok = event.Payload["response"].(map[string]any)
-			if !ok {
-				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
-			}
-		}
-	}
+	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
 	if finalizationResponse["status"] != "rejected" {
 		t.Fatalf("status = %#v", finalizationResponse["status"])
 	}
@@ -410,6 +377,9 @@ func preparePrimaryAgentFinalizationRunForTest(
 		t.Fatalf("get run: %v", err)
 	}
 	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
+		if _, exists := agentMetadata["llm_io_fingerprint"]; !exists {
+			agentMetadata["llm_io_fingerprint"] = primaryAgentFingerprintForFinalizationTest(runID)
+		}
 		for key, value := range agentMetadata {
 			metadata[key] = value
 		}

@@ -32,6 +32,7 @@ func (s *Server) callAgentRuntime(
 	defer cancel()
 	payload := map[string]any{
 		"run_id":                 input.RunID,
+		"request_id":             run.RequestID,
 		"conversation_id":        input.ConversationID,
 		"turn_id":                input.TurnID,
 		"trace_id":               input.TraceID,
@@ -343,19 +344,21 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		})
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
-		FinalOutput:        strings.TrimSpace(response.FinalOutput),
-		DebugTraceRefs:     debugTraceRefsToTemporal(response.DebugTraceRefs),
-		ModelName:          strings.TrimSpace(response.ModelName),
-		ModelProvider:      strings.TrimSpace(response.ModelProvider),
-		ProviderResponseID: strings.TrimSpace(response.ProviderResponseID),
-		RunID:              strings.TrimSpace(response.RunID),
-		SDKTraceRef:        strings.TrimSpace(response.SDKTraceRef),
-		SelectedTools:      append([]string{}, response.SelectedTools...),
-		StageTiming:        cloneAnyMapFromMetadata(response.StageTiming),
-		Status:             strings.TrimSpace(response.Status),
-		TerminalEnvelope:   cloneAnyMapFromMetadata(response.TerminalEnvelope),
-		TerminalReason:     strings.TrimSpace(response.TerminalReason),
-		ToolResults:        toolResults,
+		FinalOutput:            strings.TrimSpace(response.FinalOutput),
+		DebugTraceRefs:         debugTraceRefsToTemporal(response.DebugTraceRefs),
+		ModelName:              strings.TrimSpace(response.ModelName),
+		ModelProvider:          strings.TrimSpace(response.ModelProvider),
+		PromptTrace:            cloneAnyMapFromMetadata(response.PromptTrace),
+		ProviderResponseID:     strings.TrimSpace(response.ProviderResponseID),
+		RunID:                  strings.TrimSpace(response.RunID),
+		SDKTraceRef:            strings.TrimSpace(response.SDKTraceRef),
+		SelectedTools:          append([]string{}, response.SelectedTools...),
+		StageTiming:            cloneAnyMapFromMetadata(response.StageTiming),
+		Status:                 strings.TrimSpace(response.Status),
+		TerminalEnvelope:       cloneAnyMapFromMetadata(response.TerminalEnvelope),
+		TerminalReason:         strings.TrimSpace(response.TerminalReason),
+		ToolResults:            toolResults,
+		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(response.ToolRuntimeFingerprint),
 		Usage: temporalruntime.AgentUsageSummary{
 			CachedInputTokens:     response.Usage.CachedInputTokens,
 			EstimatedCostMicroUSD: response.Usage.EstimatedCostMicroUSD,

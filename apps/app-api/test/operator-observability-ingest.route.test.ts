@@ -263,6 +263,37 @@ describe("operator observability internal ingest routes", () => {
 		}
 	});
 
+	it("accepts safe replay packet index metadata through the internal ingest seam", async () => {
+		const replayCaptureService = {
+			ingestReplayPacketIndex: vi.fn().mockResolvedValue({
+				accepted: 1,
+				packetId: "llm_replay_packet_rag_01",
+			}),
+		};
+		const app = createApp(env as never, {
+			replayCaptureService: replayCaptureService as never,
+		});
+		const payload = replayPacketIndexPayload();
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/internal/observability/replay-packet-index", {
+				body: JSON.stringify(payload),
+				headers: {
+					"content-type": "application/json",
+					"x-app-internal-auth": "trusted-secret",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			accepted: 1,
+			packetId: "llm_replay_packet_rag_01",
+		});
+		expect(replayCaptureService.ingestReplayPacketIndex).toHaveBeenCalledWith({ payload });
+	});
+
 	it("fails closed when the internal shared secret is missing", async () => {
 		const service = {
 			ingestExecutionAuditEvents: vi.fn(),
@@ -296,3 +327,74 @@ describe("operator observability internal ingest routes", () => {
 		expect(service.ingestExecutionAuditEvents).not.toHaveBeenCalled();
 	});
 });
+
+function replayPacketIndexPayload() {
+	return {
+		schema_version: "llm_replay_packet_index.v1",
+		packet_id: "llm_replay_packet_rag_01",
+		run_id: "run_rag_01",
+		request_id: "req_rag_01",
+		trace_id: "trace_rag_01",
+		object_ref: "s3://llm-replay/llm-replay-packets/2026/07/05/llm_replay_packet_rag_01.json",
+		object_checksum_sha256:
+			"sha256:4444444444444444444444444444444444444444444444444444444444444444",
+		sensitivity_classification: "restricted_llm_io_with_evidence",
+		capture_policy: {
+			schema_version: "raw_capture_policy.v1",
+			mode: "manual_run_capture",
+			capture_reason: "operator_approved_badcase_replay",
+			ttl_days: 7,
+			allowed_sinks: ["s3_replay_packet"],
+			allowed_raw_fields: ["rendered_messages", "selected_evidence_packet"],
+			operator_principal: "operator:user_01",
+			approval_ref: "approval_rag_01",
+			request_id: "req_rag_01",
+			run_id: "run_rag_01",
+			trace_id: "trace_rag_01",
+			audit_required: true,
+			dsar_delete_linkage_required: true,
+		},
+		llm_io_fingerprint: {
+			schema_version: "llm_io_fingerprint.v1",
+			run_id: "run_rag_01",
+			request_id: "req_rag_01",
+			trace_id: "trace_rag_01",
+			runtime_release: "execution-control@test",
+			provider_profile_revision: "rag_synthesis:provider_profile_rag:4",
+			provider: "openai",
+			model: "gpt-5-mini",
+			model_params_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			prompt_id: "rag_synthesis_answer",
+			prompt_template_sha256:
+				"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			prompt_variables_schema_version: "rag_synthesis_packet.v1",
+			rendered_prompt_sha256:
+				"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+			tool_catalog_sha256:
+				"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			tool_schema_sha256: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			workflow_artifact_sha256:
+				"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			context_envelope_sha256:
+				"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			memory_selection_sha256:
+				"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+			evidence_packet_sha256:
+				"sha256:3333333333333333333333333333333333333333333333333333333333333333",
+			output_schema_id: "rag_answer_v2",
+		},
+		deletion_linkage: {
+			subject_ref: "user_hash_01",
+			conversation_id: "conv_rag_01",
+			request_id: "req_rag_01",
+			trace_id: "trace_rag_01",
+			memory_ref_count: 0,
+			evidence_ref_count: 1,
+		},
+		encryption_key_ref: "kms:local-dev-replay",
+		approval_ref: "approval_rag_01",
+		operator_principal: "operator:user_01",
+		created_at: "2026-07-05T00:00:00Z",
+		expires_at: "2026-07-12T00:00:00Z",
+	};
+}

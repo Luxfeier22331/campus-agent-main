@@ -6,6 +6,7 @@ import { createAgentRuntimeHandler } from "../src/http-server.ts";
 import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
+import { testPromptTrace, testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";
 
 const testParameterSchema = {
 	type: "object" as const,
@@ -28,6 +29,7 @@ const transportResultSchemaRef = schemaRef(
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-registry-v4",
 	registryVersion: "test",
+	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
 		{
 			name: "transport_schedule_lookup",
@@ -154,8 +156,19 @@ describe("agent runtime HTTP handler", () => {
 			final_output?: string;
 			model_name?: string;
 			model_provider?: string;
+			prompt_trace?: {
+				prompt_id?: string;
+				prompt_template_sha256?: string;
+				rendered_prompt_sha256?: string;
+				schema_version?: string;
+			};
 			selected_tools?: string[];
 			terminal_envelope?: { kind?: string; answer_text?: string };
+			tool_runtime_fingerprint?: {
+				combined_sha256?: string;
+				schema_version?: string;
+				tools_registry_version?: string;
+			};
 		};
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.model_name).toBe("gpt-5-mini");
@@ -165,9 +178,20 @@ describe("agent runtime HTTP handler", () => {
 			kind: "answer",
 			answer_text: "我是校园问答助手。",
 		});
+		expect(body.prompt_trace).toMatchObject({
+			prompt_id: "primary_agent",
+			schema_version: "agent_runtime_prompt_trace.v1",
+			rendered_prompt_sha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+		});
+		expect(body.tool_runtime_fingerprint).toMatchObject({
+			combined_sha256: catalog.runtimeFingerprint.combinedSha256,
+			schema_version: "tool_runtime_fingerprint.v1",
+			tools_registry_version: "test",
+		});
 		expect(JSON.stringify(body)).not.toMatch(
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
 		);
+		expect(JSON.stringify(body)).not.toContain("用户偏好先给结论");
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
 		expect(observedMemoryContext).toEqual({
 			contextBlock: "用户记忆:\n- 用户偏好先给结论",
@@ -240,6 +264,72 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.error?.message).toContain("langfuse_otlp");
 	});
 
+	it("accepts policy-admitted raw model IO at the HTTP boundary", async () => {
+		let observedDebugTraceConfig: unknown;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					observedDebugTraceConfig = input.debugTraceConfig;
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
+				},
+				stream(input) {
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).stream(input);
+				},
+			},
+		});
+		const rawCapturePolicy = validRawCapturePolicy();
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+					debug_trace_config: {
+						...validDebugTraceConfig(),
+						include_model_io: true,
+						raw_capture_policy: rawCapturePolicy,
+					},
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(observedDebugTraceConfig).toMatchObject({
+			includeModelIo: true,
+			rawCapturePolicy,
+		});
+	});
+
+	it("rejects raw model IO without raw capture policy at the HTTP boundary", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+					debug_trace_config: {
+						...validDebugTraceConfig(),
+						include_model_io: true,
+					},
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		const body = (await response.json()) as { error?: { code?: string; message?: string } };
+		expect(body.error?.code).toBe("invalid_request");
+		expect(body.error?.message).toContain("raw_capture_policy");
+	});
+
 	it("accepts chat-completions prompt provider profiles at the HTTP boundary", async () => {
 		let observedProvider: unknown;
 		const handler = createAgentRuntimeHandler({
@@ -310,6 +400,7 @@ describe("agent runtime HTTP handler", () => {
 							finalOutput: "国家奖学金每学年评审一次。",
 							modelName: input.providerConfig.model,
 							modelProvider: input.providerConfig.provider,
+							promptTrace: testPromptTrace(),
 							terminalEnvelope: {
 								kind: "answer",
 								answerText: "国家奖学金每学年评审一次。",
@@ -329,6 +420,7 @@ describe("agent runtime HTTP handler", () => {
 								"agent.first_delta_ms": 4,
 							},
 							selectedTools: [],
+							toolRuntimeFingerprint: testToolRuntimeFingerprint(),
 							toolResults: [],
 							terminalReason: "answer_completed",
 							usage: { inputTokens: 11, outputTokens: 7 },
@@ -424,12 +516,14 @@ describe("agent runtime HTTP handler", () => {
 						finalOutput: "ok",
 						modelName: "gpt-test",
 						modelProvider: "openai",
+						promptTrace: testPromptTrace(),
 						terminalEnvelope: { kind: "answer", answerText: "ok" },
 						providerResponseId: "resp_signal",
 						sdkTraceRef: "trace_signal",
 						debugTraceRefs: [],
 						selectedTools: [],
 						stageTiming: {},
+						toolRuntimeFingerprint: testToolRuntimeFingerprint(),
 						toolResults: [],
 						terminalReason: "answer_completed",
 						usage: { inputTokens: 1, outputTokens: 1 },
@@ -608,6 +702,7 @@ function throwingAgentRuntimeStream(): AsyncIterable<never> {
 
 function validRunBody(): Record<string, unknown> {
 	return {
+		request_id: "req-1",
 		run_id: "run-1",
 		conversation_id: "conversation-1",
 		turn_id: "turn-1",
@@ -641,6 +736,24 @@ function validDebugTraceConfig(): Record<string, unknown> {
 			auth_header: "Basic langfuse-secret",
 			public_trace_base_url: "https://cloud.langfuse.com/project/demo/traces",
 		},
+	};
+}
+
+function validRawCapturePolicy(): Record<string, unknown> {
+	return {
+		schema_version: "raw_capture_policy.v1",
+		mode: "manual_run_capture",
+		capture_reason: "diagnose badcase req_debug_001",
+		ttl_days: 7,
+		allowed_sinks: ["openai_agents_trace", "langfuse_otlp"],
+		allowed_raw_fields: ["rendered_messages", "provider_request_body"],
+		operator_principal: "operator:test",
+		approval_ref: "approval:test:raw-capture",
+		request_id: "req-1",
+		run_id: "run-1",
+		trace_id: "trace-1",
+		audit_required: true,
+		dsar_delete_linkage_required: true,
 	};
 }
 

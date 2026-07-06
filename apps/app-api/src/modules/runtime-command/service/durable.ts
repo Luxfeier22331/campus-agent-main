@@ -270,28 +270,25 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 	context: DurableRunEventContext,
 	event: ExecutionControlRunEvent,
 ): DurableTerminalRunOutcome | null {
-	if (event.eventType !== "finalization.completed") {
-		if (event.eventType === "run.canceled") {
-			assertDurableEventRunMatches(
-				context,
-				event,
-				"Durable run canceled event run_id does not match the accepted run.",
-			);
-			return {
-				response: executionFinalizationErrorResponse({
-					code: "execution_cancelled",
-					message: "The request was cancelled.",
-					retryable: false,
-					status: "cancelled",
-					traceId: context.traceId,
-				}),
-				sourceEvent: "execution.cancelled",
-				transportError: null,
-			};
-		}
-		if (event.eventType !== "run.failed") {
-			return null;
-		}
+	if (event.eventType === "run.canceled") {
+		assertDurableEventRunMatches(
+			context,
+			event,
+			"Durable run canceled event run_id does not match the accepted run.",
+		);
+		return {
+			response: executionFinalizationErrorResponse({
+				code: "execution_cancelled",
+				message: "The request was cancelled.",
+				retryable: false,
+				status: "cancelled",
+				traceId: context.traceId,
+			}),
+			sourceEvent: "execution.cancelled",
+			transportError: null,
+		};
+	}
+	if (event.eventType === "run.failed") {
 		assertDurableEventRunMatches(
 			context,
 			event,
@@ -351,11 +348,17 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 			},
 		};
 	}
+	if (event.eventType !== "finalization.completed") {
+		return null;
+	}
 	assertDurableEventRunMatches(
 		context,
 		event,
 		"Durable finalization event run_id does not match the accepted run.",
 	);
+	if (event.visibility !== "internal") {
+		return null;
+	}
 	if (event.payload.request_id !== context.requestId) {
 		throw new ExecutionControlTransportError({
 			code: "execution_control_invalid_response",

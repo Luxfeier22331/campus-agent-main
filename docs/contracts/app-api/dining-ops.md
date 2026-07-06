@@ -194,7 +194,7 @@ navigation route graph truth.
 - student-facing `/api/dining/*` 不能读取本 route
 - ops response 只返回 repo floorplan manifest metadata，不返回 SVG markup、
   object storage bucket/key 或上传资产字段；Operator Console 通过
-  `dining-floorplans` package 渲染同一份 floorplan manifest
+  `@campus-agent/dining/floorplans` package 渲染同一份 floorplan manifest
 - floorplan changes are application releases, not ops HTTP commands
 
 ## Write Routes

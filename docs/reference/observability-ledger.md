@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/reference
 status: active
 created: 2026-07-04
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 # Observability Completion Ledger
 
@@ -22,6 +22,8 @@ updated: 2026-07-04
   `docs/contracts/stage-timing.md`
 - Langfuse payload contract：
   `docs/contracts/langfuse-runtime.md`
+- Replay capture contract：
+  `docs/contracts/replay-capture.md`
 - OTel signal taxonomy：
   `docs/reference/runtime-otel-telemetry-taxonomy.md`
 - Collector 操作步骤：
@@ -54,6 +56,9 @@ updated: 2026-07-04
 | Collector logs fan-out to Axiom events dataset | `infra/otel` + K8s execution runtime config | complete | `uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q` |
 | Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q`; `pnpm --dir packages/eval-langfuse test -- langfuse-core.test.ts` |
 | Langfuse trace verification adapter | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test`; `pnpm --dir packages/eval-langfuse typecheck` |
+| LLM I/O fingerprint contract | `docs/contracts/replay-capture.md` | designed | `pnpm repo:static` |
+| Restricted raw replay packet contract | `docs/contracts/replay-capture.md` | designed | `pnpm repo:static` |
+| Replay result diff contract | `docs/contracts/replay-capture.md` | designed | `pnpm repo:static` |
 | Learning-loop candidate selection from feedback and stage latency | `jobs/learning-loop-candidates` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir jobs/learning-loop-candidates typecheck` |
 | Learning-loop dataset publish and verify path | `jobs/learning-loop-candidates` + `packages/eval-langfuse` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir packages/eval-langfuse test` |
 | Operator-safe Ops Index boundary | `apps/app-api` + `operator-console-web` docs | complete | `pnpm --dir apps/app-api test -- operator-query.store.request-detail.suite.ts operator-query.store.overview.suite.ts`; no raw sink payload is admitted by contract tests |
@@ -65,9 +70,9 @@ updated: 2026-07-04
 - 真实 staging trace closeout evidence。它是 release QA 证据，不是当前开发完成条件。
 - 外部平台 dashboard 截图。repo 不镜像 dashboard 内容；只维护 safe link、monitor
   spec 与 contract gate。
-- OpenAI / provider raw trace 全量入库。raw 或 near-raw LLM IO 只允许进入受控外部
-  debug sink，不进入 app-api、Operator Console、Temporal metadata 或 repo-owned
-  projection。
+- OpenAI / provider raw trace 全量进入产品投影。raw 或 near-raw LLM IO 只允许进入
+  `raw_capture_policy.v1` 准入的受控 debug sink 或 replay artifact，不进入 app-api、
+  Operator Console、Temporal metadata 或 repo-owned safe projection body。
 
 ## Regression Rule
 

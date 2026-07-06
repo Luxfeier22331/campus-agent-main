@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import type { AgentRunner } from "../src/primary-agent.ts";
@@ -41,6 +42,7 @@ const transportResultSchemaRef = schemaRef(
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-registry-v4",
 	registryVersion: "test",
+	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
 		{
 			name: "knowledge_query",
@@ -105,6 +107,7 @@ describe("primary agent runtime", () => {
 		});
 
 		const result = await runtime.run({
+			requestId: "req-no-tool",
 			runId: "run-no-tool",
 			conversationId: "conversation-1",
 			turnId: "turn-1",
@@ -151,6 +154,7 @@ describe("primary agent runtime", () => {
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
 		const result = await runtime.run({
+			requestId: "req-missing-envelope",
 			runId: "run-missing-envelope",
 			conversationId: "conversation-1",
 			turnId: "turn-1",
@@ -182,6 +186,7 @@ describe("primary agent runtime", () => {
 		});
 
 		const events = runtime.stream({
+			requestId: "req-stream-missing-runner",
 			runId: "run-stream-missing-runner",
 			conversationId: "conversation-1",
 			turnId: "turn-1",
@@ -211,6 +216,7 @@ describe("primary agent runtime", () => {
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
 		await runtime.run({
+			requestId: "req-memory",
 			runId: "run-memory",
 			conversationId: "conversation-1",
 			turnId: "turn-memory",
@@ -230,6 +236,56 @@ describe("primary agent runtime", () => {
 		expect(observedInstructions).toContain("<personal_memory>");
 		expect(observedInstructions).toContain("用户偏好回答先给结论");
 		expect(observedInstructions).toContain("Personal memory is advisory context");
+	});
+
+	it("returns a safe prompt trace hashed from the rendered runner instructions", async () => {
+		const customInstructions = "Answer with the repo-scoped campus assistant policy.";
+		let observedInstructions = "";
+		const runner: AgentRunner = async ({ instructions }) => {
+			observedInstructions = instructions;
+			return {
+				finalOutput: "我会先给结论。",
+				terminalEnvelope: { kind: "answer", answerText: "我会先给结论。" },
+				providerResponseId: "resp_prompt_trace",
+				toolCalls: [],
+				traceRef: "trace_prompt_trace",
+				usage: { inputTokens: 18, outputTokens: 8 },
+			};
+		};
+		const runtime = createPrimaryAgentRuntime({
+			catalog,
+			instructions: customInstructions,
+			runner,
+		});
+
+		const result = await runtime.run({
+			requestId: "req-prompt-trace",
+			runId: "run-prompt-trace",
+			conversationId: "conversation-1",
+			turnId: "turn-prompt-trace",
+			traceId: "trace-prompt-trace",
+			input: "之后回答能不能先给结论？",
+			providerConfig,
+			visibleToolNames: ["knowledge_query"],
+			memoryContext: {
+				contextBlock: "用户记忆:\n- 用户偏好回答先给结论",
+				memoryRef: "projection://runs/run-prompt-trace/memory/recall",
+				schemaVersion: "memory_recall_result_v1",
+				selectedMemoryChars: 18,
+				selectedMemoryCount: 1,
+			},
+		});
+
+		expect(result.promptTrace).toMatchObject({
+			schemaVersion: "agent_runtime_prompt_trace.v1",
+			promptId: "primary_agent",
+			promptTemplateSha256: sha256(customInstructions),
+			renderedPromptSha256: sha256(observedInstructions),
+		});
+		expect(result.toolRuntimeFingerprint).toEqual(catalog.runtimeFingerprint);
+		expect(observedInstructions).toContain("用户偏好回答先给结论");
+		expect(JSON.stringify(result.promptTrace)).not.toContain(observedInstructions);
+		expect(JSON.stringify(result)).not.toContain("用户偏好回答先给结论");
 	});
 
 	it("injects the final model conversation context without replacing the current user input", async () => {
@@ -252,6 +308,7 @@ describe("primary agent runtime", () => {
 		};
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 		const runInput = {
+			requestId: "req-context",
 			runId: "run-context",
 			conversationId: "conversation-1",
 			turnId: "turn-context",
@@ -366,6 +423,7 @@ describe("primary agent runtime", () => {
 		});
 
 		const result = await runtime.run({
+			requestId: "req-tool",
 			runId: "run-tool",
 			conversationId: "conversation-1",
 			turnId: "turn-2",
@@ -407,6 +465,7 @@ describe("primary agent runtime", () => {
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
 		const result = await runtime.run({
+			requestId: "req-knowledge-signal",
 			runId: "run-knowledge-signal",
 			conversationId: "conversation-1",
 			turnId: "turn-4",
@@ -468,6 +527,7 @@ describe("primary agent runtime", () => {
 		});
 
 		const result = await runtime.run({
+			requestId: "req-tool-failed",
 			runId: "run-tool-failed",
 			conversationId: "conversation-1",
 			turnId: "turn-3",
@@ -528,6 +588,7 @@ describe("primary agent runtime", () => {
 		});
 
 		const result = await runtime.run({
+			requestId: "req-signal",
 			runId: "run-signal",
 			conversationId: "conversation-1",
 			turnId: "turn-signal",
@@ -555,5 +616,24 @@ function validDebugTraceConfig() {
 		mode: "langfuse_otlp" as const,
 		sampleRatio: 1,
 		schemaVersion: "llm_debug_trace_config.v1" as const,
+	};
+}
+
+function sha256(value: string): string {
+	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function testToolRuntimeFingerprint() {
+	return {
+		combinedSha256: sha256("combined-tool-runtime"),
+		functionSchemaSha256: sha256("function-schema"),
+		functionSchemaVersion: "tool-function-schemas-v1" as const,
+		schemaVersion: "tool_runtime_fingerprint.v1" as const,
+		toolsRegistryVersion: "test",
+		toolsSchemaVersion: "tool-registry-v4" as const,
+		toolsSha256: sha256("tool-registry"),
+		workflowArtifactRegistryVersion: "test",
+		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2" as const,
+		workflowArtifactSha256: sha256("workflow-artifacts"),
 	};
 }

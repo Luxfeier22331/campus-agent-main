@@ -44,7 +44,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				})
 				.mockResolvedValueOnce({
 					answerText: "第二学期有中国法制史。",
@@ -65,7 +65,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0004",
+					traceId: "trace_0002",
 				}),
 		};
 		const service = buildChatCommandService({
@@ -193,7 +193,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "needs_clarification",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -240,7 +240,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -288,7 +288,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});

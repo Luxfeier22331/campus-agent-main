@@ -109,7 +109,6 @@ func buildRagExecutionObservability(
 			diagnostics["resolved_scope_collection"],
 		),
 		"selected_tool": selectedTool,
-		"prompt_trace":  diagnostics["prompt_trace"],
 	}
 }
 

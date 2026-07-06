@@ -8,8 +8,8 @@ from typing import Any
 
 import yaml
 
+from scripts._ci_workflow_manual_rules import audit_manual_release_workflow_contracts
 from scripts.ci_workflow_contract_types import CiWorkflowContractIssue
-from scripts.ci_workflow_manual_contracts import audit_manual_release_workflow_contracts
 
 REQUIRED_CI_SCRIPTS = (
     "repo:guard",
@@ -198,6 +198,7 @@ def _audit_package_manager_versions(
         sorted(root.glob("apps/*/package.json"))
         + sorted(root.glob("jobs/*/package.json"))
         + sorted(root.glob("packages/*/package.json"))
+        + sorted(root.glob("packages/domains/*/package.json"))
     )
     for package_path in package_paths:
         package = _read_json(package_path)

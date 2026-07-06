@@ -36,8 +36,8 @@ GET /api/dining/halls/:hallId/reviews
 ## Source And Failure Boundary
 
 学生端 dining routes 只读取 latest published dining release snapshot。
-`packages/dining-floorplans` 的 SVG、manifest 或 `packages/dining-domain` 的
-scaffold 只说明 repo 有地图资产，不说明学生端已经可见；可见性必须以
+`@campus-agent/dining/floorplans` 的 SVG/manifest 或
+`@campus-agent/dining/domain` 的 scaffold 只说明 repo 有地图资产，不说明学生端已经可见；可见性必须以
 `GET /api/dining/halls` 和对应 floor route 返回的 published projection 为准。
 
 规则：
@@ -158,7 +158,7 @@ scaffold 只说明 repo 有地图资产，不说明学生端已经可见；可�
 
 - `floor.floorplan` 是发布快照冻结的 floorplan manifest metadata；响应不暴露
   SVG markup、object storage bucket/key 或 operator-only asset 字段。
-- `campus-web` 通过 repo 内 `dining-floorplans` package 用
+- `campus-web` 通过 repo 内 `@campus-agent/dining/floorplans` package 用
   `hallId/floorId/floorplanId/sha256` 解析同一份 sanitized inline SVG；如果 HTTP
   metadata 与 repo manifest 不一致，前端必须 fail closed。`floorplanId` 以
   `placeholder:` 开头时表示当前还没有正式地图资产，前端应使用响应中的

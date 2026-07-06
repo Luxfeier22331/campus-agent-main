@@ -386,6 +386,63 @@ func TestInMemoryRunProjectionStoreAppendsRunEventsWithMonotonicSequence(t *test
 	}
 }
 
+func TestInMemoryRunProjectionStoreRejectsBrowserFinalizationResponsePayload(t *testing.T) {
+	store := NewInMemoryRunProjectionStore()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 8, 12, 0, 0, time.UTC)
+	createRunProjectionForTest(t, store, "run-finalization-event", "conv-finalization-event", now)
+
+	_, err := store.AppendRunEvent(ctx, DurableRunEvent{
+		EventID:              "evt-finalization-browser-leak",
+		RunID:                "run-finalization-event",
+		ConversationID:       "conv-finalization-event",
+		EventType:            DurableRunEventTypeFinalizationCompleted,
+		OccurredAt:           now,
+		Visibility:           DurableRunEventVisibilityBrowser,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"request_id": "req-finalization-event",
+			"response":   map[string]any{"answer_text": "must stay internal"},
+			"trace_id":   "trace-finalization-event",
+		},
+	})
+	if !errors.Is(err, ErrInvalidRunEvent) {
+		t.Fatalf("browser finalization response error = %v, want ErrInvalidRunEvent", err)
+	}
+
+	if _, err := store.AppendRunEvent(ctx, DurableRunEvent{
+		EventID:              "evt-finalization-browser-safe",
+		RunID:                "run-finalization-event",
+		ConversationID:       "conv-finalization-event",
+		EventType:            DurableRunEventTypeFinalizationCompleted,
+		OccurredAt:           now.Add(time.Second),
+		Visibility:           DurableRunEventVisibilityBrowser,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"request_id": "req-finalization-event",
+			"trace_id":   "trace-finalization-event",
+		},
+	}); err != nil {
+		t.Fatalf("append safe browser finalization event: %v", err)
+	}
+	if _, err := store.AppendRunEvent(ctx, DurableRunEvent{
+		EventID:              "evt-finalization-internal",
+		RunID:                "run-finalization-event",
+		ConversationID:       "conv-finalization-event",
+		EventType:            DurableRunEventTypeFinalizationCompleted,
+		OccurredAt:           now.Add(2 * time.Second),
+		Visibility:           DurableRunEventVisibilityInternal,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"request_id": "req-finalization-event",
+			"response":   map[string]any{"answer_text": "internal closeout"},
+			"trace_id":   "trace-finalization-event",
+		},
+	}); err != nil {
+		t.Fatalf("append internal finalization event: %v", err)
+	}
+}
+
 func TestInMemoryRunProjectionStoreWritesCancelProjectionEvent(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()

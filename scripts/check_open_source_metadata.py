@@ -50,11 +50,14 @@ def _metadata_files(*, root: Path) -> tuple[Path, ...]:
             "package.json",
             "apps/*/package.json",
             "packages/*/package.json",
+            "packages/domains/*/package.json",
             "pyproject.toml",
             "apps/*/pyproject.toml",
             "packages/*/pyproject.toml",
+            "packages/domains/*/pyproject.toml",
             "Cargo.toml",
             "packages/*/Cargo.toml",
+            "packages/domains/*/Cargo.toml",
             root=root,
         )
         if path.is_file()

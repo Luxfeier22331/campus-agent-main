@@ -23,7 +23,7 @@ import type {
 	DiningWindow,
 	DiningWindowAssignment,
 	DiningWindowStatus,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 import { desc } from "drizzle-orm";
 import type { Env } from "../../config";
 import {

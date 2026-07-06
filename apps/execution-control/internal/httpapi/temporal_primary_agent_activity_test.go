@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -78,8 +80,23 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		config: llmDebugTraceConfig{
 			SchemaVersion:  "llm_debug_trace_config.v1",
 			Mode:           "langfuse_otlp",
-			IncludeModelIO: false,
+			IncludeModelIO: true,
 			SampleRatio:    0.25,
+			RawCapturePolicy: &rawCapturePolicy{
+				SchemaVersion:             "raw_capture_policy.v1",
+				Mode:                      "manual_run_capture",
+				CaptureReason:             "diagnose badcase req-primary-agent-001",
+				TTLDays:                   7,
+				AllowedSinks:              []string{"openai_agents_trace", "langfuse_otlp"},
+				AllowedRawFields:          []string{"rendered_messages", "provider_request_body"},
+				OperatorPrincipal:         stringPtrForTest("operator:test"),
+				ApprovalRef:               stringPtrForTest("approval:test:raw-capture"),
+				RequestID:                 stringPtrForTest("req-executor-001"),
+				RunID:                     stringPtrForTest("run-primary-agent-001"),
+				TraceID:                   stringPtrForTest("trace-executor-001"),
+				AuditRequired:             true,
+				DSARDeleteLinkageRequired: true,
+			},
 			LangfuseOTLP: &llmDebugTraceOTLPConfig{
 				Endpoint:           "https://cloud.langfuse.com/api/public/otel",
 				AuthHeader:         "Basic langfuse-secret",
@@ -117,17 +134,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		providerConfig["model"] != "gpt-test" {
 		t.Fatalf("provider_config = %#v", providerConfig)
 	}
-	debugTraceConfig, ok := seenBody["debug_trace_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("agent runtime request missing debug_trace_config: %#v", seenBody)
-	}
-	langfuseConfig, _ := debugTraceConfig["langfuse_otlp"].(map[string]any)
-	if debugTraceConfig["mode"] != "langfuse_otlp" ||
-		debugTraceConfig["include_model_io"] != false ||
-		debugTraceConfig["sample_ratio"] != 0.25 ||
-		langfuseConfig["auth_header"] != "Basic langfuse-secret" {
-		t.Fatalf("debug_trace_config = %#v", debugTraceConfig)
-	}
+	assertPrimaryAgentDebugTraceConfigForTest(t, seenBody)
 	assertPrimaryAgentMemoryContextForTest(t, seenBody)
 	if output.AgentResultRef != "projection://runs/run-primary-agent-001/agent/primary/result" {
 		t.Fatalf("agent result ref = %q", output.AgentResultRef)
@@ -171,12 +178,26 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if !ok || envelope["kind"] != "answer" {
 		t.Fatalf("agent metadata missing terminal envelope: %#v", agentMetadata)
 	}
+	assertPrimaryAgentLLMIOFingerprintForTest(t, agentMetadata)
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-001")
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
 	}
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "completed" {
 		t.Fatalf("projected steps = %#v", steps)
+	}
+	if strings.Contains(fmt.Sprint(steps[0].SanitizedPayload), "用户偏好先看结论") {
+		t.Fatalf("agent step payload leaked raw memory text: %#v", steps[0].SanitizedPayload)
+	}
+	if _, exists := steps[0].SanitizedPayload["memory_context"]; exists {
+		t.Fatalf("agent step payload must not contain raw memory_context: %#v", steps[0].SanitizedPayload)
+	}
+	memorySummary, ok := steps[0].SanitizedPayload["memory_context_summary"].(map[string]any)
+	if !ok || memorySummary["memory_ref"] != "projection://runs/run-primary-agent-001/memory/recall" {
+		t.Fatalf("agent step memory_context_summary = %#v", steps[0].SanitizedPayload["memory_context_summary"])
+	}
+	if hash, ok := memorySummary["context_block_sha256"].(string); !ok || !validSHA256Ref(hash) {
+		t.Fatalf("memory_context_summary.context_block_sha256 = %#v", memorySummary["context_block_sha256"])
 	}
 	attempts, err := store.ListStepAttempts(context.Background(), "run-primary-agent-001")
 	if err != nil {
@@ -704,84 +725,5 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 		errorPayload["message"] != "Agent runtime request timed out." ||
 		errorPayload["retryable"] != true {
 		t.Fatalf("run.failed error payload = %#v", errorPayload)
-	}
-}
-
-func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 10, 45, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-knowledge-signal",
-		"conv-primary-agent-knowledge-signal",
-		now,
-		ragHandoffForDurableWorkerTest("学籍管理规定是什么"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-knowledge-signal",
-			"final_output":         "",
-			"provider_response_id": "resp-primary-agent-knowledge-signal",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-knowledge-signal",
-			"selected_tools":       []string{"knowledge_query"},
-			"tool_results": []map[string]any{{
-				"status":       "completed",
-				"tool_name":    "knowledge_query",
-				"tool":         "knowledge_query",
-				"payload_kind": "knowledge_query",
-				"result_ref":   "agent-runtime://run-primary-agent-knowledge-signal/tools/knowledge_query",
-				"result":       map[string]any{"workflow_signal": "knowledge_query"},
-			}},
-			"terminal_reason": "tool_selected",
-			"usage": map[string]any{
-				"input_tokens":             18,
-				"output_tokens":            4,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 19,
-			},
-		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
-		TemporalWorkerIdentity:   "test:agent:knowledge-signal",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-
-	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-knowledge-signal",
-		RequestID:        "req-primary-agent-knowledge-signal",
-		RunID:            "run-primary-agent-knowledge-signal",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-knowledge-signal",
-		VisibleToolNames: []string{"knowledge_query"},
-	})
-	if err != nil {
-		t.Fatalf("execute primary agent: %v", err)
-	}
-	if output.FinalOutput != "" {
-		t.Fatalf("final output = %q, want empty workflow signal", output.FinalOutput)
-	}
-	if len(output.SelectedTools) != 1 || output.SelectedTools[0] != "knowledge_query" {
-		t.Fatalf("selected tools = %#v", output.SelectedTools)
-	}
-	if output.TerminalReason != "tool_selected" {
-		t.Fatalf("terminal reason = %q", output.TerminalReason)
-	}
-	run, err := store.GetRun(context.Background(), "run-primary-agent-knowledge-signal")
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	agentMetadata, ok := run.Metadata["temporal_agent"].(map[string]any)
-	if !ok {
-		t.Fatalf("temporal_agent metadata = %#v", run.Metadata["temporal_agent"])
-	}
-	if agentMetadata["terminal_reason"] != "tool_selected" {
-		t.Fatalf("agent metadata = %#v", agentMetadata)
 	}
 }

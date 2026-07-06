@@ -107,6 +107,7 @@ describe("request observability", () => {
 			response: createResponse({
 				status: "completed",
 			}),
+			runId: "run_01HQ",
 			safetyIdentifier,
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
@@ -186,6 +187,7 @@ describe("request observability", () => {
 				corpus: "regulations",
 			},
 			response: createResponse(),
+			runId: "run_01HQ",
 			safetyIdentifier: null,
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
@@ -263,6 +265,7 @@ describe("request observability", () => {
 			status: "no_answer",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -351,6 +354,7 @@ describe("request observability", () => {
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_workflow_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -405,11 +409,11 @@ describe("request observability", () => {
 					promptTrace: {
 						modelName: "gpt-5.2-mini",
 						modelProvider: "openai-responses",
-						outputSchemaVersion: "v1",
-						promptId: "rag_answer_v1",
+						outputSchemaVersion: "v2",
+						promptId: "rag_synthesis_answer",
 						promptVersion: "v1",
 						templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-						variablesSchemaVersion: "v1",
+						variablesSchemaVersion: "rag_synthesis_packet.v1",
 					},
 					refusalClass: "no_answer",
 					retrievedSourceCount: 0,
@@ -423,12 +427,13 @@ describe("request observability", () => {
 			status: "no_answer",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
 			modelName: "gpt-5.2-mini",
 			modelProvider: "openai-responses",
-			promptId: "rag_answer_v1",
+			promptId: "rag_synthesis_answer",
 			modelExecutionDetail: "content_filter",
 			modelExecutionState: "content_filter",
 			promptVersion: "v1",
@@ -478,6 +483,7 @@ describe("request observability", () => {
 			status: "no_answer",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -544,6 +550,7 @@ describe("request observability", () => {
 			status: "no_answer",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -654,6 +661,7 @@ describe("request observability", () => {
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_trace",
+			runId: "run_01HQ",
 		});
 
 		expect(fact.retrievedSourceCount).toBe(2);
@@ -751,6 +759,7 @@ describe("request observability", () => {
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_empty_recall",
+			runId: "run_01HQ",
 		});
 
 		expect(fact.retrievalAttempted).toBe(true);

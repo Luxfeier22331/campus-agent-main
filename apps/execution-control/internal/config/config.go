@@ -78,6 +78,13 @@ type Config struct {
 	ProviderPricingPath               string
 	NoticeReadModelDatabaseURL        string
 	NoticeReadModelTable              string
+	ReplayObjectStoreEndpoint         string
+	ReplayObjectStoreAccessKey        string
+	ReplayObjectStoreSecretKey        string
+	ReplayObjectStoreRegion           string
+	ReplayObjectStoreBucket           string
+	ReplayObjectStorePrefix           string
+	ReplayObjectStoreEncryptionKeyRef string
 	QdrantURL                         string
 	QdrantQueryAPIKey                 string
 	QdrantTLSCACertPath               string
@@ -171,6 +178,13 @@ type envValues struct {
 	ToolReadModelTimeoutMS            int
 	ProviderPricingPath               string
 	NoticeReadModelTable              string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
+	ReplayObjectStoreEndpoint         string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT"`
+	ReplayObjectStoreAccessKey        string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY"`
+	ReplayObjectStoreSecretKey        string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY"`
+	ReplayObjectStoreRegion           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
+	ReplayObjectStoreBucket           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET"`
+	ReplayObjectStorePrefix           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX"`
+	ReplayObjectStoreEncryptionKeyRef string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF"`
 	QdrantURL                         string  `env:"QDRANT_URL"`
 	QdrantQueryAPIKey                 string  `env:"QDRANT_QUERY_API_KEY"`
 	QdrantTLSCACertPath               string  `env:"QDRANT_TLS_CA_CERT_PATH"`
@@ -365,6 +379,13 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ProviderPricingPath:               strings.TrimSpace(values.ProviderPricingPath),
 		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
 		NoticeReadModelTable:              defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
+		ReplayObjectStoreEndpoint:         strings.TrimSpace(values.ReplayObjectStoreEndpoint),
+		ReplayObjectStoreAccessKey:        strings.TrimSpace(values.ReplayObjectStoreAccessKey),
+		ReplayObjectStoreSecretKey:        strings.TrimSpace(values.ReplayObjectStoreSecretKey),
+		ReplayObjectStoreRegion:           defaultString(strings.TrimSpace(values.ReplayObjectStoreRegion), "us-east-1"),
+		ReplayObjectStoreBucket:           strings.TrimSpace(values.ReplayObjectStoreBucket),
+		ReplayObjectStorePrefix:           strings.Trim(strings.TrimSpace(values.ReplayObjectStorePrefix), "/"),
+		ReplayObjectStoreEncryptionKeyRef: strings.TrimSpace(values.ReplayObjectStoreEncryptionKeyRef),
 		QdrantURL:                         strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantQueryAPIKey:                 strings.TrimSpace(values.QdrantQueryAPIKey),
 		QdrantTLSCACertPath:               strings.TrimSpace(values.QdrantTLSCACertPath),

@@ -26,7 +26,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 				},
 				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({

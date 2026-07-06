@@ -129,7 +129,6 @@ members = [
   "apps/ingestion-worker",
   "apps/legacy-office-conversion-service",
   "packages/contracts",
-  "packages/dining-floorplans",
   "packages/eval-langfuse",
   "packages/ingestion-contracts",
   "packages/ingestion-core",

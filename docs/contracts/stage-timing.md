@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-07-03
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 # Runtime Stage Timing Contract
 
@@ -181,15 +181,21 @@ fails closed on non-canonical app-api-owned timing fields.
 - `stage_timing.v1` answers "which repo-owned stage was slow?"
 - `debug_trace_refs` lets an authorized operator jump to external sinks for
   deeper model/provider/span inspection.
+- `llm_replay_packet.v1` can reproduce an admitted run for diagnosis or eval,
+  but only as a separate restricted artifact.
 
 OpenAI Agents SDK tracing, Langfuse OTLP, Sentry and Axiom do not replace
 `stage_timing.v1`. They can provide detail for diagnosis, but app-api and
-Operator Console consume only this safe timing projection plus safe sink refs.
+Operator Console consume only this safe timing projection plus safe sink refs
+and replay packet metadata. `stage_timing.v1` must never embed raw replay packet
+body, raw SDK span, raw provider payload, raw tool IO, raw prompt, raw answer or
+raw memory text.
 
 ## Related Documents
 
 - `docs/contracts/app-api/observability.md`
 - `docs/contracts/langfuse-runtime.md`
+- `docs/contracts/replay-capture.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/reference/observability-ledger.md`
 - `docs/architecture/system/learning-loop.md`

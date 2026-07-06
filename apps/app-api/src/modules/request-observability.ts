@@ -1,9 +1,17 @@
+import { AppApiRouteError } from "../http";
 import type { ResolvedAppPrincipal } from "./auth";
-import type { RequestedScope, ToolExecutionResponse } from "./integration";
+import type {
+	RequestedScope,
+	ToolExecutionAnswerEvalFingerprint,
+	ToolExecutionLlmIoFingerprint,
+	ToolExecutionResponse,
+} from "./integration";
+import { answerEvalFingerprintSha256 } from "./integration/answer-eval-fingerprint-hash";
 import {
 	STAGE_TIMING_FIELDS,
 	type StageTimingField,
 } from "./integration/execution-finalization-contract";
+import { llmIoFingerprintSha256 } from "./integration/llm-io-fingerprint-hash";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -74,6 +82,121 @@ function mergeStageTiming(input: {
 	addOptionalStageTimingField(timing, "stream.browser_ttft_ms", input.streamBrowserTtftMs);
 	addOptionalStageTimingField(timing, "projection.closeout_ms", input.projectionCloseoutMs);
 	return timing;
+}
+
+function assertAnswerEvalFingerprintSourceConsistent(input: {
+	answerEvalFingerprint: ToolExecutionAnswerEvalFingerprint | null | undefined;
+	llmIoFingerprint: ToolExecutionLlmIoFingerprint | null | undefined;
+}): void {
+	const { answerEvalFingerprint, llmIoFingerprint } = input;
+	if (!answerEvalFingerprint) {
+		return;
+	}
+	if (!llmIoFingerprint) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			message: "answer_eval_fingerprint requires observability.llm_io_fingerprint",
+			retryable: false,
+			status: 422,
+		});
+	}
+	const checks = [
+		{
+			actual: answerEvalFingerprint.llmIoFingerprintSha256,
+			expected: llmIoFingerprintSha256(llmIoFingerprint),
+			field: "llm_io_fingerprint_sha256",
+		},
+		{ actual: answerEvalFingerprint.runId, expected: llmIoFingerprint.runId, field: "run_id" },
+		{
+			actual: answerEvalFingerprint.requestId,
+			expected: llmIoFingerprint.requestId,
+			field: "request_id",
+		},
+		{
+			actual: answerEvalFingerprint.traceId,
+			expected: llmIoFingerprint.traceId,
+			field: "trace_id",
+		},
+		{
+			actual: answerEvalFingerprint.runtimeRelease,
+			expected: llmIoFingerprint.runtimeRelease,
+			field: "runtime_release",
+		},
+		{
+			actual: answerEvalFingerprint.llmCallSite,
+			expected: llmIoFingerprint.llmCallSite,
+			field: "llm_call_site",
+		},
+		{
+			actual: answerEvalFingerprint.providerProfileRevision,
+			expected: llmIoFingerprint.providerProfileRevision,
+			field: "provider_profile_revision",
+		},
+		{
+			actual: answerEvalFingerprint.outputSchemaId,
+			expected: llmIoFingerprint.outputSchemaId,
+			field: "output_schema_id",
+		},
+		{
+			actual: answerEvalFingerprint.branchIdentity.promptId,
+			expected: llmIoFingerprint.promptId,
+			field: "branch_identity.prompt_id",
+		},
+		{
+			actual: answerEvalFingerprint.toolRuntimeCombinedSha256,
+			expected: llmIoFingerprint.toolRuntimeFingerprint.combinedSha256,
+			field: "tool_runtime_combined_sha256",
+		},
+	];
+	for (const check of checks) {
+		if (check.actual !== check.expected) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				message: `answer_eval_fingerprint.${check.field} must match llm_io_fingerprint`,
+				retryable: false,
+				status: 422,
+			});
+		}
+	}
+	if (
+		answerEvalFingerprint.answerFingerprintSha256 !==
+		answerEvalFingerprintSha256(answerEvalFingerprint)
+	) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			message:
+				"answer_eval_fingerprint.answer_fingerprint_sha256 must match answer_eval_fingerprint",
+			retryable: false,
+			status: 422,
+		});
+	}
+}
+
+function assertLlmIoFingerprintRunConsistent(input: {
+	llmIoFingerprint: ToolExecutionLlmIoFingerprint | null | undefined;
+	requestId: string;
+	runId: string;
+	traceId: string;
+}): void {
+	const { llmIoFingerprint } = input;
+	if (!llmIoFingerprint) {
+		return;
+	}
+	const checks = [
+		{ actual: llmIoFingerprint.requestId, expected: input.requestId, field: "request_id" },
+		{ actual: llmIoFingerprint.runId, expected: input.runId, field: "run_id" },
+		{ actual: llmIoFingerprint.traceId, expected: input.traceId, field: "trace_id" },
+	];
+	for (const check of checks) {
+		if (check.actual !== check.expected) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				message: `llm_io_fingerprint.${check.field} must match finalized request`,
+				retryable: false,
+				status: 422,
+			});
+		}
+	}
 }
 
 function normalizeAclDecision(input: {
@@ -387,6 +510,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		workflowTraceSummary: null,
 		stageTiming: {},
 		debugTraceRefs: [],
+		answerEvalFingerprint: null,
+		llmIoFingerprint: null,
 	};
 }
 
@@ -402,6 +527,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
 	response: ToolExecutionResponse;
+	runId: string;
 	safetyIdentifier?: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
@@ -429,6 +555,18 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	const citationCount =
 		observability?.citationCount ?? (citationExpected === true ? supportingSources.length : 0);
 	const usageSummary = observability?.usageSummary ?? null;
+	const answerEvalFingerprint = observability?.answerEvalFingerprint ?? null;
+	const llmIoFingerprint = observability?.llmIoFingerprint ?? null;
+	assertLlmIoFingerprintRunConsistent({
+		llmIoFingerprint,
+		requestId: input.requestId,
+		runId: input.runId,
+		traceId: input.traceId,
+	});
+	assertAnswerEvalFingerprintSourceConsistent({
+		answerEvalFingerprint,
+		llmIoFingerprint,
+	});
 
 	return {
 		aclAnomalyCode: observability?.aclAnomalyCode ?? null,
@@ -555,6 +693,8 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			streamBrowserTtftMs: input.streamBrowserTtftMs,
 		}),
 		debugTraceRefs: input.response.debugTraceRefs ?? [],
+		answerEvalFingerprint,
+		llmIoFingerprint,
 	};
 }
 

@@ -87,6 +87,7 @@ describe("request observability stage timing", () => {
 			streamBrowserTtftMs: 420,
 			surface: "campus_web",
 			traceId: "trace_stage_timing_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact.stageTiming).toEqual({
@@ -127,6 +128,7 @@ describe("request observability stage timing", () => {
 				},
 				surface: "campus_web",
 				traceId: "trace_stage_timing_invalid_01HQ",
+				runId: "run_01HQ",
 			}),
 		).toThrow("stage_timing.app_api.synthetic_ms is not an allowed stage timing field");
 	});

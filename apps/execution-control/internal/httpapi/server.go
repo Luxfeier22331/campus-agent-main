@@ -40,6 +40,7 @@ type Server struct {
 	ragLookupErr                error
 	ragSynthesisExecutor        ragSynthesisExecutor
 	ragSynthesisErr             error
+	ragReplayPacketRecorder     ragReplayPacketRecorder
 	ragVersionResolver          ragVersionResolver
 	providerConfigResolver      providerConfigResolver
 	providerConfigErr           error
@@ -271,6 +272,7 @@ func NewServerWithDependencies(
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
 	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
+	ragReplayPacketRecorder := newRAGReplayPacketRecorder(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -292,6 +294,7 @@ func NewServerWithDependencies(
 		ragLookupErr:                ragLookupErr,
 		ragSynthesisExecutor:        ragSynthesisExecutor,
 		ragSynthesisErr:             ragSynthesisErr,
+		ragReplayPacketRecorder:     ragReplayPacketRecorder,
 		ragVersionResolver:          newQdrantMetadataVersionResolver(cfg),
 		providerConfigResolver:      providerConfigResolver,
 		providerConfigErr:           providerConfigErr,
@@ -328,6 +331,7 @@ func newRAGSynthesisExecutor(
 		},
 		pricing:         catalog,
 		providerTimeout: providerTimeout,
+		runtimeRelease:  strings.TrimSpace(cfg.RuntimeRelease),
 	}, nil
 }
 

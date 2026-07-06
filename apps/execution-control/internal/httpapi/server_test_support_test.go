@@ -34,7 +34,7 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 }
 
 func newServerForTest() *Server {
-	return NewServer(config.Config{
+	server := NewServer(config.Config{
 		RAGSelectedEvidenceMax:          8,
 		RAGSynthesisMaxOutputTokens:     900,
 		RAGSynthesisReasoningEffort:     "low",
@@ -42,6 +42,15 @@ func newServerForTest() *Server {
 		RAGSynthesisTextVerbosity:       "low",
 		RAGTopKMax:                      8,
 	})
+	server.observabilityConfigResolver = staticObservabilityConfigResolver{
+		config: llmDebugTraceConfig{
+			SchemaVersion: "llm_debug_trace_config.v1",
+			Mode:          "off",
+			SampleRatio:   1,
+		},
+	}
+	server.observabilityConfigErr = nil
+	return server
 }
 
 func newWorkerAuthServerForTest() *Server {

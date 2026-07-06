@@ -29,9 +29,10 @@ updated: 2026-07-04
 
 ## Ownership
 
-`packages/dining-domain` owns dining domain model, floorplan scaffold,
+`packages/domains/dining` owns dining domain model, floorplan scaffold,
 local/dev seed, draft/release/projection rules and floorplan manifest
-validation.
+validation. Its public TypeScript surfaces are `@campus-agent/dining/domain`
+and `@campus-agent/dining/floorplans`.
 
 `jobs/dining-sync` owns dining data production jobs:
 
@@ -578,7 +579,7 @@ errors: missing required display names, missing linked halls/stalls, orphaned
 offerings or snapshot records that cannot be served must stay diagnostic instead
 of being silently dropped.
 
-The dev seed in `packages/dining-domain` is local/dev data. It can be imported
+The dev seed in `packages/domains/dining` is local/dev data. It can be imported
 with `import-dev-seed` outside production, but it is not production dining
 content truth. Floorplan scaffold is physical map structure only and does not
 carry menu, price or review truth.

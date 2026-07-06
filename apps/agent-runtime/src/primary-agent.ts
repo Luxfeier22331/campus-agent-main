@@ -1,13 +1,20 @@
+import { createHash } from "node:crypto";
 import {
 	type DebugTraceRef,
 	debugTraceRefsForConfig,
 	type LlmDebugTraceConfig,
 } from "./debug-trace.ts";
-import type { JsonObjectSchema, ToolCatalog, ToolCatalogEntry } from "./tool-catalog.ts";
+import type {
+	JsonObjectSchema,
+	ToolCatalog,
+	ToolCatalogEntry,
+	ToolRuntimeFingerprint,
+} from "./tool-catalog.ts";
 import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
 export interface PrimaryAgentRunInput {
 	runId: string;
+	requestId: string;
 	conversationId: string;
 	turnId: string;
 	traceId: string;
@@ -35,7 +42,21 @@ export interface FinalModelContext {
 		runtimeOnlyItemCount: number;
 		tokenEstimate: number;
 		truncationReason?: string;
+		truncationSummary?: TruncationSummary;
 	};
+}
+
+export interface TruncationSummary {
+	droppedCategoryCounts: Record<string, number>;
+	modelVisibleAfterCount: number;
+	modelVisibleBeforeCount: number;
+	policyVersion: string;
+	reason: string;
+	runtimeOnlyAfterCount: number;
+	runtimeOnlyBeforeCount: number;
+	schemaVersion: "truncation_summary.v1";
+	tokenEstimateAfter: number;
+	tokenEstimateBefore: number;
 }
 
 export interface FinalModelContextTurn {
@@ -96,6 +117,13 @@ export interface UsageSummary {
 	estimatedCostMicroUsd?: number;
 }
 
+export interface PromptTrace {
+	promptId: "primary_agent";
+	promptTemplateSha256: string;
+	renderedPromptSha256: string;
+	schemaVersion: "agent_runtime_prompt_trace.v1";
+}
+
 export interface AgentRunnerAnswerDelta {
 	accumulatedText: string;
 	chunkIndex: number;
@@ -151,6 +179,7 @@ export interface AgentRunnerInput {
 	input: string;
 	instructions: string;
 	tools: SdkToolRuntime[];
+	requestId: string;
 	runId: string;
 	traceId: string;
 	providerConfig: PromptProviderRuntimeConfig;
@@ -180,12 +209,14 @@ export interface PrimaryAgentRunResult {
 	finalOutput: string;
 	modelName: string;
 	modelProvider: string;
+	promptTrace: PromptTrace;
 	providerResponseId: string;
 	sdkTraceRef: string;
 	debugTraceRefs: DebugTraceRef[];
 	selectedTools: string[];
 	stageTiming: Record<string, number>;
 	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
+	toolRuntimeFingerprint: ToolRuntimeFingerprint;
 	toolResults: ToolExecutionResult[];
 	terminalReason:
 		| "answer_completed"
@@ -232,6 +263,7 @@ export function createPrimaryAgentRuntime(
 	options: CreatePrimaryAgentRuntimeOptions,
 ): PrimaryAgentRuntime {
 	const instructions = options.instructions?.trim() || defaultInstructions;
+	const promptTemplateSha256 = sha256(instructions);
 	const executor = options.toolExecutor ?? defaultToolExecutor;
 	const runWithAgentRunner = async (
 		input: PrimaryAgentRunInput,
@@ -240,7 +272,16 @@ export function createPrimaryAgentRuntime(
 		const startedAt = new Date();
 		const runnerInput = primaryAgentRunnerInput(input, options.catalog, executor, instructions);
 		const result = await runner(runnerInput);
-		return primaryAgentRunResultFromRunnerResult(input, result, stageTiming(startedAt, new Date()));
+		return primaryAgentRunResultFromRunnerResult({
+			input,
+			promptTrace: promptTraceFromRenderedInstructions(
+				promptTemplateSha256,
+				runnerInput.instructions,
+			),
+			result,
+			timing: stageTiming(startedAt, new Date()),
+			toolRuntimeFingerprint: options.catalog.runtimeFingerprint,
+		});
 	};
 	return {
 		async run(input) {
@@ -254,18 +295,23 @@ export function createPrimaryAgentRuntime(
 			}
 			let completed = false;
 			let firstDeltaAt: Date | undefined;
-			for await (const item of streamingRunner(
-				primaryAgentRunnerInput(input, options.catalog, executor, instructions),
-			)) {
+			const runnerInput = primaryAgentRunnerInput(input, options.catalog, executor, instructions);
+			const promptTrace = promptTraceFromRenderedInstructions(
+				promptTemplateSha256,
+				runnerInput.instructions,
+			);
+			for await (const item of streamingRunner(runnerInput)) {
 				if (isAgentRunnerResult(item)) {
 					completed = true;
 					yield {
 						event: "completed",
-						data: primaryAgentRunResultFromRunnerResult(
+						data: primaryAgentRunResultFromRunnerResult({
 							input,
-							item,
-							stageTiming(startedAt, new Date(), firstDeltaAt),
-						),
+							promptTrace,
+							result: item,
+							timing: stageTiming(startedAt, new Date(), firstDeltaAt),
+							toolRuntimeFingerprint: options.catalog.runtimeFingerprint,
+						}),
 					};
 					continue;
 				}
@@ -318,6 +364,7 @@ function primaryAgentRunnerInput(
 		input: input.input,
 		instructions: instructionsWithModelContext(instructions, input),
 		tools: visibleTools,
+		requestId: input.requestId,
 		runId: input.runId,
 		traceId: input.traceId,
 		providerConfig: input.providerConfig,
@@ -326,11 +373,14 @@ function primaryAgentRunnerInput(
 	};
 }
 
-function primaryAgentRunResultFromRunnerResult(
-	input: PrimaryAgentRunInput,
-	result: AgentRunnerResult,
-	timing: Record<string, number>,
-): PrimaryAgentRunResult {
+function primaryAgentRunResultFromRunnerResult(args: {
+	input: PrimaryAgentRunInput;
+	promptTrace: PromptTrace;
+	result: AgentRunnerResult;
+	timing: Record<string, number>;
+	toolRuntimeFingerprint: ToolRuntimeFingerprint;
+}): PrimaryAgentRunResult {
+	const { input, promptTrace, result, timing, toolRuntimeFingerprint } = args;
 	const toolResults = result.toolCalls
 		.map((call) => call.result)
 		.filter((value): value is ToolExecutionResult => value !== undefined);
@@ -342,11 +392,13 @@ function primaryAgentRunResultFromRunnerResult(
 			finalOutput: "",
 			modelName: input.providerConfig.model,
 			modelProvider: input.providerConfig.provider,
+			promptTrace,
 			providerResponseId: result.providerResponseId,
 			sdkTraceRef: result.traceRef,
 			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
 			stageTiming: timing,
+			toolRuntimeFingerprint,
 			toolResults,
 			terminalReason: "agent_runtime_failed",
 			usage: result.usage,
@@ -364,11 +416,13 @@ function primaryAgentRunResultFromRunnerResult(
 			finalOutput: "",
 			modelName: input.providerConfig.model,
 			modelProvider: input.providerConfig.provider,
+			promptTrace,
 			providerResponseId: result.providerResponseId,
 			sdkTraceRef: result.traceRef,
 			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
 			stageTiming: timing,
+			toolRuntimeFingerprint,
 			toolResults,
 			terminalReason: "agent_runtime_failed",
 			usage: result.usage,
@@ -383,16 +437,34 @@ function primaryAgentRunResultFromRunnerResult(
 				: finalOutputFromTerminalEnvelope(result.terminalEnvelope),
 		modelName: input.providerConfig.model,
 		modelProvider: input.providerConfig.provider,
+		promptTrace,
 		providerResponseId: result.providerResponseId,
 		sdkTraceRef: result.traceRef,
 		debugTraceRefs: debugTraceRefs(input, result),
 		selectedTools: result.toolCalls.map((call) => call.name),
 		stageTiming: timing,
 		terminalEnvelope: result.terminalEnvelope,
+		toolRuntimeFingerprint,
 		toolResults,
 		terminalReason,
 		usage: result.usage,
 	};
+}
+
+function promptTraceFromRenderedInstructions(
+	promptTemplateSha256: string,
+	renderedInstructions: string,
+): PromptTrace {
+	return {
+		promptId: "primary_agent",
+		promptTemplateSha256,
+		renderedPromptSha256: sha256(renderedInstructions),
+		schemaVersion: "agent_runtime_prompt_trace.v1",
+	};
+}
+
+function sha256(value: string): string {
+	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
 function debugTraceRefs(input: PrimaryAgentRunInput, result: AgentRunnerResult): DebugTraceRef[] {

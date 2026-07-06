@@ -152,6 +152,11 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		secondToolResult.SanitizedPayload["outcome"] != "resolved_current" {
 		t.Fatalf("sdk typed tool result payloads = %#v / %#v", firstToolResult.SanitizedPayload, secondToolResult.SanitizedPayload)
 	}
+	assertSDKToolArgumentIdentityForTest(t, firstToolResult.SanitizedPayload)
+	assertSDKToolArgumentIdentityForTest(t, secondToolResult.SanitizedPayload)
+	if _, exists := firstToolResult.SanitizedPayload["arguments_json"]; exists {
+		t.Fatalf("sdk typed tool result leaked raw arguments_json: %#v", firstToolResult.SanitizedPayload)
+	}
 	secondEnvelope, ok := secondToolResult.SanitizedPayload["result_envelope"].(map[string]any)
 	if !ok {
 		t.Fatalf("second sdk typed tool result_envelope = %#v", secondToolResult.SanitizedPayload["result_envelope"])
@@ -455,6 +460,71 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 	if toolAttempt.SanitizedPayload["argument_validation"] == "" {
 		t.Fatalf("tool attempt payload = %#v, want argument_validation", toolAttempt.SanitizedPayload)
 	}
+	assertSDKToolArgumentIdentityForTest(t, toolAttempt.SanitizedPayload)
+	if _, exists := toolAttempt.SanitizedPayload["arguments_json"]; exists {
+		t.Fatalf("invalid sdk tool payload leaked raw arguments_json: %#v", toolAttempt.SanitizedPayload)
+	}
+}
+
+func TestExecutePrimaryAgentActivityFailsClosedOnSdkToolArgumentMaximumDrift(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 12, 6, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-sdk-tool-max-drift",
+		"conv-primary-agent-sdk-tool-max-drift",
+		now,
+		ragHandoffForDurableWorkerTest("搜一下校园网密码怎么改"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
+			"status":               "completed",
+			"run_id":               "run-primary-agent-sdk-tool-max-drift",
+			"final_output":         "不应在非法参数后完成。",
+			"provider_response_id": "resp-primary-agent-sdk-tool-max-drift",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-max-drift",
+			"selected_tools":       []string{"public_web_search"},
+			"tool_results": []map[string]any{{
+				"status":       "completed",
+				"tool_name":    "public_web_search",
+				"tool":         "public_web_search",
+				"payload_kind": "public_web_search",
+				"arguments_json": map[string]any{
+					"max_results": 6,
+					"query_text":  "校园网密码怎么改",
+				},
+				"result_ref": "agent-runtime://run-primary-agent-sdk-tool-max-drift/tools/public_web_search",
+				"result":     map[string]any{"outcome": "resolved_current"},
+			}},
+			"terminal_reason": "answer_completed",
+		})
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:sdk-tool-max-drift",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		ConversationID:   "conv-primary-agent-sdk-tool-max-drift",
+		RequestID:        "req-primary-agent-sdk-tool-max-drift",
+		RunID:            "run-primary-agent-sdk-tool-max-drift",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-max-drift",
+		VisibleToolNames: []string{"public_web_search"},
+	})
+	if err == nil {
+		t.Fatal("execute primary agent accepted SDK tool arguments above schema maximum")
+	}
+	if !strings.Contains(err.Error(), "above maximum") ||
+		!strings.Contains(err.Error(), "fail_close_reason=schema_contract_drift") {
+		t.Fatalf("error = %q, want maximum schema_contract_drift", err.Error())
+	}
 }
 
 func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnvelope(t *testing.T) {
@@ -669,83 +739,4 @@ func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleToolNames(t *tes
 			t.Fatalf("hidden tool SDK tool was projected as typed step: %#v", step)
 		}
 	}
-}
-
-func validTransportScheduleLookupArguments(queryText string) map[string]any {
-	return map[string]any{
-		"query_text": queryText,
-		"intent":     "next_departure",
-		"route_selector": map[string]any{
-			"route_id":               nil,
-			"service_family":         "intercampus",
-			"route_variant_query":    nil,
-			"origin_campus":          "fengtai",
-			"destination_campus":     "haidian",
-			"origin_stop_query":      nil,
-			"destination_stop_query": nil,
-		},
-		"snapshot_query": map[string]any{
-			"mode":      "current",
-			"as_of":     nil,
-			"year_hint": nil,
-		},
-		"service_time_query": map[string]any{
-			"date_mode":            "today",
-			"service_date":         nil,
-			"daypart":              "evening",
-			"departure_not_before": "18:00",
-			"departure_not_after":  nil,
-		},
-		"result_limit": 3,
-	}
-}
-
-func validCampusNoticeDiscoverArguments(queryText string) map[string]any {
-	return map[string]any{
-		"query_text": queryText,
-		"temporal_query": map[string]any{
-			"mode":      "latest",
-			"as_of":     nil,
-			"year_hint": nil,
-		},
-		"source_families": []any{"official_web_public_notice"},
-		"target_surfaces": []any{"notice_level_query"},
-		"max_results":     5,
-	}
-}
-
-func campusServicesToolResultForTest(
-	toolName string,
-	outcome string,
-	projectionRef string,
-) map[string]any {
-	return map[string]any{
-		"outcome": outcome,
-		"result_envelope": map[string]any{
-			"schema_version": "campus_services_tool_result.v1",
-			"tool":           "transport_schedule_lookup",
-			"tool_name":      toolName,
-			"query_kind":     "transport_schedule",
-			"outcome":        outcome,
-			"facts": map[string]any{
-				"kind": "schedule_facts",
-				"result": map[string]any{
-					"outcome": outcome,
-				},
-			},
-			"source_refs":           []any{"notice:bus-schedule-2026-04-20"},
-			"projection_ref":        projectionRef,
-			"content_hash":          "sha256:transport-schedule-test",
-			"clarification_options": []any{},
-		},
-	}
-}
-
-func expectMetadataMapForTest(t *testing.T, value any, name string) map[string]any {
-	t.Helper()
-	record, ok := value.(map[string]any)
-	if !ok {
-		t.Fatalf("%s = %#v, want map", name, value)
-	}
-	return record
 }

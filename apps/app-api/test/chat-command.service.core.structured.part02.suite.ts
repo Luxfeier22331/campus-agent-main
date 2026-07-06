@@ -71,7 +71,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					result: currentCase.result,
 					selectedTool: "transport_schedule_lookup",
 					status: "completed",
-					traceId: "trace_0003",
+					traceId: "trace_0001",
 				} as const;
 			}),
 		};

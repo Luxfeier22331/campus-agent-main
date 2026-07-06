@@ -30,7 +30,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					result: null,
 					selectedTool: "knowledge_query",
 					status: "needs_clarification",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -47,7 +47,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					result: null,
 					selectedTool: "knowledge_query",
 					status: "no_answer",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -71,7 +71,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "clarification",
 			requestId: "req_0001",
 			text: "你要问哪个校区？",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -85,7 +85,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "no_answer",
 			requestId: "req_0001",
 			text: "当前没有足够依据回答这个问题。",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -125,7 +125,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					selectedTool: "transport_schedule_lookup",
 					status: "needs_clarification",
-					traceId: "trace_guardrail_01",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -149,7 +149,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					selectedTool: "transport_schedule_lookup",
 					status: "no_answer",
-					traceId: "trace_guardrail_02",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -173,7 +173,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					selectedTool: "transport_schedule_lookup",
 					status: "approval_required",
-					traceId: "trace_guardrail_03",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -200,7 +200,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					selectedTool: "transport_schedule_lookup",
 					status: "rejected",
-					traceId: "trace_guardrail_04",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -307,7 +307,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					result: null,
 					selectedTool: null,
 					status: "approval_required",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 			telemetry: approvalTelemetry,
@@ -329,7 +329,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					result: null,
 					selectedTool: null,
 					status: "rejected",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 			telemetry: rejectedTelemetry,
@@ -356,7 +356,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			message: "该请求涉及需要人工确认的操作，必须先经过审批。",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -380,7 +380,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			message: "request was rejected by execution policy",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {

@@ -113,6 +113,44 @@ func (s *Server) completeRAGSynthesisActivity(
 	}); err != nil {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
 	}
+	debugTraceConfig, err := s.resolveLLMDebugTraceConfig(ctx)
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "knowledge_query",
+			FailureKind:   "llm_debug_trace_config_unavailable",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/debug-trace-config"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
+			Payload: map[string]any{
+				"failure_kind": "llm_debug_trace_config_unavailable",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	debugTraceConfig, err = llmDebugTraceConfigForScope(debugTraceConfig, rawCapturePolicyScope{
+		RequestID: defaultString(strings.TrimSpace(run.RequestID), strings.TrimSpace(packet.RequestID)),
+		RunID:     run.RunID,
+		TraceID:   run.TraceID,
+	})
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "knowledge_query",
+			FailureKind:   "llm_debug_trace_policy_scope_invalid",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/debug-trace-policy"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
+			Payload: map[string]any{
+				"failure_kind": "llm_debug_trace_policy_scope_invalid",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
 	synthesisResult, err := s.ragSynthesisExecutor.ExecuteRAGSynthesis(ctx, packet)
 	synthesisCompletedAt := time.Now().UTC()
 	if err != nil {
@@ -162,9 +200,66 @@ func (s *Server) completeRAGSynthesisActivity(
 	}); err != nil {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
 	}
-	finalizedResponse := ragSynthesisFinalizedResponse(run, packet, synthesisResult)
+	llmIOFingerprint, err := ragSynthesisFinalLLMIOFingerprint(run, packet, synthesisResult)
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "knowledge_query",
+			FailureKind:   "rag_synthesis_observability_invalid",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/observability"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_observability_invalid",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	if strings.TrimSpace(s.config.RuntimeRelease) != "" {
+		llmIOFingerprint["runtime_release"] = strings.TrimSpace(s.config.RuntimeRelease)
+		synthesisResult.LLMIOFingerprint = llmIOFingerprint
+	}
+	replayPacketRef, err := s.recordRAGSynthesisReplayPacket(ctx, debugTraceConfig, run, packet, synthesisResult, llmIOFingerprint)
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "knowledge_query",
+			FailureKind:   "rag_replay_packet_recording_failed",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/replay-packet"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
+			Payload: map[string]any{
+				"failure_kind": "rag_replay_packet_recording_failed",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	finalizedResponse, err := ragSynthesisFinalizedResponse(run, packet, synthesisResult, replayPacketRef)
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "knowledge_query",
+			FailureKind:   "rag_synthesis_observability_invalid",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/finalization"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_observability_invalid",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
 	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
 		metadata["finalized_response"] = finalizedResponse
+		if replayPacketRef != nil {
+			metadata["replay_packet_ref"] = replayPacketRef.ToMap()
+		}
 		metadata["synthesis_packet"] = packet
 		metadata["synthesis_ref"] = temporalProjectionRef(run.RunID, "synthesis/provider")
 		metadata["synthesis_result"] = map[string]any{
@@ -323,21 +418,11 @@ func (s *Server) WriteFinalizationActivity(
 	if err := s.emitRagasEvalProjection(ctx, run, finalizedResponse); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":finalization-completed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
-		OccurredAt:           time.Now().UTC(),
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"grounding_ref": input.GroundingRef,
-			"request_id":    run.RequestID,
-			"response":      finalizedResponse,
-			"synthesis_ref": input.SynthesisRef,
-			"trace_id":      run.TraceID,
-		},
+	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
+		"grounding_ref": input.GroundingRef,
+		"request_id":    run.RequestID,
+		"synthesis_ref": input.SynthesisRef,
+		"trace_id":      run.TraceID,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}

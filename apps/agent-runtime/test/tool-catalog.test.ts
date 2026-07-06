@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,7 +74,10 @@ describe("tool catalog", () => {
 					},
 				],
 			},
-			{ toolFunctionSchemaPath: testSchemaPath("knowledge_query", "transport_schedule_lookup") },
+			{
+				runtimeFingerprint: testToolRuntimeFingerprint(),
+				toolFunctionSchemaPath: testSchemaPath("knowledge_query", "transport_schedule_lookup"),
+			},
 		);
 
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
@@ -137,6 +141,19 @@ describe("tool catalog", () => {
 		).toThrow("model-visible tool knowledge_query missing strict function schema");
 	});
 
+	it("requires explicit runtime attestation when loading a catalog from an object", () => {
+		expect(() =>
+			loadToolCatalogFromObject(
+				{
+					schema_version: "tool-registry-v4",
+					registry_version: "test",
+					tools: [rawKnowledgeQueryTool()],
+				},
+				{ toolFunctionSchemaPath: testSchemaPath("knowledge_query") },
+			),
+		).toThrow("tool runtime fingerprint is required");
+	});
+
 	it("loads the checked-in catalog and exposes only model-facing tools", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 
@@ -187,6 +204,110 @@ describe("tool catalog", () => {
 		expect(transport?.parameterSchema.properties).toHaveProperty("route_selector");
 		expect(transport?.parameterSchema.properties).not.toHaveProperty("route_query");
 	});
+
+	it("attests the actual registry, function schema, and workflow artifact files loaded at runtime", () => {
+		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-attestation-"));
+		const toolRegistryPath = join(dir, "tools.v4.json");
+		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v1.json");
+		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v2.json");
+		const toolRegistry = {
+			schema_version: "tool-registry-v4",
+			registry_version: "attestation-test",
+			tools: [rawKnowledgeQueryTool()],
+		};
+		const functionSchemas = strictFunctionSchemaConfig("knowledge_query");
+		const workflowArtifacts = {
+			schema_version: "workflow-artifact-registry-v2",
+			registry_version: "artifact-test",
+			artifacts: [],
+			forbidden_raw_key_tokens: [],
+			support_status_values: [],
+			visibility_values: [],
+		};
+		writeFileSync(toolRegistryPath, JSON.stringify(toolRegistry), "utf8");
+		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas), "utf8");
+		writeFileSync(workflowArtifactRegistryPath, JSON.stringify(workflowArtifacts), "utf8");
+
+		const catalog = loadToolCatalog(toolRegistryPath, {
+			toolFunctionSchemaPath,
+			workflowArtifactRegistryPath,
+		});
+		const expectedCombined = sha256(
+			JSON.stringify({
+				function_schema_sha256: sha256CanonicalJson(functionSchemas),
+				function_schema_version: "tool-function-schemas-v1",
+				schema_version: "tool_runtime_fingerprint.v1",
+				tools_registry_version: "attestation-test",
+				tools_schema_version: "tool-registry-v4",
+				tools_sha256: sha256CanonicalJson(toolRegistry),
+				workflow_artifact_registry_version: "artifact-test",
+				workflow_artifact_schema_version: "workflow-artifact-registry-v2",
+				workflow_artifact_sha256: sha256CanonicalJson(workflowArtifacts),
+			}),
+		);
+
+		expect(catalog.runtimeFingerprint).toEqual({
+			combinedSha256: expectedCombined,
+			functionSchemaSha256: sha256CanonicalJson(functionSchemas),
+			functionSchemaVersion: "tool-function-schemas-v1",
+			schemaVersion: "tool_runtime_fingerprint.v1",
+			toolsRegistryVersion: "attestation-test",
+			toolsSchemaVersion: "tool-registry-v4",
+			toolsSha256: sha256CanonicalJson(toolRegistry),
+			workflowArtifactRegistryVersion: "artifact-test",
+			workflowArtifactSchemaVersion: "workflow-artifact-registry-v2",
+			workflowArtifactSha256: sha256CanonicalJson(workflowArtifacts),
+		});
+
+		writeFileSync(
+			workflowArtifactRegistryPath,
+			JSON.stringify({ ...workflowArtifacts, registry_version: "artifact-test-2" }),
+			"utf8",
+		);
+		const updatedCatalog = loadToolCatalog(toolRegistryPath, {
+			toolFunctionSchemaPath,
+			workflowArtifactRegistryPath,
+		});
+
+		expect(updatedCatalog.runtimeFingerprint.combinedSha256).not.toBe(expectedCombined);
+	});
+
+	it("hashes runtime artifacts using canonical JSON content rather than file formatting", () => {
+		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-canonical-attestation-"));
+		const prettyToolRegistryPath = join(dir, "tools.pretty.json");
+		const compactToolRegistryPath = join(dir, "tools.compact.json");
+		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v1.json");
+		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v2.json");
+		const toolRegistry = {
+			schema_version: "tool-registry-v4",
+			registry_version: "attestation-test",
+			tools: [rawKnowledgeQueryTool()],
+		};
+		const functionSchemas = strictFunctionSchemaConfig("knowledge_query");
+		const workflowArtifacts = {
+			schema_version: "workflow-artifact-registry-v2",
+			registry_version: "artifact-test",
+			artifacts: [],
+			forbidden_raw_key_tokens: [],
+			support_status_values: [],
+			visibility_values: [],
+		};
+		writeFileSync(prettyToolRegistryPath, JSON.stringify(toolRegistry, null, 2), "utf8");
+		writeFileSync(compactToolRegistryPath, JSON.stringify(toolRegistry), "utf8");
+		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas, null, 2), "utf8");
+		writeFileSync(workflowArtifactRegistryPath, JSON.stringify(workflowArtifacts, null, 2), "utf8");
+
+		const prettyCatalog = loadToolCatalog(prettyToolRegistryPath, {
+			toolFunctionSchemaPath,
+			workflowArtifactRegistryPath,
+		});
+		const compactCatalog = loadToolCatalog(compactToolRegistryPath, {
+			toolFunctionSchemaPath,
+			workflowArtifactRegistryPath,
+		});
+
+		expect(prettyCatalog.runtimeFingerprint).toEqual(compactCatalog.runtimeFingerprint);
+	});
 });
 
 function rawKnowledgeQueryTool() {
@@ -212,7 +333,14 @@ function schemaRef(schemaName: string, definitionName: string): string {
 
 function testSchemaPath(...toolNames: string[]): string {
 	const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-schema-"));
-	const schema = {
+	const schema = strictFunctionSchemaConfig(...toolNames);
+	const path = join(dir, "tool-function-schemas.v1.json");
+	writeFileSync(path, JSON.stringify(schema), "utf8");
+	return path;
+}
+
+function strictFunctionSchemaConfig(...toolNames: string[]) {
+	return {
 		schema_version: "tool-function-schemas-v1",
 		tools: toolNames.map((name) => ({
 			type: "function",
@@ -229,7 +357,42 @@ function testSchemaPath(...toolNames: string[]): string {
 			},
 		})),
 	};
-	const path = join(dir, "tool-function-schemas.v1.json");
-	writeFileSync(path, JSON.stringify(schema), "utf8");
-	return path;
+}
+
+function sha256(value: string): string {
+	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function sha256CanonicalJson(value: unknown): string {
+	return sha256(stableJsonStringify(value));
+}
+
+function stableJsonStringify(value: unknown): string {
+	if (Array.isArray(value)) {
+		return `[${value.map((item) => stableJsonStringify(item)).join(",")}]`;
+	}
+	if (value !== null && typeof value === "object") {
+		const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+			left < right ? -1 : left > right ? 1 : 0,
+		);
+		return `{${entries
+			.map(([key, child]) => `${JSON.stringify(key)}:${stableJsonStringify(child)}`)
+			.join(",")}}`;
+	}
+	return JSON.stringify(value);
+}
+
+function testToolRuntimeFingerprint() {
+	return {
+		combinedSha256: sha256("combined-tool-runtime"),
+		functionSchemaSha256: sha256("function-schema"),
+		functionSchemaVersion: "tool-function-schemas-v1" as const,
+		schemaVersion: "tool_runtime_fingerprint.v1" as const,
+		toolsRegistryVersion: "test",
+		toolsSchemaVersion: "tool-registry-v4" as const,
+		toolsSha256: sha256("tool-registry"),
+		workflowArtifactRegistryVersion: "test",
+		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2" as const,
+		workflowArtifactSha256: sha256("workflow-artifacts"),
+	};
 }

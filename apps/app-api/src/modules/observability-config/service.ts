@@ -10,6 +10,11 @@ import type {
 	LlmDebugTraceRuntimeSnapshot,
 	ObservabilityConfigService,
 	ObservabilityConfigUpdatePayload,
+	RawCaptureField,
+	RawCapturePolicy,
+	RawCapturePolicyMode,
+	RawCaptureRequestScope,
+	RawCaptureSink,
 } from "./types";
 
 export interface ObservabilityConfigServiceDependencies {
@@ -40,9 +45,9 @@ export function buildObservabilityConfigService(
 				config: summarizeConfig((await dependencies.store.getActive()) ?? defaultConfig(now())),
 			};
 		},
-		async getRuntimeSnapshot() {
+		async getRuntimeSnapshot(input = {}) {
 			const config = (await dependencies.store.getActive()) ?? defaultConfig(now());
-			return { config: await runtimeSnapshotFromConfig(config, decryptSecret) };
+			return { config: await runtimeSnapshotFromConfig(config, decryptSecret, input.scope) };
 		},
 		async updateConfig(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
@@ -116,6 +121,9 @@ async function normalizeUpdatePayload(
 	if ("includeModelIo" in payload) {
 		next.includeModelIo = normalizeIncludeModelIo(payload.includeModelIo);
 	}
+	if ("rawCapturePolicy" in payload) {
+		next.rawCapturePolicy = normalizeRawCapturePolicy(payload.rawCapturePolicy);
+	}
 	if ("sampleRatio" in payload) {
 		next.sampleRatio = normalizeSampleRatio(payload.sampleRatio);
 	}
@@ -139,6 +147,7 @@ async function normalizeUpdatePayload(
 
 function validateCompleteConfig(config: LlmDebugTraceConfig): void {
 	if (config.mode === "off") {
+		validateRawModelIOAdmission(config);
 		return;
 	}
 	if (config.mode !== "langfuse_otlp") {
@@ -170,19 +179,25 @@ function validateCompleteConfig(config: LlmDebugTraceConfig): void {
 			status: 422,
 		});
 	}
+	validateRawModelIOAdmission(config);
 }
 
 async function runtimeSnapshotFromConfig(
 	config: LlmDebugTraceConfig,
 	decryptSecret: (ciphertext: string) => Promise<string> | string,
+	scope?: RawCaptureRequestScope,
 ): Promise<LlmDebugTraceRuntimeSnapshot> {
 	validateCompleteConfig(config);
+	const rawCapturePolicy = scopedRuntimeRawCapturePolicy(config.rawCapturePolicy, scope);
 	const snapshot: LlmDebugTraceRuntimeSnapshot = {
 		include_model_io: config.includeModelIo,
 		mode: config.mode,
 		sample_ratio: config.sampleRatio,
 		schema_version: "llm_debug_trace_config.v1",
 	};
+	if (rawCapturePolicy) {
+		snapshot.raw_capture_policy = rawCapturePolicy;
+	}
 	if (config.mode === "langfuse_otlp") {
 		const authHeader = await decryptSecret(config.authHeaderSecret?.ciphertext ?? "");
 		validateAuthHeader(authHeader);
@@ -195,6 +210,22 @@ async function runtimeSnapshotFromConfig(
 	return snapshot;
 }
 
+function scopedRuntimeRawCapturePolicy(
+	policy: RawCapturePolicy | undefined,
+	scope: RawCaptureRequestScope | undefined,
+): RawCapturePolicy | undefined {
+	if (!policy) {
+		return;
+	}
+	if (policy.mode === "off") {
+		return policy;
+	}
+	if (scope) {
+		assertRawCapturePolicyScopeMatches(policy, scope, "rawCapturePolicy");
+	}
+	return policy;
+}
+
 function summarizeConfig(config: LlmDebugTraceConfig): LlmDebugTraceConfigSummary {
 	return {
 		authHeaderConfigured: config.authHeaderSecret !== undefined,
@@ -205,6 +236,7 @@ function summarizeConfig(config: LlmDebugTraceConfig): LlmDebugTraceConfigSummar
 		mode: config.mode,
 		otlpEndpoint: config.otlpEndpoint,
 		publicTraceBaseUrl: config.publicTraceBaseUrl,
+		rawCapturePolicy: config.rawCapturePolicy,
 		revision: config.revision,
 		sampleRatio: config.sampleRatio,
 		updatedAt: config.updatedAt,
@@ -223,15 +255,305 @@ function normalizeMode(value: unknown): LlmDebugTraceMode {
 	});
 }
 
-function normalizeIncludeModelIo(value: unknown): false {
-	if (value === false) {
-		return false;
+function normalizeIncludeModelIo(value: unknown): boolean {
+	if (value === true || value === false) {
+		return value;
 	}
 	throw routeError({
 		code: "validation_failed",
-		message: "includeModelIo is currently fixed to false.",
+		message: "includeModelIo must be a boolean.",
 		status: 422,
 	});
+}
+
+const RAW_CAPTURE_POLICY_MODES = new Set<RawCapturePolicyMode>([
+	"eval_case",
+	"failure_triggered",
+	"manual_run_capture",
+	"off",
+	"operator_window",
+	"sampled",
+]);
+
+const RAW_CAPTURE_SINKS = new Set<RawCaptureSink>([
+	"langfuse_otlp",
+	"openai_agents_trace",
+	"s3_replay_packet",
+]);
+
+const RAW_CAPTURE_FIELDS = new Set<RawCaptureField>([
+	"output_schema",
+	"provider_request_body",
+	"provider_response_body",
+	"provider_stream_deltas",
+	"rendered_messages",
+	"selected_evidence_packet",
+	"selected_memory_context",
+	"tool_calls",
+	"tool_results",
+]);
+
+const MODEL_IO_RAW_FIELDS = new Set<RawCaptureField>([
+	"provider_request_body",
+	"provider_response_body",
+	"provider_stream_deltas",
+	"rendered_messages",
+]);
+
+const MODEL_IO_RAW_SINKS = new Set<RawCaptureSink>(["langfuse_otlp", "openai_agents_trace"]);
+
+function normalizeRawCapturePolicy(value: unknown): RawCapturePolicy | undefined {
+	if (value === undefined || value === null) {
+		return;
+	}
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy must be a raw_capture_policy.v1 object.",
+			status: 422,
+		});
+	}
+	const record = value as Record<string, unknown>;
+	if (record.schema_version !== "raw_capture_policy.v1") {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy.schema_version must be raw_capture_policy.v1.",
+			status: 422,
+		});
+	}
+	const mode = normalizeEnum(record.mode, RAW_CAPTURE_POLICY_MODES, "rawCapturePolicy.mode");
+	const policy: RawCapturePolicy = {
+		allowed_raw_fields: normalizeUniqueEnumList(
+			record.allowed_raw_fields,
+			RAW_CAPTURE_FIELDS,
+			"rawCapturePolicy.allowed_raw_fields",
+		),
+		allowed_sinks: normalizeUniqueEnumList(
+			record.allowed_sinks,
+			RAW_CAPTURE_SINKS,
+			"rawCapturePolicy.allowed_sinks",
+		),
+		approval_ref: normalizeNullableString(record.approval_ref, "rawCapturePolicy.approval_ref"),
+		audit_required: normalizeBoolean(record.audit_required, "rawCapturePolicy.audit_required"),
+		capture_reason: normalizeRequiredString(
+			record.capture_reason,
+			"rawCapturePolicy.capture_reason",
+		),
+		dsar_delete_linkage_required: normalizeBoolean(
+			record.dsar_delete_linkage_required,
+			"rawCapturePolicy.dsar_delete_linkage_required",
+		),
+		mode,
+		operator_principal: normalizeNullableString(
+			record.operator_principal,
+			"rawCapturePolicy.operator_principal",
+		),
+		request_id: normalizeNullableString(record.request_id, "rawCapturePolicy.request_id"),
+		run_id: normalizeNullableString(record.run_id, "rawCapturePolicy.run_id"),
+		schema_version: "raw_capture_policy.v1",
+		ttl_days: normalizeRawCaptureTtlDays(record.ttl_days, mode),
+		trace_id: normalizeNullableString(record.trace_id, "rawCapturePolicy.trace_id"),
+	};
+	validateRawCapturePolicy(policy);
+	return policy;
+}
+
+function validateRawCapturePolicy(policy: RawCapturePolicy): void {
+	if (policy.mode === "off") {
+		if (
+			policy.ttl_days !== 0 ||
+			policy.allowed_sinks.length > 0 ||
+			policy.allowed_raw_fields.length > 0 ||
+			policy.operator_principal !== null ||
+			policy.approval_ref !== null ||
+			policy.request_id !== null ||
+			policy.run_id !== null ||
+			policy.trace_id !== null ||
+			policy.audit_required ||
+			policy.dsar_delete_linkage_required
+		) {
+			throw routeError({
+				code: "validation_failed",
+				message: "rawCapturePolicy mode off must not admit raw capture.",
+				status: 422,
+			});
+		}
+		return;
+	}
+	if (policy.ttl_days <= 0) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy.ttl_days must be a positive integer when mode is not off.",
+			status: 422,
+		});
+	}
+	if (policy.allowed_sinks.length === 0) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy.allowed_sinks must not be empty when mode is not off.",
+			status: 422,
+		});
+	}
+	if (policy.allowed_raw_fields.length === 0) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy.allowed_raw_fields must not be empty when mode is not off.",
+			status: 422,
+		});
+	}
+	if (!(policy.operator_principal && policy.approval_ref)) {
+		throw routeError({
+			code: "validation_failed",
+			message:
+				"rawCapturePolicy requires operator_principal and approval_ref when mode is not off.",
+			status: 422,
+		});
+	}
+	if (!(policy.audit_required && policy.dsar_delete_linkage_required)) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy requires audit and deletion linkage when mode is not off.",
+			status: 422,
+		});
+	}
+	if (!(policy.request_id && policy.run_id && policy.trace_id)) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy requires request_id, run_id, and trace_id when mode is not off.",
+			status: 422,
+		});
+	}
+}
+
+function assertRawCapturePolicyScopeMatches(
+	policy: RawCapturePolicy,
+	scope: RawCaptureRequestScope,
+	field: string,
+): void {
+	const checks = [
+		{ actual: policy.request_id, expected: scope.requestId, suffix: "request_id" },
+		{ actual: policy.run_id, expected: scope.runId, suffix: "run_id" },
+		{ actual: policy.trace_id, expected: scope.traceId, suffix: "trace_id" },
+	];
+	for (const check of checks) {
+		if (check.actual !== check.expected) {
+			throw routeError({
+				code: "validation_failed",
+				message: `${field}.${check.suffix} must match runtime snapshot scope.`,
+				status: 422,
+			});
+		}
+	}
+}
+
+function validateRawModelIOAdmission(config: LlmDebugTraceConfig): void {
+	if (!config.includeModelIo) {
+		return;
+	}
+	const policy = config.rawCapturePolicy;
+	if (!policy || policy.mode === "off") {
+		throw routeError({
+			code: "validation_failed",
+			message: "includeModelIo=true requires an admitted raw_capture_policy.v1.",
+			status: 422,
+		});
+	}
+	if (!policy.allowed_sinks.some((sink) => MODEL_IO_RAW_SINKS.has(sink))) {
+		throw routeError({
+			code: "validation_failed",
+			message: "includeModelIo=true requires a raw capture sink for model IO.",
+			status: 422,
+		});
+	}
+	if (!policy.allowed_raw_fields.some((field) => MODEL_IO_RAW_FIELDS.has(field))) {
+		throw routeError({
+			code: "validation_failed",
+			message: "includeModelIo=true requires an allowed raw model IO field.",
+			status: 422,
+		});
+	}
+}
+
+function normalizeUniqueEnumList<T extends string>(
+	value: unknown,
+	allowed: ReadonlySet<T>,
+	field: string,
+): T[] {
+	if (!Array.isArray(value)) {
+		throw routeError({
+			code: "validation_failed",
+			message: `${field} must be an array.`,
+			status: 422,
+		});
+	}
+	const seen = new Set<T>();
+	for (const item of value) {
+		const normalized = normalizeEnum(item, allowed, field);
+		if (seen.has(normalized)) {
+			throw routeError({
+				code: "validation_failed",
+				message: `${field} must not contain duplicates.`,
+				status: 422,
+			});
+		}
+		seen.add(normalized);
+	}
+	return [...seen];
+}
+
+function normalizeEnum<T extends string>(
+	value: unknown,
+	allowed: ReadonlySet<T>,
+	field: string,
+): T {
+	if (typeof value !== "string" || !allowed.has(value as T)) {
+		throw routeError({
+			code: "validation_failed",
+			message: `${field} is unsupported.`,
+			status: 422,
+		});
+	}
+	return value as T;
+}
+
+function normalizeNullableString(value: unknown, field: string): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	return normalizeRequiredString(value, field);
+}
+
+function normalizeBoolean(value: unknown, field: string): boolean {
+	if (typeof value !== "boolean") {
+		throw routeError({
+			code: "validation_failed",
+			message: `${field} must be a boolean.`,
+			status: 422,
+		});
+	}
+	return value;
+}
+
+function normalizeInteger(value: unknown, field: string): number {
+	if (typeof value !== "number" || !Number.isInteger(value)) {
+		throw routeError({
+			code: "validation_failed",
+			message: `${field} must be an integer.`,
+			status: 422,
+		});
+	}
+	return value;
+}
+
+function normalizeRawCaptureTtlDays(value: unknown, mode: RawCapturePolicyMode): number {
+	if (mode !== "off" && (typeof value !== "number" || !Number.isInteger(value) || value <= 0)) {
+		throw routeError({
+			code: "validation_failed",
+			message: "rawCapturePolicy.ttl_days must be a positive integer when mode is not off.",
+			status: 422,
+		});
+	}
+	return normalizeInteger(value, "rawCapturePolicy.ttl_days");
 }
 
 function normalizeSampleRatio(value: unknown): number {

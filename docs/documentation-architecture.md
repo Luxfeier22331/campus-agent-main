@@ -107,11 +107,17 @@ needed to avoid conflicting truth.
     documentation, and they do not use docs frontmatter.
 - GitHub Markdown pull request template:
   - `.github/pull_request_template.md` stays short.
-  - The pull request template asks for Summary, Related Issue, Changes and
-    Validation. When there is no related issue, use `N/A`; do not leave empty
-    `Closes:` placeholders.
-  - Review guidance is not a default template field. Add short formal reviewer
-    guidance to a specific pull request only when it changes review decisions.
+  - The pull request template uses GitHub-native, Apache-style Markdown fields:
+    why, what changed, verification, related issue, change category,
+    user-facing release note, API / contract / migration impact and
+    documentation links.
+  - Do not use Kubernetes / Prow slash commands such as `/kind` or
+    `/release-note-none`; this repository does not run a bot that consumes
+    them. GitHub labels are managed through GitHub labels, not PR body commands.
+  - When there is no related issue, use `N/A`; do not leave empty `Closes:`
+    placeholders.
+  - Short reviewer guidance may appear only when it changes review decisions;
+    do not make "Reviewer Notes" a standing template section.
   - CI, security, data-boundary and release discipline belong in workflows,
     contracts, runbooks, issue forms and review, not in a checklist-heavy PR
     body.

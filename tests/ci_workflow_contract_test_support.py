@@ -55,12 +55,6 @@ def write_minimal_workflows(
     install_langfuse_dependencies: bool = True,
     setup_repo_static_uv: bool = True,
     setup_cache: bool = True,
-    public_docs_schedule: bool = False,
-    public_docs_deploy: bool = False,
-    public_docs_dry_run_default: str = "true",
-    eval_schedule: bool = False,
-    include_eval_environment: bool = True,
-    eval_publish_default: str = "false",
     install_osv_scanner: bool = True,
     export_osv_go_bin: bool = True,
     setup_osv_uv: bool = True,
@@ -81,20 +75,6 @@ def write_minimal_workflows(
         setup_secret_scan_uv=setup_secret_scan_uv,
         install_langfuse_dependencies=install_langfuse_dependencies,
         setup_repo_static_uv=setup_repo_static_uv,
-        setup_cache=setup_cache,
-    )
-    _write_public_docs_workflow(
-        root,
-        pnpm_version,
-        public_docs_schedule,
-        public_docs_deploy,
-        public_docs_dry_run_default,
-    )
-    _write_eval_workflow(
-        root,
-        eval_schedule,
-        include_eval_environment,
-        eval_publish_default,
         setup_cache=setup_cache,
     )
     _write_dining_image_workflow(root, pnpm_version, dining_schedule, dining_unconditional_push)
@@ -358,105 +338,6 @@ def _secret_scan_job(
         '          go-version: "1.26.2"',
         *install_steps,
         "      - run: pnpm ci:secrets",
-    )
-
-
-def _write_public_docs_workflow(
-    root: Path, pnpm_version: str, scheduled: bool, deploy: bool, dry_run_default: str
-) -> None:
-    triggers = (
-        (
-            "on:",
-            "  schedule:",
-            "    - cron: '7 4,10,16,22 * * *'",
-            "  workflow_dispatch:",
-            "    inputs:",
-            "      dry_run:",
-            f"        default: {dry_run_default}",
-        )
-        if scheduled
-        else (
-            "on:",
-            "  workflow_dispatch:",
-            "    inputs:",
-            "      dry_run:",
-            f"        default: {dry_run_default}",
-        )
-    )
-    command = "pnpm --dir apps/campus-web deploy" if deploy else "pnpm --dir apps/campus-web build"
-    (root / ".github/workflows/public-docs-rolling-publish.yml").write_text(
-        "\n".join(
-            (
-                "name: public-docs-rolling-publish",
-                *triggers,
-                "jobs:",
-                "  publish:",
-                "    steps:",
-                "      - uses: pnpm/action-setup@v6",
-                "        with:",
-                f"          version: {pnpm_version}",
-                "      - run: |",
-                '          if [ "${{ inputs.dry_run }}" != "true" ]; then',
-                "            exit 1",
-                "          fi",
-                f"      - run: {command}",
-                "",
-            )
-        ),
-        encoding="utf-8",
-    )
-
-
-def _write_eval_workflow(
-    root: Path,
-    scheduled: bool,
-    include_environment: bool,
-    publish_default: str,
-    *,
-    setup_cache: bool,
-) -> None:
-    triggers = (
-        (
-            "on:",
-            "  schedule:",
-            "    - cron: '9 4 * * *'",
-            "  workflow_dispatch:",
-            "    inputs:",
-            "      publish_langfuse_scores:",
-            f"        default: {publish_default}",
-        )
-        if scheduled
-        else (
-            "on:",
-            "  workflow_dispatch:",
-            "    inputs:",
-            "      publish_langfuse_scores:",
-            f"        default: {publish_default}",
-        )
-    )
-    environment = ("    environment: eval-internal",) if include_environment else ()
-    (root / ".github/workflows/eval-ragas-score.yml").write_text(
-        "\n".join(
-            (
-                "name: eval-ragas-score",
-                *triggers,
-                "jobs:",
-                "  eval-ragas-score:",
-                *environment,
-                "    env:",
-                "      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}",
-                "    steps:",
-                "      - uses: actions/setup-python@v6",
-                "      - uses: astral-sh/setup-uv@v8.3.0",
-                *_uv_cache_lines(setup_cache),
-                "      - run: uv sync --all-packages --dev",
-                "      - run: args+=(--validate-only)",
-                "      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
-                "      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",
-                "",
-            )
-        ),
-        encoding="utf-8",
     )
 
 

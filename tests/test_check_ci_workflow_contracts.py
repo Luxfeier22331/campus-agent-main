@@ -61,6 +61,30 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_reports_nested_domain_package_pnpm_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "packages/domains/dining").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
+                encoding="utf-8",
+            )
+            (root / "packages/domains/dining/package.json").write_text(
+                json.dumps({"packageManager": "pnpm@10.17.1"}), encoding="utf-8"
+            )
+            write_minimal_workflows(root, pnpm_version="10.26.1")
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path="packages/domains/dining/package.json",
+                message="packageManager pnpm version 10.17.1 does not match root 10.26.1",
+            ),
+            issues,
+        )
+
     def test_audit_reports_missing_lane_script_and_workflow_call(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -520,7 +544,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
-    def test_audit_requires_public_docs_publish_to_be_manual_only(self) -> None:
+    def test_audit_does_not_require_retired_eval_ragas_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             (root / ".github/workflows").mkdir(parents=True)
@@ -528,40 +552,11 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
                 encoding="utf-8",
             )
-            write_minimal_workflows(root, pnpm_version="10.26.1", public_docs_schedule=True)
+            write_minimal_workflows(root, pnpm_version="10.26.1")
 
             issues = audit_ci_workflow_contracts(root=root)
 
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/public-docs-rolling-publish.yml",
-                message="manual-only workflow must not define automatic triggers: schedule",
-            ),
-            issues,
-        )
-
-    def test_audit_forbids_secret_workflow_automatic_triggers(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            (root / "package.json").write_text(
-                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
-                encoding="utf-8",
-            )
-            write_minimal_workflows(root, pnpm_version="10.26.1", eval_schedule=True)
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/eval-ragas-score.yml",
-                message=(
-                    "workflow references non-CI-cache secrets and must not define automatic "
-                    "triggers: schedule"
-                ),
-            ),
-            issues,
-        )
+        self.assertEqual(issues, ())
 
     def test_audit_allows_turbo_cache_secret_on_automatic_turbo_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -590,53 +585,6 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues = audit_ci_workflow_contracts(root=root)
 
         self.assertEqual(issues, ())
-
-    def test_audit_requires_secret_workflow_protected_environment(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            (root / "package.json").write_text(
-                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
-                encoding="utf-8",
-            )
-            write_minimal_workflows(
-                root,
-                pnpm_version="10.26.1",
-                include_eval_environment=False,
-            )
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/eval-ragas-score.yml",
-                message=(
-                    "eval-ragas-score must use protected environment 'eval-internal' "
-                    "because workflow references secrets"
-                ),
-            ),
-            issues,
-        )
-
-    def test_audit_forbids_public_docs_workflow_deploy_commands(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            (root / "package.json").write_text(
-                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
-                encoding="utf-8",
-            )
-            write_minimal_workflows(root, pnpm_version="10.26.1", public_docs_deploy=True)
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/public-docs-rolling-publish.yml",
-                message="public docs manual workflow must stay build-only and must not deploy",
-            ),
-            issues,
-        )
 
     def test_audit_requires_dining_image_workflow_to_be_manual_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -678,54 +626,6 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             CiWorkflowContractIssue(
                 path=".github/workflows/dining-sync-image.yml",
                 message="dining-sync image workflow must gate GHCR login and image push behind inputs.push_image",
-            ),
-            issues,
-        )
-
-    def test_audit_requires_eval_publish_to_default_validate_only(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            (root / "package.json").write_text(
-                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
-                encoding="utf-8",
-            )
-            write_minimal_workflows(
-                root,
-                pnpm_version="10.26.1",
-                eval_publish_default="true",
-            )
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/eval-ragas-score.yml",
-                message="publish_langfuse_scores must default to false",
-            ),
-            issues,
-        )
-
-    def test_audit_requires_public_docs_dry_run_to_fail_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            (root / "package.json").write_text(
-                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
-                encoding="utf-8",
-            )
-            write_minimal_workflows(
-                root,
-                pnpm_version="10.26.1",
-                public_docs_dry_run_default="false",
-            )
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path=".github/workflows/public-docs-rolling-publish.yml",
-                message="public docs manual workflow dry_run input must default to true",
             ),
             issues,
         )

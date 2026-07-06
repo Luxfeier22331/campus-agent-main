@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-06-26
+updated: 2026-07-05
 ---
 # Contracts
 
@@ -35,6 +35,7 @@ updated: 2026-06-26
 - `operator-runtime.md`
 - `langfuse-runtime.md`
 - `stage-timing.md`
+- `replay-capture.md`
 
 ## Operator / Official Web contract
 

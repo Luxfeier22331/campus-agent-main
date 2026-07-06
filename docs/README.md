@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 
 # Docs
@@ -49,7 +49,9 @@ fact or which document wins a conflict.
   - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
   - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
   - [contracts/stage-timing.md](./contracts/stage-timing.md)
+  - [contracts/replay-capture.md](./contracts/replay-capture.md)
   - [reference/observability-ledger.md](./reference/observability-ledger.md)
+  - [decisions/adr-0068-raw-replay-capture.md](./decisions/adr-0068-raw-replay-capture.md)
   - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
   - [decisions/adr-0062-ragas-langfuse.md](./decisions/adr-0062-ragas-langfuse.md)
   - [reference/eval.md](./reference/eval.md)

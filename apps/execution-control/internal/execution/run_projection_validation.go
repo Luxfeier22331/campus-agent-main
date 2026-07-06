@@ -64,6 +64,14 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 	if event.Payload == nil {
 		return fmt.Errorf("%w: payload is required", ErrInvalidRunEvent)
 	}
+	if event.EventType == DurableRunEventTypeFinalizationCompleted &&
+		event.Visibility == DurableRunEventVisibilityBrowser {
+		for key := range event.Payload {
+			if key != "request_id" && key != "trace_id" {
+				return fmt.Errorf("%w: browser finalization.completed payload must contain only request_id and trace_id", ErrInvalidRunEvent)
+			}
+		}
+	}
 	return nil
 }
 

@@ -90,6 +90,7 @@ import {
 	buildProviderConfigService,
 	createPgProviderConfigStore,
 } from "../modules/provider-config";
+import { buildReplayCaptureService, createPgReplayCaptureStore } from "../modules/replay-capture";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import {
@@ -159,6 +160,7 @@ export function createRequestScopeFactory(input: {
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
 			let providerConfigService = input.dependencies.providerConfigService ?? null;
+			let replayCaptureService = input.dependencies.replayCaptureService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 			let weChatOfficialAccountCommandService =
 				input.dependencies.wechatOfficialAccountCommandService ?? null;
@@ -501,6 +503,17 @@ export function createRequestScopeFactory(input: {
 				return providerConfigService;
 			}
 
+			function resolveReplayCaptureService() {
+				if (replayCaptureService) {
+					return replayCaptureService;
+				}
+
+				replayCaptureService = buildReplayCaptureService({
+					store: createPgReplayCaptureStore(input.env, { getDb: runtime.getDb }),
+				});
+				return replayCaptureService;
+			}
+
 			function resolveRuntimeRunService() {
 				if (runtimeRunService) {
 					return runtimeRunService;
@@ -553,6 +566,7 @@ export function createRequestScopeFactory(input: {
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
 				resolveProviderConfigService,
+				resolveReplayCaptureService,
 				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
 				telemetry: input.telemetry,

@@ -3,15 +3,15 @@ import {
 	DiningDomainError,
 	type DiningOperationsService,
 	type DiningOperationsStore,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 
 import { AppApiRouteError } from "../../http";
 
-export type { DiningOperationsService, DiningOperationsStore } from "dining-domain";
+export type { DiningOperationsService, DiningOperationsStore } from "@campus-agent/dining/domain";
 export {
 	createInMemoryDiningOperationsStore,
 	createProcessDiningOperationsStore,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 
 export function buildDiningOperationsService(input: {
 	store: DiningOperationsStore;

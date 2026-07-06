@@ -74,6 +74,13 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX", "")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("EXECUTION_PROMPT_MODEL", "")
@@ -171,6 +178,17 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.TemporalStartTimeoutMS != 5000 {
 		t.Fatalf("unexpected temporal defaults: %#v", cfg)
 	}
+	if cfg.ReplayObjectStoreBucket != "" ||
+		cfg.ReplayObjectStoreEndpoint != "" ||
+		cfg.ReplayObjectStoreAccessKey != "" ||
+		cfg.ReplayObjectStoreSecretKey != "" ||
+		cfg.ReplayObjectStorePrefix != "" ||
+		cfg.ReplayObjectStoreEncryptionKeyRef != "" {
+		t.Fatalf("unexpected replay object store defaults: %#v", cfg)
+	}
+	if cfg.ReplayObjectStoreRegion != "us-east-1" {
+		t.Fatalf("replay object store region = %q, want us-east-1", cfg.ReplayObjectStoreRegion)
+	}
 	if cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryBaseURL != "" ||
 		cfg.PersonalMemoryAPISecret != "" ||
@@ -199,6 +217,50 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.WorkerProfiles["activity-core"].ActivitySlots != 8 ||
 		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 4 {
 		t.Fatalf("unexpected worker profile defaults: %#v", cfg.WorkerProfiles)
+	}
+}
+
+func TestLoadFromEnvUsesDedicatedReplayObjectStoreSettings(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY", "replay-access")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY", "replay-secret")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION", "auto")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET", "llm-replay")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX", "execution-control/replay")
+	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF", "kms:replay-dev")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.ReplayObjectStoreEndpoint != "http://minio:9000" ||
+		cfg.ReplayObjectStoreAccessKey != "replay-access" ||
+		cfg.ReplayObjectStoreSecretKey != "replay-secret" ||
+		cfg.ReplayObjectStoreRegion != "auto" ||
+		cfg.ReplayObjectStoreBucket != "llm-replay" ||
+		cfg.ReplayObjectStorePrefix != "execution-control/replay" ||
+		cfg.ReplayObjectStoreEncryptionKeyRef != "kms:replay-dev" {
+		t.Fatalf("unexpected replay object store config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvDoesNotReuseNoticeObjectStoreForReplayPackets(t *testing.T) {
+	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
+	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
+	t.Setenv("OBJECT_STORE_BUCKET", "generic-bucket")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.ReplayObjectStoreEndpoint != "" ||
+		cfg.ReplayObjectStoreAccessKey != "" ||
+		cfg.ReplayObjectStoreSecretKey != "" ||
+		cfg.ReplayObjectStoreBucket != "" {
+		t.Fatalf("replay object store unexpectedly reused notice config: %#v", cfg)
 	}
 }
 

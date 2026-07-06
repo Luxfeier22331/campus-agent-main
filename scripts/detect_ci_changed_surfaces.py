@@ -84,7 +84,6 @@ def _is_global_ci_path(path: str) -> bool:
         "scripts/detect_ci_changed_surfaces.py",
         "scripts/check_ci_workflow_contracts.py",
         "scripts/ci_workflow_contract_types.py",
-        "scripts/ci_workflow_manual_contracts.py",
         "scripts/check_workflow_action_policy.py",
         "scripts/check_package_script_policy.py",
     }

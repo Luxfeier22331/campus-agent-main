@@ -43,21 +43,18 @@ Retired paths must not be used for new automation:
 - app-api Langfuse eval backlink ingest/query routes
 - Go `cmd/intent-eval-runner`
 
-## Workflow Dispatch
+## Execution Surface
 
-`.github/workflows/eval-ragas-score.yml` accepts only:
+Ragas/Langfuse scoring is an internal eval shell/runtime capability. It is not
+exposed as a GitHub Actions workflow.
 
-- `ragas-trace`
-- `ragas-dataset`
+Run scoring from a configured internal eval environment that has the repo
+workspace, Node, Python, uv, Langfuse credentials, model credentials and optional
+Ragas runtime config available. GitHub Actions must not own this scoring lane.
 
-The workflow installs Node, Python and uv, then runs the selected Ragas lane.
-It uploads the JSON result artifact. It is manual, not a PR required check and
-not a repo release verdict lane.
-
-`publish_langfuse_scores=false` appends `--validate-only`; this validates
-Langfuse selection, safe projection and Ragas score conversion without writing
-scores. `publish_langfuse_scores=true` allows the command to write `ragas.*`
-scores to Langfuse.
+Use `--validate-only` for dry validation. Without `--validate-only`, the command
+may write `ragas.*` scores to Langfuse through the configured internal eval
+credentials.
 
 ## Ragas Trace Scoring
 

@@ -40,11 +40,152 @@ export interface ToolExecutionUsageSummary {
 	outputTokens: number;
 }
 
+export interface ToolRuntimeFingerprint {
+	combinedSha256: string;
+	functionSchemaSha256: string;
+	functionSchemaVersion: string;
+	schemaVersion: "tool_runtime_fingerprint.v1";
+	toolsRegistryVersion: string;
+	toolsSchemaVersion: string;
+	toolsSha256: string;
+	workflowArtifactRegistryVersion: string;
+	workflowArtifactSchemaVersion: string;
+	workflowArtifactSha256: string;
+}
+
+export interface ToolExecutionModelParamsProjection {
+	paramsSchemaVersion: string;
+	paramsSha256: string;
+	projectedParams: {
+		maxOutputTokens?: number | null;
+		reasoningEffort?: "high" | "low" | "medium" | "minimal" | "none" | "xhigh" | null;
+		responseFormat?: "json_object" | "json_schema" | "text" | null;
+		store?: boolean | null;
+		temperature?: number | null;
+		textVerbosity?: "high" | "low" | "medium" | null;
+		toolChoice?: "auto" | "none" | "required" | "tool_name" | null;
+		topP?: number | null;
+	};
+	schemaVersion: "model_params_projection.v1";
+}
+
+export interface ToolExecutionPromptRegistryAttestation {
+	attestationSha256: string;
+	outputSchemaId: string;
+	promptId: string;
+	promptRegistryVersion: string;
+	promptTemplateSha256: string;
+	promptVariablesSchemaVersion: string;
+	schemaVersion: "prompt_registry_attestation.v1";
+}
+
+export interface ToolExecutionProviderRequestSafeHash {
+	canonicalization: "canonical_json_redacted_v1";
+	redactionPolicy: "llm_provider_request_safe_projection.v1";
+	requestSha256: string;
+	schemaVersion: "provider_request_safe_hash.v1";
+}
+
+export interface ToolExecutionToolRuntimeAttestation {
+	attestedBy: string;
+	combinedSha256: string;
+	configRefs: [
+		"configs/runtime/tools.v4.json",
+		"configs/runtime/tool-function-schemas.v1.json",
+		"configs/runtime/workflow-artifacts.v2.json",
+	];
+	functionSchemaVersion: string;
+	schemaVersion: "tool_runtime_attestation.v1";
+	toolsRegistryVersion: string;
+	workflowArtifactRegistryVersion: string;
+}
+
+export interface ToolExecutionPrimaryAttestation {
+	attestationKind: "primary_admitted_rag_synthesis" | "primary_agent_call";
+	attestationSha256: string;
+	attestedBy: string;
+	schemaVersion: "primary_attestation.v1";
+}
+
+export interface ToolExecutionLlmIoFingerprint {
+	contextEnvelopeSha256: string;
+	evidencePacketSha256: string;
+	llmCallSite: "agent.primary" | "rag.synthesis";
+	memorySelectionSha256: string;
+	model: string;
+	modelParamsHash: string;
+	modelParamsProjection: ToolExecutionModelParamsProjection;
+	outputSchemaId: string;
+	primaryAttestation: ToolExecutionPrimaryAttestation;
+	promptId: string;
+	promptRegistryAttestation: ToolExecutionPromptRegistryAttestation;
+	promptTemplateSha256: string;
+	promptVariablesSchemaVersion: string;
+	provider: string;
+	providerProfileRevision: string;
+	providerRequestSafeHash: ToolExecutionProviderRequestSafeHash;
+	renderedPromptSha256: string;
+	requestId: string;
+	runId: string;
+	runtimeRelease: string;
+	schemaVersion: "llm_io_fingerprint.v1";
+	toolCatalogSha256: string;
+	toolRuntimeAttestation: ToolExecutionToolRuntimeAttestation;
+	toolRuntimeFingerprint: ToolRuntimeFingerprint;
+	toolSchemaSha256: string;
+	traceId: string;
+	workflowArtifactSha256: string;
+}
+
+export interface ToolExecutionAnswerEvalFingerprint {
+	answerFingerprintSha256: string;
+	branchIdentity: {
+		branchKind:
+			| "clarification"
+			| "direct_no_tool"
+			| "policy_refusal"
+			| "rag_synthesis"
+			| "runtime_error"
+			| "tool_routed";
+		promptId: string;
+		schemaVersion: "answer_branch_identity.v1";
+		workflowMode: string;
+	};
+	evidenceReplayIndexSha256?: string | null;
+	llmCallSite: "agent.primary" | "rag.synthesis";
+	llmIoFingerprintSha256: string;
+	outputSchemaId: string;
+	providerProfileRevision: string;
+	requestId: string;
+	runId: string;
+	runtimeRelease: string;
+	schemaVersion: "answer_eval_fingerprint.v1";
+	selectedTool: string | null;
+	selectedTools: string[];
+	stageTimingProfileSha256: string;
+	terminalOutcome: string;
+	toolRuntimeCombinedSha256: string;
+	traceId: string;
+}
+
 export interface ToolExecutionDebugTraceRef {
 	sink: string;
 	traceId: string | null;
 	traceRef: string;
 	url?: string;
+}
+
+export interface ToolExecutionReplayPacketRef {
+	approvalRef?: string | null;
+	createdAt: string;
+	encryptionKeyRef: string;
+	expiresAt: string;
+	objectChecksumSha256: string;
+	objectRef: string;
+	operatorPrincipal?: string | null;
+	packetId: string;
+	schemaVersion: "llm_replay_packet_index_ref.v1";
+	sensitivityClassification: string;
 }
 
 export interface ToolExecutionSessionSlot {
@@ -193,6 +334,8 @@ export interface ToolExecutionObservability {
 	intentScopeClass?: string | null;
 	intentScopeReason?: string | null;
 	intentTaskKind?: string | null;
+	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
+	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
 	modelName: string | null;
 	modelProvider: string | null;
 	outputTokens: number | null;
@@ -200,6 +343,7 @@ export interface ToolExecutionObservability {
 	modelExecutionDetail?: string | null;
 	modelExecutionState?: string | null;
 	promptTrace?: ToolExecutionPromptTrace | null;
+	replayPacketRef?: ToolExecutionReplayPacketRef | null;
 	resolvedScopeCollection?: string | null;
 	resolvedScopeCorpus?: string | null;
 	refusalClass: string | null;

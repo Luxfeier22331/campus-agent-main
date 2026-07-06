@@ -85,7 +85,6 @@ class DetectCiChangedSurfacesTest(unittest.TestCase):
             "turbo.json",
             "scripts/detect_ci_changed_surfaces.py",
             "scripts/check_ci_workflow_contracts.py",
-            "scripts/ci_workflow_manual_contracts.py",
         )
 
         for path in global_paths:

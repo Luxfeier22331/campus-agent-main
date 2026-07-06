@@ -1,4 +1,4 @@
-import type { DiningOperationsState, DiningPublishedSnapshot, DiningRelease } from "dining-domain";
+import type { DiningOperationsState, DiningPublishedSnapshot, DiningRelease } from "@campus-agent/dining/domain";
 import { Client } from "pg";
 
 export interface DiningCatalogPgClient {

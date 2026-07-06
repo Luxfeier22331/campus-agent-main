@@ -72,20 +72,10 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":finalization-completed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
-		OccurredAt:           time.Now().UTC(),
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"agent_result_ref": input.AgentResultRef,
-			"request_id":       run.RequestID,
-			"response":         finalizedResponse,
-			"trace_id":         run.TraceID,
-		},
+	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
+		"agent_result_ref": input.AgentResultRef,
+		"request_id":       run.RequestID,
+		"trace_id":         run.TraceID,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
@@ -171,6 +161,42 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if err != nil {
 		return nil, err
 	}
+	llmIOFingerprint, ok := primaryAgentSafeLLMIOFingerprint(agentResult)
+	if !ok {
+		return nil, fmt.Errorf("agent llm_io_fingerprint is required")
+	}
+	workflowMode := primaryAgentWorkflowMode(selectedTools)
+	workflowTraceSummary := map[string]any{
+		"workflow_mode":             workflowMode,
+		"selected_tool":             traceSelectedTool,
+		"selected_tools":            selectedTools,
+		"first_decision_actor":      "primary_agent",
+		"planning_outcome":          primaryAgentPlanningOutcome(terminalKind),
+		"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalKind, selectedTools),
+		"terminal_reason":           terminalKind,
+		"answer_artifact_kinds":     []string{"agent_final_output"},
+		"answer_artifact_refs":      []string{strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))},
+		"trace_steps":               primaryAgentTraceSteps(selectedTools, selectedTool, agentResult, status),
+		"tool_call_summaries":       primaryAgentToolCallSummaries(agentResult),
+		"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
+	}
+	observability := map[string]any{
+		"agent_runtime":      "openai_agents_sdk",
+		"llm_io_fingerprint": llmIOFingerprint,
+		"selected_tools":     selectedTools,
+		"sdk_trace_ref":      agentResult["sdk_trace_ref"],
+		"terminal_reason":    terminalKind,
+	}
+	observability["answer_eval_fingerprint"] = answerEvalFingerprint(answerEvalFingerprintInput{
+		BranchKind:       primaryAgentAnswerBranchKind(terminalKind, selectedTools),
+		LLMIOFingerprint: llmIOFingerprint,
+		RunID:            run.RunID,
+		SelectedTool:     selectedTool,
+		SelectedTools:    selectedTools,
+		StageTiming:      stageTiming,
+		TerminalOutcome:  primaryAgentAnswerTerminalOutcome(status, terminalKind),
+		WorkflowMode:     workflowMode,
+	})
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedTool:     primaryAgentResponseSelectedTool(selectedTool),
 		Status:           status,
@@ -188,27 +214,9 @@ func (s *Server) primaryAgentFinalizedResponse(
 			"tool_results":         agentResult["tool_results"],
 			"terminal_reason":      terminalKind,
 		},
-		Observability: map[string]any{
-			"agent_runtime":   "openai_agents_sdk",
-			"selected_tools":  selectedTools,
-			"sdk_trace_ref":   agentResult["sdk_trace_ref"],
-			"terminal_reason": terminalKind,
-		},
-		WorkflowTraceSummary: map[string]any{
-			"workflow_mode":             primaryAgentWorkflowMode(selectedTools),
-			"selected_tool":             traceSelectedTool,
-			"selected_tools":            selectedTools,
-			"first_decision_actor":      "primary_agent",
-			"planning_outcome":          primaryAgentPlanningOutcome(terminalKind),
-			"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalKind, selectedTools),
-			"terminal_reason":           terminalKind,
-			"answer_artifact_kinds":     []string{"agent_final_output"},
-			"answer_artifact_refs":      []string{strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))},
-			"trace_steps":               primaryAgentTraceSteps(selectedTools, selectedTool, agentResult, status),
-			"tool_call_summaries":       primaryAgentToolCallSummaries(agentResult),
-			"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
-		},
-		TraceID: run.TraceID,
+		Observability:        observability,
+		WorkflowTraceSummary: workflowTraceSummary,
+		TraceID:              run.TraceID,
 	}), nil
 }
 
@@ -437,8 +445,12 @@ func primaryAgentToolCallSummaries(agentResult map[string]any) []map[string]any 
 			"tool":                tool,
 			"payload_kind":        strings.TrimSpace(stringValue(toolResult["payload_kind"])),
 			"result_status":       resultStatus,
-			"argument_summary":    safeWorkflowMap(cloneAnyMapFromMetadata(toolResult["arguments_json"])),
-			"source_ids":          workflowSourceIDs(result),
+			"argument_summary": map[string]any{
+				"arguments_json_sha256":    strings.TrimSpace(stringValue(toolResult["arguments_json_sha256"])),
+				"arguments_schema_sha256":  strings.TrimSpace(stringValue(toolResult["arguments_schema_sha256"])),
+				"arguments_schema_version": strings.TrimSpace(stringValue(toolResult["arguments_schema_version"])),
+			},
+			"source_ids": workflowSourceIDs(result),
 		}
 		if businessOutcome := strings.TrimSpace(stringValue(result["outcome"])); businessOutcome != "" {
 			summary["business_outcome"] = businessOutcome

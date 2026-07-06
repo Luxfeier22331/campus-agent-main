@@ -1,3 +1,4 @@
+import { AppApiRouteError } from "../../../http";
 import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../../auth";
 import {
 	type ChatConversation,
@@ -359,6 +360,36 @@ function resolveFinalizedScope(input: {
 	return input.requestedScope;
 }
 
+function requireFinalizationRunId(value: string | null): string {
+	if (typeof value === "string" && value.trim()) {
+		return value.trim();
+	}
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		message: "request finalization requires run_id for observability projection.",
+		retryable: false,
+		status: 422,
+	});
+}
+
+function requireFinalizationTraceMatch(input: {
+	acceptedTraceId: string;
+	requestId: string;
+	responseTraceId: string;
+}): string {
+	if (input.responseTraceId === input.acceptedTraceId) {
+		return input.acceptedTraceId;
+	}
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		details: { field: "trace_id", requestId: input.requestId },
+		message: "request finalization trace_id must match the accepted request trace_id.",
+		retryable: false,
+		status: 422,
+		traceId: input.acceptedTraceId,
+	});
+}
+
 export function buildFinalizedWrite(input: {
 	allowedPublicNoticeHosts?: readonly string[];
 	assistantMessageId: string;
@@ -387,7 +418,12 @@ export function buildFinalizedWrite(input: {
 	responseBody: ChatCommandResponse;
 	write: FinalizeRequestWrite;
 } {
-	const normalizedTraceId = input.response.traceId || input.traceId;
+	const normalizedTraceId = requireFinalizationTraceMatch({
+		acceptedTraceId: input.traceId,
+		requestId: input.requestId,
+		responseTraceId: input.response.traceId,
+	});
+	const runId = requireFinalizationRunId(input.runId);
 	const normalizedExecutionResponse = {
 		...input.response,
 		traceId: normalizedTraceId,
@@ -512,7 +548,7 @@ export function buildFinalizedWrite(input: {
 		parentMessageId: input.userMessageId,
 		requestId: input.requestId,
 		retryable,
-		runId: input.runId,
+		runId,
 		structuredParts,
 		turnSequence: input.turnSequence,
 	};
@@ -542,7 +578,7 @@ export function buildFinalizedWrite(input: {
 			idempotencyKey: null,
 			requestFingerprintSha256: null,
 			traceId: normalizedTraceId,
-			runId: input.runId,
+			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
@@ -574,6 +610,7 @@ export function buildFinalizedWrite(input: {
 			requestedScope: input.requestedScope,
 			resolvedScope,
 			response: normalizedExecutionResponse,
+			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			sourceDocIds,
 			startedAt: input.startedAt,

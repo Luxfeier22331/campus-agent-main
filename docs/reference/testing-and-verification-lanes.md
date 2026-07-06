@@ -32,8 +32,9 @@ GitHub Actions keeps one automatic PR / develop / main workflow:
 - Skipped conditional jobs are acceptable only when changed-surface detection
   correctly marks the untouched surface as out of scope.
 
-Manual workflows remain separate for eval scoring, image build / push and
-controlled release validation. They must not become ordinary PR blockers.
+Manual workflows remain separate for image build / push and controlled release
+validation. They must not become ordinary PR blockers. Ragas/Langfuse scoring
+is an internal eval shell/runtime lane, not a GitHub Actions workflow.
 
 ## Scheduled Full Health Checks
 
@@ -49,8 +50,8 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 - It may use explicitly allowed CI infrastructure credentials, such as Turbo
   Remote Cache variables on Turbo jobs. It must not use deploy, provider,
   database, object-store, eval publishing or release credentials.
-- It is not a PR blocker, release closeout, deployment validation, eval scoring lane or
-  image publishing lane.
+- It is not a PR blocker, release closeout, deployment validation, eval scoring
+  lane or image publishing lane.
 
 ## Security / Supply Chain Lanes
 
@@ -220,7 +221,7 @@ GitHub security features are confirmed for this repository.
 | npm / pnpm workspace dependency files | `pnpm ci:web-graph:affected` | Dependabot PRs use the dependency surface rule above; run `pnpm ci:deps:vuln` for dependency-risk changes. Run `pnpm web:build` only when the docs manifest / operator DB env is available. Dependency Review waits for GitHub security feature enablement. |
 | `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
 | `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker-runtime` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
-| `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:langfuse` | Manual Ragas scoring remains `.github/workflows/eval-ragas-score.yml`. |
+| `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:langfuse` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
 | ingestion apps/packages/kernels | `pnpm ci:ingestion` plus web graph when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
 | release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
@@ -277,15 +278,13 @@ GitHub security features are confirmed for this repository.
   - Execution-control deployment smoke.
 - `docs/runbooks/worker-observability-smoke.md`
   - Forward Worker observability preflight / post-deploy smoke.
-- `.github/workflows/eval-ragas-score.yml`
-  - Manual Ragas scoring workflow. It may publish Langfuse scores only through
-    protected eval environment inputs.
+- `docs/runbooks/eval-ragas.md`
+  - Internal Ragas/Langfuse scoring shell/runtime procedure. It may publish
+    Langfuse scores only through configured internal eval credentials.
 - `.github/workflows/dining-sync-image.yml`
   - Manual dining-sync image build / optional GHCR push workflow.
   - It builds a local image, blocks on Trivy HIGH / CRITICAL findings, and
     generates an SBOM artifact when `push_image=true`.
-- `.github/workflows/public-docs-rolling-publish.yml`
-  - Manual campus docs build-only workflow. It must not deploy.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
   - It is not a PR blocker and must not be treated as branch protection

@@ -42,6 +42,14 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "llm_debug_trace_config_unavailable", err)
 	}
+	debugTraceConfig, err = llmDebugTraceConfigForScope(debugTraceConfig, rawCapturePolicyScope{
+		RequestID: run.RequestID,
+		RunID:     run.RunID,
+		TraceID:   run.TraceID,
+	})
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "llm_debug_trace_policy_scope_invalid", err)
+	}
 	input.VisibleToolNames = s.primaryAgentVisibleToolNames(run, input)
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
@@ -62,7 +70,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		ReplanReason:  replanReason,
 		Payload: map[string]any{
 			"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
-			"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
+			"memory_context_summary": temporalMemoryContextProjectionPayload(input.MemoryContext),
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 			"replan_reason":          replanReason,
 			"requested_tool":         input.RequestedTool,
@@ -122,7 +130,13 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime terminal_envelope is required"),
 		)
 	}
-	payload, err := primaryAgentResultPayload(run.RunID, output)
+	payload, err := primaryAgentResultPayload(primaryAgentFingerprintInput{
+		activityInput:     input,
+		finalModelContext: finalModelContext,
+		providerConfig:    providerConfig,
+		run:               run,
+		runtimeRelease:    s.config.RuntimeRelease,
+	}, output)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_result_invalid", err)
 	}
@@ -305,18 +319,21 @@ func (s *Server) projectPrimaryAgentToolResults(
 		callIndex := index + 1
 		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
 		resultRef := primaryAgentSDKToolProjectionRef(run.RunID, toolName, callIndex)
-		if err := validateSDKToolArguments(toolName, result.ArgumentsJSON); err != nil {
+		argumentMetadata, err := validateSDKToolArguments(toolName, result.ArgumentsJSON)
+		if err != nil {
 			payload := map[string]any{
-				"argument_validation": err.Error(),
-				"arguments_json":      cloneAnyMapFromMetadata(result.ArgumentsJSON),
-				"fail_close_reason":   "schema_contract_drift",
-				"payload_kind":        payloadKind,
-				"replan_reason":       strings.TrimSpace(replanReason),
-				"result":              cloneAnyMapFromMetadata(result.Result),
-				"runtime_surface":     "openai_agents_sdk_tool",
-				"sdk_result_ref":      strings.TrimSpace(result.ResultRef),
-				"selected_tool":       toolName,
-				"tool_status":         status,
+				"argument_validation":      err.Error(),
+				"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
+				"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
+				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
+				"fail_close_reason":        "schema_contract_drift",
+				"payload_kind":             payloadKind,
+				"replan_reason":            strings.TrimSpace(replanReason),
+				"result":                   cloneAnyMapFromMetadata(result.Result),
+				"runtime_surface":          "openai_agents_sdk_tool",
+				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
+				"selected_tool":            toolName,
+				"tool_status":              status,
 			}
 			if err := s.projectTemporalStep(ctx, temporalStepProjection{
 				Attempt:         attempt,
@@ -350,14 +367,17 @@ func (s *Server) projectPrimaryAgentToolResults(
 		)
 		if err != nil {
 			payload := map[string]any{
-				"fail_close_reason": "result_contract_drift",
-				"payload_kind":      payloadKind,
-				"replan_reason":     strings.TrimSpace(replanReason),
-				"result":            resultPayload,
-				"runtime_surface":   "openai_agents_sdk_tool",
-				"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
-				"selected_tool":     toolName,
-				"tool_status":       status,
+				"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
+				"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
+				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
+				"fail_close_reason":        "result_contract_drift",
+				"payload_kind":             payloadKind,
+				"replan_reason":            strings.TrimSpace(replanReason),
+				"result":                   resultPayload,
+				"runtime_surface":          "openai_agents_sdk_tool",
+				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
+				"selected_tool":            toolName,
+				"tool_status":              status,
 			}
 			if err := s.projectTemporalStep(ctx, temporalStepProjection{
 				Attempt:         attempt,
@@ -382,16 +402,18 @@ func (s *Server) projectPrimaryAgentToolResults(
 			return fmt.Errorf("agent runtime tool %s result invalid fail_close_reason=result_contract_drift: %w", toolName, err)
 		}
 		payload := map[string]any{
-			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"fail_close_reason": strings.TrimSpace(result.FailCloseReason),
-			"outcome":           resultPayload["outcome"],
-			"payload_kind":      payloadKind,
-			"replan_reason":     strings.TrimSpace(replanReason),
-			"result":            resultPayload,
-			"runtime_surface":   "openai_agents_sdk_tool",
-			"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
-			"selected_tool":     toolName,
-			"tool_status":       status,
+			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
+			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
+			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
+			"fail_close_reason":        strings.TrimSpace(result.FailCloseReason),
+			"outcome":                  resultPayload["outcome"],
+			"payload_kind":             payloadKind,
+			"replan_reason":            strings.TrimSpace(replanReason),
+			"result":                   resultPayload,
+			"runtime_surface":          "openai_agents_sdk_tool",
+			"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
+			"selected_tool":            toolName,
+			"tool_status":              status,
 		}
 		if len(resultEnvelope) > 0 {
 			payload["result_envelope"] = resultEnvelope

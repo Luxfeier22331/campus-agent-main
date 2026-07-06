@@ -143,6 +143,30 @@ class PackageScriptPolicyTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_covers_nested_domain_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            _write_package(root / "package.json", {"repo:guard": "true"})
+            _write_package(
+                root / "packages/domains/dining/package.json",
+                {
+                    "debug:audit": "tsx src/debug-audit.ts",
+                    "test": "vitest run",
+                    "typecheck": "tsc --noEmit",
+                },
+            )
+
+            issues = audit_package_script_policy(root=root)
+
+        self.assertIn(
+            PackageScriptPolicyIssue(
+                path="packages/domains/dining/package.json",
+                script="debug:audit",
+                message="one-off audit helpers must not be exposed as package scripts",
+            ),
+            issues,
+        )
+
     def test_audit_reports_collector_package_scripts_outside_allowlist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

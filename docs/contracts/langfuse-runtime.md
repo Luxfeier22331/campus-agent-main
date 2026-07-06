@@ -26,6 +26,9 @@ Eval score publishing uses the same boundary: `packages/eval-langfuse` may write
 sanitized score payloads to Langfuse, but Langfuse score schemas do not become
 repo DTOs and must not leak into `packages/contracts`.
 
+Replay and raw capture are defined by `docs/contracts/replay-capture.md`. This
+document defines Langfuse-bound payload behavior only.
+
 Agent tool-use eval consumes the repo-owned `tool_trajectory.v1` projection
 defined in `tool-trajectory.md`. Langfuse may receive sanitized trajectory
 attributes, observations and score metadata derived from that projection, but
@@ -33,11 +36,11 @@ Langfuse does not own the trajectory contract and must not require raw tool,
 provider or source payloads.
 
 RAGAS score publishing may be based on Langfuse traces, Langfuse datasets,
-repo-owned safe eval artifacts or golden dataset execution results. Langfuse
-traces and datasets may act as RAGAS sample sources only through repo-owned safe
-eval projection fields; score inputs and score metadata must not expose raw
+repo-owned safe eval artifacts, restricted replay artifacts or golden dataset
+execution results. Safe score inputs and score metadata must not expose raw
 prompt, raw transcript, unrestricted source body, provider raw response or
-secrets.
+secrets. Restricted replay-backed eval must first be admitted by
+`raw_capture_policy.v1` and must not be mirrored into score metadata.
 
 Langfuse has two distinct lanes in this repo:
 
@@ -48,9 +51,9 @@ Langfuse has two distinct lanes in this repo:
 
 Only the first lane can be mirrored into app-api/operator-safe projections. The
 second lane may contain raw or near-raw LLM input/output only inside controlled
-Langfuse/OpenAI/OTel sinks with environment policy, RBAC, retention, sampling
-and masking. It is not product truth, not Temporal truth, not app-api read model
-truth and not a `packages/contracts` DTO.
+Langfuse/OpenAI/OTel sinks when admitted by `raw_capture_policy.v1`. It is not
+product truth, not Temporal truth, not app-api read model truth and not canonical
+replay packet truth.
 
 RAGAS runtime scoring defaults to the Ragas `metrics.collections` API. Deprecated
 `ragas.evaluate()` is limited to explicitly injected test / repair callers and
@@ -148,7 +151,7 @@ or controlled OTel processors. They may carry model input/output, tool IO,
 provider response fragments or SDK-native span details when the deployment
 explicitly enables that sink behavior.
 
-Current online implementation is narrower than the full lane:
+The online implementation is policy-gated:
 
 - `apps/app-api` owns the operator-managed `llm_debug_trace_config.v1`.
 - `apps/execution-control` reads the app-api-produced
@@ -161,19 +164,22 @@ Current online implementation is narrower than the full lane:
   `/api/public/otel`; agent-runtime posts traces to `/v1/traces`.
 - `langfuse_otlp.auth_header` must be `Basic ...`; the request also sends
   `x-langfuse-ingestion-version: 4`.
-- `include_model_io` is currently fixed to `false`; enabling raw model IO needs
-  a separate explicit contract update.
+- `include_model_io` defaults to `false`.
+- `include_model_io=true` is allowed only when an admitted
+  `raw_capture_policy.v1` enables raw model I/O for the request.
 - agent-runtime returns only `debug_trace_refs` and `stage_timing.v1` fields to
   execution-control. Raw SDK trace bodies, OTLP payloads and provider payloads
   are never written into app-api, Temporal metadata or repo-owned projections.
 
 Rules:
 
-- raw or near-raw LLM IO must stay inside external observability/eval sinks;
+- raw or near-raw LLM IO must stay inside controlled replay/debug sinks;
   app-api, Operator Console, Temporal metadata and repo-owned run/step
   projection consume only safe summaries and deep links.
 - masking/redaction is configured at the SDK, OTel processor, Collector or sink
   adapter boundary; it is not simulated by app-api.
+- canonical replay packet identity, TTL, deletion linkage and object checksum
+  are owned by `llm_replay_packet.v1`, not by Langfuse trace bodies.
 - secrets, credentials, auth headers, cookies, JWTs, database URLs,
   object-store credentials and raw Hindsight refs are never allowed in this
   lane.
@@ -226,8 +232,8 @@ The following values must not be exported to any Langfuse lane:
 - object-store secrets
 
 The following values are forbidden in `repo_observation`, score metadata and
-safe eval projections, but may exist in `llm_debug_trace` only under the
-controlled sink policy above:
+safe eval projections, but may exist in `llm_debug_trace` or restricted replay
+artifacts only under the controlled policy above:
 
 - raw prompt
 - raw answer

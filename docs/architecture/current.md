@@ -376,7 +376,7 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 通过 Feishu/Lark OpenAPI 读取已授权 Base catalog 记录，写入
   `dining.source_observations(source_type=feishu_catalog)`，并发布 catalog/release
   snapshot
-- 可从 `packages/dining-domain` 导入 repo-owned bootstrap/dev catalog fixture；
+- 可从 `packages/domains/dining` 导入 repo-owned bootstrap/dev catalog fixture；
   fixture 不是生产 catalog source truth
 - 通过 Feishu/Lark OpenAPI 读取已授权 Base 评价记录
 - 校验记录形状，通过 Gitee AI moderation endpoint 审核评价文本和图片；图片先进入对象存储

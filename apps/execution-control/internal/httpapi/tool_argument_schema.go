@@ -22,6 +22,12 @@ type toolFunctionSchema struct {
 	Parameters toolJSONSchema `json:"parameters"`
 }
 
+type toolArgumentSchemaMetadata struct {
+	ArgumentsJSONSHA256    string
+	ArgumentsSchemaSHA256  string
+	ArgumentsSchemaVersion string
+}
+
 type toolJSONSchema struct {
 	Type                 any                       `json:"type"`
 	AdditionalProperties *bool                     `json:"additionalProperties,omitempty"`
@@ -30,41 +36,69 @@ type toolJSONSchema struct {
 	Enum                 []any                     `json:"enum,omitempty"`
 	Items                *toolJSONSchema           `json:"items,omitempty"`
 	Minimum              *float64                  `json:"minimum,omitempty"`
+	Maximum              *float64                  `json:"maximum,omitempty"`
 }
 
-func validateSDKToolArguments(toolName string, arguments map[string]any) error {
-	schema, ok, err := sdkToolArgumentSchema(toolName)
+func validateSDKToolArguments(
+	toolName string,
+	arguments map[string]any,
+) (toolArgumentSchemaMetadata, error) {
+	schema, schemaVersion, ok, err := sdkToolArgumentSchema(toolName)
+	metadata := toolArgumentSchemaMetadata{
+		ArgumentsJSONSHA256:    sha256JSONRef(arguments),
+		ArgumentsSchemaVersion: schemaVersion,
+	}
 	if err != nil {
-		return err
+		return metadata, err
 	}
 	if !ok {
-		return fmt.Errorf("schema for tool %s is not available", toolName)
+		return metadata, fmt.Errorf("schema for tool %s is not available", toolName)
 	}
-	return schema.validate("$", arguments)
+	metadata.ArgumentsSchemaSHA256 = sha256JSONRef(schema)
+	return metadata, schema.validate("$", arguments)
 }
 
-func sdkToolArgumentSchema(toolName string) (toolJSONSchema, bool, error) {
+func sdkToolArgumentSchema(toolName string) (toolJSONSchema, string, bool, error) {
 	path := resolveToolFunctionSchemaPath()
 	if path == "" {
-		return toolJSONSchema{}, false, fmt.Errorf("tool function schema config is not available")
+		return toolJSONSchema{}, "", false, fmt.Errorf("tool function schema config is not available")
 	}
-	raw, err := os.ReadFile(path)
+	file, err := loadToolFunctionSchemaFile(path)
 	if err != nil {
-		return toolJSONSchema{}, false, fmt.Errorf("read tool function schemas: %w", err)
-	}
-	var file toolFunctionSchemaFile
-	if err := json.Unmarshal(raw, &file); err != nil {
-		return toolJSONSchema{}, false, fmt.Errorf("parse tool function schemas: %w", err)
-	}
-	if file.SchemaVersion != toolFunctionSchemaVersion {
-		return toolJSONSchema{}, false, fmt.Errorf("tool function schema_version = %q", file.SchemaVersion)
+		return toolJSONSchema{}, "", false, err
 	}
 	for _, tool := range file.Tools {
 		if tool.Type == "function" && tool.Strict && tool.Name == toolName {
-			return tool.Parameters, true, nil
+			return tool.Parameters, file.SchemaVersion, true, nil
 		}
 	}
-	return toolJSONSchema{}, false, nil
+	return toolJSONSchema{}, file.SchemaVersion, false, nil
+}
+
+func loadToolFunctionSchemaFile(path string) (toolFunctionSchemaFile, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return toolFunctionSchemaFile{}, fmt.Errorf("read tool function schemas: %w", err)
+	}
+	var file toolFunctionSchemaFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		return toolFunctionSchemaFile{}, fmt.Errorf("parse tool function schemas: %w", err)
+	}
+	if err := validateSupportedToolFunctionSchemaKeywords(raw); err != nil {
+		return toolFunctionSchemaFile{}, err
+	}
+	if file.SchemaVersion != toolFunctionSchemaVersion {
+		return toolFunctionSchemaFile{}, fmt.Errorf("tool function schema_version = %q", file.SchemaVersion)
+	}
+	if len(file.Tools) == 0 {
+		return toolFunctionSchemaFile{}, fmt.Errorf("tool function schemas tools must not be empty")
+	}
+	for _, tool := range file.Tools {
+		if err := validateSupportedToolJSONSchema("$."+tool.Name+".parameters", tool.Parameters); err != nil {
+			return toolFunctionSchemaFile{}, err
+		}
+	}
+	return file, nil
 }
 
 func (schema toolJSONSchema) validate(path string, value any) error {
@@ -124,6 +158,126 @@ func (schema toolJSONSchema) validateScalar(path string, value any) error {
 		number, ok := numericValue(value)
 		if !ok || number < *schema.Minimum {
 			return fmt.Errorf("%s is below minimum", path)
+		}
+	}
+	if schema.Maximum != nil {
+		number, ok := numericValue(value)
+		if !ok || number > *schema.Maximum {
+			return fmt.Errorf("%s is above maximum", path)
+		}
+	}
+	return nil
+}
+
+func validateSupportedToolJSONSchema(path string, schema toolJSONSchema) error {
+	if schema.Type == nil &&
+		schema.AdditionalProperties == nil &&
+		len(schema.Properties) == 0 &&
+		len(schema.Required) == 0 &&
+		len(schema.Enum) == 0 &&
+		schema.Items == nil &&
+		schema.Minimum == nil &&
+		schema.Maximum == nil {
+		return fmt.Errorf("%s is empty", path)
+	}
+	if !supportedToolSchemaTypeValue(schema.Type) {
+		return fmt.Errorf("%s.type is not supported", path)
+	}
+	for key, child := range schema.Properties {
+		if err := validateSupportedToolJSONSchema(path+".properties."+key, child); err != nil {
+			return err
+		}
+	}
+	if schema.Items != nil {
+		if err := validateSupportedToolJSONSchema(path+".items", *schema.Items); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func supportedToolSchemaTypeValue(value any) bool {
+	if value == nil {
+		return true
+	}
+	switch typed := value.(type) {
+	case string:
+		return supportedToolSchemaTypeName(typed)
+	case []any:
+		for _, item := range typed {
+			name, ok := item.(string)
+			if !ok || !supportedToolSchemaTypeName(name) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func supportedToolSchemaTypeName(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "null", "object", "array", "string", "integer", "number", "boolean":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateSupportedToolFunctionSchemaKeywords(raw []byte) error {
+	var root map[string]any
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return fmt.Errorf("parse tool function schemas for keyword validation: %w", err)
+	}
+	tools, ok := root["tools"].([]any)
+	if !ok {
+		return fmt.Errorf("tool function schemas tools must be an array")
+	}
+	for index, item := range tools {
+		tool, ok := item.(map[string]any)
+		if !ok {
+			return fmt.Errorf("tool function schemas tools[%d] must be an object", index)
+		}
+		parameters, ok := tool["parameters"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("tool function schemas tools[%d].parameters must be an object", index)
+		}
+		name, _ := tool["name"].(string)
+		if err := validateSupportedToolJSONSchemaKeywords("$.tools."+strings.TrimSpace(name)+".parameters", parameters); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSupportedToolJSONSchemaKeywords(path string, schema map[string]any) error {
+	for key := range schema {
+		switch key {
+		case "type", "additionalProperties", "properties", "required", "enum", "items", "minimum", "maximum", "description":
+		default:
+			return fmt.Errorf("%s.%s is not a supported tool argument schema keyword", path, key)
+		}
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if ok {
+		for key, childRaw := range properties {
+			child, ok := childRaw.(map[string]any)
+			if !ok {
+				return fmt.Errorf("%s.properties.%s must be an object schema", path, key)
+			}
+			if err := validateSupportedToolJSONSchemaKeywords(path+".properties."+key, child); err != nil {
+				return err
+			}
+		}
+	}
+	if childRaw, exists := schema["items"]; exists {
+		child, ok := childRaw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s.items must be an object schema", path)
+		}
+		if err := validateSupportedToolJSONSchemaKeywords(path+".items", child); err != nil {
+			return err
 		}
 	}
 	return nil

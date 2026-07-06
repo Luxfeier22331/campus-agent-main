@@ -8,18 +8,22 @@ import (
 )
 
 func primaryAgentResultPayload(
-	runID string,
+	input primaryAgentFingerprintInput,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) (map[string]any, error) {
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
 	for index, result := range output.ToolResults {
+		argumentMetadata, err := validateSDKToolArguments(result.ToolName, result.ArgumentsJSON)
+		if err != nil {
+			return nil, err
+		}
 		resultBody := cloneAnyMapFromMetadata(result.Result)
 		envelope, err := sdkToolResultEnvelopeForProjection(
 			result.ToolName,
 			result.PayloadKind,
 			result.Status,
 			resultBody,
-			primaryAgentSDKToolProjectionRef(runID, result.ToolName, index+1),
+			primaryAgentSDKToolProjectionRef(input.run.RunID, result.ToolName, index+1),
 		)
 		if err != nil {
 			return nil, err
@@ -28,28 +32,36 @@ func primaryAgentResultPayload(
 			resultBody["result_envelope"] = envelope
 		}
 		toolResults = append(toolResults, map[string]any{
-			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"fail_close_reason": result.FailCloseReason,
-			"payload_kind":      result.PayloadKind,
-			"result":            resultBody,
-			"result_ref":        result.ResultRef,
-			"status":            result.Status,
-			"tool_name":         result.ToolName,
+			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
+			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
+			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
+			"fail_close_reason":        result.FailCloseReason,
+			"payload_kind":             result.PayloadKind,
+			"result":                   resultBody,
+			"result_ref":               result.ResultRef,
+			"status":                   result.Status,
+			"tool_name":                result.ToolName,
 		})
 	}
+	llmIOFingerprint, err := primaryAgentLLMIOFingerprint(input, output)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"agent_result_ref":     output.AgentResultRef,
-		"debug_trace_refs":     debugTraceRefsPayload(output.DebugTraceRefs),
-		"final_output":         output.FinalOutput,
-		"model_name":           output.ModelName,
-		"model_provider":       output.ModelProvider,
-		"provider_response_id": output.ProviderResponseID,
-		"sdk_trace_ref":        output.SDKTraceRef,
-		"selected_tools":       append([]string{}, output.SelectedTools...),
-		"stage_timing":         cloneAnyMapFromMetadata(output.StageTiming),
-		"terminal_envelope":    cloneAnyMapFromMetadata(output.TerminalEnvelope),
-		"terminal_reason":      output.TerminalReason,
-		"tool_results":         toolResults,
+		"agent_result_ref":       output.AgentResultRef,
+		"debug_trace_refs":       debugTraceRefsPayload(output.DebugTraceRefs),
+		"final_output":           output.FinalOutput,
+		"llm_io_fingerprint":     llmIOFingerprint,
+		"memory_context_summary": temporalMemoryContextProjectionPayload(input.activityInput.MemoryContext),
+		"model_name":             output.ModelName,
+		"model_provider":         output.ModelProvider,
+		"provider_response_id":   output.ProviderResponseID,
+		"sdk_trace_ref":          output.SDKTraceRef,
+		"selected_tools":         append([]string{}, output.SelectedTools...),
+		"stage_timing":           cloneAnyMapFromMetadata(output.StageTiming),
+		"terminal_envelope":      cloneAnyMapFromMetadata(output.TerminalEnvelope),
+		"terminal_reason":        output.TerminalReason,
+		"tool_results":           toolResults,
 		"usage": map[string]any{
 			"cached_input_tokens":      output.Usage.CachedInputTokens,
 			"estimated_cost_micro_usd": output.Usage.EstimatedCostMicroUSD,

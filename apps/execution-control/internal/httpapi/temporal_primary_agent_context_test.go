@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,23 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		usageSummary["truncation_reason"] != "recent_turn_limit" {
 		t.Fatalf("usage_summary = %#v", finalModelContext["usage_summary"])
 	}
+	truncationSummary, ok := usageSummary["truncation_summary"].(map[string]any)
+	if !ok || truncationSummary["schema_version"] != "truncation_summary.v1" ||
+		truncationSummary["reason"] != "recent_turn_limit" ||
+		truncationSummary["model_visible_after_count"] != float64(6) ||
+		truncationSummary["runtime_only_after_count"] != float64(8) ||
+		truncationSummary["token_estimate_after"] != float64(320) {
+		t.Fatalf("truncation_summary = %#v", usageSummary["truncation_summary"])
+	}
+	encodedTruncationSummary, err := json.Marshal(truncationSummary)
+	if err != nil {
+		t.Fatalf("marshal truncation summary: %v", err)
+	}
+	for _, forbidden := range []string{"那大一能不能申请？", "转专业条件是什么？", "用户记忆"} {
+		if strings.Contains(string(encodedTruncationSummary), forbidden) {
+			t.Fatalf("truncation_summary leaked %q: %s", forbidden, encodedTruncationSummary)
+		}
+	}
 	previousEvidence, ok := finalModelContext["previous_evidence"].([]any)
 	if !ok || len(previousEvidence) != 1 {
 		t.Fatalf("previous_evidence = %#v", finalModelContext["previous_evidence"])
@@ -186,5 +204,10 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		contextUsage["previous_evidence_count"] != 1 ||
 		contextUsage["previous_tool_result_count"] != 1 {
 		t.Fatalf("context_usage = %#v", steps[0].SanitizedPayload["context_usage"])
+	}
+	if summary, ok := contextUsage["truncation_summary"].(map[string]any); !ok ||
+		summary["schema_version"] != "truncation_summary.v1" ||
+		summary["reason"] != "recent_turn_limit" {
+		t.Fatalf("context_usage truncation_summary = %#v", contextUsage["truncation_summary"])
 	}
 }

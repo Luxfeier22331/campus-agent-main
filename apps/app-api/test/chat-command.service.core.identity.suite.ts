@@ -69,7 +69,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				},
 				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 
@@ -227,11 +227,11 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					kind: "answer",
 					requestId: "req_0001",
 					text: "图书馆开放到 22:00。",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				},
 			},
 			requestId: "req_0001",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(telemetry.recordRequestAccepted).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -278,7 +278,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				result: {},
 				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 

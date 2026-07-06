@@ -130,8 +130,20 @@ step / attempt / result projection，再由 `app-api` operator read model、pane
 消费。model-visible tool schema 以 canonical
 `configs/runtime/tool-function-schemas.v1.json` runtime config 为准；
 agent-runtime 必须把实际 tool call arguments 作为 `arguments_json` 返回给
-execution-control，execution-control 必须在投影 typed tool result 前按 canonical schema
-验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。
+execution-control internal validation，但 execution-control 的产品安全投影不得暴露
+raw `arguments_json`。execution-control 必须在投影 typed tool result 前按 canonical
+schema 验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。
+每个 SDK typed tool step / result projection 必须包含：
+
+- `arguments_schema_version`
+- `arguments_schema_sha256`
+- `arguments_json_sha256`
+
+`arguments_schema_sha256` 是实际用于验证该工具参数的 canonical JSON Schema
+fragment hash；`arguments_json_sha256` 是该次 tool call 参数 canonical JSON hash。
+raw tool arguments、raw tool results 或 provider-native tool payload 只能进入
+`raw_capture_policy.v1` 明确准入的 raw replay lane，不得进入 app-api product
+read model、operator-safe step projection 或 finalization observability。
 
 `requested_tool` 在 forward contract 中只是 optional explicit caller hint。
 普通 chat 缺失该字段时，不得由 `app-api` 或
@@ -478,13 +490,47 @@ payload 或 provider raw response。
     "model_execution_state": "",
     "model_execution_detail": "",
     "prompt_trace": {
-      "prompt_id": "rag_answer_v1",
+      "prompt_id": "rag_synthesis_answer",
       "prompt_version": "v1",
       "template_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "variables_schema_version": "v1",
-      "output_schema_version": "v1",
+      "variables_schema_version": "rag_synthesis_packet.v1",
+      "output_schema_version": "v2",
       "model_provider": "openai-responses",
       "model_name": "gpt-5.2-mini"
+    },
+    "llm_io_fingerprint": {
+      "schema_version": "llm_io_fingerprint.v1",
+      "run_id": "run_01HQ...",
+      "request_id": "req_01HQ...",
+      "trace_id": "trace_01HQ...",
+      "runtime_release": "execution-control@20260705",
+      "provider_profile_revision": "rag_synthesis:provider_profile_rag:4",
+      "provider": "openai",
+      "model": "gpt-5.2-mini",
+      "model_params_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "prompt_id": "rag_synthesis_answer",
+      "prompt_template_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "prompt_variables_schema_version": "rag_synthesis_packet.v1",
+      "rendered_prompt_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "tool_catalog_sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "tool_schema_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "tool_runtime_fingerprint": {
+        "schema_version": "tool_runtime_fingerprint.v1",
+        "tools_schema_version": "tool-registry-v4",
+        "tools_registry_version": "2026-06-26",
+        "tools_sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "function_schema_version": "tool-function-schemas-v1",
+        "function_schema_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "workflow_artifact_schema_version": "workflow-artifact-registry-v2",
+        "workflow_artifact_registry_version": "2026-05-07",
+        "workflow_artifact_sha256": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "combined_sha256": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+      },
+      "workflow_artifact_sha256": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "context_envelope_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "memory_selection_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "evidence_packet_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "output_schema_id": "rag_answer_v2"
     }
   },
   "trace_id": "trace_01HQ..."
@@ -575,6 +621,21 @@ approval / HITL 或 state-changing tool 作为产品目标。
   必须显式回传给 `app-api`
 - `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw
   prompt text
+- `observability.llm_io_fingerprint` 是每次 provider-backed LLM call 的 safe replay /
+  drift identity；RAG synthesis 和 primary agent 都必须提供。它必须包含
+  `tool_runtime_fingerprint.v1`，且 flat tool hash 与 nested runtime fingerprint hash
+  必须一致
+- `observability.replay_packet_ref` 只允许 `llm_replay_packet_index_ref.v1`
+  safe metadata：`packet_id`、S3-compatible `object_ref`、checksum、sensitivity、
+  encryption key ref、created / expires time and optional approval/operator refs；
+  它不得包含 `llm_replay_packet.v1` raw body、rendered messages、provider request /
+  response body、selected evidence packet、selected memory context、tool calls 或
+  tool results
+- `result.diagnostics.prompt_trace` 是 RAG synthesis 的 safe prompt identity；
+  它必须只包含 prompt id / version / template hash / variables schema /
+  output schema identity，不得包含 raw prompt text、provider request body 或
+  provider response body。`observability.prompt_trace` 仍是 operator-safe 顶层
+  projection。
 - `observability.model_execution_state` / `observability.model_execution_detail`
   用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close
   branch

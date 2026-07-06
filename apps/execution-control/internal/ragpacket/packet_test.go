@@ -8,11 +8,11 @@ func TestValidateSynthesisPacketAcceptsBoundedProjection(t *testing.T) {
 		StepID:         "synthesis",
 		RequestID:      "req-123",
 		QueryIntent:    "policy_answer",
-		OutputSchemaID: "rag_answer_v1",
+		OutputSchemaID: "rag_answer_v2",
 		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		PromptRefs: []string{
-			"prompt://rag/rag_answer_v1",
-			"template://rag/rag_answer_v1@2026-06-08",
+			"prompt://rag/rag_synthesis_answer",
+			"template://rag/rag_synthesis_answer@v1",
 		},
 		SelectedEvidence: []EvidenceRef{
 			{
@@ -37,9 +37,9 @@ func TestValidateSynthesisPacketRejectsUnboundedOrUnsafeProjection(t *testing.T)
 		StepID:         "synthesis",
 		RequestID:      "req-123",
 		QueryIntent:    "policy_answer",
-		OutputSchemaID: "rag_answer_v1",
+		OutputSchemaID: "rag_answer_v2",
 		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		PromptRefs:     []string{"prompt://rag/rag_answer_v1"},
+		PromptRefs:     []string{"prompt://rag/rag_synthesis_answer"},
 		SelectedEvidence: []EvidenceRef{{
 			SourceID:  "doc-1",
 			ChunkID:   "chunk-1",

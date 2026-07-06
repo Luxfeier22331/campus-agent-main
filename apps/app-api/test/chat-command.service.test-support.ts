@@ -534,6 +534,7 @@ function durableEventFromExecutionLifecycle(
 					trace_id: input.traceId ?? "",
 				},
 				sequence,
+				visibility: "internal",
 			});
 		}
 		parseExecutionFinalizationResponsePayload(response);
@@ -546,6 +547,7 @@ function durableEventFromExecutionLifecycle(
 				trace_id: input.traceId ?? "",
 			},
 			sequence,
+			visibility: "internal",
 		});
 	}
 	if (parsed.event === "execution.failed" || parsed.event === "execution.cancelled") {
@@ -580,6 +582,7 @@ function durableEventFromExecutionLifecycle(
 				trace_id: input.traceId ?? "",
 			},
 			sequence,
+			visibility: "internal",
 		});
 	}
 	return null;
@@ -598,17 +601,14 @@ function finalizationEventFromResponse(
 			trace_id: input.traceId ?? "",
 		},
 		sequence,
+		visibility: "internal",
 	});
 }
 
 function baseRunEvent(
 	input: ExecutionControlRunCreateInput,
-	overrides: {
-		eventType: string;
-		occurredAt?: string;
-		payload: Record<string, unknown>;
-		sequence: number;
-	},
+	overrides: Pick<ExecutionControlRunEvent, "eventType" | "payload" | "sequence"> &
+		Partial<Pick<ExecutionControlRunEvent, "occurredAt" | "visibility">>,
 ): ExecutionControlRunEvent {
 	return {
 		conversationId: input.conversationId,
@@ -619,7 +619,7 @@ function baseRunEvent(
 		payloadSchemaVersion: "run-event-v1",
 		runId: input.runId,
 		sequence: overrides.sequence,
-		visibility: "browser",
+		visibility: overrides.visibility ?? "browser",
 	};
 }
 

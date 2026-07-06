@@ -1,4 +1,4 @@
-import { createDevDiningOperationsState } from "dining-domain";
+import { createDevDiningOperationsState } from "@campus-agent/dining/domain";
 import { describe, expect, it } from "vitest";
 
 import { buildDiningCatalogPublishSummary } from "../src/catalog-summary";

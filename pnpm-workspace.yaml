@@ -2,3 +2,4 @@ packages:
   - "apps/*"
   - "jobs/*"
   - "packages/*"
+  - "packages/domains/*"

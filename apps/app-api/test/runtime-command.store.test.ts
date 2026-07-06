@@ -164,6 +164,33 @@ function finalizedWrite(): FinalizeRequestWrite {
 			stageTiming: {
 				"agent.runtime_ms": 320,
 			},
+			answerEvalFingerprint: {
+				answerFingerprintSha256:
+					"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+				branchIdentity: {
+					branchKind: "tool_routed",
+					promptId: "primary_agent",
+					schemaVersion: "answer_branch_identity.v1",
+					workflowMode: "single_step",
+				},
+				llmCallSite: "agent.primary",
+				llmIoFingerprintSha256:
+					"sha256:1313131313131313131313131313131313131313131313131313131313131313",
+				outputSchemaId: "primary_agent_terminal_output.v1",
+				providerProfileRevision: "primary_agent:provider_profile_primary:3",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				runtimeRelease: "execution-control@test",
+				schemaVersion: "answer_eval_fingerprint.v1",
+				selectedTool: "knowledge_query",
+				selectedTools: ["knowledge_query"],
+				stageTimingProfileSha256:
+					"sha256:1414141414141414141414141414141414141414141414141414141414141414",
+				terminalOutcome: "grounded_answer",
+				toolRuntimeCombinedSha256:
+					"sha256:1515151515151515151515151515151515151515151515151515151515151515",
+				traceId: "trace_01HQ",
+			},
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			versionQueryMode: null,
 			versionQuerySummary: null,
@@ -392,6 +419,10 @@ describe("pg chat command store", () => {
 		);
 		expect(insertValues).toHaveBeenCalledWith(
 			expect.objectContaining({
+				answerEvalFingerprintJson: expect.objectContaining({
+					schemaVersion: "answer_eval_fingerprint.v1",
+					runId: "run_01HQ",
+				}),
 				debugTraceRefsJson: [
 					expect.objectContaining({
 						sink: "langfuse_otlp",

@@ -83,6 +83,20 @@ checked against, repo-owned artifacts. Tool payload/result schema references
 must point to registered JSON Schema definitions, not language-local Python,
 Go or TypeScript model names.
 
+Runtime identity is governed by the actual checked runtime artifacts used for a
+call, not by hand-maintained constants:
+
+- `configs/runtime/tools.v4.json`
+- `configs/runtime/tool-function-schemas.v1.json`
+- `configs/runtime/workflow-artifacts.v2.json`
+
+Execution-control must compute `tool_runtime_fingerprint.v1` from canonical JSON
+content of those artifacts and include it in every provider-backed
+`llm_io_fingerprint.v1`. Missing, malformed or unsupported artifacts fail
+closed. The flat `tool_catalog_sha256`, `tool_schema_sha256` and
+`workflow_artifact_sha256` fields are index conveniences and must match the
+nested runtime fingerprint hashes.
+
 The registries must support:
 
 - Go runtime policy allowlist checks

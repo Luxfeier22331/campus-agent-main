@@ -64,8 +64,8 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("repo:static",),
         )
         self.assertEqual(
-            lint_families_for_path("tests/test_check_xml_tracked.py"),
-            ("repo:static",),
+            lint_families_for_path("scripts/check_tracked_text_formats.ts"),
+            ("web:lint",),
         )
         self.assertEqual(
             lint_families_for_path("scripts/check_public_asset_source_clean.py"),

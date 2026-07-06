@@ -40,7 +40,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});

@@ -103,7 +103,7 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
             validate_app_manifest_has_no_workspace_dependencies(
                 {
                     "dependencies": {
-                        "dining-floorplans": "workspace:*",
+                        "@campus-agent/dining": "workspace:*",
                     }
                 },
                 repo_root / "apps/app-api/package.json",

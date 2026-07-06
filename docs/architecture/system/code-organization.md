@@ -48,7 +48,8 @@ updated: 2026-06-03
   transport boundary。
 - `jobs/*` 承载一次性或定时 deployable runtime，例如 Kubernetes Job /
   CronJob、Docker one-shot 或本地 one-shot 同步任务。
-- `packages/*` 承载稳定库、contract、domain/tool boundary 与可复用逻辑，不拥有
+- `packages/*` 与 `packages/domains/*` 承载稳定库、contract、domain/tool
+  boundary 与可复用逻辑，不拥有
   transport lifecycle 或 deploy entrypoint。
 
 `jobs/*` 是 runtime boundary，不是脚本垃圾桶。能进入 `jobs/*` 的代码必须有清晰

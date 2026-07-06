@@ -7,7 +7,7 @@ import {
 	type DiningStallProfile,
 	type DiningWindow,
 	type DiningWindowAssignment,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 
 import type {
 	DiningCatalogBuildInput,

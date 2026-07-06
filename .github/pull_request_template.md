@@ -1,20 +1,80 @@
 # Pull Request
 
-## Summary
+<!--
+Thanks for sending a pull request. Before review:
 
-<!-- What changed and why? -->
+1. Read the contributor guide: CONTRIBUTING.md
+2. For agent-authored changes, also follow AGENTS.md
+3. Run the appropriate verification lane for your change:
+   docs/reference/testing-and-verification-lanes.md
+4. If the PR is unfinished, mark it as draft.
+-->
 
-## Related Issue
+## Why is this change needed?
 
-N/A
+## What changed?
 
-## Changes
+## How was this verified?
 
--
+## Related issue(s)
 
-## Validation
+<!--
+Please link relevant issues to help with tracking.
 
-<!-- Paste commands actually run. -->
+To automatically close the linked issue(s) when this PR is merged,
+add the word "Fixes" before the issue number or link.
 
-```bash
+Examples:
+Fixes #<issue number>
+<issue link> (issue in a different repository)
+
+If there is no associated issue, then write "N/A".
+-->
+
+## Change category
+
+- [ ] Bug fix
+- [ ] Feature
+- [ ] API / contract change
+- [ ] Cleanup / refactor
+- [ ] Documentation
+- [ ] Dependency
+- [ ] Test / CI
+
+## User-facing change
+
+<!--
+If no, write "NONE" in the release-note block below.
+If yes, enter the user-facing release note below.
+If the PR requires additional action from users or operators, include
+"action required".
+-->
+
+```release-note
+NONE
+```
+
+## API / contract / migration impact
+
+## Documentation
+
+<!--
+This section can be blank if this pull request does not require additional
+documentation.
+
+When adding links which point to resources within git repositories, reference a
+specific commit when possible and avoid linking directly to a moving branch.
+This ensures that links reference a specific point in time.
+
+Please use the following format:
+- [ADR]: <link>
+- [Architecture]: <link>
+- [Contract]: <link>
+- [Runbook]: <link>
+- [Usage]: <link>
+- [Other doc]: <link>
+-->
+
+```docs
+
 ```

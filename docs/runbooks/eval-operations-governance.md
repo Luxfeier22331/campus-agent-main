@@ -15,7 +15,7 @@ files alive.
 ## Source Of Truth
 
 - Active eval shape: `docs/reference/eval.md`
-- Active workflow lanes: `docs/reference/eval-map.md`
+- Active eval lanes: `docs/reference/eval-map.md`
 - Golden truth model: `docs/reference/eval-gold-truth-model.md`
 
 The retired Python/profile-gate policy files are deleted. New operational
@@ -24,7 +24,7 @@ before they become active.
 
 ## Active Operations
 
-Current workflow-dispatchable lanes are:
+Current internal eval lanes are:
 
 - `ragas-trace`
 - `ragas-dataset`

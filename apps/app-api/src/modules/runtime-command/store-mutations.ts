@@ -147,6 +147,8 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 		workflowTraceSummaryJson: input.workflowTraceSummary ?? null,
 		stageTimingJson: input.stageTiming ?? {},
 		debugTraceRefsJson: input.debugTraceRefs ?? [],
+		answerEvalFingerprintJson: input.answerEvalFingerprint ?? null,
+		llmIoFingerprintJson: input.llmIoFingerprint ?? null,
 		intentTool: input.intentTool,
 		intentClassifierVersion: input.intentClassifierVersion,
 		intentLaunchState: input.intentLaunchState,

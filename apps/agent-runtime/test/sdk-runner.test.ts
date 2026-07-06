@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RawCapturePolicy } from "../src/debug-trace.ts";
 import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import type { ToolExecutionResult } from "../src/primary-agent.ts";
 import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
@@ -38,6 +39,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-provider",
 			runId: "run-sdk-provider",
 			traceId: "trace-run-sdk-provider",
 			providerConfig,
@@ -68,6 +70,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi 你是谁",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-structured-output",
 			runId: "run-sdk-structured-output",
 			traceId: "trace-run-sdk-structured-output",
 			providerConfig,
@@ -95,6 +98,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi 你是谁",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-empty-follow-up",
 			runId: "run-sdk-empty-follow-up",
 			traceId: "trace-run-sdk-empty-follow-up",
 			providerConfig,
@@ -153,6 +157,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					execute: async () => toolResult,
 				},
 			],
+			requestId: "req-sdk",
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
 			providerConfig,
@@ -233,6 +238,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "校内服务状态和班车",
 			instructions: "Use tools.",
 			tools: [],
+			requestId: "req-sdk-interleaved",
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
 			providerConfig,
@@ -285,6 +291,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					}),
 				},
 			],
+			requestId: "req-sdk-schema",
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
 			providerConfig,
@@ -315,6 +322,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-signal",
 			runId: "run-sdk-signal",
 			traceId: "trace-run-sdk-signal",
 			providerConfig,
@@ -355,6 +363,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi 你是谁",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-debug-trace",
 			runId: "run-sdk-debug-trace",
 			traceId: "trace-debug-sdk",
 			providerConfig,
@@ -385,6 +394,41 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		]);
 		expect(JSON.stringify(otlpRequests)).not.toContain("hi 你是谁");
 		expect(JSON.stringify(otlpRequests)).not.toContain("我是校园问答助手");
+	});
+
+	it("enables SDK sensitive tracing only when raw capture policy admits model IO", async () => {
+		let observedTraceIncludeSensitiveData: boolean | undefined;
+		const runner = createOpenAIAgentsRunner({
+			fetchImplementation: async () => new Response(null, { status: 200 }),
+			runSdk: async (_agent, _input, options) => {
+				observedTraceIncludeSensitiveData = options.traceIncludeSensitiveData;
+				return {
+					finalOutput: {
+						kind: "answer",
+						answerText: "我是校园问答助手。",
+					},
+					lastResponseId: "resp-sdk-raw-capture",
+					newItems: [],
+				};
+			},
+		});
+
+		await runner({
+			input: "hi 你是谁",
+			instructions: "Answer directly.",
+			tools: [],
+			requestId: "req-sdk-raw-capture",
+			runId: "run-sdk-raw-capture",
+			traceId: "trace-sdk-raw-capture",
+			providerConfig,
+			debugTraceConfig: {
+				...validDebugTraceConfig(),
+				includeModelIo: true,
+				rawCapturePolicy: validRawCapturePolicy(),
+			},
+		});
+
+		expect(observedTraceIncludeSensitiveData).toBe(true);
 	});
 
 	it("streams terminal-envelope visible text before yielding the final structured SDK result", async () => {
@@ -422,6 +466,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "国家奖学金多久评审一次？",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-stream",
 			runId: "run-sdk-stream",
 			traceId: "trace-run-sdk-stream",
 			providerConfig,
@@ -483,6 +528,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "国家奖学金多久评审一次？",
 			instructions: "Answer directly.",
 			tools: [],
+			requestId: "req-sdk-stream-whitespace",
 			runId: "run-sdk-stream-whitespace",
 			traceId: "trace-run-sdk-stream-whitespace",
 			providerConfig,
@@ -538,6 +584,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				input: "国家奖学金多久评审一次？",
 				instructions: "Answer directly.",
 				tools: [],
+				requestId: "req-sdk-stream-drift",
 				runId: "run-sdk-stream-drift",
 				traceId: "trace-run-sdk-stream-drift",
 				providerConfig,
@@ -567,4 +614,22 @@ function validDebugTraceConfig() {
 		sampleRatio: 1,
 		schemaVersion: "llm_debug_trace_config.v1" as const,
 	};
+}
+
+function validRawCapturePolicy() {
+	return {
+		schema_version: "raw_capture_policy.v1" as const,
+		mode: "manual_run_capture" as const,
+		capture_reason: "diagnose badcase req_debug_001",
+		ttl_days: 7,
+		allowed_sinks: ["openai_agents_trace", "langfuse_otlp"],
+		allowed_raw_fields: ["rendered_messages", "provider_request_body"],
+		operator_principal: "operator:test",
+		approval_ref: "approval:test:raw-capture",
+		request_id: "req-sdk-raw-capture",
+		run_id: "run-sdk-raw-capture",
+		trace_id: "trace-sdk-raw-capture",
+		audit_required: true,
+		dsar_delete_linkage_required: true,
+	} satisfies RawCapturePolicy;
 }

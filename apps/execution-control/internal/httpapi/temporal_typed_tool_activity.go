@@ -342,20 +342,10 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":finalization-completed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
-		OccurredAt:           time.Now().UTC(),
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"request_id":      run.RequestID,
-			"response":        finalizedResponse,
-			"tool_result_ref": input.ToolResultRef,
-			"trace_id":        run.TraceID,
-		},
+	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
+		"request_id":      run.RequestID,
+		"tool_result_ref": input.ToolResultRef,
+		"trace_id":        run.TraceID,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}

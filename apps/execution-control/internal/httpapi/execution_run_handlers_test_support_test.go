@@ -174,6 +174,37 @@ func assertHTTPAPIDurableEventTypes(
 	}
 }
 
+func expectInternalFinalizationResponseForTest(
+	t *testing.T,
+	events []execution.DurableRunEvent,
+) map[string]any {
+	t.Helper()
+	var finalizationResponse map[string]any
+	for _, event := range events {
+		if event.EventType != execution.DurableRunEventTypeFinalizationCompleted {
+			continue
+		}
+		if event.Visibility == execution.DurableRunEventVisibilityBrowser {
+			if _, exists := event.Payload["response"]; exists {
+				t.Fatalf("browser finalization.completed event leaked response: %#v", event.Payload)
+			}
+			continue
+		}
+		if event.Visibility != execution.DurableRunEventVisibilityInternal {
+			continue
+		}
+		response, ok := event.Payload["response"].(map[string]any)
+		if !ok {
+			t.Fatalf("internal finalization response payload = %#v", event.Payload["response"])
+		}
+		finalizationResponse = response
+	}
+	if finalizationResponse == nil {
+		t.Fatal("internal finalization.completed event missing")
+	}
+	return finalizationResponse
+}
+
 func durableToolResponseBodyForTest(answerText string) json.RawMessage {
 	body, err := json.Marshal(map[string]any{
 		"tool":               "knowledge_query",

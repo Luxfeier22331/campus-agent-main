@@ -81,6 +81,50 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                     ],
                 )
 
+    def test_registry_covers_replay_capture_contract_fixtures(self) -> None:
+        registry = json.loads(
+            Path("packages/contracts/schemas/contract-schema-registry.v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        entries = {entry["id"]: entry for entry in registry["entries"]}
+
+        for entry_id, fixture_path in (
+            ("llm-io-fingerprint.v1", "packages/contracts/fixtures/replay_capture"),
+            ("raw-capture-policy.v1", "packages/contracts/fixtures/replay_capture"),
+            ("llm-replay-packet.v1", "packages/contracts/fixtures/replay_capture"),
+            ("replay-result-diff.v1", "packages/contracts/fixtures/replay_capture"),
+            ("answer-eval-fingerprint.v1", "packages/contracts/fixtures/replay_capture"),
+            ("truncation-summary.v1", "packages/contracts/fixtures/replay_capture"),
+            ("sink-identity-projection.v1", "packages/contracts/fixtures/replay_capture"),
+        ):
+            with self.subTest(entry_id=entry_id):
+                self.assertIn(entry_id, entries)
+                self.assertEqual(
+                    entries[entry_id].get("fixture_groups"),
+                    [
+                        {
+                            "path": fixture_path,
+                            "valid_glob": f"{entry_id}.*.valid.json",
+                            "invalid_glob": f"{entry_id}.*.invalid.json",
+                        }
+                    ],
+                )
+
+    def test_raw_capture_policy_fixtures_cover_fail_closed_operator_approval_gate(
+        self,
+    ) -> None:
+        fixture_dir = Path("packages/contracts/fixtures/replay_capture")
+
+        self.assertTrue((fixture_dir / "raw-capture-policy.v1.off_minimal.valid.json").exists())
+        for fixture_name, missing_field in (
+            ("raw-capture-policy.v1.missing_operator.invalid.json", "operator_principal"),
+            ("raw-capture-policy.v1.missing_approval.invalid.json", "approval_ref"),
+        ):
+            with self.subTest(fixture_name=fixture_name):
+                instance = json.loads((fixture_dir / fixture_name).read_text(encoding="utf-8"))
+                self.assertNotIn(missing_field, instance)
+
     def test_runtime_tool_schema_refs_resolve_to_registered_json_schema_defs(self) -> None:
         registry = json.loads(
             Path("packages/contracts/schemas/contract-schema-registry.v1.json").read_text(
@@ -265,6 +309,137 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                 schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
                 errors = list(Draft202012Validator(schema).iter_errors(instance))
                 self.assertTrue(errors)
+
+    def test_replay_capture_invariants_reject_unadmitted_raw_sections(self) -> None:
+        instance = json.loads(
+            Path(
+                "packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json"
+            ).read_text(encoding="utf-8")
+        )
+        instance["provider_response_body"] = {"output": "not admitted by fixture policy"}
+
+        with self.assertRaisesRegex(ValueError, "raw section is not admitted"):
+            check_contract_schemas.validate_json_artifact_invariants_for_tests(
+                "llm-replay-packet.v1",
+                Path("test-fixture.json"),
+                instance,
+            )
+
+    def test_replay_capture_invariants_reject_forbidden_keys_inside_raw_sections(self) -> None:
+        instance = json.loads(
+            Path(
+                "packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json"
+            ).read_text(encoding="utf-8")
+        )
+        instance["provider_request_body"] = {"authorization_header": "Bearer forbidden"}
+
+        with self.assertRaisesRegex(ValueError, "forbidden raw replay key"):
+            check_contract_schemas.validate_json_artifact_invariants_for_tests(
+                "llm-replay-packet.v1",
+                Path("test-fixture.json"),
+                instance,
+            )
+
+    def test_llm_io_fingerprint_schema_requires_attestation_and_safe_hash_projection(
+        self,
+    ) -> None:
+        schema = json.loads(
+            Path("packages/contracts/schemas/llm-io-fingerprint.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertGreaterEqual(
+            set(schema["required"]),
+            {
+                "llm_call_site",
+                "prompt_registry_attestation",
+                "primary_attestation",
+                "tool_runtime_attestation",
+                "provider_request_safe_hash",
+                "model_params_projection",
+            },
+        )
+
+    def test_replay_packet_schemas_require_retention_audit_and_evidence_index(
+        self,
+    ) -> None:
+        for schema_path in (
+            "packages/contracts/schemas/llm-replay-packet.v1.schema.json",
+            "packages/contracts/schemas/llm-replay-packet-index.v1.schema.json",
+        ):
+            with self.subTest(schema_path=schema_path):
+                schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
+                self.assertGreaterEqual(
+                    set(schema["required"]),
+                    {
+                        "retention",
+                        "access_audit",
+                        "evidence_replay_index",
+                    },
+                )
+
+    def test_replay_result_diff_schema_declares_safe_or_raw_replay_mode(self) -> None:
+        schema = json.loads(
+            Path("packages/contracts/schemas/replay-result-diff.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertIn("replay_mode", schema["required"])
+        self.assertEqual(
+            schema["properties"]["replay_mode"]["enum"],
+            ["safe_replay", "raw_replay"],
+        )
+
+    def test_answer_eval_fingerprint_binds_llm_tool_stage_and_branch_identity(self) -> None:
+        schema = json.loads(
+            Path("packages/contracts/schemas/answer-eval-fingerprint.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertGreaterEqual(
+            set(schema["required"]),
+            {
+                "answer_fingerprint_sha256",
+                "branch_identity",
+                "llm_io_fingerprint_sha256",
+                "output_schema_id",
+                "runtime_release",
+                "stage_timing_profile_sha256",
+                "terminal_outcome",
+                "tool_runtime_combined_sha256",
+            },
+        )
+
+    def test_truncation_summary_schema_is_count_only(self) -> None:
+        schema = json.loads(
+            Path("packages/contracts/schemas/truncation-summary.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertIn("dropped_category_counts", schema["required"])
+        forbidden = json.loads(
+            Path(
+                "packages/contracts/fixtures/replay_capture/"
+                "truncation-summary.v1.raw_text.invalid.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertIn("dropped_raw_messages", forbidden)
+
+    def test_sink_identity_projection_schema_rejects_direct_user_identity(self) -> None:
+        schema = json.loads(
+            Path("packages/contracts/schemas/sink-identity-projection.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        properties = set(schema["properties"])
+
+        self.assertIn("subject_ref", properties)
+        self.assertNotIn("email", properties)
+        self.assertNotIn("user_id", properties)
 
 
 if __name__ == "__main__":

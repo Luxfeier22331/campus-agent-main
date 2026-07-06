@@ -7,10 +7,6 @@ from pathlib import Path
 
 from scripts.doctor_env import collect_env_doctor_status
 
-TS_OWNED_WORKFLOW_PROFILE_IDS = (
-    "ragas-trace",
-    "ragas-dataset",
-)
 SCORE_REGISTRY_PATH = Path(
     "packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json"
 )
@@ -176,7 +172,7 @@ REQUIRED_RAGAS_SCORE_NAMES = (
     "ragas.id_context_recall",
 )
 REQUIRED_EVAL_MAP_ACTIVE_TOKENS = (
-    "## Active Workflow Lanes",
+    "## Active Eval Lanes",
     "`ragas-trace`",
     "`ragas-dataset`",
     "## Retired Surfaces",
@@ -185,7 +181,7 @@ REQUIRED_EVAL_MAP_ACTIVE_TOKENS = (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run Langfuse eval environment doctor and workflow audit checks."
+        description="Run Langfuse eval environment doctor and package/runtime audit checks."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -202,7 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     audit_parser = subparsers.add_parser(
         "audit",
-        help="Audit TS/Langfuse eval workflow and asset coverage.",
+        help="Audit TS/Langfuse eval package/runtime and asset coverage.",
     )
     audit_parser.add_argument("--repo-root", default=".")
     audit_parser.add_argument("--json", action="store_true")
@@ -235,15 +231,9 @@ def render_langfuse_eval_status_text(status: dict[str, object]) -> str:
 
 
 def audit_langfuse_eval_configuration(*, repo_root: Path) -> dict[str, object]:
-    workflow_path = repo_root / ".github" / "workflows" / "eval-ragas-score.yml"
     checks = (
-        _audit_workflow_dispatch_choices(workflow_path),
-        _audit_workflow_langfuse_publish_contract(workflow_path),
-        _audit_workflow_ragas_score_lanes(workflow_path),
-        _audit_retired_python_inputs_absent(workflow_path),
         _audit_retired_evals_package_absent(repo_root),
         _audit_retired_source_paths_absent(repo_root),
-        _audit_workflow_uses_langfuse_fixtures(workflow_path),
         _audit_score_registry_owners(repo_root),
         _audit_score_registry_required_scores_present(repo_root),
         _audit_score_registry_retired_scores_absent(repo_root),
@@ -280,58 +270,6 @@ def audit_langfuse_eval_configuration(*, repo_root: Path) -> dict[str, object]:
     }
 
 
-def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
-    choices = _extract_workflow_profile_choices(workflow_path)
-    expected = set(TS_OWNED_WORKFLOW_PROFILE_IDS)
-    actual = set(choices)
-    return {
-        "check_id": "workflow_dispatch_choices",
-        "passed": expected == actual,
-        "missing": sorted(expected - actual),
-        "extra": sorted(actual - expected),
-    }
-
-
-def _audit_workflow_langfuse_publish_contract(workflow_path: Path) -> dict[str, object]:
-    return _audit_workflow_tokens(
-        "workflow_langfuse_publish_contract",
-        workflow_path,
-        (
-            "publish_langfuse_scores",
-            "--validate-only",
-        ),
-    )
-
-
-def _audit_workflow_ragas_score_lanes(workflow_path: Path) -> dict[str, object]:
-    return _audit_workflow_tokens(
-        "workflow_ragas_score_lanes",
-        workflow_path,
-        (
-            "ragas-trace",
-            "ragas-dataset",
-            "actions/setup-python@v6",
-            "astral-sh/setup-uv@v8.3.0",
-            "uv sync --all-packages --dev",
-            "pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
-            "pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",
-            "--runtime-config",
-            "--validate-only",
-        ),
-    )
-
-
-def _audit_retired_python_inputs_absent(workflow_path: Path) -> dict[str, object]:
-    text = workflow_path.read_text(encoding="utf-8")
-    retired_inputs = ("qdrant_collection_name", "artifact_path", "collect_runtime")
-    present = [token for token in retired_inputs if token in text]
-    return {
-        "check_id": "retired_python_inputs_absent",
-        "passed": not present,
-        "present": present,
-    }
-
-
 def _audit_retired_evals_package_absent(repo_root: Path) -> dict[str, object]:
     retired_path = repo_root / "packages" / "evals"
     return {
@@ -345,17 +283,6 @@ def _audit_retired_source_paths_absent(repo_root: Path) -> dict[str, object]:
     present = [path.as_posix() for path in RETIRED_SOURCE_PATHS if (repo_root / path).exists()]
     return {
         "check_id": "retired_source_paths_absent",
-        "passed": not present,
-        "present": present,
-    }
-
-
-def _audit_workflow_uses_langfuse_fixtures(workflow_path: Path) -> dict[str, object]:
-    text = workflow_path.read_text(encoding="utf-8")
-    forbidden_tokens = ("packages/evals/fixtures", "../../evals/fixtures")
-    present = [token for token in forbidden_tokens if token in text]
-    return {
-        "check_id": "workflow_avoids_retired_eval_fixtures",
         "passed": not present,
         "present": present,
     }
@@ -729,22 +656,6 @@ def _duplicates(values: list[str]) -> list[str]:
             duplicates.add(value)
         seen.add(value)
     return sorted(duplicates)
-
-
-def _audit_workflow_tokens(
-    check_id: str, workflow_path: Path, required_tokens: tuple[str, ...]
-) -> dict[str, object]:
-    text = workflow_path.read_text(encoding="utf-8")
-    missing = [token for token in required_tokens if token not in text]
-    return {"check_id": check_id, "passed": not missing, "missing": missing}
-
-
-def _extract_workflow_profile_choices(workflow_path: Path) -> tuple[str, ...]:
-    text = workflow_path.read_text(encoding="utf-8")
-    match = re.search(r"profile:\n(?P<body>.*?)(?:\n      [a-zA-Z_]+:|\npermissions:)", text, re.S)
-    if not match:
-        return ()
-    return tuple(re.findall(r"^\s+-\s+([a-z0-9-]+)\s*$", match.group("body"), re.M))
 
 
 def main(argv: list[str] | None = None) -> int:

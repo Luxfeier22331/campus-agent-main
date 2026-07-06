@@ -58,7 +58,7 @@ dining_lookup typed tool target -> same published projection
 own dining catalog source truth, source sync, or Feishu/Lark access. It must
 not call Feishu/Lark or shell out to `lark-cli` from online request handlers.
 
-`packages/dining-domain` keeps repo-owned floorplan scaffold and a minimal
+`packages/domains/dining` keeps repo-owned floorplan scaffold and a minimal
 local/dev validation seed. Production catalog content comes from Feishu/Lark
 source tables, enters `dining.source_observations`, then is published from
 active PG observations. `publish-catalog` refreshes Feishu/Lark and publishes in
@@ -71,8 +71,8 @@ Floorplan scaffold/SVG presence is not student visibility truth. A hall becomes
 visible in `campus-web` only after it is present in the latest published dining
 snapshot served by `app-api`. Local development must prove that path by running
 shared-product migrations, importing the local dev seed, and checking the
-published snapshot; checking only `dining-floorplans` assets or scaffold entries
-is insufficient.
+published snapshot; checking only `@campus-agent/dining/floorplans` assets or
+scaffold entries is insufficient.
 
 ## Domain Objects
 
@@ -478,7 +478,7 @@ the repo-owned floorplan scaffold:
   projection instead of blocking catalog publish
 - unmapped or inconsistent source links are blocked instead of guessed
 
-The dev seed in `packages/dining-domain` is not production source truth. It
+The dev seed in `packages/domains/dining` is not production source truth. It
 remains useful for local development and initializing a dev database before
 Feishu sync is configured. Floorplan scaffold remains map structure only and
 must not carry menu, price or review truth.

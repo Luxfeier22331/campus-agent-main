@@ -52,7 +52,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				},
 				selectedTool: "place_lookup",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 
@@ -219,7 +219,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -352,7 +352,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0003",
+					traceId: "trace_0001",
 				}),
 			}),
 		});

@@ -12,4 +12,8 @@ export type {
 	LlmDebugTraceRuntimeSnapshot,
 	ObservabilityConfigService,
 	ObservabilityConfigUpdatePayload,
+	RawCaptureField,
+	RawCapturePolicy,
+	RawCapturePolicyMode,
+	RawCaptureSink,
 } from "./types";

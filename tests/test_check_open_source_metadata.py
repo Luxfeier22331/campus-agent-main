@@ -61,6 +61,31 @@ class CheckOpenSourceMetadataTest(unittest.TestCase):
             ),
         )
 
+    def test_reports_nested_domain_workspace_package_that_is_not_private(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            package_path = root / "packages/domains/dining/package.json"
+            package_path.parent.mkdir(parents=True)
+            package_path.write_text(
+                json.dumps({"name": "@campus-agent/dining", "license": "Apache-2.0"}),
+                encoding="utf-8",
+            )
+
+            with mock.patch(
+                "scripts.check_open_source_metadata.worktree_paths",
+                return_value=(package_path,),
+            ):
+                failures = audit_open_source_metadata(root=root)
+
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(
+            failures[0].render(),
+            (
+                "packages/domains/dining/package.json: workspace package.json must remain private "
+                "unless publication is explicitly designed"
+            ),
+        )
+
     def test_reports_pyproject_license_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

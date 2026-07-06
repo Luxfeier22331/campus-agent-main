@@ -190,29 +190,6 @@ def _write_minimal_langfuse_eval_repo(
     ci_surface_contract_path: str = "docs/contracts/langfuse-runtime.md",
 ) -> None:
     _write_text(
-        root / ".github/workflows/eval-ragas-score.yml",
-        """
-on:
-  workflow_dispatch:
-    inputs:
-      profile:
-        options:
-          - ragas-trace
-          - ragas-dataset
-permissions: {}
-jobs:
-  eval:
-    steps:
-      - uses: actions/setup-python@v6
-      - uses: astral-sh/setup-uv@v8.3.0
-      - run: uv sync --all-packages --dev
-      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-traces --runtime-config x --validate-only
-      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset --runtime-config x --validate-only
-      - id: publish_langfuse_scores
-        run: echo --validate-only
-""",
-    )
-    _write_text(
         root / "scripts/detect_ci_changed_surfaces.py",
         f"""
 def _is_langfuse_path(path: str) -> bool:
@@ -277,7 +254,7 @@ def _is_langfuse_path(path: str) -> bool:
     _write_text(
         root / "docs/reference/eval-map.md",
         """
-## Active Workflow Lanes
+## Active Eval Lanes
 
 `ragas-trace`
 

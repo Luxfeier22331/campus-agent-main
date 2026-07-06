@@ -1,6 +1,8 @@
 import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
 import type {
+	ToolExecutionAnswerEvalFingerprint,
 	ToolExecutionDebugTraceRef,
+	ToolExecutionLlmIoFingerprint,
 	ToolExecutionModelUsageSummary,
 } from "../integration/tool-execution-types";
 import type { StageTimingBudgetProjection } from "../latency-budget";
@@ -71,6 +73,8 @@ export interface OperatorRequestOpsIndex {
 		modelName: string | null;
 		billableStepCount: number | null;
 		usageSummary: ToolExecutionModelUsageSummary[];
+		answerEvalFingerprint: ToolExecutionAnswerEvalFingerprint | null;
+		llmIoFingerprint: ToolExecutionLlmIoFingerprint | null;
 		promptId: string | null;
 		promptVersion: string | null;
 		templateSha256: string | null;

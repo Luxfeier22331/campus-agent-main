@@ -1,0 +1,103 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/replay-result-diff.v1.schema.json",
+	"title": "campus-agent replay result diff",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"packet_id",
+		"run_id",
+		"replay_run_id",
+		"replay_mode",
+		"answer_diff_summary",
+		"tool_selection_diff",
+		"evidence_diff",
+		"schema_validity_diff",
+		"latency_diff",
+		"cost_diff",
+		"provider_error_diff",
+		"fingerprint_drift",
+		"verdict"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "replay_result_diff.v1"
+		},
+		"packet_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"run_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"replay_run_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"replay_mode": {
+			"enum": ["safe_replay", "raw_replay"]
+		},
+		"answer_diff_summary": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"tool_selection_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"evidence_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"schema_validity_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"latency_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"cost_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"provider_error_diff": {
+			"$ref": "#/$defs/SafeSummary"
+		},
+		"fingerprint_drift": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["field", "original", "replay"],
+				"properties": {
+					"field": {
+						"$ref": "#/$defs/NonEmptyString"
+					},
+					"original": {
+						"$ref": "#/$defs/NonEmptyString"
+					},
+					"replay": {
+						"$ref": "#/$defs/NonEmptyString"
+					}
+				}
+			}
+		},
+		"verdict": {
+			"enum": ["equivalent", "drift_detected", "replay_failed"]
+		}
+	},
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1
+		},
+		"SafeSummary": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["state", "summary"],
+			"properties": {
+				"state": {
+					"enum": ["same", "changed", "not_applicable", "failed"]
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 1000
+				}
+			}
+		}
+	}
+}

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-05-01
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 # Runtime OTel Telemetry Taxonomy
 
@@ -54,6 +54,28 @@ This taxonomy follows the OpenTelemetry direction that:
 
 Event names are low-cardinality and stable. Dynamic identifiers belong in attributes only when
 explicitly allowed below.
+
+Runtime observability has three data classes:
+
+- `safe telemetry`: sanitized OTel/log/metric/event data, repo observations,
+  stage timing and sink correlation. This is the default class for app-api,
+  Operator Console, Sentry, Axiom and Langfuse repo observations.
+- `restricted raw debug trace`: model/tool/provider trace detail admitted by
+  request-scoped `raw_capture_policy.v1` and sent only to controlled debug
+  sinks.
+- `replay artifact`: `llm_replay_packet.v1` raw or near-raw packet stored in
+  encrypted S3-compatible object storage with index, TTL, checksum, access
+  audit and deletion linkage.
+
+Metrics, log labels, repo-owned OTel attributes and Operator projections use
+safe telemetry only. Restricted raw trace and replay artifact bodies are never
+metric labels or app-api projection payloads.
+
+Replay-related safe telemetry may reference prompt registry attestation,
+primary attestation, tool runtime attestation, provider request safe hash, model
+params projection, evidence replay index refs, replay retention refs and access
+audit refs as metadata. These refs identify controlled artifacts and decisions;
+they do not authorize raw replay packet body export through telemetry.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
@@ -118,6 +140,25 @@ explicitly allowed below.
 - `retryable`
 - `http_status`
 - `sample_ratio`
+
+### LLM Replay Safe Attributes
+
+- `llm.call_site`
+- `llm.provider`
+- `llm.model`
+- `llm.prompt_id`
+- `llm.prompt_registry_version`
+- `llm.prompt_template_sha256`
+- `llm.rendered_prompt_sha256`
+- `llm.model_params_hash`
+- `llm.provider_request_safe_hash`
+- `llm.tool_runtime_combined_sha256`
+- `llm.primary_attestation_kind`
+- `replay.packet_id`
+- `replay.packet_index_ref`
+- `replay.retention_class`
+- `replay.access_audit_ref`
+- `replay.evidence_ref_count`
 
 ### Retrieval Attributes
 
@@ -223,25 +264,32 @@ bodies, Sentry contexts or Axiom events by default:
 - provider secret
 - phone number, email, student id or national id in clear text
 - full exporter endpoint URL if it contains credentials or query tokens
+- provider request safe-hash canonicalization input
+- model params projection input before allowlist filtering
+- replay retention deletion subject in clear text
+- replay access-audit body
 
-Any temporary debug override must be explicit, bounded, documented, disabled by default and excluded
-from production sink configuration.
+Any temporary debug override must be explicit, bounded, documented, disabled by
+default and excluded from safe telemetry projections.
 
-Langfuse / OpenAI / controlled GenAI tracing is the only allowed exception for
-raw or near-raw model input/output. That exception is limited to the LLM debug
-trace lane defined in `../contracts/langfuse-runtime.md`; it never applies to
-app-api runtime events, Operator Console read models, Temporal metadata,
-repo-owned run/step projections, score metadata or metrics labels. Secrets,
-credentials, auth material, cookies, JWTs, database URLs, object-store secrets
-and raw Hindsight refs remain forbidden in every lane.
+Controlled debug trace and replay artifact lanes are the only allowed exception
+for raw or near-raw model input/output. They are defined by
+`../contracts/langfuse-runtime.md` and `../contracts/replay-capture.md`, and must
+be admitted by request-scoped `raw_capture_policy.v1`. The exception never
+applies to app-api runtime events, Operator Console read models, Temporal
+metadata, repo-owned run/step projections, score metadata or metrics labels.
+Secrets, credentials, auth material, cookies, JWTs, database URLs,
+object-store secrets and raw Hindsight refs remain forbidden in every lane.
 
 Current LLM debug trace implementation exports only to Langfuse OTLP when an
 app-api-owned operator config is projected through execution-control and passed
 request-scoped to agent-runtime. Agent-runtime does not own environment
 variables for this behavior. The repo-owned projection surface may carry only
-safe `debug_trace_refs` and `stage_timing.v1` fields defined in
-`../contracts/stage-timing.md`; raw OTLP bodies and SDK trace payloads stay in
-the external sink.
+safe `debug_trace_refs`, `stage_timing.v1` fields, replay packet metadata, safe
+replay index refs and replay attestation metadata defined in
+`../contracts/stage-timing.md` and `../contracts/replay-capture.md`; raw OTLP
+bodies, SDK trace payloads and replay packet bodies stay in their controlled
+sink/artifact lanes.
 
 ## Stage Timing Projection
 

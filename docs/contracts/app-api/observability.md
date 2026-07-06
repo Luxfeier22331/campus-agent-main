@@ -247,7 +247,7 @@ Operator routes expose only config summaries:
 
 - `mode`: `off` or `langfuse_otlp`
 - `sampleRatio`
-- `includeModelIo` currently fixed to `false`
+- `includeModelIo`, default `false`
 - Langfuse OTLP endpoint and public trace base URL
 - auth header configured/fingerprint/last4 summary
 - revision and operator update metadata
@@ -279,10 +279,15 @@ Rules:
   runtime profile.
 - agent-runtime receives only request-scoped `debug_trace_config`.
 - Do not add agent-runtime environment variables for this config.
+- `include_model_io=true` requires request-scoped admission by
+  `raw_capture_policy.v1`; it is never enabled by global default or process env.
 - `langfuse_otlp.auth_header` must use Basic auth.
 - `langfuse_otlp.endpoint` must end with `/api/public/otel`.
 - app-api/operator projections may store and display only safe deep links,
   trace refs and `stage_timing.v1` fields.
+- app-api/operator projections must not store raw replay packet bodies. Replay
+  packet index, metadata and access audit are governed by
+  `docs/contracts/replay-capture.md`.
 
 ## Internal Producer Guidance
 
@@ -305,4 +310,5 @@ contract rather than by reactivating retired broad endpoints.
 - `docs/architecture/system/ops-observability.md`
 - `docs/architecture/system/operator-console.md`
 - `docs/architecture/system/langfuse.md`
+- `docs/contracts/replay-capture.md`
 - `docs/reference/runtime-otel-telemetry-taxonomy.md`

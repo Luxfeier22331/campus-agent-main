@@ -1,4 +1,5 @@
 import { summarizeObservedSources } from "../source-trace";
+import { parseAnswerEvalFingerprint } from "./answer-eval-fingerprint-parser";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS,
@@ -6,6 +7,8 @@ import {
 	type ExecutionFinalizationResponseWire,
 	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
+import { parseLlmIoFingerprint } from "./llm-io-fingerprint-parser";
+import { parseReplayPacketRef } from "./replay-packet-ref-parser";
 import type {
 	ToolExecutionDebugTraceRef,
 	ToolExecutionModelUsageSummary,
@@ -17,11 +20,16 @@ import type {
 } from "./tool-execution-types";
 
 const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
+	"raw_answer",
 	"raw_prompt",
 	"raw_transcript",
+	"provider_request_body",
+	"provider_response_body",
+	"provider_stream_deltas",
 	"provider_raw_response",
 	"raw_response",
 	"jwt",
+	"authorization",
 	"cookie",
 	"auth_envelope",
 	"retrieval_backend_dump",
@@ -394,6 +402,9 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 	if (!record) {
 		return null;
 	}
+	if (containsForbiddenWorkflowTraceKey(record)) {
+		throw new ExecutionFinalizationResponseContractError("observability contains forbidden keys");
+	}
 
 	const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
 	const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
@@ -432,6 +443,8 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		intentScopeClass: normalizeRecordString(record, "intent_scope_class"),
 		intentScopeReason: normalizeRecordString(record, "intent_scope_reason"),
 		intentTaskKind: normalizeRecordString(record, "intent_task_kind"),
+		answerEvalFingerprint: parseAnswerEvalFingerprint(record.answer_eval_fingerprint),
+		llmIoFingerprint: parseLlmIoFingerprint(record.llm_io_fingerprint),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputTokens: normalizeNullableNumber(record.output_tokens),
@@ -439,6 +452,7 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		modelExecutionDetail: normalizeNullableString(record.model_execution_detail),
 		modelExecutionState: normalizeNullableString(record.model_execution_state),
 		promptTrace: parsePromptTrace(record.prompt_trace),
+		replayPacketRef: parseReplayPacketRef(record.replay_packet_ref),
 		refusalClass: normalizeNullableString(record.refusal_class),
 		retrievedSourceCount,
 		...(hasRetrievedSourcesTrace ? { retrievedSources } : {}),

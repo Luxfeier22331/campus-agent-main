@@ -46,6 +46,33 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 		const runLimit = vi.fn().mockResolvedValue([{ requestId: "req_01HQ", runId: "run_01HQ" }]);
 		const opsIndexLimit = vi.fn().mockResolvedValue([
 			{
+				answerEvalFingerprintJson: {
+					answerFingerprintSha256:
+						"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+					branchIdentity: {
+						branchKind: "tool_routed",
+						promptId: "primary_agent",
+						schemaVersion: "answer_branch_identity.v1",
+						workflowMode: "single_step",
+					},
+					llmCallSite: "agent.primary",
+					llmIoFingerprintSha256:
+						"sha256:1313131313131313131313131313131313131313131313131313131313131313",
+					outputSchemaId: "primary_agent_terminal_output.v1",
+					providerProfileRevision: "primary_agent:provider_profile_primary:3",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					runtimeRelease: "execution-control@test",
+					schemaVersion: "answer_eval_fingerprint.v1",
+					selectedTool: "knowledge_query",
+					selectedTools: ["knowledge_query"],
+					stageTimingProfileSha256:
+						"sha256:1414141414141414141414141414141414141414141414141414141414141414",
+					terminalOutcome: "grounded_answer",
+					toolRuntimeCombinedSha256:
+						"sha256:1515151515151515151515151515151515151515151515151515151515151515",
+					traceId: "trace_01HQ",
+				},
 				billableStepCount: 2,
 				cachedInputTokens: 12,
 				candidateCount: 8,
@@ -61,6 +88,37 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 				estimatedCostMicrousd: 120,
 				failClosed: false,
 				inputTokens: 300,
+				llmIoFingerprintJson: {
+					contextEnvelopeSha256:
+						"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+					evidencePacketSha256:
+						"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+					memorySelectionSha256:
+						"sha256:3333333333333333333333333333333333333333333333333333333333333333",
+					model: "gpt-test",
+					modelParamsHash:
+						"sha256:4444444444444444444444444444444444444444444444444444444444444444",
+					outputSchemaId: "primary_agent_terminal_output.v1",
+					promptId: "campus-primary-agent",
+					promptTemplateSha256:
+						"sha256:5555555555555555555555555555555555555555555555555555555555555555",
+					promptVariablesSchemaVersion: "final_model_context.v1",
+					provider: "openai",
+					providerProfileRevision: "primary_agent:provider_profile_primary:3",
+					renderedPromptSha256:
+						"sha256:6666666666666666666666666666666666666666666666666666666666666666",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					runtimeRelease: "execution-control@test",
+					schemaVersion: "llm_io_fingerprint.v1",
+					toolCatalogSha256:
+						"sha256:7777777777777777777777777777777777777777777777777777777777777777",
+					toolSchemaSha256:
+						"sha256:8888888888888888888888888888888888888888888888888888888888888888",
+					traceId: "trace_01HQ",
+					workflowArtifactSha256:
+						"sha256:9999999999999999999999999999999999999999999999999999999999999999",
+				},
 				modelExecutionDetail: "completed",
 				modelExecutionState: "completed",
 				modelName: "gpt-test",
@@ -113,7 +171,17 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 					},
 				],
 				model: {
+					answerEvalFingerprint: {
+						runId: "run_01HQ",
+						schemaVersion: "answer_eval_fingerprint.v1",
+						terminalOutcome: "grounded_answer",
+					},
 					billableStepCount: 2,
+					llmIoFingerprint: {
+						runId: "run_01HQ",
+						schemaVersion: "llm_io_fingerprint.v1",
+						traceId: "trace_01HQ",
+					},
 					modelName: "gpt-test",
 					modelProvider: "openai",
 				},

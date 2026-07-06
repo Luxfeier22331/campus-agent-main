@@ -196,6 +196,7 @@ def _package_paths(root: Path) -> tuple[Path, ...]:
         sorted(root.glob("apps/*/package.json"))
         + sorted(root.glob("jobs/*/package.json"))
         + sorted(root.glob("packages/*/package.json"))
+        + sorted(root.glob("packages/domains/*/package.json"))
     )
 
 

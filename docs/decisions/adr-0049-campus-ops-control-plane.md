@@ -22,7 +22,7 @@ continue to apply under `apps/operator-console-web`.
 
 `campus-web` 已经把学生侧校园体验面扩展到地图、食堂与反馈入口。食堂地图最初由
 `app-api` 内 seed projection 支撑，用于验证学生端信息架构和交互效果。当前 initial
-catalog fixture 已归属 `packages/dining-domain`，并由 `jobs/dining-sync` 导入；
+catalog fixture 已归属 `packages/domains/dining`，并由 `jobs/dining-sync` 导入；
 它不能继续由 app-api 承担长期线上运营真相。
 
 食堂窗口、档口展示、菜品与价格参考会持续变化。后续采集或人工观测如重新进入产品范围，

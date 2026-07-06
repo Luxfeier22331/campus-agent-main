@@ -107,6 +107,8 @@ export function toOperatorRequestOpsIndex(
 			estimatedCostMicrousd: row.estimatedCostMicrousd ?? null,
 			executionDetail: row.modelExecutionDetail ?? null,
 			executionState: row.modelExecutionState ?? null,
+			answerEvalFingerprint: row.answerEvalFingerprintJson ?? null,
+			llmIoFingerprint: row.llmIoFingerprintJson ?? null,
 			inputTokens: row.inputTokens ?? null,
 			modelName: row.modelName ?? null,
 			modelProvider: row.modelProvider ?? null,

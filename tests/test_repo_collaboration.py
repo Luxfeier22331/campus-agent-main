@@ -8,6 +8,12 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_ISSUE_FORMS = {
+    "bug_report.yml",
+    "config.yml",
+    "documentation.yml",
+    "feature_request.yml",
+}
 
 
 class RepoCollaborationTest(unittest.TestCase):
@@ -110,7 +116,8 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertNotIn("pull_request", triggers)
         self.assertIn("ossf/scorecard-action@v2.4.3", workflow_text)
         self.assertIn("publish_results: false", workflow_text)
-        self.assertIn("security-events: write", workflow_text)
+        self.assertNotIn("security-events: write", workflow_text)
+        self.assertNotIn("id-token: write", workflow_text)
         self.assertIn("not a PR blocker", lanes)
 
     def test_scheduled_checks_run_full_non_release_health_lanes(self) -> None:
@@ -237,6 +244,95 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("failed、cancelled、missing", contributing)
         self.assertIn("changed-surface", contributing)
         self.assertIn("manual、staging、eval lane", contributing)
+
+    def test_github_templates_use_official_repository_paths(self) -> None:
+        issue_template_root = ROOT / ".github" / "ISSUE_TEMPLATE"
+        template_names = {path.name for path in issue_template_root.iterdir() if path.is_file()}
+        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+
+        self.assertIn("# Pull Request", template)
+        self.assertEqual(template_names, EXPECTED_ISSUE_FORMS)
+        self.assertNotIn("bug_report.md", template_names)
+        self.assertNotIn("docs_issue.md", template_names)
+        self.assertNotIn("feature_request.md", template_names)
+
+    def test_github_issue_forms_use_yaml_schema_without_markdown_duplicates(self) -> None:
+        issue_template_root = ROOT / ".github" / "ISSUE_TEMPLATE"
+        template_names = sorted(
+            path.name for path in issue_template_root.iterdir() if path.is_file()
+        )
+        config = yaml.safe_load((issue_template_root / "config.yml").read_text(encoding="utf-8"))
+
+        self.assertEqual(set(template_names), EXPECTED_ISSUE_FORMS)
+        self.assertEqual([name for name in template_names if name.endswith(".md")], [])
+        self.assertFalse(config["blank_issues_enabled"])
+
+        for form_name in sorted(EXPECTED_ISSUE_FORMS - {"config.yml"}):
+            form_path = issue_template_root / form_name
+            form = yaml.safe_load(form_path.read_text(encoding="utf-8"))
+            form_label = str(form_path.relative_to(ROOT))
+
+            self.assertIsInstance(form.get("name"), str, form_label)
+            self.assertIsInstance(form.get("description"), str, form_label)
+            self.assertIsInstance(form.get("title"), str, form_label)
+            self.assertIsInstance(form.get("labels"), list, form_label)
+            self.assertIsInstance(form.get("body"), list, form_label)
+            self.assertGreater(len(form["body"]), 0, form_label)
+            self.assertIn(
+                "checkboxes",
+                [entry.get("type") for entry in form["body"] if isinstance(entry, dict)],
+                form_label,
+            )
+
+    def test_pull_request_template_stays_github_native_without_audit_checklist(self) -> None:
+        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+        headings = [
+            line.strip() for line in template.splitlines() if line.strip().startswith("## ")
+        ]
+        forbidden_phrases = [
+            "/kind ",
+            "/release-note-none",
+            "Public Source / Data Boundary",
+            "Data Boundary",
+            "CI 与合并纪律",
+            "CodeQL",
+            "Dependency Review",
+            "artifact attestation",
+            "branch protection",
+            "changed-surface",
+            "manual / staging / eval lane",
+            "private repo",
+            "pr-checks / required-checks",
+            "source-derived documents",
+            "No internal publish/deploy workflow",
+            "explicitly redistributable",
+            "Kubernetes / Prow",
+        ]
+
+        self.assertEqual(
+            headings,
+            [
+                "## Why is this change needed?",
+                "## What changed?",
+                "## How was this verified?",
+                "## Related issue(s)",
+                "## Change category",
+                "## User-facing change",
+                "## API / contract / migration impact",
+                "## Documentation",
+            ],
+        )
+        self.assertIn("- [ ] Feature", template)
+        self.assertIn("- [ ] API / contract change", template)
+        self.assertIn("- [ ] Cleanup / refactor", template)
+        self.assertIn("```release-note", template)
+        self.assertIn("NONE", template)
+        self.assertIn("```docs", template)
+        self.assertIn('If there is no associated issue, then write "N/A".', template)
+        self.assertNotIn("Reviewer Notes", template)
+
+        for phrase in forbidden_phrases:
+            self.assertNotIn(phrase, template)
 
     def test_verification_lanes_document_manual_required_checks_fallback(self) -> None:
         lanes = (ROOT / "docs/reference/testing-and-verification-lanes.md").read_text(

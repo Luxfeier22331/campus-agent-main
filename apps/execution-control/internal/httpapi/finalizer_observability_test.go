@@ -115,3 +115,21 @@ func TestBuildRagExecutionObservabilitySeparatesRuntimeErrorFromEvidenceUnsuppor
 		t.Fatalf("fail_close_reason = %v, want rag_sdk_runtime_failed", observability["fail_close_reason"])
 	}
 }
+
+func TestBuildRagExecutionObservabilityKeepsDiagnosticsPromptTraceOutOfLegacyObservabilityRoot(t *testing.T) {
+	observability := buildRagExecutionObservability(
+		"completed",
+		map[string]any{
+			"diagnostics": map[string]any{
+				"prompt_trace": map[string]any{
+					"prompt_id": "legacy_diagnostics_prompt",
+				},
+			},
+		},
+		"knowledge_query",
+	)
+
+	if _, exists := observability["prompt_trace"]; exists {
+		t.Fatalf("RAG diagnostics prompt_trace must not be promoted by legacy observability builder: %#v", observability)
+	}
+}

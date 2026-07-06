@@ -34,6 +34,7 @@ import type { OperatorObservabilityCommandService } from "../modules/operator-ob
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ProviderConfigService } from "../modules/provider-config";
+import type { ReplayCaptureService } from "../modules/replay-capture";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
@@ -81,6 +82,7 @@ export interface AppDependencies {
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
 	providerConfigService?: ProviderConfigService;
+	replayCaptureService?: ReplayCaptureService;
 	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
@@ -148,6 +150,7 @@ export interface AppRequestScope {
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveProviderConfigService(): ProviderConfigService;
+	resolveReplayCaptureService(): ReplayCaptureService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 	telemetry: AppTelemetry;

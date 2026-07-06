@@ -9,19 +9,19 @@ updated: 2026-07-03
 # Eval Map
 
 This map records the active eval surfaces after retiring the self-built
-profile/release gate paths. A workflow-dispatchable eval lane must have an
-explicit observation source, scorer, Langfuse score target and owner.
+profile/release gate paths. An internal eval lane must have an explicit
+observation source, scorer, Langfuse score target and owner.
 The user-usage learning-loop architecture is defined in
 `docs/architecture/system/learning-loop.md`; this map only records scoring lanes.
 
-## Active Workflow Lanes
+## Active Eval Lanes
 
 `ragas-trace`
 -> Langfuse traces selected by name, tag, release and optional limit
 -> `packages/eval-langfuse` builds a safe RAGAS projection
 -> `packages/ragas-runner` executes upstream Ragas
 -> `packages/eval-langfuse` writes `ragas.*` scores to Langfuse, or validates
-only when `publish_langfuse_scores=false`
+only when `--validate-only` is set
 
 `ragas-dataset`
 -> Langfuse dataset items selected by dataset name, optional version and limit
@@ -29,7 +29,7 @@ only when `publish_langfuse_scores=false`
    fields and linked Langfuse trace / observation fields
 -> `packages/ragas-runner` executes upstream Ragas
 -> `packages/eval-langfuse` writes `ragas.*` scores to Langfuse, or validates
-only when `publish_langfuse_scores=false`
+only when `--validate-only` is set
 
 These lanes are scoring lanes, not repo release verdict lanes. They do not
 replace runtime-owner contract tests, staging E2E closeout, or product release
@@ -52,7 +52,7 @@ result contract validity, fail-closed correctness and tool-specific source
 policy checks. It does not score final answer prose, primary model choice or
 RAG answer/evidence quality.
 
-The first workflow-dispatchable slice is public web search:
+The first internal eval slice is public web search:
 
 `agent-tool-use / public-web-search`
 -> repo-authored agent cases in

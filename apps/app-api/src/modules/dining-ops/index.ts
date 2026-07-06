@@ -28,7 +28,7 @@ export type {
 	DiningWindow,
 	DiningWindowAssignment,
 	DiningWindowStatus,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 export {
 	createDevDiningOperationsState,
 	createDiningFloorplanScaffoldState,
@@ -40,7 +40,7 @@ export {
 	listDiningWindowScaffold,
 	resolveDiningFloorScaffold,
 	resolveDiningHallScaffold,
-} from "dining-domain";
+} from "@campus-agent/dining/domain";
 export type { DiningOperationsService } from "./service";
 export {
 	buildDiningOperationsService,

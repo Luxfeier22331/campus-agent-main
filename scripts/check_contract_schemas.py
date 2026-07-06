@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,12 +80,42 @@ def _validate_json_schema_entry(entry: SchemaRegistryEntry) -> None:
         if not invalid_fixtures:
             raise ValueError(f"{entry.id}: fixture group has no invalid fixtures: {group_dir}")
         for fixture_path in valid_fixtures:
-            _validate_with_validator(validator, fixture_path, should_pass=True)
+            instance = _validate_with_validator(validator, fixture_path, should_pass=True)
+            _validate_json_artifact_invariants(entry.id, fixture_path, instance)
         for fixture_path in invalid_fixtures:
-            _validate_with_validator(validator, fixture_path, should_pass=False)
+            _validate_invalid_fixture(validator, entry.id, fixture_path)
 
 
 def _validate_json_artifact_invariants(entry_id: str, path: Path, instance: Any) -> None:
+    if entry_id == "raw-capture-policy.v1":
+        _validate_raw_capture_policy_invariants(path, instance)
+        return
+    if entry_id == "llm-replay-packet.v1":
+        _validate_llm_replay_packet_invariants(path, instance)
+        return
+    if entry_id == "llm-replay-packet-index.v1":
+        _validate_llm_replay_packet_index_invariants(path, instance)
+        return
+    if entry_id == "llm-io-fingerprint.v1":
+        if not isinstance(instance, dict):
+            raise ValueError(f"{_relative(path)} must contain an object")
+        _validate_llm_io_fingerprint_invariants(path, instance)
+        return
+    if entry_id == "answer-eval-fingerprint.v1":
+        if not isinstance(instance, dict):
+            raise ValueError(f"{_relative(path)} must contain an object")
+        _reject_safe_projection_raw_keys(path, instance, "answer_eval_fingerprint")
+        return
+    if entry_id == "truncation-summary.v1":
+        if not isinstance(instance, dict):
+            raise ValueError(f"{_relative(path)} must contain an object")
+        _reject_safe_projection_raw_keys(path, instance, "truncation_summary")
+        return
+    if entry_id == "sink-identity-projection.v1":
+        if not isinstance(instance, dict):
+            raise ValueError(f"{_relative(path)} must contain an object")
+        _reject_sink_identity_direct_identifiers(path, instance, "sink_identity_projection")
+        return
     if entry_id == "runtime-observability-alerts.v1":
         _validate_observability_alert_invariants(path, instance)
         return
@@ -134,6 +165,339 @@ def _validate_json_artifact_invariants(entry_id: str, path: Path, instance: Any)
             f"canonical stage_timing fields; missing={sorted(missing_fields)} "
             f"extra={sorted(extra_fields)}"
         )
+
+
+def validate_json_artifact_invariants_for_tests(entry_id: str, path: Path, instance: Any) -> None:
+    _validate_json_artifact_invariants(entry_id, _repo_path(path), instance)
+
+
+RAW_CAPTURE_FIELDS = {
+    "rendered_messages",
+    "provider_request_body",
+    "provider_response_body",
+    "provider_stream_deltas",
+    "tool_calls",
+    "tool_results",
+    "selected_evidence_packet",
+    "selected_memory_context",
+    "output_schema",
+}
+
+FORBIDDEN_RAW_KEY_FRAGMENTS = {
+    "authorization",
+    "auth_header",
+    "api_key",
+    "apikey",
+    "cookie",
+    "database_url",
+    "db_url",
+    "jwt",
+    "object_store_secret",
+    "password",
+    "provider_key",
+    "secret",
+    "token",
+}
+
+
+def _validate_raw_capture_policy_invariants(path: Path, instance: Any) -> None:
+    if not isinstance(instance, dict):
+        raise ValueError(f"{_relative(path)} must contain an object")
+    mode = instance.get("mode")
+    ttl_days = instance.get("ttl_days")
+    allowed_sinks = instance.get("allowed_sinks")
+    allowed_raw_fields = instance.get("allowed_raw_fields")
+    if mode == "off":
+        if ttl_days != 0 or allowed_sinks != [] or allowed_raw_fields != []:
+            raise ValueError(f"{_relative(path)} off raw capture policy must not admit capture")
+        return
+    if not isinstance(ttl_days, int) or ttl_days <= 0:
+        raise ValueError(f"{_relative(path)} non-off raw capture policy requires ttl_days > 0")
+    if not isinstance(allowed_sinks, list) or not allowed_sinks:
+        raise ValueError(f"{_relative(path)} non-off raw capture policy requires allowed_sinks")
+    if not isinstance(allowed_raw_fields, list) or not allowed_raw_fields:
+        raise ValueError(
+            f"{_relative(path)} non-off raw capture policy requires allowed_raw_fields"
+        )
+    for raw_field in allowed_raw_fields:
+        if raw_field not in RAW_CAPTURE_FIELDS:
+            raise ValueError(f"{_relative(path)} forbidden raw capture field: {raw_field}")
+    if instance.get("audit_required") is not True:
+        raise ValueError(f"{_relative(path)} non-off raw capture policy requires audit")
+    if instance.get("dsar_delete_linkage_required") is not True:
+        raise ValueError(f"{_relative(path)} non-off raw capture policy requires deletion linkage")
+    for field in ("request_id", "run_id", "trace_id"):
+        if not isinstance(instance.get(field), str) or not instance[field].strip():
+            raise ValueError(f"{_relative(path)} non-off raw capture policy requires {field}")
+
+
+def _validate_llm_replay_packet_invariants(path: Path, instance: Any) -> None:
+    if not isinstance(instance, dict):
+        raise ValueError(f"{_relative(path)} must contain an object")
+    policy = instance.get("capture_policy")
+    if not isinstance(policy, dict):
+        raise ValueError(f"{_relative(path)} capture_policy must be an object")
+    _validate_raw_capture_policy_invariants(path, policy)
+    allowed_fields = policy.get("allowed_raw_fields")
+    if not isinstance(allowed_fields, list):
+        raise ValueError(f"{_relative(path)} capture_policy.allowed_raw_fields must be a list")
+    allowed = set(allowed_fields)
+    for raw_section in RAW_CAPTURE_FIELDS:
+        if raw_section in instance and raw_section not in allowed:
+            raise ValueError(
+                f"{_relative(path)} raw section is not admitted by policy: {raw_section}"
+            )
+        if raw_section in instance:
+            _reject_forbidden_raw_keys(path, instance[raw_section], raw_section)
+    for field in ("run_id", "request_id", "trace_id"):
+        fingerprint = instance.get("llm_io_fingerprint")
+        if isinstance(fingerprint, dict) and instance.get(field) != fingerprint.get(field):
+            raise ValueError(f"{_relative(path)} packet {field} must match llm_io_fingerprint")
+        if policy.get("mode") != "off" and instance.get(field) != policy.get(field):
+            raise ValueError(f"{_relative(path)} packet {field} must match capture_policy")
+    fingerprint = instance.get("llm_io_fingerprint")
+    if isinstance(fingerprint, dict):
+        _validate_llm_io_fingerprint_invariants(path, fingerprint)
+    deletion_linkage = instance.get("deletion_linkage")
+    if isinstance(deletion_linkage, dict):
+        for field in ("request_id", "trace_id"):
+            if instance.get(field) != deletion_linkage.get(field):
+                raise ValueError(f"{_relative(path)} packet {field} must match deletion_linkage")
+
+
+def _validate_llm_replay_packet_index_invariants(path: Path, instance: Any) -> None:
+    if not isinstance(instance, dict):
+        raise ValueError(f"{_relative(path)} must contain an object")
+    policy = instance.get("capture_policy")
+    if not isinstance(policy, dict):
+        raise ValueError(f"{_relative(path)} capture_policy must be an object")
+    _validate_raw_capture_policy_invariants(path, policy)
+    fingerprint = instance.get("llm_io_fingerprint")
+    if not isinstance(fingerprint, dict):
+        raise ValueError(f"{_relative(path)} llm_io_fingerprint must be an object")
+    for field in ("run_id", "request_id", "trace_id"):
+        if instance.get(field) != fingerprint.get(field):
+            raise ValueError(f"{_relative(path)} index {field} must match llm_io_fingerprint")
+        if policy.get("mode") != "off" and instance.get(field) != policy.get(field):
+            raise ValueError(f"{_relative(path)} index {field} must match capture_policy")
+    _validate_llm_io_fingerprint_invariants(path, fingerprint)
+    answer_eval = instance.get("answer_eval_fingerprint")
+    if isinstance(answer_eval, dict):
+        _validate_answer_eval_fingerprint_invariants(path, answer_eval, fingerprint)
+        evidence_replay_index = instance.get("evidence_replay_index")
+        if isinstance(evidence_replay_index, dict):
+            expected = _sha256_json_ref(evidence_replay_index)
+            if answer_eval.get("evidence_replay_index_sha256") != expected:
+                raise ValueError(
+                    f"{_relative(path)} answer_eval_fingerprint.evidence_replay_index_sha256 "
+                    "must match evidence_replay_index"
+                )
+    deletion_linkage = instance.get("deletion_linkage")
+    if not isinstance(deletion_linkage, dict):
+        raise ValueError(f"{_relative(path)} deletion_linkage must be an object")
+    for field in ("request_id", "trace_id"):
+        if instance.get(field) != deletion_linkage.get(field):
+            raise ValueError(f"{_relative(path)} index {field} must match deletion_linkage")
+    _reject_raw_replay_index_keys(path, instance)
+
+
+def _validate_llm_io_fingerprint_invariants(path: Path, fingerprint: dict[str, Any]) -> None:
+    tool_runtime = fingerprint.get("tool_runtime_fingerprint")
+    if not isinstance(tool_runtime, dict):
+        raise ValueError(
+            f"{_relative(path)} llm_io_fingerprint.tool_runtime_fingerprint must be an object"
+        )
+    checks = (
+        ("tool_catalog_sha256", "tools_sha256"),
+        ("tool_schema_sha256", "function_schema_sha256"),
+        ("workflow_artifact_sha256", "workflow_artifact_sha256"),
+    )
+    for flat_field, nested_field in checks:
+        if fingerprint.get(flat_field) != tool_runtime.get(nested_field):
+            raise ValueError(
+                f"{_relative(path)} llm_io_fingerprint.{flat_field} must match "
+                f"tool_runtime_fingerprint.{nested_field}"
+            )
+
+
+def _validate_answer_eval_fingerprint_invariants(
+    path: Path, answer_eval: dict[str, Any], fingerprint: dict[str, Any]
+) -> None:
+    _reject_safe_projection_raw_keys(path, answer_eval, "answer_eval_fingerprint")
+    checks = (
+        ("run_id", "run_id"),
+        ("request_id", "request_id"),
+        ("trace_id", "trace_id"),
+        ("runtime_release", "runtime_release"),
+        ("llm_call_site", "llm_call_site"),
+        ("provider_profile_revision", "provider_profile_revision"),
+        ("output_schema_id", "output_schema_id"),
+    )
+    for answer_field, fingerprint_field in checks:
+        if answer_eval.get(answer_field) != fingerprint.get(fingerprint_field):
+            raise ValueError(
+                f"{_relative(path)} answer_eval_fingerprint.{answer_field} must match "
+                f"llm_io_fingerprint.{fingerprint_field}"
+            )
+    tool_runtime = fingerprint.get("tool_runtime_fingerprint")
+    if not isinstance(tool_runtime, dict):
+        raise ValueError(
+            f"{_relative(path)} llm_io_fingerprint.tool_runtime_fingerprint must be an object"
+        )
+    if answer_eval.get("tool_runtime_combined_sha256") != tool_runtime.get("combined_sha256"):
+        raise ValueError(
+            f"{_relative(path)} answer_eval_fingerprint.tool_runtime_combined_sha256 "
+            "must match llm_io_fingerprint.tool_runtime_fingerprint.combined_sha256"
+        )
+    branch_identity = answer_eval.get("branch_identity")
+    if not isinstance(branch_identity, dict):
+        raise ValueError(
+            f"{_relative(path)} answer_eval_fingerprint.branch_identity must be an object"
+        )
+    if branch_identity.get("prompt_id") != fingerprint.get("prompt_id"):
+        raise ValueError(
+            f"{_relative(path)} answer_eval_fingerprint.branch_identity.prompt_id must match "
+            "llm_io_fingerprint.prompt_id"
+        )
+    if answer_eval.get("llm_io_fingerprint_sha256") != _sha256_json_ref(fingerprint):
+        raise ValueError(
+            f"{_relative(path)} answer_eval_fingerprint.llm_io_fingerprint_sha256 must match "
+            "llm_io_fingerprint"
+        )
+    expected_answer_hash = _sha256_json_ref(
+        {key: value for key, value in answer_eval.items() if key != "answer_fingerprint_sha256"}
+    )
+    if answer_eval.get("answer_fingerprint_sha256") != expected_answer_hash:
+        raise ValueError(
+            f"{_relative(path)} answer_eval_fingerprint.answer_fingerprint_sha256 must match "
+            "answer_eval_fingerprint body"
+        )
+
+
+def _sha256_json_ref(value: Any) -> str:
+    body = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    return "sha256:" + hashlib.sha256(body).hexdigest()
+
+
+def _reject_raw_replay_index_keys(path: Path, value: Any, context: str = "") -> None:
+    forbidden_fragments = {
+        "raw_answer",
+        "raw_prompt",
+        "rendered_messages",
+        "provider_request_body",
+        "provider_response_body",
+        "provider_stream_deltas",
+        "selected_evidence_packet",
+        "selected_memory_context",
+        "tool_calls",
+        "tool_results",
+    }
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized = str(key).lower()
+            if any(fragment in normalized for fragment in forbidden_fragments):
+                label = f"{context}.{key}" if context else str(key)
+                raise ValueError(f"{_relative(path)} forbidden replay index key: {label}")
+            _reject_raw_replay_index_keys(path, nested, f"{context}.{key}" if context else str(key))
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _reject_raw_replay_index_keys(path, nested, f"{context}[{index}]")
+
+
+SAFE_PROJECTION_FORBIDDEN_FRAGMENTS = {
+    "authorization",
+    "auth_header",
+    "cookie",
+    "email",
+    "jwt",
+    "memory_raw",
+    "memory_text",
+    "password",
+    "provider_request_body",
+    "provider_response_body",
+    "provider_stream_deltas",
+    "raw_answer",
+    "raw_",
+    "raw_memory",
+    "raw_prompt",
+    "raw_response",
+    "raw_text",
+    "raw_transcript",
+    "rendered_messages",
+    "secret",
+    "selected_evidence_packet",
+    "selected_memory_context",
+    "tool_calls",
+    "tool_results",
+    "user_id",
+}
+
+SAFE_PROJECTION_FORBIDDEN_EXACT_KEYS = {
+    "access_token",
+    "auth_token",
+    "id_token",
+    "refresh_token",
+    "session_token",
+    "token",
+}
+
+
+def _reject_safe_projection_raw_keys(path: Path, value: Any, context: str) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized = str(key).lower()
+            if normalized in SAFE_PROJECTION_FORBIDDEN_EXACT_KEYS or any(
+                fragment in normalized for fragment in SAFE_PROJECTION_FORBIDDEN_FRAGMENTS
+            ):
+                raise ValueError(
+                    f"{_relative(path)} forbidden safe projection key: {context}.{key}"
+                )
+            _reject_safe_projection_raw_keys(path, nested, f"{context}.{key}")
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _reject_safe_projection_raw_keys(path, nested, f"{context}[{index}]")
+
+
+def _reject_sink_identity_direct_identifiers(path: Path, value: Any, context: str) -> None:
+    direct_fragments = {
+        "authorization",
+        "cookie",
+        "email",
+        "jwt",
+        "principal_id",
+        "session",
+        "token",
+        "user_id",
+    }
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized = str(key).lower()
+            if any(fragment in normalized for fragment in direct_fragments):
+                raise ValueError(
+                    f"{_relative(path)} direct identity key is forbidden: {context}.{key}"
+                )
+            _reject_sink_identity_direct_identifiers(path, nested, f"{context}.{key}")
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _reject_sink_identity_direct_identifiers(path, nested, f"{context}[{index}]")
+
+
+def _reject_forbidden_raw_keys(path: Path, value: Any, context: str) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized = str(key).lower()
+            if any(fragment in normalized for fragment in FORBIDDEN_RAW_KEY_FRAGMENTS):
+                raise ValueError(f"{_relative(path)} forbidden raw replay key in {context}: {key}")
+            _reject_forbidden_raw_keys(path, nested, f"{context}.{key}")
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _reject_forbidden_raw_keys(path, nested, f"{context}[{index}]")
 
 
 def _validate_observability_alert_invariants(path: Path, instance: Any) -> None:
@@ -266,7 +630,7 @@ def _validate_with_validator(
     fixture_path: Path,
     *,
     should_pass: bool,
-) -> None:
+) -> Any:
     instance = _load_json(fixture_path)
     errors = sorted(validator.iter_errors(instance), key=_error_sort_key)
     if should_pass and errors:
@@ -277,6 +641,23 @@ def _validate_with_validator(
         )
     if not should_pass and not errors:
         raise ValueError(f"{_relative(fixture_path)} should be invalid but passed")
+    return instance
+
+
+def _validate_invalid_fixture(
+    validator: Draft202012Validator,
+    entry_id: str,
+    fixture_path: Path,
+) -> None:
+    instance = _load_json(fixture_path)
+    errors = sorted(validator.iter_errors(instance), key=_error_sort_key)
+    if errors:
+        return
+    try:
+        _validate_json_artifact_invariants(entry_id, fixture_path, instance)
+    except ValueError:
+        return
+    raise ValueError(f"{_relative(fixture_path)} should be invalid but passed")
 
 
 def _registry_entries(registry: dict[str, Any]) -> tuple[SchemaRegistryEntry, ...]:

@@ -1,4 +1,4 @@
-import type { DiningOperationsState } from "dining-domain";
+import type { DiningOperationsState } from "@campus-agent/dining/domain";
 
 import {
 	buildDiningStateFromCatalogObservations,

@@ -23,6 +23,22 @@ func temporalMemoryContextPayload(context *temporalruntime.MemoryContext) map[st
 	}
 }
 
+func temporalMemoryContextProjectionPayload(context *temporalruntime.MemoryContext) map[string]any {
+	if context == nil || strings.TrimSpace(context.MemoryRef) == "" {
+		return nil
+	}
+	return map[string]any{
+		"context_block_sha256":    sha256TextRef(context.ContextBlock),
+		"memory_ref":              strings.TrimSpace(context.MemoryRef),
+		"provider":                strings.TrimSpace(context.Provider),
+		"retrieval_mode":          strings.TrimSpace(context.RetrievalMode),
+		"schema_version":          strings.TrimSpace(context.SchemaVersion),
+		"selected_memory_chars":   context.SelectedMemoryChars,
+		"selected_memory_count":   context.SelectedMemoryCount,
+		"selected_memory_present": strings.TrimSpace(context.ContextBlock) != "",
+	}
+}
+
 func primaryAgentFinalModelContextForRun(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
@@ -73,8 +89,29 @@ func primaryAgentFinalModelUsageSummary(
 	}
 	if reason := firstNonEmptyText(truncation["reason"]); reason != "" {
 		usage["truncation_reason"] = reason
+		usage["truncation_summary"] = primaryAgentTruncationSummary(conversation, reason)
 	}
 	return usage
+}
+
+func primaryAgentTruncationSummary(conversation map[string]any, reason string) map[string]any {
+	visibility := cloneAnyMapFromMetadata(conversation["visibility"])
+	budget := cloneAnyMapFromMetadata(conversation["budget"])
+	modelVisibleCount := len(anyListFromAny(visibility["model_visible"]))
+	runtimeOnlyCount := len(anyListFromAny(visibility["runtime_only"]))
+	tokenEstimate := intFromAny(budget["token_estimate"])
+	return map[string]any{
+		"schema_version":             "truncation_summary.v1",
+		"policy_version":             "conversation_context.v1",
+		"reason":                     strings.TrimSpace(reason),
+		"model_visible_before_count": modelVisibleCount,
+		"model_visible_after_count":  modelVisibleCount,
+		"runtime_only_before_count":  runtimeOnlyCount,
+		"runtime_only_after_count":   runtimeOnlyCount,
+		"token_estimate_before":      tokenEstimate,
+		"token_estimate_after":       tokenEstimate,
+		"dropped_category_counts":    map[string]any{},
+	}
 }
 
 func primaryAgentRecentTurns(conversation map[string]any) []any {
@@ -178,6 +215,9 @@ func primaryAgentContextUsageSummary(finalModelContext map[string]any) map[strin
 	if reason := firstNonEmptyText(usage["truncation_reason"]); reason != "" {
 		summary["truncation_reason"] = reason
 	}
+	if truncationSummary := cloneAnyMapFromMetadata(usage["truncation_summary"]); len(truncationSummary) > 0 {
+		summary["truncation_summary"] = truncationSummary
+	}
 	return summary
 }
 
@@ -213,21 +253,23 @@ func copyOptionalString(target map[string]any, source map[string]any, key string
 }
 
 type agentRuntimeResponse struct {
-	Status             string            `json:"status"`
-	DebugTraceRefs     []debugTraceRef   `json:"debug_trace_refs"`
-	Error              agentRuntimeError `json:"error"`
-	RunID              string            `json:"run_id"`
-	FinalOutput        string            `json:"final_output"`
-	ModelName          string            `json:"model_name"`
-	ModelProvider      string            `json:"model_provider"`
-	ProviderResponseID string            `json:"provider_response_id"`
-	SDKTraceRef        string            `json:"sdk_trace_ref"`
-	SelectedTools      []string          `json:"selected_tools"`
-	StageTiming        map[string]any    `json:"stage_timing"`
-	ToolResults        []agentToolResult `json:"tool_results"`
-	TerminalEnvelope   map[string]any    `json:"terminal_envelope"`
-	TerminalReason     string            `json:"terminal_reason"`
-	Usage              agentRuntimeUsage `json:"usage"`
+	Status                 string            `json:"status"`
+	DebugTraceRefs         []debugTraceRef   `json:"debug_trace_refs"`
+	Error                  agentRuntimeError `json:"error"`
+	RunID                  string            `json:"run_id"`
+	FinalOutput            string            `json:"final_output"`
+	ModelName              string            `json:"model_name"`
+	ModelProvider          string            `json:"model_provider"`
+	PromptTrace            map[string]any    `json:"prompt_trace"`
+	ProviderResponseID     string            `json:"provider_response_id"`
+	SDKTraceRef            string            `json:"sdk_trace_ref"`
+	SelectedTools          []string          `json:"selected_tools"`
+	StageTiming            map[string]any    `json:"stage_timing"`
+	ToolResults            []agentToolResult `json:"tool_results"`
+	TerminalEnvelope       map[string]any    `json:"terminal_envelope"`
+	TerminalReason         string            `json:"terminal_reason"`
+	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
+	Usage                  agentRuntimeUsage `json:"usage"`
 }
 
 type debugTraceRef struct {

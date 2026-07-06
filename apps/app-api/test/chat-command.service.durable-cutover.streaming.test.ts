@@ -395,7 +395,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 							trace_id: "trace_0001",
 						},
 						sequence: 3,
-						visibility: "browser",
+						visibility: "internal",
 					}),
 				]),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),

@@ -15,7 +15,7 @@ publish、non-production dev seed import 和 Feishu/Lark 评价来源同步。
 - 将 accepted catalog observations 发布到 `dining.*` catalog / release tables
 - 写入 `dining.source_observations(source_type=feishu_review)`
 - 从 active accepted review observations 发布 `dining.review_projections`
-- 从 `packages/dining-domain` 读取 local/dev 专用 dev seed
+- 从 `packages/domains/dining` 读取 local/dev 专用 dev seed
 - 在非 production 环境显式导入 dev seed 到 `dining.*` catalog / release tables
 
 它不负责：
@@ -94,7 +94,7 @@ fixture 读取。正确顺序是：
 只有 Feishu/Lark catalog 尚未配置的 local/dev 环境，才显式执行
 `import-dev-seed`。Production 不应依赖 dev seed 作为食堂内容真相。
 
-本地 student-surface 验证不要只检查 `packages/dining-floorplans` 中是否存在 SVG。
+本地 student-surface 验证不要只检查 `@campus-agent/dining/floorplans` 中是否存在 SVG。
 正确入口是先通过当前 worktree 的 app-api env wrapper 执行：
 
 ```bash

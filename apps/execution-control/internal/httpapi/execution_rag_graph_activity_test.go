@@ -199,20 +199,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if eventsErr != nil {
 		t.Fatalf("list run events: %v", eventsErr)
 	}
-	var finalizationResponse map[string]any
-	for _, event := range events {
-		if event.EventType != execution.DurableRunEventTypeFinalizationCompleted {
-			continue
-		}
-		response, ok := event.Payload["response"].(map[string]any)
-		if !ok {
-			t.Fatalf("finalization response payload = %#v", event.Payload["response"])
-		}
-		finalizationResponse = response
-	}
-	if finalizationResponse == nil {
-		t.Fatal("finalization.completed event missing")
-	}
+	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
 	if _, ok := finalizationResponse["error"]; !ok {
 		t.Fatalf("finalization response missing required error field: %#v", finalizationResponse)
 	}

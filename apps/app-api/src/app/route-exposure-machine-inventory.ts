@@ -32,6 +32,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth; exports active LLM debug trace runtime snapshot",
 	},
 	{
+		method: "POST",
+		path: "/api/internal/observability/replay-packet-index",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth; ingests safe replay packet metadata only",
+	},
+	{
 		method: "GET",
 		path: "/api/internal/provider-config/active",
 		callerClass: "machine-internal",

@@ -26,6 +26,20 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		if body["model"] != "gpt-5-mini" {
 			t.Fatalf("model = %v", body["model"])
 		}
+		if body["max_output_tokens"] != float64(900) {
+			t.Fatalf("max_output_tokens = %#v, want 900", body["max_output_tokens"])
+		}
+		if store, ok := body["store"].(bool); !ok || store {
+			t.Fatalf("store = %#v, want false", body["store"])
+		}
+		reasoning, ok := body["reasoning"].(map[string]any)
+		if !ok || reasoning["effort"] != "low" {
+			t.Fatalf("reasoning = %#v, want low effort", body["reasoning"])
+		}
+		text, ok := body["text"].(map[string]any)
+		if !ok || text["verbosity"] != "low" {
+			t.Fatalf("text = %#v, want low verbosity", body["text"])
+		}
 		input, ok := body["input"].([]any)
 		if !ok || len(input) != 2 {
 			t.Fatalf("input = %#v, want two messages", body["input"])
@@ -64,17 +78,29 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 	if err != nil {
 		t.Fatalf("load pricing catalog: %v", err)
 	}
+	storeProviderOutput := false
 	executor := providerBackedRAGSynthesisExecutor{
-		clientFactory: func(providerConfigSnapshot) *provider.ResponsesClient {
-			return provider.NewResponsesClient(provider.ResponsesClientConfig{
-				APIKey:        "test-key",
-				BaseURL:       server.URL,
-				HTTPClient:    server.Client(),
-				ModelName:     "gpt-5-mini",
-				ModelProvider: "openai",
-				Pricing:       catalog,
-			})
+		configResolver: staticProviderConfigResolver{
+			string(providerConfigRoleRAGSynthesis): {
+				APIKey:    "test-key",
+				BaseURL:   server.URL,
+				Model:     "gpt-5-mini",
+				ProfileID: "provider_profile_rag_synthesis",
+				Provider:  "openai",
+				Revision:  3,
+				Role:      string(providerConfigRoleRAGSynthesis),
+				TimeoutMS: 30000,
+				Transport: "responses",
+			},
 		},
+		generationControls: provider.ResponsesGenerationControls{
+			MaxOutputTokens: 900,
+			ReasoningEffort: "low",
+			Store:           &storeProviderOutput,
+			TextVerbosity:   "low",
+		},
+		pricing:        catalog,
+		runtimeRelease: "execution-control@test",
 	}
 
 	result, err := executor.ExecuteRAGSynthesis(context.Background(), ragSynthesisPacket{
@@ -108,6 +134,37 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 	}
 	if result.Confidence != "high" || result.SemanticOutcome != "answer_from_selected_evidence" {
 		t.Fatalf("structured synthesis result = %#v", result)
+	}
+	if result.PromptTrace["prompt_id"] != ragSynthesisPromptID ||
+		result.PromptTrace["prompt_version"] != ragSynthesisPromptVersion {
+		t.Fatalf("prompt trace = %#v", result.PromptTrace)
+	}
+	if result.LLMIOFingerprint["schema_version"] != "llm_io_fingerprint.v1" ||
+		result.LLMIOFingerprint["prompt_id"] != ragSynthesisPromptID ||
+		result.LLMIOFingerprint["output_schema_id"] != "rag_answer_v2" ||
+		result.LLMIOFingerprint["runtime_release"] != "execution-control@test" {
+		t.Fatalf("llm io fingerprint = %#v", result.LLMIOFingerprint)
+	}
+	modelParams := cloneAnyMapFromMetadata(result.LLMIOFingerprint["model_params_projection"])
+	projectedParams := cloneAnyMapFromMetadata(modelParams["projected_params"])
+	if projectedParams["max_output_tokens"] != 900 ||
+		projectedParams["reasoning_effort"] != "low" ||
+		projectedParams["store"] != false ||
+		projectedParams["text_verbosity"] != "low" {
+		t.Fatalf("projected model params = %#v", projectedParams)
+	}
+	for _, field := range []string{
+		"model_params_hash",
+		"prompt_template_sha256",
+		"rendered_prompt_sha256",
+		"context_envelope_sha256",
+		"memory_selection_sha256",
+		"evidence_packet_sha256",
+	} {
+		value, ok := result.LLMIOFingerprint[field].(string)
+		if !ok || !validSHA256Ref(value) {
+			t.Fatalf("llm io fingerprint %s = %#v, want sha256 ref", field, result.LLMIOFingerprint[field])
+		}
 	}
 }
 
@@ -198,6 +255,7 @@ func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
 		RAGSynthesisReasoningEffort:     "low",
 		RAGSynthesisStoreProviderOutput: false,
 		RAGSynthesisTextVerbosity:       "low",
+		RuntimeRelease:                  "execution-control@test",
 	}, staticProviderConfigResolver{
 		string(providerConfigRoleRAGSynthesis): {
 			APIKey:    "test-key",
@@ -227,6 +285,9 @@ func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
 		*providerExecutor.generationControls.Store ||
 		providerExecutor.generationControls.TextVerbosity != "low" {
 		t.Fatalf("generation controls = %#v", providerExecutor.generationControls)
+	}
+	if providerExecutor.runtimeRelease != "execution-control@test" {
+		t.Fatalf("runtime release = %q, want execution-control@test", providerExecutor.runtimeRelease)
 	}
 }
 

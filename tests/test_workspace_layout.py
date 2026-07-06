@@ -14,6 +14,7 @@ EXPECTED_WORKSPACES = {
     "apps/operator-console-web",
     "apps/execution-control",
     "jobs/dining-sync",
+    "packages/domains/dining",
     "packages/contracts",
     "packages/eval-langfuse",
     "packages/ingestion-core",
@@ -41,6 +42,17 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
     def test_legacy_evals_package_is_retired(self) -> None:
         self.assertFalse((ROOT / "packages/evals").exists())
+
+    def test_dining_domain_packages_are_consolidated(self) -> None:
+        self.assertTrue((ROOT / "packages/domains/dining").exists())
+        self.assertFalse((ROOT / "packages/dining-domain").exists())
+        self.assertFalse((ROOT / "packages/dining-floorplans").exists())
+        top_level_dining_packages = sorted(
+            path.relative_to(ROOT).as_posix()
+            for path in (ROOT / "packages").glob("dining-*")
+            if path.is_dir()
+        )
+        self.assertEqual(top_level_dining_packages, [])
 
     def test_navigation_tool_package_is_not_model_visible(self) -> None:
         self.assertTrue((ROOT / "packages/navigation-tool").exists())

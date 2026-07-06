@@ -119,6 +119,11 @@ Guardrails:
   contract in `../../contracts/tool-trajectory.md`; SDK trace payloads,
   provider responses and Langfuse observations do not define the tool trajectory
   contract.
+- Each provider-backed decision must carry reproducible tool runtime identity:
+  model-visible tool set, repo tool registry hash, function schema hash,
+  workflow artifact registry hash, argument schema hash, argument JSON hash and
+  final selected tool. SDK-internal traces may help debugging, but they do not
+  replace repo-owned admission/routing provenance.
 
 ## Layered Execution Shape
 

@@ -4,15 +4,13 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY jobs/dining-sync/package.json ./jobs/dining-sync/package.json
-COPY packages/dining-domain/package.json ./packages/dining-domain/package.json
-COPY packages/dining-floorplans/package.json ./packages/dining-floorplans/package.json
+COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 
 RUN corepack enable pnpm \
   && pnpm install --frozen-lockfile --filter dining-sync...
 
 COPY jobs/dining-sync ./jobs/dining-sync
-COPY packages/dining-domain ./packages/dining-domain
-COPY packages/dining-floorplans ./packages/dining-floorplans
+COPY packages/domains/dining ./packages/domains/dining
 
 RUN pnpm --filter dining-sync typecheck
 
