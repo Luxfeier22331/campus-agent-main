@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { onSearch } from "../src/docs/search/rspress-search-hooks";
+import { clearProtectedSearchIndexCache, onSearch } from "../src/docs/search/rspress-search-hooks";
 
 const originalFetch = globalThis.fetch;
 const originalLocation = window.location;
@@ -13,6 +13,7 @@ afterEach(() => {
 		value: originalLocation,
 	});
 	vi.restoreAllMocks();
+	clearProtectedSearchIndexCache();
 });
 
 function setPathname(pathname: string): void {
@@ -53,7 +54,40 @@ describe("Rspress docs search hooks", () => {
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 
-	it("ignores non-json protected index responses without throwing", async () => {
+	it("does not request gated search indexes for empty queries", async () => {
+		setPathname("/docs/curriculum/curriculum_plan/restricted-program");
+		renderReaderMeta({
+			documentSlug: "restricted-program",
+			versionSlug: "2026-current",
+			visibility: "gated_bootstrap",
+		});
+		const fetchSpy = vi.fn();
+		globalThis.fetch = fetchSpy;
+
+		await expect(onSearch("  ", [])).resolves.toEqual([]);
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it("keeps unauthorized or missing protected index responses invisible", async () => {
+		setPathname("/docs/curriculum/curriculum_plan/restricted-program");
+		renderReaderMeta({
+			documentSlug: "restricted-program",
+			versionSlug: "2026-current",
+			visibility: "gated_bootstrap",
+		});
+		const fetchSpy = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("", { status: 401 }))
+			.mockResolvedValueOnce(new Response("", { status: 404 }));
+		globalThis.fetch = fetchSpy;
+
+		await expect(onSearch("光电", [])).resolves.toEqual([]);
+		clearProtectedSearchIndexCache();
+		await expect(onSearch("光电", [])).resolves.toEqual([]);
+	});
+
+	it("shows a protected search status when the index response is not JSON", async () => {
 		setPathname("/docs/curriculum/curriculum_plan/restricted-program");
 		renderReaderMeta({
 			documentSlug: "restricted-program",
@@ -68,7 +102,55 @@ describe("Rspress docs search hooks", () => {
 				}),
 		);
 
-		await expect(onSearch("光电", [])).resolves.toEqual([]);
+		await expect(onSearch("光电", [])).resolves.toEqual([
+			{
+				group: "当前账号可见",
+				result: [
+					{
+						kind: "status",
+						message: "账号可见文档搜索暂不可用",
+					},
+				],
+			},
+		]);
+	});
+
+	it("does not cache transient protected search failures", async () => {
+		setPathname("/docs/curriculum/curriculum_plan/restricted-program");
+		renderReaderMeta({
+			documentSlug: "restricted-program",
+			versionSlug: "2026-current",
+			visibility: "gated_bootstrap",
+		});
+		const fetchSpy = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("service unavailable", { status: 503 }))
+			.mockResolvedValueOnce(createProtectedSearchIndexResponse());
+		globalThis.fetch = fetchSpy;
+
+		await expect(onSearch("光电", [])).resolves.toEqual([
+			{
+				group: "当前账号可见",
+				result: [
+					{
+						kind: "status",
+						message: "账号可见文档搜索暂不可用",
+					},
+				],
+			},
+		]);
+		await expect(onSearch("光电", [])).resolves.toMatchObject([
+			{
+				group: "当前账号可见",
+				result: [
+					{
+						documentTitle: "光电信息科学与工程培养方案",
+						sectionTitle: "培养目标",
+					},
+				],
+			},
+		]);
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
 	});
 
 	it("requests protected indexes for gated reader bootstrap pages", async () => {
@@ -78,33 +160,7 @@ describe("Rspress docs search hooks", () => {
 			versionSlug: "2026-current",
 			visibility: "gated_bootstrap",
 		});
-		const fetchSpy = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({
-						entries: [
-							{
-								anchor: "program-root",
-								canonicalUrl: "/docs/curriculum/curriculum_plan/restricted-program",
-								collection: "curriculum_plan",
-								collectionLabel: "培养方案",
-								corpus: "curriculum",
-								documentSlug: "restricted-program",
-								documentTitle: "光电信息科学与工程培养方案",
-								highlightRootUnitIds: ["root-1"],
-								searchText: "光电 培养方案",
-								searchUnitId: "search_unit_1",
-								sectionTitle: "培养目标",
-								snippet: "光电专业培养方案要求。",
-								versionSlug: "2026-current",
-							},
-						],
-						schemaVersion: "campus_docs_protected_search_index_v1",
-						visibilityMode: "principal_protected_static",
-					}),
-					{ headers: { "content-type": "application/json" }, status: 200 },
-				),
-		);
+		const fetchSpy = vi.fn(async () => createProtectedSearchIndexResponse());
 		globalThis.fetch = fetchSpy;
 
 		await expect(onSearch("光电", [])).resolves.toMatchObject([
@@ -126,4 +182,47 @@ describe("Rspress docs search hooks", () => {
 			}),
 		);
 	});
+
+	it("caches protected indexes for repeated searches on the same gated page", async () => {
+		setPathname("/docs/curriculum/curriculum_plan/restricted-program");
+		renderReaderMeta({
+			documentSlug: "restricted-program",
+			versionSlug: "2026-current",
+			visibility: "gated_bootstrap",
+		});
+		const fetchSpy = vi.fn(async () => createProtectedSearchIndexResponse());
+		globalThis.fetch = fetchSpy;
+
+		await onSearch("光电", []);
+		await onSearch("培养", []);
+
+		expect(fetchSpy).toHaveBeenCalledTimes(1);
+	});
 });
+
+function createProtectedSearchIndexResponse(): Response {
+	return new Response(
+		JSON.stringify({
+			entries: [
+				{
+					anchor: "program-root",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/restricted-program",
+					collection: "curriculum_plan",
+					collectionLabel: "培养方案",
+					corpus: "curriculum",
+					documentSlug: "restricted-program",
+					documentTitle: "光电信息科学与工程培养方案",
+					highlightRootUnitIds: ["root-1"],
+					searchText: "光电 培养方案",
+					searchUnitId: "search_unit_1",
+					sectionTitle: "培养目标",
+					snippet: "光电专业培养方案要求。",
+					versionSlug: "2026-current",
+				},
+			],
+			schemaVersion: "campus_docs_protected_search_index_v1",
+			visibilityMode: "principal_protected_static",
+		}),
+		{ headers: { "content-type": "application/json" }, status: 200 },
+	);
+}

@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from scripts.check_ci_workflow_contracts import audit_ci_workflow_contracts
 from scripts.ci_workflow_contract_types import CiWorkflowContractIssue
 from tests.ci_workflow_contract_test_support import required_scripts, write_minimal_workflows
@@ -15,6 +17,18 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
 
         self.assertEqual(audit_ci_workflow_contracts(root=repo_root), ())
+
+    def test_pr_checks_uses_single_repo_checks_job(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load(
+            (repo_root / ".github/workflows/pr-checks.yml").read_text(encoding="utf-8")
+        )
+        jobs = workflow["jobs"]
+
+        self.assertIn("repo-checks", jobs)
+        self.assertNotIn("repo-guard", jobs)
+        self.assertNotIn("repo-static", jobs)
+        self.assertNotIn("config-lint", jobs)
 
     def test_audit_reports_pnpm_version_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -376,6 +390,13 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             ),
             issues,
         )
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/pr-checks.yml",
+                message="repo-checks must setup uv before uv sync",
+            ),
+            issues,
+        )
 
     def test_audit_requires_setup_cache_for_node_and_uv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -425,12 +446,12 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                         "jobs:",
                         "  check:",
                         "    steps:",
-                        "      - uses: actions/setup-node@v4",
+                        "      - uses: actions/setup-node@v6",
                         "        with:",
                         '          node-version: "24"',
                         "          cache: pnpm",
                         "          cache-dependency-path: pnpm-lock.yaml",
-                        "      - uses: pnpm/action-setup@v4",
+                        "      - uses: pnpm/action-setup@v6",
                         "        with:",
                         "          version: 10.26.1",
                         "      - run: pnpm install --frozen-lockfile",
@@ -471,10 +492,10 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                         "jobs:",
                         "  check:",
                         "    steps:",
-                        "      - uses: pnpm/action-setup@v4",
+                        "      - uses: pnpm/action-setup@v6",
                         "        with:",
                         "          version: 10.26.1",
-                        "      - uses: actions/setup-node@v4",
+                        "      - uses: actions/setup-node@v6",
                         "        with:",
                         '          node-version: "24"',
                         "          cache: pnpm",
@@ -534,10 +555,41 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
         self.assertIn(
             CiWorkflowContractIssue(
                 path=".github/workflows/eval-ragas-score.yml",
-                message="workflow references secrets and must not define automatic triggers: schedule",
+                message=(
+                    "workflow references non-CI-cache secrets and must not define automatic "
+                    "triggers: schedule"
+                ),
             ),
             issues,
         )
+
+    def test_audit_allows_turbo_cache_secret_on_automatic_turbo_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
+                encoding="utf-8",
+            )
+            write_minimal_workflows(root, pnpm_version="10.26.1")
+            pr_checks = root / ".github/workflows/pr-checks.yml"
+            pr_checks.write_text(
+                pr_checks.read_text(encoding="utf-8").replace(
+                    "      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}",
+                    "\n".join(
+                        (
+                            "      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}",
+                            "      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}",
+                            "      TURBO_TEAM: ${{ vars.TURBO_TEAM }}",
+                        )
+                    ),
+                ),
+                encoding="utf-8",
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertEqual(issues, ())
 
     def test_audit_requires_secret_workflow_protected_environment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -65,9 +65,7 @@ REQUIRED_WORKFLOW_SCRIPT_CALLS = {
 }
 REQUIRED_PR_CHECK_JOBS = (
     "changes",
-    "repo-guard",
-    "repo-static",
-    "config-lint",
+    "repo-checks",
     "secret-scan",
     "web-graph",
     "worker-runtime",
@@ -83,7 +81,7 @@ REQUIRED_GOLANGCI_LINT_INSTALL = (
 REQUIRED_GITLEAKS_INSTALL = "go install github.com/zricethezav/gitleaks/v8@v8.30.1"
 REQUIRED_OSV_SCANNER_INSTALL = "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8"
 REQUIRED_GO_BIN_PATH_EXPORT = 'echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"'
-REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
+REQUIRED_UV_SETUP = "astral-sh/setup-uv@v8.3.0"
 PR_CHECKS_WORKFLOW = ".github/workflows/pr-checks.yml"
 RETIRED_AUTOMATIC_WORKFLOWS = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
 REQUIRED_WORKFLOW_CONCURRENCY = (PR_CHECKS_WORKFLOW,)
@@ -153,7 +151,7 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
     issues.extend(_audit_workflow_setup_cache(base))
     issues.extend(_audit_secret_scan_lane_tooling(base))
     issues.extend(_audit_dependency_vulnerability_lane_tooling(base))
-    issues.extend(_audit_repo_static_lane_tooling(base))
+    issues.extend(_audit_repo_checks_lane_tooling(base))
     issues.extend(_audit_langfuse_lane_tooling(base))
     issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
@@ -228,7 +226,7 @@ def _audit_workflow_pnpm_versions(
     for workflow_path in sorted((root / ".github/workflows").glob("*.yml")):
         workflow = _read_yaml(workflow_path)
         for step in _workflow_steps(workflow):
-            if step.get("uses") != "pnpm/action-setup@v4":
+            if step.get("uses") != "pnpm/action-setup@v6":
                 continue
             with_block = step.get("with")
             version = ""
@@ -426,15 +424,15 @@ def _audit_pr_checks_base_sha_flow(root: Path) -> tuple[CiWorkflowContractIssue,
                 message="changes job must expose base_sha for affected lanes",
             )
         )
-    repo_static = jobs.get("repo-static")
-    repo_static_env = repo_static.get("env") if isinstance(repo_static, dict) else None
-    if not isinstance(repo_static_env, dict) or repo_static_env.get("CI_BASE_REF") != (
+    repo_checks = jobs.get("repo-checks")
+    repo_checks_env = repo_checks.get("env") if isinstance(repo_checks, dict) else None
+    if not isinstance(repo_checks_env, dict) or repo_checks_env.get("CI_BASE_REF") != (
         "${{ needs.changes.outputs.base_sha }}"
     ):
         issues.append(
             CiWorkflowContractIssue(
                 path=PR_CHECKS_WORKFLOW,
-                message="repo-static must pass changes base_sha through CI_BASE_REF",
+                message="repo-checks must pass changes base_sha through CI_BASE_REF",
             )
         )
     web_graph = jobs.get("web-graph")
@@ -497,9 +495,9 @@ def _audit_workflow_setup_cache(root: Path) -> tuple[CiWorkflowContractIssue, ..
             for step in steps:
                 uses = step.get("uses")
                 with_block = step.get("with")
-                if uses == "pnpm/action-setup@v4":
+                if uses == "pnpm/action-setup@v6":
                     pnpm_setup_seen = True
-                if uses == "actions/setup-node@v4":
+                if uses == "actions/setup-node@v6":
                     cache_enabled = (
                         isinstance(with_block, dict) and with_block.get("cache") == "pnpm"
                     )
@@ -631,7 +629,7 @@ def _audit_dependency_vulnerability_lane_tooling(
     return tuple(issues)
 
 
-def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+def _audit_repo_checks_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     workflow_relpath = PR_CHECKS_WORKFLOW
     workflow_path = root / workflow_relpath
     if not workflow_path.exists():
@@ -640,7 +638,7 @@ def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue
     jobs = workflow.get("jobs")
     if not isinstance(jobs, dict):
         return ()
-    job = jobs.get("repo-static")
+    job = jobs.get("repo-checks")
     if not isinstance(job, dict):
         return ()
     raw_steps = job.get("steps")
@@ -654,7 +652,7 @@ def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue
         return (
             CiWorkflowContractIssue(
                 path=workflow_relpath,
-                message="repo-static must setup uv before uv sync",
+                message="repo-checks must setup uv before uv sync",
             ),
         )
     return ()

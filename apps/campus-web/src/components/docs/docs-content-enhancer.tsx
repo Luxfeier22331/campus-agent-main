@@ -4,8 +4,11 @@ const TABLE_CONTAINER_SELECTOR = ".docs-table-scroll, .rp-table-scroll-container
 const HEADER_ANCHOR_SELECTOR = ".rspress-doc a.rp-header-anchor, .rspress-doc a.header-anchor";
 const ENHANCED_TABLE_ATTRIBUTE = "data-docs-enhanced-table";
 const SCROLLABLE_TABLE_ATTRIBUTE = "data-docs-scrollable";
+const TABLE_KIND_ATTRIBUTE = "data-docs-table-kind";
 const MAX_MOBILE_CARD_ROWS = 8;
 const MAX_MOBILE_CARD_COLUMNS = 5;
+const MAX_COURSE_MOBILE_CARD_ROWS = 16;
+const MAX_COURSE_MOBILE_CARD_COLUMNS = 7;
 
 interface MobileTableRowPair {
 	header: string;
@@ -105,6 +108,19 @@ function buildMobileTableRowPairs(headers: string[], row: string[]): MobileTable
 	return pairs;
 }
 
+function shouldBuildMobileTableCards(headers: string[], dataRows: string[][]): boolean {
+	if (dataRows.length <= MAX_MOBILE_CARD_ROWS && headers.length <= MAX_MOBILE_CARD_COLUMNS) {
+		return true;
+	}
+	const joinedHeaders = headers.join(" ");
+	const courseLike = /课程名称|课程名|课程号|学分|学时|修读性质|修读学期/.test(joinedHeaders);
+	return (
+		courseLike &&
+		dataRows.length <= MAX_COURSE_MOBILE_CARD_ROWS &&
+		headers.length <= MAX_COURSE_MOBILE_CARD_COLUMNS
+	);
+}
+
 function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 	const expandedRows = expandTable(table);
 	if (expandedRows.length < 2 || (expandedRows[0]?.length ?? 0) < 2) {
@@ -116,7 +132,7 @@ function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 	if (dataRows.length === 0) {
 		return null;
 	}
-	if (dataRows.length > MAX_MOBILE_CARD_ROWS || headers.length > MAX_MOBILE_CARD_COLUMNS) {
+	if (!shouldBuildMobileTableCards(headers, dataRows)) {
 		return null;
 	}
 
@@ -172,6 +188,7 @@ function enhanceTables(root: ParentNode = document): void {
 			cell.setAttribute("role", "columnheader");
 		}
 		const mobileCards = buildMobileTableCards(table);
+		container.setAttribute(TABLE_KIND_ATTRIBUTE, mobileCards ? "mobile-cards" : "wide-scroll");
 		if (!mobileCards) {
 			continue;
 		}

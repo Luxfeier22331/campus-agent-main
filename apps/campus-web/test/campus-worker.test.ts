@@ -680,6 +680,36 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.not.toContain("<!doctype html>");
 	});
 
+	it("does not expose static HTML errors from protected docs search indexes", async () => {
+		const env = createEnv({
+			fetch() {
+				return new Response(null, { status: 204 });
+			},
+		});
+		env.ASSETS = {
+			fetch() {
+				return new Response("<!doctype html><title>Asset error</title>", {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 503,
+				});
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/_gated-docs-search/curriculum/curriculum_plan/restricted-program/2026-current/index.json",
+				{ headers: { cookie: "better-auth.session_token=test" } },
+			),
+			env,
+		);
+
+		expect(response.status).toBe(503);
+		expect(response.headers.get("content-type")).toContain("application/json");
+		expect(response.headers.get("vary")).toContain("Cookie");
+		expect(response.headers.get("vary")).toContain("Authorization");
+		await expect(response.text()).resolves.not.toContain("<!doctype html>");
+	});
+
 	it("fails closed for protected docs search indexes when admission is denied", async () => {
 		let assetsCalled = false;
 		const env = createEnv({

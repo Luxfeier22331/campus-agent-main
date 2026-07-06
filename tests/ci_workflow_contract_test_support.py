@@ -150,9 +150,7 @@ def _write_pr_checks_workflow(
                 *_concurrency_lines(include_concurrency),
                 "jobs:",
                 *_changes_job(include_path_filters),
-                *_simple_job("repo-guard", "pnpm ci:repo-guard"),
-                *_repo_static_job(pnpm_version, setup_repo_static_uv, setup_cache, pr_check_calls),
-                *_simple_job("config-lint", "pnpm ci:config:lint"),
+                *_repo_checks_job(pnpm_version, setup_repo_static_uv, setup_cache, pr_check_calls),
                 *_path_filtered_jobs(
                     pnpm_version, install_golangci_lint, install_langfuse_dependencies
                 ),
@@ -167,36 +165,28 @@ def _write_pr_checks_workflow(
     )
 
 
-def _simple_job(name: str, command: str) -> tuple[str, ...]:
-    return (
-        f"  {name}:",
-        "    steps:",
-        f"      - run: {command}",
-    )
-
-
-def _repo_static_job(
+def _repo_checks_job(
     pnpm_version: str,
     setup_repo_static_uv: bool,
     setup_cache: bool,
     pr_check_calls: tuple[str, ...],
 ) -> tuple[str, ...]:
     repo_static_uv_steps = (
-        ("      - uses: astral-sh/setup-uv@v6", *_uv_cache_lines(setup_cache))
+        ("      - uses: astral-sh/setup-uv@v8.3.0", *_uv_cache_lines(setup_cache))
         if setup_repo_static_uv
         else ()
     )
     return (
-        "  repo-static:",
+        "  repo-checks:",
         "    needs: changes",
         "    env:",
         "      CI_BASE_REF: ${{ needs.changes.outputs.base_sha }}",
         "    steps:",
         *repo_static_uv_steps,
-        "      - uses: pnpm/action-setup@v4",
+        "      - uses: pnpm/action-setup@v6",
         "        with:",
         f"          version: {pnpm_version}",
-        "      - uses: actions/setup-node@v4",
+        "      - uses: actions/setup-node@v6",
         "        with:",
         '          node-version: "24"',
         *_node_cache_lines(setup_cache),
@@ -225,8 +215,10 @@ def _path_filtered_jobs(
         "    if: needs.changes.outputs.web_graph == 'true'",
         "    env:",
         "      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}",
+        "      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}",
+        "      TURBO_TEAM: ${{ vars.TURBO_TEAM }}",
         "    steps:",
-        "      - uses: pnpm/action-setup@v4",
+        "      - uses: pnpm/action-setup@v6",
         "        with:",
         f"          version: {pnpm_version}",
         "      - run: pnpm ci:web-graph:affected",
@@ -244,7 +236,7 @@ def _path_filtered_jobs(
         "    needs: changes",
         "    if: needs.changes.outputs.go == 'true'",
         "    steps:",
-        "      - uses: pnpm/action-setup@v4",
+        "      - uses: pnpm/action-setup@v6",
         "        with:",
         f"          version: {pnpm_version}",
         *go_install_steps,
@@ -253,13 +245,13 @@ def _path_filtered_jobs(
         "    needs: changes",
         "    if: needs.changes.outputs.langfuse == 'true'",
         "    steps:",
-        "      - uses: pnpm/action-setup@v4",
+        "      - uses: pnpm/action-setup@v6",
         "        with:",
         f"          version: {pnpm_version}",
         *langfuse_install_steps,
         *(
             (
-                "      - uses: actions/setup-node@v4",
+                "      - uses: actions/setup-node@v6",
                 "        with:",
                 '          node-version: "24"',
                 "          cache: pnpm",
@@ -316,9 +308,7 @@ def _required_checks_job(enabled: bool) -> tuple[str, ...]:
         "  required-checks:",
         "    needs:",
         "      - changes",
-        "      - repo-guard",
-        "      - repo-static",
-        "      - config-lint",
+        "      - repo-checks",
         "      - secret-scan",
         "      - web-graph",
         "      - worker-runtime",
@@ -339,7 +329,7 @@ def _secret_scan_job(
 ) -> tuple[str, ...]:
     uv_steps = (
         (
-            "      - uses: astral-sh/setup-uv@v6",
+            "      - uses: astral-sh/setup-uv@v8.3.0",
             "        with:",
             "          enable-cache: true",
         )
@@ -363,7 +353,7 @@ def _secret_scan_job(
         "  secret-scan:",
         "    steps:",
         *uv_steps,
-        "      - uses: actions/setup-go@v5",
+        "      - uses: actions/setup-go@v6",
         "        with:",
         '          go-version: "1.26.2"',
         *install_steps,
@@ -402,7 +392,7 @@ def _write_public_docs_workflow(
                 "jobs:",
                 "  publish:",
                 "    steps:",
-                "      - uses: pnpm/action-setup@v4",
+                "      - uses: pnpm/action-setup@v6",
                 "        with:",
                 f"          version: {pnpm_version}",
                 "      - run: |",
@@ -456,8 +446,8 @@ def _write_eval_workflow(
                 "    env:",
                 "      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}",
                 "    steps:",
-                "      - uses: actions/setup-python@v5",
-                "      - uses: astral-sh/setup-uv@v6",
+                "      - uses: actions/setup-python@v6",
+                "      - uses: astral-sh/setup-uv@v8.3.0",
                 *_uv_cache_lines(setup_cache),
                 "      - run: uv sync --all-packages --dev",
                 "      - run: args+=(--validate-only)",
@@ -504,10 +494,10 @@ def _write_dining_image_workflow(
                 "jobs:",
                 "  build:",
                 "    steps:",
-                "      - uses: pnpm/action-setup@v4",
+                "      - uses: pnpm/action-setup@v6",
                 "        with:",
                 f"          version: {pnpm_version}",
-                "      - uses: docker/build-push-action@v6",
+                "      - uses: docker/build-push-action@v7",
                 "        with:",
                 "          load: true",
                 "          push: false",
@@ -519,9 +509,9 @@ def _write_dining_image_workflow(
                 f"        if: {guard}",
                 "        with:",
                 "          dependency-snapshot: false",
-                "      - uses: docker/login-action@v3",
+                "      - uses: docker/login-action@v4",
                 f"        if: {guard}",
-                "      - uses: docker/build-push-action@v6",
+                "      - uses: docker/build-push-action@v7",
                 f"        if: {guard}",
                 "        with:",
                 "          push: true",
@@ -543,7 +533,7 @@ def _write_scheduled_checks_workflow(
 ) -> None:
     uv_steps = (
         (
-            "      - uses: astral-sh/setup-uv@v6",
+            "      - uses: astral-sh/setup-uv@v8.3.0",
             "        with:",
             "          enable-cache: true",
         )
@@ -571,20 +561,33 @@ def _write_scheduled_checks_workflow(
                 "  schedule:",
                 "    - cron: '23 2 * * *'",
                 "jobs:",
-                "  dependency-vulnerability-full:",
+                "  web-graph-full:",
+                "    env:",
+                "      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}",
+                "      TURBO_TEAM: ${{ vars.TURBO_TEAM }}",
                 "    steps:",
-                *uv_steps,
-                "      - uses: actions/setup-go@v5",
-                "        with:",
-                '          go-version: "1.26.2"',
-                *install_steps,
-                "      - uses: pnpm/action-setup@v4",
+                "      - uses: pnpm/action-setup@v6",
                 "        with:",
                 f"          version: {pnpm_version}",
-                "      - uses: actions/setup-node@v4",
+                "      - uses: actions/setup-node@v6",
                 "        with:",
                 '          node-version: "24"',
                 *_node_cache_lines(setup_cache),
+                "      - run: pnpm install --frozen-lockfile",
+                "      - run: pnpm ci:web-graph:full",
+                "  dependency-vulnerability-full:",
+                "    steps:",
+                *uv_steps,
+                "      - uses: actions/setup-go@v6",
+                "        with:",
+                '          go-version: "1.26.2"',
+                *install_steps,
+                "      - uses: pnpm/action-setup@v6",
+                "        with:",
+                f"          version: {pnpm_version}",
+                "      - uses: actions/setup-node@v6",
+                "        with:",
+                '          node-version: "24"',
                 "      - run: pnpm ci:deps:vuln",
                 "",
             )

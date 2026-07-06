@@ -549,6 +549,9 @@ async function serveProtectedReaderSearchIndex(request: Request, env: Env): Prom
 			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
 		);
 	}
+	if (isHtmlServerErrorResponse(response)) {
+		return withVaryAuth(dependencyNotReadyResponse());
+	}
 	return withVaryAuth(responseWithSecurityHeaders(response));
 }
 

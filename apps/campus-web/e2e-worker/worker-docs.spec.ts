@@ -25,7 +25,7 @@ test.describe("campus web worker docs browser boundary", () => {
 
 		expect(response?.status()).toBe(200);
 		await expect(page).toHaveURL(DEFAULT_DOCS_READER_PATH);
-		await expect(page.locator("#__rspress_root")).toContainText("Rspress canonical reader");
+		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 
@@ -35,7 +35,7 @@ test.describe("campus web worker docs browser boundary", () => {
 		});
 
 		expect(response?.status()).toBe(200);
-		await expect(page.locator("#__rspress_root")).toContainText("Rspress canonical reader");
+		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 
@@ -48,7 +48,7 @@ test.describe("campus web worker docs browser boundary", () => {
 		);
 
 		expect(response?.status()).toBe(200);
-		await expect(page.locator("#__rspress_root")).toContainText("Rspress versioned reader");
+		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定历史版");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 

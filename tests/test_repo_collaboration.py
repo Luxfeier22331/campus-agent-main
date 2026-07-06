@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -135,7 +136,9 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("pnpm ci:deps:vuln", workflow_text)
         self.assertIn("golangci-lint@v2.11.4", workflow_text)
         self.assertIn("osv-scanner@v2.3.8", workflow_text)
-        self.assertNotIn("secrets.", workflow_text)
+        secret_refs = sorted(set(re.findall(r"secrets\.[A-Z0-9_]+", workflow_text)))
+        self.assertEqual(secret_refs, ["secrets.TURBO_TOKEN"])
+        self.assertIn("TURBO_TEAM: ${{ vars.TURBO_TEAM }}", workflow_text)
         self.assertIn("drift / regression detection", normalized_lanes)
         self.assertIn("not a PR blocker", lanes)
 

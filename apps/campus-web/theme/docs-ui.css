@@ -49,6 +49,7 @@
 }
 
 .docs-account-entry-button {
+	max-width: min(13rem, 32vw);
 	min-width: 3.25rem;
 	min-height: 2rem;
 	padding-inline: 0.65rem;
@@ -56,6 +57,9 @@
 	color: var(--docs-ink);
 	font-size: 0.85rem;
 	font-weight: 650;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .docs-account-entry-user-button {
@@ -190,9 +194,9 @@
 }
 
 .rspress-doc .document-meta-details dl {
-	position: fixed;
-	right: 2rem;
-	bottom: 2rem;
+	position: absolute;
+	top: calc(100% + 0.35rem);
+	left: 0;
 	display: grid;
 	width: min(28rem, calc(100vw - 2rem));
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -266,10 +270,76 @@
 	font-weight: 680;
 }
 
+.rp-doc-outline a.docs-reader-current-link,
+.rp-doc-layout__sidebar a.docs-reader-current-link,
+.rspress-doc nav a.docs-reader-current-link {
+	color: var(--docs-accent-strong);
+	font-weight: 700;
+	text-decoration-color: currentColor;
+	text-underline-offset: 0.18em;
+}
+
+.rspress-doc .docs-reader-heading-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-left: 0.55rem;
+	color: var(--docs-faint);
+	font-size: 0.78rem;
+	line-height: 1;
+	vertical-align: middle;
+}
+
+.rspress-doc .docs-reader-copy-link-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.45rem;
+	height: 1.45rem;
+	padding: 0;
+	border: 1px solid var(--docs-border-soft);
+	border-radius: 0.4rem;
+	background: var(--docs-surface);
+	color: var(--docs-muted);
+	cursor: pointer;
+	font: inherit;
+	font-weight: 650;
+	line-height: 1;
+}
+
+.rspress-doc .docs-reader-copy-link-button:hover {
+	border-color: color-mix(in srgb, var(--docs-accent) 30%, var(--docs-border));
+	color: var(--docs-accent-strong);
+}
+
+.rspress-doc .docs-reader-copy-link-button:focus-visible {
+	outline: 2px solid var(--docs-accent);
+	outline-offset: 2px;
+}
+
+.rspress-doc .docs-reader-copy-link-status {
+	color: var(--docs-faint);
+	font-weight: 650;
+}
+
 .rspress-doc .docs-version-switcher-error {
 	margin: 0;
-	color: var(--docs-muted);
-	font-size: 0.78rem;
+	font-size: 0.82rem;
+}
+
+.docs-reader-status {
+	border: 1px solid color-mix(in srgb, var(--docs-accent) 24%, var(--docs-border));
+	border-radius: 0.5rem;
+	background: var(--docs-accent-soft);
+	color: var(--docs-ink);
+	font-size: 0.82rem;
+	line-height: 1.55;
+}
+
+.rspress-doc .docs-version-history-warning {
+	flex-basis: 100%;
+	margin: 0.2rem 0 0;
+	padding: 0.5rem 0.65rem;
 }
 
 .rspress-doc .reader-block {
@@ -300,6 +370,27 @@
 	-webkit-overflow-scrolling: touch;
 }
 
+.rspress-doc .docs-course-map-frame::before {
+	position: sticky;
+	z-index: 5;
+	top: 0.5rem;
+	left: 0.55rem;
+	display: block;
+	width: max-content;
+	max-width: calc(100% - 1rem);
+	margin: 0.5rem 0 -1.7rem 0.55rem;
+	padding: 0.18rem 0.48rem;
+	border: 1px solid var(--docs-border-soft);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--docs-surface) 92%, transparent);
+	color: var(--docs-muted);
+	content: "拖动查看课程地图";
+	font-size: 0.72rem;
+	font-weight: 700;
+	line-height: 1.4;
+	pointer-events: none;
+}
+
 .rspress-doc .docs-course-map-image {
 	display: block;
 	width: 100%;
@@ -324,6 +415,7 @@
 	display: grid;
 	gap: 0.22rem;
 	padding: 0.65rem 0.75rem;
+	border: 1px solid transparent;
 	border-radius: 0.5rem;
 	color: var(--docs-ink);
 	text-decoration: none;
@@ -331,9 +423,16 @@
 
 .docs-protected-search-result:hover,
 .docs-protected-search-result:focus-visible {
+	border-color: var(--docs-border-soft);
 	background: var(--docs-surface-soft);
 	color: var(--docs-ink);
+	outline: 2px solid transparent;
 	text-decoration: none;
+}
+
+.docs-protected-search-result:focus-visible {
+	outline-color: var(--docs-accent);
+	outline-offset: 2px;
 }
 
 .docs-protected-search-title {
@@ -348,7 +447,7 @@
 	line-height: 1.35;
 }
 
-.docs-protected-search-result small {
+.docs-protected-search-excerpt {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
@@ -356,6 +455,14 @@
 	color: var(--docs-muted);
 	font-size: 0.84rem;
 	line-height: 1.5;
+}
+
+.docs-protected-search-status {
+	margin: 0;
+	padding: 0.65rem 0.75rem;
+	background: var(--docs-surface-soft);
+	color: var(--docs-muted);
+	font-size: 0.84rem;
 }
 
 .rspress-doc .docs-table-scroll,
@@ -461,6 +568,50 @@
 	font-weight: 700;
 }
 
+.rspress-doc .docs-table-scroll[data-docs-table-kind="wide-scroll"] thead th,
+.rspress-doc
+	.docs-table-scroll[data-docs-table-kind="wide-scroll"]
+	tbody:first-child
+	> tr:first-child
+	> th,
+.rspress-doc
+	.docs-table-scroll[data-docs-table-kind="wide-scroll"]
+	tbody:first-child
+	> tr:first-child
+	> td,
+.rspress-doc .rp-table-scroll-container[data-docs-table-kind="wide-scroll"] thead th,
+.rspress-doc
+	.rp-table-scroll-container[data-docs-table-kind="wide-scroll"]
+	tbody:first-child
+	> tr:first-child
+	> th,
+.rspress-doc
+	.rp-table-scroll-container[data-docs-table-kind="wide-scroll"]
+	tbody:first-child
+	> tr:first-child
+	> td {
+	position: sticky;
+	z-index: 4;
+	top: 0;
+}
+
+.rspress-doc .docs-table-scroll[data-docs-table-kind="wide-scroll"] tr > :first-child,
+.rspress-doc .rp-table-scroll-container[data-docs-table-kind="wide-scroll"] tr > :first-child {
+	position: sticky;
+	z-index: 3;
+	left: 0;
+	background: var(--docs-surface-soft);
+	box-shadow: 1px 0 0 var(--docs-border-soft);
+}
+
+.rspress-doc .docs-table-scroll[data-docs-table-kind="wide-scroll"] tr:first-child > :first-child,
+.rspress-doc
+	.rp-table-scroll-container[data-docs-table-kind="wide-scroll"]
+	tr:first-child
+	> :first-child {
+	z-index: 6;
+}
+
 .reader-bootstrap-status {
 	display: grid;
 	gap: 0.85rem;
@@ -556,26 +707,66 @@
 	list-style: none;
 }
 
-.gated-collection-list li {
-	border-bottom: 1px solid var(--docs-border-soft);
-	padding: 0.72rem 0;
-}
-
-.gated-collection-list a {
+.gated-collection-link {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-height: 3.25rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid var(--docs-border);
+	border-radius: 0.7rem;
+	background: var(--docs-surface);
 	color: var(--docs-ink);
-	font-weight: 640;
+	font-weight: 680;
 	text-decoration: none;
 }
 
-.gated-collection-list a:hover {
+.gated-collection-link:hover,
+.gated-collection-link:focus-visible {
+	border-color: color-mix(in srgb, var(--docs-accent) 34%, var(--docs-border));
+	background: var(--docs-accent-soft);
 	color: var(--docs-accent-strong);
-	text-decoration: underline;
-	text-underline-offset: 0.18em;
+	text-decoration: none;
+}
+
+.gated-collection-version {
+	flex: none;
+	border: 1px solid var(--docs-border-soft);
+	border-radius: 999px;
+	padding: 0.12rem 0.45rem;
+	color: var(--docs-faint);
+	font-size: 0.74rem;
+	font-weight: 700;
+	line-height: 1.35;
+}
+
+.gated-collection-empty-state {
+	display: grid;
+	gap: 0.7rem;
+	margin-top: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--docs-border);
+	border-radius: 0.7rem;
+	background: var(--docs-surface);
 }
 
 .gated-collection-empty {
-	margin-top: 1rem;
+	margin: 0;
 	color: var(--docs-muted);
+}
+
+.gated-collection-empty-state a {
+	width: fit-content;
+	color: var(--docs-accent-strong);
+	font-weight: 680;
+	text-decoration: none;
+}
+
+.gated-collection-empty-state a:hover,
+.gated-collection-empty-state a:focus-visible {
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
 }
 
 .rspress-doc .docs-category-links ul {
@@ -664,11 +855,22 @@
 	}
 
 	.rspress-doc .document-meta-details dl {
+		position: fixed;
 		right: 1rem;
 		bottom: 1rem;
 		left: 1rem;
+		top: auto;
 		width: auto;
 		grid-template-columns: 1fr;
+	}
+
+	.rspress-doc .docs-course-map-frame {
+		aspect-ratio: 16 / 10;
+	}
+
+	.rspress-doc .docs-course-map-image {
+		width: max(48rem, 100%);
+		min-width: max(48rem, 100%);
 	}
 
 	.rspress-doc .docs-table-scroll table,

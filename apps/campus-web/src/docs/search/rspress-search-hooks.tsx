@@ -7,31 +7,39 @@ import {
 	searchProtectedDocsIndex,
 } from "./docs-search-model";
 
+type DocsProtectedSearchIndex = ReturnType<typeof parseDocsProtectedSearchIndexPayload>;
+
+const PROTECTED_SEARCH_UNAVAILABLE_MESSAGE = "账号可见文档搜索暂不可用";
+const protectedSearchIndexCache = new Map<string, Promise<DocsProtectedSearchIndex | null>>();
+
 export function beforeSearch(query: string): string {
 	return normalizeDocsSearchQuery(query);
 }
 
 export const onSearch: OnSearch = async (query: string, defaultResults: DefaultMatchResult[]) => {
 	filterRspressLiteralResults(query, defaultResults);
+	if (!normalizeDocsSearchQuery(query)) {
+		return [];
+	}
 	const protectedIndexPath = resolveProtectedSearchIndexPath(window.location.pathname);
 	if (!protectedIndexPath) {
 		return [];
 	}
 
-	const response = await fetch(protectedIndexPath, {
-		credentials: "include",
-		headers: { accept: "application/json" },
-	});
-	if (response.status === 404 || response.status === 401) {
+	const index = await readProtectedSearchIndex(protectedIndexPath).catch(
+		() => "unavailable" as const,
+	);
+	if (index === "unavailable") {
+		return [
+			{
+				group: "当前账号可见",
+				result: [{ kind: "status", message: PROTECTED_SEARCH_UNAVAILABLE_MESSAGE }],
+			},
+		];
+	}
+	if (!index) {
 		return [];
 	}
-	if (!response.ok) {
-		throw new Error(`protected docs search index request failed: ${response.status}`);
-	}
-	if (!isJsonResponse(response)) {
-		return [];
-	}
-	const index = parseDocsProtectedSearchIndexPayload(await response.json());
 	const protectedResults = searchProtectedDocsIndex(query, index);
 	if (protectedResults.length === 0) {
 		return [];
@@ -44,15 +52,63 @@ export const onSearch: OnSearch = async (query: string, defaultResults: DefaultM
 	];
 };
 
+export function clearProtectedSearchIndexCache(): void {
+	protectedSearchIndexCache.clear();
+}
+
+function readProtectedSearchIndex(
+	protectedIndexPath: string,
+): Promise<DocsProtectedSearchIndex | null> {
+	const cached = protectedSearchIndexCache.get(protectedIndexPath);
+	if (cached) {
+		return cached;
+	}
+	const request = fetchProtectedSearchIndex(protectedIndexPath).catch((error) => {
+		protectedSearchIndexCache.delete(protectedIndexPath);
+		throw error;
+	});
+	protectedSearchIndexCache.set(protectedIndexPath, request);
+	return request;
+}
+
+async function fetchProtectedSearchIndex(
+	protectedIndexPath: string,
+): Promise<DocsProtectedSearchIndex | null> {
+	const response = await fetch(protectedIndexPath, {
+		credentials: "include",
+		headers: { accept: "application/json" },
+	});
+	if (response.status === 404 || response.status === 401) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`protected docs search index request failed: ${response.status}`);
+	}
+	if (!isJsonResponse(response)) {
+		throw new Error("protected docs search index response is not JSON");
+	}
+	return parseDocsProtectedSearchIndexPayload(await response.json());
+}
+
 export const render: RenderSearchFunction<DocsProtectedSearchResult[]> = (results) => (
 	<div className="docs-protected-search-results">
-		{results.map((result) => (
-			<a className="docs-protected-search-result" href={result.url} key={result.url}>
-				<span className="docs-protected-search-title">{result.documentTitle}</span>
-				<span className="docs-protected-search-section">{result.sectionTitle}</span>
-				<small>{result.excerpt}</small>
-			</a>
-		))}
+		{results.map((result) =>
+			result.kind === "status" ? (
+				<p
+					className="docs-reader-status docs-protected-search-status"
+					key="protected-search-status"
+					role="status"
+				>
+					{result.message}
+				</p>
+			) : (
+				<a className="docs-protected-search-result" href={result.url} key={result.url}>
+					<span className="docs-protected-search-title">{result.documentTitle}</span>
+					<span className="docs-protected-search-section">{result.sectionTitle}</span>
+					<small className="docs-protected-search-excerpt">{result.excerpt}</small>
+				</a>
+			),
+		)}
 	</div>
 );
 

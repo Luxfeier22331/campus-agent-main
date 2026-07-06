@@ -198,6 +198,23 @@ deploy sync manifest 的最小逻辑形态固定为：
         "asset-manifest": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/asset-manifest.json"
       }
     }
+  ],
+  "searchUnits": [
+    {
+      "searchUnitId": "search_curriculum_law_ethnic_class_program_general",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "docId": "curriculum:law-ethnic-class-program",
+      "documentSlug": "law-ethnic-class-program",
+      "versionId": "ver_2026_01",
+      "versionSlug": "2026-current",
+      "documentTitle": "法学（民族班）本科人才培养方案",
+      "title": "培养目标",
+      "snippet": "本专业培养德智体美劳全面发展的法学人才。",
+      "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program#general",
+      "anchor": "general",
+      "highlightRootUnitIds": ["unit_general_001"]
+    }
   ]
 }
 ```
@@ -208,6 +225,14 @@ deploy sync manifest 的最小逻辑形态固定为：
   manifest schema，不再表达 forward browser product surface。
 - `sourceObjects.*` 使用对象存储 key，而不是外部 URL
 - `targetObjects.*` 使用 campus-web static assets 内的相对路径
+- `searchUnits[]` 是发布 reader 的搜索投影输入；public current reader 用它生成
+  Rspress local search metadata，`gated_asset` current reader 用它生成
+  `/_gated-docs-search/*/index.json`
+- `searchUnitId` 在 manifest 内必须唯一
+- `canonicalUrl` 必须是 reader canonical path 加 anchor，例如
+  `/docs/<corpus>/<collection>/<documentSlug>#<anchor>`；运行时 protected search
+  index 只交付去掉 hash 的 same-origin `/docs/...` path，anchor 单独进入 `anchor`
+- `highlightRootUnitIds[]` 只能引用 reader asset 中存在的 root unit
 - `corpus`、`collection`、`documentSlug`、`versionSlug` 是 build-time 生成
   reader asset 与 reader page 的必要身份字段；`documentSlug` 不要求可直接作为
   browser route 文件名
@@ -277,6 +302,10 @@ deploy sync 前必须至少验证：
 - Rspress runtime JS / CSS / public local search index 只交付在
   `/_docs-static/*`，不占用 `/static/*`
 - campus-web Worker 只显式代理 `/api/docs/*`，不开放 generic `/api/*`
+- manifest 中 `searchUnits[].searchUnitId` 不重复
+- `gated_asset` current entries 必须能找到对应 `searchUnits[]`
+- protected search unit 的 `canonicalUrl` 必须匹配生成的 reader route
+- protected search unit 的 `anchor` 与 `highlightRootUnitIds[]` 必须存在于 reader asset
 
 ## Forbidden Shapes
 

@@ -16,6 +16,7 @@ import { QAAccountEntry } from "../src/components/auth/user/qa-account-entry";
 import qaAccountEntrySource from "../src/components/auth/user/qa-account-entry.tsx?raw";
 import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
+import DocsAccountEntry from "../src/components/docs/docs-account-entry";
 import mainSource from "../src/main.tsx?raw";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
@@ -165,13 +166,22 @@ vi.mock("@better-auth-ui/heroui", () => ({
 
 vi.mock("@heroui/react", async () => {
 	const actual = await vi.importActual<typeof import("@heroui/react")>("@heroui/react");
+	let activeModalState:
+		| {
+				isOpen: boolean;
+				open: () => void;
+		  }
+		| undefined;
 	const ModalRoot = ({
 		children,
 		state,
 	}: {
 		children: React.ReactNode;
-		state?: { isOpen: boolean };
-	}) => (state?.isOpen ? <div data-testid="heroui-modal-root">{children}</div> : null);
+		state?: { isOpen: boolean; open: () => void };
+	}) => {
+		activeModalState = state;
+		return <div data-testid="heroui-modal-root">{children}</div>;
+	};
 	return {
 		...actual,
 		Button: ({
@@ -216,11 +226,19 @@ vi.mock("@heroui/react", async () => {
 			),
 			Trigger: ({
 				children,
+				onClick,
 				...props
 			}: {
 				children: React.ReactNode;
 			} & React.HTMLAttributes<HTMLButtonElement>) => (
-				<button type="button" {...props}>
+				<button
+					onClick={(event) => {
+						onClick?.(event);
+						activeModalState?.open();
+					}}
+					type="button"
+					{...props}
+				>
 					{children}
 				</button>
 			),
@@ -551,5 +569,31 @@ describe("campus auth UI components", () => {
 
 		expect(screen.getByLabelText("heroui-user-button")).toBeInTheDocument();
 		expect(screen.queryByText("登录")).toBeNull();
+	});
+
+	it("keeps the docs auth entry scoped to the current reader route", async () => {
+		window.history.pushState(
+			{},
+			"",
+			"/docs/regulations/student_rules/doc-c62077b20430?hl=root-scholarship#scholarship",
+		);
+		document.body.innerHTML =
+			'<nav><div class="rp-nav__right"><button class="rp-nav-hamburger" type="button">菜单</button></div></nav>';
+
+		render(<DocsAccountEntry />);
+
+		const trigger = await screen.findByRole("button", {
+			name: "登录查看账号可见文档",
+		});
+		expect(trigger).toHaveClass("docs-account-entry-button");
+		trigger.click();
+
+		expect(
+			await screen.findByRole("dialog", { name: "登录或创建校园问答账号" }),
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute(
+			"data-redirect-to",
+			"/docs/regulations/student_rules/doc-c62077b20430?hl=root-scholarship#scholarship",
+		);
 	});
 });

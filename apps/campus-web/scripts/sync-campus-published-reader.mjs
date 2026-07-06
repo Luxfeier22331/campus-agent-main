@@ -16,8 +16,21 @@ import {
 	loadReaderCourseMapSupplements,
 	renderCourseMapFigure,
 } from "./published-reader-course-maps.mjs";
-import { loadPublishedReaderManifest, normalizeSearchUnit } from "./published-reader-manifest.mjs";
+import {
+	resolveCollectionLabel,
+	resolveCorpusLabel,
+	resolveDocumentDisplayTitle,
+	resolveDocumentKind,
+	resolveReaderLayout,
+	resolveReaderMeasure,
+} from "./published-reader-labels.mjs";
+import { loadPublishedReaderManifest } from "./published-reader-manifest.mjs";
 import { createS3ObjectStore } from "./published-reader-object-store.mjs";
+import {
+	assertProtectedSearchUnitsReferenceReader,
+	buildProtectedSearchEntry,
+	buildSearchUnitsByVersionId,
+} from "./published-reader-search-validation.mjs";
 import { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 import {
 	escapeAttribute,
@@ -61,12 +74,15 @@ export async function syncCampusPublishedReaderDocs(input) {
 		(entry) => entry.deliveryMode === "public_static_asset",
 	);
 	const currentPublicEntries = publicEntries.filter((entry) => entry.isCurrent);
+	const currentPublicEntriesByScope = buildEntriesByScope(currentPublicEntries);
+	assertUniqueCurrentPublicReaderDisplayTitles(currentPublicEntries);
 	const publicVersionsByDocument = buildPublicVersionsByDocument(publicEntries);
 	rmSync(resolve(docsRoot, "docs"), { force: true, recursive: true });
 	writeText(resolve(docsRoot, "_meta.json"), formatJson(buildRootMeta()));
 	writeText(resolve(docsRoot, "index.md"), buildHomePage());
 	writeBootstrapPages(docsRoot);
-	writeCollectionMetaFiles({ docsRoot, entries: currentPublicEntries });
+	writeCollectionIndexPages({ byScope: currentPublicEntriesByScope, docsRoot });
+	writeCollectionMetaFiles({ byScope: currentPublicEntriesByScope, docsRoot });
 	for (const entry of readerEntries) {
 		await writeReaderPage({ client: input.client, docsRoot, entry, publicVersionsByDocument });
 	}
@@ -118,7 +134,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 			copiedAssetCount += 1;
 		}
 	}
-	writeProtectedSearchIndexes({ entries, manifest, targetRoot });
+	await writeProtectedSearchIndexes({ client: input.client, entries, manifest, targetRoot });
 	return {
 		copiedAssetCount,
 		copiedDocumentCount: entries.length,
@@ -132,8 +148,14 @@ export async function syncCampusPublishedReaderAssets(input) {
 
 export async function checkCampusPublishedReaderInputs(input) {
 	const manifest = await loadPublishedReaderManifest(input);
-	const entries = manifest.entries.filter(
-		(entry) => entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
+	const entries = attachReaderRouteSlugs(
+		manifest.entries.filter(
+			(entry) =>
+				entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
+		),
+	);
+	assertUniqueCurrentPublicReaderDisplayTitles(
+		entries.filter((entry) => entry.deliveryMode === "public_static_asset" && entry.isCurrent),
 	);
 	let checkedObjectCount = 0;
 	for (const entry of entries) {
@@ -166,9 +188,11 @@ export async function checkCampusPublishedReaderInputs(input) {
 		if (!searchUnits) {
 			throw new Error(`missing protected search units for version: ${entry.versionId}`);
 		}
-		for (const unit of searchUnits) {
-			assertSearchUnitMatchesEntry({ entry, unit });
-		}
+		await assertProtectedSearchUnitsReferenceReader({
+			client: input.client,
+			entries: [entry],
+			searchUnitsByVersionId,
+		});
 		checkedProtectedSearchIndexCount += 1;
 	}
 	return {
@@ -253,7 +277,7 @@ function buildReaderMdx(input) {
 	for (const section of input.reader.sections ?? []) {
 		const anchor = String(section.anchor ?? "").trim();
 		if (anchor) {
-			lines.push(`<span id="${escapeHtml(anchor)}"></span>`, "");
+			lines.push(`<span id="${escapeAttribute(anchor)}"></span>`, "");
 		}
 		const sectionTitle = normalizeText(section.title);
 		if (shouldRenderReaderSectionTitle({ sectionTitle, title })) {
@@ -275,7 +299,7 @@ function buildReaderMdx(input) {
 			}
 			const rootUnitId = String(block.rootUnitId ?? "").trim();
 			lines.push(
-				`<div className="reader-block" data-root-unit-id="${escapeHtml(rootUnitId)}">`,
+				`<div className="reader-block" data-root-unit-id="${escapeAttribute(rootUnitId)}">`,
 				"",
 				renderReaderBlockText(text),
 				"",
@@ -298,7 +322,11 @@ function buildReaderMdx(input) {
 }
 
 function isReaderHeadingBlock(block, text) {
-	return block?.kind === "heading" || (text.length <= 32 && isReaderHeadingText(text));
+	const kind = String(block?.kind ?? "").trim();
+	if (kind) {
+		return kind === "heading";
+	}
+	return text.length <= 32 && isReaderHeadingText(text);
 }
 
 function isReaderHeadingText(text) {
@@ -315,9 +343,12 @@ function resolveReaderHeadingLevel(text) {
 }
 
 function shouldRenderReaderSectionTitle(input) {
+	const normalizedTitle = normalizeText(input.title);
+	const normalizedDisplayTitle = resolveDocumentDisplayTitle(normalizedTitle);
 	return Boolean(
 		input.sectionTitle &&
-			input.sectionTitle !== input.title &&
+			input.sectionTitle !== normalizedTitle &&
+			input.sectionTitle !== normalizedDisplayTitle &&
 			!SYNTHETIC_READER_SECTION_TITLES.has(input.sectionTitle),
 	);
 }
@@ -339,7 +370,7 @@ function buildMetaPanel(input) {
 		})),
 	});
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-route-slug="${escapeHtml(input.entry.routeSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-search-visibility="${input.entry.deliveryMode === "gated_asset" ? "gated_bootstrap" : input.entry.isCurrent ? "public_current" : "noindex"}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
+		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeAttribute(input.entry.corpus)}" data-docs-collection="${escapeAttribute(input.entry.collection)}" data-docs-document-slug="${escapeAttribute(input.entry.documentSlug)}" data-docs-route-slug="${escapeAttribute(input.entry.routeSlug)}" data-docs-version-slug="${escapeAttribute(input.entry.versionSlug)}" data-docs-search-visibility="${input.entry.deliveryMode === "gated_asset" ? "gated_bootstrap" : input.entry.isCurrent ? "public_current" : "noindex"}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
 		'\t<p className="document-meta-summary">',
 		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
 		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
@@ -417,11 +448,7 @@ function isSafeReaderRouteSlug(value) {
 
 function writeCollectionMetaFiles(input) {
 	const docsDir = resolve(input.docsRoot, "docs");
-	const byScope = new Map();
-	for (const entry of input.entries) {
-		const key = `${entry.corpus}/${entry.collection}`;
-		byScope.set(key, [...(byScope.get(key) ?? []), entry]);
-	}
+	const byScope = input.byScope;
 	writeText(resolve(docsDir, "_meta.json"), formatJson(buildDocsMeta(byScope)));
 	for (const corpus of sortedCorpora(byScope)) {
 		const corpusDir = resolve(docsDir, corpus);
@@ -434,12 +461,44 @@ function writeCollectionMetaFiles(input) {
 	}
 }
 
+function writeCollectionIndexPages(input) {
+	const docsDir = resolve(input.docsRoot, "docs");
+	const byScope = input.byScope;
+	writeText(resolve(docsDir, "index.md"), buildDocsIndexPage(byScope));
+	for (const corpus of sortedCorpora(byScope)) {
+		const corpusDir = resolve(docsDir, corpus);
+		writeText(resolve(corpusDir, "index.md"), buildCorpusIndexPage(corpus, byScope));
+	}
+	for (const [scope, entries] of byScope) {
+		const [corpus, collection] = scope.split("/");
+		const collectionDir = resolve(docsDir, corpus, collection);
+		writeText(
+			resolve(collectionDir, "index.md"),
+			buildCollectionIndexPage({ collection, corpus, entries }),
+		);
+	}
+}
+
+function buildEntriesByScope(entries) {
+	const byScope = new Map();
+	for (const entry of entries) {
+		const key = `${entry.corpus}/${entry.collection}`;
+		byScope.set(key, [...(byScope.get(key) ?? []), entry]);
+	}
+	return byScope;
+}
+
 function buildRootMeta() {
 	return [{ type: "dir", name: "docs", label: "文档", collapsed: false }];
 }
 
 function buildDocsMeta(byScope) {
 	return [
+		{
+			type: "file",
+			name: "index",
+			label: "目录",
+		},
 		...sortedCorpora(byScope).map((corpus) => ({
 			type: "dir",
 			name: corpus,
@@ -451,6 +510,11 @@ function buildDocsMeta(byScope) {
 
 function buildCorpusMeta(corpus, byScope) {
 	return [
+		{
+			type: "file",
+			name: "index",
+			label: "目录",
+		},
 		...sortedCollections(corpus, byScope).map((collection) => ({
 			type: "dir",
 			name: collection,
@@ -461,11 +525,18 @@ function buildCorpusMeta(corpus, byScope) {
 }
 
 function buildCollectionMeta(entries) {
-	return entries.map((entry) => ({
-		type: "file",
-		name: entry.routeSlug,
-		label: resolveDocumentDisplayTitle(entry.title),
-	}));
+	return [
+		{
+			type: "file",
+			name: "index",
+			label: "目录",
+		},
+		...entries.map((entry) => ({
+			type: "file",
+			name: entry.routeSlug,
+			label: resolveDocumentDisplayTitle(entry.title),
+		})),
+	];
 }
 
 function buildHomePage() {
@@ -483,18 +554,116 @@ function buildHomePage() {
 	].join("\n");
 }
 
-function resolveDocumentDisplayTitle(title) {
-	const trimmed = typeof title === "string" ? title.trim() : "";
-	if (!trimmed) {
-		throw new Error("campus docs reader manifest entry requires title");
+function buildDocsIndexPage(byScope) {
+	const lines = [
+		"---",
+		'title: "文档"',
+		"footer: false",
+		"outline: false",
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		"---",
+		"",
+		"# 文档",
+		"",
+		"## 文档集合",
+		"",
+		'<nav className="docs-category-links" aria-label="文档目录">',
+		"",
+		"<ul>",
+	];
+	for (const corpus of sortedCorpora(byScope)) {
+		lines.push(
+			`\t<li><a href="/docs/${corpus}/">${escapeHtml(resolveCorpusLabel(corpus))}</a></li>`,
+		);
 	}
-	const displayTitle = trimmed.replace(/^中央民族大学/u, "").trim();
-	return displayTitle || trimmed;
+	lines.push("</ul>", "", "</nav>", "");
+	return lines.join("\n");
 }
 
-function writeProtectedSearchIndexes(input) {
+function buildCorpusIndexPage(corpus, byScope) {
+	const corpusLabel = resolveCorpusLabel(corpus);
+	const lines = [
+		"---",
+		`title: ${JSON.stringify(corpusLabel)}`,
+		"footer: false",
+		"outline: false",
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		"---",
+		"",
+		`# ${corpusLabel}`,
+		"",
+		"## 集合",
+		"",
+		'<nav className="docs-category-links" aria-label="文档集合目录">',
+		"",
+		"<ul>",
+	];
+	for (const collection of sortedCollections(corpus, byScope)) {
+		lines.push(
+			`\t<li><a href="/docs/${corpus}/${collection}/">${escapeHtml(
+				resolveCollectionLabel({ collection, corpus }),
+			)}</a></li>`,
+		);
+	}
+	lines.push("</ul>", "", "</nav>", "");
+	return lines.join("\n");
+}
+
+function buildCollectionIndexPage(input) {
+	const collectionLabel = resolveCollectionLabel(input);
+	const lines = [
+		"---",
+		`title: ${JSON.stringify(collectionLabel)}`,
+		"footer: false",
+		"outline: false",
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		"---",
+		"",
+		`# ${collectionLabel}`,
+		"",
+		"## 文档",
+		"",
+		'<nav className="docs-category-links" aria-label="文档列表">',
+		"",
+		"<ul>",
+	];
+	for (const entry of input.entries) {
+		lines.push(
+			`\t<li><a href="/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}">${escapeHtml(
+				resolveDocumentDisplayTitle(entry.title),
+			)}</a></li>`,
+		);
+	}
+	lines.push("</ul>", "", "</nav>", "");
+	return lines.join("\n");
+}
+
+function assertUniqueCurrentPublicReaderDisplayTitles(entries) {
+	const seen = new Map();
+	for (const entry of entries) {
+		const title = resolveDocumentDisplayTitle(entry.title);
+		const key = `${entry.corpus}/${entry.collection}/${title}`;
+		const existing = seen.get(key);
+		if (existing) {
+			throw new Error(
+				`duplicate current public reader display title: ${key} (${existing}, ${entry.documentSlug})`,
+			);
+		}
+		seen.set(key, entry.documentSlug);
+	}
+}
+
+async function writeProtectedSearchIndexes(input) {
 	const routeEntries = attachReaderRouteSlugs(input.entries);
 	const searchUnitsByVersionId = buildSearchUnitsByVersionId(input.manifest.searchUnits);
+	await assertProtectedSearchUnitsReferenceReader({
+		client: input.client,
+		entries: routeEntries,
+		searchUnitsByVersionId,
+	});
 	for (const entry of routeEntries) {
 		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
 			continue;
@@ -518,72 +687,15 @@ function writeProtectedSearchIndexes(input) {
 		writeText(
 			targetPath,
 			formatJson({
-				entries: searchUnits.map((unit) => buildProtectedSearchEntry({ entry, unit })),
+				entries: searchUnits.map((unit) =>
+					buildProtectedSearchEntry({ entry, resolveCollectionLabel, unit }),
+				),
 				generatedAt: input.manifest.generatedAt ?? null,
 				schemaVersion: "campus_docs_protected_search_index_v1",
 				visibilityMode: "principal_protected_static",
 			}),
 		);
 	}
-}
-
-function buildSearchUnitsByVersionId(searchUnits) {
-	const byVersionId = new Map();
-	for (const rawUnit of searchUnits) {
-		const unit = normalizeSearchUnit(rawUnit);
-		byVersionId.set(unit.versionId, [...(byVersionId.get(unit.versionId) ?? []), unit]);
-	}
-	for (const [versionId, units] of byVersionId) {
-		byVersionId.set(versionId, units.sort(compareSearchUnit));
-	}
-	return byVersionId;
-}
-
-function buildProtectedSearchEntry(input) {
-	assertSearchUnitMatchesEntry({ entry: input.entry, unit: input.unit });
-	const sectionTitle = input.unit.title;
-	return {
-		anchor: input.unit.anchor,
-		canonicalUrl: buildReaderCanonicalUrl(input.entry),
-		collection: input.entry.collection,
-		collectionLabel: resolveCollectionLabel(input.entry),
-		corpus: input.entry.corpus,
-		documentSlug: input.entry.documentSlug,
-		documentTitle: input.unit.documentTitle,
-		highlightRootUnitIds: input.unit.highlightRootUnitIds,
-		searchText: [input.unit.documentTitle, sectionTitle, input.unit.snippet].join(" "),
-		searchUnitId: input.unit.searchUnitId,
-		sectionTitle,
-		snippet: input.unit.snippet,
-		versionSlug: input.entry.versionSlug,
-	};
-}
-
-function buildReaderCanonicalUrl(entry) {
-	return `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}`;
-}
-
-function assertSearchUnitMatchesEntry(input) {
-	const pairs = [
-		["corpus", input.unit.corpus, input.entry.corpus],
-		["collection", input.unit.collection, input.entry.collection],
-		["documentSlug", input.unit.documentSlug, input.entry.documentSlug],
-		["versionSlug", input.unit.versionSlug, input.entry.versionSlug],
-	];
-	for (const [label, actual, expected] of pairs) {
-		if (actual !== expected) {
-			throw new Error(`protected search unit ${label} does not match release entry`);
-		}
-	}
-}
-
-function compareSearchUnit(left, right) {
-	return (
-		left.documentSlug.localeCompare(right.documentSlug) ||
-		left.versionSlug.localeCompare(right.versionSlug) ||
-		left.anchor.localeCompare(right.anchor) ||
-		left.searchUnitId.localeCompare(right.searchUnitId)
-	);
 }
 
 function compareEntryRoute(left, right) {
@@ -632,44 +744,6 @@ function compareOrdered(left, right, order) {
 
 function normalizeOrderIndex(index) {
 	return index === -1 ? Number.MAX_SAFE_INTEGER : index;
-}
-
-function resolveDocumentKind(entry) {
-	if (entry.collection === "curriculum_plan") {
-		return "curriculumPlan";
-	}
-	if (entry.collection === "student_rules") {
-		return "studentHandbookArticle";
-	}
-	return "publicRegulation";
-}
-
-function resolveReaderLayout(entry) {
-	return entry.collection === "curriculum_plan" ? "tabular" : "article";
-}
-
-function resolveReaderMeasure(entry) {
-	return entry.collection === "curriculum_plan" ? "wide" : "standard";
-}
-
-function resolveCorpusLabel(corpus) {
-	return corpus === "curriculum" ? "培养方案" : corpus === "regulations" ? "规章制度" : corpus;
-}
-
-function resolveCollectionLabel(entry) {
-	if (entry.collection === "curriculum_plan") {
-		return "培养方案";
-	}
-	if (entry.collection === "student_rules") {
-		return "学生手册";
-	}
-	if (entry.collection === "institutional_rules") {
-		return "校级规章";
-	}
-	if (entry.collection === "scoped_rules") {
-		return "专项规章";
-	}
-	return entry.collection;
 }
 
 async function main() {

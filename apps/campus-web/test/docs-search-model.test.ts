@@ -82,6 +82,29 @@ describe("docs search model", () => {
 		).toThrow("protected docs search index payload is invalid");
 	});
 
+	it("rejects protected search entries that point outside the docs reader path", () => {
+		for (const canonicalUrl of [
+			"https://evil.example/docs/regulations/student_rules/restricted-policy",
+			"//evil.example/docs/regulations/student_rules/restricted-policy",
+			"/account/login",
+			"/docs/regulations/student_rules/restricted-policy?redirect=https://evil.example",
+			"/docs/regulations/student_rules/restricted-policy#restricted",
+		]) {
+			expect(() =>
+				parseDocsProtectedSearchIndexPayload({
+					entries: [
+						{
+							...createProtectedIndex().entries[0],
+							canonicalUrl,
+						},
+					],
+					schemaVersion: "campus_docs_protected_search_index_v1",
+					visibilityMode: "principal_protected_static",
+				}),
+			).toThrow("protected docs search entry canonicalUrl is invalid");
+		}
+	});
+
 	it("searches protected indexes locally and returns reader permalinks", () => {
 		const results = searchProtectedDocsIndex("受限正文", createProtectedIndex());
 
@@ -89,6 +112,7 @@ describe("docs search model", () => {
 			{
 				documentTitle: "受限制度",
 				excerpt: "这是一条受限正文。",
+				kind: "result",
 				sectionTitle: "受限章节",
 				url: "/docs/regulations/student_rules/restricted-policy?hl=restricted-root#restricted",
 			},

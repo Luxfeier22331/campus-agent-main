@@ -3,6 +3,7 @@ import { useEffect } from "react";
 const SIDEBAR_OPEN_SELECTOR = ".rp-doc-layout__sidebar--open";
 const SIDEBAR_MASK_SELECTOR = ".rp-sidebar-menu__mask";
 const SIDEBAR_MENU_BUTTON_SELECTOR = ".rp-sidebar-menu__left";
+const SIDEBAR_LINK_SELECTOR = `${SIDEBAR_OPEN_SELECTOR} a[href]`;
 
 function isSidebarOpen(): boolean {
 	return document.querySelector(SIDEBAR_OPEN_SELECTOR) !== null;
@@ -47,6 +48,11 @@ export default function MobileSidebarGuard(): null {
 		const observer = new MutationObserver(scheduleEnhancement);
 		observer.observe(document.body, { attributes: true, childList: true, subtree: true });
 		const handleClick = (event: MouseEvent) => {
+			if (isSidebarOpen() && targetIsInside(event.target, SIDEBAR_LINK_SELECTOR)) {
+				clickSidebarMask();
+				scheduleEnhancement();
+				return;
+			}
 			if (!(isSidebarOpen() && targetIsInside(event.target, SIDEBAR_MENU_BUTTON_SELECTOR))) {
 				scheduleEnhancement();
 				return;

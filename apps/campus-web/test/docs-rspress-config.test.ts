@@ -197,7 +197,13 @@ describe("campus docs Rspress build boundary", () => {
 		expect(themeSource).toContain("resolveReaderLayoutClasses");
 		expect(cssSource).toContain(".document-meta-panel");
 		expect(cssSource).toContain(".docs-version-switcher");
+		expect(cssSource).toContain(".docs-reader-status");
+		expect(cssSource).toContain(".docs-version-history-warning");
 		expect(cssSource).toContain(".reader-block.docs-reader-highlight");
+		expect(cssSource).toContain(".docs-protected-search-status");
+		expect(cssSource).toContain(".docs-protected-search-excerpt");
+		expect(cssSource).toContain("position: sticky;");
+		expect(cssSource).toContain("data-docs-table-kind");
 		expect(cssSource).toContain(".rp-doc.rspress-doc table tr:hover");
 		expect(cssSource).toContain("background: transparent;");
 		expect(cssSource).toContain("var(--sys-brand-interactive,");

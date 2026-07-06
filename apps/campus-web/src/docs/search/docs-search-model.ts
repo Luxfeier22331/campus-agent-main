@@ -23,12 +23,18 @@ export interface DocsProtectedSearchIndex {
 	visibilityMode: "principal_protected_static";
 }
 
-export interface DocsProtectedSearchResult {
-	documentTitle: string;
-	excerpt: string;
-	sectionTitle: string;
-	url: string;
-}
+export type DocsProtectedSearchResult =
+	| {
+			kind: "result";
+			documentTitle: string;
+			excerpt: string;
+			sectionTitle: string;
+			url: string;
+	  }
+	| {
+			kind: "status";
+			message: string;
+	  };
 
 const PROTECTED_SEARCH_INDEX_SCHEMA_VERSION = "campus_docs_protected_search_index_v1";
 const MAX_PROTECTED_SEARCH_RESULTS = 8;
@@ -100,6 +106,7 @@ export function searchProtectedDocsIndex(
 		.sort(compareProtectedSearchEntry(normalizedQuery))
 		.slice(0, MAX_PROTECTED_SEARCH_RESULTS)
 		.map((entry) => ({
+			kind: "result" as const,
 			documentTitle: entry.documentTitle,
 			excerpt: entry.snippet,
 			sectionTitle: entry.sectionTitle,
@@ -145,7 +152,7 @@ function parseProtectedSearchEntry(value: unknown): DocsProtectedSearchEntry {
 	}
 	return {
 		anchor: requiredString(value.anchor, "anchor"),
-		canonicalUrl: requiredString(value.canonicalUrl, "canonicalUrl"),
+		canonicalUrl: requiredDocsCanonicalUrl(value.canonicalUrl),
 		collection: requiredString(value.collection, "collection"),
 		collectionLabel: requiredString(value.collectionLabel, "collectionLabel"),
 		corpus: requiredString(value.corpus, "corpus"),
@@ -158,6 +165,26 @@ function parseProtectedSearchEntry(value: unknown): DocsProtectedSearchEntry {
 		snippet: requiredString(value.snippet, "snippet"),
 		versionSlug: requiredString(value.versionSlug, "versionSlug"),
 	};
+}
+
+function requiredDocsCanonicalUrl(value: unknown): string {
+	const canonicalUrl = requiredString(value, "canonicalUrl");
+	try {
+		const parsed = new URL(canonicalUrl, "https://campus-docs.local");
+		if (
+			parsed.origin !== "https://campus-docs.local" ||
+			!canonicalUrl.startsWith("/") ||
+			canonicalUrl.startsWith("//") ||
+			!parsed.pathname.startsWith("/docs/") ||
+			parsed.search ||
+			parsed.hash
+		) {
+			throw new Error("invalid canonicalUrl");
+		}
+		return parsed.pathname;
+	} catch {
+		throw new Error("protected docs search entry canonicalUrl is invalid.");
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

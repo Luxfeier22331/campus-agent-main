@@ -5,7 +5,7 @@ from typing import Any
 
 from scripts.ci_workflow_contract_types import CiWorkflowContractIssue
 
-REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
+REQUIRED_UV_SETUP = "astral-sh/setup-uv@v8.3.0"
 MANUAL_ONLY_WORKFLOWS = (
     ".github/workflows/dining-sync-image.yml",
     ".github/workflows/eval-ragas-score.yml",
@@ -14,16 +14,67 @@ MANUAL_ONLY_IF_PRESENT_WORKFLOWS = (".github/workflows/public-docs-rolling-publi
 INTERNAL_SECRET_WORKFLOW_ENVS = {
     ".github/workflows/eval-ragas-score.yml": "eval-internal",
 }
+AUTOMATIC_WORKFLOW_SECRET_ALLOWLIST = {
+    (
+        ".github/workflows/pr-checks.yml",
+        ("jobs", "web-graph", "env", "TURBO_TOKEN"),
+        "${{ secrets.TURBO_TOKEN }}",
+    ),
+    (
+        ".github/workflows/scheduled-checks.yml",
+        ("jobs", "web-graph-full", "env", "TURBO_TOKEN"),
+        "${{ secrets.TURBO_TOKEN }}",
+    ),
+}
 
 
 def audit_manual_release_workflow_contracts(*, root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     issues: list[CiWorkflowContractIssue] = []
     issues.extend(_audit_manual_only_workflows(root))
     issues.extend(_audit_secret_workflow_exposure(root))
+    issues.extend(_audit_turbo_remote_cache_env(root))
     issues.extend(_audit_public_docs_publish_workflow(root))
     issues.extend(_audit_eval_ragas_score_contract(root))
     issues.extend(_audit_dining_sync_image_contract(root))
     return tuple(issues)
+
+
+def _audit_turbo_remote_cache_env(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    targets = (
+        (
+            ".github/workflows/pr-checks.yml",
+            ("jobs", "web-graph", "env"),
+            "web-graph must expose TURBO_TOKEN and TURBO_TEAM for Turbo Remote Cache",
+        ),
+        (
+            ".github/workflows/scheduled-checks.yml",
+            ("jobs", "web-graph-full", "env"),
+            "web-graph-full must expose TURBO_TOKEN and TURBO_TEAM for Turbo Remote Cache",
+        ),
+    )
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_relpath, env_path, message in targets:
+        workflow_path = root / workflow_relpath
+        if not workflow_path.exists():
+            continue
+        workflow = _read_yaml(workflow_path)
+        env = _nested_dict(workflow, env_path)
+        if (
+            not isinstance(env, dict)
+            or env.get("TURBO_TOKEN") != ("${{ secrets.TURBO_TOKEN }}")
+            or env.get("TURBO_TEAM") != "${{ vars.TURBO_TEAM }}"
+        ):
+            issues.append(CiWorkflowContractIssue(path=workflow_relpath, message=message))
+    return tuple(issues)
+
+
+def _nested_dict(value: dict[str, Any], path: tuple[str, ...]) -> dict[str, Any] | None:
+    current: Any = value
+    for part in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current if isinstance(current, dict) else None
 
 
 def _audit_manual_only_workflows(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
@@ -81,19 +132,29 @@ def _audit_secret_workflow_exposure(root: Path) -> tuple[CiWorkflowContractIssue
     for workflow_path in sorted(workflows_dir.glob("*.yml")):
         relpath = workflow_path.relative_to(root).as_posix()
         workflow = _read_yaml(workflow_path)
-        text = workflow_path.read_text(encoding="utf-8")
-        if "secrets." not in text:
+        secret_refs = _secret_refs(workflow)
+        if not secret_refs:
             continue
         triggers = _workflow_triggers(workflow)
         automatic_triggers = sorted(
             trigger for trigger in triggers if trigger != "workflow_dispatch"
         )
-        if automatic_triggers:
+        disallowed_secret_refs = tuple(
+            ref
+            for ref in secret_refs
+            if (
+                relpath,
+                ref[0],
+                ref[1],
+            )
+            not in AUTOMATIC_WORKFLOW_SECRET_ALLOWLIST
+        )
+        if automatic_triggers and disallowed_secret_refs:
             issues.append(
                 CiWorkflowContractIssue(
                     path=relpath,
                     message=(
-                        "workflow references secrets and must not define automatic triggers: "
+                        "workflow references non-CI-cache secrets and must not define automatic triggers: "
                         + ", ".join(automatic_triggers)
                     ),
                 )
@@ -108,6 +169,19 @@ def _audit_secret_workflow_exposure(root: Path) -> tuple[CiWorkflowContractIssue
                 )
             )
     return tuple(issues)
+
+
+def _secret_refs(value: Any, path: tuple[str, ...] = ()) -> tuple[tuple[tuple[str, ...], str], ...]:
+    refs: list[tuple[tuple[str, ...], str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            refs.extend(_secret_refs(child, (*path, str(key))))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            refs.extend(_secret_refs(child, (*path, str(index))))
+    elif isinstance(value, str) and "secrets." in value:
+        refs.append((path, value.strip()))
+    return tuple(refs)
 
 
 def _audit_workflow_jobs_environment(
@@ -190,7 +264,7 @@ def _audit_eval_ragas_score_contract(root: Path) -> tuple[CiWorkflowContractIssu
     workflow = _read_yaml(workflow_path)
     workflow_text = workflow_path.read_text(encoding="utf-8")
     required = (
-        "actions/setup-python@v5",
+        "actions/setup-python@v6",
         REQUIRED_UV_SETUP,
         "uv sync --all-packages --dev",
         "pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
@@ -261,14 +335,14 @@ def _audit_dining_sync_image_contract(root: Path) -> tuple[CiWorkflowContractIss
             )
         )
     steps = _workflow_steps(workflow)
-    login_step = _first_step_using(steps, "docker/login-action@v3")
-    build_steps = _steps_using(steps, "docker/build-push-action@v6")
+    login_step = _first_step_using(steps, "docker/login-action@v4")
+    build_steps = _steps_using(steps, "docker/build-push-action@v7")
     trivy_step = _first_step_using(steps, "aquasecurity/trivy-action@v0.36.0")
     sbom_step = _first_step_using(steps, "anchore/sbom-action@v0.24.0")
     login_if = str(login_step.get("if") or "") if login_step else ""
     scan_build_with = build_steps[0].get("with") if build_steps else None
     push_build = _first_guarded_step_using(
-        steps, "docker/build-push-action@v6", "inputs.push_image"
+        steps, "docker/build-push-action@v7", "inputs.push_image"
     )
     push_build_with = push_build.get("with") if push_build else None
     if "inputs.push_image" not in login_if or push_build is None:

@@ -44,8 +44,11 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 - It runs `pnpm ci:repo-static`, `pnpm ci:web-graph:full`,
   `uv run --all-packages python -m unittest discover -s tests -t .`,
   `pnpm ci:go` and `pnpm ci:deps:vuln`.
-- It must not define `pull_request` triggers, reference secrets or participate
-  in `pr-checks / required-checks`.
+- It must not define `pull_request` triggers or participate in
+  `pr-checks / required-checks`.
+- It may use explicitly allowed CI infrastructure credentials, such as Turbo
+  Remote Cache variables on Turbo jobs. It must not use deploy, provider,
+  database, object-store, eval publishing or release credentials.
 - It is not a PR blocker, release closeout, deployment validation, eval scoring lane or
   image publishing lane.
 
@@ -73,6 +76,10 @@ GitHub security features are confirmed for this repository.
     checks and workflow action policy checks.
   - Trusted version-tagged actions are allowlisted; new untrusted actions must
     use a full commit SHA or be added to the policy with a reason.
+  - Workflow secret rules are capability-based. CI infrastructure credentials
+    may be allowed on the narrow job that consumes them. Deploy, provider,
+    database, object-store, eval publishing and release credentials remain
+    manual or protected-environment only.
 - CodeQL / code scanning:
   - Private repositories require GitHub Code Security / Advanced Security before
     code scanning can be enabled.

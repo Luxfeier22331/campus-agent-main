@@ -25,6 +25,20 @@ TRUSTED_TAG_ACTIONS = frozenset(
         "anchore/sbom-action",
     }
 )
+RETIRED_NODE20_ACTION_REFS = frozenset(
+    {
+        "actions/checkout@v4",
+        "actions/setup-go@v5",
+        "actions/setup-node@v4",
+        "actions/setup-python@v5",
+        "actions/upload-artifact@v4",
+        "astral-sh/setup-uv@v6",
+        "docker/build-push-action@v6",
+        "docker/login-action@v3",
+        "docker/setup-buildx-action@v3",
+        "pnpm/action-setup@v4",
+    }
+)
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VERSION_TAG_RE = re.compile(r"^v\d+(?:\.\d+){0,2}$")
 
@@ -59,6 +73,12 @@ def audit_workflow_action_policy(
 def _audit_action_ref(path: str, action_ref: str) -> WorkflowActionPolicyIssue | None:
     if action_ref.startswith("./"):
         return None
+    if action_ref in RETIRED_NODE20_ACTION_REFS:
+        return WorkflowActionPolicyIssue(
+            path=path,
+            action=action_ref,
+            message="workflow action ref uses a retired Node 20 runtime; upgrade to a Node 24 action",
+        )
     if "@" not in action_ref:
         return WorkflowActionPolicyIssue(
             path=path,

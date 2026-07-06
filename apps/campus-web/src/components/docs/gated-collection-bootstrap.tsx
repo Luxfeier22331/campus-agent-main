@@ -99,10 +99,10 @@ export default function GatedCollectionBootstrap() {
 			<DocsBootstrapStatus
 				action={
 					<button type="button" onClick={() => window.location.reload()}>
-						重试
+						重新读取
 					</button>
 				}
-				description="请稍后重试。"
+				description="请稍后重试，或刷新当前页面。"
 				kind="unavailable"
 				title="文档目录暂不可用"
 			/>
@@ -124,12 +124,20 @@ export default function GatedCollectionBootstrap() {
 				<ul className="gated-collection-list">
 					{nodes.map((node) => (
 						<li key={node.documentSlug}>
-							<a href={node.canonicalUrl}>{node.displayTitle ?? node.title}</a>
+							<a className="gated-collection-link" href={node.canonicalUrl}>
+								<span>{node.displayTitle ?? node.title}</span>
+								<span aria-hidden="true" className="gated-collection-version">
+									{node.isCurrent ? "现行版" : "历史版"}
+								</span>
+							</a>
 						</li>
 					))}
 				</ul>
 			) : (
-				<p className="gated-collection-empty">当前账号下没有可阅读的文档。</p>
+				<div className="gated-collection-empty-state">
+					<p className="gated-collection-empty">当前账号下没有可阅读的文档。</p>
+					<a href="/docs">返回文档首页</a>
+				</div>
 			)}
 		</article>
 	);

@@ -20,12 +20,13 @@ test.describe("gated docs browser flow", () => {
 
 		expect(response?.status()).toBe(200);
 		await expect(page.getByRole("heading", { name: "请先登录" })).toBeVisible();
+		await expect(page.getByText("登录后会回到当前文档。")).toBeVisible();
 		const loginHref = new URL(
 			(await page.getByRole("link", { name: "登录后继续" }).getAttribute("href")) ?? "",
 		);
 		expect(loginHref.pathname).toBe("/account/login");
 		expect(loginHref.searchParams.get("redirectTo")).toBe(
-			`http://127.0.0.1:27016${gatedReaderPath}`,
+			new URL(gatedReaderPath, page.url()).toString(),
 		);
 	});
 
@@ -87,8 +88,8 @@ test.describe("gated docs browser flow", () => {
 
 		expect(response?.status()).toBe(200);
 		await expect(page.getByRole("heading", { name: "受保护制度" })).toBeVisible();
-		await expect(page.getByText("现行版")).toBeVisible();
-		await expect(page.getByText("需登录")).toBeVisible();
+		await expect(page.locator(".document-meta-summary")).toContainText("现行版");
+		await expect(page.locator(".document-meta-summary")).toContainText("登录后可见");
 		await expect(page.locator("[data-docs-reader-meta]")).toHaveAttribute(
 			"data-docs-search-visibility",
 			"gated_bootstrap",
@@ -125,6 +126,7 @@ test.describe("gated docs browser flow", () => {
 
 		expect(response?.status()).toBe(200);
 		await expect(page.getByRole("heading", { name: "文档暂不可用" })).toBeVisible();
-		await expect(page.getByText("请稍后重试。")).toBeVisible();
+		await expect(page.getByText("请稍后重试，或刷新当前页面。")).toBeVisible();
+		await expect(page.getByRole("button", { name: "重新读取" })).toBeVisible();
 	});
 });

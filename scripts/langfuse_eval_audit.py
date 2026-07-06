@@ -310,8 +310,8 @@ def _audit_workflow_ragas_score_lanes(workflow_path: Path) -> dict[str, object]:
         (
             "ragas-trace",
             "ragas-dataset",
-            "actions/setup-python@v5",
-            "astral-sh/setup-uv@v6",
+            "actions/setup-python@v6",
+            "astral-sh/setup-uv@v8.3.0",
             "uv sync --all-packages --dev",
             "pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
             "pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",

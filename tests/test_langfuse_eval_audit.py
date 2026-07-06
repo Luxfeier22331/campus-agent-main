@@ -203,8 +203,8 @@ permissions: {}
 jobs:
   eval:
     steps:
-      - uses: actions/setup-python@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v8.3.0
       - run: uv sync --all-packages --dev
       - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-traces --runtime-config x --validate-only
       - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset --runtime-config x --validate-only

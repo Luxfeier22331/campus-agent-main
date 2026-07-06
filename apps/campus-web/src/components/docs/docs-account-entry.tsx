@@ -87,8 +87,8 @@ function DocsAccountEntryContent() {
 		<DocsAuthModal
 			open={open}
 			onOpenChange={setOpen}
-			trigger={<span>登录</span>}
-			triggerAriaLabel="登录"
+			trigger={<span>登录查看账号可见文档</span>}
+			triggerAriaLabel="登录查看账号可见文档"
 			triggerClassName="docs-account-entry-button"
 		/>
 	);

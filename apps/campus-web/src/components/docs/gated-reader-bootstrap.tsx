@@ -20,6 +20,7 @@ interface DocsResolveResponse {
 		highlightRootUnitIds: string[];
 	};
 	resolvedVersion: {
+		isCurrent?: boolean;
 		label: string;
 		versionSlug: string;
 	};
@@ -32,6 +33,7 @@ interface ReaderPayload {
 	sections?: Array<{
 		anchor?: string;
 		blocks?: Array<{
+			headingLevel?: number;
 			kind?: string;
 			rootUnitId?: string;
 			text?: string;
@@ -84,7 +86,14 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				}
 
 				const resolved = (await resolveResponse.json()) as DocsResolveResponse;
-				const readerResponse = await fetch(resolved.readerAsset.contentUrl, {
+				const readerAssetUrl = resolveReaderAssetContentUrl(resolved.readerAsset);
+				if (!readerAssetUrl) {
+					if (!cancelled) {
+						setState({ status: "unavailable" });
+					}
+					return;
+				}
+				const readerResponse = await fetch(readerAssetUrl, {
 					credentials: "include",
 					headers: { accept: "application/json" },
 				});
@@ -126,7 +135,7 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 		return (
 			<DocsBootstrapStatus
 				action={<a href={resolveLoginHref()}>登录后继续</a>}
-				description="登录后继续打开这份文档。"
+				description="登录后会回到当前文档。"
 				kind="unauthorized"
 				title="请先登录"
 			/>
@@ -137,10 +146,10 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 			<DocsBootstrapStatus
 				action={
 					<button type="button" onClick={() => window.location.reload()}>
-						重试
+						重新读取
 					</button>
 				}
-				description="请稍后重试。"
+				description="请稍后重试，或刷新当前页面。"
 				kind="unavailable"
 				title="文档暂不可用"
 			/>
@@ -148,27 +157,60 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 	}
 
 	const title = state.reader.document?.title || state.resolve.document.title;
+	const collectionLabel = resolveCollectionLabel(state.resolve.document);
+	const versionLabel = state.resolve.resolvedVersion.label || "当前版";
+	const sourceLabel = collectionLabel;
+	const versionsPayload = JSON.stringify({
+		versions: [
+			{
+				isCurrent: state.resolve.resolvedVersion.isCurrent ?? true,
+				label: versionLabel,
+				versionSlug: state.resolve.resolvedVersion.versionSlug,
+			},
+		],
+	});
 	return (
-		<article className="reader-bootstrap-article">
+		<article className="reader-bootstrap-article rspress-doc">
 			<header
 				className="document-meta-panel"
 				data-docs-collection={state.resolve.document.collection}
 				data-docs-corpus={state.resolve.document.corpus}
 				data-docs-document-slug={state.resolve.document.documentSlug}
+				data-docs-is-current={String(state.resolve.resolvedVersion.isCurrent ?? true)}
 				data-docs-reader-meta="true"
+				data-docs-route-slug={resolveCurrentRouteSlug()}
 				data-docs-search-visibility={
 					state.resolve.readerAsset.deliveryMode === "gated_asset"
 						? "gated_bootstrap"
 						: "public_current"
 				}
 				data-docs-version-slug={state.resolve.resolvedVersion.versionSlug}
+				data-docs-versions={versionsPayload}
 			>
 				<p className="document-meta-summary">
-					<span>{state.resolve.resolvedVersion.label}</span>
+					<span>{versionLabel}</span>
 					<span>
-						{state.resolve.readerAsset.deliveryMode === "gated_asset" ? "需登录" : "公开"}
+						{state.resolve.readerAsset.deliveryMode === "gated_asset" ? "登录后可见" : "公开"}
 					</span>
+					<span>来源：{sourceLabel}</span>
 				</p>
+				<details className="document-meta-details">
+					<summary>来源详情</summary>
+					<dl>
+						<div>
+							<dt>文档集合</dt>
+							<dd>{collectionLabel}</dd>
+						</div>
+						<div>
+							<dt>版本</dt>
+							<dd>{versionLabel}</dd>
+						</div>
+						<div>
+							<dt>来源</dt>
+							<dd>{sourceLabel}</dd>
+						</div>
+					</dl>
+				</details>
 			</header>
 			<h1>{title}</h1>
 			{withStableKeys(state.reader.sections ?? [], resolveSectionKey).map(
@@ -176,15 +218,9 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 					<section key={key}>
 						{section.anchor ? <span id={section.anchor} /> : null}
 						{section.title && section.title !== title ? <h2>{section.title}</h2> : null}
-						{withStableKeys(section.blocks ?? [], resolveBlockKey).map(({ item: block, key }) => (
-							<div
-								className={resolveBlockClassName(block.rootUnitId, state.resolve.readerState)}
-								data-root-unit-id={block.rootUnitId}
-								key={key}
-							>
-								{renderTextBlock(block.text ?? "")}
-							</div>
-						))}
+						{withStableKeys(section.blocks ?? [], resolveBlockKey).map(({ item: block, key }) =>
+							renderReaderBlock(block, state.resolve.readerState, key),
+						)}
 					</section>
 				),
 			)}
@@ -210,6 +246,23 @@ function resolveLoginHref(): string {
 	}
 }
 
+function resolveReaderAssetContentUrl(
+	readerAsset: DocsResolveResponse["readerAsset"],
+): string | null {
+	if (readerAsset.deliveryMode !== "gated_asset") {
+		return readerAsset.contentUrl;
+	}
+	try {
+		const url = new URL(readerAsset.contentUrl, window.location.origin);
+		if (url.origin !== window.location.origin || !url.pathname.startsWith("/_gated-docs/")) {
+			return null;
+		}
+		return `${url.pathname}${url.search}${url.hash}`;
+	} catch {
+		return null;
+	}
+}
+
 function parseReaderRoute(
 	location: Location,
 	documentSlugOverride?: string,
@@ -225,13 +278,24 @@ function parseReaderRoute(
 	}
 	const version = parts[4] === "v" ? (parts[5] ?? null) : null;
 	return {
-		anchor: location.hash ? decodeURIComponent(location.hash.slice(1)) : null,
+		anchor: decodeLocationHash(location.hash),
 		collection: parts[2],
 		corpus: parts[1],
 		documentSlug: documentSlugOverride?.trim() || parts[3],
 		highlightRootUnitIds: parseHighlightRootUnitIds(new URLSearchParams(location.search).get("hl")),
 		version,
 	};
+}
+
+function decodeLocationHash(hash: string): string | null {
+	if (!hash) {
+		return null;
+	}
+	try {
+		return decodeURIComponent(hash.slice(1));
+	} catch {
+		return null;
+	}
 }
 
 function buildResolveUrl(input: ReaderRouteTarget): string {
@@ -258,6 +322,31 @@ function parseHighlightRootUnitIds(value: string | null): string[] {
 		.filter(Boolean);
 }
 
+function resolveCurrentRouteSlug(): string {
+	try {
+		const parts = window.location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+		return parts[3] ?? "";
+	} catch {
+		return "";
+	}
+}
+
+function resolveCollectionLabel(input: { collection: string; corpus: string }): string {
+	if (input.corpus === "regulations" && input.collection === "student_rules") {
+		return "学生手册";
+	}
+	if (input.corpus === "regulations" && input.collection === "institutional_rules") {
+		return "校级制度";
+	}
+	if (input.corpus === "regulations" && input.collection === "scoped_rules") {
+		return "专项规章";
+	}
+	if (input.corpus === "curriculum" && input.collection === "curriculum_plan") {
+		return "培养方案";
+	}
+	return input.collection;
+}
+
 function resolveBlockClassName(
 	rootUnitId: string | undefined,
 	readerState: DocsResolveResponse["readerState"],
@@ -269,8 +358,141 @@ function resolveBlockClassName(
 	return classNames.join(" ");
 }
 
+function renderReaderBlock(
+	block: NonNullable<NonNullable<ReaderPayload["sections"]>[number]["blocks"]>[number],
+	readerState: DocsResolveResponse["readerState"],
+	key: string,
+) {
+	const text = normalizeReaderText(block.text);
+	if (isReaderHeadingBlock(block, text)) {
+		const HeadingTag = resolveHeadingTag(block.headingLevel, text);
+		return <HeadingTag key={key}>{text}</HeadingTag>;
+	}
+	return (
+		<div
+			className={resolveBlockClassName(block.rootUnitId, readerState)}
+			data-root-unit-id={block.rootUnitId}
+			key={key}
+		>
+			{renderTextBlock(text)}
+		</div>
+	);
+}
+
 function renderTextBlock(text: string) {
+	const table = parseSafeTable(text);
+	if (table) {
+		return (
+			<div className="docs-table-scroll" data-docs-scrollable="true">
+				<table>
+					<tbody>
+						{withStableKeys(table.rows, resolveSafeTableRowKey).map(({ item: row, key }) => (
+							<tr key={key}>
+								{withStableKeys(row, resolveSafeTableCellKey).map(({ item: cell, key }) => (
+									<cell.tag colSpan={cell.colSpan} key={key} rowSpan={cell.rowSpan}>
+										{cell.text}
+									</cell.tag>
+								))}
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		);
+	}
 	return text.split(/\n{2,}/u).map((paragraph) => <p key={hashString(paragraph)}>{paragraph}</p>);
+}
+
+function isReaderHeadingBlock(
+	block: NonNullable<NonNullable<ReaderPayload["sections"]>[number]["blocks"]>[number],
+	text: string,
+): boolean {
+	return block.kind === "heading" && Boolean(text);
+}
+
+function resolveHeadingTag(level: number | undefined, text: string): "h2" | "h3" {
+	const explicitLevel = typeof level === "number" ? Math.trunc(level) : undefined;
+	if (explicitLevel === 2 || explicitLevel === 3) {
+		return explicitLevel === 2 ? "h2" : "h3";
+	}
+	return /^(第[一二三四五六七八九十百]+章\b|[一二三四五六七八九十]+、\S)/u.test(text) ? "h2" : "h3";
+}
+
+function normalizeReaderText(value: string | undefined): string {
+	return (value ?? "").trim();
+}
+
+interface SafeTable {
+	rows: SafeTableCell[][];
+}
+
+interface SafeTableCell {
+	colSpan?: number;
+	rowSpan?: number;
+	tag: "td" | "th";
+	text: string;
+}
+
+function parseSafeTable(value: string): SafeTable | null {
+	const text = value.trim();
+	if (!/^<table(?:\s[^>]*)?>[\s\S]*<\/table>$/iu.test(text)) {
+		return null;
+	}
+	if (text.replace(/<\/?[a-z][^>]*>/giu, "").includes("<")) {
+		return null;
+	}
+	const document = new DOMParser().parseFromString(text, "text/html");
+	const table = document.body.firstElementChild;
+	if (
+		document.body.children.length !== 1 ||
+		!(table instanceof HTMLTableElement) ||
+		!isSafeTableElementTree(table)
+	) {
+		return null;
+	}
+
+	const rows = Array.from(table.rows)
+		.map((row) =>
+			Array.from(row.cells).map((cell) => ({
+				colSpan: cell.colSpan > 1 ? cell.colSpan : undefined,
+				rowSpan: cell.rowSpan > 1 ? cell.rowSpan : undefined,
+				tag: cell.tagName.toLowerCase() === "th" ? ("th" as const) : ("td" as const),
+				text: cell.textContent ?? "",
+			})),
+		)
+		.filter((row) => row.length > 0);
+	return rows.length > 0 ? { rows } : null;
+}
+
+function isSafeTableElementTree(table: HTMLTableElement): boolean {
+	const allowedTags = new Set(["table", "thead", "tbody", "tr", "th", "td"]);
+	for (const element of Array.from(table.querySelectorAll("*"))) {
+		const tagName = element.tagName.toLowerCase();
+		if (!allowedTags.has(tagName) || (tagName === "table" && element !== table)) {
+			return false;
+		}
+		const allowedAttributeNames =
+			tagName === "td" || tagName === "th" ? ["colspan", "rowspan"] : [];
+		for (const attributeName of element.getAttributeNames()) {
+			const normalizedName = attributeName.toLowerCase();
+			if (!allowedAttributeNames.includes(normalizedName)) {
+				return false;
+			}
+			const value = element.getAttribute(attributeName) ?? "";
+			if (!/^[1-9][0-9]{0,2}$/u.test(value)) {
+				return false;
+			}
+		}
+	}
+	return table.getAttributeNames().length === 0;
+}
+
+function resolveSafeTableRowKey(row: SafeTableCell[]): string {
+	return row.map(resolveSafeTableCellKey).join("|");
+}
+
+function resolveSafeTableCellKey(cell: SafeTableCell): string {
+	return `${cell.tag}:${cell.rowSpan ?? 1}:${cell.colSpan ?? 1}:${cell.text}`;
 }
 
 function resolveSectionKey(section: NonNullable<ReaderPayload["sections"]>[number]): string {

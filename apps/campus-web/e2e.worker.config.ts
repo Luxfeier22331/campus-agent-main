@@ -8,6 +8,7 @@ export default defineConfig({
 		timeout: 5_000,
 	},
 	forbidOnly: Boolean(process.env.CI),
+	globalSetup: "./e2e-worker.global-setup.ts",
 	outputDir: "test-results/e2e-worker",
 	projects: [
 		{
@@ -25,7 +26,7 @@ export default defineConfig({
 		trace: "retain-on-failure",
 	},
 	webServer: {
-		command: `node ./scripts/prepare-e2e-worker-docs-fixture.mjs && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=../../.wrangler-home pnpm exec vite --host 127.0.0.1 --port ${port} --strictPort`,
+		command: `WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=../../.wrangler-home pnpm exec vite --host 127.0.0.1 --port ${port} --strictPort`,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
 		url: baseURL,
