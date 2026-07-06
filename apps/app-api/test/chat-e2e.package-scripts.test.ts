@@ -53,21 +53,23 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["online-answer-path:collect:staging"]).toBeUndefined();
 	});
 
-	it("keeps local dev e2e as a repo-owned runtime orchestration entry", () => {
+	it("keeps local dev e2e on pre-existing runtime readiness instead of starting runtime", () => {
 		const scriptSource = readFileSync(
 			resolve(__dirname, "../scripts/chat-e2e-local-dev.ts"),
 			"utf8",
 		);
+		const retiredStartScript = `${["start", "execution", "control", "runtime"].join("-")}.sh`;
 
-		expect(scriptSource).toContain("infra/local/start-execution-control-runtime.sh");
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
+		expect(scriptSource).toContain("Start the runtime through the platform-owned deployment path");
 		expect(scriptSource).toContain("bootstrap-shared-product-with-seeds.mjs");
 		expect(scriptSource).toContain("provision-smoke-identity.ts");
 		expect(scriptSource).toContain("CAMPUS_WEB_LIVE_SMOKE");
 		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");
 		expect(scriptSource).toContain("waitForReadyzWhileChildAlive");
-		expect(scriptSource).toContain("--force-recreate");
-		expect(scriptSource).toContain("--no-build");
+		expect(scriptSource).not.toContain(retiredStartScript);
+		expect(scriptSource).not.toContain("--force-recreate");
+		expect(scriptSource).not.toContain("--no-build");
 		expect(scriptSource).toContain('"--profile"');
 		expect(scriptSource).toContain('"dev"');
 	});
@@ -86,6 +88,7 @@ describe("chat e2e package scripts", () => {
 			"ENABLED",
 		].join("_");
 		const retiredRestartFlag = ["--restart", "super", "visor", "runtime"].join("-");
+		const retiredExecutionRestartFlag = ["--restart", "execution", "control", "runtime"].join("-");
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
 		expect(scriptSource).not.toContain("PROMPT_RUNTIME_PROVIDER");
@@ -97,7 +100,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain("retired-python-worker-timeout");
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");
 		expect(scriptSource).toContain('"--restart-campus-web"');
-		expect(scriptSource).toContain('"--restart-execution-control-runtime"');
+		expect(scriptSource).not.toContain(JSON.stringify(retiredExecutionRestartFlag));
 		expect(scriptSource).not.toContain('"--restart-executionClient-runtime"');
 		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"go_provider_synthesis_completed"');
@@ -129,6 +132,7 @@ describe("chat e2e package scripts", () => {
 			resolve(__dirname, "../scripts/run-with-local-env.mjs"),
 			"utf8",
 		);
+		const retiredProjector = `${["project", "local", "runtime", "env"].join("-")}.mjs`;
 
 		expect(rootPackageJson.scripts["local:providers:seed"]).toBeUndefined();
 		expect(turboJson.tasks["local:providers:seed"]).toBeUndefined();
@@ -151,8 +155,8 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("embedding");
 		expect(scriptSource).toContain("rerank");
 		expect(runWithLocalEnvSource).toContain("repoEnvPath");
-		expect(runWithLocalEnvSource).toContain("generatedRuntimeEnvPath");
-		expect(runWithLocalEnvSource).toContain("project-local-runtime-env.mjs");
+		expect(runWithLocalEnvSource).not.toContain("generatedRuntimeEnvPath");
+		expect(runWithLocalEnvSource).not.toContain(retiredProjector);
 		expect(scriptSource).not.toContain("PROMPT_RUNTIME");
 		expect(scriptSource).not.toContain("EXECUTION_PROMPT_MODEL");
 	});

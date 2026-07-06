@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/MUC-WIKI/campus-agent.git
     targetRevision: develop
-    path: infra/k8s/execution-runtime/overlays/staging
+    path: infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
   destination:
     server: https://kubernetes.default.svc
     namespace: campus-agent-staging

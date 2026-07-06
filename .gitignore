@@ -73,3 +73,10 @@ infra/local/.generated/
 tmp/
 docs-*.png
 rspress-*.png
+
+# Local secret-delivery inputs and key backups.
+secret.local.yaml
+*.secret.local.yaml
+sealed-secrets-*.pem
+sealed-secrets-key.backup.yaml
+sealed-secrets-key.*.backup.yaml

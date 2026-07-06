@@ -15,7 +15,6 @@ APP_LOCAL_ENV_PATHS = (
     "apps/authenticated-notice-collector/.env",
     "apps/wechat-official-account-collector/.env",
     "env/commands/campus-docs-reader-build.env",
-    "infra/local/.generated/runtime.env",
 )
 
 

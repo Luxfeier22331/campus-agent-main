@@ -13,20 +13,14 @@ const (
 )
 
 type Options struct {
-	CampusServicesOpsReleaseStore       CampusServicesOpsReleaseStore
-	TransportScheduleReadModelStore     TransportScheduleReadModelStore
-	StructuredProjectionDatabaseURL     string
-	TrustedTimeRFC3339                  string
-	NoticeReadModelStore                NoticeReadModelStore
-	NoticeBodyStore                     NoticeBodyStore
-	NoticeReadModelDatabaseURL          string
-	NoticeReadModelTable                string
-	NoticeBodyObjectStoreEndpoint       string
-	NoticeBodyObjectStoreAccessKey      string
-	NoticeBodyObjectStoreSecretKey      string
-	NoticeBodyObjectStoreRegion         string
-	NoticeBodyObjectStoreBucket         string
-	NoticeBodyObjectStoreBodyLimitBytes int64
+	CampusServicesOpsReleaseStore   CampusServicesOpsReleaseStore
+	TransportScheduleReadModelStore TransportScheduleReadModelStore
+	StructuredProjectionDatabaseURL string
+	TrustedTimeRFC3339              string
+	NoticeReadModelStore            NoticeReadModelStore
+	NoticeBodyStore                 NoticeBodyStore
+	NoticeReadModelDatabaseURL      string
+	NoticeReadModelTable            string
 }
 
 type Runtime struct {

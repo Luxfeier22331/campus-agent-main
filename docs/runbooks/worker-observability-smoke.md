@@ -65,14 +65,8 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
   `SENTRY_RELEASE`
 - root `.env` 使用共享 `SENTRY_DSN`，不是 per-surface `SENTRY_DSN_*`
 
-如果未通过，可先执行：
-
-```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
-  scripts.sync_worker_observability_env
-```
-
-然后再次运行 preflight。
+如果未通过，直接补齐对应 app-local `.dev.vars` 或 Cloudflare Worker
+vars/secrets；不要从 root `.env` fan out 到多个 Worker 本地配置文件。
 
 ### 2. 本地 Worker Smoke
 

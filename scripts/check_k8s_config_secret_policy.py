@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_OVERLAYS = (
-    Path("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging"),
+    Path("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full"),
     Path("infra/k8s/execution-runtime/overlays/staging"),
     Path("infra/k8s/dining-sync/overlays/staging"),
 )

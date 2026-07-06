@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: execution-runtime-rendered-config
   namespace: campus-agent-staging
+  annotations:
+    campus-agent.muc.wiki/example-only: "true"
 data:
   DEPLOYMENT_ENVIRONMENT: staging
   EXECUTION_CONTROL_RUNTIME_PROFILE: staging
@@ -28,21 +30,3 @@ data:
   AGENT_RUNTIME_PORT: "27062"
   AGENT_RUNTIME_TOOL_REGISTRY_PATH: configs/runtime/tools.v4.json
   AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: execution-telemetry-collector-config
-  namespace: campus-agent-staging
-data:
-  OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT: 0.0.0.0:4317
-  OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT: 0.0.0.0:4318
-  OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT: 0.0.0.0:13133
-  OTEL_COLLECTOR_MEMORY_LIMIT_MIB: "512"
-  OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB: "128"
-  OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: campus-agent-runtime
-  OTEL_COLLECTOR_AXIOM_METRICS_DATASET: campus-agent-runtime-metrics
-  OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: https://us-east-1.aws.edge.axiom.co
-  OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: https://langfuse.example.internal/api/public/otel
-  OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"
-  OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT: https://sentry.example.internal/api/project/integration/otlp

@@ -95,7 +95,6 @@ function loadLocalEnv() {
 			resolve(repoRoot, ".env"),
 			resolve(appApiDir, ".env"),
 			resolve(appApiDir, ".dev.vars"),
-			resolve(repoRoot, "infra/local/.generated/runtime.env"),
 			resolve(campusWebDir, ".env"),
 		],
 		overrideEnvFiles: [resolve(repoRoot, "env/commands/campus-docs-reader-build.env")],

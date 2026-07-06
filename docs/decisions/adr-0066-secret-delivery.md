@@ -5,60 +5,88 @@ owner_boundary: docs/decisions
 decision_id: ADR-0066
 status: accepted
 created: 2026-07-03
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 # ADR-0066 Secret Delivery
 
 ## Context
 
-The repository currently has K8s `secret.example.yaml` files and Worker
-`secrets.required` declarations. These are useful contracts, but they do not
-define how real staging/production secret material is delivered without
+The repository previously carried K8s `secret.example.yaml` files alongside
+Worker `secrets.required` declarations. Plaintext Kubernetes Secret examples
+were useful during bootstrap, but they were too easy to mistake for
+staging/production inventory and did not define real secret delivery without
 copying local files or committing credentials.
 
 ## Decision
 
-Use External Secrets Operator as the target Kubernetes secret delivery layer.
+Use stable Kubernetes Secret names as the workload contract. The concrete
+secret delivery backend is deploy-time infrastructure, not workload
+architecture truth.
 
-- External secret stores own secret material.
-- External Secrets Operator syncs selected keys into Kubernetes Secrets.
-- Workloads consume Kubernetes Secrets by name.
-- Repo-tracked manifests may contain `ExternalSecret`, `SecretStore` or
-  `ClusterSecretStore` references, but not secret values.
+- Workloads consume Kubernetes Secrets by stable, role-scoped names.
+- Real secret material stays outside plaintext git.
+- Repo-tracked manifests may contain delivery-backend references or encrypted
+  secret resources, but not plaintext secret values.
+- Sealed Secrets is the recommended default for repo-supported self-hosted and
+  open-source deployments because it keeps GitOps reviewability without
+  requiring a separate hosted secret manager.
+- Supported delivery choices remain manual Kubernetes Secret creation, Sealed
+  Secrets, External Secrets Operator and SOPS-backed encrypted Secret
+  manifests. Switching backend must not change first-party Deployment/CronJob
+  consumption contracts.
 
 Cloudflare Worker secrets remain in the Cloudflare Worker secret store and are
 audited through Worker deploy/preflight tooling. Worker secrets are not mirrored
 through K8s.
 
-External Secrets Operator is only the Kubernetes delivery layer. It does not
-own Cloudflare Worker secrets, Docker local secrets or app-api provider-config
-active profiles.
+Kubernetes secret delivery does not own Cloudflare Worker secrets, Docker local
+secrets or app-api provider-config active profiles.
 
 ## Consequences
 
-- K8s `secret.example.yaml` files remain examples and bootstrap aids, not
-  staging or production secret truth.
-- Manual K8s Secret creation is allowed only as transitional bootstrap for a
-  non-GitOps staging environment.
+- K8s `secret.example.yaml` inventory files are retired from execution-runtime
+  manifests. Secret contracts live in workload references and the GitOps secret
+  delivery documentation instead.
+- Manual K8s Secret creation is accepted for small self-hosted deployments when
+  the operator also owns rotation and audit runbooks.
+- The repo provides a pinned `platform-sealed-secrets` Argo CD Application for
+  the recommended default self-hosted GitOps path.
+- SealedSecret manifests committed to the repo must use the default strict
+  scope. Namespace-wide or cluster-wide sealing is a separate risk acceptance,
+  not a repo default.
 - Secret delivery checks must reject provider API keys, DSNs, tokens or shared
   secrets in GitOps manifests and Helm values.
-- The concrete external secret backend can be selected later without changing
-  workload consumption contracts.
+- A deployment can switch from manual Secrets to Sealed Secrets, External
+  Secrets Operator or SOPS without changing workload consumption contracts.
 - Repo policy checks may verify Secret/ConfigMap separation, retired Secret
   names and forbidden key placement, but real secret material remains outside
   git.
+- Local `.env` files may be an operator input when creating a reviewed Secret,
+  SealedSecret, ExternalSecret backing value or SOPS-encrypted Secret. They are
+  not themselves Kubernetes desired state and must not be applied directly in
+  GitOps runbooks.
 
 ## Alternatives Considered
 
-### Commit encrypted Secret manifests
+### Mandate External Secrets Operator
 
-Rejected for now. SOPS or Sealed Secrets can work, but they would still make the
-repo the primary secret artifact store. The target shape is external secret
-store ownership with Kubernetes sync.
+Rejected as a universal requirement. External Secrets Operator is appropriate
+when a deployment already has an external secret manager, but it adds a
+controller and backend dependency that small self-hosted installations may not
+need.
+
+### Mandate Sealed Secrets As The Only Backend
+
+Rejected as a universal requirement. Sealed Secrets is lighter than a full
+external secret manager, but it still adds a controller and cluster sealing-key
+lifecycle. It is the recommended default for this repo's self-hosted GitOps
+path, not the only acceptable substrate.
 
 ### Keep copying `.env` files to staging hosts
 
-Rejected. It is not auditable enough and caused repeated local/staging drift.
+Rejected as the repo contract. Operators may use local env only as input to a
+reviewed secret creation step; workloads must consume Kubernetes Secrets, not
+raw copied env files.
 
 ### Use app-api provider-config as a general secret manager
 

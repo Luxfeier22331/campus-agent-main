@@ -4,15 +4,15 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-07-03
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 # K8s GitOps Runbook
 
 ## Boundary
 
-This runbook is the operational entry for the target K8s GitOps skeleton. It
-does not replace the current Docker staging runbooks until K8s staging is
-actually serving traffic and has release closeout artifacts.
+This runbook is the operational entry for K8s/GitOps-owned staging. Legacy
+Docker staging lifecycle, bridge overlays and local runtime env renderers are
+retired.
 
 ## Preflight
 
@@ -21,6 +21,9 @@ Before applying any Argo CD Application:
 ```bash
 pnpm repo:static
 kubectl kustomize infra/k8s/execution-runtime/overlays/staging
+kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
+kubectl kustomize infra/k8s/data-postgres/overlays/nc-arm-6c-staging
+kubectl kustomize infra/k8s/platform-temporal/overlays/nc-arm-6c-staging
 kubectl kustomize infra/k8s/dining-sync/overlays/staging
 ```
 
@@ -30,146 +33,234 @@ The first K8s staging profile is non-HA by default. Do not use this skeleton as
 production closeout material until a separate production overlay or Application set has
 accepted HA sizing, backup, ingress, Access and release gates.
 
-## nc-arm-6c Slim Staging
+## nc-arm-6c K8s Platform Staging
 
-`nc-arm-6c` 的第一阶段 K8s validation 使用 slim overlay：
+K8s platform staging runs third-party platform dependencies through separate
+GitOps Applications, while `execution-runtime-staging` remains first-party
+runtime only.
 
-```bash
-kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
-```
+Platform/data Applications:
 
-该 overlay 只运行 `execution-control`、`agent-runtime` 与四个 Temporal
-worker。Temporal、Hindsight、Qdrant、projection DB 与 OTel collector 继续由
-Docker 承载，并通过 K8s selector-less Service 指向宿主机 `10.42.0.1`。
-`execution-control` 同时通过 `172.20.0.1:27051` 的 host-only bind 暴露给
-现有 Docker Traefik；Traefik 的 `execution-control-staging.mucwiki-edge.link`
-动态路由应指向 `http://172.20.0.1:27051`。不要改成 `0.0.0.0`
-NodePort 或公开端口。因为单节点 hostPort 不能同时运行两个
-`execution-control` pod，该 overlay 对 `execution-control` 使用 `Recreate`
-strategy；其它 runtime worker 仍保持滚动更新。
+- `platform-cloudnativepg`
+- `data-postgres-staging`
+- `data-qdrant-staging`
+- `platform-temporal-staging`
+- `platform-temporal-alias-staging`
+- `observability-otel-collector-staging`
+- `memory-hindsight-staging`
+- `ingress-traefik-staging`
 
-启动 Docker 依赖时必须额外加入 host-bind override：
+First-party Application:
 
-```bash
-export EXECUTION_CONTROL_STAGING_COMPOSE_FILES="\
-/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.yml:\
-/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.staging.yml:\
-/srv/apps/campus-agent/infra/local/docker-compose.execution-control-runtime.k8s-host.yml"
+- `execution-runtime-staging`
 
-export EXECUTION_CONTROL_STAGING_POSTGRES_COMPOSE_FILE="\
-/srv/apps/campus-agent/infra/local/docker-compose.postgres.yml"
-export EXECUTION_CONTROL_STAGING_QDRANT_COMPOSE_FILE="\
-/srv/apps/campus-agent/infra/local/docker-compose.qdrant-single-node.yml"
-```
+The first-party full overlay uses
+`infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full` and must not
+include host-bridged `EndpointSlice` resources, `hostPort` on
+`execution-control`, StatefulSets or platform-owned Deployments.
 
-Qdrant 和 Postgres 的 K8s host bind override 需要通过对应 compose command
-显式叠加：
+Ensure the selected secret-delivery path has reconciled first-party runtime
+Secrets, the provider projection Secret and the `mucwiki-edge-origin-tls`
+Ingress TLS Secret before server-side dry-run:
 
 ```bash
-docker compose \
-  -f infra/local/docker-compose.postgres.yml \
-  -f infra/local/docker-compose.postgres-k8s-host.yml \
-  up -d postgres
-
-docker compose \
-  -f infra/local/docker-compose.qdrant-single-node.yml \
-  -f infra/local/docker-compose.qdrant-k8s-host.yml \
-  up -d qdrant
+kubectl apply -k infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full \
+  --dry-run=server
 ```
 
-应用 K8s 前必须通过 bridge preflight：
+Before applying through Argo CD, render the first-party overlay and platform
+Helm values locally:
 
 ```bash
-infra/local/staging/preflight-execution-runtime-k8s-docker-bridge.sh
+kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
+pnpm repo:static
 ```
 
-该 preflight 要求 `10.42.0.1` 存在，并确认 `5432`、`6333`、`7233`、
-`8888`、`4318` 只在 K8s host-bind 地址上可达，不允许 stateful dependency
-暴露到 `0.0.0.0`。
-
-K8s runtime env 由远端 ops-owned env / artifact 生成，不提交到 repo。必须通过
-staging env loader 渲染，不能直接从原始 env file 创建 Secret 或 ConfigMap；否则会漏掉
-provider projection、runtime release 与 runtime-generated secret，或把非敏感配置误放进 Secret：
+The Traefik controller is Helm-managed. Shadow mode binds `18080/18443`, so it
+can be installed while Docker Traefik still owns `80/443`. After Argo CD owns
+the Application, use Argo CD sync rather than direct `helm upgrade`; direct Helm
+rendering is for preflight only:
 
 ```bash
-infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
+helm repo add traefik https://traefik.github.io/charts
+helm repo update traefik
+helm template traefik-staging traefik/traefik \
+  --version 41.0.1 \
+  --namespace ingress-system \
+  -f infra/gitops/values/traefik/nc-arm-6c-shadow.yaml
 ```
 
-渲染前必须确认 `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 与
-`QDRANT_TLS_CA_CERT_PATH` 指向真实文件。渲染结果必须包含真实
-`EXECUTION_CONTROL_RUNTIME_RELEASE`，例如 `execution-control@<sha>`，不得使用占位值。
-默认 `EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`，渲染结果必须包含
-`execution-runtime-rendered-config`、`execution-control-secrets`、
-`execution-control-metrics-secrets`、`execution-telemetry-client-secrets`、
-`execution-run-projection-secrets`、`execution-temporal-workflow-secrets`、
-`execution-agent-client-secrets`、
-`agent-runtime-secrets`、`execution-memory-client-secrets`、
-`execution-rag-secrets`、`execution-tool-read-model-secrets`、
-`execution-control-internal-query-secrets`、`execution-runtime-provider-config-projection` 与
-`execution-runtime-qdrant-tls-ca`。不要创建已退役的单体
-`execution-runtime-secrets`、`execution-runtime-common-secrets` 或
-`execution-worker-common-secrets`。非敏感 endpoint / path / runtime release 配置进入
-`execution-runtime-rendered-config`，token / password / DSN / key 进入对应
-role-scoped Secret。模型/provider active profile 不进入 ConfigMap / Secret；online
-runtime 通过 `execution-runtime-provider-config-projection` 文件消费。typed
-read-model tools 通过 `execution-tool-read-model-secrets` 消费
-`CAMPUS_SHARED_POSTGRES_URL`。
-`EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` 是 product/operator sanitized run
-projection store；`EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL` 是 trace-observability
-workflow-run store。二者不得互相替代，也不得从 `CAMPUS_SHARED_POSTGRES_URL` 隐式推导。
-`staging-full` profile 仅用于全量 K8s proof，会额外渲染
-`execution-telemetry-collector-config`、`execution-telemetry-collector-secrets` 与
-`execution-app-api-internal-secrets`、`execution-stateful-runtime-secrets`，分别服务
-in-cluster OTel collector、app-api internal projection publishers、Hindsight /
-Temporal stateful runtime；这些资源不是 `nc-arm-6c-slim` 默认 inventory。
-`execution-runtime-provider-config-projection` 只能由渲染器从
-`CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH` 指向的
-`provider_config_projection.v1` artifact 创建，不能在
-`infra/k8s/execution-runtime/base/secret.example.yaml` 中手写 profile。notice body
-object-store 凭据与 Qdrant admin/read-only lifecycle key 不属于当前
-`nc-arm-6c-slim` execution-runtime Secret inventory；notice body 路径开放或
-ingestion / backup / restore 任务需要这些 key 时，必须由对应 owner 的 delivery
-contract 单独声明。
-
-在 apply slim overlay 前，必须停止 Docker 中会重复消费 Temporal queue 的
-`execution-control`、`agent-runtime` 和 worker 容器；Temporal、Hindsight、
-Qdrant、Postgres 与 OTel 保持运行。
+Shadow route proof uses the real host header against `18443`:
 
 ```bash
-kubectl apply -k infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+curl -k --resolve execution-control-staging.mucwiki-edge.link:18443:127.0.0.1 \
+  https://execution-control-staging.mucwiki-edge.link:18443/healthz
 ```
 
-Rollback 固定为删除 slim overlay 后恢复 Docker runtime：
+Cutover to `80/443` requires a backup and reversible stop point:
 
-```bash
-kubectl delete -k infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
-docker compose \
-  -f infra/local/docker-compose.execution-control-runtime.yml \
-  -f infra/local/docker-compose.execution-control-runtime.staging.yml \
-  up -d execution-control agent-runtime workflow-worker \
-    activity-worker-core activity-worker-agent activity-worker-knowledge
-```
+1. Snapshot Docker volumes / bind mounts for Postgres, Temporal Postgres,
+   Hindsight Postgres and Qdrant before any restore into PVCs.
+2. Stop only the Docker containers being replaced by full K8s.
+3. Sync platform/data Applications and wait for CNPG, Qdrant, Temporal,
+   Hindsight and OTel readiness.
+4. Sync `execution-runtime-staging` and wait for first-party runtime readiness.
+5. Switch Traefik values to `infra/gitops/values/traefik/nc-arm-6c-cutover.yaml`
+   through the GitOps Application.
+6. Run staging chat E2E and operator projection closeout.
+
+Do not apply cutover values while Docker Traefik still binds `80/443`.
 
 ## Bootstrap
 
 1. Install Argo CD into the target cluster namespace `argocd`.
-2. Apply `infra/gitops/apps/platform-external-secrets.yaml`.
-3. Wait for External Secrets Operator CRDs and controller pods to become ready.
+2. Select and prepare one Kubernetes secret delivery path:
+   - manual Kubernetes Secrets for small self-hosted installs;
+   - `infra/gitops/apps/platform-sealed-secrets.yaml` as the recommended
+     self-hosted/open-source GitOps path;
+   - `infra/gitops/apps/platform-external-secrets.yaml` only when an external
+     secret manager backend is selected;
+   - SOPS only when its decrypt integration and key lifecycle are owned by the
+     deployment.
+3. Ensure the required role-scoped Kubernetes Secrets exist, or that the chosen
+   GitOps secret delivery resources will create them before dependent
+   workloads sync.
 4. Apply `infra/gitops/apps/platform-keda.yaml`.
 5. Wait for KEDA CRDs and controller pods to become ready.
-6. Add reviewed `ExternalSecret` / `SecretStore` references under
-   `infra/gitops/secrets/` after the backend is selected.
-7. Apply `infra/gitops/apps/execution-runtime-staging.yaml` and
+6. Apply `infra/gitops/apps/platform-cloudnativepg.yaml`.
+7. Wait for CloudNativePG CRDs and controller pods to become ready.
+8. Add reviewed secret delivery references or encrypted secret manifests under
+   `infra/gitops/secrets/` only for the chosen backend.
+9. Apply `infra/gitops/apps/data-postgres-staging.yaml` and wait for the CNPG
+   cluster, roles and databases to become ready.
+10. Apply platform Applications:
+   `infra/gitops/apps/data-qdrant-staging.yaml`,
+   `infra/gitops/apps/platform-temporal-staging.yaml`,
+   `infra/gitops/apps/platform-temporal-alias-staging.yaml`,
+   `infra/gitops/apps/observability-otel-collector-staging.yaml`,
+   `infra/gitops/apps/memory-hindsight-staging.yaml` and
+   `infra/gitops/apps/ingress-traefik-staging.yaml`.
+11. Confirm first-party execution-runtime Secrets and provider projection file
+   are present through the selected secret-delivery path.
+12. Apply `infra/gitops/apps/execution-runtime-staging.yaml` and
    `infra/gitops/apps/dining-sync-staging.yaml`.
 
-Do not use `helm install` or `helm upgrade` directly for KEDA or External
-Secrets after Argo CD owns the Applications. The chart inputs live in Git; Argo
-CD renders Helm and owns lifecycle, sync and drift detection.
+Do not use `helm install` or `helm upgrade` directly for KEDA, External Secrets
+Operator, Sealed Secrets, CNPG, Qdrant, Temporal, OTel, Hindsight or Traefik
+after Argo CD owns the corresponding Application. The chart inputs live in Git;
+Argo CD renders Helm and owns lifecycle, sync and drift detection.
 
-This runbook intentionally does not prescribe the concrete external secret
-backend. The workload contract is stable Kubernetes Secret names; the backend
-selection can be added later without changing first-party Deployment/CronJob
-consumption.
+This runbook intentionally does not prescribe a concrete secret backend. The
+workload contract is stable Kubernetes Secret names; backend selection can be
+manual Secrets, Sealed Secrets, External Secrets Operator or SOPS-backed
+encrypted Secrets without changing first-party Deployment/CronJob consumption.
+For repo-supported self-hosted GitOps, Sealed Secrets is the recommended
+default.
+
+## Retired Local Renderers
+
+Execution-runtime env renderers that emit ConfigMap or Secret YAML from local
+env files are retired. Do not recreate `kubectl create ... --from-env-file`
+helpers for first-party runtime config or secrets. Kustomize owns tracked
+non-secret bootstrap config, and the selected Secret delivery backend owns
+Secret material and projected runtime artifacts.
+
+## Sealed Secrets Operations
+
+Install the controller through Argo CD:
+
+```bash
+kubectl apply -f infra/gitops/apps/platform-sealed-secrets.yaml
+kubectl -n kube-system rollout status deploy/sealed-secrets-controller
+```
+
+Install the `kubeseal` client from the Bitnami Sealed Secrets release or a
+trusted package manager. The repo chart values keep the controller name
+`sealed-secrets-controller` in `kube-system`, matching `kubeseal` defaults.
+
+Fetch and pin the public certificate used for offline sealing:
+
+```bash
+kubeseal --fetch-cert > sealed-secrets-nc-arm-6c.pem
+```
+
+The certificate is public, but operators must still verify it came from the
+intended cluster. Do not commit local plaintext Secret inputs or private
+sealing keys.
+
+Seal one role-scoped Secret for its exact target namespace and name:
+
+```bash
+kubeseal \
+  --format yaml \
+  --cert sealed-secrets-nc-arm-6c.pem \
+  < secret.local.yaml \
+  > infra/gitops/secrets/execution-control-secrets.sealedsecret.yaml
+```
+
+The default Sealed Secrets scope is strict. Keep it strict: do not pass
+`--scope namespace-wide` or `--scope cluster-wide`, and do not commit
+`sealedsecrets.bitnami.com/namespace-wide`,
+`sealedsecrets.bitnami.com/cluster-wide` or equivalent
+`sealedsecrets.bitnami.com/scope` annotations.
+
+Validate a sealed manifest before review:
+
+```bash
+kubeseal --validate < infra/gitops/secrets/execution-control-secrets.sealedsecret.yaml
+pnpm repo:static
+```
+
+Back up the controller sealing key out of band before relying on committed
+SealedSecret resources:
+
+```bash
+kubectl -n kube-system get secret -l sealedsecrets.bitnami.com/sealed-secrets-key \
+  -o yaml > sealed-secrets-key.backup.yaml
+```
+
+Store that backup in the deployment's secret backup system, not in git. Restore
+uses the same namespace and Secret label before the controller starts; after
+restore, restart the controller and validate that existing SealedSecret
+resources still reconcile. Rotation is a deployment operation: generate or
+allow a new sealing key, update the offline certificate, reseal reviewed
+SealedSecret manifests and keep the previous key until all active resources
+have been resealed and reconciled.
+
+Do not commit the local plaintext input Secret, fetched certificate or sealing
+key backup. `.gitignore` covers the runbook examples, and
+`pnpm repo:static` rejects obvious local/backup manifests under
+`infra/gitops/secrets/`.
+
+## Temporal Helm Operations
+
+`platform-temporal-staging` uses the pinned Temporal Helm chart with external
+CNPG databases. CNPG owns creation of the `temporal` and
+`temporal_visibility` databases; Temporal Helm sets `createDatabase: false` and
+`manageSchema: true`, so the chart only installs/updates Temporal schema.
+
+The Temporal schema Job is rendered as a Helm hook. Do not add Argo CD native
+hook annotations to the same Application or its sibling alias Application;
+Argo CD ignores Helm hooks when Argo CD hooks are present in that app. The
+Application also sets `helm.skipTests: true` so the chart test Pod is not part
+of desired state. Runtime health must be proven through readiness and Temporal
+runtime proof commands, not Helm test hooks.
+
+Hindsight UI/control-plane/worker and Temporal UI are disabled by default. They
+may be enabled temporarily by a reviewed values change or an operator-owned
+script for diagnostics; they are not part of always-on online serving.
+
+Qdrant's upstream Helm test hook is disabled in the Argo CD Application because
+it expects API keys as Helm values. This repo expects the chosen secret
+delivery path to produce `qdrant-server-secrets/local.yaml`, which is mounted
+into the Qdrant pod; Qdrant validation must use Kubernetes readiness and runtime
+smoke, not the chart's values-driven test hook.
+
+CloudNativePG pgvector ImageVolume usage requires PostgreSQL 18+, Kubernetes
+1.35+ or ImageVolume feature gate enabled on Kubernetes 1.33/1.34, and a
+container runtime with ImageVolume support such as containerd 2.1+ or CRI-O
+1.31+. Verify the actual nc-arm-6c cluster server version and runtime before
+syncing `data-postgres-staging`.
 
 ## Ownership Checks
 
@@ -188,7 +279,13 @@ consumption.
 Do not describe K8s/Argo CD as live staging truth until these are all true:
 
 - Argo CD is installed in the target cluster.
-- `platform-keda` and `platform-external-secrets` sync successfully.
+- `platform-keda` and `platform-cloudnativepg` sync successfully; if the
+  deployment selected External Secrets Operator, `platform-external-secrets`
+  also syncs successfully.
+- `data-postgres-staging`, `data-qdrant-staging`,
+  `platform-temporal-staging`, `platform-temporal-alias-staging`,
+  `observability-otel-collector-staging`, `memory-hindsight-staging` and
+  `ingress-traefik-staging` sync successfully.
 - `execution-runtime-staging` syncs and all pods pass readiness.
 - app-api staging points to the K8s execution-control ingress/service.
 - A real staging chat closeout and runtime projection closeout artifact have passed.

@@ -191,11 +191,10 @@ The accepted Hindsight provider-config roles are `hindsight_llm` and
 app-api does not proxy Hindsight model traffic and does not call Hindsight API
 directly.
 
-Local development generates self-host runtime bundle secrets in
-`infra/local/.generated/runtime.env`. This file is ignored by git and may
-contain local runtime secrets. Staging / production must use their ops-owned
-secret store or generated runtime secrets file; repo-local generated files are
-not valid deployment inputs.
+Local development must provide self-host runtime secrets through explicit local
+env or a developer-owned local platform Secret. Staging / production must use
+the selected Kubernetes Secret backend. Repo-local generated runtime env files
+are retired and are not valid deployment inputs.
 
 The repo-owned memory evidence taxonomy / score profile is
 `hindsight-memory-product-path`, which names append, append operation status /

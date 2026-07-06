@@ -138,13 +138,13 @@ describe("campus docs Rspress build boundary", () => {
 
 	it("loads local object-store env without importing Worker runtime vars before published reader sync", () => {
 		const localEnvScript = readFileSync(join(appDir, "scripts", "run-with-local-env.mjs"), "utf8");
+		const retiredProjector = `${["project", "local", "runtime", "env"].join("-")}.mjs`;
 
 		expect(localEnvScript).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
 		expect(localEnvScript).toContain('resolve(appDir, ".env")');
-		expect(localEnvScript).toContain("project-local-runtime-env.mjs");
-		expect(localEnvScript).toContain("--target");
-		expect(localEnvScript).toContain("host");
-		expect(localEnvScript).toContain("--skip-hindsight-provider-config");
+		expect(localEnvScript).not.toContain(retiredProjector);
+		expect(localEnvScript).not.toContain("--target");
+		expect(localEnvScript).not.toContain("--skip-hindsight-provider-config");
 		expect(localEnvScript).not.toContain('resolve(appDir, ".dev.vars")');
 		expect(localEnvScript).not.toContain("minioadmin");
 		expect(localEnvScript).not.toContain("OBJECT_STORE_ENDPOINT=");

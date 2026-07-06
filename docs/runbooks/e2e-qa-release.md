@@ -62,18 +62,35 @@ git diff --check | tee "$E2E_QA_CLOSEOUT_DIR/git-diff-check.txt"
 静态验证环境，不得作为 staging acceptance source of truth：
 
 ```bash
-ssh nc-arm-6c \
-  'cd /srv/apps/campus-agent && \
-    ./infra/local/staging/status-execution-control-staging.sh --check' \
-  | tee "$E2E_QA_CLOSEOUT_DIR/execution-control-status.txt"
+argocd app get execution-runtime-staging \
+  | tee "$E2E_QA_CLOSEOUT_DIR/execution-runtime-argocd.txt"
+
+argocd app wait execution-runtime-staging --health --sync \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-argocd.txt"
+
+kubectl -n campus-agent-staging get pods,svc,ingress \
+  | tee "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+
+kubectl -n campus-agent-staging rollout status deploy/execution-control \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+kubectl -n campus-agent-staging rollout status deploy/agent-runtime \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+kubectl -n campus-agent-staging rollout status deploy/workflow-worker \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-core \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-agent \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-knowledge \
+  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
 ```
 
 通过标准：
 
-- exit code 为 `0`
-- 输出包含 strict check 通过信息
-- 不出现 `host.docker.internal` 作为 Qdrant runtime URL
-- 不出现固定 `172.*` 服务入口
+- `execution-runtime-staging` 为 Synced/Healthy
+- first-party runtime Deployments rollout 成功
+- pods 不处于 CrashLoopBackOff、ImagePullBackOff 或 Pending
+- execution-control readiness 由 app-api `/readyz` 的 dependency status 进一步证明
 
 ## 3. Public Surface Health
 
@@ -98,8 +115,8 @@ done | tee "$E2E_QA_CLOSEOUT_DIR/surface-health.txt"
   `docs:gated:smoke:staging` 共同证明
 - endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
 - execution-control readiness 由
-  `infra/local/staging/status-execution-control-staging.sh --check` 与
-  `api-staging /readyz` 的 `executionControl` / `executionRuntime` dependency 证明
+  K8s rollout status 与 `api-staging /readyz` 的 `executionControl` /
+  `executionRuntime` dependency 证明
 
 ## 4. Chat E2E
 

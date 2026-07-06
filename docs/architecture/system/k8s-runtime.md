@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-16
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 # Kubernetes Execution Runtime Architecture
 
@@ -201,50 +201,127 @@ Execution-runtime K8s manifests live at:
 ```text
 infra/k8s/execution-runtime/base
 infra/k8s/execution-runtime/overlays/staging
-infra/k8s/execution-runtime/overlays/nc-arm-6c-staging
+infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
 ```
 
 They use Kustomize/raw YAML and intentionally exclude `campus-web`,
 `operator-console-web` and `app-api`, which remain Cloudflare Worker surfaces.
-The manifests describe internal execution-plane workloads only:
+The execution-runtime manifests describe first-party internal execution-plane
+workloads only:
 
-- self-hosted Temporal and Temporal Postgres
 - `execution-control` internal Service / Deployment
 - `agent-runtime`
-- Hindsight API and Hindsight Postgres
-- OTel collector
 - workflow/activity worker Deployments
 - Temporal task queue sampler
 - KEDA/HPA posture collector
 - one KEDA `ScaledObject` per worker Deployment
 
-The `nc-arm-6c-staging` overlay is a constrained migration overlay, not a new
-architecture truth for stateful services. Stateful HA decisions remain separate
-and require multiple failure domains or managed services.
+They do not own StatefulSets, platform databases, Qdrant server lifecycle,
+Temporal server lifecycle, Hindsight API lifecycle, OTel collector lifecycle or
+Traefik controller lifecycle.
+
+The `nc-arm-6c-staging-full` overlay is the single-node first-party execution
+runtime full proof. It owns only `execution-control`, `agent-runtime`, worker
+pools and first-party KEDA/posture support. Platform stateful and observability
+components enter Kubernetes through their own GitOps Applications:
+
+- `platform-cloudnativepg` installs the CloudNativePG operator.
+- `data-postgres-staging` declares the CNPG-managed projection / Temporal /
+  Hindsight databases.
+- `data-qdrant-staging` installs Qdrant through the pinned Qdrant Helm chart.
+- `platform-temporal-staging` installs Temporal through the pinned Temporal
+  Helm chart.
+- `platform-temporal-alias-staging` publishes the stable `temporal:7233`
+  service alias consumed by first-party workers and KEDA.
+- `memory-hindsight-staging` installs the Hindsight API with external model
+  providers, external Postgres and UI/control-plane/worker disabled by default.
+- `observability-otel-collector-staging` installs the OTel collector through the
+  pinned OpenTelemetry Collector Helm chart.
+- `ingress-traefik-staging` installs the non-default staging Traefik ingress
+  controller.
+
+This proves substrate shape only; it is not HA production evidence. Stateful HA
+decisions remain separate and require multiple failure domains or managed
+services.
+
+### Postgres Deployment Topology
+
+Kubernetes deployments may choose either a shared Postgres cluster with
+separate databases/roles or separate Postgres clusters per runtime owner.
+
+The stable contract is owner separation, not physical cluster count:
+
+- Temporal uses its own `temporal` and `temporal_visibility` databases.
+- Hindsight uses its own `hindsight` database and role.
+- Product/operator projections use their own database/schema owner.
+- Ingestion registry/data-plane databases are optional and belong to ingestion
+  deployments, not the online execution runtime.
+
+A single Postgres cluster with multiple databases and roles is an accepted
+self-hosted deployment shape when the operator wants fewer pods, fewer PVCs and
+lower baseline memory. This shape shares one database engine failure domain, so
+backups, restore tests and resource limits must be managed accordingly.
+
+Separate Postgres clusters are the stronger isolation shape. They are preferred
+when an operator needs independent failure domains, backup/restore schedules,
+maintenance windows, performance tuning or migration cadence per owner. They
+cost more baseline CPU, memory, storage and operational surface because each
+cluster owns its own server processes, cache, connections, PVCs and lifecycle.
+
+Charts for Temporal and Hindsight must consume external Postgres endpoints in
+both shapes. Third-party charts must not silently create embedded Postgres
+instances unless the deployment explicitly chooses that chart-owned database
+mode.
+
+### Ingress Controller
+
+nc-arm-6c full staging uses a Helm-managed Traefik controller with the
+non-default ingress class `traefik-staging`. First-party routes are declared in
+the owning Kustomize overlay as Kubernetes `Ingress` resources. Helm values live
+under `infra/gitops/values/traefik`.
+
+The shadow Traefik profile binds host ports `18080/18443` so the K8s ingress
+path can be verified while Docker Traefik still owns `80/443`. Cutover to
+`80/443` requires the Docker Traefik owner to stop or move first; do not let two
+controllers compete for the same host ports.
 
 ### Runtime Config And Secret Resources
 
 Execution-runtime K8s config follows the runtime config taxonomy in
-ADR-0064. Workloads consume non-secret deploy bootstrap values from
-`execution-runtime-rendered-config` and role-scoped secret material from
-separate Secrets such as `execution-control-secrets`,
+ADR-0064. Workloads consume non-secret deploy bootstrap values from the
+tracked `execution-runtime-rendered-config` ConfigMap and role-scoped secret
+material from separate Secrets such as `execution-control-secrets`,
 `execution-control-metrics-secrets`,
 `execution-telemetry-client-secrets`,
 `execution-run-projection-secrets`, `execution-memory-client-secrets`,
 `execution-rag-secrets`, `execution-tool-read-model-secrets`,
 `execution-agent-client-secrets` and `agent-runtime-secrets`.
 
-`execution-runtime-config` is repo-static only and currently owns the
-OTel collector config file. It must not own runtime env keys, provider active
-profiles, DSNs, tokens or release identity. Provider active profiles remain
-app-api provider-config truth and enter K8s only through the generated
+Execution-runtime no longer owns a repo-static `execution-runtime-config`
+ConfigMap for platform collector config. OTel collector config belongs to
+`infra/gitops/values/opentelemetry-collector/staging.yaml` and is rendered by
+the OTel Helm chart. Execution-runtime ConfigMaps must not own provider active
+profiles, DSNs, tokens or platform config files. Release identity may be
+tracked as deploy bootstrap config and must be set by the deployment overlay
+before rollout. Provider active profiles remain app-api provider-config truth
+and enter K8s only through the reviewed
 `execution-runtime-provider-config-projection` artifact.
 
-The `nc-arm-6c-slim` profile intentionally excludes in-cluster stateful and
-telemetry resources. `staging-full` may additionally consume
-`execution-stateful-runtime-secrets`,
-`execution-telemetry-collector-config` and
-`execution-telemetry-collector-secrets` for all-in-K8s proof.
+Local env renderers that emit Kubernetes ConfigMap or Secret YAML from copied
+env files are retired from the execution-runtime path. ConfigMap keys are
+tracked in Kustomize; Secret material is delivered by the selected backend
+described in ADR-0066. Local env may only be an operator input to that backend,
+not a renderer-defined desired state.
+
+The `nc-arm-6c-slim` profile intentionally excludes in-cluster platform
+services and bridges Docker-owned Temporal, Hindsight, Qdrant, projection
+Postgres and OTel through selector-less Services. `staging-full` consumes the
+same first-party runtime Secret set plus `execution-app-api-internal-secrets`
+for internal projection publishing. Platform Secrets such as
+`qdrant-server-secrets`, `qdrant-server-tls`, `temporal-db-secret`,
+`hindsight-api-secrets`, `otel-collector-secrets` and CNPG owner Secrets are
+owned by the selected GitOps secret-delivery path, not execution-runtime
+renderer output.
 
 ### GitOps And Helm Boundary
 
@@ -253,9 +330,9 @@ environment exists. Argo CD is not current Docker staging truth and must not be
 used as evidence that nc-arm-6c has already migrated to Kubernetes.
 
 First-party `campus-agent` execution resources remain Kustomize/raw YAML by
-default. Third-party platform components may be consumed as pinned Helm charts
-through Argo CD, starting with KEDA and External Secrets Operator. Argo CD uses
-Helm only to render third-party charts; Argo CD owns the Application lifecycle.
+default. Third-party platform components are consumed as pinned Helm charts or
+operator-managed custom resources through Argo CD. Argo CD uses Helm only to
+render third-party charts; Argo CD owns the Application lifecycle.
 
 Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
 Hyperdrive bindings, Cloudflare Access policy or app-api provider-config active

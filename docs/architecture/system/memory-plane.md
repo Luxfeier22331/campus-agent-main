@@ -81,15 +81,10 @@ Hindsight API 使用 `HINDSIGHT_API_TENANT_EXTENSION` /
 app-api 不代理 Hindsight 模型流量，也不直接调用 Hindsight API。
 
 `PERSONAL_MEMORY_BASE_URL` 默认由 deployment profile 投影为 internal service DNS，例如
-Docker Compose 内的 `http://hindsight-api:8888`。`PERSONAL_MEMORY_API_SECRET` 与
-`PERSONAL_MEMORY_OWNER_SALT` 由 local / staging lifecycle 首次生成并持久化到
-ops-owned generated env file；开发者不需要手工填写这些内部值。只有部署到外部
-Hindsight endpoint 或轮换 secret / salt 时才应显式覆盖。
-
-local dev 的 self-host runtime secret 由
-`infra/local/scripts/ensure-runtime-secrets.mjs` 生成到
-`infra/local/.generated/runtime.env`。staging lifecycle 生成到 runtime dir 下的
-`secrets/runtime.env`。这些文件属于对应环境 runtime，不进入 repo-tracked env。
+Kubernetes 内的 `http://hindsight-api:8888`。`PERSONAL_MEMORY_API_SECRET` 与
+`PERSONAL_MEMORY_OWNER_SALT` 由所选 Secret backend 持有并注入运行时。开发环境必须通过
+显式 local env 或本地平台 Secret 提供这些值；repo 不再生成 self-host runtime secret
+bundle。
 
 `PERSONAL_MEMORY_OWNER_SALT` 用于把 `tenant_id + user_id` 派生为 scoped Hindsight
 bank id，并把 scoped bank id + 产品侧 `conversation_id` 派生为 Hindsight

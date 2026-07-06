@@ -4,8 +4,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
-export const DEFAULT_STAGING_RUNTIME_ENV_FILE = "/srv/docker/campus-agent/staging/env/runtime.env";
-
 export function loadRepoEnvFile(importMetaUrl, repoRootRelativePath = ".") {
 	const scriptDir = dirname(fileURLToPath(importMetaUrl));
 	const repoRoot = resolve(scriptDir, repoRootRelativePath);
@@ -28,27 +26,20 @@ export function loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath = "."
 		process.env.STAGING_RUNTIME_ENV_FILE?.trim() ||
 		process.env.EXECUTION_CONTROL_STAGING_ENV_FILE?.trim() ||
 		"";
-	const runtimeEnvPath = explicitEnvPath || DEFAULT_STAGING_RUNTIME_ENV_FILE;
+	const runtimeEnvPath = explicitEnvPath;
 
-	try {
+	if (runtimeEnvPath) {
 		loadEnvFileWithoutOverridingExisting(runtimeEnvPath);
 		return {
 			repoEnvPath,
 			runtimeEnvPath,
 			source: "ops-runtime",
 		};
-	} catch (error) {
-		if (
-			explicitEnvPath ||
-			!(error instanceof Error && "code" in error && error.code === "ENOENT")
-		) {
-			throw error;
-		}
 	}
 
 	return {
 		repoEnvPath,
-		runtimeEnvPath,
+		runtimeEnvPath: "",
 		source: "environment",
 	};
 }

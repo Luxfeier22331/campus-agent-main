@@ -1,0 +1,47 @@
+fullnameOverride: hindsight
+version: "0.8.4"
+
+existingSecret: hindsight-api-secrets
+
+api:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  persistence:
+    modelCache:
+      enabled: false
+  env:
+    HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+    HINDSIGHT_API_LLM_PROVIDER: openai
+    HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+
+worker:
+  enabled: false
+
+controlPlane:
+  enabled: false
+
+postgresql:
+  enabled: false
+  external:
+    host: campus-agent-postgres-rw
+    port: 5432
+    database: hindsight
+    username: hindsight
+
+tei:
+  reranker:
+    enabled: false
+  embedding:
+    enabled: false
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false

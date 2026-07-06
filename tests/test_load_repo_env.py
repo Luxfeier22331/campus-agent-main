@@ -55,7 +55,7 @@ class LoadRepoStagingEnvFileTest(unittest.TestCase):
             {
                 "loaded": {
                     "repoEnvPath": str(temp_root / ".env"),
-                    "runtimeEnvPath": "/srv/docker/campus-agent/staging/env/runtime.env",
+                    "runtimeEnvPath": "",
                     "source": "environment",
                 },
                 "BASE_ONLY": "base",

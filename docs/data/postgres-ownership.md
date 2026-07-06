@@ -58,7 +58,8 @@ repo root `.env` 的 canonical runtime key 固定为：
 这表示：
 
 - 它是 repo 共享 Postgres truth，不是某个 app 的专属数据库
-- app-local env 可以从它 fan out，但不得反向把 app-local DSN 重新写成 repo shared truth
+- app-local env 可以显式填写同一数据库的 owner-specific DSN，但不得反向把
+  app-local DSN 重新写成 repo shared truth，也不得通过 repo 脚本批量 fan out
 - domain-specific database env 名称只保留为显式 override，不再承载“共享库 canonical name”语义
 
 ## Connectivity Posture

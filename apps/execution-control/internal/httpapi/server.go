@@ -259,16 +259,10 @@ func NewServerWithDependencies(
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
-		StructuredProjectionDatabaseURL:     cfg.StructuredProjectionDatabaseURL,
-		TrustedTimeRFC3339:                  cfg.ToolReadModelTrustedTimeRFC3339,
-		NoticeReadModelDatabaseURL:          cfg.NoticeReadModelDatabaseURL,
-		NoticeReadModelTable:                cfg.NoticeReadModelTable,
-		NoticeBodyObjectStoreEndpoint:       cfg.NoticeBodyObjectStoreEndpoint,
-		NoticeBodyObjectStoreAccessKey:      cfg.NoticeBodyObjectStoreAccessKey,
-		NoticeBodyObjectStoreSecretKey:      cfg.NoticeBodyObjectStoreSecretKey,
-		NoticeBodyObjectStoreRegion:         cfg.NoticeBodyObjectStoreRegion,
-		NoticeBodyObjectStoreBucket:         cfg.NoticeBodyObjectStoreBucket,
-		NoticeBodyObjectStoreBodyLimitBytes: cfg.NoticeBodyObjectStoreBodyLimitBytes,
+		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
+		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
+		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
+		NoticeReadModelTable:            cfg.NoticeReadModelTable,
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)

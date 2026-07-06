@@ -38,8 +38,16 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("worker config surface", (py, "-m", "scripts.check_worker_config_surface")),
         StaticCheck("gitops skeleton", (py, "-m", "scripts.check_gitops_skeleton")),
         StaticCheck(
-            "k8s execution runtime slim overlay",
-            (py, "-m", "scripts.check_k8s_execution_runtime_slim_overlay"),
+            "retired runtime helpers",
+            (py, "-m", "scripts.check_retired_runtime_helpers"),
+        ),
+        StaticCheck(
+            "k8s config/secret policy",
+            (py, "-m", "scripts.check_k8s_config_secret_policy"),
+        ),
+        StaticCheck(
+            "k8s execution runtime full overlay",
+            (py, "-m", "scripts.check_k8s_execution_runtime_full_overlay"),
         ),
         StaticCheck("html tracked files", (py, "-m", "scripts.check_html_tracked")),
         StaticCheck("yaml tracked files", (py, "-m", "scripts.check_yaml_tracked")),
@@ -159,15 +167,40 @@ def affected_repo_static_checks(
         checks.append(
             StaticCheck("gitops skeleton", (python, "-m", "scripts.check_gitops_skeleton"))
         )
+        checks.append(
+            StaticCheck(
+                "retired runtime helpers",
+                (python, "-m", "scripts.check_retired_runtime_helpers"),
+            )
+        )
+        checks.append(
+            StaticCheck(
+                "k8s config/secret policy",
+                (python, "-m", "scripts.check_k8s_config_secret_policy"),
+            )
+        )
     if any(
-        path.startswith("infra/k8s/execution-runtime/")
-        or path == "scripts/check_k8s_execution_runtime_slim_overlay.py"
+        path.startswith(("infra/k8s/execution-runtime/", "infra/policies/"))
+        or path == "scripts/check_k8s_config_secret_policy.py"
+        or path == "scripts/check_retired_runtime_helpers.py"
         for path in paths
     ):
         checks.append(
             StaticCheck(
-                "k8s execution runtime slim overlay",
-                (python, "-m", "scripts.check_k8s_execution_runtime_slim_overlay"),
+                "retired runtime helpers",
+                (python, "-m", "scripts.check_retired_runtime_helpers"),
+            )
+        )
+        checks.append(
+            StaticCheck(
+                "k8s config/secret policy",
+                (python, "-m", "scripts.check_k8s_config_secret_policy"),
+            )
+        )
+        checks.append(
+            StaticCheck(
+                "k8s execution runtime full overlay",
+                (python, "-m", "scripts.check_k8s_execution_runtime_full_overlay"),
             )
         )
     if any(path.endswith(".html") for path in paths):

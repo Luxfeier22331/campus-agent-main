@@ -123,25 +123,16 @@ NOTICE_BODY_OBJECT_STORE_FORBIDDEN_PATTERNS = (
 NOTICE_BODY_OBJECT_STORE_ALLOWED_PATH_PARTS = (
     "/docs/environment/readiness.md",
     "/docs/runbooks/gitops-k8s.md",
-    "/infra/local/scripts/project-local-runtime-env.mjs",
-    "/infra/local/scripts/project-local-runtime-env.test.mjs",
     "/tests/infra/test_execution_control_architecture_residue.py",
-    "/tests/infra/test_execution_control_notice_runtime_env_boundary.py",
-    "/tests/infra/test_execution_runtime_k8s_secret_renderer.py",
     "/tests/test_execution_control_process_smoke_plan.py",
 )
 
 EXECUTION_RUNTIME_ADMIN_QDRANT_ALLOWED_PATH_PARTS = (
-    "/configs/runtime/k8s-execution-runtime-env-boundary.v1.json",
     "/docs/architecture/system/data-plane.md",
     "/docs/environment/providers.md",
     "/docs/runbooks/gitops-k8s.md",
     "/infra/gitops/secrets/README.md",
-    "/infra/k8s/execution-runtime/base/secret.example.yaml",
     "/tests/infra/test_execution_control_architecture_residue.py",
-    "/tests/infra/test_execution_control_staging_deploy_boundary.py",
-    "/tests/infra/test_execution_control_notice_runtime_env_boundary.py",
-    "/tests/infra/test_execution_runtime_k8s_secret_renderer.py",
 )
 
 ONLINE_PYTHON_BRIDGE_FORBIDDEN_PATTERNS = (
@@ -162,9 +153,6 @@ ONLINE_PYTHON_BRIDGE_PATHS = (
     "/apps/execution-control/internal/config/",
     "/apps/execution-control/internal/httpapi/server.go",
     "/infra/local/docker-compose.execution-control-runtime.yml",
-    "/infra/local/start-execution-control-runtime.sh",
-    "/infra/local/smoke-execution-control-runtime.sh",
-    "/infra/local/staging/",
 )
 
 TEMPORAL_RAG_GRAPH_FORBIDDEN_PATTERNS = (

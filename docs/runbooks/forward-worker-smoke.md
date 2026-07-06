@@ -54,9 +54,8 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
   ./scripts/bootstrap-shared-product-with-seeds.mjs`
 - 做 campus-web docs build 前，repo-local MinIO 应已运行并包含
   `campus-agent-source` / `campus-agent-derived` bucket。`campus-web` 本地 build
-  通过 `apps/campus-web/scripts/run-with-local-env.mjs` 消费
-  `infra/local/scripts/project-local-runtime-env.mjs --target host`，不要求当前 shell
-  手写 `OBJECT_STORE_*`
+  通过 `apps/campus-web/scripts/run-with-local-env.mjs` 读取 root/app explicit env；
+  `OBJECT_STORE_*` 必须来自显式 local env 或平台注入
 
 ## 标准命令
 

@@ -15,7 +15,6 @@ const args = [
 	"--expect-model-execution-state",
 	"go_provider_synthesis_completed",
 	"--restart-campus-web",
-	"--restart-execution-control-runtime",
 ];
 
 const child = spawn("pnpm", args, {

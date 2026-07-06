@@ -4,13 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts.env_sync import parse_env_file, resolve_source_env_path
-
-SOURCE_REQUIRED_KEYS = (
-    "SENTRY_DSN",
-    "APP_API_OTEL_INGEST_ENDPOINT",
-    "APP_API_OTEL_INGEST_SHARED_SECRET",
-)
+from scripts.env_sync import parse_env_file
 
 OBSERVABILITY_TARGET_REQUIREMENTS = {
     "apps/app-api/.dev.vars": {
@@ -21,11 +15,6 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "APP_API_OTEL_INGEST_ENDPOINT",
             "APP_API_OTEL_INGEST_SHARED_SECRET",
         ),
-        "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN",
-            "APP_API_OTEL_INGEST_ENDPOINT": "APP_API_OTEL_INGEST_ENDPOINT",
-            "APP_API_OTEL_INGEST_SHARED_SECRET": "APP_API_OTEL_INGEST_SHARED_SECRET",
-        },
     },
     "apps/operator-console-web/.dev.vars": {
         "required_keys": (
@@ -33,9 +22,6 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_ENVIRONMENT",
             "SENTRY_RELEASE",
         ),
-        "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN",
-        },
     },
     "apps/campus-web/.dev.vars": {
         "required_keys": (
@@ -43,9 +29,6 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_ENVIRONMENT",
             "SENTRY_RELEASE",
         ),
-        "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN",
-        },
     },
 }
 
@@ -58,14 +41,10 @@ def collect_worker_observability_status(
     repo_root: Path,
     source_env_path: Path | None = None,
 ) -> dict[str, object]:
-    source_path = source_env_path or resolve_source_env_path(repo_root)
-    if not source_path.exists():
-        raise FileNotFoundError(f"Source env file not found: {source_path}")
-
-    source_values = parse_env_file(source_path)
-    source_missing = [
-        key for key in SOURCE_REQUIRED_KEYS if not _normalize_value(source_values, key)
-    ]
+    if source_env_path is not None:
+        raise ValueError(
+            "--source-env was retired; Worker observability checks now read app-local .dev.vars only."
+        )
     targets: dict[str, object] = {}
 
     for relative_path, requirement in OBSERVABILITY_TARGET_REQUIREMENTS.items():
@@ -74,31 +53,16 @@ def collect_worker_observability_status(
         missing_keys = [
             key for key in requirement["required_keys"] if not _normalize_value(target_values, key)
         ]
-        mismatched_keys = [
-            target_key
-            for target_key, source_key in requirement["source_mapping"].items()
-            if _normalize_value(target_values, target_key)
-            and _normalize_value(source_values, source_key)
-            and _normalize_value(target_values, target_key)
-            != _normalize_value(source_values, source_key)
-        ]
-        target_ready = target_path.exists() and not missing_keys and not mismatched_keys
+        target_ready = target_path.exists() and not missing_keys
         targets[relative_path] = {
             "exists": target_path.exists(),
             "missing_keys": missing_keys,
-            "mismatched_keys": mismatched_keys,
             "ready": target_ready,
         }
 
-    overall_ready = not source_missing and all(bool(target["ready"]) for target in targets.values())
+    overall_ready = all(bool(target["ready"]) for target in targets.values())
     return {
         "overall_ready": overall_ready,
-        "recommended_sync_command": (
-            "uv run --all-packages python -m scripts.sync_worker_observability_env"
-        ),
-        "source_env_path": str(source_path),
-        "source_ready": not source_missing,
-        "source_missing_keys": source_missing,
         "targets": targets,
     }
 
@@ -106,8 +70,8 @@ def collect_worker_observability_status(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Check whether root-worktree observability values are present and correctly "
-            "fanned out into app-local Worker .dev.vars files."
+            "Check whether app-local Worker .dev.vars files contain the observability "
+            "keys required for local Worker smoke."
         )
     )
     parser.add_argument(
@@ -120,7 +84,7 @@ def parse_args() -> argparse.Namespace:
         "--source-env",
         type=Path,
         default=None,
-        help="Optional explicit source .env path. Defaults to the root worktree .env.",
+        help="Retired. Worker observability checks read app-local .dev.vars only.",
     )
     parser.add_argument(
         "--json",
@@ -132,21 +96,11 @@ def parse_args() -> argparse.Namespace:
 
 def _print_text_report(status: dict[str, object]) -> None:
     print(f"overall_ready={status['overall_ready']}")
-    print(f"source_env_path={status['source_env_path']}")
-    print(f"source_ready={status['source_ready']}")
-    source_missing = status["source_missing_keys"]
-    if source_missing:
-        print("source_missing_keys=" + ",".join(source_missing))
 
     for relative_path, target in status["targets"].items():
         print(f"{relative_path}: ready={target['ready']} exists={target['exists']}")
         if target["missing_keys"]:
             print(f"{relative_path}: missing_keys=" + ",".join(target["missing_keys"]))
-        if target["mismatched_keys"]:
-            print(f"{relative_path}: mismatched_keys=" + ",".join(target["mismatched_keys"]))
-
-    if not status["overall_ready"]:
-        print("recommended_sync_command=" + str(status["recommended_sync_command"]))
 
 
 def main() -> int:

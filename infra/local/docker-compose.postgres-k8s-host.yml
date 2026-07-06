@@ -1,4 +1,0 @@
-services:
-  postgres:
-    ports: !override
-      - "${EXECUTION_CONTROL_K8S_HOST_BIND_IP:-10.42.0.1}:${LOCAL_POSTGRES_PORT:-5432}:5432"

@@ -1,0 +1,32 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: campus-agent-postgres
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.0-trixie
+  bootstrap:
+    initdb:
+      database: campus_agent
+      owner: campus_agent
+      secret:
+        name: campus-agent-postgres-campus-agent-owner
+  postgresql:
+    extensions:
+      - name: pgvector
+        image:
+          reference: ghcr.io/cloudnative-pg/pgvector:0.8.1-18-trixie
+  storage:
+    size: 30Gi
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      memory: 1536Mi
+  monitoring:
+    enablePodMonitor: false

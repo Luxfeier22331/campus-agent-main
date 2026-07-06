@@ -96,13 +96,9 @@ Shared product database bootstrap and reconciliation entry points live under
 The fixed shared product schemas include `app_auth.*` and `chat.*`.
 
 Local Wrangler / Drizzle process env lives in `apps/app-api/.env`; Worker string
-env for local runtime lives in `apps/app-api/.dev.vars`. When root `.env`
-contains `CAMPUS_SHARED_POSTGRES_URL`, generate local app-api database env with:
-
-```bash
-uv run --all-packages python -m scripts.sync_app_api_local_db_env \
-  --repo-root <current-worktree-root>
-```
+env for local runtime lives in `apps/app-api/.dev.vars`. Fill these app-local
+files directly from the owning local secret store or deployment runbook; do not
+fan out database URLs from the root worktree `.env`.
 
 ## Deployment Notes
 

@@ -33,16 +33,6 @@ func NewRuntime(options Options) *Runtime {
 		})
 	}
 	noticeBodyStore := options.NoticeBodyStore
-	if noticeBodyStore == nil {
-		noticeBodyStore = NewS3NoticeBodyStore(NoticeS3Options{
-			Endpoint:     strings.TrimSpace(options.NoticeBodyObjectStoreEndpoint),
-			AccessKey:    strings.TrimSpace(options.NoticeBodyObjectStoreAccessKey),
-			SecretKey:    strings.TrimSpace(options.NoticeBodyObjectStoreSecretKey),
-			Region:       strings.TrimSpace(options.NoticeBodyObjectStoreRegion),
-			Bucket:       strings.TrimSpace(options.NoticeBodyObjectStoreBucket),
-			MaxBodyBytes: options.NoticeBodyObjectStoreBodyLimitBytes,
-		})
-	}
 	runtime := &Runtime{
 		campusServicesOpsReleaseStore:   campusServicesOpsReleaseStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,

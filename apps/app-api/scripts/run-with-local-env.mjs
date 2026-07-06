@@ -10,10 +10,8 @@ const repoRoot = resolve(appDir, "../..");
 const repoEnvPath = resolve(repoRoot, ".env");
 const localEnvPath = resolve(appDir, ".env");
 const localDevVarsPath = resolve(appDir, ".dev.vars");
-const generatedRuntimeEnvPath = resolve(repoRoot, "infra/local/.generated/runtime.env");
 
-await projectLocalRuntimeEnv();
-for (const path of [repoEnvPath, localEnvPath, localDevVarsPath, generatedRuntimeEnvPath]) {
+for (const path of [repoEnvPath, localEnvPath, localDevVarsPath]) {
 	loadEnvFileIfPresent(path);
 }
 
@@ -47,30 +45,6 @@ child.on("error", (error) => {
 	console.error(error instanceof Error ? error.message : String(error));
 	process.exit(1);
 });
-
-async function projectLocalRuntimeEnv() {
-	const { spawnSync } = await import("node:child_process");
-	const result = spawnSync(
-		process.execPath,
-		[
-			resolve(repoRoot, "infra/local/scripts/project-local-runtime-env.mjs"),
-			"--repo-root",
-			repoRoot,
-			"--sync-app-api-dev-vars",
-			"--skip-hindsight-provider-config",
-			"--format",
-			"env",
-		],
-		{
-			cwd: repoRoot,
-			env: process.env,
-			stdio: "ignore",
-		},
-	);
-	if (result.status !== 0) {
-		throw new Error("failed to project local runtime env");
-	}
-}
 
 function loadEnvFileIfPresent(path) {
 	let content = "";

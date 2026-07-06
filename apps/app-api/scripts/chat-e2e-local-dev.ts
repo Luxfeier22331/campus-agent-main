@@ -8,10 +8,6 @@ const appApiDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appApiDir, "../..");
 const campusWebDir = resolve(repoRoot, "apps/campus-web");
 const campusWebViteBin = resolve(campusWebDir, "node_modules/vite/bin/vite.js");
-const executionControlStartScript = resolve(
-	repoRoot,
-	"infra/local/start-execution-control-runtime.sh",
-);
 const defaultEmail = "help_bot@outlook.com";
 const defaultName = "Campus Agent Smoke";
 const defaultPrompt = "示例大学本科学生国家奖学金评审办法";
@@ -37,7 +33,6 @@ interface LocalDevChatE2eArgs {
 	name: string;
 	prompt: string;
 	restartCampusWeb: boolean;
-	restartExecutionControlRuntime: boolean;
 	startupTimeoutMs: number;
 }
 
@@ -74,7 +69,6 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalD
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
 		name: readArgValue(argv, "--name") ?? defaultName,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
-		restartExecutionControlRuntime: argv.includes("--restart-execution-control-runtime"),
 		restartCampusWeb: argv.includes("--restart-campus-web"),
 		startupTimeoutMs: readPositiveInteger(
 			readArgValue(argv, "--startup-timeout-ms") ??
@@ -97,16 +91,6 @@ function runChecked(command: string, args: string[], cwd: string, env = process.
 	if (result.status !== 0) {
 		throw new Error(`${command} ${args.join(" ")} exited with ${result.status ?? "signal"}.`);
 	}
-}
-
-function startExecutionControlRuntime(args: LocalDevChatE2eArgs): void {
-	runChecked(
-		"bash",
-		args.restartExecutionControlRuntime
-			? [executionControlStartScript, "up", "-d", "--force-recreate", "--no-build"]
-			: [executionControlStartScript],
-		repoRoot,
-	);
 }
 
 function localPortFromUrl(url: string): string | null {
@@ -285,8 +269,10 @@ async function main(argv: string[]): Promise<void> {
 		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev chat E2E.");
 	}
 
-	if (args.restartExecutionControlRuntime || !(await isReadyzReady(args.execReadyzUrl))) {
-		startExecutionControlRuntime(args);
+	if (!(await isReadyzReady(args.execReadyzUrl))) {
+		throw new Error(
+			`Execution-control runtime is not ready at ${args.execReadyzUrl}. Start the runtime through the platform-owned deployment path before running local chat E2E.`,
+		);
 	}
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
 	runChecked(

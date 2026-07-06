@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-12
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 
 # Providers
@@ -116,10 +116,15 @@ Reading model:
   and generated keys.
 - Online runtime uses read-only `QDRANT_QUERY_API_KEY`.
 - Admin `QDRANT_API_KEY` is only for lifecycle, backup, restore or ingestion.
-- K8s execution-runtime Secret inventory must not carry `QDRANT_API_KEY` or
-  `QDRANT_READ_ONLY_API_KEY`; it consumes only `QDRANT_QUERY_API_KEY`.
+- K8s online execution clients must not carry `QDRANT_API_KEY` or
+  `QDRANT_READ_ONLY_API_KEY`; they consume only `QDRANT_QUERY_API_KEY`.
+  Qdrant server keys and TLS material are platform/data GitOps Secret
+  contracts (`qdrant-server-secrets`, `qdrant-server-tls`) and are mounted into
+  the Qdrant Helm release, not rendered by execution-runtime.
 - External endpoint override belongs in ops-owned runtime env and must use HTTPS
-  plus `QDRANT_TLS_CA_CERT_PATH` when crossing substrate/public ingress.
+  plus `QDRANT_TLS_CA_CERT_PATH` when crossing substrate/public ingress. K8s
+  in-cluster Qdrant also enables service TLS because Qdrant API-key transport
+  over plaintext is not admitted.
 - Reference: `../architecture/system/data-plane.md`.
 
 ### Hindsight
@@ -290,8 +295,10 @@ Reading model:
 - Surfaces: `infra/k8s/**` Kustomize overlays and `infra/gitops/**` Argo CD
   skeleton.
 - Rule: ConfigMaps carry non-secret bootstrap handles, Secrets carry delivered
-  secret material, and External Secrets Operator is the target K8s secret
-  delivery layer.
+  secret material, and the concrete K8s secret delivery path is selected by the
+  deployment. Sealed Secrets is the repo-supported self-hosted/open-source
+  GitOps recommended default; manual Kubernetes Secrets, External Secrets
+  Operator and SOPS-backed encrypted Secrets remain valid deployment choices.
 - Helm values are allowed only for third-party platform chart deployment
   parameters. They must not contain provider API keys, DSNs, tokens or app-api
   provider active-profile decisions.

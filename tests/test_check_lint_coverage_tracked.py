@@ -42,8 +42,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("repo:static",),
         )
         self.assertEqual(
-            lint_families_for_path("infra/local/scripts/ensure-runtime-secrets.mjs"),
-            ("web:lint",),
+            lint_families_for_path("apps/app-api/scripts/run-with-local-env.mjs"), ("web:lint",)
         )
         self.assertEqual(
             lint_families_for_path("jobs/dining-sync/src/config.ts"),
@@ -105,10 +104,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("repo:static",),
         )
         self.assertEqual(
-            lint_families_for_path(
-                "infra/local/staging/install-execution-control-staging-task.ps1"
-            ),
-            (),
+            lint_families_for_path("infra/local/docker-compose.qdrant-local.yml"), ("repo:static",)
         )
 
     def test_lint_exclusion_reason_covers_known_deferred_surfaces(self) -> None:

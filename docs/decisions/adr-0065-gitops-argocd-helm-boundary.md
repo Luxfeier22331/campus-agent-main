@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0065
 status: accepted
 created: 2026-07-03
-updated: 2026-07-04
+updated: 2026-07-06
 ---
 # ADR-0065 GitOps Argo CD And Helm Boundary
 
@@ -36,7 +36,10 @@ The initial first-party Kustomize applications are:
 The initial third-party Helm applications are:
 
 - `platform-keda`
-- `platform-external-secrets`
+- `platform-sealed-secrets` as the recommended default self-hosted/open-source
+  secret delivery controller
+- optional `platform-external-secrets` when the deployment selects External
+  Secrets Operator as its secret delivery backend
 
 ## Consequences
 
@@ -48,13 +51,21 @@ The initial third-party Helm applications are:
   installability.
 - Third-party Helm chart versions and values files must be pinned in GitOps
   manifests to avoid automatic drift.
+- Secret delivery backend selection is governed by ADR-0066. Argo CD can manage
+  the selected backend's Kubernetes resources, but first-party workloads depend
+  only on stable Kubernetes Secret names and keys.
+- Argo CD / Kustomize owns tracked non-secret first-party deploy bootstrap
+  ConfigMaps. Local env renderers may be used only for one-off manual bootstrap
+  or migration diagnostics; they must not be documented as the GitOps staging or
+  production path.
 
 ## Alternatives Considered
 
 ### No Helm anywhere
 
 Rejected. It would force the repo to copy and maintain vendor manifests for
-KEDA, External Secrets Operator and other mature platform components.
+KEDA, optional secret delivery controllers and other mature platform
+components.
 
 ### Helm chart every first-party service now
 

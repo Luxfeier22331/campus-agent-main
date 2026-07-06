@@ -72,8 +72,10 @@ owner-boundary 映射。
   - Argo CD 是目标 K8s desired-state reconciler；第三方组件允许 Helm，一方
     workload 默认继续 Kustomize/raw YAML。
 - `adr-0066-secret-delivery.md`
-  - K8s 目标 secret delivery 采用 External Secrets Operator；repo 不提交真实
-    secret，Cloudflare Worker secrets 继续由 Worker secret store 管理。
+  - K8s workload 只依赖稳定 Secret 名称与 key；Sealed Secrets 是自托管 /
+    开源 GitOps 推荐默认路径，manual Secret、External Secrets Operator 或 SOPS
+    仍可由部署者选择；repo 不提交明文 secret，Cloudflare Worker secrets 继续由
+    Worker secret store 管理。
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-tool-routing.md`
 - `adr-0060-agent-llm-io-contract.md`

@@ -1,0 +1,72 @@
+fullnameOverride: qdrant
+
+replicaCount: 1
+
+apiKey: false
+readOnlyApiKey: false
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+      protocol: TCP
+      checksEnabled: true
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+      protocol: TCP
+      checksEnabled: false
+
+ingress:
+  enabled: false
+
+config:
+  cluster:
+    enabled: false
+  service:
+    enable_tls: true
+  tls:
+    cert: /qdrant/tls/tls.crt
+    key: /qdrant/tls/tls.key
+    ca_cert: /qdrant/tls/ca.crt
+
+additionalVolumes:
+  - name: qdrant-server-config
+    secret:
+      secretName: qdrant-server-secrets
+      defaultMode: 0400
+      items:
+        - key: local.yaml
+          path: local.yaml
+  - name: qdrant-server-tls
+    secret:
+      secretName: qdrant-server-tls
+      defaultMode: 0400
+
+additionalVolumeMounts:
+  - name: qdrant-server-config
+    mountPath: /qdrant/config/local.yaml
+    subPath: local.yaml
+    readOnly: true
+  - name: qdrant-server-tls
+    mountPath: /qdrant/tls
+    readOnly: true
+
+persistence:
+  size: 50Gi
+
+snapshotPersistence:
+  enabled: true
+  size: 50Gi
+
+resources:
+  requests:
+    cpu: 150m
+    memory: 512Mi
+  limits:
+    memory: 1536Mi
+
+podDisruptionBudget:
+  enabled: false

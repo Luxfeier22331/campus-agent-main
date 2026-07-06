@@ -42,15 +42,30 @@ class CheckRepoStaticTest(unittest.TestCase):
 
         self.assertIn("docker affected files", labels)
 
-    def test_affected_checks_include_k8s_execution_runtime_slim_overlay(self) -> None:
+    def test_affected_checks_include_k8s_execution_runtime_full_overlay_and_retired_guard(
+        self,
+    ) -> None:
         checks = affected_repo_static_checks(
-            ("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging/kustomization.yaml",),
+            ("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full/kustomization.yaml",),
             py="python",
         )
 
         labels = tuple(check.label for check in checks)
 
-        self.assertIn("k8s execution runtime slim overlay", labels)
+        self.assertIn("retired runtime helpers", labels)
+        self.assertIn("k8s config/secret policy", labels)
+        self.assertIn("k8s execution runtime full overlay", labels)
+
+    def test_affected_checks_include_k8s_policy_for_gitops_secret_changes(self) -> None:
+        checks = affected_repo_static_checks(
+            ("infra/gitops/secrets/runtime.sealedsecret.yaml",),
+            py="python",
+        )
+
+        labels = tuple(check.label for check in checks)
+
+        self.assertIn("gitops skeleton", labels)
+        self.assertIn("k8s config/secret policy", labels)
 
 
 if __name__ == "__main__":

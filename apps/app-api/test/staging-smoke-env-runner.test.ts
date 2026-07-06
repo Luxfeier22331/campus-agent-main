@@ -24,8 +24,10 @@ describe("staging smoke env runner", () => {
 		expect(rootRunWithStagingSmokeEnvSource).toContain("releaseStagingSmokeLock");
 	});
 
-	it("loads the ops-owned staging runtime env before repo-local staging env for smoke scripts", () => {
-		expect(loadRepoEnvSource).toContain("/srv/docker/campus-agent/staging/env/runtime.env");
+	it("loads only explicit ops-owned staging runtime env for smoke scripts", () => {
+		expect(loadRepoEnvSource).not.toContain("/srv/docker/campus-agent/staging/env/runtime.env");
+		expect(loadRepoEnvSource).toContain("STAGING_RUNTIME_ENV_FILE");
+		expect(loadRepoEnvSource).toContain("EXECUTION_CONTROL_STAGING_ENV_FILE");
 		for (const source of [runWithStagingSmokeEnvSource, rootRunWithStagingSmokeEnvSource]) {
 			expect(source).toContain("loadStagingSmokeEnvFile");
 			expect(source).not.toContain("loadRepoStagingEnvFile");

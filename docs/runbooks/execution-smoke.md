@@ -64,29 +64,29 @@ execution origin 为准。
 - 当前 chat answer 质量已经达到 release 标准
 - production execution substrate 已经启用
 
-## Step 1. 启动 canonical execution-control staging runtime
+## Step 1. 确认 canonical execution-control staging runtime
 
-在 `nc-arm-6c:/srv/apps/campus-agent` 使用 repo-owned lifecycle 脚本：
+在 `nc-arm-6c` 对应 K8s cluster 使用 GitOps/Kubernetes 原生状态作为 runtime
+readiness 证据：
 
 ```bash
-infra/local/staging/start-execution-control-staging.sh
-infra/local/staging/status-execution-control-staging.sh --check
+argocd app wait execution-runtime-staging --health --sync
+kubectl -n campus-agent-staging rollout status deploy/execution-control
+kubectl -n campus-agent-staging rollout status deploy/agent-runtime
+kubectl -n campus-agent-staging rollout status deploy/workflow-worker
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-core
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-agent
+kubectl -n campus-agent-staging rollout status deploy/activity-worker-knowledge
+kubectl -n campus-agent-staging get pods,svc,ingress
 ```
 
 最小通过标准：
 
-- `infra/local/staging/status-execution-control-staging.sh --check` 返回 `0`
-- 默认 `docker compose ps` 不包含 `langfuse-*`、`temporal-ui`、
-  `temporal-task-queue-sampler` 或 `worker-autoscaler`。
-
-按需入口：
-
-```bash
-infra/local/staging/start-execution-control-staging.sh --with-ui
-infra/local/staging/start-execution-control-staging.sh --with-langfuse
-infra/local/staging/status-execution-control-staging.sh --check --require-langfuse
-infra/local/staging/stop-execution-control-langfuse.sh
-```
+- `execution-runtime-staging` 为 Synced/Healthy
+- first-party runtime Deployments rollout 成功
+- `kubectl get pods` 不包含 CrashLoopBackOff、ImagePullBackOff 或 Pending
+- Temporal、Hindsight、Qdrant、OTel、Postgres 由对应 platform/data Application
+  提供，不通过 execution-runtime overlay 或 host-bridge 补齐
 
 如果需要重装 machine ingress reverse proxy 或 Cloudflare Access policy，按
 `execution-ops.md` 的 `配置 machine ingress reverse proxy` 执行。
@@ -286,7 +286,8 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 
 至少记录：
 
-- `infra/local/staging/status-execution-control-staging.sh --check`
+- `argocd app get execution-runtime-staging`
+- `kubectl -n campus-agent-staging get pods,svc,ingress`
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
 - `pnpm --dir apps/app-api public-web-search:smoke:staging` 的 JSON 摘要（仅当本轮改动触及
@@ -301,12 +302,7 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 
 如果 smoke 失败且无法快速恢复：
 
-1. 停掉 canonical runtime：
-
-```bash
-infra/local/staging/stop-execution-control-staging.sh
-```
-
 1. 保持 execution upstream 指向 canonical staging runtime，并修复 canonical runtime 或
    `app-api-staging` 配置后重新执行 smoke
-1. 不恢复 legacy dev-backed runtime；如果历史 runtime 仍在运行，先停掉再重试 canonical 启动
+1. 对 first-party runtime 使用 `argocd app rollback execution-runtime-staging <revision>`
+1. 对 platform/data regression 回滚对应 Argo CD Application，并记录依赖名

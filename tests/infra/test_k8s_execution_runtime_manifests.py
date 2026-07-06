@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import re
 import shutil
 import subprocess
 import unittest
@@ -201,15 +199,6 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                 ("secretRef", "execution-rag-secrets"),
                 ("secretRef", "execution-tool-read-model-secrets"),
             ],
-            "hindsight-api": [
-                ("configMapRef", "execution-runtime-rendered-config"),
-                ("secretRef", "execution-stateful-runtime-secrets"),
-            ],
-            "otel-collector": [
-                ("configMapRef", "execution-runtime-rendered-config"),
-                ("configMapRef", "execution-telemetry-collector-config"),
-                ("secretRef", "execution-telemetry-collector-secrets"),
-            ],
             "temporal-task-queue-sampler": [
                 ("configMapRef", "execution-runtime-rendered-config"),
                 ("secretRef", "execution-app-api-internal-secrets"),
@@ -307,55 +296,6 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
 
         self.assertEqual(_deployment_volume_names(deployments["workflow-worker"]), set())
 
-    def test_static_configmap_only_owns_repo_static_files(self) -> None:
-        configmaps = _by_kind_name("ConfigMap")
-        data = configmaps["execution-runtime-config"]["data"]
-        boundary = json.loads(
-            (ROOT / "configs/runtime/k8s-execution-runtime-env-boundary.v1.json").read_text(
-                encoding="utf-8"
-            )
-        )
-
-        self.assertEqual(set(data), {"otel-collector.yaml"})
-        self.assertTrue(
-            set(data).isdisjoint(set(boundary["configmaps"]["execution-runtime-rendered-config"]))
-        )
-        self.assertTrue(
-            set(data).isdisjoint(
-                set(boundary["configmaps"]["execution-telemetry-collector-config"])
-            )
-        )
-
-    def test_static_configmap_env_references_are_declared_in_boundary(self) -> None:
-        configmaps = _by_kind_name("ConfigMap")
-        config = configmaps["execution-runtime-config"]["data"]["otel-collector.yaml"]
-        boundary = json.loads(
-            (ROOT / "configs/runtime/k8s-execution-runtime-env-boundary.v1.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        env_refs = set(re.findall(r"\$\{env:([A-Z0-9_]+)\}", config))
-        declared = {
-            key
-            for section in ("configmaps", "secrets")
-            for keys in boundary[section].values()
-            for key in keys
-        }
-        telemetry_secret_keys = set(boundary["secrets"]["execution-telemetry-collector-secrets"])
-
-        self.assertTrue(env_refs)
-        self.assertEqual(env_refs - declared, set())
-        self.assertEqual(
-            telemetry_secret_keys,
-            {
-                "APP_API_OTEL_INGEST_SHARED_SECRET",
-                "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
-                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
-                "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
-            },
-        )
-        self.assertTrue(telemetry_secret_keys.issubset(env_refs))
-
     def test_execution_control_readyz_probe_uses_internal_auth_header(self) -> None:
         deployments = _by_kind_name("Deployment")
         container = _deployment_container(deployments["execution-control"])
@@ -366,29 +306,6 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         self.assertIn("x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}", readiness[2])
         self.assertIn("http://127.0.0.1:8000/readyz", readiness[2])
         self.assertNotIn("httpGet", container["readinessProbe"])
-
-    def test_static_configmap_does_not_own_provider_active_profiles(self) -> None:
-        configmaps = _by_kind_name("ConfigMap")
-        data = configmaps["execution-runtime-config"]["data"]
-
-        for key in (
-            "HINDSIGHT_API_EMBEDDINGS_PROVIDER",
-            "HINDSIGHT_API_EMBEDDINGS_MODEL",
-            "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL",
-            "HINDSIGHT_API_LLM_PROVIDER",
-            "HINDSIGHT_API_LLM_MODEL",
-            "HINDSIGHT_API_LLM_BASE_URL",
-            "HINDSIGHT_API_RERANKER_PROVIDER",
-            "LLM_BASE_URL",
-            "LLM_MODEL",
-            "EMBEDDING_PROVIDER",
-            "EMBEDDING_BASE_URL",
-            "EMBEDDING_MODEL",
-            "RERANK_BASE_URL",
-            "RERANK_MODEL",
-        ):
-            with self.subTest(key=key):
-                self.assertNotIn(key, data)
 
     def test_only_posture_collector_service_account_can_read_k8s_posture(self) -> None:
         roles = _by_kind_name("Role")
@@ -509,55 +426,37 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         )
 
     def test_release_overlay_cannot_keep_mutable_runtime_identity(self) -> None:
-        config = _by_kind_name("ConfigMap")["execution-runtime-config"]["data"]
-        self.assertNotIn("EXECUTION_CONTROL_RUNTIME_RELEASE", config)
-        self.assertNotIn("EXECUTION_CONTROL_RUNTIME_PROFILE", config)
+        configmaps = _by_kind_name("ConfigMap")
+        self.assertNotIn("execution-runtime-config", configmaps)
 
-    def test_runtime_env_examples_keep_config_and_secret_boundaries(self) -> None:
-        boundary = json.loads(
-            (ROOT / "configs/runtime/k8s-execution-runtime-env-boundary.v1.json").read_text(
-                encoding="utf-8"
-            )
+    def test_runtime_configmap_and_secret_examples_keep_boundaries(self) -> None:
+        config_docs = tuple(
+            doc
+            for doc in yaml.safe_load_all((K8S_ROOT / "configmap.yaml").read_text(encoding="utf-8"))
+            if isinstance(doc, dict) and doc.get("kind") == "ConfigMap"
         )
-        rendered_config_docs = tuple(
+        rendered_configs = {str(doc["metadata"]["name"]): doc["data"] for doc in config_docs}
+        example_configs = tuple(
             doc
             for doc in yaml.safe_load_all(
                 (K8S_ROOT / "configmap-rendered.example.yaml").read_text(encoding="utf-8")
             )
             if isinstance(doc, dict) and doc.get("kind") == "ConfigMap"
         )
-        rendered_configs = {
-            str(doc["metadata"]["name"]): doc["data"] for doc in rendered_config_docs
-        }
-        rendered_secret_docs = tuple(
-            doc
-            for doc in yaml.safe_load_all(
-                (K8S_ROOT / "secret.example.yaml").read_text(encoding="utf-8")
-            )
-            if isinstance(doc, dict) and doc.get("kind") == "Secret"
-        )
-        self.assertNotIn(
-            "execution-runtime-provider-config-projection",
-            {str(doc["metadata"]["name"]) for doc in rendered_secret_docs},
-        )
-        rendered_secret = {key for doc in rendered_secret_docs for key in doc.get("stringData", {})}
+        self.assertFalse((K8S_ROOT / "secret.example.yaml").exists())
 
+        self.assertEqual(set(rendered_configs), {"execution-runtime-rendered-config"})
         self.assertEqual(
-            set(rendered_configs),
-            set(boundary["configmaps"]),
-        )
-        self.assertEqual(
+            set(example_configs[0]["data"]),
             set(rendered_configs["execution-runtime-rendered-config"]),
-            set(boundary["configmaps"]["execution-runtime-rendered-config"]),
         )
         self.assertEqual(
-            set(rendered_configs["execution-telemetry-collector-config"]),
-            set(boundary["configmaps"]["execution-telemetry-collector-config"]),
+            {str(doc["metadata"]["name"]) for doc in example_configs},
+            {"execution-runtime-rendered-config"},
         )
         rendered_config_keys = {
             key for config_data in rendered_configs.values() for key in config_data
         }
-        self.assertTrue(rendered_config_keys.isdisjoint(rendered_secret))
         for key in (
             "EXECUTION_CONTROL_APP_API_BASE_URL",
             "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
@@ -565,18 +464,6 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         ):
             with self.subTest(runtime_non_secret_key=key):
                 self.assertIn(key, rendered_configs["execution-runtime-rendered-config"])
-                self.assertNotIn(key, rendered_secret)
-        for key in (
-            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
-            "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
-            "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
-            "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-            "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
-            "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
-        ):
-            with self.subTest(telemetry_non_secret_key=key):
-                self.assertIn(key, rendered_configs["execution-telemetry-collector-config"])
-                self.assertNotIn(key, rendered_secret)
         for provider_key in (
             "EMBEDDING_MODEL",
             "EMBEDDING_DIMENSIONS",
@@ -585,7 +472,6 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         ):
             with self.subTest(provider_key=provider_key):
                 self.assertNotIn(provider_key, rendered_config_keys)
-                self.assertNotIn(provider_key, rendered_secret)
 
         for key in rendered_config_keys:
             with self.subTest(config_key=key):
@@ -594,7 +480,7 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                     r"(SECRET|PASSWORD|API_KEY|ACCESS_KEY|PRIVATE_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN|TOKEN|SALT)",
                 )
 
-    def test_staging_overlay_does_not_own_runtime_identity(self) -> None:
+    def test_staging_overlay_owns_only_non_secret_runtime_bootstrap_config(self) -> None:
         if shutil.which("kubectl") is None:
             self.skipTest("kubectl is required for kustomize overlay validation")
 
@@ -609,10 +495,16 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
             for doc in yaml.safe_load_all(rendered)
             if isinstance(doc, dict)
             and doc.get("kind") == "ConfigMap"
-            and doc.get("metadata", {}).get("name") == "execution-runtime-config"
+            and doc.get("metadata", {}).get("name") == "execution-runtime-rendered-config"
         ]
         self.assertEqual(len(configs), 1)
-        self.assertEqual(set(configs[0]["data"]), {"otel-collector.yaml"})
+        config_keys = set(configs[0].get("data", {}))
+        for key in config_keys:
+            with self.subTest(config_key=key):
+                self.assertNotRegex(
+                    key,
+                    r"(SECRET|PASSWORD|API_KEY|ACCESS_KEY|PRIVATE_KEY|AUTH_HEADER|AUTH_VALUE|DATABASE_URL|BEARER_TOKEN|TOKEN|SALT)",
+                )
 
 
 if __name__ == "__main__":

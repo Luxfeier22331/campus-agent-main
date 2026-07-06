@@ -248,18 +248,12 @@ First-stage Kubernetes staging manifests live at:
 kubectl kustomize infra/k8s/execution-runtime/overlays/staging
 ```
 
-Before apply, render and apply runtime env resources from the ops-owned staging
-env and artifact paths:
-
-```bash
-infra/local/staging/render-execution-runtime-k8s-env.sh | kubectl apply -f -
-```
-
-The renderer creates `execution-runtime-rendered-config`, the profile-selected
-role-scoped Secrets, `execution-runtime-provider-config-projection`, and
-`execution-runtime-qdrant-tls-ca`. It defaults to
-`EXECUTION_RUNTIME_K8S_ENV_PROFILE=nc-arm-6c-slim`, which renders only the six
-execution runtime pods' required Secret set:
+Before apply, confirm the first-party Kustomize overlay renders the tracked
+`execution-runtime-rendered-config` ConfigMap, and confirm the selected
+secret-delivery path has created the required role-scoped Secrets,
+`execution-runtime-provider-config-projection`, and
+`execution-runtime-qdrant-tls-ca`. The default slim execution-runtime Secret
+set is:
 `execution-control-secrets`, `execution-control-metrics-secrets`,
 `execution-telemetry-client-secrets`, `execution-run-projection-secrets`,
 `execution-temporal-workflow-secrets`, `execution-agent-client-secrets`, `agent-runtime-secrets`,
@@ -271,18 +265,23 @@ the trace-observability workflow-run store and must not be treated as the same
 database role. The retired monolithic
 `execution-runtime-secrets` and `execution-worker-common-secrets` Secrets must
 not be recreated. The provider-config
-projection Secret is generated from the synced `provider_config_projection.v1`
-artifact by the renderer; it is not a handwritten example Secret. The example
-files under `infra/k8s/execution-runtime/base/` are documentation samples and
-must not be applied as real staging config or credentials.
+projection Secret is created from a reviewed `provider_config_projection.v1`
+artifact by the selected secret-delivery path; it is not a handwritten example
+Secret. The example files under `infra/k8s/execution-runtime/base/` are
+documentation samples and must not be applied as real staging credentials.
 
-Set `EXECUTION_RUNTIME_K8S_ENV_PROFILE=staging-full` only for all-in-K8s proof.
-That profile additionally renders `execution-telemetry-collector-config`,
-`execution-telemetry-collector-secrets`, and
-`execution-app-api-internal-secrets`, `execution-stateful-runtime-secrets` for
-in-cluster OTel collector, app-api internal projection publishers, Hindsight,
-and Temporal stateful components. These resources are intentionally absent from
-the `nc-arm-6c-slim` Docker-stateful deployment shape.
+The full first-party runtime proof only adds
+`execution-app-api-internal-secrets` to the first-party runtime Secret set.
+Temporal server lifecycle, Temporal database credentials and the stable
+`temporal:7233` alias are managed by the GitOps platform Applications and
+the selected GitOps secret-delivery path (`platform-temporal-staging`,
+`platform-temporal-alias-staging`, `temporal-db-secret`), not by the
+execution-runtime overlay. OTel collector, Hindsight, Qdrant and CNPG
+Secrets follow the same platform/data ownership rule.
+
+Execution-runtime env renderers that emit Kubernetes ConfigMap or Secret YAML
+from local env files are retired. Use tracked Kustomize config and the selected
+Secret delivery backend instead.
 
 Render and apply:
 

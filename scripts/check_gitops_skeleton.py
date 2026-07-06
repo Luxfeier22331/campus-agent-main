@@ -12,6 +12,7 @@ from scripts.worktree_file_discovery import worktree_paths
 
 _GITOPS_ROOT = Path("infra/gitops")
 _APP_DIR = _GITOPS_ROOT / "apps"
+_SECRET_DIR = _GITOPS_ROOT / "secrets"
 _SECRET_DELIVERY_README = _GITOPS_ROOT / "secrets" / "README.md"
 _SECRET_NAME_PATTERN = re.compile(
     r"(api[_-]?key|secret|token|password|dsn|database[_-]?url|private[_-]?key)",
@@ -30,6 +31,15 @@ _FORBIDDEN_PROVIDER_KEYS = {
     "TAVILY_API_KEY",
     "EXA_API_KEY",
 }
+_WIDE_SEALED_SECRET_ANNOTATIONS = {
+    "sealedsecrets.bitnami.com/namespace-wide",
+    "sealedsecrets.bitnami.com/cluster-wide",
+}
+_WIDE_SEALED_SECRET_SCOPES = {"namespace-wide", "cluster-wide"}
+_FORBIDDEN_SECRET_DELIVERY_NAME_PATTERNS = (
+    ".local.",
+    ".backup.",
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +70,9 @@ def audit_gitops_skeleton(*, root: Path | None = None) -> tuple[GitOpsSkeletonIs
 
     for path in _gitops_text_files(base):
         issues.extend(_audit_secret_like_text(path, base=base))
+
+    for path in _gitops_secret_manifest_files(base):
+        issues.extend(_audit_secret_delivery_manifest(path, base=base))
 
     return tuple(issues)
 
@@ -277,7 +290,10 @@ def _audit_secret_like_text(path: Path, *, base: Path) -> tuple[GitOpsSkeletonIs
                     message=f"GitOps skeleton must not reference provider secret key {forbidden_key}",
                 )
             )
-    if ".dev.vars" in text or ".env" in text:
+    local_env_pattern = re.compile(
+        r"(^|[/\s'\"`])(\.dev\.vars|\.env(?:\.[A-Za-z0-9_-]+)?)($|[/\s'\"`])"
+    )
+    if local_env_pattern.search(text):
         issues.append(
             GitOpsSkeletonIssue(
                 path=relative,
@@ -285,6 +301,116 @@ def _audit_secret_like_text(path: Path, *, base: Path) -> tuple[GitOpsSkeletonIs
             )
         )
     return tuple(issues)
+
+
+def _audit_secret_delivery_manifest(path: Path, *, base: Path) -> tuple[GitOpsSkeletonIssue, ...]:
+    relative = path.relative_to(base).as_posix()
+    filename = path.name.lower()
+    if any(pattern in filename for pattern in _FORBIDDEN_SECRET_DELIVERY_NAME_PATTERNS):
+        return (
+            GitOpsSkeletonIssue(
+                path=relative,
+                message=(
+                    "GitOps secret delivery must not track local plaintext inputs "
+                    "or backup manifests"
+                ),
+            ),
+        )
+
+    try:
+        documents = tuple(yaml.safe_load_all(path.read_text(encoding="utf-8")))
+    except yaml.YAMLError as exc:
+        return (GitOpsSkeletonIssue(path=relative, message=f"invalid YAML: {exc}"),)
+
+    issues: list[GitOpsSkeletonIssue] = []
+    for index, payload in enumerate(documents):
+        if payload is None:
+            continue
+        if not isinstance(payload, dict):
+            issues.append(
+                GitOpsSkeletonIssue(
+                    path=relative,
+                    message=f"secret delivery document[{index}] must be a YAML object",
+                )
+            )
+            continue
+
+        kind = _string(payload.get("kind"))
+        if kind == "Secret" and "sops" not in payload:
+            issues.append(
+                GitOpsSkeletonIssue(
+                    path=relative,
+                    message=(
+                        "GitOps secret delivery must not track plaintext Kubernetes "
+                        "Secret; use SealedSecret, ExternalSecret, SOPS-encrypted "
+                        "Secret or an operator runbook"
+                    ),
+                )
+            )
+        if kind == "SealedSecret" and not _has_non_empty_encrypted_data(payload):
+            issues.append(
+                GitOpsSkeletonIssue(
+                    path=relative,
+                    message="SealedSecret manifests must contain non-empty spec.encryptedData",
+                )
+            )
+
+        for annotation, value in _wide_sealed_secret_scope_annotations(payload):
+            issues.append(
+                GitOpsSkeletonIssue(
+                    path=relative,
+                    message=(
+                        "SealedSecret manifests must use strict scope by default; "
+                        f"remove {annotation}={value}"
+                    ),
+                )
+            )
+
+    return tuple(issues)
+
+
+def _has_non_empty_encrypted_data(payload: dict[str, object]) -> bool:
+    spec = payload.get("spec")
+    if not isinstance(spec, dict):
+        return False
+    encrypted_data = spec.get("encryptedData")
+    return isinstance(encrypted_data, dict) and bool(encrypted_data)
+
+
+def _wide_sealed_secret_scope_annotations(payload: object) -> tuple[tuple[str, str], ...]:
+    matches: list[tuple[str, str]] = []
+    if isinstance(payload, dict):
+        annotations = payload.get("annotations")
+        if isinstance(annotations, dict):
+            for key, value in annotations.items():
+                annotation = _string(key)
+                normalized = _string(value).lower()
+                if annotation in _WIDE_SEALED_SECRET_ANNOTATIONS and normalized == "true":
+                    matches.append((annotation, normalized))
+                if (
+                    annotation == "sealedsecrets.bitnami.com/scope"
+                    and normalized in _WIDE_SEALED_SECRET_SCOPES
+                ):
+                    matches.append((annotation, normalized))
+        for value in payload.values():
+            matches.extend(_wide_sealed_secret_scope_annotations(value))
+    elif isinstance(payload, list):
+        for value in payload:
+            matches.extend(_wide_sealed_secret_scope_annotations(value))
+    return tuple(matches)
+
+
+def _gitops_secret_manifest_files(base: Path) -> tuple[Path, ...]:
+    secret_dir = base / _SECRET_DIR
+    if not secret_dir.exists():
+        return ()
+    return tuple(
+        sorted(
+            path
+            for path in secret_dir.rglob("*")
+            if path.is_file() and path.suffix in {".yaml", ".yml"}
+        )
+    )
 
 
 def _gitops_text_files(base: Path) -> tuple[Path, ...]:

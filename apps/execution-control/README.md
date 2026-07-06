@@ -59,15 +59,12 @@ Requirements:
 
 - Go `1.26.x`
 - `golangci-lint v2.11.4`
-- Docker for compose smoke checks
 
 Common commands:
 
 ```bash
 pnpm go:check
 pnpm repo:static
-infra/local/start-execution-control-runtime.sh up -d --build --remove-orphans
-infra/local/smoke-execution-control-runtime.sh closed_gate
 ```
 
 Runtime env, provider projection, Hindsight projection, Qdrant, Temporal and

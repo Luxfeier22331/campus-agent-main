@@ -141,11 +141,9 @@ not copy secrets between worktrees.
 
 ## Convenience Scripts
 
-- `uv run --all-packages python -m scripts.sync_worker_observability_env`
 - `uv run --all-packages python -m scripts.check_worker_observability_env
   --json`
 - `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
-- `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
 
 对应 runbook：
 
