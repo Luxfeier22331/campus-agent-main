@@ -1,0 +1,39 @@
+{
+	"schema_version": "ingestion_task_registry.v2",
+	"source_family": "official_web",
+	"corpus": "official_web",
+	"collection": "stable_reference",
+	"tasks": [
+		{
+			"task_kind": "source_truth_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "official_web_source_truth_bundle.v1",
+			"output_contract": "official_web_stable_reference_source_truth.v1",
+			"registry_task_id": "source_truth_materialize"
+		},
+		{
+			"task_kind": "document_units_validate",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "validate-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "document_units_validation_report.v1",
+			"registry_task_id": "document_units_validate"
+		},
+		{
+			"task_kind": "chunk_prepare",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "chunk-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "ingestion_chunk_set.v1",
+			"registry_task_id": "chunk_prepare"
+		},
+		{
+			"task_kind": "release_manifest_validate",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "validate-release-manifest",
+			"input_contract": "ingestion_release_manifest.v1",
+			"output_contract": "ingestion_release_manifest_validation_report.v1",
+			"registry_task_id": "release_manifest_validate"
+		}
+	]
+}

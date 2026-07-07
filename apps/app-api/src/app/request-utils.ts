@@ -39,12 +39,8 @@ export function parseLimit(value: string | null | undefined): number | null {
 
 export function readOperatorAggregateFilters(request: { query(name: string): string | undefined }) {
 	return {
-		collection: request.query("collection") ?? null,
 		granularity: request.query("granularity") ?? null,
-		modelName: request.query("modelName") ?? null,
 		principalType: request.query("principalType") ?? null,
-		requestedCapability: request.query("requestedCapability") ?? null,
-		selectedTarget: request.query("selectedTarget") ?? null,
 		surface: request.query("surface") ?? null,
 		window: request.query("window") ?? null,
 	};
@@ -54,7 +50,7 @@ export function resolveRequestSurface(request: Request): string {
 	const pathname = new URL(request.url).pathname;
 
 	if (pathname.startsWith("/api/operator/")) {
-		return "protected_panel_web";
+		return "operator_console_web";
 	}
 	if (pathname.startsWith("/api/internal/official-web/")) {
 		return "official_web";
@@ -66,13 +62,21 @@ export function resolveRequestSurface(request: Request): string {
 		return "wechat_official_account";
 	}
 	if (
+		pathname === "/api/me/overview" ||
+		pathname === "/api/me/identity" ||
+		pathname === "/api/me/access" ||
+		pathname === "/api/me/preferences"
+	) {
+		return "campus_web";
+	}
+	if (
 		pathname === "/api/chat" ||
 		pathname === "/api/history" ||
 		pathname.startsWith("/api/chat/") ||
 		pathname.startsWith("/api/auth/") ||
 		pathname === "/api/me"
 	) {
-		return "public_chat_web";
+		return "campus_web";
 	}
 
 	return "app_api";

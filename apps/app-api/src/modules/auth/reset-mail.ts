@@ -8,7 +8,6 @@ export interface AuthResetMailConfig {
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
 	fetchImplementation?: typeof fetch;
-	publicChatOrigin: string;
 	resendApiKey: string;
 }
 
@@ -74,7 +73,6 @@ export function resolvePasswordResetRedirectTarget(input: PasswordResetRedirectI
 
 export function buildCanonicalPasswordResetUrl(input: {
 	authShellOrigin: string;
-	publicChatOrigin: string;
 	token: string;
 }): string {
 	const callbackURL = resolvePasswordResetRedirectTarget({
@@ -83,7 +81,7 @@ export function buildCanonicalPasswordResetUrl(input: {
 	});
 	const resetUrl = new URL(
 		`/api/auth/reset-password/${encodeURIComponent(input.token)}`,
-		input.publicChatOrigin,
+		input.authShellOrigin,
 	);
 	resetUrl.searchParams.set("callbackURL", callbackURL);
 	return resetUrl.toString();
@@ -96,7 +94,6 @@ function buildPasswordResetEmailPayload(
 	const recipientEmail = normalizeRecipientEmail(input.user);
 	const recipientName = formatRecipientName(input.user);
 	const resetUrl = buildCanonicalPasswordResetUrl({
-		publicChatOrigin: config.publicChatOrigin,
 		authShellOrigin: config.authShellOrigin,
 		token: input.token,
 	});

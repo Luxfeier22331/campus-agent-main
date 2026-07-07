@@ -4,15 +4,23 @@ import type { AuthenticatedNoticeProcessingCommandService } from "../modules/aut
 import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
 import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
-import type { ChatConversationService } from "../modules/chat";
-import type { DocsService } from "../modules/docs";
+import type { CampusExperienceService } from "../modules/campus-experience";
+import type { CampusServicesOpsService } from "../modules/campus-services-ops";
 import type {
-	SupervisorCampusServicesProductPathPreflight,
-	SupervisorDurableRuntimePreflight,
+	CampusServicesTransportScheduleFetch,
+	CampusServicesTransportScheduleService,
+} from "../modules/campus-services-transport-schedule";
+import type { ChatConversationService } from "../modules/chat";
+import type { DiningOperationsService } from "../modules/dining-ops";
+import type { DocsService } from "../modules/docs";
+import type { IdentityPlatformService } from "../modules/identity-platform";
+import type {
+	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlRuntimePreflight,
+	IngestionTaskProjectionClient,
+	IngestionTaskProjectionFetch,
 } from "../modules/integration";
-import type { OfficialWebCommandService } from "../modules/official-web-command";
-import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
-import type { OfficialWebPlannerService } from "../modules/official-web-planner";
+import type { ObservabilityConfigService } from "../modules/observability-config";
 import type { OfficialWebQueryService } from "../modules/official-web-query";
 import type { OfficialWebReleaseTaskProcessingCommandService } from "../modules/official-web-release-task-processing-command";
 import type { OfficialWebReleaseTaskProcessingQueryService } from "../modules/official-web-release-task-processing-query";
@@ -22,6 +30,8 @@ import type { OfficialWebTargetReleaseGateService } from "../modules/official-we
 import type { OperatorObservabilityCommandService } from "../modules/operator-observability-command";
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
+import type { ProviderConfigService } from "../modules/provider-config";
+import type { ReplayCaptureService } from "../modules/replay-capture";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
@@ -37,8 +47,13 @@ export interface AppDependencies {
 	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
 	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
+	campusExperienceService?: CampusExperienceService;
+	campusServicesOpsService?: CampusServicesOpsService;
+	campusServicesTransportScheduleFetch?: CampusServicesTransportScheduleFetch;
+	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
+	diningOperationsService?: DiningOperationsService;
 	docsService?: DocsService;
 	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
@@ -47,18 +62,21 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
-	officialWebCommandService?: OfficialWebCommandService;
-	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
-	officialWebPlannerService?: OfficialWebPlannerService;
+	identityPlatformService?: IdentityPlatformService;
+	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
+	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
 	officialWebQueryService?: OfficialWebQueryService;
 	officialWebReleaseTaskProcessingCommandService?: OfficialWebReleaseTaskProcessingCommandService;
 	officialWebReleaseTaskProcessingQueryService?: OfficialWebReleaseTaskProcessingQueryService;
 	officialWebTargetInventoryService?: OfficialWebTargetInventoryService;
 	officialWebTargetJobService?: OfficialWebTargetJobService;
 	officialWebTargetReleaseGateService?: OfficialWebTargetReleaseGateService;
+	observabilityConfigService?: ObservabilityConfigService;
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
+	providerConfigService?: ProviderConfigService;
+	replayCaptureService?: ReplayCaptureService;
 	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
@@ -80,23 +98,22 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "supervisorApi";
+type AppRuntimeDependencyName = "auth" | "database" | "executionRuntime" | "executionControl";
 
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
 		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
-		durableRuntime: "ready" | "not_ready" | "not_required";
-		officialWebHandoff: "configured" | "not_configured";
-		operatorBridge: "configured";
-		publicChatCompatibilityOrigin: "configured";
-		supervisorApi: "ready" | "not_ready";
+		executionRuntime: "ready" | "not_ready" | "not_required";
+		ingestionControl: "configured" | "misconfigured" | "not_configured";
+		operatorSurface: "configured";
+		executionControl: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
 	preflight?: {
-		campusServicesProductPath?: SupervisorCampusServicesProductPathPreflight;
-		durableRuntime?: SupervisorDurableRuntimePreflight;
+		campusServicesProductPath?: ExecutionControlCampusServicesProductPathPreflight;
+		executionRuntime?: ExecutionControlRuntimePreflight;
 	};
 }
 
@@ -106,19 +123,28 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
 	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
+	resolveCampusExperienceService(): CampusExperienceService;
+	resolveCampusServicesOpsService(): CampusServicesOpsService;
+	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
+	resolveDiningOperationsService(): DiningOperationsService;
 	resolveDocsService(): DocsService;
-	resolveOfficialWebCommandService(): OfficialWebCommandService;
+	resolveIdentityPlatformService(): IdentityPlatformService;
+	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;
 	resolveOfficialWebReleaseTaskProcessingQueryService(): OfficialWebReleaseTaskProcessingQueryService;
 	resolveOfficialWebTargetInventoryService(): OfficialWebTargetInventoryService;
 	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
 	resolveOfficialWebTargetReleaseGateService(): OfficialWebTargetReleaseGateService;
+	resolveObservabilityConfigService(): ObservabilityConfigService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
+	resolveProviderConfigService(): ProviderConfigService;
+	resolveReplayCaptureService(): ReplayCaptureService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
+	telemetry: AppTelemetry;
 }

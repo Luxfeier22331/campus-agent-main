@@ -9,9 +9,14 @@ _MARKDOWN_TRACKED_PATHS = (
     "README.md",
     "AGENTS.md",
     "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "SUPPORT.md",
     ".github/pull_request_template.md",
+    ".github/ISSUE_TEMPLATE",
     "docs",
     "apps",
+    "jobs",
     "packages",
     "configs",
     "infra",
@@ -38,14 +43,22 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
     if "/vendor/" in path or "/node_modules/" in path:
         return False
     if path.startswith("docs/"):
-        if "/archive/" in path or path.startswith("docs/plans/"):
+        if "/archive/" in path:
             return False
         return path.endswith(".md")
-    if path in {"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"}:
+    if path in {
+        "README.md",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "SECURITY.md",
+        "SUPPORT.md",
+        ".github/pull_request_template.md",
+    }:
         return True
-    if path.startswith("apps/public-docs/docs/"):
-        return False
-    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
+    if path.startswith(".github/ISSUE_TEMPLATE/"):
+        return path.endswith(".md")
+    if path.startswith(("apps/", "jobs/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
 

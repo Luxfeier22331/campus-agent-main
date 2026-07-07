@@ -5,15 +5,16 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	type SupervisorExecutionClient,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreValidationSuite(): void {
-	it("passes explicit versionQuery through validation, supervisor execution, and request writes", async () => {
+	it("passes explicit versionQuery through validation, tool execution, and request writes", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "2024 版学生手册中图书馆开放到 21:30。",
 				error: null,
@@ -23,9 +24,9 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 						sources: [{ doc_id: "handbook:library-hours:v2024" }],
 					},
 				},
-				selectedTarget: "rag-agent",
+				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({
@@ -33,7 +34,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
@@ -52,12 +53,12 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			principal: createPrincipal(),
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
 				versionQuery: {
 					mode: "historical",
-					versionId: "v2024-student-rules",
+					version_id: "v2024-student-rules",
 				},
 			}),
 		);
@@ -98,9 +99,9 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn(),
-			},
+			}),
 		});
 
 		await expect(

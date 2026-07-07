@@ -3,6 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import runWithStagingProofEnvSource from "../scripts/run-with-staging-proof-env.mjs?raw";
 import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
@@ -30,14 +31,13 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_ENVIRONMENT: "test" as const,
@@ -61,7 +61,7 @@ function createCampusPrincipal() {
 		},
 		principal: {
 			displayName: "Jane Doe",
-			email: "jane@muc.edu.cn",
+			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "campus_member" as const,
 		},
@@ -88,26 +88,19 @@ function createRuntimeReadinessResult() {
 			auth: "ready",
 			authShellOrigin: "configured",
 			database: "ready",
-			durableRuntime: "not_required",
-			officialWebHandoff: "not_configured",
-			operatorBridge: "configured",
-			publicChatCompatibilityOrigin: "configured",
-			supervisorApi: "ready",
+			executionRuntime: "not_required",
+			ingestionControl: "not_configured",
+			operatorSurface: "configured",
+			executionControl: "ready",
 		},
 		failed: {},
 		preflight: {
 			campusServicesProductPath: {
 				status: "ready",
-				capabilityGate: "open",
+				toolGate: "open",
 				projectionSource: "postgres",
 				checks: {
-					contactDirectoryProjection: "ready",
-					contactDirectoryReadModel: "ready",
-					serviceGuideProjection: "ready",
-					serviceGuideReadModel: "ready",
-					serviceStatusProjection: "ready",
-					serviceStatusReadModel: "ready",
-					structuredQueryRuntime: "ready",
+					toolReadModelRuntime: "ready",
 					transportSchedule: "ready",
 					transportScheduleReadModel: "ready",
 				},
@@ -147,55 +140,43 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).toContain(
-			'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
-		expect(stagingVarsBlock).toContain(
-			'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
-		);
-		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
-		expect(stagingVarsBlock).not.toContain("SUPERVISOR_API_BASE_URL");
+		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"');
+		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_BASE_URL");
 		expect(stagingVarsBlock).toContain(
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "95000"');
+		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
+		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
-		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime"');
+		expect(stagingVarsBlock).toContain(
+			'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
+		);
+		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
+		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:preflight:staging");
-		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
-			"run-worker-staging-preflight.mjs",
-		);
-		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
-			"check_worker_secret_presence.py",
-		);
+		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
+		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
-			"chat-e2e.ts --profile staging",
-		);
+		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
+		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain("chat-durable-e2e-staging.ts");
 		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"verify-staging-config.mjs",
-		);
-		expect(packageManifest.scripts?.["db:bootstrap:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
-		expect(packageManifest.scripts?.["db:migrate:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
-		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:bootstrap:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:migrate:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["test:all"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
@@ -207,18 +188,38 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingProofEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingProofEnvSource).not.toContain("process.loadEnvFile");
+		expect(runWithStagingProofEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingProofEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_ACCOUNT_ID");
+		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_API_TOKEN");
+		expect(runWithStagingProofEnvSource).toContain("run-with-staging-smoke-env.mjs");
+		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
-		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
-		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
-		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
+		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
+		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
+		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
-		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
+		expect(deployStagingSource).toContain("execution-control trusted machine ingress");
+		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
+		expect(deployStagingSource).not.toMatch(
+			/EXECUTION_CONTROL_ACCESS_CLIENT_ID:\$\{accessClientId\}/,
+		);
+		expect(deployStagingSource).not.toMatch(
+			/EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:\$\{accessClientSecret\}/,
+		);
+		expect(deployStagingSource).not.toContain("execution-control origin");
+		expect(stagingPreflightSource).toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(stagingPreflightSource).toContain("reconcile-shared-db-drift.mjs");
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {
+		const localVarsBlock = readTomlBlock(wranglerConfig, "[env.local.vars]", "[env.local.secrets]");
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.local.secrets]",
@@ -230,21 +231,27 @@ describe("app-api worker foundation", () => {
 			"[[env.staging.hyperdrive]]",
 		);
 		expect(wranglerConfig).toContain("[env.local.secrets]");
+		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
-		expect(localSecretsBlock).toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
+		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
+		expect(localSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
-		expect(stagingSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_ID"');
+		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
-		expect(stagingSecretsBlock).toContain('"AXIOM_TOKEN"');
+		expect(stagingSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
+		expect(stagingSecretsBlock).not.toContain('"AXIOM_TOKEN"');
 	});
 
 	it("declares a local Hyperdrive binding for APP_API_DB in wrangler config", () => {
@@ -253,9 +260,13 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
 	});
 
-	it("points the local smoke supervisor upstream at the docker-first supervisor-api port", () => {
+	it("points the local smoke execution upstream at the docker-first execution-control port", () => {
 		expect(localSmokeWranglerConfig).toContain(
-			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:27051"',
+			'EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"',
+		);
+		expect(localSmokeWranglerConfig).not.toContain("CHATKIT_ADAPTER_BASE_URL");
+		expect(localSmokeWranglerConfig).toContain(
+			'APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:4318"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
@@ -267,12 +278,13 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSmokeSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(localSmokeSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
-		expect(localSmokeSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
+		expect(localSmokeSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
-		expect(localSmokeSecretsBlock).not.toContain('"SUPERVISOR_API_BASE_URL"');
+		expect(localSmokeSecretsBlock).toContain('"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY"');
+		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"',
+			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"',
 		);
 		expect(localSmokeWranglerConfig).toContain(
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"',
@@ -306,25 +318,18 @@ describe("app-api worker foundation", () => {
 				auth: "ready",
 				authShellOrigin: "configured",
 				database: "ready",
-				durableRuntime: "not_required",
-				officialWebHandoff: "not_configured",
-				operatorBridge: "configured",
-				publicChatCompatibilityOrigin: "configured",
-				supervisorApi: "ready",
+				executionRuntime: "not_required",
+				ingestionControl: "not_configured",
+				operatorSurface: "configured",
+				executionControl: "ready",
 			},
 			preflight: {
 				campusServicesProductPath: {
 					status: "ready",
-					capabilityGate: "open",
+					toolGate: "open",
 					projectionSource: "postgres",
 					checks: {
-						contactDirectoryProjection: "ready",
-						contactDirectoryReadModel: "ready",
-						serviceGuideProjection: "ready",
-						serviceGuideReadModel: "ready",
-						serviceStatusProjection: "ready",
-						serviceStatusReadModel: "ready",
-						structuredQueryRuntime: "ready",
+						toolReadModelRuntime: "ready",
 						transportSchedule: "ready",
 						transportScheduleReadModel: "ready",
 					},
@@ -342,14 +347,13 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
-					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "not_ready",
+					executionRuntime: "not_required",
+					ingestionControl: "not_configured",
+					operatorSurface: "configured",
+					executionControl: "not_ready",
 				},
 				failed: {
-					supervisorApi: "supervisor /readyz returned 503",
+					executionControl: "execution-control /readyz returned 503",
 				},
 			}),
 		});
@@ -400,9 +404,8 @@ describe("app-api worker foundation", () => {
 						"AUTH_TURNSTILE_SECRET_KEY",
 						"RESEND_API_KEY",
 						"AUTH_RESET_EMAIL_FROM",
-						"PUBLIC_CHAT_WEB_ORIGIN",
-						"SUPERVISOR_API_BASE_URL",
-						"SUPERVISOR_API_SHARED_SECRET",
+						"EXECUTION_CONTROL_BASE_URL",
+						"EXECUTION_CONTROL_SHARED_SECRET",
 						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 						"APP_API_OPERATOR_EMAIL_ALLOWLIST",
 						"APP_API_INTERNAL_SHARED_SECRET",
@@ -419,15 +422,14 @@ describe("app-api worker foundation", () => {
 					auth: "not_ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
-					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "not_ready",
+					executionRuntime: "not_required",
+					ingestionControl: "not_configured",
+					operatorSurface: "configured",
+					executionControl: "not_ready",
 				},
 				failed: {
 					auth: "better-auth session runtime failed probe",
-					supervisorApi: "supervisor /readyz returned 503",
+					executionControl: "execution-control /readyz returned 503",
 				},
 			}),
 		});
@@ -448,7 +450,7 @@ describe("app-api worker foundation", () => {
 				details: {
 					failed: {
 						auth: "better-auth session runtime failed probe",
-						supervisorApi: "supervisor /readyz returned 503",
+						executionControl: "execution-control /readyz returned 503",
 					},
 				},
 			},
@@ -462,26 +464,23 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_ready",
-					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "ready",
+					executionRuntime: "not_ready",
+					ingestionControl: "not_configured",
+					operatorSurface: "configured",
+					executionControl: "ready",
 				},
 				failed: {
-					durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+					executionRuntime: "temporal_runtime is not configured and healthy",
 				},
 				preflight: {
-					durableRuntime: {
+					executionRuntime: {
 						status: "blocked",
 						checks: {
-							durableRuntimeStore: "ready",
-							durableWorkerLoop: "not_ready",
-							durableRecoveryLoop: "ready",
+							runProjectionStore: "ready",
+							temporalRuntime: "not_ready",
 						},
 						blockers: {
-							durableWorkerLoop:
-								"durable_worker_loop is not enabled, configured, healthy, and started",
+							temporalRuntime: "temporal_runtime is not configured and healthy",
 						},
 					},
 				},
@@ -503,19 +502,17 @@ describe("app-api worker foundation", () => {
 				requestId: null,
 				details: {
 					failed: {
-						durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+						executionRuntime: "temporal_runtime is not configured and healthy",
 					},
 					preflight: {
-						durableRuntime: {
+						executionRuntime: {
 							status: "blocked",
 							checks: {
-								durableRuntimeStore: "ready",
-								durableWorkerLoop: "not_ready",
-								durableRecoveryLoop: "ready",
+								runProjectionStore: "ready",
+								temporalRuntime: "not_ready",
 							},
 							blockers: {
-								durableWorkerLoop:
-									"durable_worker_loop is not enabled, configured, healthy, and started",
+								temporalRuntime: "temporal_runtime is not configured and healthy",
 							},
 						},
 					},
@@ -531,32 +528,23 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
-					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "ready",
+					executionRuntime: "not_required",
+					ingestionControl: "not_configured",
+					operatorSurface: "configured",
+					executionControl: "ready",
 				},
 				failed: {},
 				preflight: {
 					campusServicesProductPath: {
-						status: "blocked",
-						capabilityGate: "open",
+						status: "ready",
+						toolGate: "open",
 						projectionSource: "postgres",
 						checks: {
-							contactDirectoryProjection: "ready",
-							contactDirectoryReadModel: "ready",
-							serviceGuideProjection: "not_ready",
-							serviceGuideReadModel: "ready",
-							serviceStatusProjection: "ready",
-							serviceStatusReadModel: "ready",
-							structuredQueryRuntime: "ready",
+							toolReadModelRuntime: "ready",
 							transportSchedule: "ready",
 							transportScheduleReadModel: "ready",
 						},
-						blockers: {
-							serviceGuideProjection: "service_guide_projection_ready is false",
-						},
+						blockers: {},
 					},
 				},
 			}),
@@ -572,16 +560,14 @@ describe("app-api worker foundation", () => {
 			status: "ready",
 			preflight: {
 				campusServicesProductPath: {
-					status: "blocked",
-					blockers: {
-						serviceGuideProjection: "service_guide_projection_ready is false",
-					},
+					status: "ready",
+					blockers: {},
 				},
 			},
 		});
 	});
 
-	it("schedules a request projection drain after a successful public chat request", async () => {
+	it("schedules a request projection drain after a successful online answer request", async () => {
 		const requestProjector = {
 			drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 			drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 1 }),

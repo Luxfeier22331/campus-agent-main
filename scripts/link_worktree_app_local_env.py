@@ -5,13 +5,16 @@ import os
 from pathlib import Path
 
 APP_LOCAL_ENV_PATHS = (
+    ".env",
     "apps/app-api/.dev.vars",
     "apps/app-api/.env",
-    "apps/official-web-collector/.env",
-    "apps/public-chat-web/.dev.vars",
-    "apps/protected-panel-web/.dev.vars",
-    "apps/public-entry-worker/.dev.vars",
-    "apps/public-consumer-chat/.env",
+    "apps/campus-web/.env",
+    "apps/campus-web/.dev.vars",
+    "apps/operator-console-web/.dev.vars",
+    "apps/source-collector/adapters/internal-portal/.env",
+    "apps/source-collector/adapters/official-web/.env",
+    "apps/source-collector/adapters/wechat-official-account/.env",
+    "env/commands/campus-docs-reader-build.env",
 )
 
 
@@ -62,7 +65,7 @@ def link_worktree_app_local_env(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Link app-local env files from the root worktree into the current feature "
+            "Link local env files from the root worktree into the current feature "
             "worktree without changing env ownership."
         )
     )

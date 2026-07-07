@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: eval
+owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-04-11
 updated: 2026-04-24
@@ -25,11 +27,10 @@ promotion/materialization 的 acceptance truth。
 
 相关文档：
 
-- `docs/reference/institutional-regulations-offline-inventory.md`
-- `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
-  `
+- `docs/reference/open-source-data.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
+- 旧 Python promotion runbook 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。
 
 ## Scope Boundary
 
@@ -114,10 +115,9 @@ promotion/materialization 的 acceptance truth。
 - embedding / Qdrant write
 - release / alias publish
 
-当前 Phase 8 closeout 已补充 target-side chunk preparation 的 local-only
-acceptance evidence，但 stop point 仍未提升到 release / alias publish。冻结证据见：
-
-- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+target-side chunk preparation 已有 local-only acceptance 证据，但 stop point 仍未提升到
+release / alias publish。一次性 evidence path 不再作为 branch-tip tracked truth；需要追溯旧
+local-only closeout artifact 时通过 git history 恢复具体片段，再提升到当前 owner 文档或 runbook。
 
 ### 6. Repo-local acceptance 必须使用隔离 snapshot root
 
@@ -152,8 +152,9 @@ acceptance evidence，但 stop point 仍未提升到 release / alias publish。�
 
 当前这条线的 repo verification 至少应持续覆盖：
 
-- promotion manifest build
-- target materialization worker
+- source / target promotion scaffold 不回流旧 Python manifest / export / scan
+  runtime
+- projection DTO、title/version/provenance metadata 与 document-units shape
 - duplicate provenance aggregation
 - wrapper stripping
 - title/version metadata retention
@@ -161,7 +162,8 @@ acceptance evidence，但 stop point 仍未提升到 release / alias publish。�
 
 ## Usage Rule
 
-- 需要看当前 target bucket 与 blocked frontier，读
-  `institutional-regulations-offline-inventory.md`
+- 当前 target bucket 与 blocked frontier 属于 private source/data boundary；
+  公开 repo 不保留真实 inventory。需要公开仓库层面的 source/data 规则，读
+  `open-source-data.md`
 - 需要看 target quality acceptance 与 identity rules，读本文
 - 需要看 operator path，读对应 runbook

@@ -1,5 +1,5 @@
 ALTER TABLE "runtime"."request_observability_fact"
-ADD COLUMN "intent_capability" text;--> statement-breakpoint
+ADD COLUMN "intent_tool" text;--> statement-breakpoint
 ALTER TABLE "runtime"."request_observability_fact"
 ADD COLUMN "intent_task_kind" text;--> statement-breakpoint
 ALTER TABLE "runtime"."request_observability_fact"

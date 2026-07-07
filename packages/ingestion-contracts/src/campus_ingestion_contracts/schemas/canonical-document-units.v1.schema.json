@@ -1,0 +1,51 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.local/schemas/canonical-document-units.v1.schema.json",
+	"title": "Canonical document unit",
+	"type": "object",
+	"required": [
+		"doc_id",
+		"version_id",
+		"chunk_id",
+		"root_unit_id",
+		"text",
+		"clean_text",
+		"metadata",
+		"anchor"
+	],
+	"properties": {
+		"doc_id": {
+			"type": "string",
+			"minLength": 1
+		},
+		"version_id": {
+			"type": "string",
+			"minLength": 1
+		},
+		"chunk_id": {
+			"type": "string",
+			"minLength": 1
+		},
+		"root_unit_id": {
+			"type": "string",
+			"minLength": 1
+		},
+		"text": {
+			"type": "string"
+		},
+		"clean_text": {
+			"type": "string"
+		},
+		"unit_type": {
+			"type": "string",
+			"minLength": 1
+		},
+		"metadata": {
+			"type": "object"
+		},
+		"anchor": {
+			"type": "object"
+		}
+	},
+	"additionalProperties": true
+}

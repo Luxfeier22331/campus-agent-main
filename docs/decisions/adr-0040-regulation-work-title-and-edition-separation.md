@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0040
 status: accepted
 created: 2026-04-14
@@ -55,18 +57,18 @@ Accepted on 2026-04-14.
   - 面向 operator / retrieval metadata / UI 的展示标题
   - 默认格式为：`<regulation_work_title> / <regulation_edition_label>`
 - `source_title_literal`
-  - 来源原题名，保留原文表达，例如 `中央民族大学关于学生使用人工智能的指导意见（2026版）`
+  - 来源原题名，保留原文表达，例如 `示例大学关于学生使用人工智能的指导意见（2026版）`
 
 `regulation_display_title` 的固定规则补充：
 
 - `edition_label` 必须保留完整语义标签，不得压成裸年份
 - 因此：
-  - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
+  - `示例大学关于学生使用人工智能的指导意见 / 2026版`
   - 是允许格式
-  - `中央民族大学关于学生使用人工智能的指导意见 / 2026`
+  - `示例大学关于学生使用人工智能的指导意见 / 2026`
   - 不是当前接受格式
 - 同理：
-  - `中央民族大学实验室安全管理规定 / 2026年修订`
+  - `示例大学实验室安全管理规定 / 2026年修订`
   - 不得压成 `... / 2026`
 - 如果后续 operator 确实需要 machine-friendly 排序或 facet，再单独引入派生字段，例如
   `regulation_edition_year`
@@ -88,8 +90,8 @@ Accepted on 2026-04-14.
 
 含义是：
 
-- `中央民族大学关于学生使用人工智能的指导意见`
-- `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
+- `示例大学关于学生使用人工智能的指导意见`
+- `示例大学关于学生使用人工智能的指导意见 / 2026版`
 
 应共享同一个 work-level `document_id`，而不是被拆成两个不同 document 根。
 
@@ -160,29 +162,29 @@ Accepted on 2026-04-14.
 
 输入示例：
 
-- `中央民族大学关于学生使用人工智能的指导意见（2026版）`
+- `示例大学关于学生使用人工智能的指导意见（2026版）`
 
 规范化结果：
 
 - `regulation_work_title`
-  - `中央民族大学关于学生使用人工智能的指导意见`
+  - `示例大学关于学生使用人工智能的指导意见`
 - `regulation_edition_label`
   - `2026版`
 - `regulation_display_title`
-  - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
+  - `示例大学关于学生使用人工智能的指导意见 / 2026版`
 - `source_title_literal`
-  - `中央民族大学关于学生使用人工智能的指导意见（2026版）`
+  - `示例大学关于学生使用人工智能的指导意见（2026版）`
 
 对比示例：
 
-- `中央民族大学实验室安全管理规定（2026年修订）`
-  - `regulation_work_title` - `中央民族大学实验室安全管理规定`
+- `示例大学实验室安全管理规定（2026年修订）`
+  - `regulation_work_title` - `示例大学实验室安全管理规定`
   - `regulation_edition_label` - `2026年修订`
-  - `regulation_display_title` - `中央民族大学实验室安全管理规定 / 2026年修订`
-- `中央民族大学丰台校区就医管理办法（暂行）`
-  - `regulation_work_title` - `中央民族大学丰台校区就医管理办法（暂行）`
+  - `regulation_display_title` - `示例大学实验室安全管理规定 / 2026年修订`
+- `示例大学丰台校区就医管理办法（暂行）`
+  - `regulation_work_title` - `示例大学丰台校区就医管理办法（暂行）`
   - `regulation_edition_label` - `null`
-  - `regulation_display_title` - `中央民族大学丰台校区就医管理办法（暂行）`
+  - `regulation_display_title` - `示例大学丰台校区就医管理办法（暂行）`
 
 ## 结果
 

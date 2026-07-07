@@ -21,7 +21,7 @@ describe("chat e2e local dev lifecycle", () => {
 		};
 		process.on("unhandledRejection", onUnhandledRejection);
 		try {
-			await waitForReadyzWhileChildAlive("http://127.0.0.1:27011/readyz", 1000, child, {
+			await waitForReadyzWhileChildAlive("http://127.0.0.1:27014/readyz", 1000, child, {
 				waitForReadyz: async () => {
 					return;
 				},

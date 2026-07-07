@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0044
 status: accepted
 created: 2026-04-26
@@ -71,21 +73,16 @@ repo 级语义固定为：
 
 ### 决策 3：campus services online lookup 读取 PG typed read model
 
-`service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup` 的
-online consumption 不读 raw notice、不读 OCR
+`transport_schedule_lookup` 的 online consumption 不读 raw notice、不读 OCR
 artifact、不扫 source-truth inventory，也不直接解析对象存储中的 current JSON。
 
 read model 至少固定为：
 
-- `service_status_read_model`
 - `transport_routes`
 - `transport_schedule_snapshots`
 - `transport_scheduled_departures`
 - `transport_service_exceptions`
 - `transport_release_notices`
-- `service_guide_read_model`
-- `service_guide_conflicts`
-- `service_guide_manual_review_sources`
 
 每条业务 row 必须携带 `release_id`，runtime 只读取 current pointer 指向的 release。
 历史查询、as-of 查询与回滚必须通过 release id / published time 显式表达，不得复用
@@ -105,7 +102,7 @@ Redis 缺失、flush 或重启不得导致 canonical current projection 丢失�
 ### 决策 5：runtime 不支持 mounted current JSON
 
 mounted current JSON file 只能作为人工 artifact inspection 输入，不能作为
-`apps/supervisor-api` runtime path、local smoke path 或 Docker
+`apps/execution-control` runtime path、local smoke path 或 Docker
 compatibility path。runtime 必须读取 PG current pointer 与 typed read model。
 
 ### 决策 6：发布流程必须是 release transaction
@@ -129,10 +126,11 @@ build structured projection release
 直接结果如下：
 
 - `campus_services` structured tools 的数据入口是 PG current release + typed read model
-- object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release metadata 与结构化查询视图
+- object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release
+  metadata 与结构化查询视图
 - Redis 不进入 truth path
-- ingestion worker 负责离线 materialization 与 release publication；supervisor-api 只消费
-  current typed read model
+- ingestion-control 负责离线 materialization 与 release publication；
+  execution-control 只消费 current typed read model
 - release catalog、current pointer、typed read model 与 release-id cache 是 runtime
   consumption 的唯一 repo-supported path，不再扩展 mounted JSON
 
@@ -140,8 +138,8 @@ build structured projection release
 
 这项决策 complements：
 
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/target-architecture.md`
-- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
-- `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/target.md`
+- `docs/domains/transport.md`
+- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/decisions/adr-0048-temporal.md`

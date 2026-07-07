@@ -9,19 +9,20 @@ import {
 	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	type SupervisorExecutionClient,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCurriculumSuite(): void {
-	it("writes curriculum follow-up session slots from resolved curriculum completion and replays them into the next supervisor request", async () => {
+	it("writes curriculum follow-up session slots from resolved curriculum completion and replays them into the next execution request", async () => {
 		const conversation = {
 			...createConversation(),
 			title: "培养方案",
 		};
 		const commandStore = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -41,9 +42,9 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				})
 				.mockResolvedValueOnce({
 					answerText: "第二学期有中国法制史。",
@@ -62,9 +63,9 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0004",
+					traceId: "trace_0002",
 				}),
 		};
 		const service = buildChatCommandService({
@@ -72,7 +73,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
@@ -139,7 +140,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			],
 		});
 
-		expect(supervisor.execute).toHaveBeenNthCalledWith(
+		expect(executionClient.execute).toHaveBeenNthCalledWith(
 			2,
 			expect.objectContaining({
 				context: expect.objectContaining({
@@ -161,7 +162,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 								value: "第四学期",
 							},
 						],
-						turnCount: 2,
+						turnCount: 3,
 					},
 				}),
 			}),
@@ -176,7 +177,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: null,
@@ -190,11 +191,11 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "needs_clarification",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -222,7 +223,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "民大的民族班有法学、信息与计算科学、计算机科学与技术。",
 					error: null,
@@ -237,11 +238,11 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:program-family-membership" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -269,7 +270,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"思想政治理论课包括习近平新时代中国特色社会主义思想概论、马克思主义基本原理、中华民族共同体概论等课程。",
@@ -282,14 +283,14 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							rewritten_query: "思修课包括哪些课",
 						},
 						evidence: {
-							sources: [{ doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划" }],
+							sources: [{ doc_id: "curriculum:示例大学通识课程思想政治理论课教学计划" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({

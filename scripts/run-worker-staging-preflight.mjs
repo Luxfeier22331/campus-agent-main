@@ -34,6 +34,7 @@ async function probeUrl(input) {
 	const response = await fetch(input.url, {
 		headers: {
 			accept: "application/json",
+			...input.headers,
 		},
 		signal: AbortSignal.timeout(10_000),
 	});
@@ -45,17 +46,35 @@ async function probeUrl(input) {
 	}
 }
 
-async function probeSupervisorApiForStagingAppApi() {
-	const upstream = process.env.STAGING_SUPERVISOR_API_BASE_URL?.trim();
-	if (!upstream) {
-		fail("STAGING_SUPERVISOR_API_BASE_URL is required for apps/app-api staging preflight.");
+function requireTrimmedEnv(key) {
+	const value = process.env[key]?.trim();
+	if (!value) {
+		fail(`${key} is required for apps/app-api staging preflight.`);
 	}
+	return value;
+}
+
+async function probeExecutionControlForStagingAppApi() {
+	const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
+	if (!upstream) {
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL is required for apps/app-api staging preflight.");
+	}
+	const accessClientId = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+	const accessClientSecret = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
 
 	let baseUrl;
 	try {
 		baseUrl = new URL(upstream);
 	} catch {
-		fail("STAGING_SUPERVISOR_API_BASE_URL must be a valid absolute URL.");
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL must be a valid absolute URL.");
+	}
+	if (baseUrl.protocol !== "https:") {
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL must use https:// for machine ingress.");
+	}
+	if (baseUrl.hostname !== "execution-control-staging.mucwiki-edge.link") {
+		fail(
+			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.mucwiki-edge.link.",
+		);
 	}
 
 	baseUrl.pathname = "/";
@@ -66,8 +85,12 @@ async function probeSupervisorApiForStagingAppApi() {
 
 	try {
 		await probeUrl({
-			label: `STAGING_SUPERVISOR_API_BASE_URL health probe (${healthUrl.toString()})`,
+			label: `STAGING_EXECUTION_CONTROL_BASE_URL health probe (${healthUrl.toString()})`,
 			url: healthUrl,
+			headers: {
+				"CF-Access-Client-Id": accessClientId,
+				"CF-Access-Client-Secret": accessClientSecret,
+			},
 		});
 	} catch (error) {
 		if (error instanceof Error) {
@@ -90,7 +113,7 @@ function parseArgs(argv) {
 
 	if (!appPath) {
 		fail(
-			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/hub-web|apps/public-chat-web|apps/protected-panel-web>",
+			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/campus-web|apps/operator-console-web>",
 		);
 	}
 
@@ -116,13 +139,37 @@ const APP_PREFLIGHTS = {
 				],
 			],
 			["node", ["apps/app-api/scripts/verify-staging-config.mjs"]],
-			["pnpm", ["--dir", "apps/app-api", "db:bootstrap:staging"]],
-			["pnpm", ["--dir", "apps/app-api", "db:migrate:staging"]],
-			["pnpm", ["--dir", "apps/app-api", "db:reconcile-shared-drift:staging", "--", "--json"]],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"node",
+					"./scripts/bootstrap-shared-product-with-seeds.mjs",
+				],
+			],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"pnpm",
+					"exec",
+					"drizzle-kit",
+					"migrate",
+				],
+			],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"node",
+					"./scripts/reconcile-shared-db-drift.mjs",
+					"--json",
+				],
+			],
 		],
 	},
-	"apps/hub-web": {
-		doctorSurface: "worker-staging-hub-web",
+	"apps/campus-web": {
+		doctorSurface: "worker-staging-campus-web",
 		commands: [
 			[
 				"uv",
@@ -133,17 +180,30 @@ const APP_PREFLIGHTS = {
 					"-m",
 					"scripts.check_worker_secret_presence",
 					"--app",
-					"apps/hub-web",
+					"apps/campus-web",
 					"--env",
 					"staging",
 				],
 			],
-			["pnpm", ["--dir", "apps/hub-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/hub-web", "deploy:verify-config:staging"]],
+			["node", ["apps/campus-web/scripts/verify-staging-config.mjs"]],
+			[
+				"node",
+				[
+					"scripts/verify-worker-deploy-config.mjs",
+					"apps/campus-web/dist/campus_web/wrangler.json",
+					"SERVICE:APP_API=app-api-staging",
+					"VAR:APP_API_BASE_URL=https://app-api.internal",
+					"VAR:CAMPUS_WEB_HOSTNAME=campus-staging.mucwiki-edge.link",
+					"VAR:SENTRY_ENVIRONMENT=staging",
+					"VAR_ABSENT:AUTH_TURNSTILE_SITE_KEY",
+					"VAR_ABSENT:SENTRY_RELEASE",
+					"ROUTE:campus-staging.mucwiki-edge.link",
+				],
+			],
 		],
 	},
-	"apps/public-chat-web": {
-		doctorSurface: "worker-staging-public-chat-web",
+	"apps/operator-console-web": {
+		doctorSurface: "worker-staging-operator-console-web",
 		commands: [
 			[
 				"uv",
@@ -154,34 +214,23 @@ const APP_PREFLIGHTS = {
 					"-m",
 					"scripts.check_worker_secret_presence",
 					"--app",
-					"apps/public-chat-web",
+					"apps/operator-console-web",
 					"--env",
 					"staging",
 				],
 			],
-			["pnpm", ["--dir", "apps/public-chat-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/public-chat-web", "deploy:verify-config:staging"]],
-		],
-	},
-	"apps/protected-panel-web": {
-		doctorSurface: "worker-staging-protected-panel-web",
-		commands: [
 			[
-				"uv",
+				"node",
 				[
-					"run",
-					"--all-packages",
-					"python",
-					"-m",
-					"scripts.check_worker_secret_presence",
-					"--app",
-					"apps/protected-panel-web",
-					"--env",
-					"staging",
+					"scripts/verify-worker-deploy-config.mjs",
+					"apps/operator-console-web/dist/operator_console_web/wrangler.json",
+					"SERVICE:APP_API=app-api-staging",
+					"VAR:OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal",
+					"VAR:SENTRY_ENVIRONMENT=staging",
+					"VAR_ABSENT:SENTRY_RELEASE",
+					"ROUTE:panel-staging.mucwiki-edge.link",
 				],
 			],
-			["pnpm", ["--dir", "apps/protected-panel-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/protected-panel-web", "deploy:verify-config:staging"]],
 		],
 	},
 };
@@ -204,7 +253,7 @@ async function main() {
 	]);
 
 	if (appPath === "apps/app-api") {
-		await probeSupervisorApiForStagingAppApi();
+		await probeExecutionControlForStagingAppApi();
 	}
 
 	for (const [command, args] of preflight.commands) {

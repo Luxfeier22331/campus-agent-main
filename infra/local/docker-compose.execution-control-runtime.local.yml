@@ -1,0 +1,21 @@
+services:
+  otel-collector:
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: ${OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT:-}
+      OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: ${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:-}
+      OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: ${OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION:-}
+    volumes:
+      - ../otel/collector-local-prodlike.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  execution-control:
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
+    labels:
+      traefik.enable: "false"
+
+  activity-worker-knowledge:
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}

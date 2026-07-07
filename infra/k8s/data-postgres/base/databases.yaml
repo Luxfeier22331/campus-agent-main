@@ -1,0 +1,61 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: campus-agent-postgres-campus-agent
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: campus_agent
+  owner: campus_agent
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: campus-agent-postgres-temporal
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: temporal
+  owner: temporal
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: campus-agent-postgres-temporal-visibility
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: temporal_visibility
+  owner: temporal
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: campus-agent-postgres-hindsight
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: hindsight
+  owner: hindsight
+  databaseReclaimPolicy: retain
+  extensions:
+    - name: vector

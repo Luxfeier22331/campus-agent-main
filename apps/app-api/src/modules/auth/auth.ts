@@ -1,7 +1,8 @@
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { captcha } from "better-auth/plugins";
+import { captcha, jwt } from "better-auth/plugins";
 import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
 import {
 	type AppApiEnvironment,
@@ -13,6 +14,18 @@ import {
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
 import { appAuthSchema } from "../../db/schema";
+import { buildFederationProviderClaimSet } from "../federation-runtime/claims";
+import {
+	FEDERATION_CLAIMS,
+	FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+	FEDERATION_JWKS_KEY_PAIR_CONFIG,
+	FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+	FEDERATION_SCOPES,
+} from "../federation-runtime/config";
+import {
+	createPgIdentityPlatformStore,
+	type IdentityPlatformMaterializationProjection,
+} from "../identity-platform";
 import {
 	resolvePasswordResetRedirectTarget,
 	sendPasswordChangedEmail,
@@ -24,11 +37,14 @@ const AUTH_SESSION_UPDATE_AGE = 60 * 60 * 24;
 const AUTH_RATE_LIMIT_WINDOW = 60;
 const AUTH_RATE_LIMIT_MAX = 10;
 const APP_PASSWORD_HASH_VERSION = "pbkdf2_sha256";
+const DEFAULT_IDENTITY_CLAIMS_VERSION = "identity-claims-v1";
 // Deployed workerd enforces a 100k PBKDF2 iteration ceiling.
 const APP_PASSWORD_PBKDF2_ITERATIONS = 100_000;
 const APP_PASSWORD_PBKDF2_MAX_ITERATIONS = 100_000;
 const APP_PASSWORD_SALT_BYTES = 16;
 const APP_PASSWORD_KEY_BYTES = 32;
+export const SIGNUP_LEGAL_CONSENT_HEADER_NAME = "x-campus-legal-accepted";
+export const SIGNUP_LEGAL_CONSENT_HEADER_VALUE = "terms-and-privacy";
 const appAuthCache = new WeakMap<Env, Promise<AppAuth>>();
 const passwordTextEncoder = new TextEncoder();
 
@@ -44,12 +60,16 @@ export interface BetterAuthConfigInput {
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
-	publicChatOrigin?: string;
 	resendApiKey: string;
 	resendFetch?: typeof fetch;
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
 	database: object;
+	onIdentityUserCreated?: (input: {
+		displayName: string;
+		email: string;
+		userId: string;
+	}) => Promise<void>;
 }
 
 export interface CreateAppAuthInput {
@@ -175,13 +195,27 @@ export function enforceEndUserEmailAdmission(input: {
 	});
 }
 
+export function enforceSignupLegalConsent(input: {
+	path: string | undefined;
+	headers: Headers | undefined;
+}): void {
+	if (input.path !== "/sign-up/email") {
+		return;
+	}
+
+	const accepted = input.headers?.get(SIGNUP_LEGAL_CONSENT_HEADER_NAME)?.trim();
+	if (accepted === SIGNUP_LEGAL_CONSENT_HEADER_VALUE) {
+		return;
+	}
+
+	throw APIError.from("BAD_REQUEST", {
+		code: "legal_consent_required",
+		message: "legal_consent_required",
+	});
+}
+
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	const appOrigin = new URL(input.authShellOrigin).origin;
-	const publicChatOrigin = input.publicChatOrigin
-		? new URL(input.publicChatOrigin).origin
-		: appOrigin;
-	const trustedOrigins =
-		appOrigin === publicChatOrigin ? [appOrigin] : [appOrigin, publicChatOrigin];
 	const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
 		endUserEmailAllowlist: input.endUserEmailAllowlist,
 		endUserEmailDomainAllowlist: input.endUserEmailDomainAllowlist,
@@ -191,15 +225,15 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		authResetEmailFrom: input.authResetEmailFrom,
 		authResetEmailReplyTo: input.authResetEmailReplyTo,
 		fetchImplementation: input.resendFetch,
-		publicChatOrigin,
 		resendApiKey: input.resendApiKey,
 	};
 
 	return {
 		appName: input.appName,
 		baseURL: appOrigin,
-		basePath: "/api/auth",
-		trustedOrigins,
+		basePath: "/",
+		disabledPaths: ["/token"],
+		trustedOrigins: [appOrigin],
 		secret: input.betterAuthSecret,
 		emailAndPassword: {
 			autoSignIn: true,
@@ -236,6 +270,28 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		},
 		database: input.database,
 		plugins: [
+			jwt({
+				disableSettingJwtHeader: true,
+				jwks: {
+					gracePeriod: FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+					keyPairConfig: FEDERATION_JWKS_KEY_PAIR_CONFIG,
+					rotationInterval: FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+				},
+			}),
+			oauthProvider({
+				allowDynamicClientRegistration: false,
+				advertisedMetadata: {
+					claims_supported: [...FEDERATION_CLAIMS],
+					scopes_supported: [...FEDERATION_SCOPES],
+				},
+				cachedTrustedClients: new Set(["muc-wiki"]),
+				consentPage: "/account/federation/consent",
+				customIdTokenClaims: buildFederationProviderClaimSet,
+				customUserInfoClaims: buildFederationProviderClaimSet,
+				grantTypes: ["authorization_code", "refresh_token"],
+				loginPage: "/account/login",
+				scopes: [...FEDERATION_SCOPES],
+			}),
 			captcha({
 				provider: "cloudflare-turnstile",
 				secretKey: input.authTurnstileSecretKey,
@@ -259,6 +315,10 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		},
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
+				enforceSignupLegalConsent({
+					headers: ctx.headers,
+					path: ctx.path,
+				});
 				enforceEndUserEmailAdmission({
 					email: extractAuthRequestEmail(ctx.body),
 					path: ctx.path,
@@ -274,6 +334,31 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 					}
 				}
 			}),
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					after: async (user: {
+						email?: string | null;
+						id?: string | null;
+						name?: string | null;
+					}) => {
+						if (!input.onIdentityUserCreated) {
+							return;
+						}
+						const userId = user.id?.trim() ?? "";
+						const email = normalizeAllowedEmail(user.email);
+						if (!(userId && email)) {
+							return;
+						}
+						await input.onIdentityUserCreated({
+							displayName: user.name?.trim() || email,
+							email,
+							userId,
+						});
+					},
+				},
+			},
 		},
 	};
 }
@@ -320,6 +405,44 @@ function constantTimeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
 	}
 
 	return diff === 0;
+}
+
+function buildInitialIdentityProjection(input: {
+	displayName: string;
+	email: string;
+	userId: string;
+}): IdentityPlatformMaterializationProjection {
+	return {
+		account: {
+			accountId: input.userId,
+			displayName: input.displayName,
+			email: input.email,
+			status: "active",
+		},
+		identity: {
+			claimsVersion: DEFAULT_IDENTITY_CLAIMS_VERSION,
+			principalId: input.userId,
+			principalType: "campus_member",
+			verificationStatus: "unverified",
+		},
+		access: {
+			availableApps: ["chat", "docs", "account"],
+			entitlementGroups: ["campus_members"],
+			permissions: {
+				chat: true,
+				operator: false,
+			},
+			restrictedSurfacesReady: false,
+		},
+		preferences: {
+			profileMemoryEnabled: true,
+			profileMemoryItemCount: 0,
+		},
+		federation: {
+			connectedClients: [],
+			enabled: false,
+		},
+	};
 }
 
 export async function hashAppPassword(password: string): Promise<string> {
@@ -369,6 +492,9 @@ export async function verifyAppPassword(input: {
 export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 	const config = input.config ?? readAppAuthConfig(env);
 	const database = input.database ?? (await createRuntimeDatabase(env, { consistency: "fresh" }));
+	const identityStore = createPgIdentityPlatformStore(env, {
+		getDb: () => database,
+	});
 
 	return betterAuth(
 		buildBetterAuthConfig({
@@ -379,11 +505,22 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
 			environment: config.environment,
-			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			endUserEmailAllowlist: config.endUserEmailAllowlist,
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
 			resendFetch: fetch,
+			onIdentityUserCreated: async (user) => {
+				const now = new Date().toISOString();
+				await identityStore.materializeIdentityProjection({
+					observedAt: now,
+					projection: buildInitialIdentityProjection({
+						displayName: user.displayName,
+						email: user.email,
+						userId: user.userId,
+					}),
+					snapshotId: `access_snapshot_${crypto.randomUUID().replace(/-/g, "")}`,
+				});
+			},
 			database: drizzleAdapter(database, {
 				camelCase: true,
 				provider: "pg",

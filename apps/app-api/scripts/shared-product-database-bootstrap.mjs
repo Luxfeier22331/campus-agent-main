@@ -2,7 +2,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { getMigrations } from "better-auth/db/migration";
+import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
@@ -10,7 +12,17 @@ const POSTGRES_PREFIX = /^(postgres|postgresql):\/\//i;
 
 export const APP_AUTH_SCHEMA = "app_auth";
 export const APP_CHAT_SCHEMA = "chat";
-export const BETTER_AUTH_TABLES = ["user", "session", "account", "verification"];
+export const BETTER_AUTH_TABLES = [
+	"user",
+	"session",
+	"account",
+	"verification",
+	"oauthClient",
+	"oauthRefreshToken",
+	"oauthAccessToken",
+	"oauthConsent",
+	"jwks",
+];
 
 const scriptsRoot = fileURLToPath(new URL(".", import.meta.url));
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -53,8 +65,8 @@ export function readSharedProductBootstrapEnv(env = process.env) {
 	}
 	const normalizedDatabaseUrl = new URL(databaseUrl);
 	normalizedDatabaseUrl.searchParams.delete("sslmode");
-	const publicChatOrigin = readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)
-		? new URL(readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)).origin
+	const authShellOrigin = readOptionalEnv("AUTH_SHELL_ORIGIN", env)
+		? new URL(readOptionalEnv("AUTH_SHELL_ORIGIN", env)).origin
 		: undefined;
 
 	return {
@@ -63,7 +75,7 @@ export function readSharedProductBootstrapEnv(env = process.env) {
 		databaseSslMode: env.APP_API_DATABASE_SSLMODE?.trim() || "require",
 		databaseUrl: normalizedDatabaseUrl.toString(),
 		betterAuthSecret: readOptionalEnv("BETTER_AUTH_SECRET", env),
-		publicChatOrigin,
+		authShellOrigin,
 	};
 }
 
@@ -110,12 +122,18 @@ export function classifyBetterAuthTableOwnership(input) {
 	const allAuthSchema = BETTER_AUTH_TABLES.every((tableName) => authTables.has(tableName));
 	const anyAuthSchema = BETTER_AUTH_TABLES.some((tableName) => authTables.has(tableName));
 	const anyPublicSchema = BETTER_AUTH_TABLES.some((tableName) => publicTables.has(tableName));
+	const coreAuthSchema = ["user", "session", "account", "verification"].every((tableName) =>
+		authTables.has(tableName),
+	);
 
 	if (!(anyAuthSchema || anyPublicSchema)) {
 		return "fresh";
 	}
 	if (allAuthSchema && !anyPublicSchema) {
 		return "target_schema";
+	}
+	if (coreAuthSchema && !anyPublicSchema) {
+		return "target_schema_needs_migration";
 	}
 	if (anyPublicSchema && !anyAuthSchema) {
 		throw new Error(
@@ -155,19 +173,32 @@ function buildBetterAuthOptions(env, pool) {
 	if (!env.betterAuthSecret) {
 		throw new Error("BETTER_AUTH_SECRET is required when bootstrapping fresh app_auth tables.");
 	}
-	if (!env.publicChatOrigin) {
-		throw new Error("PUBLIC_CHAT_WEB_ORIGIN is required when bootstrapping fresh app_auth tables.");
+	if (!env.authShellOrigin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required when bootstrapping fresh app_auth tables.");
 	}
 
 	return {
 		appName: "Campus Agent",
 		basePath: "/api/auth",
-		baseURL: env.publicChatOrigin,
+		baseURL: env.authShellOrigin,
 		secret: env.betterAuthSecret,
-		trustedOrigins: [env.publicChatOrigin],
+		trustedOrigins: [env.authShellOrigin],
 		emailAndPassword: {
 			enabled: true,
 		},
+		disabledPaths: ["/token"],
+		plugins: [
+			jwt({
+				disableSettingJwtHeader: true,
+			}),
+			oauthProvider({
+				allowDynamicClientRegistration: false,
+				cachedTrustedClients: new Set(["muc-wiki"]),
+				consentPage: "/account/federation/consent",
+				loginPage: "/account/login",
+				scopes: ["openid", "profile", "email"],
+			}),
+		],
 		session: {
 			storeSessionInDatabase: true,
 		},
@@ -266,7 +297,7 @@ export async function bootstrapSharedProductDatabase(envOverrides = process.env)
 			...(await listBetterAuthTables(pool, env.authSchema)),
 		});
 		await ensureBetterAuthRoleSearchPath(pool, env);
-		if (betterAuthState === "fresh") {
+		if (betterAuthState === "fresh" || betterAuthState === "target_schema_needs_migration") {
 			await runBetterAuthMigrations(env);
 		}
 		await verifyBetterAuthPoolSearchPath(env);

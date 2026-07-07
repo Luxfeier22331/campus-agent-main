@@ -35,7 +35,7 @@ const docsModuleMock = vi.hoisted(() => {
 					documentSlug: "student-attendance-management",
 					entitlementGroups: [],
 					isCurrent: true,
-					title: "中央民族大学学生考勤管理办法",
+					title: "示例大学学生考勤管理办法",
 					updatedAt: "2026-04-23T08:00:00.000Z",
 					versionId: "ver_2018_current",
 					versionSlug: "2018-current",
@@ -44,9 +44,6 @@ const docsModuleMock = vi.hoisted(() => {
 			];
 		},
 		async listDocumentVersions() {
-			return [];
-		},
-		async searchCurrentPublic() {
 			return [];
 		},
 	} as DocsReadModelStore;
@@ -79,9 +76,9 @@ function createTelemetry(): AppTelemetry {
 		getTraceHeaders: vi.fn(() => ({})),
 		markHttpResponseStatus: vi.fn(),
 		recordExecutionAuditEvent: vi.fn(async () => undefined),
+		recordIdentityEndpoint: vi.fn(async () => undefined),
 		recordProjectionDrain: vi.fn(async () => undefined),
 		recordProjectionEnqueued: vi.fn(async () => undefined),
-		recordQualitySampledGrade: vi.fn(async () => undefined),
 		recordRequestAccepted: vi.fn(async () => undefined),
 		recordRequestFinalized: vi.fn(async () => undefined),
 		recordRequestTransportError: vi.fn(async () => undefined),
@@ -111,9 +108,10 @@ describe("docs request scope", () => {
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance-management",
 				documentSlug: "student-attendance-management",
+				displayTitle: "示例大学学生考勤管理办法",
 				isCurrent: true,
 				kind: "document",
-				title: "中央民族大学学生考勤管理办法",
+				title: "示例大学学生考勤管理办法",
 			},
 		]);
 	});

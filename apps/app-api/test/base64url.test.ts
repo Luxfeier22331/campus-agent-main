@@ -28,7 +28,7 @@ describe("base64url helpers", () => {
 		const payload = {
 			occurredAt: "2026-04-04T13:48:00.000Z",
 			requestId: "req_01HR8M8N6S5D2P4",
-			selectedTarget: "curriculum/curriculum_plan",
+			selectedTool: "curriculum/curriculum_plan",
 		};
 		const encoded = encodeBase64UrlJson(payload);
 

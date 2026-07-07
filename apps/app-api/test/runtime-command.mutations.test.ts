@@ -28,7 +28,7 @@ function requestExecutionWrite(
 		principalLabel: null,
 		principalType: "student",
 		questionPreview: "奖学金怎么评？",
-		requestedCapability: "knowledge",
+		requestedTool: "knowledge_query",
 		requestedScope: {
 			collection: "student_rules",
 			corpus: "regulations",
@@ -38,12 +38,13 @@ function requestExecutionWrite(
 		resolvedScope: null,
 		runId: "run_001",
 		safetyIdentifier: "safety_001",
-		selectedTarget: null,
+		selectedTool: null,
 		sourceDocIds: [],
 		startedAt: "2026-06-04T01:02:03.000Z",
 		status: "accepted",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		traceId: "trace_001",
+		turnSequence: 1,
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",
 		versionQuery: null,
@@ -60,6 +61,7 @@ describe("runtime command mutations", () => {
 			requestId: "req_001",
 			runId: "run_001",
 			status: "accepted",
+			turnSequence: 1,
 		});
 	});
 });

@@ -10,10 +10,9 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -50,31 +49,31 @@ describe("official web target inventory operator route", () => {
 			listTargetInventory: vi.fn().mockResolvedValue({
 				entries: [
 					{
-						admissionTargetId: "campus-services-service-guide",
-						consumerFamily: "service_guide_candidate",
+						admissionTargetId: "official-web-institutional-rules",
+						consumerFamily: "regulation_candidate",
 						fieldStatus: {
-							process_steps: "missing",
+							reference_title: "missing",
 						},
-						id: "muc-information-disclosure-application-process",
-						inventoryId: "muc-information-disclosure-application-process",
-						ownerSurface: "service_guide_lookup",
-						optionalEvidence: ["service_material"],
-						optionalFields: ["required_materials"],
+						id: "muc-public-regulation",
+						inventoryId: "muc-public-regulation",
+						ownerSurface: "regulations/institutional_rules",
+						optionalEvidence: [],
+						optionalFields: [],
 						previewEvidence: null,
-						releaseBlockers: ["no_preview_evidence"],
-						requiredEvidence: ["service_process"],
-						requiredFields: ["process_steps"],
+						releaseBlockers: ["no_preview_evidence", "release_gate_not_reviewed"],
+						requiredEvidence: ["regulation_text"],
+						requiredFields: ["reference_title"],
 						reviewState: "candidate",
-						selectedWriteTarget: "campus_services/service_guide",
-						sourceUrls: ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
-						targetLabel: "中央民族大学信息公开依申请公开工作流程",
+						selectedWriteTarget: "regulations/institutional_rules",
+						sourceUrls: ["https://info.example.edu/info/1198/4101.htm"],
+						targetLabel: "示例大学学术委员会章程",
 					},
 				],
 				page: { nextCursor: null },
 				summary: {
 					countsByReviewState: { candidate: 1 },
-					inventoryVersion: "muc_public_target_inventory_v1",
-					siteId: "muc_public",
+					inventoryVersion: "example_public_target_inventory_v1",
+					siteId: "example_public",
 				},
 			}),
 		};
@@ -85,7 +84,7 @@ describe("official web target inventory operator route", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/target-inventory?siteId=muc_public",
+				"https://app-api.internal/api/operator/official-web/target-inventory?siteId=example_public",
 			),
 		);
 
@@ -93,16 +92,16 @@ describe("official web target inventory operator route", () => {
 		await expect(response.json()).resolves.toEqual({
 			entries: [
 				expect.objectContaining({
-					id: "muc-information-disclosure-application-process",
-					releaseBlockers: ["no_preview_evidence"],
+					id: "muc-public-regulation",
+					releaseBlockers: ["no_preview_evidence", "release_gate_not_reviewed"],
 					reviewState: "candidate",
 				}),
 			],
 			page: { nextCursor: null },
 			summary: {
 				countsByReviewState: { candidate: 1 },
-				inventoryVersion: "muc_public_target_inventory_v1",
-				siteId: "muc_public",
+				inventoryVersion: "example_public_target_inventory_v1",
+				siteId: "example_public",
 			},
 		});
 		expect(service.listTargetInventory).toHaveBeenCalledWith({
@@ -110,7 +109,7 @@ describe("official web target inventory operator route", () => {
 				consumerFamily: null,
 				ownerSurface: null,
 				reviewState: null,
-				siteId: "muc_public",
+				siteId: "example_public",
 			},
 			principal,
 		});

@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - campus-web
+        - operator-console-web
+        - app-api
+        - execution-control
+        - agent-runtime
+        - ingestion/data
+        - docs
+        - infra/ci
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide exact commands or minimal steps.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, Node, pnpm, Python/uv, or deployment context when relevant.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Include only sanitized logs or screenshots.
+  - type: checkboxes
+    id: data-boundary
+    attributes:
+      label: Public source/data boundary
+      options:
+        - label: This report uses synthetic, self-authored, or sanitized examples only.
+          required: true
+        - label: This report does not include secrets, private URLs, raw notices, source-derived documents, or internal logs.
+          required: true

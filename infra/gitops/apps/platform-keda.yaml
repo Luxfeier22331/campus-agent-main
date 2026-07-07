@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-keda
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://kedacore.github.io/charts
+      chart: keda
+      targetRevision: 2.20.1
+      helm:
+        releaseName: keda
+        valueFiles:
+          - $values/infra/gitops/values/keda/staging.yaml
+    - repoURL: https://github.com/MUC-WIKI/campus-agent.git
+      targetRevision: develop
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-runtime-rendered-config
+  namespace: campus-agent-staging
+  annotations:
+    campus-agent.muc.wiki/example-only: "true"
+data:
+  DEPLOYMENT_ENVIRONMENT: staging
+  EXECUTION_CONTROL_RUNTIME_MODE: staging
+  EXECUTION_CONTROL_RUNTIME_RELEASE: execution-control@0000000
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: /etc/campus-agent/runtime-config.staging.json
+  EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: "false"
+  EXECUTION_CONTROL_TEMPORAL_ADDRESS: temporal:7233
+  EXECUTION_CONTROL_TEMPORAL_NAMESPACE: campus-agent-staging
+  EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: campus-agent.workflow
+  EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: http://agent-runtime:27062
+  EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: "180000"
+  EXECUTION_CONTROL_APP_API_BASE_URL: https://api-staging.example.internal
+  EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: https://api-staging.example.internal
+  EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: "30000"
+  EXECUTION_CONTROL_EXECUTION_AUDIT_URL: https://api-staging.example.internal/api/internal/execution/audit-events
+  EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: /run/campus-agent/provider-config-projection.json
+  PERSONAL_MEMORY_BASE_URL: http://hindsight-api:8888
+  EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: "5000"
+  QDRANT_URL: https://qdrant:6333
+  QDRANT_TLS_CA_CERT_PATH: /etc/campus-agent/qdrant/tls/ca.crt
+  QDRANT_TIMEOUT_SECONDS: "60"
+  AGENT_RUNTIME_HOST: 0.0.0.0
+  AGENT_RUNTIME_PORT: "27062"
+  AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000

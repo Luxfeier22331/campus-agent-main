@@ -1,0 +1,352 @@
+---
+doc_type: contract
+truth_scope: execution
+owner_boundary: apps/execution-control
+status: active
+created: 2026-04-21
+updated: 2026-07-07
+---
+# Knowledge Retrieval Plan Contract
+
+## 文档边界
+
+本文冻结 knowledge planner 与 repo-owned retrieval runtime 之间的 typed retrieval plan
+seam。
+
+它回答的是：
+
+- `RetrievalPlan / RetrievalStep / StepResult` 的最小稳定 shape 是什么，以及如何映射到
+  durable `RunStep` / `StepResult`
+- planner / executor 各自拥有什么语义 owner
+- `version_query`、freshness、source-trust、budget 与 fail-close 如何进入 plan
+- 哪些字段属于 internal retrieval seam，不能泄漏成 browser / execution-facing contract
+
+它不负责：
+
+- browser-facing HTTP schema
+- execution -> tool handoff schema
+- 当前 multi-step executor 的具体代码实现
+- 通用工具平台或开放域 browse contract
+
+补充约束：
+
+- 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared package
+  placement
+- 当前 merged truth 仍以 `docs/architecture/current.md` 与
+  `docs/architecture/system/retrieval-serving.md` 为准；本文冻结的是
+  Go RAG 内部 planner / executor seam truth
+
+## Core Conclusion
+
+`RetrievalPlan` 在本仓库里固定是 repo-owned typed artifact，并且必须能投影到 durable
+step trajectory，而不是 prompt 内部不可见的自由文本状态。
+
+固定结论：
+
+- `knowledge` 负责生成 `RetrievalPlan`
+- repo-owned retrieval runtime 负责执行 `RetrievalStep`
+- `RetrievalRequest` 是 executor kernel input，不等于 `RetrievalStep`
+- 每个 `RetrievalStep` 必须映射到 durable `RunStep`
+- `StepResult` 固定拆成四层：
+  - `grounding`
+  - `references`
+  - `activity`
+  - `failure`
+- budget、authz、version、freshness、source-trust 都必须在 plan / step seam 上显式表达或显式继承
+- evidence verifier 的结果必须进入 step result；synthesis 不得补齐缺失 evidence
+
+## Contract Placement
+
+这组类型的首轮稳定 placement 固定为：
+
+`knowledge planner -> retrieval plan contract -> retrieval runtime executor`
+
+固定规则：
+
+- `packages/contracts` 当前不承载 `RetrievalPlan / RetrievalStep / StepResult`
+- `apps/app-api`、`apps/execution-control`、retired Python handoff 与
+  browser surface 不得依赖这组内部类型
+- operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
+  summary，而不是 raw plan / raw vendor payload
+- run projection 可以保存 sanitized plan / step / result projection，用于 scheduler、
+  eval、panel 与 badcase 回链
+
+## RetrievalPlan
+
+`RetrievalPlan` 的最小稳定字段组固定包括：
+
+```text
+RetrievalPlan
+- plan_id: str
+- run_id: str
+- query_mode:
+  - current
+  - historical
+  - as_of
+  - compare
+  - freshness_sensitive
+  - live_assisted
+- admitted_scopes[]:
+  - corpus
+  - collection
+- version_query: existing typed version query | null
+- source_trust_policy:
+  - minimum_tier
+- budget:
+  - max_steps
+  - max_replans
+- steps[]: RetrievalStep
+- fail_close:
+  - on_budget_exhausted
+  - on_empty_supporting_evidence
+```
+
+固定语义：
+
+- active Go RAG `query_mode` 接受 `current / historical / as_of / compare /
+  freshness_sensitive / live_assisted`。`freshness_sensitive` 与 `live_assisted`
+  只在 query-serving scope policy admitted 后生成 live branch；indexed lookup
+  不消费这两类 plan。
+- `admitted_scopes` 由 tool / serving-surface / authz gate 先决决定，planner 只能在
+  这个闭集内排布 steps
+- `version_query` 复用已冻结的 versioned-history truth；plan 不重写版本解析语义
+- `source_trust_policy.minimum_tier` 是 answer-bearing evidence 的硬门槛；
+  missing、unknown 或低于最低 tier 的 candidate 不得进入 supporting evidence。
+- `budget.max_steps` 计入 replan 后插入的新增 steps；预算耗尽固定 fail-close
+- `run_id` 是 run projection correlation，不由 retrieval runtime 生成
+
+## RetrievalStep
+
+`RetrievalStep` 的最小稳定字段组固定包括：
+
+```text
+RetrievalStep
+- step_id: str
+- run_step_id: str
+- step_type: closed vocabulary
+- stage:
+  - planning
+  - tool
+  - retrieval
+  - rerank
+  - selection
+  - synthesis
+  - grounding
+- scope:
+  - corpus
+  - collection
+- query_text: str
+- depends_on_step_ids[]: str
+- selector:
+  - target_document_ids[]
+  - target_version_ids[]
+  - target_revision_track
+  - preferred_document_ids[]
+  - entity_keys[]
+- budget:
+  - top_k
+  - timeout_ms | null
+- expected_output:
+  - candidate_set
+  - entity_matches
+  - freshness_decision
+  - compare_inputs
+  - live_candidates
+  - coverage_verdict
+  - supporting_evidence
+```
+
+固定语义：
+
+- `selector` 只表达 planner 允许设置的 narrowing intent，不冒充 executor 的完整 request shape
+- authz / visibility filter 不是 planner-owned field；executor 必须从 request context
+  继续强制 enforcement
+- step 可以比 plan 更窄，不能比 plan 更宽
+- `depends_on_step_ids` 表达依赖顺序；executor 可以在不破坏依赖的前提下并行独立 steps
+- `run_step_id` 必须指向 durable `runtime.agent_run_steps` 中的同一 typed execution unit
+
+## Allowed Step Vocabulary
+
+`step_type` 固定是 closed vocabulary。
+
+当前 executable plan values：
+
+- `hybrid_search`
+  - 单一 admitted collection 的索引检索
+- `historical_version_lookup`
+  - historical / `as_of` 版本定位
+- `compare_pair_lookup`
+  - compare 问题的双侧 grounding 准备
+- `freshness_gate`
+  - `freshness_sensitive` live branch 的显式 source-policy gate
+- `live_source_lookup`
+  - bounded official-web live lookup；必须由 query-serving scope policy admission 打开
+- `evidence_coverage_verify`
+  - 验证 candidate / supporting evidence 是否覆盖 query 要求
+- `supporting_evidence_select`
+  - 选择 answer-bearing supporting evidence
+
+当前明确不 admission 的历史/迁移词汇包括 `document_section_read`、
+`parent_context_expand` 与 `scope_follow_up`。它们不得出现在 executable plan 中；
+workflow / activity 遇到这类 step type 必须 fail closed。
+
+固定排除：
+
+- `transport_schedule_lookup`
+- `campus_notice_discover`
+- internal selected notice resolve with `payload_kind=campus_notice_get`
+- general web browse
+- provider black-box web tool
+- 未经 repo 文档 admission 的 remote tool
+
+## Query Mode Vs Step Type
+
+固定规则：
+
+- `historical / as_of / compare` 是 active plan-level query mode，不是 step type
+- `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
+- `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
+- `version_query` 是用户请求形态；执行前必须产生 internal
+  `resolved_version_query` projection。Go indexed executor 不得从 raw
+  `version_query` 猜测 `as_of` 或 compare target。
+- `resolved_version_query` 当前只作为 execution-control internal projection 保存到
+  sanitized run metadata，不进入 `packages/contracts`。它至少表达：
+  `mode`、`version_id`、`compare_to_version_id`、`as_of` 与
+  `target_version_ids[]`。
+- `current` 的 `resolved_version_query` 不绑定单个 collection-level version id；
+  current-only 语义由 serving config 与 `is_current=true` filter 强制执行。
+- `freshness_sensitive / live_assisted` 通过 `freshness_gate` /
+  `live_source_lookup` 与 `retrieval.live_source_lookup` 执行 bounded official-web
+  live lookup；不得落入 Qdrant indexed lookup，也不得使用 general web browse。
+- retrieval plan 不允许混合 indexed lookup step 与 live-source-lookup retrieval
+  step；混合时 workflow 必须 fail closed。
+
+## StepResult
+
+`StepResult` 的最小稳定 shape 固定为：
+
+```text
+StepResult
+- step_id: str
+- run_step_id: str
+- status:
+  - succeeded
+  - empty
+  - blocked
+  - failed
+- grounding[]: step-level candidate payload
+- references[]: stable canonical references
+- activity: compact step execution summary
+- failure: null | terminal/non-terminal failure record
+- stage_attribution: str
+```
+
+固定规则：
+
+- `grounding` 用于后续 synthesis / supporting-evidence selection
+- `references` 必须指向稳定 canonical units，而不是 raw trace id
+- `activity` 用于 operator / eval / audit，不直接暴露 raw vendor payload
+- `failure` 只记录 bounded retrieval failure，不替代 top-level app error model
+- `StepResult` 的详细逻辑对象定义见 `docs/data/retrieval-activity.md`
+- `stage_attribution` 必须可映射到 badcase / RAGAS / golden dataset / panel 的同一阶段词汇
+
+## Planner And Executor Boundary
+
+### `knowledge` planner 固定负责
+
+- query framing 后的 query mode 决定
+- admitted scopes 内的 step 排布
+- selector narrowing intent
+- 是否触发 bounded replan
+- supporting evidence selection policy
+- evidence coverage decision 和 synthesis / grounding policy
+
+### Retrieval Runtime Executor 固定负责
+
+- step 到 executor kernel request 的映射
+- authz / visibility / version / serving-config enforcement
+- step execution
+- rerank / threshold / merge / dedupe
+- `StepResult.activity` 与 candidate shaping
+
+### typed domain tools 固定负责
+
+- projection-backed deterministic data access
+- typed tool result schema
+- source truth / release current pointer / visibility posture enforcement
+
+固定约束：
+
+- planner 不得静默扩大 scope、trust tier 或 runtime tool
+- executor 不得静默改写 query mode、历史语义或产品 tool
+- `RetrievalRequest` 继续是 executor kernel input；它可以从 `RetrievalStep` 派生，但两者不
+  允许一一直接等号化
+- evidence verifier 失败时必须 replan、clarification 或 fail-close；synthesis 不得把缺失证据补成自然语言答案
+
+## Budget, Replan, And Fail-Close
+
+固定 budget 语义：
+
+- plan budget
+  - `max_steps`
+  - `max_replans`
+- step budget
+  - `top_k`
+  - `timeout_ms`
+
+固定 bounded replan 语义：
+
+- replan 只能由 `knowledge` 发起
+- replan 只允许在以下分支触发：
+  - step `empty`
+  - non-terminal `blocked`
+  - 需要更窄 selector / query rewrite
+- replan 后仍必须满足：
+  - admitted scope 不变或收窄
+  - authz / visibility gate 不变
+  - source-trust policy 不放宽
+  - tool domain 不切换成 tool read model runtime 或 general web
+
+固定 fail-close 分支：
+
+- budget exhausted
+- unresolved freshness
+- no admitted live branch
+- no answer-bearing supporting evidence
+- evidence coverage failed
+- grounding failed
+- unauthorized or serving-config-blocked scope
+
+## Browser / Execution Safe Boundary
+
+以下字段不得直接成为 browser / execution-facing contract：
+
+- raw `RetrievalPlan`
+- raw `RetrievalStep`
+- raw step query text history
+- raw vendor scores / payload
+- raw candidate trace dump
+- raw durable step payload
+
+browser / execution layer 允许消费的只是：
+
+- supporting evidence
+- source card / reader permalink
+- operator-safe execution summary
+- sanitized step trajectory summary
+
+## Forbidden Shapes
+
+- 不把 `RagRetrievalPlan = default_rewrite | personalized_rewrite` 误写成长期 retrieval
+  plan truth
+- 不把 `RetrievalRequest` 直接冒充成 `RetrievalStep`
+- 不把 `live_source_lookup` 做成 general web fallback
+- 不把 tool read model runtime tool domain 混入 generic retrieval step taxonomy
+- 不把 fail-close 降成“无依据也尽量回答”
+
+## 相关稳定文档
+
+- `docs/architecture/system/agentic-retrieval.md`
+- `docs/architecture/system/retrieval-serving.md`
+- `docs/reference/runtime-serving-and-index-terms.md`
+- `docs/data/retrieval-activity.md`

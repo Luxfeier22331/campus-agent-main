@@ -1,15 +1,23 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0032
 status: accepted
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-07-04
 ---
 # ADR-0032 Internal Notice Notice-Family Stratified Admission
 
 ## 状态
 
 Accepted on 2026-04-09.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 `campus_notices/internal_notice`
+的 notice-family admission 边界。
 
 ## 背景
 
@@ -218,9 +226,8 @@ portal `notice_type` 只允许作为粗 prior，不允许充当最终 family tru
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/data/authenticated-notice.md`
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`
 - `configs/ingestion/campus_notices/internal_notice/notice-family-classification

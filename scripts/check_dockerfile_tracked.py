@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,35 @@ def repo_root() -> Path:
 
 def tracked_dockerfiles(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    return worktree_paths("Dockerfile*", "*.dockerfile", "apps/**/Dockerfile*", root=base)
+    return worktree_paths(
+        "Dockerfile*",
+        "*.dockerfile",
+        "apps/**/Dockerfile*",
+        "jobs/**/Dockerfile*",
+        root=base,
+    )
+
+
+def select_affected_dockerfiles(
+    paths: tuple[str, ...], *, root: Path | None = None
+) -> tuple[Path, ...]:
+    base = root or repo_root()
+    if ".hadolint.yaml" in paths:
+        return tracked_dockerfiles(root=base)
+    selected: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        candidate = base / path
+        if not _is_dockerfile_path(path) or not candidate.exists() or path in seen:
+            continue
+        seen.add(path)
+        selected.append(candidate)
+    return tuple(selected)
+
+
+def _is_dockerfile_path(path: str) -> bool:
+    name = Path(path).name
+    return name.startswith("Dockerfile") or path.endswith(".dockerfile")
 
 
 def build_local_hadolint_command(path: Path, *, root: Path | None = None) -> list[str]:
@@ -45,10 +74,18 @@ def build_docker_hadolint_command(path: Path, *, root: Path | None = None) -> li
     ]
 
 
-def main() -> int:
-    files = tracked_dockerfiles()
+def main(argv: tuple[str, ...] = ()) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--affected", nargs="*")
+    args = parser.parse_args(argv)
+
+    files = (
+        select_affected_dockerfiles(tuple(args.affected))
+        if args.affected is not None
+        else tracked_dockerfiles()
+    )
     if not files:
-        print("No current-worktree Dockerfiles matched the live-surface pathspecs.")
+        print("No current-worktree Dockerfiles matched the requested pathspecs.")
         return 0
 
     if shutil.which("hadolint"):
@@ -71,4 +108,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(tuple(sys.argv[1:])))

@@ -5,19 +5,9 @@ interface RequestProjectionCursor {
 	startedAt: string;
 }
 
-interface AuditProjectionCursor {
-	auditEventId: string;
-	occurredAt: string;
-}
-
-interface SafetyAnomalyCursor {
-	requestId: string;
-	detectedAt: string;
-}
-
-interface QualityBadcaseCursor {
-	badcaseId: string;
-	openedAt: string;
+interface RuntimeProjectionCursor {
+	id: string;
+	timestamp: string;
 }
 
 export function encodeRequestCursor(input: { requestId: string; startedAt: string }): string {
@@ -46,82 +36,27 @@ export function decodeRequestCursor(cursor: string): RequestProjectionCursor | n
 	}
 }
 
-export function encodeAuditCursor(input: { auditEventId: string; occurredAt: string }): string {
-	return encodeBase64UrlJson(input satisfies AuditProjectionCursor);
+export function encodeRuntimeProjectionCursor(input: { id: string; timestamp: string }): string {
+	return encodeBase64UrlJson(input satisfies RuntimeProjectionCursor);
 }
 
-export function decodeAuditCursor(cursor: string): AuditProjectionCursor | null {
+export function decodeRuntimeProjectionCursor(cursor: string): RuntimeProjectionCursor | null {
 	try {
-		const parsed = decodeBase64UrlJson<Partial<AuditProjectionCursor>>(cursor);
+		const parsed = decodeBase64UrlJson<Partial<RuntimeProjectionCursor>>(cursor);
 
 		if (
-			typeof parsed.auditEventId !== "string" ||
-			!parsed.auditEventId ||
-			typeof parsed.occurredAt !== "string" ||
-			!parsed.occurredAt
+			typeof parsed.id !== "string" ||
+			!parsed.id ||
+			typeof parsed.timestamp !== "string" ||
+			!parsed.timestamp ||
+			Number.isNaN(Date.parse(parsed.timestamp))
 		) {
 			return null;
 		}
 
 		return {
-			auditEventId: parsed.auditEventId,
-			occurredAt: parsed.occurredAt,
-		};
-	} catch {
-		return null;
-	}
-}
-
-export function encodeSafetyAnomalyCursor(input: {
-	detectedAt: string;
-	requestId: string;
-}): string {
-	return encodeBase64UrlJson(input satisfies SafetyAnomalyCursor);
-}
-
-export function decodeSafetyAnomalyCursor(cursor: string): SafetyAnomalyCursor | null {
-	try {
-		const parsed = decodeBase64UrlJson<Partial<SafetyAnomalyCursor>>(cursor);
-
-		if (
-			typeof parsed.requestId !== "string" ||
-			!parsed.requestId ||
-			typeof parsed.detectedAt !== "string" ||
-			!parsed.detectedAt
-		) {
-			return null;
-		}
-
-		return {
-			detectedAt: parsed.detectedAt,
-			requestId: parsed.requestId,
-		};
-	} catch {
-		return null;
-	}
-}
-
-export function encodeQualityBadcaseCursor(input: { badcaseId: string; openedAt: string }): string {
-	return encodeBase64UrlJson(input satisfies QualityBadcaseCursor);
-}
-
-export function decodeQualityBadcaseCursor(cursor: string): QualityBadcaseCursor | null {
-	try {
-		const parsed = decodeBase64UrlJson<Partial<QualityBadcaseCursor>>(cursor);
-
-		if (
-			typeof parsed.badcaseId !== "string" ||
-			!parsed.badcaseId ||
-			typeof parsed.openedAt !== "string" ||
-			!parsed.openedAt ||
-			Number.isNaN(Date.parse(parsed.openedAt))
-		) {
-			return null;
-		}
-
-		return {
-			badcaseId: parsed.badcaseId,
-			openedAt: parsed.openedAt,
+			id: parsed.id,
+			timestamp: parsed.timestamp,
 		};
 	} catch {
 		return null;

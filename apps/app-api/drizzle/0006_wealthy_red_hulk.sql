@@ -5,7 +5,7 @@ CREATE TABLE "operator"."quality_grade_projection" (
     "surface" text NOT NULL,
     "request_started_at" timestamp with time zone NOT NULL,
     "selected_target" text,
-    "requested_capability" text,
+    "requested_tool" text,
     "principal_type" text NOT NULL,
     "collection" text,
     "model_name" text,

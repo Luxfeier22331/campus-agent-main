@@ -1,0 +1,62 @@
+{
+	"schema_version": "ingest_core_default_executor_inventory.v1",
+	"ts_tasks": [
+		{
+			"sourceFamily": "authenticated_notice",
+			"corpus": "campus_notices",
+			"collection": "internal_notice",
+			"registryTaskId": "source_truth_materialize",
+			"inputContract": "authenticated_notice_capture_release.v1",
+			"outputContract": "authenticated_notice_source_truth.v1"
+		},
+		{
+			"sourceFamily": "authenticated_notice",
+			"corpus": "authenticated_documents",
+			"collection": "file_release_source",
+			"registryTaskId": "source_truth_materialize",
+			"inputContract": "internal_portal_file_release_export_v1",
+			"outputContract": "authenticated_document_file_release_source_truth.v1"
+		},
+		{
+			"sourceFamily": "official_web",
+			"corpus": "official_web",
+			"collection": "fresh_news",
+			"registryTaskId": "source_truth_materialize",
+			"inputContract": "official_web_source_truth_bundle.v1",
+			"outputContract": "official_web_fresh_news_source_truth.v1"
+		},
+		{
+			"sourceFamily": "official_web",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"registryTaskId": "source_truth_materialize",
+			"inputContract": "official_web_source_truth_bundle.v1",
+			"outputContract": "official_web_stable_reference_source_truth.v1"
+		},
+		{
+			"sourceFamily": "wechat_public_notice",
+			"corpus": "campus_notices",
+			"collection": "wechat_public_notice",
+			"registryTaskId": "source_truth_materialize",
+			"inputContract": "wechat_official_account_capture_release.v1",
+			"outputContract": "wechat_official_account_source_truth.v1"
+		}
+	],
+	"rust_kernels": [
+		{
+			"kernelId": "chunk-document-units",
+			"inputContract": "canonical_document_units.v1",
+			"outputContract": "ingestion_chunk_set.v1"
+		},
+		{
+			"kernelId": "validate-document-units",
+			"inputContract": "canonical_document_units.v1",
+			"outputContract": "document_units_validation_report.v1"
+		},
+		{
+			"kernelId": "validate-release-manifest",
+			"inputContract": "ingestion_release_manifest.v1",
+			"outputContract": "ingestion_release_manifest_validation_report.v1"
+		}
+	]
+}

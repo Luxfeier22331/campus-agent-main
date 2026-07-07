@@ -8,8 +8,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
+import type {
+	ToolExecutionInput,
+	ToolExecutionResponse,
+} from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
+import { createExecutionRuntimeFromToolClient } from "./chat-command.service.test-support";
 import {
 	buildSharedDbIntegrationEnv,
 	convergeSharedDbForAppApiIntegration,
@@ -44,6 +48,14 @@ function buildCookieHeader(response: Response): string {
 		.split(",")
 		.map((value) => value.split(";", 1)[0])
 		.join("; ");
+}
+
+function readIntegrationAuthShellOrigin(env: Env): string {
+	const origin = env.AUTH_SHELL_ORIGIN?.trim();
+	if (!origin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required for shared product DB integration.");
+	}
+	return origin;
 }
 
 describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () => {
@@ -141,15 +153,17 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 	});
 
 	it("creates and reads owned conversations through app-api after Better Auth sign-in", async () => {
-		createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		createdEmail = `integration-${Date.now()}@example.edu`;
+		const authShellOrigin = readIntegrationAuthShellOrigin(env);
 
 		const authResponse = await app.fetch(
 			new Request("https://app-api.internal/api/auth/sign-up/email", {
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-					referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
+					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({
@@ -213,15 +227,17 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 	});
 
 	it("persists curriculum session slots in chat.session_slots after finalized curriculum completion", async () => {
-		createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		createdEmail = `integration-${Date.now()}@example.edu`;
+		const authShellOrigin = readIntegrationAuthShellOrigin(env);
 
 		const authResponse = await app.fetch(
 			new Request("https://app-api.internal/api/auth/sign-up/email", {
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-					referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
+					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({
@@ -248,7 +264,9 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		};
 		expect(createResponse.status).toBe(201);
 
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: {
+			execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
+		} = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -268,7 +286,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_eval_curriculum_01",
 				})
@@ -289,7 +307,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_eval_curriculum_02",
 				}),
@@ -298,7 +316,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(env),
 				store: createPgChatCommandStore(env),
-				supervisor,
+				executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			}),
 		});
 

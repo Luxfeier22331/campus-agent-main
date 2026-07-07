@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0030
 status: accepted
 created: 2026-04-06
@@ -22,7 +24,7 @@ Accepted on 2026-04-06.
 但在完成 Domain-Bounded Answering And Refusal Foundation 的 Wave 1-5 之后，repo
 仍缺一条更高层的正式决策：
 
-- 未来是否要把开放域 generalist / web capability 接入主产品路径
+- 未来是否要把开放域 generalist / web tool 接入主产品路径
 - 如果以后真的要做，这件事应以什么边界进入，而不是偷渡成临时 fallback
 
 如果这条决策不冻结，后续实现很容易退化为：
@@ -66,9 +68,9 @@ ess_denied` 语义继续保持独立。
 - campus in-scope 问题仍必须先满足 scope、policy 和 grounding 约束
 - operator / eval / publish 路径不得把开放域兜底结果混入当前 campus refusal semantics
 
-### 决策 4：未来若要接受开放域能力，必须先做显式产品决策，再新增独立 capability boundary
+### 决策 4：未来若要接受开放域能力，必须先做显式产品决策，再新增独立 tool boundary
 
-只有当产品明确接受“开放域问答”成为正式能力面时，才允许讨论新的 open-domain capability。
+只有当产品明确接受“开放域问答”成为正式能力面时，才允许讨论新的 open-domain tool。
 
 直接含义：
 
@@ -80,7 +82,7 @@ ess_denied` 语义继续保持独立。
 
 如果未来确实接受开放域能力，至少需要同时满足以下准入条件：
 
-- 独立 capability boundary 或 agent boundary
+- 独立 tool boundary 或 explicit agent-as-tool boundary
 - 显式 routing / admission 规则，区分 campus path 与 open-domain path
 - 独立的 policy、prompt、grounding 与 refusal 语义
 - 独立的 eval lane、release gate 与 operator observability 维度
@@ -94,7 +96,7 @@ ess_denied` 语义继续保持独立。
 
 ### 决策 6：本 ADR 不引入任何新的开放域实现
 
-本 ADR 只冻结产品与架构决策，不引入新的 web capability、generalist agent 或开放域运行时路径。
+本 ADR 只冻结产品与架构决策，不引入新的 web tool、generalist agent 或开放域运行时路径。
 
 ## 结果
 
@@ -106,7 +108,7 @@ ess_denied` 语义继续保持独立。
 
 ## 关联文档
 
-- `docs/architecture/product-positioning.md`
-- `docs/architecture/target-architecture.md`
-- `docs/architecture/system/prompt-and-instruction-architecture.md`
+- `docs/architecture/product.md`
+- `docs/architecture/target.md`
+- `docs/architecture/system/prompt.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`

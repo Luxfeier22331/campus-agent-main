@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-traefik-staging
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 41.0.1
+      helm:
+        releaseName: traefik-staging
+        valueFiles:
+          - $values/infra/gitops/values/traefik/nc-arm-6c-shadow.yaml
+    - repoURL: https://github.com/MUC-WIKI/campus-agent.git
+      targetRevision: develop
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

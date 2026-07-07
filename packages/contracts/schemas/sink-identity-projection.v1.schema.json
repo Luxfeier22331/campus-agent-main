@@ -1,0 +1,61 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/sink-identity-projection.v1.schema.json",
+	"title": "campus-agent external sink identity projection",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"subject_ref",
+		"run_ref",
+		"request_ref",
+		"trace_ref",
+		"pseudonymization_policy",
+		"projection_sha256"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "sink_identity_projection.v1"
+		},
+		"subject_ref": {
+			"$ref": "#/$defs/SubjectRef"
+		},
+		"run_ref": {
+			"$ref": "#/$defs/RunRef"
+		},
+		"request_ref": {
+			"$ref": "#/$defs/RequestRef"
+		},
+		"trace_ref": {
+			"$ref": "#/$defs/TraceRef"
+		},
+		"pseudonymization_policy": {
+			"const": "pseudonymous_refs_v1"
+		},
+		"projection_sha256": {
+			"$ref": "#/$defs/Sha256"
+		}
+	},
+	"$defs": {
+		"SubjectRef": {
+			"type": "string",
+			"pattern": "^subject:[a-f0-9]{32,64}$"
+		},
+		"RunRef": {
+			"type": "string",
+			"pattern": "^run:[a-f0-9]{32,64}$"
+		},
+		"RequestRef": {
+			"type": "string",
+			"pattern": "^request:[a-f0-9]{32,64}$"
+		},
+		"TraceRef": {
+			"type": "string",
+			"pattern": "^trace:[a-f0-9]{32,64}$"
+		},
+		"Sha256": {
+			"type": "string",
+			"pattern": "^(sha256:)?[a-f0-9]{64}$"
+		}
+	}
+}

@@ -1,15 +1,23 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0036
 status: accepted
 created: 2026-04-11
-updated: 2026-04-28
+updated: 2026-07-04
 ---
 # ADR-0036 Notice-Derived Non-Regulation Rule Boundary
 
 ## 状态
 
 Accepted on 2026-04-11.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 notice-derived non-regulation rule
+的 holding 与 future surface admission 边界。
 
 ## 背景
 
@@ -61,7 +69,7 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 
 ### 决策 3：没有明确产品 slice、query policy 与 owner 之前，不新增 repo-tracked collection scaffold
 
-当前不新增新的 `runtime-profile.json` / collection scaffold，只为这些 manual buckets 提前占位。
+当前不新增新的 `serving-config.json` / collection scaffold，只为这些 manual buckets 提前占位。
 
 原因：
 
@@ -132,7 +140,7 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 ## Related Docs
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `.planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-re
+- `git history authenticated-notice regulation consumption workstream`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+- `git history manual-review evidence fragment
   view-adjudication.md`

@@ -28,20 +28,15 @@ expectContains(
 expectContains(source, "custom_domain = true", "Missing staging custom domain route flag.");
 expectContains(
 	source,
-	'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
-	"Missing staging public chat origin.",
-);
-expectContains(
-	source,
-	'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+	'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 	"Missing staging auth shell origin.",
 );
 expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");
 expectContains(source, 'SENTRY_ENVIRONMENT = "staging"', "Missing SENTRY_ENVIRONMENT=staging.");
 expectContains(
 	source,
-	'AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"',
-	"Missing AXIOM_ENDPOINT staging value.",
+	'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
+	"Missing APP_API_OTEL_INGEST_ENDPOINT staging value.",
 );
 expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");
 expectContains(

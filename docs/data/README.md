@@ -1,8 +1,10 @@
 ---
 doc_type: index
+truth_scope: data
+owner_boundary: docs/data
 status: active
 created: 2026-04-12
-updated: 2026-06-04
+updated: 2026-06-13
 ---
 # Data
 
@@ -11,32 +13,40 @@ canonical truth”“哪些只是 projection carrier”。
 
 ## Runtime / App Schema
 
-- `app-api-schema.md`
-- `app-api-official-web-schema.md`
-- `durable-agent-runtime-schema.md`
-- `canonical-document-reader-model.md`
+- `app-api/README.md`
+  - `app-api/auth-chat-docs-profile.md`
+  - `app-api/runtime.md`
+  - `app-api/operator.md`
+- `app-api/official-web.md`
+- `dining.md`
+- `identity-platform.md`
+- `durable-runtime.md`
+- `document-reader.md`
 
 ## Source-Channel Source-Truth Schema
 
-- `official-web-source-truth-schema.md`
-- `authenticated-notice-source-truth-schema.md`
-- `campus-services-transport-schedule-source-truth-schema.md`
-- `campus-services-service-guide-source-truth-schema.md`
-- `campus-services-contact-directory-source-truth-schema.md`
-- `campus-services-service-catalog-source-truth-schema.md`
-- `wechat-official-account-source-truth-schema.md`
+- `official-web.md`
+- `authenticated-notice.md`
+  - authenticated notice source-truth and current capture-release handoff schema
+    boundary; runtime/tool posture lives in contracts
+- `campus-services-ops.md`
+- `wechat-official.md`
+
+班车时刻表能力的人类 source/update/storage truth 已收口到
+`../domains/transport.md`；机器 schema 仍由 `../../packages/contracts/schemas/`
+承接。
 
 ## Navigation / Entity Data
 
-- `campus-navigation-place-catalog.md`
+- `place-catalog.md`
 
 ## Retrieval Activity / Evidence Data
 
-- `retrieval-query-activity-model.md`
+- `retrieval-activity.md`
 
 ## Infra Ownership
 
-- `shared-postgres-ownership.md`
+- `postgres-ownership.md`
 
 ## 使用规则
 

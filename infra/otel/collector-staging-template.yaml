@@ -5,8 +5,12 @@ receivers:
         endpoint: "${env:OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT}"
       http:
         endpoint: "${env:OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT}"
+        auth:
+          authenticator: bearertokenauth
 
 extensions:
+  bearertokenauth:
+    token: "${env:APP_API_OTEL_INGEST_SHARED_SECRET}"
   health_check:
     endpoint: "${env:OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT}"
 
@@ -113,11 +117,43 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
+  otlphttp/axiommetrics:
+    endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
+    compression: zstd
+    headers:
+      authorization: "${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}"
+      x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}"
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 4096
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  otlphttp/langfuse:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+    headers:
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}"
+    compression: gzip
+    encoding: proto
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
   debug:
     verbosity: basic
 
 service:
   extensions:
+    - bearertokenauth
     - health_check
   pipelines:
     traces:
@@ -133,6 +169,7 @@ service:
       exporters:
         - otlphttp/sentry
         - otlphttp/axiom
+        - otlphttp/langfuse
         - debug
     metrics:
       receivers:
@@ -144,6 +181,7 @@ service:
         - filter/drop_marked
         - batch
       exporters:
+        - otlphttp/axiommetrics
         - debug
     logs:
       receivers:

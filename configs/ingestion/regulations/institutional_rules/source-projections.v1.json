@@ -74,5 +74,5 @@
 		}
 	],
 	"accepted_promotion_classes": ["formal_regulation", "normative_handbook"],
-	"excluded_promotion_classes": ["wrapper_notice_only", "manual_promotion_review"]
+	"excluded_promotion_classes": ["wrapper_notice_only", "machine_processing_required"]
 }

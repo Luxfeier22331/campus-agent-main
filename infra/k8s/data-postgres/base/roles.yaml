@@ -1,0 +1,47 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-campus-agent
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: campus_agent
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-campus-agent-owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-temporal
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: temporal
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-temporal-owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-hindsight
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: hindsight
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-hindsight-owner

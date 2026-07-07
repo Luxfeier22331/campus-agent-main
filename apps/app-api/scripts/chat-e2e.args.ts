@@ -6,13 +6,15 @@ import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.ar
 
 export const CHAT_E2E_PROFILES = ["dev", "local-real-provider", "staging"] as const;
 export type ChatE2eProfile = (typeof CHAT_E2E_PROFILES)[number];
+export const CHAT_E2E_TRANSPORTS = ["stream", "sync"] as const;
+export type ChatE2eTransport = (typeof CHAT_E2E_TRANSPORTS)[number];
 
-export const DEFAULT_CHAT_E2E_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
-export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://chat-staging.mucwiki-edge.link";
+export const DEFAULT_CHAT_E2E_PROMPT = "示例大学本科学生国家奖学金评审办法";
+export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://campus-staging.mucwiki-edge.link";
 export const DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL =
 	"https://api-staging.mucwiki-edge.link/readyz";
 export const DEFAULT_STAGING_CHAT_E2E_EXEC_READYZ_URL: string | null = null;
-export const DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL = "http://127.0.0.1:27011";
+export const DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL = "http://127.0.0.1:27014";
 export const DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL = "http://127.0.0.1:27031/readyz";
 export const DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL = "http://127.0.0.1:27051/readyz";
 export const DEFAULT_CHAT_E2E_CHAT_BASE_URL = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
@@ -27,13 +29,14 @@ export interface ChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string | null;
-	expectPromptRuntimeState: string | null;
+	expectModelExecutionState: string | null;
 	expectResultKind: ChatE2eExpectedResultKind;
 	name: string;
 	password: string;
 	profile: ChatE2eProfile;
 	prompt: string;
 	smokeAuthSecret: string;
+	transport: ChatE2eTransport;
 }
 
 function normalizeOptionalValue(value: string | undefined): string | null {
@@ -53,6 +56,14 @@ function parseChatE2eProfile(value: string): ChatE2eProfile {
 	throw new Error(`--profile must be one of: ${CHAT_E2E_PROFILES.join(", ")}.`);
 }
 
+function parseChatE2eTransport(value: string): ChatE2eTransport {
+	if ((CHAT_E2E_TRANSPORTS as readonly string[]).includes(value)) {
+		return value as ChatE2eTransport;
+	}
+
+	throw new Error(`--transport must be one of: ${CHAT_E2E_TRANSPORTS.join(", ")}.`);
+}
+
 export function parseChatE2eArgs(
 	argv: string[],
 	env: NodeJS.ProcessEnv = process.env,
@@ -63,9 +74,10 @@ export function parseChatE2eArgs(
 	let chatBaseUrl = DEFAULT_CHAT_E2E_CHAT_BASE_URL;
 	let appApiReadyzUrl: string | null = DEFAULT_CHAT_E2E_APP_API_READYZ_URL;
 	let execReadyzUrl: string | null = DEFAULT_CHAT_E2E_EXEC_READYZ_URL;
-	let expectPromptRuntimeState: string | null = null;
+	let expectModelExecutionState: string | null = null;
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
+	let transport: ChatE2eTransport = "stream";
 	let password =
 		normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_PASSWORD) ??
 		normalizeOptionalValue(env.CHAT_E2E_SMOKE_IDENTITY_PASSWORD) ??
@@ -162,12 +174,21 @@ export function parseChatE2eArgs(
 			index += 1;
 			continue;
 		}
-		if (token === "--expect-prompt-runtime-state") {
+		if (token === "--expect-model-execution-state") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
-				throw new Error("--expect-prompt-runtime-state requires a non-empty value.");
+				throw new Error("--expect-model-execution-state requires a non-empty value.");
 			}
-			expectPromptRuntimeState = value;
+			expectModelExecutionState = value;
+			index += 1;
+			continue;
+		}
+		if (token === "--transport") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--transport requires a non-empty value.");
+			}
+			transport = parseChatE2eTransport(value);
 			index += 1;
 			continue;
 		}
@@ -252,12 +273,13 @@ export function parseChatE2eArgs(
 		chatBaseUrl,
 		email,
 		execReadyzUrl,
-		expectPromptRuntimeState,
+		expectModelExecutionState,
 		expectResultKind,
 		name,
 		password,
 		profile,
 		prompt,
 		smokeAuthSecret,
+		transport,
 	};
 }

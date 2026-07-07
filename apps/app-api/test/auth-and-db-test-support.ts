@@ -65,14 +65,13 @@ export const APP_API_TEST_ENV = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_DB: {
@@ -92,6 +91,7 @@ export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;
 export const buildBetterAuthConfig = authModule.buildBetterAuthConfig;
 export const buildEndUserEmailAdmissionPolicy = authModule.buildEndUserEmailAdmissionPolicy;
 export const enforceEndUserEmailAdmission = authModule.enforceEndUserEmailAdmission;
+export const enforceSignupLegalConsent = authModule.enforceSignupLegalConsent;
 export const getAppAuth = authModule.getAppAuth;
 export const hashAppPassword = authModule.hashAppPassword;
 export const isEndUserEmailAllowedForAuth = authModule.isEndUserEmailAllowedForAuth;

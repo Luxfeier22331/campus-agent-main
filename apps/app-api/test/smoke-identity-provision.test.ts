@@ -15,7 +15,7 @@ describe("app-api smoke identity provisioning", () => {
 				["--email", "not-allowed@example.com", "--name", "Smoke User"],
 				{
 					APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-					APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+					APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				} as NodeJS.ProcessEnv,
 			),
 		).toThrow("is not admitted by the configured end-user auth allowlist");
@@ -23,7 +23,7 @@ describe("app-api smoke identity provisioning", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
 				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 			} as NodeJS.ProcessEnv),
 		).toThrow("APP_API_SMOKE_IDENTITY_PASSWORD is required");
@@ -35,10 +35,9 @@ describe("app-api smoke identity provisioning", () => {
 			{
 				APP_API_ENVIRONMENT: "development",
 				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv,
 		);
 
@@ -47,10 +46,9 @@ describe("app-api smoke identity provisioning", () => {
 				connectionString: "postgresql://db.example/campus_agent",
 			},
 			APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-			APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+			APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 			AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
-			PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 		});
 	});
 
@@ -65,7 +63,7 @@ describe("app-api smoke identity provisioning", () => {
 				databaseSslMode: "require",
 				email: "help_bot@outlook.com",
 				endUserEmailAllowlist: "help_bot@outlook.com",
-				endUserEmailDomainAllowlist: "muc.edu.cn",
+				endUserEmailDomainAllowlist: "example.edu",
 				internalSharedSecret: "smoke-identity-internal-secret",
 				managementDatabaseUrl: "postgresql://legacy-management.example/campus_agent",
 				name: "Smoke User",
@@ -73,9 +71,9 @@ describe("app-api smoke identity provisioning", () => {
 				operatorEmailAllowlist: "ops@example.com",
 				password: "SmokePass!2026",
 				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
-				publicChatOrigin: "https://chat-staging.mucwiki-edge.link",
-				supervisorApiBaseUrl: "https://supervisor.internal",
-				supervisorApiSharedSecret: "smoke-identity-supervisor-secret",
+				authShellOrigin: "https://campus-staging.mucwiki-edge.link",
+				executionControlBaseUrl: "https://execution-control.internal",
+				executionControlSharedSecret: "smoke-identity-execution-secret",
 			}),
 		).toThrow("operatorDatabaseUrl is required");
 	});
@@ -84,12 +82,11 @@ describe("app-api smoke identity provisioning", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
 				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_ENVIRONMENT: "staging",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
 				AUTH_TURNSTILE_SECRET_KEY: "cf-staging-secret",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv),
 		).toThrow("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required");
 	});
@@ -121,10 +118,9 @@ describe("app-api smoke identity provisioning", () => {
 			{
 				APP_API_ENVIRONMENT: "development",
 				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv,
 		);
 
@@ -159,6 +155,9 @@ describe("app-api smoke identity provisioning", () => {
 		expect(signUpRequest).toBeInstanceOf(Request);
 		expect((signUpRequest as Request).headers.get("x-captcha-response")).toBe(
 			"XXXX.DUMMY.TOKEN.XXXX",
+		);
+		expect((signUpRequest as Request).headers.get("x-campus-legal-accepted")).toBe(
+			"terms-and-privacy",
 		);
 		expect(executeSql).toHaveBeenNthCalledWith(
 			3,

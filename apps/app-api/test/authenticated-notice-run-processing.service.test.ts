@@ -9,13 +9,13 @@ import {
 } from "../src/modules/authenticated-notice-run-processing-command";
 
 const runSnapshot = {
-	id: "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
-	runKey: "authenticated_notice_portal:notice:muc_internal_portal:20260428T181953007Z",
-	sourceChannel: "authenticated_notice_portal",
+	id: "internal_portal:run:synthetic_internal_portal:20260428T181953007Z",
+	runKey: "internal_portal:notice:synthetic_internal_portal:20260428T181953007Z",
+	sourceChannel: "internal_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
-	collectorRunToken: "20260428T181953007Z",
-	runId: "muc_internal_portal:notice:20260428T181953007Z",
+	siteId: "synthetic_internal_portal",
+	sourceRunToken: "20260428T181953007Z",
+	runId: "synthetic_internal_portal:notice:20260428T181953007Z",
 	replayBatchId: "manual-smoke-20260501",
 	enqueueSource: "manual_replay",
 	lifecycleStatus: "mixed_terminal",
@@ -46,7 +46,7 @@ const runSnapshot = {
 			attemptCount: 1,
 			jobId: "authenticated_notice_ingest_job:01d27923bbfebb329b2b8935",
 			queueStatus: "succeeded",
-			runId: "muc_internal_portal:notice:20260428T181953007Z",
+			runId: "synthetic_internal_portal:notice:20260428T181953007Z",
 			updatedAt: "2026-05-01T01:27:00.000Z",
 		},
 	],
@@ -86,7 +86,7 @@ describe("authenticated notice run processing command service", () => {
 		const write = vi.mocked(store.upsertSnapshots).mock.calls[0]?.[0];
 		expect(write?.snapshots[0]).toMatchObject({
 			runProcessingId: runSnapshot.id,
-			collectorRunToken: "20260428T181953007Z",
+			sourceRunToken: "20260428T181953007Z",
 			queueJobCount: 2,
 		});
 		expect(write?.events[0]).toMatchObject({

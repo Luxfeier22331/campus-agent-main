@@ -1,16 +1,38 @@
-import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
-import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
+import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
 import type {
-	RequestClaimSupportSummary,
-	RequestDiagnosticsSummary,
-	RequestRemoteContentSuspicionSummary,
-	RequestRetrievalPlanSummary,
-	RequestSourceTrustSummary,
-} from "../request-diagnostics";
+	ToolExecutionAnswerEvalFingerprint,
+	ToolExecutionDebugTraceRef,
+	ToolExecutionLlmIoFingerprint,
+	ToolExecutionModelUsageSummary,
+} from "../integration/tool-execution-types";
+import type { StageTimingBudgetProjection } from "../latency-budget";
+import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
-import type { RuntimeRunPhase } from "../runtime-run";
-import type { ObservedSourceTraceEntry } from "../source-trace";
-import type { VersionQuery, VersionQueryMode } from "../version-query";
+import type { VersionQuery } from "../version-query";
+
+export type {
+	AutoscalerActuationStatus as WorkerAutoscalerActuationStatus,
+	AutoscalerScalerStatus as WorkerAutoscalerScalerStatus,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
+	TemporalTaskQueueKind,
+	TemporalTaskQueueListFilters,
+	TemporalTaskQueueListResult,
+	TemporalTaskQueueSnapshotRecord,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationListResult,
+	WorkerAutoscalerActuationRecord,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerPostureListResult,
+	WorkerAutoscalerPostureRecord,
+} from "../operator-runtime-observability";
+
+import type {
+	MetricRatio,
+	OperatorOverviewWindow,
+	OperatorResultWindow,
+} from "./service-metric-types";
 
 export interface RequestProjectionRecord {
 	requestId: string;
@@ -25,11 +47,11 @@ export interface RequestProjectionRecord {
 	entitlementGroups: string[];
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: Record<string, unknown> | null;
 	versionQuery?: VersionQuery;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -42,6 +64,54 @@ export interface RequestProjectionRecord {
 	projectedAt: string;
 }
 
+export interface OperatorRequestOpsIndex {
+	stageTiming: Record<string, number>;
+	stageTimingBudget: Record<string, StageTimingBudgetProjection>;
+	debugTraceRefs: ToolExecutionDebugTraceRef[];
+	model: {
+		modelProvider: string | null;
+		modelName: string | null;
+		billableStepCount: number | null;
+		usageSummary: ToolExecutionModelUsageSummary[];
+		answerEvalFingerprint: ToolExecutionAnswerEvalFingerprint | null;
+		llmIoFingerprint: ToolExecutionLlmIoFingerprint | null;
+		promptId: string | null;
+		promptVersion: string | null;
+		templateSha256: string | null;
+		executionState: string | null;
+		executionDetail: string | null;
+		inputTokens: number | null;
+		outputTokens: number | null;
+		cachedInputTokens: number | null;
+		estimatedCostMicrousd: number | null;
+	};
+	tool: {
+		requestedTool: string | null;
+		selectedTool: string | null;
+		toolBusinessOutcome: string | null;
+		failClosed: boolean | null;
+		failCloseReason: string | null;
+		historicalDowngradeReason: string | null;
+	};
+	retrieval: {
+		retrievalAttempted: boolean | null;
+		candidateCount: number | null;
+		retrievedSourceCount: number | null;
+		collection: string | null;
+		adequacyVerdict: string | null;
+		adequacyReason: string | null;
+	};
+	sinkLinks: {
+		traceAvailable: boolean;
+		projectionLagMs: number | null;
+	};
+}
+
+export interface OperatorRequestDetailResult {
+	request: RequestProjectionRecord;
+	opsIndex: OperatorRequestOpsIndex | null;
+}
+
 export interface OperatorRequestListFilters {
 	limit?: number | null;
 	cursor?: string | null;
@@ -50,18 +120,6 @@ export interface OperatorRequestListFilters {
 	surface?: string | null;
 	conversationId?: string | null;
 	requestId?: string | null;
-}
-
-export interface OperatorAuditListFilters {
-	limit?: number | null;
-	cursor?: string | null;
-	requestId?: string | null;
-	traceId?: string | null;
-	principalType?: string | null;
-	surface?: string | null;
-	selectedTarget?: string | null;
-	eventType?: string | null;
-	status?: string | null;
 }
 
 export interface NormalizedOperatorRequestListFilters {
@@ -74,38 +132,18 @@ export interface NormalizedOperatorRequestListFilters {
 	requestId: string | null;
 }
 
-export interface NormalizedOperatorAuditListFilters {
-	limit: number;
-	cursor: string | null;
-	requestId: string | null;
-	traceId: string | null;
-	principalType: string | null;
-	surface: string | null;
-	selectedTarget: string | null;
-	eventType: string | null;
-	status: string | null;
-}
-
 export interface OperatorOverviewFilters {
 	window?: string | null;
 	granularity?: string | null;
 	surface?: string | null;
-	selectedTarget?: string | null;
-	requestedCapability?: string | null;
 	principalType?: string | null;
-	collection?: string | null;
-	modelName?: string | null;
 }
 
 export interface NormalizedOperatorOverviewFilters {
 	window: OperatorOverviewWindow;
 	granularity: OperatorResultWindow["granularity"] | null;
 	surface: string | null;
-	selectedTarget: string | null;
-	requestedCapability: string | null;
 	principalType: string | null;
-	collection: string | null;
-	modelName: string | null;
 }
 
 export interface OperatorQueryListResult {
@@ -115,213 +153,7 @@ export interface OperatorQueryListResult {
 	};
 }
 
-export type OperatorEvalCoverageResult = EvalCoverageSnapshot;
-
-export type OperatorOverviewWindow = "15m" | "1h" | "24h" | "7d" | "30d";
-
-export interface MetricRatio {
-	value: number;
-	count: number;
-	eligibleCount: number | null;
-}
-
-export interface OperatorDistributionBucket {
-	value: string;
-	count: number;
-}
-
-export interface OperatorResultWindow {
-	from: string;
-	to: string;
-	granularity: "5m" | "15m" | "1h" | "1d";
-}
-
-export interface OperatorIntentObservabilitySummary {
-	capability: string | null;
-	taskKind: string | null;
-	launchState: string | null;
-	nextAction: string | null;
-	scopeClass: string | null;
-	scopeReason: string | null;
-	policyReason: string | null;
-	classifierVersion: string | null;
-	schemaVersion?: string | null;
-	routingConfidence?: string | null;
-	ambiguitySignal?: string | null;
-	contextResolutionState?: string | null;
-	contextReferenceType?: string | null;
-	resolvedSlots?: Record<string, string> | null;
-	missingSlots?: string[] | null;
-	ambiguityReason?: string | null;
-}
-
-export interface OperatorRequestObservabilityRecord {
-	request: {
-		requestId: string;
-		runId: string | null;
-		traceId: string;
-		conversationId: string;
-		surface: string;
-		status: RequestExecutionStatus;
-		requestedCapability: string | null;
-		requestedScope: Record<string, unknown> | null;
-		versionQuery?: VersionQuery;
-		resolvedScope: Record<string, unknown> | null;
-		selectedTarget: string | null;
-		startedAt: string;
-		completedAt: string | null;
-	};
-	observability: {
-		durationMs: number | null;
-		retrievalAttempted: boolean | null;
-		candidateCount: number | null;
-		retrievedSourceCount: number | null;
-		emptyRecall: boolean | null;
-		citationExpected: boolean | null;
-		citationCount: number | null;
-		citationMissing: boolean | null;
-		refusalClass: string | null;
-		aclDecision: string | null;
-		aclAnomalyCode: string | null;
-		failClosed: boolean | null;
-		intent?: OperatorIntentObservabilitySummary;
-		tool?: {
-			businessOutcome: string | null;
-			failCloseReason: string | null;
-			historicalDowngradeReason: string | null;
-			selectedTool: string | null;
-		};
-		workflowTrace?: SupervisorExecutionWorkflowTraceSummary | null;
-		retrievalAdequacyVerdict: string | null;
-		retrievalAdequacyReason: string | null;
-		retrievalPlan?: RequestRetrievalPlanSummary | null;
-		claimSupportSummary: RequestClaimSupportSummary | null;
-		remoteContentSuspicionSummary?: RequestRemoteContentSuspicionSummary | null;
-		sourceTrustSummary?: RequestSourceTrustSummary | null;
-		model: {
-			provider: string | null;
-			name: string | null;
-		};
-		prompt: {
-			id: string | null;
-			version: string | null;
-			templateSha256: string | null;
-			runtimeState: string | null;
-			runtimeDetail: string | null;
-		};
-		inputTokens: number | null;
-		outputTokens: number | null;
-		cachedInputTokens: number | null;
-		estimatedCost: {
-			microusd: number | null;
-			currency: "USD";
-		};
-		sourceTrace: {
-			retrieved: ObservedSourceTraceEntry[];
-			supporting: ObservedSourceTraceEntry[];
-		};
-		traceAvailable: boolean;
-		projectionLagMs: number | null;
-		measuredAt: string | null;
-		versionQueryMode?: VersionQueryMode | null;
-		versionQuerySummary?: string | null;
-	};
-	links: {
-		traceLink: string | null;
-		issueLink: string | null;
-		issueFingerprint: string | null;
-	};
-	replay: {
-		context: {
-			principalType: string;
-			entitlementSnapshotId: string | null;
-			entitlementGroups: string[];
-			visibilityScope: string | null;
-			applicabilityScope: string | null;
-			policyProjectionVersion: string | null;
-		};
-		routing: {
-			requestedCapability: string | null;
-			requestedScope: Record<string, unknown> | null;
-			resolvedScope: Record<string, unknown> | null;
-			selectedTarget: string | null;
-			intent?: OperatorIntentObservabilitySummary;
-		};
-		execution: {
-			status: RequestExecutionStatus;
-			errorCode: string | null;
-			semanticOutcome: string | null;
-			refusalClass: string | null;
-			scopeClass: string | null;
-			failClosed: boolean | null;
-		};
-		retrieval: {
-			retrievalAttempted: boolean | null;
-			candidateCount: number | null;
-			retrievedSourceCount: number | null;
-			emptyRecall: boolean | null;
-			adequacyVerdict: string | null;
-			adequacyReason: string | null;
-			plan?: RequestRetrievalPlanSummary | null;
-			sourceTraceCounts: {
-				retrieved: number;
-				supporting: number;
-			};
-		};
-		answerQuality: {
-			citationExpected: boolean | null;
-			citationCount: number | null;
-			citationMissing: boolean | null;
-			claimSupportSummary: RequestClaimSupportSummary | null;
-			groundingVerdict: string | null;
-			groundingDowngraded: boolean | null;
-			freshnessFailClosed: boolean | null;
-			policyReason: string | null;
-		};
-		prompt: {
-			id: string | null;
-			version: string | null;
-			templateSha256: string | null;
-			runtimeState: string | null;
-			runtimeDetail: string | null;
-		};
-	};
-	auditSummary: {
-		auditEventCount: number;
-		latestTerminalCode: string | null;
-	};
-	runtimeRun?: OperatorRuntimeRunSummary | null;
-}
-
-export interface OperatorRuntimeRunEventSummary {
-	eventType: string;
-	occurredAt: string;
-	sequence: number;
-	visibility: string;
-}
-
-export interface OperatorRuntimeRunSummary {
-	run: {
-		conversationId: string;
-		phase: RuntimeRunPhase;
-		requestId: string;
-		runId: string;
-		status: string;
-		terminalReason: string | null;
-		traceId: string;
-	};
-	eventSummary: {
-		eventCount: number;
-		latestEvent: OperatorRuntimeRunEventSummary | null;
-		terminalEvent: OperatorRuntimeRunEventSummary | null;
-		visibilityCounts: {
-			browser: number;
-			eval: number;
-			internal: number;
-			panel: number;
-		};
-	};
-}
+export type OperatorRuntimeHealthResult = ExecutionControlOperatorRuntimeHealth;
 
 export interface OperatorOverviewResult {
 	window: OperatorResultWindow;
@@ -336,15 +168,13 @@ export interface OperatorOverviewResult {
 			p95Ms: number | null;
 			p99Ms: number | null;
 		};
-		failureRate: MetricRatio;
-		emptyRecallRate: MetricRatio;
-		citationMissRate: MetricRatio;
-		refusalRate: MetricRatio;
-		aclAnomalyRate: MetricRatio;
-		estimatedCost: {
-			microusd: number;
-			currency: "USD";
+		latencyBudget: {
+			criticalFieldCount: number;
+			version: string;
+			warnFieldCount: number;
+			worstField: string | null;
 		};
+		failureRate: MetricRatio;
 		sinkHealth: {
 			missingTraceRate: MetricRatio;
 			projectionFailureCount: number;
@@ -352,420 +182,18 @@ export interface OperatorOverviewResult {
 			outboxRetryCount: number;
 			outboxStaleCount: number;
 		};
+		stageLatency: Record<
+			string,
+			{
+				criticalCount: number;
+				p50Ms: number | null;
+				p95Ms: number | null;
+				p99Ms: number | null;
+				sampleCount: number;
+				warnCount: number;
+			}
+		>;
 	};
-	alerts: OperatorOverviewAlert[];
-	asOf: string;
-}
-
-export interface OperatorOverviewAlert {
-	alertId: string;
-	domain: string;
-	severity: string;
-	code: string;
-	status: string;
-	startedAt: string;
-	requestCount: number;
-	incidentBackfill: {
-		mode: "incident_backfill" | null;
-		required: boolean;
-	};
-}
-
-export interface OperatorAuditEventListItem {
-	auditEventId: string;
-	requestId: string;
-	traceId: string;
-	occurredAt: string;
-	eventType: string;
-	surface: string;
-	principalType: string;
-	selectedTarget: string | null;
-	status: string;
-	summary: string;
-}
-
-export interface OperatorAuditEventDetail {
-	event: {
-		auditEventId: string;
-		requestId: string;
-		traceId: string;
-		occurredAt: string;
-		eventType: string;
-		surface: string;
-		principalType: string;
-		entitlementSnapshotId: string | null;
-		policyProjectionVersion: string | null;
-		requestedCapability: string | null;
-		selectedTarget: string | null;
-		status: string;
-		terminalCode: string | null;
-		summary: string;
-		diagnostics: {
-			failClosed: boolean | null;
-			aclAnomalyCode: string | null;
-			bridgeDurationMs?: number | null;
-			decision?: string | null;
-			durationMs?: number | null;
-			failureKind?: string | null;
-			httpStatus?: number | null;
-			lane?: string | null;
-			queueWaitMs?: number | null;
-			retryable?: boolean | null;
-			sourceDocIds: string[];
-		};
-	};
-	links: {
-		traceLink: string | null;
-		issueLink: string | null;
-		issueFingerprint: string | null;
-	};
-}
-
-export interface OperatorAuditListResult {
-	events: OperatorAuditEventListItem[];
-	page: {
-		nextCursor: string | null;
-	};
-}
-
-export interface OperatorQualityTimeseriesResult {
-	window: OperatorResultWindow;
-	series: Array<{
-		bucketStart: string;
-		bucketEnd: string;
-		requestCount: number;
-		emptyRecallRate: number;
-		citationMissRate: number;
-		noAnswerRate: number;
-		needsClarificationRate: number;
-		sampledGroundingPassRate: number | null;
-		feedbackEligibleAnswerCount: number;
-		feedbackCount: number;
-		feedbackCoverageRate: number;
-		feedbackHelpfulCount: number;
-		feedbackHelpfulRate: number;
-		feedbackUnhelpfulCount: number;
-		feedbackUnhelpfulRate: number;
-		feedbackNoAnswerEligibleCount: number;
-		feedbackNoAnswerUnhelpfulCount: number;
-		feedbackNoAnswerUnhelpfulRate: number;
-	}>;
-	asOf: string;
-}
-
-export interface OperatorIntentSummaryResult {
-	window: OperatorResultWindow;
-	runtime: {
-		requestCount: number;
-		lowConfidenceRate: MetricRatio;
-		ambiguityRate: MetricRatio;
-		contextUnresolvedRate: MetricRatio;
-		distributions: {
-			capability: OperatorDistributionBucket[];
-			taskKind: OperatorDistributionBucket[];
-			launchState: OperatorDistributionBucket[];
-			nextAction: OperatorDistributionBucket[];
-			scopeClass: OperatorDistributionBucket[];
-			classifierVersion: OperatorDistributionBucket[];
-			schemaVersion: OperatorDistributionBucket[];
-		};
-	};
-	sampledGrades: {
-		coverageRate: MetricRatio | null;
-		intentPassRate: MetricRatio | null;
-	} | null;
-	asOf: string;
-}
-
-export interface OperatorIntentTimeseriesResult {
-	window: OperatorResultWindow;
-	series: Array<{
-		bucketStart: string;
-		bucketEnd: string;
-		requestCount: number;
-		lowConfidenceRate: number;
-		ambiguityRate: number;
-		contextUnresolvedRate: number;
-		sampledIntentPassRate: number | null;
-	}>;
-	asOf: string;
-}
-
-export interface OperatorQualityBadcaseListFilters {
-	limit?: number | null;
-	cursor?: string | null;
-	window?: string | null;
-	surface?: string | null;
-	selectedTarget?: string | null;
-	status?: string | null;
-	causeClass?: string | null;
-	detectedBy?: string | null;
-}
-
-export interface OperatorSafetyAnomalyListFilters {
-	limit?: number | null;
-	cursor?: string | null;
-	window?: string | null;
-	surface?: string | null;
-	selectedTarget?: string | null;
-	severity?: string | null;
-	status?: string | null;
-	anomalyCode?: string | null;
-}
-
-export interface NormalizedOperatorQualityBadcaseListFilters {
-	limit: number;
-	cursor: string | null;
-	window: OperatorOverviewWindow | null;
-	surface: string | null;
-	selectedTarget: string | null;
-	status: string | null;
-	causeClass: string | null;
-	detectedBy: string | null;
-}
-
-export interface NormalizedOperatorSafetyAnomalyListFilters {
-	limit: number;
-	cursor: string | null;
-	window: OperatorOverviewWindow | null;
-	surface: string | null;
-	selectedTarget: string | null;
-	severity: string | null;
-	status: string | null;
-	anomalyCode: string | null;
-}
-
-export interface OperatorQualityBadcaseListResult {
-	badcases: Array<{
-		badcaseId: string;
-		requestId: string;
-		runId: string | null;
-		traceId: string;
-		surface: string;
-		selectedTarget: string | null;
-		status: string;
-		causeClass: string;
-		detectedBy: string;
-		openedAt: string;
-		summary: string;
-		grade: {
-			result: string;
-			score: number | null;
-			graderVersion: string;
-		} | null;
-		links: {
-			traceLink: string | null;
-			issueLink: string | null;
-			issueFingerprint: string | null;
-		};
-	}>;
-	page: {
-		nextCursor: string | null;
-	};
-}
-
-export interface OperatorQualityEvalCandidateListResult {
-	candidates: Array<{
-		candidateId: string;
-		requestId: string | null;
-		runId: string | null;
-		traceId: string | null;
-		surface: string;
-		selectedTarget: string | null;
-		causeClass: string;
-		summary: string;
-		grade: {
-			result: string;
-			score: number | null;
-			graderVersion: string;
-		} | null;
-		correlation?: {
-			conversationId: string;
-			assistantMessageId: string;
-			answerKind: string;
-			citationPosture: string;
-			intent: {
-				capability?: string | null;
-				taskKind?: string | null;
-				launchState?: string | null;
-				nextAction?: string | null;
-				scopeClass?: string | null;
-				classifierVersion?: string | null;
-			};
-		};
-		feedback?: {
-			feedbackId: string;
-			vote: "unhelpful";
-			reasonCodes: string[];
-			updatedAt: string;
-		};
-		diagnostic?: {
-			answerShape: string | null;
-			caseId: string;
-			expectedDocIds: string[];
-			failureStage:
-				| "retrieval"
-				| "rerank"
-				| "selection"
-				| "evidence_selection"
-				| "synthesis"
-				| "grounding"
-				| "diagnostic";
-			metricFailureReason: string;
-			metricName: string;
-			presentationKind: string | null;
-			retrievedContextIds: string[];
-			retrievedDocIds: string[];
-			score: number;
-			supportingDocIds: string[];
-			threshold: number;
-		};
-		links: {
-			traceLink: string | null;
-			issueLink: string | null;
-			issueFingerprint: string | null;
-		};
-		privacy?: {
-			rawTranscriptIncluded: false;
-			rawAuthMaterialIncluded: false;
-			providerRawResponseIncluded: false;
-		};
-		review?: {
-			suggestedLabels: Array<
-				| "false_positive"
-				| "false_negative"
-				| "wrong_intent"
-				| "stale_missing_evidence"
-				| "answer_style_issue"
-			>;
-		};
-		intake: {
-			source: "operator_badcase" | "negative_feedback" | "ragas_diagnostic";
-			status: "pending_review";
-			suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
-			createdAt: string;
-		};
-	}>;
-	page: {
-		nextCursor: string | null;
-	};
-}
-
-export interface OperatorQualitySummaryResult {
-	window: OperatorResultWindow;
-	runtime: {
-		requestCount: number;
-		emptyRecallRate: MetricRatio;
-		citationMissRate: MetricRatio;
-		feedback: {
-			feedbackCount: number;
-			coverageRate: MetricRatio;
-			helpfulRate: MetricRatio;
-			unhelpfulRate: MetricRatio;
-			noAnswerUnhelpfulRate: MetricRatio;
-			distributions: {
-				surface: OperatorDistributionBucket[];
-				answerKind: OperatorDistributionBucket[];
-				capability: OperatorDistributionBucket[];
-				citationPosture: OperatorDistributionBucket[];
-				reasonCode: OperatorDistributionBucket[];
-				vote: OperatorDistributionBucket[];
-			};
-		};
-		refusalDistribution: {
-			noAnswer: number;
-			needsClarification: number;
-			approvalRequired: number;
-			rejected: number;
-		};
-	};
-	sampledGrades: {
-		coverageRate: MetricRatio | null;
-		groundingPassRate: MetricRatio | null;
-		citationPassRate: MetricRatio | null;
-		intentPassRate: MetricRatio | null;
-		policyPassRate: MetricRatio | null;
-		badcaseOpenCount: number | null;
-	} | null;
-	asOf: string;
-}
-
-export interface OperatorSafetySummaryResult {
-	window: OperatorResultWindow;
-	summary: {
-		decisionDistribution: {
-			allowed: number;
-			approvalRequired: number;
-			denied: number;
-			failClosed: number;
-		};
-		aclAnomalyRate: MetricRatio;
-		restrictedDenyRate: MetricRatio;
-		failClosedRate: MetricRatio;
-	};
-	asOf: string;
-}
-
-export interface OperatorSafetyAnomalyListResult {
-	anomalies: Array<{
-		anomalyId: string;
-		requestId: string;
-		traceId: string;
-		surface: string;
-		principalType: string;
-		selectedTarget: string | null;
-		anomalyCode: string;
-		severity: "high" | "medium";
-		status: "open";
-		summary: string;
-		detectedAt: string;
-		links: {
-			traceLink: string | null;
-			issueLink: string | null;
-			issueFingerprint: string | null;
-		};
-	}>;
-	page: {
-		nextCursor: string | null;
-	};
-}
-
-export interface OperatorCostSummaryResult {
-	window: OperatorResultWindow;
-	summary: {
-		tokens: {
-			input: number;
-			output: number;
-			cachedInput: number;
-		};
-		estimatedCost: {
-			microusd: number;
-			currency: "USD";
-		};
-		byModel: Array<{
-			modelName: string;
-			requestCount: number;
-			estimatedCostMicrousd: number;
-		}>;
-		bySurface: Array<{
-			surface: string;
-			requestCount: number;
-			estimatedCostMicrousd: number;
-		}>;
-	};
-	asOf: string;
-}
-
-export interface OperatorCostTimeseriesResult {
-	window: OperatorResultWindow;
-	series: Array<{
-		bucketStart: string;
-		bucketEnd: string;
-		inputTokens: number;
-		outputTokens: number;
-		cachedInputTokens: number;
-		estimatedCostMicrousd: number;
-	}>;
 	asOf: string;
 }
 
@@ -774,3 +202,9 @@ export type {
 	OperatorQueryServiceDependencies,
 	OperatorQueryStore,
 } from "./service-contracts";
+export type {
+	MetricRatio,
+	OperatorDistributionBucket,
+	OperatorOverviewWindow,
+	OperatorResultWindow,
+} from "./service-metric-types";

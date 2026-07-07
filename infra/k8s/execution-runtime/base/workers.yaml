@@ -1,0 +1,316 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-worker
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: workflow-worker
+    app.kubernetes.io/part-of: campus-agent
+    campus-agent.muc.wiki/temporal-task-queue: workflow
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workflow-worker
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/workflow-worker"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-core
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-core
+    app.kubernetes.io/part-of: campus-agent
+    campus-agent.muc.wiki/temporal-task-queue: activity-core
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-core
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-core
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-core"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
+            - secretRef:
+                name: execution-memory-client-secrets
+            - secretRef:
+                name: execution-control-internal-query-secrets
+            - secretRef:
+                name: execution-tool-read-model-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-core", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-core", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-agent
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-agent
+    app.kubernetes.io/part-of: campus-agent
+    campus-agent.muc.wiki/temporal-task-queue: activity-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-agent
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-agent"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
+            - secretRef:
+                name: execution-agent-client-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 150m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-knowledge
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-knowledge
+    app.kubernetes.io/part-of: campus-agent
+    campus-agent.muc.wiki/temporal-task-queue: activity-knowledge
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-knowledge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-knowledge
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-knowledge"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-temporal-workflow-secrets
+            - secretRef:
+                name: execution-telemetry-client-secrets
+            - secretRef:
+                name: execution-run-projection-secrets
+            - secretRef:
+                name: execution-rag-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: provider-config-projection
+              mountPath: /run/campus-agent/provider-config-projection.json
+              subPath: provider-config-projection.json
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: provider-config-projection
+          secret:
+            secretName: execution-runtime-provider-config-projection
+            defaultMode: 0600
+            items:
+              - key: provider-config-projection.json
+                path: provider-config-projection.json
+        - name: qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

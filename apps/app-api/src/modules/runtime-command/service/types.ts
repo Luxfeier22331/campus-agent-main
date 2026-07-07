@@ -1,14 +1,13 @@
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { ChatConversationStore } from "../../chat";
+import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type {
+	ExecutionControlRuntimeClient,
 	RequestedScope,
-	SupervisorDurableRuntimeClient,
-	SupervisorExecutionClient,
-	SupervisorExecutionResponse,
+	ToolExecutionResponse,
 } from "../../integration";
-import type { ProfileMemoryProjectionStore } from "../../profile-memory";
+import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
-import type { AppTelemetry } from "../../telemetry";
+import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
@@ -16,7 +15,7 @@ export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 export interface ChatCommandPayload {
 	conversationId?: unknown;
 	prompt?: unknown;
-	requestedCapability?: unknown;
+	requestedTool?: unknown;
 	requestedScope?: unknown;
 	versionQuery?: unknown;
 }
@@ -42,13 +41,14 @@ export interface ChatCommandResponse {
 		conversation: ReturnType<typeof import("../../chat").toConversationResponse>;
 		result: ChatCommandResult;
 	};
+	execution?: ToolExecutionResponse;
 	requestId: string;
-	supervisor?: SupervisorExecutionResponse;
 	traceId: string;
 }
 
 export type ChatCommandStreamEventName =
 	| "request.accepted"
+	| "answer.delta"
 	| "execution.queued"
 	| "execution.running"
 	| "request.completed"
@@ -63,10 +63,14 @@ export interface ChatCommandStreamEvent {
 			message: string;
 			retryable?: boolean;
 		};
+		accumulatedText?: string;
+		delta?: string;
+		messageId?: string;
 		occurredAt: string;
 		requestId: string;
 		runId?: string | null;
 		runPhase?: RuntimeRunPhase;
+		sequence?: number;
 		status: string;
 		traceId: string;
 	};
@@ -78,10 +82,40 @@ export interface ChatCommandSubmitInput {
 	payload: ChatCommandPayload;
 	principal: ResolvedAppPrincipal;
 	surface?: string;
+	traceHeaders?: TracePropagationHeaders;
 	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 }
 
+export interface AcceptedChatCommandContext {
+	acceptedAt: string;
+	branchId: string;
+	conversation: ChatConversation;
+	conversationTitle: string;
+	idempotencyKey: string | null;
+	input: ChatCommandSubmitInput;
+	requestFingerprintSha256: string | null;
+	requestId: string;
+	runId: string | null;
+	runPhase: RuntimeRunPhase | null;
+	safetyIdentifier: string | null;
+	surface: string;
+	traceId: string;
+	turnId: string | null;
+	turnSequence: number;
+	userMessageId: string;
+	validatedPayload: ValidatedChatCommandPayload;
+}
+
 export interface ChatCommandService {
+	reconcileDurableCloseouts?(input?: {
+		limit?: number;
+		runId?: string;
+		startedBefore?: string;
+	}): Promise<{
+		failed: number;
+		finalized: number;
+		scanned: number;
+	}>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
@@ -96,39 +130,29 @@ export interface ChatCommandServiceDependencies {
 	computeFingerprint?: (input: {
 		conversationDiscriminator: string;
 		prompt: string;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		requestedScope: RequestedScope | null;
 		versionQuery: VersionQuery | null;
 	}) => string;
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
-	isDurableRuntimeConfigured?: boolean;
+	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
-	profileMemoryStore?: ProfileMemoryProjectionStore;
-	requireDurableRuntime?: boolean;
+	profileMemoryStore?: Pick<ProfileMemoryStore, "loadSummary">;
+	publicNoticeURLAllowlist?: string[];
+	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
-	durableRuntime?: SupervisorDurableRuntimeClient;
-	supervisor: SupervisorExecutionClient;
+	executionRuntime?: ExecutionControlRuntimeClient;
 	telemetry?: AppTelemetry;
-	traceBacklinkRecorder?: {
-		record(input: {
-			errorCode?: string | null;
-			requestId: string;
-			selectedTarget?: string | null;
-			status?: string | null;
-			surface?: string | null;
-			traceId: string;
-		}): Promise<void>;
-	};
 }
 
 export interface ValidatedChatCommandPayload {
 	conversationId: string | null;
 	prompt: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }

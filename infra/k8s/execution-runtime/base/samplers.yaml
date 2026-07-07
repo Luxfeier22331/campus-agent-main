@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-task-queue-sampler
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: temporal-task-queue-sampler
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: temporal-task-queue-sampler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: temporal-task-queue-sampler
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      containers:
+        - name: sampler
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              while true; do
+                /usr/local/bin/temporal-task-queue-sampler \
+                  --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
+                sleep "$${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_INTERVAL_SECONDS:-30}"
+              done
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-app-api-internal-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_INTERVAL_SECONDS
+              value: "30"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keda-hpa-posture-collector
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: keda-hpa-posture-collector
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keda-hpa-posture-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keda-hpa-posture-collector
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: keda-hpa-posture-reader
+      containers:
+        - name: posture-collector
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              while true; do
+                /usr/local/bin/keda-hpa-posture-collector \
+                  --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}" \
+                  --namespace "$${POD_NAMESPACE}"
+                sleep "$${KEDA_HPA_POSTURE_COLLECTOR_INTERVAL_SECONDS:-30}"
+              done
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-rendered-config
+            - secretRef:
+                name: execution-app-api-internal-secrets
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KEDA_HPA_POSTURE_COLLECTOR_INTERVAL_SECONDS
+              value: "30"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

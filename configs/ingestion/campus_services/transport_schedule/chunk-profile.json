@@ -14,6 +14,6 @@
 	"notes": [
 		"transport_schedule is a structured projection owner, not a query-serving retrieval alias.",
 		"The chunk profile exists only to satisfy collection config invariants while serving remains gate-closed.",
-		"Runtime query reads the generated campus_services_projection_bundle.v1 through the Go structured query service."
+		"Runtime query reads the generated campus_services_projection_bundle.v1 through the Go tool read model service."
 	]
 }

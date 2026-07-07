@@ -24,13 +24,14 @@ describe("chat e2e args", () => {
 			chatBaseUrl: DEFAULT_CHAT_E2E_CHAT_BASE_URL,
 			email: "help_bot@outlook.com",
 			execReadyzUrl: null,
-			expectPromptRuntimeState: null,
+			expectModelExecutionState: null,
 			expectResultKind: "answer",
 			name: "Campus Agent Smoke",
 			password: "",
 			profile: "staging",
 			prompt: DEFAULT_CHAT_E2E_PROMPT,
 			smokeAuthSecret: "smoke-secret",
+			transport: "stream",
 		});
 	});
 
@@ -45,12 +46,13 @@ describe("chat e2e args", () => {
 			captchaToken: "smoke-captcha-token",
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
-			expectPromptRuntimeState: null,
+			expectModelExecutionState: null,
 			profile: "local-real-provider",
+			transport: "stream",
 		});
 	});
 
-	it("uses public-chat readiness instead of direct app-api readiness for dev by default", () => {
+	it("uses campus-web readiness instead of direct app-api readiness for dev by default", () => {
 		expect(
 			parseChatE2eArgs(["--profile", "dev"], {
 				AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
@@ -61,8 +63,9 @@ describe("chat e2e args", () => {
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
 			captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
-			expectPromptRuntimeState: null,
+			expectModelExecutionState: null,
 			profile: "dev",
+			transport: "stream",
 		});
 	});
 
@@ -79,15 +82,17 @@ describe("chat e2e args", () => {
 					"--prompt",
 					"民族学本科人才培养方案总学分要求是多少？",
 					"--chat-base-url",
-					"http://127.0.0.1:27011",
+					"http://127.0.0.1:27014",
 					"--app-api-readyz-url",
 					"http://127.0.0.1:27031/readyz",
 					"--exec-readyz-url",
 					"http://127.0.0.1:27051/readyz",
 					"--expect-result-kind",
 					"any",
-					"--expect-prompt-runtime-state",
+					"--expect-model-execution-state",
 					"rag_sdk_completed",
+					"--transport",
+					"sync",
 					"--password",
 					"dev-smoke-password",
 					"--captcha-token",
@@ -98,17 +103,26 @@ describe("chat e2e args", () => {
 		).toEqual({
 			appApiReadyzUrl: "http://127.0.0.1:27031/readyz",
 			captchaToken: "dev-captcha-token",
-			chatBaseUrl: "http://127.0.0.1:27011",
+			chatBaseUrl: "http://127.0.0.1:27014",
 			email: "smoke-user@example.edu",
 			execReadyzUrl: "http://127.0.0.1:27051/readyz",
-			expectPromptRuntimeState: "rag_sdk_completed",
+			expectModelExecutionState: "rag_sdk_completed",
 			expectResultKind: "any",
 			name: "Smoke User",
 			password: "dev-smoke-password",
 			profile: "dev",
 			prompt: "民族学本科人才培养方案总学分要求是多少？",
 			smokeAuthSecret: "",
+			transport: "sync",
 		});
+	});
+
+	it("rejects unsupported transports", () => {
+		expect(() =>
+			parseChatE2eArgs(["--profile", "staging", "--transport", "poll"], {
+				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
+			} as NodeJS.ProcessEnv),
+		).toThrow("--transport must be one of: stream, sync.");
 	});
 
 	it("rejects unsupported profiles", () => {

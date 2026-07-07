@@ -6,13 +6,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appApiDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appApiDir, "../..");
-const publicChatDir = resolve(repoRoot, "apps/public-chat-web");
-const publicChatViteBin = resolve(publicChatDir, "node_modules/vite/bin/vite.js");
-const supervisorStartScript = resolve(repoRoot, "infra/local/start-supervisor-runtime.sh");
+const campusWebDir = resolve(repoRoot, "apps/campus-web");
+const campusWebViteBin = resolve(campusWebDir, "node_modules/vite/bin/vite.js");
 const defaultEmail = "help_bot@outlook.com";
 const defaultName = "Campus Agent Smoke";
-const defaultPrompt = "中央民族大学本科学生国家奖学金评审办法";
-const defaultChatBaseUrl = "http://127.0.0.1:27011";
+const defaultPrompt = "示例大学本科学生国家奖学金评审办法";
+const defaultChatBaseUrl = "http://127.0.0.1:27014";
 const defaultExecReadyzUrl = "http://127.0.0.1:27051/readyz";
 
 for (const envPath of [resolve(appApiDir, ".env"), resolve(appApiDir, ".dev.vars")]) {
@@ -29,12 +28,11 @@ interface LocalDevChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
-	expectPromptRuntimeState: string | null;
+	expectModelExecutionState: string | null;
 	expectResultKind: string;
 	name: string;
 	prompt: string;
-	restartPublicChat: boolean;
-	restartSupervisorRuntime: boolean;
+	restartCampusWeb: boolean;
 	startupTimeoutMs: number;
 }
 
@@ -67,12 +65,11 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalD
 		chatBaseUrl: readArgValue(argv, "--chat-base-url") ?? defaultChatBaseUrl,
 		email: (readArgValue(argv, "--email") ?? defaultEmail).toLowerCase(),
 		execReadyzUrl: readArgValue(argv, "--exec-readyz-url") ?? defaultExecReadyzUrl,
-		expectPromptRuntimeState: readArgValue(argv, "--expect-prompt-runtime-state"),
+		expectModelExecutionState: readArgValue(argv, "--expect-model-execution-state"),
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
 		name: readArgValue(argv, "--name") ?? defaultName,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
-		restartPublicChat: argv.includes("--restart-public-chat"),
-		restartSupervisorRuntime: argv.includes("--restart-supervisor-runtime"),
+		restartCampusWeb: argv.includes("--restart-campus-web"),
 		startupTimeoutMs: readPositiveInteger(
 			readArgValue(argv, "--startup-timeout-ms") ??
 				readOptionalValue(env.CHAT_E2E_LOCAL_DEV_STARTUP_TIMEOUT_MS),
@@ -96,16 +93,6 @@ function runChecked(command: string, args: string[], cwd: string, env = process.
 	}
 }
 
-function startSupervisorRuntime(args: LocalDevChatE2eArgs): void {
-	runChecked(
-		"bash",
-		args.restartSupervisorRuntime
-			? [supervisorStartScript, "up", "-d", "--force-recreate", "--no-build"]
-			: [supervisorStartScript],
-		repoRoot,
-	);
-}
-
 function localPortFromUrl(url: string): string | null {
 	try {
 		const parsed = new URL(url);
@@ -118,14 +105,14 @@ function localPortFromUrl(url: string): string | null {
 	}
 }
 
-function stopLocalPublicChatIfRequested(args: LocalDevChatE2eArgs): void {
-	if (!args.restartPublicChat) {
+function stopLocalCampusWebIfRequested(args: LocalDevChatE2eArgs): void {
+	if (!args.restartCampusWeb) {
 		return;
 	}
 
 	const port = localPortFromUrl(args.chatBaseUrl);
 	if (!port) {
-		throw new Error("--restart-public-chat only supports localhost chat-base-url values.");
+		throw new Error("--restart-campus-web only supports localhost chat-base-url values.");
 	}
 
 	const result = spawnSync(
@@ -153,7 +140,7 @@ function stopLocalPublicChatIfRequested(args: LocalDevChatE2eArgs): void {
 		throw result.error;
 	}
 	if (result.status !== 0) {
-		throw new Error(`Failed to restart public-chat on port ${port}: ${result.stderr.trim()}`);
+		throw new Error(`Failed to restart campus-web on port ${port}: ${result.stderr.trim()}`);
 	}
 }
 
@@ -196,24 +183,29 @@ async function isReadyzReady(url: string): Promise<boolean> {
 	}
 }
 
-function startPublicChatLiveSmoke(): ChildProcess {
-	// Keep `public-chat-web dev:live-smoke` as the canonical human-facing entry,
-	// but launch Vite directly here so wrapper-owned teardown does not surface
-	// pnpm ELIFECYCLE noise after a successful E2E run.
+function startCampusWebLiveSmoke(): ChildProcess {
 	return spawn(
 		process.execPath,
-		[publicChatViteBin, "--host", "127.0.0.1", "--port", "27011", "--strictPort"],
+		[campusWebViteBin, "--host", "127.0.0.1", "--port", "27014", "--strictPort"],
 		{
-			cwd: publicChatDir,
+			cwd: campusWebDir,
 			env: {
 				...process.env,
+				CLOUDFLARE_ENV: "local",
+				CAMPUS_WEB_LIVE_SMOKE: "1",
 				WRANGLER_DISABLE_EXPERIMENTAL_WARNING: "1",
-				PUBLIC_CHAT_LIVE_SMOKE: "1",
 				XDG_CONFIG_HOME: "./.wrangler-home",
 			},
 			stdio: "inherit",
 		},
 	);
+}
+
+function buildLocalAuthEnv(args: LocalDevChatE2eArgs): NodeJS.ProcessEnv {
+	return {
+		...process.env,
+		AUTH_SHELL_ORIGIN: new URL(args.chatBaseUrl).origin,
+	};
 }
 
 export async function waitForReadyzWhileChildAlive(
@@ -239,7 +231,7 @@ export async function waitForReadyzWhileChildAlive(
 			}
 			reject(
 				new Error(
-					`public-chat dev:live-smoke exited before ${url} was ready (${signal ?? code ?? "unknown"}).`,
+					`campus-web live smoke exited before ${url} was ready (${signal ?? code ?? "unknown"}).`,
 				),
 			);
 		};
@@ -272,28 +264,41 @@ async function stopChild(child: ChildProcess): Promise<void> {
 
 async function main(argv: string[]): Promise<void> {
 	const args = parseArgs(argv);
+	const localAuthEnv = buildLocalAuthEnv(args);
 	if (!readOptionalValue(process.env.APP_API_SMOKE_IDENTITY_PASSWORD)) {
-		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev public/chat E2E.");
+		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev chat E2E.");
 	}
 
-	if (args.restartSupervisorRuntime || !(await isReadyzReady(args.execReadyzUrl))) {
-		startSupervisorRuntime(args);
+	if (!(await isReadyzReady(args.execReadyzUrl))) {
+		throw new Error(
+			`Execution-control runtime is not ready at ${args.execReadyzUrl}. Start the runtime through the platform-owned deployment path before running local chat E2E.`,
+		);
 	}
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
-	runChecked("pnpm", ["--dir", appApiDir, "db:bootstrap"], repoRoot);
 	runChecked(
-		"pnpm",
+		"node",
 		[
-			"--dir",
-			appApiDir,
-			"smoke-identity:provision",
-			"--",
+			`${appApiDir}/scripts/run-with-local-env.mjs`,
+			"node",
+			"./scripts/bootstrap-shared-product-with-seeds.mjs",
+		],
+		repoRoot,
+	);
+	runChecked(
+		"node",
+		[
+			`${appApiDir}/scripts/run-with-local-env.mjs`,
+			"pnpm",
+			"exec",
+			"tsx",
+			"./scripts/provision-smoke-identity.ts",
 			"--email",
 			args.email,
 			"--name",
 			args.name,
 		],
 		repoRoot,
+		localAuthEnv,
 	);
 
 	const chatE2eArgs = [
@@ -316,22 +321,22 @@ async function main(argv: string[]): Promise<void> {
 		"--expect-result-kind",
 		args.expectResultKind,
 	];
-	if (args.expectPromptRuntimeState) {
-		chatE2eArgs.push("--expect-prompt-runtime-state", args.expectPromptRuntimeState);
+	if (args.expectModelExecutionState) {
+		chatE2eArgs.push("--expect-model-execution-state", args.expectModelExecutionState);
 	}
 
 	const chatReadyzUrl = new URL("/readyz", args.chatBaseUrl).toString();
-	stopLocalPublicChatIfRequested(args);
-	const publicChat =
-		!args.restartPublicChat && (await isReadyzReady(chatReadyzUrl))
+	stopLocalCampusWebIfRequested(args);
+	const campusWeb =
+		!args.restartCampusWeb && (await isReadyzReady(chatReadyzUrl))
 			? null
-			: startPublicChatLiveSmoke();
+			: startCampusWebLiveSmoke();
 	try {
-		await waitForReadyzWhileChildAlive(chatReadyzUrl, args.startupTimeoutMs, publicChat);
+		await waitForReadyzWhileChildAlive(chatReadyzUrl, args.startupTimeoutMs, campusWeb);
 		runChecked("pnpm", chatE2eArgs, repoRoot);
 	} finally {
-		if (publicChat) {
-			await stopChild(publicChat);
+		if (campusWeb) {
+			await stopChild(campusWeb);
 		}
 	}
 }

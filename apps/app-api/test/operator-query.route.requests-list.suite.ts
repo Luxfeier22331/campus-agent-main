@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import { AppApiRouteError } from "../src/http";
-import type { OperatorQueryService } from "../src/modules/operator-query";
 import {
 	createCampusPrincipal,
 	createOperatorPrincipal,
@@ -13,23 +12,7 @@ import {
 export function registerOperatorQueryRequestsListSuite(): void {
 	describe("GET /api/operator/requests", () => {
 		it("returns request projections for operator principals only", async () => {
-			const service: OperatorQueryService = {
-				getById: vi.fn(),
-				getAuditById: vi.fn(),
-				getEvalCoverage: vi.fn(),
-				getObservabilityById: vi.fn(),
-				getOverview: vi.fn(),
-				getIntentSummary: vi.fn(),
-				getIntentTimeseries: vi.fn(),
-				getQualitySummary: vi.fn(),
-				getQualityTimeseries: vi.fn(),
-				getSafetySummary: vi.fn(),
-				listSafetyAnomalies: vi.fn(),
-				getCostSummary: vi.fn(),
-				getCostTimeseries: vi.fn(),
-				listQualityBadcases: vi.fn(),
-				listQualityEvalCandidates: vi.fn(),
-				listAudit: vi.fn(),
+			const service = createOperatorQueryServiceMock({
 				list: vi.fn().mockResolvedValue({
 					page: {
 						nextCursor: "cursor_01HQ",
@@ -51,22 +34,22 @@ export function registerOperatorQueryRequestsListSuite(): void {
 							questionPreview: "图书馆开放到几点？",
 							requestId: "req_01HQ",
 							runId: "run_01HQ",
-							requestedCapability: "knowledge",
+							requestedTool: "knowledge_query",
 							requestedScope: {
 								collection: "student_rules",
 								corpus: "regulations",
 							},
-							selectedTarget: "rag-agent",
+							selectedTool: "knowledge_query",
 							sourceDocIds: ["handbook:library-hours"],
 							startedAt: "2026-03-28T08:00:00.000Z",
 							status: "completed",
-							surface: "public_chat_web",
+							surface: "campus_web",
 							traceId: "trace_01HQ",
 							visibilityScope: "main",
 						},
 					],
 				}),
-			};
+			});
 			const principal = createOperatorPrincipal();
 			const app = createApp(env, {
 				getPrincipal: vi.fn().mockResolvedValue(principal),
@@ -101,16 +84,16 @@ export function registerOperatorQueryRequestsListSuite(): void {
 						questionPreview: "图书馆开放到几点？",
 						requestId: "req_01HQ",
 						runId: "run_01HQ",
-						requestedCapability: "knowledge",
+						requestedTool: "knowledge_query",
 						requestedScope: {
 							collection: "student_rules",
 							corpus: "regulations",
 						},
-						selectedTarget: "rag-agent",
+						selectedTool: "knowledge_query",
 						sourceDocIds: ["handbook:library-hours"],
 						startedAt: "2026-03-28T08:00:00.000Z",
 						status: "completed",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 						visibilityScope: "main",
 					},

@@ -1,9 +1,10 @@
 import type {
-	SupervisorDurableRun,
-	SupervisorDurableRunEvent,
-} from "../src/modules/integration/supervisor";
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRunStepTrajectory,
+} from "../src/modules/integration/execution-control";
 
-export function durableRun(overrides: Partial<SupervisorDurableRun> = {}): SupervisorDurableRun {
+export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -11,22 +12,30 @@ export function durableRun(overrides: Partial<SupervisorDurableRun> = {}): Super
 		createdAt: "2026-06-04T01:02:03Z",
 		failCloseReason: "",
 		finalResponseRef: "",
-		lane: "rag",
+		taskQueue: "campus-agent.workflow",
 		ownerUserId: "user_01HQ",
 		requestId: "req_0001",
-		requestedCapability: "knowledge",
+		requestedTool: "knowledge_query",
 		runId: "run_0001",
-		selectedCapability: "knowledge",
+		selectedTool: "knowledge_query",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		terminalReason: "",
 		traceId: "trace_0001",
 		turnId: "turn_0001",
 		updatedAt: "2026-06-04T01:02:04Z",
 		workflowPlanRef: "",
 		...overrides,
+	};
+}
+
+export function emptyRunStepTrajectory(): ExecutionControlRunStepTrajectory {
+	return {
+		attempts: [],
+		results: [],
+		steps: [],
 	};
 }
 
@@ -49,18 +58,18 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 				sources: [{ doc_id: "student_rules:national-scholarship" }],
 			},
 		},
-		selected_target: "rag-agent",
+		selected_tool: "knowledge_query",
 		status: "completed",
 		trace_id: "trace_0001",
 	};
 }
 
 export function durableEvent(
-	overrides: Partial<SupervisorDurableRunEvent> & {
+	overrides: Partial<ExecutionControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): SupervisorDurableRunEvent {
+): ExecutionControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",

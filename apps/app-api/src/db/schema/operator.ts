@@ -1,6 +1,4 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type { EvalCoverageSnapshot } from "../../modules/operator-eval-coverage";
-import type { EvalDiagnosticFailureStage } from "../../modules/operator-eval-diagnostic-badcases";
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
@@ -45,13 +43,13 @@ interface OfficialWebReleaseTaskTimelineEventJson {
 
 interface RequestAuditDiagnosticsJson {
 	aclAnomalyCode: string | null;
-	bridgeDurationMs?: number | null;
+	activityDurationMs?: number | null;
 	decision?: string | null;
 	durationMs?: number | null;
 	failClosed: boolean | null;
 	failureKind?: string | null;
 	httpStatus?: number | null;
-	lane?: string | null;
+	taskQueue?: string | null;
 	queueWaitMs?: number | null;
 	retryable?: boolean | null;
 	sourceDocIds: string[];
@@ -89,11 +87,11 @@ export const requestProjection = operator.table(
 		entitlementGroupsJson: jsonb("entitlement_groups_json").$type<string[]>().notNull().default([]),
 		visibilityScope: text("visibility_scope"),
 		applicabilityScope: text("applicability_scope"),
-		requestedCapability: text("requested_capability"),
+		requestedTool: text("requested_tool"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
 		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
-		selectedTarget: text("selected_target"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		questionPreview: text("question_preview").notNull(),
@@ -129,8 +127,8 @@ export const requestAuditProjection = operator.table(
 		principalType: text("principal_type").notNull(),
 		entitlementSnapshotId: text("entitlement_snapshot_id"),
 		policyProjectionVersion: text("policy_projection_version"),
-		requestedCapability: text("requested_capability"),
-		selectedTarget: text("selected_target"),
+		requestedTool: text("requested_tool"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		terminalCode: text("terminal_code"),
 		summary: text("summary").notNull(),
@@ -166,8 +164,8 @@ export const metricRollup = operator.table(
 		bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
 		bucketEnd: timestamp("bucket_end", { withTimezone: true }).notNull(),
 		surface: text("surface").notNull(),
-		selectedTarget: text("selected_target"),
-		requestedCapability: text("requested_capability"),
+		selectedTool: text("selected_tool"),
+		requestedTool: text("requested_tool"),
 		principalType: text("principal_type").notNull(),
 		collection: text("collection"),
 		modelName: text("model_name"),
@@ -186,9 +184,9 @@ export const metricRollup = operator.table(
 			table.surface,
 			table.bucketStart,
 		),
-		domainTargetBucketStartIndex: index("operator_metric_rollup_domain_target_bucket_idx").on(
+		domainTargetBucketStartIndex: index("operator_metric_rollup_domain_tool_bucket_idx").on(
 			table.domain,
-			table.selectedTarget,
+			table.selectedTool,
 			table.bucketStart,
 		),
 	}),
@@ -201,7 +199,7 @@ export const qualityBadcaseProjection = operator.table(
 		requestId: text("request_id").notNull(),
 		traceId: text("trace_id").notNull(),
 		surface: text("surface").notNull(),
-		selectedTarget: text("selected_target"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		causeClass: text("cause_class").notNull(),
 		detectedBy: text("detected_by").notNull(),
@@ -229,63 +227,6 @@ export const qualityBadcaseProjection = operator.table(
 	}),
 );
 
-export const evalCoverageSnapshot = operator.table(
-	"eval_coverage_snapshot",
-	{
-		snapshotId: text("snapshot_id").primaryKey(),
-		schemaVersion: text("schema_version").notNull(),
-		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
-		sourceGitHead: text("source_git_head").notNull(),
-		payloadJson: jsonb("payload_json").$type<EvalCoverageSnapshot>().notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		generatedAtIndex: index("operator_eval_coverage_snapshot_generated_at_idx").on(
-			table.generatedAt,
-		),
-	}),
-);
-
-export const evalDiagnosticBadcaseProjection = operator.table(
-	"eval_diagnostic_badcase_projection",
-	{
-		badcaseId: text("badcase_id").primaryKey(),
-		snapshotId: text("snapshot_id").notNull(),
-		evalRunId: text("eval_run_id").notNull(),
-		sourceReportSchema: text("source_report_schema").notNull(),
-		sourceGitHead: text("source_git_head").notNull(),
-		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
-		surfaceKey: text("surface_key").notNull(),
-		caseId: text("case_id").notNull(),
-		metricName: text("metric_name").notNull(),
-		scoreMilli: integer("score_milli").notNull(),
-		thresholdMilli: integer("threshold_milli").notNull(),
-		failureStage: text("failure_stage").$type<EvalDiagnosticFailureStage>().notNull(),
-		causeClass: text("cause_class").notNull(),
-		metricFailureReason: text("metric_failure_reason").notNull(),
-		queryPreview: text("query_preview").notNull(),
-		expectedDocIdsJson: jsonb("expected_doc_ids_json").$type<string[]>().notNull(),
-		retrievedContextIdsJson: jsonb("retrieved_context_ids_json").$type<string[]>().notNull(),
-		retrievedDocIdsJson: jsonb("retrieved_doc_ids_json").$type<string[]>().notNull(),
-		supportingDocIdsJson: jsonb("supporting_doc_ids_json").$type<string[]>().notNull(),
-		supportingChunkIdsJson: jsonb("supporting_chunk_ids_json").$type<string[]>().notNull(),
-		answerShape: text("answer_shape"),
-		presentationKind: text("presentation_kind"),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		causeGeneratedAtIndex: index("operator_eval_diag_badcase_cause_generated_at_idx").on(
-			table.causeClass,
-			table.generatedAt,
-		),
-		generatedAtIndex: index("operator_eval_diag_badcase_generated_at_idx").on(table.generatedAt),
-		surfaceGeneratedAtIndex: index("operator_eval_diag_badcase_surface_generated_at_idx").on(
-			table.surfaceKey,
-			table.generatedAt,
-		),
-	}),
-);
-
 export const qualityGradeProjection = operator.table(
 	"quality_grade_projection",
 	{
@@ -294,8 +235,8 @@ export const qualityGradeProjection = operator.table(
 		traceId: text("trace_id").notNull(),
 		surface: text("surface").notNull(),
 		requestStartedAt: timestamp("request_started_at", { withTimezone: true }).notNull(),
-		selectedTarget: text("selected_target"),
-		requestedCapability: text("requested_capability"),
+		selectedTool: text("selected_tool"),
+		requestedTool: text("requested_tool"),
 		principalType: text("principal_type").notNull(),
 		collection: text("collection"),
 		modelName: text("model_name"),
@@ -602,7 +543,7 @@ export const authenticatedNoticeRunProcessingProjection = operator.table(
 		sourceChannel: text("source_channel").notNull(),
 		sourceSurface: text("source_surface").notNull(),
 		siteId: text("site_id").notNull(),
-		collectorRunToken: text("collector_run_token").notNull(),
+		sourceRunToken: text("source_run_token").notNull(),
 		runId: text("run_id").notNull(),
 		replayBatchId: text("replay_batch_id"),
 		enqueueSource: text("enqueue_source"),
@@ -641,9 +582,9 @@ export const authenticatedNoticeRunProcessingProjection = operator.table(
 		redactionVersion: text("redaction_version").notNull(),
 	},
 	(table) => ({
-		collectorRunProjectedAtIndex: index(
-			"operator_auth_notice_run_processing_token_projected_idx",
-		).on(table.collectorRunToken, table.projectedAt),
+		sourceRunProjectedAtIndex: index(
+			"operator_auth_notice_run_processing_source_run_projected_idx",
+		).on(table.sourceRunToken, table.projectedAt),
 		runProjectedAtIndex: index("operator_auth_notice_run_processing_run_projected_idx").on(
 			table.runId,
 			table.projectedAt,
@@ -666,7 +607,7 @@ export const authenticatedNoticeRunProcessingEventProjection = operator.table(
 		eventId: text("event_id").primaryKey(),
 		runProcessingId: text("run_processing_id").notNull(),
 		runKey: text("run_key").notNull(),
-		collectorRunToken: text("collector_run_token").notNull(),
+		sourceRunToken: text("source_run_token").notNull(),
 		runId: text("run_id").notNull(),
 		jobId: text("job_id"),
 		stage: text("stage").notNull(),
@@ -680,8 +621,8 @@ export const authenticatedNoticeRunProcessingEventProjection = operator.table(
 		runProcessingOccurredAtIndex: index(
 			"operator_auth_notice_run_event_processing_occurred_idx",
 		).on(table.runProcessingId, table.occurredAt),
-		collectorRunOccurredAtIndex: index("operator_auth_notice_run_event_token_occurred_idx").on(
-			table.collectorRunToken,
+		sourceRunOccurredAtIndex: index("operator_auth_notice_run_event_source_run_occurred_idx").on(
+			table.sourceRunToken,
 			table.occurredAt,
 		),
 	}),

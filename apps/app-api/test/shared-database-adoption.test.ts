@@ -93,6 +93,40 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER TABLE "profile"."memory_items" ALTER COLUMN "runtime_episode_uuid" DROP DEFAULT;',
+			),
+		).toMatchObject({
+			existsKey: "profile.memory_items:runtime_episode_uuid:default_dropped",
+			kind: "drop_column_default",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER TABLE "provider_config"."profiles" ALTER COLUMN "provider" DROP NOT NULL;',
+			),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:provider:not_null_dropped",
+			kind: "drop_column_not_null",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER TABLE "provider_config"."profiles" ALTER COLUMN "connection_id" SET NOT NULL;',
+			),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:connection_id:not_null_set",
+			kind: "set_column_not_null",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_tool" TO "selected_tool";',
+			),
+		).toMatchObject({
+			existsKey: "runtime.request_execution:selected_tool",
+			fromColumn: "old_tool",
+			kind: "rename_column",
+			toColumn: "selected_tool",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
 			),
 		).toMatchObject({
@@ -149,11 +183,45 @@ ON "official_web"."crawl_runs" USING btree (
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER INDEX IF EXISTS "operator"."operator_metric_rollup_domain_target_bucket_idx" RENAME TO "operator_metric_rollup_domain_tool_bucket_idx";',
+			),
+		).toMatchObject({
+			existsKey: "operator@operator_metric_rollup_domain_tool_bucket_idx",
+			fromIndex: "operator_metric_rollup_domain_target_bucket_idx",
+			index: "operator_metric_rollup_domain_tool_bucket_idx",
+			kind: "rename_index",
+		});
+		expect(
+			parseMigrationStatement('INSERT INTO "provider_config"."connections" ("connection_id")'),
+		).toMatchObject({
+			existsKey: "provider_config.connections:data_insert",
+			kind: "data_statement",
+		});
+		expect(
+			parseMigrationStatement('UPDATE "provider_config"."profiles" SET "connection_id" ='),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:data_update",
+			kind: "data_statement",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER TABLE "dining"."source_observations" ADD COLUMN IF NOT EXISTS "source_base_token" text;',
+			),
+		).toMatchObject({
+			existsKey: "dining.source_observations:source_base_token",
+			kind: "column",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
 			),
 		).toMatchObject({
 			existsKey: "runtime.request_execution:actor_groups_json",
 			kind: "drop_column",
+		});
+		expect(parseMigrationStatement('DROP TABLE "dining"."floorplan_assets";')).toMatchObject({
+			existsKey: "dining.floorplan_assets",
+			kind: "drop_table",
 		});
 		expect(
 			parseMigrationStatement(`ALTER TABLE "runtime"."request_execution"
@@ -162,6 +230,42 @@ DROP COLUMN "actor_groups_json";`),
 			existsKey: "runtime.request_execution:actor_groups_json",
 			kind: "drop_column",
 		});
+	});
+
+	it("loads data statements and compound ALTER TABLE clauses as independent migration targets", () => {
+		const migration = migrationContext.migrations.find(
+			(item) => item.tag === "0056_dining_source_observation_incremental",
+		);
+
+		expect(migration?.statements).toEqual(
+			expect.arrayContaining([
+				...["source_base_token", "last_seen_run_id"].map((column) =>
+					expect.stringContaining(
+						`ALTER TABLE "dining"."source_observations"\nADD COLUMN IF NOT EXISTS "${column}" text;`,
+					),
+				),
+				expect.stringContaining('UPDATE "dining"."source_observations"\nSET\n    "content_hash"'),
+				...["content_hash", "last_seen_run_id"].map((column) =>
+					expect.stringContaining(
+						`ALTER TABLE "dining"."source_observations"\nALTER COLUMN "${column}" SET NOT NULL;`,
+					),
+				),
+			]),
+		);
+		for (const [first, second] of [
+			[
+				'ADD COLUMN IF NOT EXISTS "source_base_token"',
+				'ADD COLUMN IF NOT EXISTS "source_table_id"',
+			],
+			['ADD COLUMN IF NOT EXISTS "stale_at"', 'UPDATE "dining"."source_observations"'],
+			['ALTER COLUMN "content_hash" SET NOT NULL', 'ALTER COLUMN "first_seen_at" SET NOT NULL'],
+		]) {
+			expect(
+				migration?.statements.some(
+					(statement: string) => statement.includes(first) && statement.includes(second),
+				),
+			).toBe(false);
+		}
 	});
 
 	it("classifies non-owned shared schemas as fresh for app-api adoption", () => {
@@ -506,6 +610,41 @@ DROP COLUMN "actor_groups_json";`),
 		expect(
 			plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_campus_scope"')),
 		).toBe(false);
+		expect(
+			plan.statements.some((item) => item.target.existsKey === "dining.floorplan_assets"),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "dining.floors:draft_floorplan_asset_id",
+			),
+		).toBe(false);
+	});
+
+	it("does not replay provider_config one-shot data backfills when latest structure already exists", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName)),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.mismatches).toEqual([]);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "provider_config.connections:data_insert",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "provider_config.profiles:data_update",
+			),
+		).toBe(false);
+		expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toContain(
+			"0046_provider_config_connections",
+		);
 	});
 
 	it("recognizes Postgres-truncated long constraint names as existing constraints", () => {
@@ -548,5 +687,112 @@ DROP COLUMN "actor_groups_json";`),
 		expect(plan.mismatches).not.toContain(
 			"official_web.target_release_gates missing constraint target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk",
 		);
+	});
+
+	it("reports non-matching index names as drift instead of treating them as truncation", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => {
+				const table = buildTableFromExpected(qualifiedName);
+				if (qualifiedName !== "runtime.request_observability_fact") {
+					return table;
+				}
+				return {
+					...table,
+					indexes: table.indexes.map((index) =>
+						index.name === "runtime_request_observability_selected_tool_started_at_idx"
+							? {
+									...index,
+									name: "runtime_request_observability_selected_tool_started_at_id",
+								}
+							: index,
+					),
+				};
+			}),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime.request_observability_fact@runtime_request_observability_selected_tool_started_at_idx",
+			),
+		).toBe(false);
+		expect(plan.mismatches).toContain(
+			"runtime.request_observability_fact missing index runtime_request_observability_selected_tool_started_at_idx",
+		);
+	});
+
+	it("does not repair missing latest tool indexes by recreating legacy target indexes", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => {
+				const table = buildTableFromExpected(qualifiedName);
+				if (qualifiedName !== "runtime.request_observability_fact") {
+					return table;
+				}
+				return {
+					...table,
+					indexes: table.indexes.filter(
+						(index) => index.name !== "runtime_request_observability_selected_tool_started_at_idx",
+					),
+				};
+			}),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime.request_observability_fact@runtime_request_observability_selected_target_started_at_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime@runtime_request_observability_selected_tool_started_at_idx",
+			),
+		).toBe(false);
+		expect(plan.mismatches).toContain(
+			"runtime.request_observability_fact missing index runtime_request_observability_selected_tool_started_at_idx",
+		);
+	});
+
+	it("does not replay legacy rename source indexes after the renamed target index already exists", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName)),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime.request_observability_fact@runtime_request_observability_selected_target_started_at_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"operator.metric_rollup@operator_metric_rollup_domain_target_bucket_idx",
+			),
+		).toBe(false);
 	});
 });

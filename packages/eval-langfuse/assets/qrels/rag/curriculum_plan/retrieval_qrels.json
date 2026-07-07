@@ -1,0 +1,96 @@
+{
+	"schema_version": 1,
+	"corpus": "curriculum",
+	"collection": "curriculum_plan",
+	"baseline": {
+		"dense_model": "Qwen3-Embedding-4B",
+		"dense_dimensions": 2560,
+		"sparse_model": "qdrant/bm25",
+		"sparse_tokenizer": "multilingual",
+		"sparse_language": "none",
+		"fusion": "rrf"
+	},
+	"coverage_scenarios": {
+		"program_title": ["synthetic-public-affairs-plan-title", "synthetic-data-systems-plan-title"],
+		"program_variant_disambiguation": ["synthetic-public-affairs-vs-data-systems"],
+		"course_table": ["synthetic-course-table"],
+		"semester_course_list": ["synthetic-semester-course-list"],
+		"no_hit": ["synthetic-curriculum-no-hit-fictional-program"]
+	},
+	"cases": [
+		{
+			"case_id": "synthetic-public-affairs-plan-title",
+			"split": "smoke",
+			"query": "示例公共事务本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:示例公共事务本科人才培养方案",
+					"grade": 2,
+					"rationale": "合成培养方案标题 exact-match。"
+				}
+			]
+		},
+		{
+			"case_id": "synthetic-data-systems-plan-title",
+			"split": "smoke",
+			"query": "示例数据系统本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:示例数据系统本科人才培养方案",
+					"grade": 2,
+					"rationale": "合成培养方案标题 exact-match。"
+				}
+			]
+		},
+		{
+			"case_id": "synthetic-public-affairs-vs-data-systems",
+			"split": "regression",
+			"query": "想看公共事务这个合成专业的培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:示例公共事务本科人才培养方案",
+					"version_id": "sha256:synthetic-curriculum:split:public-affairs",
+					"grade": 2,
+					"rationale": "自然问法仍应回到公共事务合成方案。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:示例数据系统本科人才培养方案",
+					"grade": 1,
+					"rationale": "数据系统合成方案不应压过公共事务方案。"
+				}
+			]
+		},
+		{
+			"case_id": "synthetic-course-table",
+			"split": "smoke",
+			"query": "公共问题分析课程学分",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:示例公共事务本科人才培养方案",
+					"grade": 2,
+					"rationale": "合成课程表事实问法。"
+				}
+			]
+		},
+		{
+			"case_id": "synthetic-semester-course-list",
+			"split": "curated",
+			"query": "数据系统专题课程在哪些学期出现",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:示例数据系统本科人才培养方案",
+					"grade": 2,
+					"rationale": "合成 semester-grounded 表格问法。"
+				}
+			]
+		},
+		{
+			"case_id": "synthetic-curriculum-no-hit-fictional-program",
+			"split": "regression",
+			"query": "示例星际外交本科人才培养方案",
+			"expected_sources": []
+		}
+	]
+}

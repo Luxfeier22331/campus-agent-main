@@ -1,16 +1,18 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0046
 status: accepted
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-08
 ---
-
 # ADR-0046 GSD SDK And Codex Native Workflow
 
 ## 状态
 
-Accepted on 2026-06-04.
+Accepted on 2026-06-04. Updated on 2026-06-08 to reflect the repo cleanup that
+removed tracked workstream/phase/archive directories from branch tip.
 
 ## 背景
 
@@ -44,14 +46,14 @@ repo 级 workstream registry、active workstream、progress、status、create �
 `docs/runbooks/workstream-gsd-sdk-workflow.md` 维护；本 ADR 只冻结 owner
 boundary。
 
-Tracked planning truth 继续保留在：
+Tracked planning truth 只保留在：
 
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`
-- `.planning/workstreams/<slug>/README.md`
-- `.planning/workstreams/<slug>/REQUIREMENTS.md`
-- `.planning/workstreams/<slug>/ROADMAP.md`
-- `.planning/workstreams/<slug>/STATE.md`
+
+GSD SDK / Codex native sessions own live workstream/session state. If a decision
+needs to persist beyond the session, promote it to docs / ADR / runbook /
+contract / schema, or to the compact planning files above.
 
 ### 决策 2：Codex 原生会话是 execution runtime
 
@@ -82,10 +84,11 @@ repo 不再恢复或新增以下能力：
 未来工作按以下规则路由：
 
 - 新需求：小任务直接 Codex；跨模块或长期任务创建 / 恢复 workstream
-- 需求变更：先更新 `REQUIREMENTS.md` / `ROADMAP.md` / `STATE.md`，再改实现
-- 已完成功能变更：先按 reopen rule 判断恢复原 workstream 或创建新 workstream
-- 新架构评估但未实现：写入 `.planning/seeds/`、research / handoff 文档，或新增
-  proposed / accepted ADR；不得冒充 current implementation truth
+- 需求变更：先在 GSD SDK / Codex session 中更新工作上下文；长期 contract 变化必须进入
+  docs / ADR / runbook / schema，再改实现
+- 已完成功能变更：按当前 owner area 判断恢复工作或创建新工作，不恢复旧 tracked phase tree
+- 新架构评估但未实现：写入 proposed / accepted ADR、architecture note 或 runbook handoff；
+  不得冒充 current implementation truth
 - 架构约束变更：先更新 ADR / architecture / contracts，再推进实现 workstream
 - 文档漂移：先判断 source of truth，再同步 docs 或代码
 
@@ -101,7 +104,8 @@ repo 不再恢复或新增以下能力：
 - workstream status 与本地执行现场分离，减少 tracked planning 污染
 - 多人并发需要继续靠 branch / worktree / planning truth 协调，而不是 repo-local
   claim lease
-- Codex session 中的重要结论必须显式沉淀到 docs、planning、commit、PR 或 evidence，
+- Codex session 中的重要结论必须显式沉淀到 docs、ADR、runbook、contract、schema、compact
+  planning、commit、PR 或 evidence，
   否则不构成 repo truth
 
 ## 验证口径
@@ -114,6 +118,5 @@ closeout 步骤由 `docs/runbooks/workstream-gsd-sdk-workflow.md` 维护，避�
 
 - `docs/runbooks/workstream-gsd-sdk-workflow.md`
 - `.planning/WORKSTREAMS.md`
-- `.planning/workstreams/repo-wide-agent-harness-rollout/README.md`
 - `AGENTS.md`
 - `CONTRIBUTING.md`

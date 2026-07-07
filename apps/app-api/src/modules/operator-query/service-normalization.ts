@@ -1,16 +1,19 @@
 import { AppApiRouteError } from "../../http";
 import type {
-	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
-	NormalizedOperatorQualityBadcaseListFilters,
 	NormalizedOperatorRequestListFilters,
-	NormalizedOperatorSafetyAnomalyListFilters,
-	OperatorAuditListFilters,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	OperatorOverviewFilters,
 	OperatorOverviewWindow,
-	OperatorQualityBadcaseListFilters,
 	OperatorResultWindow,
-	OperatorSafetyAnomalyListFilters,
+	TemporalTaskQueueKind,
+	TemporalTaskQueueListFilters,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationStatus,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerScalerStatus,
 } from "./service-types";
 
 const DEFAULT_LIMIT = 20;
@@ -23,6 +26,9 @@ const OPERATOR_GRANULARITIES = new Set<OperatorResultWindow["granularity"]>([
 	"1h",
 	"1d",
 ]);
+const TEMPORAL_TASK_QUEUE_KINDS = new Set(["workflow", "activity"]);
+const WORKER_AUTOSCALER_ACTUATION_STATUSES = new Set(["applied", "skipped", "failed"]);
+const WORKER_AUTOSCALER_SCALER_STATUSES = new Set(["healthy", "degraded", "paused", "disabled"]);
 
 function validationFailed(message: string): AppApiRouteError {
 	return new AppApiRouteError({
@@ -70,62 +76,10 @@ export function normalizeOverviewFilters(
 	}
 
 	return {
-		collection: normalizeOptionalString(filters.collection),
 		granularity: granularity ? (granularity as OperatorResultWindow["granularity"]) : null,
-		modelName: normalizeOptionalString(filters.modelName),
 		principalType: normalizeOptionalString(filters.principalType),
-		requestedCapability: normalizeOptionalString(filters.requestedCapability),
-		selectedTarget: normalizeOptionalString(filters.selectedTarget),
 		surface: normalizeOptionalString(filters.surface),
 		window: normalizeOverviewWindow(filters.window),
-	};
-}
-
-export function normalizeAuditListFilters(
-	filters: OperatorAuditListFilters,
-): NormalizedOperatorAuditListFilters {
-	return {
-		cursor: normalizeOptionalString(filters.cursor),
-		eventType: normalizeOptionalString(filters.eventType),
-		limit: normalizeLimit(filters.limit),
-		principalType: normalizeOptionalString(filters.principalType),
-		requestId: normalizeOptionalString(filters.requestId),
-		selectedTarget: normalizeOptionalString(filters.selectedTarget),
-		status: normalizeOptionalString(filters.status),
-		surface: normalizeOptionalString(filters.surface),
-		traceId: normalizeOptionalString(filters.traceId),
-	};
-}
-
-export function normalizeQualityBadcaseListFilters(
-	filters: OperatorQualityBadcaseListFilters,
-): NormalizedOperatorQualityBadcaseListFilters {
-	const window = normalizeOptionalString(filters.window);
-	return {
-		causeClass: normalizeOptionalString(filters.causeClass),
-		cursor: normalizeOptionalString(filters.cursor),
-		detectedBy: normalizeOptionalString(filters.detectedBy),
-		limit: normalizeLimit(filters.limit),
-		selectedTarget: normalizeOptionalString(filters.selectedTarget),
-		status: normalizeOptionalString(filters.status),
-		surface: normalizeOptionalString(filters.surface),
-		window: window ? normalizeOverviewWindow(window) : null,
-	};
-}
-
-export function normalizeSafetyAnomalyListFilters(
-	filters: OperatorSafetyAnomalyListFilters,
-): NormalizedOperatorSafetyAnomalyListFilters {
-	const window = normalizeOptionalString(filters.window);
-	return {
-		anomalyCode: normalizeOptionalString(filters.anomalyCode),
-		cursor: normalizeOptionalString(filters.cursor),
-		limit: normalizeLimit(filters.limit),
-		selectedTarget: normalizeOptionalString(filters.selectedTarget),
-		severity: normalizeOptionalString(filters.severity),
-		status: normalizeOptionalString(filters.status),
-		surface: normalizeOptionalString(filters.surface),
-		window: window ? normalizeOverviewWindow(window) : null,
 	};
 }
 
@@ -164,5 +118,51 @@ export function normalizeRequestListFilters(input: {
 		requestId: normalizeOptionalString(input.requestId),
 		status: normalizeOptionalString(input.status),
 		surface: normalizeOptionalString(input.surface),
+	};
+}
+
+export function normalizeTemporalTaskQueueListFilters(
+	input: TemporalTaskQueueListFilters,
+): NormalizedTemporalTaskQueueListFilters {
+	const taskQueueKind = normalizeOptionalString(input.taskQueueKind);
+	if (taskQueueKind && !TEMPORAL_TASK_QUEUE_KINDS.has(taskQueueKind)) {
+		throw validationFailed("taskQueueKind is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		limit: normalizeLimit(input.limit),
+		taskQueue: normalizeOptionalString(input.taskQueue),
+		taskQueueKind: taskQueueKind ? (taskQueueKind as TemporalTaskQueueKind) : null,
+	};
+}
+
+export function normalizeWorkerAutoscalerActuationListFilters(
+	input: WorkerAutoscalerActuationListFilters,
+): NormalizedWorkerAutoscalerActuationListFilters {
+	const status = normalizeOptionalString(input.status);
+	if (status && !WORKER_AUTOSCALER_ACTUATION_STATUSES.has(status)) {
+		throw validationFailed("status is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		decisionId: normalizeOptionalString(input.decisionId),
+		limit: normalizeLimit(input.limit),
+		status: status ? (status as WorkerAutoscalerActuationStatus) : null,
+		targetService: normalizeOptionalString(input.targetService),
+	};
+}
+
+export function normalizeWorkerAutoscalerPostureListFilters(
+	input: WorkerAutoscalerPostureListFilters,
+): NormalizedWorkerAutoscalerPostureListFilters {
+	const scalerStatus = normalizeOptionalString(input.scalerStatus);
+	if (scalerStatus && !WORKER_AUTOSCALER_SCALER_STATUSES.has(scalerStatus)) {
+		throw validationFailed("scalerStatus is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		limit: normalizeLimit(input.limit),
+		scalerStatus: scalerStatus ? (scalerStatus as WorkerAutoscalerScalerStatus) : null,
+		targetService: normalizeOptionalString(input.targetService),
 	};
 }

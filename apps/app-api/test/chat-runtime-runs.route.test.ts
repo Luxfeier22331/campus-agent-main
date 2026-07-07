@@ -3,17 +3,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import { SupervisorTransportError } from "../src/modules/integration";
+import { ExecutionControlTransportError } from "../src/modules/integration";
 import { AppApiRouteError } from "../src/modules/runtime-command";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -74,6 +73,7 @@ describe("chat durable run routes", () => {
 					traceId: "trace_01HQ",
 				},
 			}),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -121,8 +121,13 @@ describe("chat durable run routes", () => {
 		});
 	});
 
-	it("streams browser-visible durable run events from a resume cursor without creating a new request", async () => {
+	it("streams chat product events from a resume cursor without creating a new request", async () => {
 		const chatCommandService = {
+			reconcileDurableCloseouts: vi.fn().mockResolvedValue({
+				failed: 0,
+				finalized: 1,
+				scanned: 1,
+			}),
 			submit: vi.fn(),
 			submitStream: vi.fn(),
 		};
@@ -139,6 +144,7 @@ describe("chat durable run routes", () => {
 				},
 			}),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(
 				(async function* () {
 					yield {
@@ -156,10 +162,12 @@ describe("chat durable run routes", () => {
 				})(),
 			),
 		};
+		const scheduleRequestProjectionDrain = vi.fn();
 		const app = createApp(env, {
 			chatCommandService,
 			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
 			runtimeRunService,
+			scheduleRequestProjectionDrain,
 		});
 
 		const response = await app.fetch(
@@ -176,9 +184,18 @@ describe("chat durable run routes", () => {
 		expect(response.headers.get("x-run-id")).toBe("run_01HQ");
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
 		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
-		await expect(response.text()).resolves.toBe(
-			'event: finalization.completed\ndata: {"eventId":"event-final","eventType":"finalization.completed","occurredAt":"2026-06-04T01:02:06.000Z","payload":{"request_id":"req_01HQ","trace_id":"trace_01HQ"},"runId":"run_01HQ","sequence":3,"visibility":"browser"}\n\n',
-		);
+		const streamBody = await response.text();
+		expect(parseSingleSseBlock(streamBody)).toEqual({
+			data: {
+				occurredAt: "2026-06-04T01:02:06.000Z",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				sequence: 3,
+				status: "completed",
+				traceId: "trace_01HQ",
+			},
+			event: "request.completed",
+		});
 		expect(runtimeRunService.getStatus).toHaveBeenCalledWith({
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
@@ -193,8 +210,69 @@ describe("chat durable run routes", () => {
 			runId: "run_01HQ",
 		});
 		expect(runtimeRunService.listEvents).not.toHaveBeenCalled();
+		expect(chatCommandService.reconcileDurableCloseouts).toHaveBeenCalledWith({
+			limit: 1,
+			runId: "run_01HQ",
+			startedBefore: expect.any(String),
+		});
+		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
+			requestId: "req_01HQ",
+			waitUntil: undefined,
+		});
 		expect(chatCommandService.submit).not.toHaveBeenCalled();
 		expect(chatCommandService.submitStream).not.toHaveBeenCalled();
+	});
+
+	it("writes a keepalive comment before waiting for the next durable run event", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn().mockResolvedValue({
+				run: {
+					conversationId: "conv_01HQ",
+					phase: "running",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					status: "running",
+					traceId: "trace_01HQ",
+				},
+			}),
+			listEvents: vi.fn(),
+			listSteps: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(
+				(async function* () {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+					yield {
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						occurredAt: "2026-06-04T01:02:06.000Z",
+						payload: {
+							request_id: "req_01HQ",
+							trace_id: "trace_01HQ",
+						},
+						runId: "run_01HQ",
+						sequence: 3,
+						visibility: "browser",
+					};
+				})(),
+			),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
+				{
+					method: "GET",
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const firstChunk = await response.body?.getReader().read();
+		expect(new TextDecoder().decode(firstChunk?.value)).toBe(": keepalive\n\n");
 	});
 
 	it("routes cancel through the product runtime run service", async () => {
@@ -211,6 +289,7 @@ describe("chat durable run routes", () => {
 			}),
 			getStatus: vi.fn(),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -248,6 +327,40 @@ describe("chat durable run routes", () => {
 		});
 	});
 
+	it("rejects unsupported run cancel reason codes", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn(),
+			listEvents: vi.fn(),
+			listSteps: vi.fn(),
+			subscribeEvents: vi.fn(),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+				body: JSON.stringify({ reason: "stop because this text must not enter audit" }),
+				headers: {
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "invalid_request",
+				message: "reason must be user_requested.",
+				retryable: false,
+			},
+		});
+		expect(runtimeRunService.cancel).not.toHaveBeenCalled();
+	});
+
 	it("maps run ownership misses to the shared not-found envelope", async () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),
@@ -260,6 +373,7 @@ describe("chat durable run routes", () => {
 				}),
 			),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -287,15 +401,16 @@ describe("chat durable run routes", () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),
 			getStatus: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
-					code: "supervisor_invalid_response",
+				new ExecutionControlTransportError({
+					code: "execution_control_invalid_response",
 					message:
-						"Supervisor durable runtime response violates the contract: status must be a string.",
+						"Execution durable runtime response violates the contract: status must be a string.",
 					retryable: true,
 					status: 502,
 				}),
 			),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -315,11 +430,149 @@ describe("chat durable run routes", () => {
 		expect(response.status).toBe(502);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "supervisor_invalid_response",
+				code: "execution_control_invalid_response",
 				message:
-					"Supervisor durable runtime response violates the contract: status must be a string.",
+					"Execution durable runtime response violates the contract: status must be a string.",
 				retryable: true,
 			},
 		});
 	});
+
+	it("returns sanitized run step trajectory for the current principal owned run", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn(),
+			listEvents: vi.fn(),
+			listSteps: vi.fn().mockResolvedValue({
+				attempts: [],
+				results: [
+					{
+						attemptId: "attempt-memory",
+						createdAt: "2026-06-04T01:02:05.000Z",
+						payloadSchemaVersion: "step-result-projection-v1",
+						projectionRef: "projection://runs/run_01HQ/memory/recall",
+						resultId: "result-memory",
+						resultKind: "memory_recall_result",
+						runId: "run_01HQ",
+						sanitizedPayload: {
+							memory_ref: "projection://runs/run_01HQ/memory/recall",
+							selected_memory_count: 1,
+						},
+						status: "completed",
+						stepId: "memory.recall",
+					},
+				],
+				run: {
+					conversationId: "conv_01HQ",
+					phase: "completed",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					status: "completed",
+					traceId: "trace_01HQ",
+				},
+				steps: [
+					{
+						tool: "any",
+						completedAt: "2026-06-04T01:02:05.000Z",
+						conversationId: "conv_01HQ",
+						parentStepId: "",
+						payloadSchemaVersion: "run-step-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: {
+							memory_ref: "projection://runs/run_01HQ/memory/recall",
+							selected_memory_count: 1,
+						},
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "memory.recall",
+						stepKind: "memory",
+						taskQueue: "context",
+						updatedAt: "2026-06-04T01:02:05.000Z",
+						workerId: "test-worker",
+					},
+				],
+			}),
+			subscribeEvents: vi.fn(),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/steps", {
+				method: "GET",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			attempts: [],
+			results: [
+				{
+					attemptId: "attempt-memory",
+					createdAt: "2026-06-04T01:02:05.000Z",
+					payloadSchemaVersion: "step-result-projection-v1",
+					projectionRef: "projection://runs/run_01HQ/memory/recall",
+					resultId: "result-memory",
+					resultKind: "memory_recall_result",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					status: "completed",
+					stepId: "memory.recall",
+				},
+			],
+			run: {
+				conversationId: "conv_01HQ",
+				phase: "completed",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				status: "completed",
+				traceId: "trace_01HQ",
+			},
+			steps: [
+				{
+					tool: "any",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					conversationId: "conv_01HQ",
+					parentStepId: "",
+					payloadSchemaVersion: "run-step-projection-v1",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.recall",
+					stepKind: "memory",
+					taskQueue: "context",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+				},
+			],
+		});
+		expect(runtimeRunService.listSteps).toHaveBeenCalledWith({
+			principal: expect.objectContaining({
+				actor: expect.objectContaining({ userId: "user_01HQ" }),
+			}),
+			runId: "run_01HQ",
+		});
+	});
 });
+
+function parseSingleSseBlock(body: string): { data: unknown; event: string } {
+	const lines = body.trim().split(/\r?\n/);
+	const eventLine = lines.find((line) => line.startsWith("event: "));
+	const dataLine = lines.find((line) => line.startsWith("data: "));
+	if (!(eventLine && dataLine)) {
+		throw new Error(`Invalid SSE block: ${body}`);
+	}
+	return {
+		data: JSON.parse(dataLine.slice("data: ".length)),
+		event: eventLine.slice("event: ".length),
+	};
+}

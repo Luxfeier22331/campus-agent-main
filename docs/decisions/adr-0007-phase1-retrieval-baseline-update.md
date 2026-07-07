@@ -1,9 +1,11 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0007
 status: accepted
 created: 2026-03-26
-updated: 2026-04-03
+updated: 2026-06-15
 ---
 # ADR-0007 Retrieval Baseline 更新（phase1 为历史命名）
 
@@ -16,7 +18,11 @@ updated: 2026-04-03
 - handbook embedding / chunking 的运行真相仍以
   `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
 - retrieval runtime truth 以
-  `docs/architecture/system/retrieval-serving-architecture.md` 为准
+  `docs/architecture/system/retrieval-serving.md` 为准
+- 本文早期对 Python knowledge / retrieval package owner 的表述已由
+  `docs/architecture/system/python-boundaries.md` 局部 supersede；当前 online
+  retrieval runtime 收口为 Go-owned execution-control / repo-owned DTO + Qdrant native
+  adapter seam
 - serving alias / physical collection / index release 运行真相以
   `docs/reference/runtime-serving-and-index-terms.md` 和 operator runbook 为准
 - 当前 phase 进度、执行顺序和 gate 状态以 `.planning/*` 为准，不由本文维护
@@ -26,8 +32,8 @@ updated: 2026-04-03
 当前 `student_rules` retrieval accepted baseline 更新为：
 
 - embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`
-- embedding provider baseline 固定为 `gitee` OpenAI-compatible embeddings 接口，并显式请求
-  `dimensions=2560`
+- embedding provider enum 固定为 `openai-compatible`，endpoint baseline 当前使用 Gitee
+  OpenAI-compatible embeddings 接口，并显式请求 `dimensions=2560`
 - retrieval baseline 采用 `dense + sparse hybrid retrieval`
 - dense / sparse 两路候选默认通过 `RRF` 融合，当前 runtime 参数固定为：
   - dense prefetch limit = `20`
@@ -42,7 +48,7 @@ updated: 2026-04-03
 - metadata pre-filter（`corpus`、`collection`、serving metadata，以及 `visibility_*` /
   `entitlement_*` projection carrier）仍为必做前置条件
 - retrieval 输出仍然必须通过 `DocumentRegistry` 回链形成 `EvidenceBundle`
-- `student_rules` 当前 runtime profile 默认返回 `8` 个 retrieval candidates；最终回答最多引用
+- `student_rules` 当前 serving config 默认返回 `8` 个 retrieval candidates；最终回答最多引用
   `3` 条证据
 
 ## 不作为当前默认主路径的能力
@@ -70,10 +76,11 @@ updated: 2026-04-03
 
 ## 边界
 
-- `packages/rag-agent` 负责 retrieval strategy selection、clarification / no-answer
-  / error 映射、answer / confidence 组装
-- `packages/retrieval-core` 负责 query preprocessing、candidate
-  retrieval、fusion、evidence normalization
+- Go-owned `apps/execution-control` retrieval seam 负责 retrieval strategy selection、
+  query framing、candidate retrieval、fusion、evidence normalization 与 answer-ready
+  evidence projection
+- RAG synthesis / clarification / no-answer / error 映射继续通过 execution-control 的
+  Temporal-visible typed steps 与 repo-owned DTO 承接
 - `packages/contracts` 继续只冻结 `EvidenceBundle` / `EvidenceSource` 等共享
   contract，不泄漏 retrieval backend 类型
 
@@ -86,4 +93,4 @@ updated: 2026-04-03
 - 把 retrieval-core 内部 sparse 本地算分误认为长期 accepted shape
 
 当前 retrieval baseline 应以本文和
-`docs/architecture/system/retrieval-serving-architecture.md` 为准。
+`docs/architecture/system/retrieval-serving.md` 为准。

@@ -1,15 +1,23 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0031
 status: accepted
 created: 2026-04-08
-updated: 2026-04-28
+updated: 2026-07-04
 ---
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
 ## 状态
 
 Accepted on 2026-04-08.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 `campus_notices/internal_notice` 的
+attachment-level typed routing 与 spatial review 边界。
 
 ## 背景
 
@@ -185,15 +193,13 @@ Accepted on 2026-04-08.
   extraction lane 决策
 - `internal_notice` 的 notice-level classification 只作为辅助 read model，不是主执行模型
 - 空间关系主导图片继续留在 relation truth + manual outcome，不进入当前 chunk / retrieval truth
-- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-agent` / spatial truth 方向另开能力，而不是继续加大 OCR
+- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation` / spatial truth 方向另开能力，而不是继续加大 OCR
   lane
 
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/data/authenticated-notice.md`
+- `docs/reference/internal-notice-pdf-chunks.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`

@@ -1,0 +1,35 @@
+{
+	"name": "ingestion-control",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Internal ingestion task control plane for campus-agent data plane.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"dev": "node --experimental-strip-types ./src/server.ts",
+		"start": "node --experimental-strip-types ./src/server.ts",
+		"start:api": "node --experimental-strip-types ./src/server.ts",
+		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1079.0",
+		"@temporalio/client": "^1.19.0",
+		"@temporalio/worker": "^1.19.0",
+		"@temporalio/workflow": "^1.19.0",
+		"ingest-core": "file:../../packages/ingest-core",
+		"ingestion-contracts": "file:../../packages/ingestion-contracts",
+		"pg": "^8.22.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.0",
+		"@types/pg": "^8.15.6",
+		"tsx": "^4.20.5",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.9"
+	},
+	"license": "Apache-2.0"
+}

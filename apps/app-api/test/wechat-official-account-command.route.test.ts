@@ -10,10 +10,9 @@ const env = {
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN: "trusted-wechat-token",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -44,9 +43,9 @@ describe("wechat official-account collector routes", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/wechat-official-account/runs", {
 				body: JSON.stringify({
-					accountName: "中央民族大学学生会",
+					accountName: "示例大学学生会",
 					accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
-					collectorVersion: "wechat-official-account-collector@0.1.0",
+					collectorVersion: "source-collector@0.1.0",
 					provider: "feedwe",
 					providerBaseUrl: "https://feedwe.cloud",
 					requestSummary: {
@@ -69,13 +68,13 @@ describe("wechat official-account collector routes", () => {
 		expect(response.status).toBe(200);
 		expect(service.start).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				provider: "feedwe",
 			}),
 			principal: {
 				kind: "service",
 				serviceClass: "wechat_official_account_collector",
-				serviceId: "wechat-official-account-collector",
+				serviceId: "source-collector/wechat-official-account",
 			},
 		});
 		await expect(response.json()).resolves.toEqual({
@@ -105,7 +104,7 @@ describe("wechat official-account collector routes", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/wechat-official-account/runs", {
 				body: JSON.stringify({
-					accountName: "中央民族大学学生会",
+					accountName: "示例大学学生会",
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -126,7 +125,7 @@ describe("wechat official-account collector routes", () => {
 			listRuns: vi.fn().mockResolvedValue({
 				runs: [
 					{
-						accountName: "中央民族大学学生会",
+						accountName: "示例大学学生会",
 						accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 						artifactCount: 2,
 						finishedAt: "2026-04-27T08:01:00.000Z",
@@ -193,7 +192,7 @@ describe("wechat official-account collector routes", () => {
 		const service: WeChatOfficialAccountCommandService = {
 			finalize: vi.fn(),
 			getRun: vi.fn().mockResolvedValue({
-				accountName: "中央民族大学学生会",
+				accountName: "示例大学学生会",
 				accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
 				artifacts: [
 					{
@@ -205,7 +204,7 @@ describe("wechat official-account collector routes", () => {
 						recordCount: 1,
 					},
 				],
-				collectorVersion: "wechat-official-account-collector@0.1.0",
+				collectorVersion: "source-collector@0.1.0",
 				finishedAt: "2026-04-27T08:01:00.000Z",
 				lastHeartbeatAt: null,
 				latestHeartbeatSequence: 0,

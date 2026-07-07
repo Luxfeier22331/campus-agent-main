@@ -1,0 +1,235 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json",
+	"title": "campus-agent knowledge query tool contract",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "tool_name", "packet_kind"],
+	"properties": {
+		"schema_version": {
+			"const": "knowledge_tool_contracts.v1"
+		},
+		"tool_name": {
+			"const": "knowledge_query"
+		},
+		"packet_kind": {
+			"enum": ["payload", "result"]
+		},
+		"payload": {
+			"type": "object"
+		},
+		"result": {
+			"type": "object"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["payload"],
+				"not": {
+					"required": ["result"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["result"],
+				"not": {
+					"required": ["payload"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_query"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/KnowledgeQuerySignalPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_query"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/KnowledgeQuerySignalResult"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		},
+		"KnowledgeQuerySignalPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"query_text",
+				"intent",
+				"requested_scope",
+				"query_mode",
+				"version_query",
+				"freshness_intent",
+				"constraints"
+			],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"intent": {
+					"enum": ["answer_question", "compare_rules", "clarify_scope", null]
+				},
+				"requested_scope": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/KnowledgeScope"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"query_mode": {
+					"enum": [
+						"current",
+						"historical",
+						"as_of",
+						"compare",
+						"freshness_sensitive",
+						"live_assisted",
+						null
+					]
+				},
+				"version_query": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/VersionQuery"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"freshness_intent": {
+					"enum": ["latest", "recent", "fresh", null]
+				},
+				"constraints": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/KnowledgeQueryConstraints"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"KnowledgeScope": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["corpus", "collection"],
+			"properties": {
+				"corpus": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"collection": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"VersionQuery": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
+			"properties": {
+				"mode": {
+					"enum": [
+						"current",
+						"historical",
+						"as_of",
+						"compare",
+						"freshness_sensitive",
+						"live_assisted",
+						null
+					]
+				},
+				"as_of": {
+					"type": ["string", "null"]
+				},
+				"version_id": {
+					"type": ["string", "null"]
+				},
+				"compare_to_version_id": {
+					"type": ["string", "null"]
+				}
+			}
+		},
+		"KnowledgeQueryConstraints": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["max_age_hours", "official_sources_only"],
+			"properties": {
+				"max_age_hours": {
+					"type": ["integer", "null"],
+					"minimum": 1
+				},
+				"official_sources_only": {
+					"type": ["boolean", "null"]
+				}
+			}
+		},
+		"KnowledgeQuerySignalResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workflow_signal"],
+			"properties": {
+				"workflow_signal": {
+					"const": "knowledge_query"
+				}
+			}
+		}
+	}
+}

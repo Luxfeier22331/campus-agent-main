@@ -10,10 +10,9 @@ const env = {
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -43,11 +42,11 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 }
 
 const processingRecord = {
-	id: "authenticated_notice_portal:notice:muc_internal_portal:355867:run_20260427:job_01",
-	noticeKey: "authenticated_notice_portal:notice:muc_internal_portal:355867",
-	sourceChannel: "authenticated_notice_portal",
+	id: "internal_portal:notice:synthetic_internal_portal:355867:run_20260427:job_01",
+	noticeKey: "internal_portal:notice:synthetic_internal_portal:355867",
+	sourceChannel: "internal_portal",
 	sourceSurface: "notice",
-	siteId: "muc_internal_portal",
+	siteId: "synthetic_internal_portal",
 	noticeId: "355867",
 	title: "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
 	runId: "run_20260427",

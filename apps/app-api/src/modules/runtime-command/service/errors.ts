@@ -1,5 +1,5 @@
 import { AppApiRouteError } from "../../../http";
-import { type SupervisorExecutionResponse, SupervisorTransportError } from "../../integration";
+import { ExecutionControlTransportError, type ToolExecutionResponse } from "../../integration";
 
 export function createPreAcceptError(input: {
 	code: string;
@@ -26,21 +26,22 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	};
 	followUpQuestion: string;
 	result: null;
-	selectedTarget: null;
+	selectedTool: null;
 	status: "error";
 	traceId: string;
 } {
-	if (error instanceof SupervisorTransportError) {
+	if (error instanceof ExecutionControlTransportError) {
+		const publicMessage = publicTransportErrorMessage(error);
 		return {
 			answerText: "",
 			error: {
 				code: error.code,
-				message: error.message,
+				message: publicMessage,
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
 			result: null,
-			selectedTarget: null,
+			selectedTool: null,
 			status: "error",
 			traceId: "",
 		};
@@ -55,15 +56,22 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		},
 		followUpQuestion: "",
 		result: null,
-		selectedTarget: null,
+		selectedTool: null,
 		status: "error",
 		traceId: "",
 	};
 }
 
+function publicTransportErrorMessage(error: ExecutionControlTransportError): string {
+	if (error.code === "execution_control_unavailable") {
+		return "问答服务暂时无法连接，请稍后再试。";
+	}
+	return error.message;
+}
+
 export function buildAbuseThrottleRejectedResponse(input: {
 	traceId: string;
-}): SupervisorExecutionResponse {
+}): ToolExecutionResponse {
 	return {
 		answerText: "Too many requests. Please wait a few minutes and try again.",
 		error: {
@@ -94,7 +102,7 @@ export function buildAbuseThrottleRejectedResponse(input: {
 			semanticOutcome: "policy_refusal",
 		},
 		result: null,
-		selectedTarget: null,
+		selectedTool: null,
 		status: "rejected",
 		traceId: input.traceId,
 	};

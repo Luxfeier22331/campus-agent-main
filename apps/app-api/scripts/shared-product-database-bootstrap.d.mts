@@ -4,7 +4,7 @@ export interface SharedProductBootstrapEnv {
 	databaseSslMode: string;
 	databaseUrl: string;
 	betterAuthSecret?: string;
-	publicChatOrigin?: string;
+	authShellOrigin?: string;
 }
 
 export const APP_AUTH_SCHEMA: string;
@@ -36,4 +36,4 @@ export function classifyBetterAuthTableOwnership(input: {
 	authSchema: string;
 	authSchemaTables: string[];
 	publicSchemaTables: string[];
-}): "fresh" | "target_schema";
+}): "fresh" | "target_schema" | "target_schema_needs_migration";

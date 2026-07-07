@@ -3,13 +3,13 @@
 This directory holds the repo-tracked config scaffold for the
 `institutional_rules` collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime gate for the regulation target
+- `serving-config.json`: canonical serving gate for the regulation target
   collection
 - `canonical-profile.json`: canonical identity and provenance truth for promoted
   regulation documents
 - `chunk-profile.json`: chunk-preparation contract for canonical regulation text
 - `query-planning.json`: runtime policy-object registry for title-targeted
-  retrieval planning; it is not a qrels fixture
+  retrieval planning; it is not a qrels assertion
 - `source-projections.v1.json`: promotion-facing projection scaffold from
   `campus_notices/internal_notice`
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`:
@@ -22,7 +22,7 @@ This directory holds the repo-tracked config scaffold for the
 - `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
   `: local-only target acceptance operator path
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - retrieval enabled: `true`
@@ -43,19 +43,15 @@ Collection boundary:
 
 Current scaffold note:
 
-- this directory no longer only freezes shape: repo now includes a scope-refresh
-  materialization path from `campus_notices/internal_notice` into
-  `regulations/institutional_rules`
-- materialization is currently implemented by:
-  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulatio
-    n_materialization.py`
-  - `apps/ingestion-worker/src/campus_ingestion_worker/materialize_internal_noti
-    ce_regulation_candidates.py`
-- local-only target acceptance chunk preparation is currently implemented by:
-  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_instituti
-    onal_regulation_chunk_prep.py`
-  - `apps/ingestion-worker/src/campus_ingestion_worker/prepare_institutional_reg
-    ulation_chunks.py`
+- this directory freezes the target-side promotion scaffold from
+  `campus_notices/internal_notice` into `regulations/institutional_rules`
+- the old Python promotion manifest / export / scan path has been retired from
+  the active workspace; future promotion execution must be rebuilt as an
+  admitted ingestion-control handler or deterministic kernel-backed task before
+  it can publish
+- local-only target acceptance chunk preparation is no longer a Python worker
+  command surface; rebuild it as a registry-declared `rust_kernel` /
+  `ts_control` task before opening new release automation
 - the current boundary has moved into release-managed `query_serving`
 - query-serving publish must still pass the deterministic release acceptance gate
   before alias mutation

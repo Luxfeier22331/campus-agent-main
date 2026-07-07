@@ -10,6 +10,10 @@ export default defineProject({
 		maxWorkers: 1,
 		name: "app-api-node",
 		include: ["test/**/*.test.ts"],
-		exclude: ["test/worker.test.ts", "test/**/*.integration.test.ts"],
+		exclude: [
+			"test/worker.test.ts",
+			"test/worker-scheduled-sweepers.test.ts",
+			"test/**/*.integration.test.ts",
+		],
 	},
 });

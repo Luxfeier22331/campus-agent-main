@@ -3,19 +3,17 @@
 This directory holds the repo-tracked config scaffold for the `scoped_rules`
 collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime gate for the unified scoped-rule
+- `serving-config.json`: canonical serving gate for the unified scoped-rule
   holding collection
 - `canonical-profile.json`: canonical identity and provenance truth for imported
   scoped-rule documents
 - `chunk-profile.json`: chunk-preparation scaffold for canonical scoped-rule
   text
-- `source-projections.v1.json`: import-facing projection scaffold from
-  `campus_notices/internal_notice`
 - `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze
   that adjudicated scoped rules should import first into one unified holding
   collection instead of waiting for full query semantics
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - retrieval enabled: `true`
@@ -42,11 +40,12 @@ Current scaffold note:
 
 - this collection is canonical/chunk-preparation ready, but query disabled by
   default and excluded from document-site/RAG downstream consumption
-- repo now has a completed `materialize_internal_notice_scoped_rules` worker
-  path and a local-only `prepare_scoped_rule_chunks` acceptance path
-- selected `regulation_candidate` historical backfills may prepare scoped-rule
-  canonical/document-units/chunks for audit evidence, but must not publish
-  scoped-rule reader assets or enqueue RAG release candidates
+- repo no longer keeps a Python scoped-rule materialization or local chunk-prep
+  path. Active execution starts from explicit canonical `document-units` refs and
+  uses the registry-declared Rust validation/chunk kernels.
+- selected historical scoped-rule inputs may only be reintroduced by adding a
+  real `ts_control` document materializer or Rust kernel bridge in the same
+  change as its task-registry entry.
 - `annual_cycle_rule` candidates must pass applicability gating before target
   materialization; expired unit/year-specific annual cycle notices are retained
   for notice-level query rather than published to the regulation reader

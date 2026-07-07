@@ -14,23 +14,35 @@ function readAppFile(relativePath: string): string {
 	return readFileSync(join(appRoot, relativePath), "utf8");
 }
 
+function extractRequestScopeResolver(source: string, resolverName: string): string {
+	const start = source.indexOf(`function ${resolverName}()`);
+	if (start < 0) {
+		throw new Error(`${resolverName} must exist in request-scope.ts`);
+	}
+
+	const nextResolver = source.indexOf("\n\t\t\tfunction ", start + 1);
+	const returnBlock = source.indexOf("\n\t\t\treturn {", start + 1);
+	const candidates = [nextResolver, returnBlock].filter((candidate) => candidate > start);
+	if (candidates.length === 0) {
+		throw new Error(`${resolverName} must have a bounded source section`);
+	}
+
+	return source.slice(start, Math.min(...candidates));
+}
+
 describe("app-api shared product bootstrap contracts", () => {
-	it("defines repeatable bootstrap and test lane commands for app_auth/chat ownership", () => {
+	it("keeps repeatable bootstrap artifacts while package scripts stay lifecycle-only", () => {
 		const packageJson = JSON.parse(readAppFile("package.json")) as {
 			scripts: Record<string, string>;
 		};
 
-		expect(packageJson.scripts["db:bootstrap"]).toBeTruthy();
-		expect(packageJson.scripts["db:bootstrap:staging"]).toBeTruthy();
-		expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeTruthy();
-		expect(packageJson.scripts["db:print-auth-migration"]).toBeTruthy();
-		expect(packageJson.scripts["db:reconcile-shared-drift"]).toContain(
-			"reconcile-shared-db-drift.mjs",
-		);
-		expect(packageJson.scripts["official-web:drain-projection"]).toContain(
-			"drain-official-web-projection.ts",
-		);
-		expect(packageJson.scripts["official-web:drain-projection"]).toContain("tsx");
+		expect(packageJson.scripts["db:bootstrap"]).toBeUndefined();
+		expect(packageJson.scripts["db:bootstrap:staging"]).toBeUndefined();
+		expect(packageJson.scripts["dining:seed-initial-release"]).toBeUndefined();
+		expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeUndefined();
+		expect(packageJson.scripts["db:print-auth-migration"]).toBeUndefined();
+		expect(packageJson.scripts["db:reconcile-shared-drift"]).toBeUndefined();
+		expect(packageJson.scripts["official-web:drain-projection"]).toBeUndefined();
 		expect(packageJson.scripts.test).toContain("run-node-tests.mjs");
 		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(true);
 		expect(packageJson.scripts["test:all"]).toContain("vitest.config.mts");
@@ -39,6 +51,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["test:shared-db-integration"]).toContain(
 			"vitest.shared-db.config.mts",
 		);
+		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toBeUndefined();
 	});
 
 	it("checks in explicit shared product bootstrap artifacts under app-api", () => {
@@ -49,11 +62,16 @@ describe("app-api shared product bootstrap contracts", () => {
 			"db/shared-product-migrations/0004_chat_message_structured_parts.sql",
 			"db/shared-product-migrations/0005_profile_memory.sql",
 			"db/shared-product-migrations/0006_message_feedback.sql",
+			"db/shared-product-migrations/0007_dining_operations.sql",
+			"db/shared-product-migrations/0008_chat_conversation_management.sql",
+			"db/shared-product-migrations/0009_chat_turn_branch_context.sql",
+			"scripts/bootstrap-shared-product-with-seeds.mjs",
 			"scripts/bootstrap-shared-product-database.mjs",
 			"scripts/ensure-app-auth-role-search-path.mjs",
 			"scripts/print-shared-product-auth-migration.mjs",
 			"scripts/reconcile-shared-db-drift.mjs",
-			"scripts/drain-official-web-projection.ts",
+			"scripts/run-with-staging-proof-env.mjs",
+			"scripts/staging-runtime-db-proof.ts",
 			"scripts/shared-product-database-bootstrap.mjs",
 			"scripts/shared-product-database-bootstrap.d.mts",
 			"vitest.worker.config.mts",
@@ -74,6 +92,8 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
 			expect.arrayContaining([
 				"docs",
+				"dining",
+				"identity",
 				"official_web",
 				"operator",
 				"profile",
@@ -86,16 +106,121 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("documents app-api as the shared product DB bootstrap owner", () => {
 		const readme = readAppFile("README.md");
 
-		expect(readme).toContain("db:bootstrap");
-		expect(readme).toContain("db:bootstrap:staging");
-		expect(readme).toContain("db:ensure-app-auth-role-search-path");
-		expect(readme).toContain("db:reconcile-shared-drift");
-		expect(readme).toContain("official-web:drain-projection");
+		expect(readme).toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(readme).toContain("ensure-app-auth-role-search-path.mjs");
+		expect(readme).toContain("reconcile-shared-db-drift.mjs");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
 		expect(readme).toContain("app_auth.*");
 		expect(readme).toContain("chat.*");
+	});
+
+	it("keeps official-web collector lifecycle outside app-api shared DB lanes", () => {
+		const sharedDbConfig = readAppFile("vitest.shared-db.config.mts");
+
+		expect(sharedDbConfig).not.toContain("test/official-web-shared-db.integration.test.ts");
+		expect(existsSync(join(appRoot, "vitest.official-web-shared-db.config.mts"))).toBe(false);
+		expect(existsSync(join(appRoot, "test/official-web-shared-db.integration.test.ts"))).toBe(
+			false,
+		);
+	});
+
+	it("wires identity preference reads and writes through the default cached lane", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const identityServiceStart = requestScopeSource.indexOf(
+			"identityPlatformService = buildIdentityPlatformService({",
+		);
+		const identityServiceEnd = requestScopeSource.indexOf(
+			"function resolveOfficialWebQueryService()",
+			identityServiceStart,
+		);
+
+		expect(identityServiceStart).toBeGreaterThan(-1);
+		expect(identityServiceEnd).toBeGreaterThan(identityServiceStart);
+		expect(requestScopeSource.slice(identityServiceStart, identityServiceEnd)).toContain(
+			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getDb,",
+		);
+	});
+
+	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
+		expect(freshDbReferences).toHaveLength(4);
+
+		for (const resolverName of [
+			"resolveAuthenticatedNoticeProcessingCommandService",
+			"resolveAuthenticatedNoticeRunProcessingCommandService",
+			"resolveCampusServicesOpsService",
+			"resolveIdentityPlatformService",
+			"resolveOfficialWebReleaseTaskProcessingCommandService",
+			"resolveOfficialWebTargetReleaseGateService",
+			"resolveOperatorObservabilityCommandService",
+			"resolveProfileMemoryService",
+			"resolveRuntimeRunService",
+			"resolveWeChatOfficialAccountCommandService",
+		]) {
+			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
+			expect(resolverSource, `${resolverName} must not use APP_API_DB_FRESH`).not.toContain(
+				"runtime.getFreshDb",
+			);
+			expect(resolverSource, `${resolverName} must use APP_API_DB`).toContain("runtime.getDb");
+		}
+
+		for (const resolverName of ["resolveDiningOperationsService", "resolveProviderConfigService"]) {
+			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
+			expect(resolverSource, `${resolverName} must use APP_API_DB_FRESH`).toContain(
+				"runtime.getFreshDb",
+			);
+		}
+
+		const chatConversationResolver = extractRequestScopeResolver(
+			requestScopeSource,
+			"resolveChatConversationService",
+		);
+		expect(chatConversationResolver).toContain(
+			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(chatConversationResolver).toContain(
+			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
+		);
+
+		const chatCommandResolver = extractRequestScopeResolver(
+			requestScopeSource,
+			"resolveChatCommandService",
+		);
+		expect(chatCommandResolver).toContain("conversationStore: chatConversationStore");
+		expect(chatCommandResolver).toContain(
+			"createPgChatConversationStore(input.env, {\n\t\t\t\t\tgetDb: runtime.getFreshDb,",
+		);
+		expect(chatCommandResolver).toContain(
+			"store: createPgChatCommandStore(input.env, { getDb: runtime.getDb })",
+		);
+	});
+
+	it("wires dining operations through shared PG storage instead of process memory", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const diningServiceStart = requestScopeSource.indexOf(
+			"diningOperationsService = buildDiningOperationsService({",
+		);
+		const diningServiceEnd = requestScopeSource.indexOf(
+			"function resolveOfficialWebTargetJobService()",
+			diningServiceStart,
+		);
+
+		expect(diningServiceStart).toBeGreaterThan(-1);
+		expect(diningServiceEnd).toBeGreaterThan(diningServiceStart);
+		const diningScopeSource = requestScopeSource.slice(diningServiceStart, diningServiceEnd);
+		expect(diningScopeSource).toContain("createPgDiningOperationsStore(input.env, {");
+		expect(diningScopeSource).toContain("getDb: runtime.getFreshDb");
+		expect(requestScopeSource).not.toContain("createProcessDiningOperationsStore");
+	});
+
+	it("delegates dining dev seed import to the dining sync job", () => {
+		const bootstrapSource = readAppFile("scripts/bootstrap-shared-product-with-seeds.mjs");
+
+		expect(bootstrapSource).toContain("jobs/dining-sync");
+		expect(bootstrapSource).toContain("import-dev-seed");
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

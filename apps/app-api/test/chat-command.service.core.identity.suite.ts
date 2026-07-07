@@ -5,12 +5,12 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createHmac,
 	createPrincipal,
-	createProfileMemoryProjectionStore,
 	createTelemetryMock,
 	deriveSafetyIdentifier,
-	type SupervisorExecutionClient,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreIdentitySuite(): void {
@@ -49,7 +49,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			),
 		).toBeNull();
 	});
-	it("accepts a chat request, calls supervisor with explicit actor, and finalizes a completed answer", async () => {
+	it("accepts a chat request, calls executionClient with explicit actor, and finalizes a completed answer", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -57,7 +57,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
 			.digest("hex");
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -67,9 +67,9 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 						sources: [{ doc_id: "handbook:library-hours" }],
 					},
 				},
-				selectedTarget: "rag-agent",
+				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 
@@ -79,7 +79,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 
@@ -88,49 +88,51 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: " 图书馆开放到几点？ ",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: {
 					collection: "student_rules",
 					corpus: "regulations",
 				},
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith({
-			conversationId: "conv_01HQ",
-			context: {
-				actor: createPrincipal().actor,
-				authorization: createPrincipal().authorization,
-				profileMemory: {
-					items: [],
+		expect(executionClient.execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				conversationId: "conv_01HQ",
+				context: expect.objectContaining({
+					actor: expect.objectContaining(createPrincipal().actor),
+					authorization: createPrincipal().authorization,
+					session: {
+						confirmedSlots: [],
+						turnCount: 1,
+					},
+				}),
+				requestId: "req_0001",
+				requestedScope: {
+					collection: "student_rules",
+					corpus: "regulations",
 				},
-				session: {
-					confirmedSlots: [],
-					turnCount: 0,
+				requestedTool: "knowledge_query",
+				safetyIdentifier: expectedSafetyIdentifier,
+				surface: "campus_web",
+				tenantId: "tenant-main",
+				traceHeaders: expect.objectContaining({
+					baggage: "sentry-environment=test",
+					sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				}),
+				traceId: "trace_0001",
+				userGoal: "图书馆开放到几点？",
+				versionQuery: {
+					mode: "current",
 				},
-			},
-			requestId: "req_0001",
-			requestedCapability: "knowledge",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			safetyIdentifier: expectedSafetyIdentifier,
-			surface: "public_chat_web",
-			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-			},
-			traceId: "trace_0001",
-			userGoal: "图书馆开放到几点？",
-			versionQuery: null,
-		});
+			}),
+		);
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
 			}),
@@ -189,7 +191,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				entitlementSnapshotId: "entitlements-2026-03-29",
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTarget: "rag-agent",
+				selectedTool: "knowledge_query",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 				visibilityScope: "main",
@@ -225,11 +227,11 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					kind: "answer",
 					requestId: "req_0001",
 					text: "图书馆开放到 22:00。",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				},
 			},
 			requestId: "req_0001",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(telemetry.recordRequestAccepted).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -257,7 +259,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			expect.objectContaining({
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTarget: "rag-agent",
+				selectedTool: "knowledge_query",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 			}),
@@ -265,31 +267,18 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
-	it("injects active user-visible profile memory into supervisor context without changing authz", async () => {
+	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const profileMemoryStore = createProfileMemoryProjectionStore({
-			items: [
-				{
-					confidence: "low",
-					itemId: "mem_recent_goal",
-					key: "recent_goal",
-					lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-					sourceType: "user_declared",
-					value: "准备保研材料",
-					visibility: "user_visible",
-				},
-			],
-		});
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
 				followUpQuestion: "",
 				result: {},
-				selectedTarget: "rag-agent",
+				selectedTool: "knowledge_query",
 				status: "completed",
-				traceId: "trace_0002",
+				traceId: "trace_0001",
 			}),
 		};
 
@@ -297,41 +286,24 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
-			profileMemoryStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我接下来该看什么？",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
-		expect(profileMemoryStore.listProjectionItems).toHaveBeenCalledWith({
-			ownerUserId: "user_01HQ",
-		});
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
-				context: expect.objectContaining({
-					authorization: createPrincipal().authorization,
-					profileMemory: {
-						items: [
-							{
-								confidence: "low",
-								itemId: "mem_recent_goal",
-								key: "recent_goal",
-								lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-								sourceType: "user_declared",
-								value: "准备保研材料",
-								visibility: "user_visible",
-							},
-						],
-					},
+				context: expect.not.objectContaining({
+					profileMemory: expect.anything(),
 				}),
 			}),
 		);

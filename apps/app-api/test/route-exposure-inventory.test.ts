@@ -10,12 +10,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const routesDir = join(__dirname, "../src/app/routes");
 const routeFiles = [
 	"auth.ts",
+	"campus-experience.ts",
+	"campus-services-ops.ts",
 	"chat.ts",
+	"chat-run-routes.ts",
+	"dining-ops.ts",
 	"docs.ts",
+	"federation.ts",
+	"identity-platform.ts",
 	"internal.ts",
+	"observability-config.ts",
 	"official-web.ts",
 	"operator.ts",
 	"profile-memory.ts",
+	"provider-config.ts",
 	"runtime.ts",
 	"wechat-official-account.ts",
 ] as const;
@@ -51,6 +59,7 @@ describe("app-api route exposure inventory", () => {
 		expect([...inventoryKeys].sort()).toEqual(
 			registeredRoutes.map((route) => `${route.method} ${route.path}`),
 		);
+		expect(inventoryKeys.has("POST /api/chatkit")).toBe(false);
 	});
 
 	it("keeps internal and collector routes out of browser-facing caller classes", () => {
@@ -69,5 +78,19 @@ describe("app-api route exposure inventory", () => {
 				route.path.startsWith("/api/wechat-official-account/"),
 			).every((route) => route.callerClass === "collector-machine"),
 		).toBe(true);
+	});
+
+	it("exposes dining publish only through release candidate commands", () => {
+		const keys = new Set(
+			APP_API_ROUTE_EXPOSURE_INVENTORY.map((route) => `${route.method} ${route.path}`),
+		);
+
+		expect(keys.has("POST /api/ops/dining/releases")).toBe(false);
+		expect(keys.has("GET /api/ops/dining/releases/:releaseId/preview")).toBe(false);
+		expect(keys.has("POST /api/ops/dining/releases/:releaseId/publish")).toBe(false);
+		expect(keys.has("POST /api/ops/dining/release-candidates")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/validate")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/approve")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/publish")).toBe(true);
 	});
 });

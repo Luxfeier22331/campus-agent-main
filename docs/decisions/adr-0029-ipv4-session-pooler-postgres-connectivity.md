@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0029
 status: accepted
 created: 2026-04-05
@@ -68,7 +70,7 @@ canonical chain。
 - 现存 `*_MANAGEMENT_*` env 名称不再作为 runtime env path，也不代表 repo-level
   direct/default posture
 - 在当前 IPv4-only 姿态下，它应指向 session pooler，而不是 `db.<project-ref>.supabase.co`
-- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 capability /
+- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 tool /
   决策收口，而不是继续复用默认 operator env
 
 ## 决策 4：所有长驻 runtime 必须使用 application-side pooling
@@ -115,10 +117,13 @@ canonical chain。
 
 ## Complementary Docs
 
-- `docs/data/shared-postgres-ownership.md`
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/data/postgres-ownership.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
-- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
+
+Closeout references retained only as historical / superseded background:
+
+- historical / superseded: `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- historical / superseded: `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
   .md`

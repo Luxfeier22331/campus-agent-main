@@ -11,6 +11,7 @@ from scripts.check_shell_tracked import (
     build_docker_shellcheck_command,
     build_local_shellcheck_command,
     main,
+    select_affected_shell_files,
     tracked_shell_files,
     validate_shell_file,
 )
@@ -42,9 +43,29 @@ class CheckShellTrackedTest(unittest.TestCase):
         )
         self.assertEqual(tracked_shell_files(root=repo_root), expected_paths)
 
+    def test_select_affected_shell_files_skips_unrelated_paths(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_shell_files(
+            ("apps/campus-web/src/features/conversation/assistant-ui-runtime.tsx",),
+            root=repo_root,
+        )
+
+        self.assertEqual(selected, ())
+
+    def test_select_affected_shell_files_returns_changed_shell_script(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_shell_files(
+            ("apps/ingestion-worker/docker-entrypoint.sh",),
+            root=repo_root,
+        )
+
+        self.assertEqual(selected, (repo_root / "apps/ingestion-worker/docker-entrypoint.sh",))
+
     def test_build_local_shellcheck_command_uses_repo_relative_path(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        script = repo_root / "infra/local/minio/create_buckets.sh"
+        script = repo_root / "apps/ingestion-worker/docker-entrypoint.sh"
 
         self.assertEqual(
             build_local_shellcheck_command(script, root=repo_root),
@@ -53,13 +74,13 @@ class CheckShellTrackedTest(unittest.TestCase):
                 "-x",
                 "-s",
                 "bash",
-                "infra/local/minio/create_buckets.sh",
+                "apps/ingestion-worker/docker-entrypoint.sh",
             ],
         )
 
     def test_build_docker_shellcheck_command_uses_repo_mount(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        script = repo_root / "infra/local/minio/create_buckets.sh"
+        script = repo_root / "apps/ingestion-worker/docker-entrypoint.sh"
 
         self.assertEqual(
             build_docker_shellcheck_command(script, root=repo_root),
@@ -75,7 +96,7 @@ class CheckShellTrackedTest(unittest.TestCase):
                 "-x",
                 "-s",
                 "bash",
-                "infra/local/minio/create_buckets.sh",
+                "apps/ingestion-worker/docker-entrypoint.sh",
             ],
         )
 
@@ -98,13 +119,9 @@ class CheckShellTrackedTest(unittest.TestCase):
         which_mock.side_effect = ["/usr/bin/shellcheck"]
         with patch(
             "scripts.check_shell_tracked.tracked_shell_files",
-            return_value=(
-                repo_root / "infra/local/minio/create_buckets.sh",
-                repo_root / "infra/local/staging/start-supervisor-api-staging.sh",
-            ),
+            return_value=(repo_root / "apps/ingestion-worker/docker-entrypoint.sh",),
         ):
             run_mock.side_effect = [
-                subprocess.CompletedProcess(args=["shellcheck"], returncode=0),
                 subprocess.CompletedProcess(args=["shellcheck"], returncode=0),
             ]
 
@@ -119,14 +136,7 @@ class CheckShellTrackedTest(unittest.TestCase):
                     "-x",
                     "-s",
                     "bash",
-                    "infra/local/minio/create_buckets.sh",
-                ],
-                [
-                    "shellcheck",
-                    "-x",
-                    "-s",
-                    "bash",
-                    "infra/local/staging/start-supervisor-api-staging.sh",
+                    "apps/ingestion-worker/docker-entrypoint.sh",
                 ],
             ],
         )

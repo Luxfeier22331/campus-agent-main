@@ -1,0 +1,15 @@
+{
+	"schema_version": "raw_capture_policy.v1",
+	"mode": "manual_run_capture",
+	"capture_reason": "operator_approved_badcase_replay",
+	"ttl_days": 7,
+	"allowed_sinks": ["s3_replay_packet", "langfuse_otlp"],
+	"allowed_raw_fields": ["rendered_messages", "provider_request_body", "provider_response_body"],
+	"operator_principal": "operator:user_01",
+	"approval_ref": "approval_01",
+	"audit_required": true,
+	"dsar_delete_linkage_required": true,
+	"request_id": "req_rag_01",
+	"run_id": "run_rag_01",
+	"trace_id": "trace_rag_01"
+}

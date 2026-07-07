@@ -6,7 +6,7 @@ CREATE TABLE "runtime"."request_observability_fact" (
     "principal_type" text NOT NULL,
     "entitlement_snapshot_id" text,
     "policy_projection_version" text,
-    "requested_capability" text,
+    "requested_tool" text,
     "requested_scope_summary" text,
     "collection" text,
     "selected_target" text,

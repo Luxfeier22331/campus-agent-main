@@ -1,23 +1,24 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
+import type { RequestedScope, ToolExecutionResponse } from "../../integration";
 import {
 	normalizeVersionQuery,
 	type VersionQuery,
 	VersionQueryValidationError,
 } from "../../version-query";
-import { resolveRequestedCapabilityForSurface } from "./capability-policy";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
-import { resultEvidenceSources } from "./normalize-structured-parts";
+import { resultEvidenceSources } from "./normalize-source-items";
+import { resolveRequestedToolForSurface } from "./tool-policy";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
+
+export { normalizeSourceItemsPart } from "./normalize-source-items";
 
 export {
 	normalizeCampusServiceTracePart,
 	normalizeChatResponseStructuredParts,
 	normalizePlaceCardPart,
-	normalizeSourceItemsPart,
 } from "./normalize-structured-parts";
 
 function normalizeString(value: unknown): string {
@@ -31,7 +32,7 @@ export function defaultGenerateId(prefix: string): string {
 export function defaultComputeFingerprint(input: {
 	conversationDiscriminator: string;
 	prompt: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }): string {
@@ -40,7 +41,7 @@ export function defaultComputeFingerprint(input: {
 			JSON.stringify({
 				conversationDiscriminator: input.conversationDiscriminator,
 				prompt: input.prompt,
-				requestedCapability: input.requestedCapability,
+				requestedTool: input.requestedTool,
 				requestedScope: input.requestedScope,
 				versionQuery: input.versionQuery,
 			}),
@@ -75,14 +76,14 @@ function collapseAssistantTextWhitespace(text: string): string {
 }
 
 export function sanitizePublicAssistantText(input: {
-	status: SupervisorExecutionResponse["status"];
+	status: ToolExecutionResponse["status"];
 	text: string;
 }): string {
 	const normalized = normalizeString(input.text);
 	if (!normalized) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: `Supervisor returned an empty public answer text for status ${input.status}.`,
+			code: "execution_invalid_public_response",
+			message: `execution returned an empty public answer text for status ${input.status}.`,
 			retryable: true,
 			status: 502,
 		});
@@ -93,16 +94,16 @@ export function sanitizePublicAssistantText(input: {
 	);
 	if (!stripped) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: "Supervisor public answer text became empty after locator scrubbing.",
+			code: "execution_invalid_public_response",
+			message: "Execution public answer text became empty after locator scrubbing.",
 			retryable: true,
 			status: 502,
 		});
 	}
 	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(stripped))) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: "Supervisor public answer text leaked internal locator content.",
+			code: "execution_invalid_public_response",
+			message: "Execution public answer text leaked internal locator content.",
 			retryable: true,
 			status: 502,
 		});
@@ -191,8 +192,8 @@ export function resolveValidatedPayload(
 		});
 	}
 
-	const requestedCapability = resolveRequestedCapabilityForSurface({
-		requestedCapability: payload.requestedCapability,
+	const requestedTool = resolveRequestedToolForSurface({
+		requestedTool: payload.requestedTool,
 		surface: input.surface,
 	});
 
@@ -215,7 +216,7 @@ export function resolveValidatedPayload(
 	return {
 		conversationId,
 		prompt,
-		requestedCapability,
+		requestedTool,
 		requestedScope,
 		versionQuery,
 	};

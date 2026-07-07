@@ -4,7 +4,15 @@ import { Client } from "pg";
 
 import { createApp } from "../src/app";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type { RequestedScope, SupervisorExecutionClient } from "../src/modules/integration";
+import type {
+	ExecutionControlRun,
+	ExecutionControlRunCreateInput,
+	ExecutionControlRunEvent,
+	ExecutionControlRuntimeClient,
+	RequestedScope,
+	ToolExecutionInput,
+	ToolExecutionResponse,
+} from "../src/modules/integration";
 import {
 	buildRequestProjectionProjector,
 	createPgProjectionStore,
@@ -153,11 +161,17 @@ async function cleanupPreviousSmokeRequestArtifacts(
 	};
 }
 
-function buildScriptedSupervisor(scenarios: RequestSmokeSeedScenario[]): SupervisorExecutionClient {
+interface ScriptedToolExecutionFixture {
+	execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
+}
+
+function buildScriptedToolExecution(
+	scenarios: RequestSmokeSeedScenario[],
+): ScriptedToolExecutionFixture {
 	let currentIndex = 0;
 
 	return {
-		async execute(input) {
+		async execute(input: ToolExecutionInput): Promise<ToolExecutionResponse> {
 			const scenario = scenarios[currentIndex];
 			if (!scenario) {
 				throw new Error(`Unexpected extra request for prompt: ${input.userGoal}`);
@@ -177,6 +191,153 @@ function buildScriptedSupervisor(scenarios: RequestSmokeSeedScenario[]): Supervi
 			return scenario.response;
 		},
 	};
+}
+
+function buildScriptedExecutionRuntime(
+	scenarios: RequestSmokeSeedScenario[],
+): ExecutionControlRuntimeClient {
+	const scripted = buildScriptedToolExecution(scenarios);
+	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
+	const runsById = new Map<string, ExecutionControlRun>();
+	return {
+		async cancelRun(input) {
+			const existing = runsById.get(input.runId);
+			if (!existing) {
+				throw new Error(`Unknown seeded durable run: ${input.runId}`);
+			}
+			const cancelled = {
+				...existing,
+				completedAt: existing.updatedAt,
+				status: "cancelled",
+				terminalReason: input.reason,
+			};
+			runsById.set(input.runId, cancelled);
+			return cancelled;
+		},
+		async createRun(input) {
+			const executionInput = toolExecutionInputFromRunCreate(input);
+			const response = await scripted.execute(executionInput);
+			const run = durableRunFromCreateInput(input);
+			runsById.set(input.runId, run);
+			eventsByRun.set(input.runId, [finalizationEventFromResponse(input, response)]);
+			return run;
+		},
+		async getRun(input) {
+			const existing = runsById.get(input.runId);
+			if (!existing) {
+				throw new Error(`Unknown seeded durable run: ${input.runId}`);
+			}
+			return existing;
+		},
+		async listRunEvents(input) {
+			return (eventsByRun.get(input.runId) ?? []).filter(
+				(event) => event.sequence > (input.afterSequence ?? 0),
+			);
+		},
+		async listRunSteps() {
+			return {
+				attempts: [],
+				results: [],
+				steps: [],
+			};
+		},
+	};
+}
+
+function toolExecutionInputFromRunCreate(
+	input: ExecutionControlRunCreateInput,
+): ToolExecutionInput {
+	const metadata = objectOrThrow(input.metadata, "execution run metadata");
+	const payload = objectOrThrow(metadata.execution_payload, "execution payload");
+	return {
+		context: payload.context as ToolExecutionInput["context"],
+		conversationId: stringValue(payload.conversation_id) ?? input.conversationId,
+		requestId: stringValue(payload.request_id) ?? input.requestId,
+		requestedTool: stringValue(payload.requested_tool),
+		requestedScope: payload.requested_scope as RequestedScope | null,
+		safetyIdentifier: stringValue(payload.safety_identifier),
+		surface: input.surface,
+		traceHeaders: input.traceHeaders,
+		traceId: traceIdFromPayload(payload) ?? input.traceId ?? "",
+		userGoal: stringValue(payload.user_goal) ?? "",
+		versionQuery: payload.version_query as ToolExecutionInput["versionQuery"],
+	};
+}
+
+function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
+	const now = new Date().toISOString();
+	return {
+		admittedAt: "",
+		completedAt: "",
+		conversationId: input.conversationId,
+		createdAt: now,
+		failCloseReason: "",
+		finalResponseRef: "",
+		taskQueue: input.taskQueue,
+		ownerUserId: input.ownerUserId,
+		requestId: input.requestId,
+		requestedTool: input.requestedTool ?? "",
+		runId: input.runId,
+		selectedTool: input.selectedTool ?? "",
+		startedAt: "",
+		status: "queued",
+		streamingStartedAt: "",
+		surface: input.surface,
+		terminalReason: "",
+		traceId: input.traceId ?? "",
+		turnId: input.turnId,
+		updatedAt: now,
+		workflowPlanRef: "",
+	};
+}
+
+function finalizationEventFromResponse(
+	input: ExecutionControlRunCreateInput,
+	response: ToolExecutionResponse,
+): ExecutionControlRunEvent {
+	return {
+		conversationId: input.conversationId,
+		eventId: `${input.runId}:finalization`,
+		eventType: "finalization.completed",
+		occurredAt: new Date().toISOString(),
+		payload: {
+			request_id: input.requestId,
+			response: {
+				answer_text: response.answerText,
+				confidence: "high",
+				error: response.error,
+				follow_up_question: response.followUpQuestion,
+				result: response.result,
+				selected_tool: response.selectedTool,
+				status: response.status,
+				trace_id: response.traceId,
+			},
+			trace_id: response.traceId,
+		},
+		payloadSchemaVersion: "run-event-v1",
+		runId: input.runId,
+		sequence: 1,
+		visibility: "browser",
+	};
+}
+
+function objectOrThrow(value: unknown, label: string): Record<string, unknown> {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value as Record<string, unknown>;
+	}
+	throw new Error(`${label} must be an object.`);
+}
+
+function stringValue(value: unknown): string | null {
+	return typeof value === "string" && value.trim() ? value : null;
+}
+
+function traceIdFromPayload(payload: Record<string, unknown>): string | null {
+	const trace = payload.trace;
+	if (!(trace && typeof trace === "object" && !Array.isArray(trace))) {
+		return null;
+	}
+	return stringValue((trace as Record<string, unknown>).trace_id);
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
@@ -205,7 +366,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(runtimeEnv),
 				store: createPgChatCommandStore(runtimeEnv),
-				supervisor: buildScriptedSupervisor(scenarios),
+				executionRuntime: buildScriptedExecutionRuntime(scenarios),
 			}),
 		});
 		const appFetch = (request: Request) => app.fetch(request);
@@ -227,7 +388,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			captchaToken: provisionInput.captchaToken,
 			email: provisionInput.email,
 			password: provisionInput.password,
-			publicChatOrigin: provisionInput.publicChatOrigin,
+			authShellOrigin: provisionInput.authShellOrigin,
 		});
 		const conversationIds = new Map<string, string>();
 		const seededRequests: Array<{
@@ -237,7 +398,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			key: string;
 			prompt: string;
 			requestId: string;
-			selectedTarget: string | null;
+			selectedTool: string | null;
 			traceId: string;
 		}> = [];
 
@@ -287,7 +448,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				key: scenario.key,
 				prompt: scenario.prompt,
 				requestId,
-				selectedTarget: scenario.response.selectedTarget,
+				selectedTool: scenario.response.selectedTool,
 				traceId: response.headers.get("x-trace-id") ?? payload.answer.result.traceId,
 			});
 		}
@@ -310,12 +471,9 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 					.find(Boolean) ?? "ops@example.com",
 		});
 		const operatorListResponse = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/operator/requests?limit=20&surface=public_chat_web",
-				{
-					headers: operatorHeaders,
-				},
-			),
+			new Request("https://app-api.internal/api/operator/requests?limit=20&surface=campus_web", {
+				headers: operatorHeaders,
+			}),
 		);
 		const operatorListPayload = await expectJsonResponse<{
 			page: {
@@ -329,7 +487,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 
 		const verifiedRequests: Array<{
 			actualErrorCode: string | null;
-			actualSelectedTarget: string | null;
+			actualSelectedTool: string | null;
 			actualStatus: string;
 			answerKind: string;
 			conversationId: string;
@@ -350,13 +508,13 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				request: {
 					errorCode: string | null;
 					requestId: string;
-					selectedTarget: string | null;
+					selectedTool: string | null;
 					status: string;
 				};
 			}>(detailResponse, 200);
 			verifiedRequests.push({
 				actualErrorCode: detailPayload.request.errorCode,
-				actualSelectedTarget: detailPayload.request.selectedTarget,
+				actualSelectedTool: detailPayload.request.selectedTool,
 				actualStatus: detailPayload.request.status,
 				answerKind: seededRequest.answerKind,
 				conversationId: seededRequest.conversationId,

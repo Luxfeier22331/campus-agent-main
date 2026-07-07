@@ -1,11 +1,12 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0039
 status: accepted
 created: 2026-04-12
 updated: 2026-04-12
 ---
-
 # ADR-0039 Reference And Runbook Historical Lifecycle
 
 ## 状态
@@ -49,7 +50,10 @@ Accepted on 2026-04-12.
 - 默认阅读分组优先只列 `active`
 - 历史 evidence、legacy runbook、旧 baseline 对照文档进入单独的 `Historical` / `Archive` 分组
 - 除非用户明确需要追溯或对照，否则 agent 不应把 historical 文档当成第一入口
-- 当 historical 文档数量继续增长时，应优先按主题物理下沉到 `reference/archive/` 或 `runbooks/archive/`，而不是继续停留在分区根层
+- 当 historical 文档数量继续增长且仍有保留价值时，应优先按主题物理下沉到
+  archive namespace 或提升为当前 owner 文档；不要继续停留在分区根层
+- 如果 historical 文档只剩 traceability 价值，branch tip 不保留正文；通过 git history
+  追溯，需要的结论再提升到当前 owner 文档。
 
 ### 决策 3：historical 不是删除，也不是 superseded
 

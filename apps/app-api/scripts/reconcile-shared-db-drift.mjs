@@ -6,34 +6,25 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 import {
-	APP_API_MIGRATIONS_SCHEMA,
-	APP_API_MIGRATIONS_TABLE,
-	buildExpectedTableSpecs,
 	inspectSharedDatabase,
 	loadMigrationContext,
 	runSharedDatabaseAdoption,
 } from "./adopt-shared-database.mjs";
+import {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	buildSharedDatabaseDriftReconcilePlan,
+	collectExtraTables,
+	formatSharedDatabaseDriftReconcilePlan,
+	quoteIdentifier,
+} from "./reconcile-shared-db-drift-plan.mjs";
+
+export {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	buildSharedDatabaseDriftReconcilePlan,
+} from "./reconcile-shared-db-drift-plan.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = dirname(scriptsDir);
-const RECONCILABLE_EXTRA_TABLES = new Set([
-	"official_web.page_freshness",
-	"official_web.page_observations",
-]);
-const RECONCILABLE_EXTRA_COLUMNS = new Map([
-	["official_web.crawl_runs", new Set(["run_intent"])],
-	["operator.official_web_run_projection", new Set(["run_intent"])],
-	["runtime.request_execution", new Set(["actor_campus_scope", "actor_groups_json"])],
-]);
-const CRAWL_RUNS_SITE_SCHEDULER_INDEX = "official_web_crawl_runs_site_scheduler_idx";
-
-function quoteIdentifier(identifier) {
-	return `"${identifier.replaceAll('"', '""')}"`;
-}
-
-function _qualifyName(schema, name) {
-	return `${schema}.${name}`;
-}
 
 function normalizePostgresConnectionStringForExplicitSsl(connectionString) {
 	const nextUrl = new URL(connectionString);
@@ -60,265 +51,6 @@ function openClient({ connectionString, sslMode }) {
 		connectionString,
 		ssl: sslMode === "disable" ? false : { rejectUnauthorized: false },
 	});
-}
-
-function collectExtraColumns(inventory, expectedTables) {
-	const extraColumns = [];
-
-	for (const [qualifiedName, table] of inventory.tables.entries()) {
-		const expectedTable = expectedTables.get(qualifiedName);
-		if (!expectedTable) {
-			continue;
-		}
-
-		for (const columnName of table.columns.keys()) {
-			if (!expectedTable.columns.has(columnName)) {
-				extraColumns.push({
-					columnName,
-					qualifiedName,
-				});
-			}
-		}
-	}
-
-	return extraColumns.sort(
-		(left, right) =>
-			left.qualifiedName.localeCompare(right.qualifiedName) ||
-			left.columnName.localeCompare(right.columnName),
-	);
-}
-
-function collectMissingColumns(inventory, expectedTables) {
-	const missingColumns = [];
-
-	for (const [qualifiedName, expectedTable] of expectedTables.entries()) {
-		const actualTable = inventory.tables.get(qualifiedName);
-		if (!actualTable) {
-			continue;
-		}
-
-		for (const columnName of expectedTable.columns.keys()) {
-			if (!actualTable.columns.has(columnName)) {
-				missingColumns.push({
-					columnName,
-					qualifiedName,
-				});
-			}
-		}
-	}
-
-	return missingColumns.sort(
-		(left, right) =>
-			left.qualifiedName.localeCompare(right.qualifiedName) ||
-			left.columnName.localeCompare(right.columnName),
-	);
-}
-
-function collectExtraTables(inventory, expectedTables) {
-	const extraTables = [];
-
-	for (const qualifiedName of inventory.tables.keys()) {
-		if (!expectedTables.has(qualifiedName)) {
-			extraTables.push(qualifiedName);
-		}
-	}
-
-	return extraTables.sort();
-}
-
-function collectMissingTables(inventory, expectedTables) {
-	if (inventory.journalRows.length === 0) {
-		return [];
-	}
-
-	const missingTables = [];
-
-	for (const qualifiedName of expectedTables.keys()) {
-		if (!inventory.tables.has(qualifiedName)) {
-			missingTables.push(qualifiedName);
-		}
-	}
-
-	return missingTables.sort();
-}
-
-function collectOrphanedJournalRows(inventory, migrationContext) {
-	const knownHashes = new Set(migrationContext.migrations.map((migration) => migration.hash));
-
-	return inventory.journalRows
-		.filter((row) => !knownHashes.has(row.hash))
-		.sort((left, right) => left.createdAt - right.createdAt);
-}
-
-function collectPendingMigrations(inventory, migrationContext) {
-	if (inventory.journalRows.length === 0) {
-		return [];
-	}
-
-	const appliedHashes = new Set(inventory.journalRows.map((row) => row.hash));
-
-	return migrationContext.migrations.filter((migration) => !appliedHashes.has(migration.hash));
-}
-
-function buildDropTableOperation(qualifiedName, rowCount) {
-	const [schema, table] = qualifiedName.split(".", 2);
-	return {
-		kind: "drop_table",
-		qualifiedName,
-		rowCount,
-		statement: `drop table if exists ${quoteIdentifier(schema)}.${quoteIdentifier(table)}`,
-	};
-}
-
-function buildDropColumnOperation(qualifiedName, columnName) {
-	const [schema, table] = qualifiedName.split(".", 2);
-	return {
-		columnName,
-		kind: "drop_column",
-		qualifiedName,
-		statement: `alter table ${quoteIdentifier(schema)}.${quoteIdentifier(table)} drop column if exists ${quoteIdentifier(columnName)}`,
-	};
-}
-
-function buildDeleteJournalRowOperation(hash) {
-	return {
-		hash,
-		kind: "delete_journal_row",
-		statement: `delete from ${quoteIdentifier(APP_API_MIGRATIONS_SCHEMA)}.${quoteIdentifier(APP_API_MIGRATIONS_TABLE)} where "hash" = $1`,
-	};
-}
-
-function buildInsertJournalRowOperation(migration) {
-	return {
-		createdAt: migration.folderMillis,
-		hash: migration.hash,
-		kind: "insert_journal_row",
-		statement: `insert into ${quoteIdentifier(APP_API_MIGRATIONS_SCHEMA)}.${quoteIdentifier(APP_API_MIGRATIONS_TABLE)} ("hash", "created_at") values ($1, $2)`,
-		tag: migration.tag,
-	};
-}
-
-function readAllowedExtraColumns(qualifiedName) {
-	return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
-}
-
-export function buildSharedDatabaseDriftReconcilePlan({
-	extraTableRowCounts = new Map(),
-	inventory,
-	migrationContext,
-}) {
-	const expectedTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
-	const extraColumns = collectExtraColumns(inventory, expectedTables);
-	const missingColumns = collectMissingColumns(inventory, expectedTables);
-	const extraTables = collectExtraTables(inventory, expectedTables);
-	const missingTables = collectMissingTables(inventory, expectedTables);
-	const orphanedJournalRows = collectOrphanedJournalRows(inventory, migrationContext);
-	const pendingMigrations = collectPendingMigrations(inventory, migrationContext);
-	const pendingMigrationTags = pendingMigrations.map((migration) => migration.tag);
-	const blockedReasons = [];
-	const operations = [];
-
-	for (const qualifiedName of extraTables) {
-		if (!RECONCILABLE_EXTRA_TABLES.has(qualifiedName)) {
-			blockedReasons.push(`Unknown extra table outside current repo truth: ${qualifiedName}`);
-			continue;
-		}
-
-		operations.push(
-			buildDropTableOperation(qualifiedName, extraTableRowCounts.get(qualifiedName) ?? 0),
-		);
-	}
-
-	let crawlRunsNeedsIndexRebuild = false;
-
-	for (const item of extraColumns) {
-		const allowedColumns = readAllowedExtraColumns(item.qualifiedName);
-		if (!allowedColumns.has(item.columnName)) {
-			blockedReasons.push(
-				`Unknown extra column outside current repo truth: ${item.qualifiedName}.${item.columnName}`,
-			);
-			continue;
-		}
-
-		if (item.qualifiedName === "official_web.crawl_runs" && item.columnName === "run_intent") {
-			crawlRunsNeedsIndexRebuild = true;
-			continue;
-		}
-
-		operations.push(buildDropColumnOperation(item.qualifiedName, item.columnName));
-	}
-
-	for (const qualifiedName of missingTables) {
-		blockedReasons.push(`Missing table from current repo truth: ${qualifiedName}`);
-	}
-
-	for (const item of missingColumns) {
-		blockedReasons.push(
-			`Missing column from current repo truth: ${item.qualifiedName}.${item.columnName}`,
-		);
-	}
-
-	const hasSchemaDrift =
-		extraColumns.length > 0 ||
-		extraTables.length > 0 ||
-		missingColumns.length > 0 ||
-		missingTables.length > 0;
-	if (pendingMigrationTags.length > 0 && hasSchemaDrift) {
-		blockedReasons.push(`Pending repo migrations not applied: ${pendingMigrationTags.join(", ")}`);
-	}
-
-	if (crawlRunsNeedsIndexRebuild) {
-		operations.push({
-			indexName: CRAWL_RUNS_SITE_SCHEDULER_INDEX,
-			kind: "drop_index",
-			statement: `drop index if exists ${quoteIdentifier("official_web")}.${quoteIdentifier(CRAWL_RUNS_SITE_SCHEDULER_INDEX)}`,
-		});
-		operations.push(buildDropColumnOperation("official_web.crawl_runs", "run_intent"));
-		operations.push({
-			indexName: CRAWL_RUNS_SITE_SCHEDULER_INDEX,
-			kind: "create_index",
-			statement: `create unique index ${quoteIdentifier(CRAWL_RUNS_SITE_SCHEDULER_INDEX)} on ${quoteIdentifier("official_web")}.${quoteIdentifier("crawl_runs")} using btree ("site_id","scheduler_run_key")`,
-		});
-	}
-
-	for (const row of orphanedJournalRows) {
-		operations.push(buildDeleteJournalRowOperation(row.hash));
-	}
-
-	if (pendingMigrationTags.length > 0 && !hasSchemaDrift) {
-		for (const migration of pendingMigrations) {
-			operations.push(buildInsertJournalRowOperation(migration));
-		}
-	}
-
-	const nonEmptyDriftTables = operations
-		.filter((operation) => operation.kind === "drop_table" && operation.rowCount > 0)
-		.map((operation) => ({
-			qualifiedName: operation.qualifiedName,
-			rowCount: operation.rowCount,
-		}));
-
-	return {
-		blockedReasons,
-		driftDetected:
-			extraColumns.length > 0 ||
-			extraTables.length > 0 ||
-			missingColumns.length > 0 ||
-			missingTables.length > 0 ||
-			orphanedJournalRows.length > 0 ||
-			pendingMigrationTags.length > 0,
-		extraColumns,
-		extraTables: extraTables.map((qualifiedName) => ({
-			qualifiedName,
-			rowCount: extraTableRowCounts.get(qualifiedName) ?? 0,
-		})),
-		missingColumns,
-		missingTables,
-		nonEmptyDriftTables,
-		operations,
-		orphanedJournalRows,
-		pendingMigrationTags,
-	};
 }
 
 async function readExtraTableRowCounts(client, extraTables) {
@@ -385,6 +117,21 @@ async function writeBackupArtifacts({ backupDir, client, inventory, plan }) {
 		);
 	}
 
+	for (const legacyColumn of plan.legacyColumnResolutions ?? []) {
+		const backupColumns =
+			legacyColumn.kind === "merge_drop_legacy_column"
+				? [legacyColumn.fromColumn, legacyColumn.toColumn]
+				: [legacyColumn.fromColumn];
+		const rows = await readColumnBackupRows(client, legacyColumn.qualifiedName, backupColumns);
+		await writeFile(
+			join(
+				resolvedBackupDir,
+				`${legacyColumn.qualifiedName.replace(".", "__")}__${legacyColumn.fromColumn}.legacy-column.json`,
+			),
+			`${JSON.stringify(rows, null, 2)}\n`,
+		);
+	}
+
 	if (plan.orphanedJournalRows.length > 0) {
 		await writeFile(
 			join(resolvedBackupDir, "drizzle__app_api_migrations.orphaned.json"),
@@ -417,46 +164,6 @@ async function applySharedDatabaseDriftReconcilePlan(client, plan) {
 	}
 }
 
-function formatPlan(plan) {
-	return JSON.stringify(
-		{
-			blockedReasons: plan.blockedReasons,
-			driftDetected: plan.driftDetected,
-			extraColumns: plan.extraColumns,
-			extraTables: plan.extraTables,
-			missingColumns: plan.missingColumns,
-			missingTables: plan.missingTables,
-			nonEmptyDriftTables: plan.nonEmptyDriftTables,
-			operations: plan.operations.map((operation) => {
-				if (operation.kind === "delete_journal_row") {
-					return {
-						hash: operation.hash,
-						kind: operation.kind,
-					};
-				}
-
-				if (operation.kind === "insert_journal_row") {
-					return {
-						hash: operation.hash,
-						kind: operation.kind,
-						tag: operation.tag,
-					};
-				}
-
-				return {
-					kind: operation.kind,
-					qualifiedName: "qualifiedName" in operation ? operation.qualifiedName : null,
-					statement: operation.statement,
-				};
-			}),
-			orphanedJournalRows: plan.orphanedJournalRows,
-			pendingMigrationTags: plan.pendingMigrationTags,
-		},
-		null,
-		2,
-	);
-}
-
 export async function runSharedDatabaseDriftReconcile({
 	allowNonEmptyDriftTables = false,
 	apply = false,
@@ -473,7 +180,10 @@ export async function runSharedDatabaseDriftReconcile({
 	try {
 		const rowCounts = await readExtraTableRowCounts(
 			client,
-			collectExtraTables(inventory, buildExpectedTableSpecs(migrationContext.latestSnapshot)),
+			collectExtraTables(
+				inventory,
+				buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot),
+			),
 		);
 		const plan = buildSharedDatabaseDriftReconcilePlan({
 			extraTableRowCounts: rowCounts,
@@ -520,7 +230,7 @@ export async function runSharedDatabaseDriftReconcile({
 			client,
 			collectExtraTables(
 				reconciledInventory,
-				buildExpectedTableSpecs(migrationContext.latestSnapshot),
+				buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot),
 			),
 		);
 		const reconciledPlan = buildSharedDatabaseDriftReconcilePlan({
@@ -530,7 +240,7 @@ export async function runSharedDatabaseDriftReconcile({
 		});
 		if (reconciledPlan.driftDetected || reconciledPlan.blockedReasons.length > 0) {
 			throw new Error(
-				`Shared database drift reconciliation did not remove all retired drift:\n${formatPlan(reconciledPlan)}`,
+				`Shared database drift reconciliation did not remove all retired drift:\n${formatSharedDatabaseDriftReconcilePlan(reconciledPlan)}`,
 			);
 		}
 
@@ -612,7 +322,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 				return;
 			}
 
-			console.log(formatPlan(result.plan));
+			console.log(formatSharedDatabaseDriftReconcilePlan(result.plan));
 			if (result.backupPath) {
 				console.log(`backup_path: ${result.backupPath}`);
 			}

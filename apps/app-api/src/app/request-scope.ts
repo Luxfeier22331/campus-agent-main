@@ -1,4 +1,9 @@
-import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
+import {
+	type Env,
+	isDeployedEnvironment,
+	readPublicNoticeURLAllowlist,
+	resolveEnvironment,
+} from "../config";
 import {
 	buildAuthenticatedNoticeProcessingCommandService,
 	createPgAuthenticatedNoticeProcessingCommandStore,
@@ -15,23 +20,31 @@ import {
 	buildAuthenticatedNoticeRunProcessingQueryService,
 	createPgAuthenticatedNoticeRunProcessingQueryStore,
 } from "../modules/authenticated-notice-run-processing-query";
+import { buildCampusExperienceService } from "../modules/campus-experience";
+import {
+	buildCampusServicesOpsService,
+	createPgCampusServicesOpsStore,
+} from "../modules/campus-services-ops";
+import { buildCampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
-	createSupervisorDurableRuntimeClient,
-	createSupervisorExecutionClient,
-	isSupervisorDurableRuntimeConfigured,
+	buildIdentityPlatformService,
+	createPgIdentityPlatformStore,
+} from "../modules/identity-platform";
+import {
+	createExecutionControlPersonalMemoryClient,
+	createExecutionControlProviderConfigClient,
+	createExecutionControlRuntimeClient,
+	createIngestionTaskProjectionClient,
+	isExecutionControlRuntimeConfigured,
+	probeExecutionControlOperatorRuntimeHealth,
 } from "../modules/integration";
 import {
-	buildOfficialWebCommandService,
-	createPgOfficialWebCommandStore,
-} from "../modules/official-web-command";
-import { buildOfficialWebExecutionStatusService } from "../modules/official-web-execution";
-import {
-	buildOfficialWebPlannerService,
-	createPgOfficialWebPlannerStore,
-} from "../modules/official-web-planner";
-import { createPgOfficialWebProjectionStore } from "../modules/official-web-projection";
+	buildObservabilityConfigService,
+	createPgObservabilityConfigStore,
+} from "../modules/observability-config";
 import {
 	buildOfficialWebQueryService,
 	createPgOfficialWebQueryStore,
@@ -59,11 +72,15 @@ import {
 } from "../modules/official-web-target-release-gates";
 import {
 	buildOperatorObservabilityCommandService,
-	buildOperatorTraceBacklinkRecorder,
 	createPgOperatorObservabilityCommandStore,
 } from "../modules/operator-observability-command";
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
+import {
+	buildProviderConfigService,
+	createPgProviderConfigStore,
+} from "../modules/provider-config";
+import { buildReplayCaptureService, createPgReplayCaptureStore } from "../modules/replay-capture";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import {
@@ -79,22 +96,11 @@ export function createRequestScopeFactory(input: {
 	telemetry: import("../modules/telemetry").AppTelemetry;
 }) {
 	const environment = resolveEnvironment(input.env);
-	const requireDurableRuntime = isDeployedEnvironment(environment);
-	const durableRuntimeConfigured = isSupervisorDurableRuntimeConfigured(input.env);
-	const durableRuntime = durableRuntimeConfigured
-		? createSupervisorDurableRuntimeClient(input.env)
+	const requireExecutionRuntime = isDeployedEnvironment(environment);
+	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
+	const executionRuntime = executionRuntimeConfigured
+		? createExecutionControlRuntimeClient(input.env)
 		: undefined;
-	const officialWebExecutionStatusService =
-		input.dependencies.officialWebExecutionStatusService ??
-		buildOfficialWebExecutionStatusService({
-			store: createPgOfficialWebProjectionStore(input.env),
-		});
-	const officialWebPlannerService =
-		input.dependencies.officialWebPlannerService ??
-		buildOfficialWebPlannerService({
-			store: createPgOfficialWebPlannerStore(input.env),
-		});
-
 	return {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
@@ -106,10 +112,16 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
 			let authenticatedNoticeRunProcessingQueryService =
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
+			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
+			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
+			let campusServicesTransportScheduleService =
+				input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
+			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
-			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
+			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
+			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let officialWebReleaseTaskProcessingCommandService =
 				input.dependencies.officialWebReleaseTaskProcessingCommandService ?? null;
@@ -120,10 +132,13 @@ export function createRequestScopeFactory(input: {
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let officialWebTargetReleaseGateService =
 				input.dependencies.officialWebTargetReleaseGateService ?? null;
+			let observabilityConfigService = input.dependencies.observabilityConfigService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
+			let providerConfigService = input.dependencies.providerConfigService ?? null;
+			let replayCaptureService = input.dependencies.replayCaptureService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 			let weChatOfficialAccountCommandService =
 				input.dependencies.wechatOfficialAccountCommandService ?? null;
@@ -136,7 +151,7 @@ export function createRequestScopeFactory(input: {
 				authenticatedNoticeProcessingCommandService =
 					buildAuthenticatedNoticeProcessingCommandService({
 						store: createPgAuthenticatedNoticeProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return authenticatedNoticeProcessingCommandService;
@@ -163,7 +178,7 @@ export function createRequestScopeFactory(input: {
 				authenticatedNoticeRunProcessingCommandService =
 					buildAuthenticatedNoticeRunProcessingCommandService({
 						store: createPgAuthenticatedNoticeRunProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return authenticatedNoticeRunProcessingCommandService;
@@ -189,9 +204,21 @@ export function createRequestScopeFactory(input: {
 				}
 
 				chatConversationService = buildChatConversationService({
-					store: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
+					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 				});
 				return chatConversationService;
+			}
+
+			function resolveCampusServicesOpsService() {
+				if (campusServicesOpsService) {
+					return campusServicesOpsService;
+				}
+
+				campusServicesOpsService = buildCampusServicesOpsService({
+					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getDb }),
+				});
+				return campusServicesOpsService;
 			}
 
 			function resolveChatCommandService() {
@@ -204,33 +231,50 @@ export function createRequestScopeFactory(input: {
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
-					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getFreshDb,
-					}),
+					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
-					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
-					durableRuntime,
-					isDurableRuntimeConfigured: durableRuntimeConfigured,
-					requireDurableRuntime,
-					supervisor: createSupervisorExecutionClient(input.env),
-					telemetry: input.telemetry,
-					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
-						env: input.env,
-						resolveCommandService: resolveOperatorObservabilityCommandService,
+					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
+					executionRuntime,
+					isExecutionRuntimeConfigured: executionRuntimeConfigured,
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getDb,
 					}),
+					requireExecutionRuntime,
+					telemetry: input.telemetry,
 				});
 				return chatCommandService;
 			}
 
-			function resolveOfficialWebCommandService() {
-				if (officialWebCommandService) {
-					return officialWebCommandService;
+			function resolveCampusExperienceService() {
+				if (campusExperienceService) {
+					return campusExperienceService;
 				}
 
-				officialWebCommandService = buildOfficialWebCommandService({
-					store: createPgOfficialWebCommandStore(input.env, { getDb: runtime.getFreshDb }),
+				campusExperienceService = buildCampusExperienceService();
+				return campusExperienceService;
+			}
+
+			function resolveCampusServicesTransportScheduleService() {
+				if (campusServicesTransportScheduleService) {
+					return campusServicesTransportScheduleService;
+				}
+
+				campusServicesTransportScheduleService = buildCampusServicesTransportScheduleService({
+					env: input.env,
+					fetchImplementation: input.dependencies.campusServicesTransportScheduleFetch,
 				});
-				return officialWebCommandService;
+				return campusServicesTransportScheduleService;
+			}
+
+			function resolveDiningOperationsService() {
+				if (diningOperationsService) {
+					return diningOperationsService;
+				}
+
+				diningOperationsService = buildDiningOperationsService({
+					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return diningOperationsService;
 			}
 
 			function resolveOfficialWebTargetJobService() {
@@ -268,7 +312,7 @@ export function createRequestScopeFactory(input: {
 				officialWebTargetReleaseGateService = buildOfficialWebTargetReleaseGateService({
 					inventoryService: resolveOfficialWebTargetInventoryService(),
 					store: createPgOfficialWebTargetReleaseGateStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 				});
 				return officialWebTargetReleaseGateService;
@@ -283,6 +327,33 @@ export function createRequestScopeFactory(input: {
 					store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
 				});
 				return docsService;
+			}
+
+			function resolveIdentityPlatformService() {
+				if (identityPlatformService) {
+					return identityPlatformService;
+				}
+
+				identityPlatformService = buildIdentityPlatformService({
+					identityStore: createPgIdentityPlatformStore(input.env, {
+						getDb: runtime.getDb,
+					}),
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getDb,
+					}),
+				});
+				return identityPlatformService;
+			}
+
+			function resolveIngestionTaskProjectionClient() {
+				if (ingestionTaskProjectionClient) {
+					return ingestionTaskProjectionClient;
+				}
+
+				ingestionTaskProjectionClient = createIngestionTaskProjectionClient(input.env, {
+					fetchImplementation: input.dependencies.ingestionTaskProjectionFetch,
+				});
+				return ingestionTaskProjectionClient;
 			}
 
 			function resolveOfficialWebQueryService() {
@@ -304,7 +375,7 @@ export function createRequestScopeFactory(input: {
 				officialWebReleaseTaskProcessingCommandService =
 					buildOfficialWebReleaseTaskProcessingCommandService({
 						store: createPgOfficialWebReleaseTaskProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return officialWebReleaseTaskProcessingCommandService;
@@ -330,10 +401,23 @@ export function createRequestScopeFactory(input: {
 				}
 
 				operatorQueryService = buildOperatorQueryService({
-					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
+					executionRuntime: createExecutionControlRuntimeClient(input.env),
+					runtimeHealthProbe: () => probeExecutionControlOperatorRuntimeHealth(input.env),
 					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return operatorQueryService;
+			}
+
+			function resolveObservabilityConfigService() {
+				if (observabilityConfigService) {
+					return observabilityConfigService;
+				}
+
+				observabilityConfigService = buildObservabilityConfigService({
+					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
+					store: createPgObservabilityConfigStore(input.env, { getDb: runtime.getDb }),
+				});
+				return observabilityConfigService;
 			}
 
 			function resolveOperatorObservabilityCommandService() {
@@ -343,7 +427,7 @@ export function createRequestScopeFactory(input: {
 
 				operatorObservabilityCommandService = buildOperatorObservabilityCommandService({
 					store: createPgOperatorObservabilityCommandStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 					telemetry: input.telemetry,
 				});
@@ -356,9 +440,45 @@ export function createRequestScopeFactory(input: {
 				}
 
 				profileMemoryService = buildProfileMemoryService({
-					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
+					memoryIndexer: createExecutionControlPersonalMemoryClient(input.env),
+					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return profileMemoryService;
+			}
+
+			function resolveProviderConfigService() {
+				if (providerConfigService) {
+					return providerConfigService;
+				}
+
+				providerConfigService = buildProviderConfigService({
+					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
+					store: createPgProviderConfigStore(input.env, { getDb: runtime.getFreshDb }),
+					validators: {
+						checkEmbeddingCompatibility: async (compatibilityInput) =>
+							createExecutionControlProviderConfigClient(input.env).checkEmbeddingCompatibility({
+								baseUrl: compatibilityInput.baseUrl,
+								dimensions: compatibilityInput.dimensions ?? 0,
+								model: compatibilityInput.model,
+								provider: compatibilityInput.provider,
+								role: compatibilityInput.role,
+								timeoutMs: compatibilityInput.timeoutMs,
+								transport: compatibilityInput.transport,
+							}),
+					},
+				});
+				return providerConfigService;
+			}
+
+			function resolveReplayCaptureService() {
+				if (replayCaptureService) {
+					return replayCaptureService;
+				}
+
+				replayCaptureService = buildReplayCaptureService({
+					store: createPgReplayCaptureStore(input.env, { getDb: runtime.getDb }),
+				});
+				return replayCaptureService;
 			}
 
 			function resolveRuntimeRunService() {
@@ -367,8 +487,8 @@ export function createRequestScopeFactory(input: {
 				}
 
 				runtimeRunService = buildRuntimeRunService({
-					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
-					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getFreshDb }),
+					executionRuntime: createExecutionControlRuntimeClient(input.env),
+					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
 				});
 				return runtimeRunService;
 			}
@@ -380,7 +500,7 @@ export function createRequestScopeFactory(input: {
 
 				weChatOfficialAccountCommandService = buildWeChatOfficialAccountCommandService({
 					store: createPgWeChatOfficialAccountCommandStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 				});
 				return weChatOfficialAccountCommandService;
@@ -392,24 +512,31 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeProcessingQueryService,
 				resolveAuthenticatedNoticeRunProcessingCommandService,
 				resolveAuthenticatedNoticeRunProcessingQueryService,
+				resolveCampusExperienceService,
+				resolveCampusServicesOpsService,
+				resolveCampusServicesTransportScheduleService,
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveDiningOperationsService,
 				resolveDocsService,
-				resolveOfficialWebCommandService,
+				resolveIdentityPlatformService,
+				resolveIngestionTaskProjectionClient,
 				resolveOfficialWebQueryService,
 				resolveOfficialWebReleaseTaskProcessingCommandService,
 				resolveOfficialWebReleaseTaskProcessingQueryService,
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOfficialWebTargetReleaseGateService,
+				resolveObservabilityConfigService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
+				resolveProviderConfigService,
+				resolveReplayCaptureService,
 				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
+				telemetry: input.telemetry,
 			};
 		},
-		officialWebExecutionStatusService,
-		officialWebPlannerService,
 	};
 }

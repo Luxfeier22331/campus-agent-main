@@ -1,37 +1,89 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
-import { type AxiomRuntimeEventSink, createAxiomRuntimeEventSink } from "./axiom";
-import { buildAxiomEnvelope } from "./axiom-envelope";
+import type { RequestedScope } from "../integration";
+import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
 import {
 	hashIdentifier,
 	normalizeString,
 	readTelemetryTraceDataWithoutRequestFailure,
+	runTelemetryAsyncSideEffectWithoutRequestFailure,
 	runTelemetrySideEffectWithoutRequestFailure,
 	toScopeSummary,
 	toSourceDocIdsSummary,
 } from "./helpers";
+import { createOtlpRuntimeEventSink } from "./otlp";
+import type { RuntimeEventSink } from "./runtime-event";
+import { buildRuntimeEventEnvelope } from "./runtime-event-envelope";
 import { applyRequestContext, applyRequestTags } from "./sentry-scope";
 import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
+
+async function emitStageTimingEvents(input: {
+	errorCode: string | null;
+	principalType?: string | null;
+	requestId: string;
+	requestedScope?: RequestedScope | null;
+	requestedTool: string | null;
+	runtimeEventSink: RuntimeEventSink;
+	selectedTool: string | null;
+	stageTiming?: Record<string, unknown> | null;
+	status: string;
+	surface: string;
+	telemetryMetadata: Parameters<typeof buildRuntimeEventEnvelope>[1];
+	traceId: string;
+}): Promise<void> {
+	for (const [stageField, durationMs] of Object.entries(input.stageTiming ?? {})) {
+		if (
+			!(
+				isStageTimingField(stageField) &&
+				typeof durationMs === "number" &&
+				Number.isFinite(durationMs) &&
+				durationMs >= 0
+			)
+		) {
+			continue;
+		}
+		await input.runtimeEventSink.emit({
+			duration_ms: durationMs,
+			stage_field: stageField,
+			budget_state: stageTimingBudgetState(stageField, durationMs),
+			...buildRuntimeEventEnvelope(
+				{
+					errorCode: input.errorCode,
+					eventType: "request.stage_timing",
+					principalType: input.principalType,
+					requestId: input.requestId,
+					requestedTool: input.requestedTool,
+					requestedScope: input.requestedScope,
+					selectedTool: input.selectedTool,
+					status: input.status,
+					surface: input.surface,
+					traceId: input.traceId,
+				},
+				input.telemetryMetadata,
+			),
+		});
+	}
+}
 
 export function createAppTelemetry(
 	env: Pick<
 		Env,
 		| "APP_API_ENVIRONMENT"
-		| "AXIOM_DATASET"
-		| "AXIOM_ENDPOINT"
-		| "AXIOM_TOKEN"
+		| "APP_API_NAME"
+		| "APP_API_OTEL_INGEST_ENDPOINT"
+		| "APP_API_OTEL_INGEST_SHARED_SECRET"
 		| "SENTRY_ENVIRONMENT"
 		| "SENTRY_RELEASE"
 	>,
 	input: {
-		axiomSink?: AxiomRuntimeEventSink;
+		runtimeEventSink?: RuntimeEventSink;
 		now?: () => Date;
 		traceDataProvider?: () => TraceDataLike | null | undefined;
 	} = {},
 ): AppTelemetry {
-	const axiomSink = input.axiomSink ?? createAxiomRuntimeEventSink(env);
+	const runtimeEventSink = input.runtimeEventSink ?? createOtlpRuntimeEventSink(env);
 	const now = input.now ?? (() => new Date());
 	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {
@@ -66,7 +118,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: "accepted",
 					surface: input.surface,
@@ -109,73 +161,99 @@ export function createAppTelemetry(
 		},
 
 		async recordExecutionAuditEvent(input) {
-			await axiomSink.emit({
-				bridge_duration_ms: input.bridgeDurationMs,
-				decision: input.decision,
-				duration_ms: input.durationMs,
-				failure_kind: input.failureKind,
-				http_status: input.httpStatus,
-				lane: input.lane,
-				queue_wait_ms: input.queueWaitMs,
-				retryable: input.retryable,
-				...buildAxiomEnvelope(
-					{
-						eventType: input.eventType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						status: input.status,
-						surface: input.surface,
-						traceId: input.traceId,
-					},
-					telemetryMetadata,
-				),
-			});
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					activity_duration_ms: input.activityDurationMs,
+					decision: input.decision,
+					duration_ms: input.durationMs,
+					failure_kind: input.failureKind,
+					http_status: input.httpStatus,
+					task_queue: input.taskQueue,
+					queue_wait_ms: input.queueWaitMs,
+					retryable: input.retryable,
+					...buildRuntimeEventEnvelope(
+						{
+							eventType: input.eventType,
+							requestId: input.requestId,
+							requestedTool: input.requestedTool,
+							status: input.status,
+							surface: input.surface,
+							traceId: input.traceId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
+		},
+
+		async recordIdentityEndpoint(input) {
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					correlation_id: input.correlationId,
+					endpoint: input.endpoint,
+					...buildRuntimeEventEnvelope(
+						{
+							errorCode: input.errorCode,
+							eventType: "identity.endpoint",
+							principalType: input.principalType,
+							status: String(input.status),
+							surface: input.surface,
+							traceId: input.correlationId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
 		},
 
 		async recordProjectionDrain(input) {
-			await axiomSink.emit({
-				abandoned_count: input.abandoned ?? 0,
-				failed_count: input.failed,
-				processed_count: input.processed,
-				projector_last_error_code: input.projectorLastErrorCode ?? null,
-				projector_name: input.projector,
-				...buildAxiomEnvelope(
-					{
-						errorCode: input.projectorLastErrorCode ?? null,
-						eventType: "projection.drain",
-						surface: input.surface,
-					},
-					telemetryMetadata,
-				),
-			});
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					abandoned_count: input.abandoned ?? 0,
+					failed_count: input.failed,
+					processed_count: input.processed,
+					projector_last_error_code: input.projectorLastErrorCode ?? null,
+					projector_name: input.projector,
+					...buildRuntimeEventEnvelope(
+						{
+							errorCode: input.projectorLastErrorCode ?? null,
+							eventType: "projection.drain",
+							surface: input.surface,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
 		},
 
 		async recordProjectionEnqueued(input) {
-			await axiomSink.emit({
-				conversation_id: input.conversationId,
-				projection_stage: input.projectionStage,
-				resolved_scope_summary: toScopeSummary(input.resolvedScope),
-				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
-					{
-						eventType: "projection.enqueued",
-						principalType: input.principalType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						requestedScope: input.requestedScope,
-						surface: input.surface,
-						traceId: input.traceId,
-					},
-					telemetryMetadata,
-				),
-			});
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					conversation_id: input.conversationId,
+					projection_stage: input.projectionStage,
+					resolved_scope_summary: toScopeSummary(input.resolvedScope),
+					safety_identifier: input.safetyIdentifier ?? null,
+					...buildRuntimeEventEnvelope(
+						{
+							eventType: "projection.enqueued",
+							principalType: input.principalType,
+							requestId: input.requestId,
+							requestedTool: input.requestedTool,
+							requestedScope: input.requestedScope,
+							surface: input.surface,
+							traceId: input.traceId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
 		},
 
 		async recordRequestAccepted(input) {
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: input.status,
 					surface: input.surface,
@@ -189,24 +267,26 @@ export function createAppTelemetry(
 				});
 			});
 
-			await axiomSink.emit({
-				actor_id_hash: hashIdentifier(input.actor.subject),
-				conversation_id: input.conversationId,
-				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
-					{
-						eventType: "request.accepted",
-						principalType: input.actor.principalType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						requestedScope: input.requestedScope,
-						status: input.status,
-						surface: input.surface,
-						traceId: input.traceId,
-					},
-					telemetryMetadata,
-				),
-			});
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					actor_id_hash: hashIdentifier(input.actor.subject),
+					conversation_id: input.conversationId,
+					safety_identifier: input.safetyIdentifier ?? null,
+					...buildRuntimeEventEnvelope(
+						{
+							eventType: "request.accepted",
+							principalType: input.actor.principalType,
+							requestId: input.requestId,
+							requestedTool: input.requestedTool,
+							requestedScope: input.requestedScope,
+							status: input.status,
+							surface: input.surface,
+							traceId: input.traceId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
 		},
 
 		async recordRequestFinalized(input) {
@@ -214,9 +294,9 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
-					selectedTarget: input.selectedTarget,
+					selectedTool: input.selectedTool,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -227,34 +307,52 @@ export function createAppTelemetry(
 					requestedScope: input.requestedScope,
 					resolvedScope: input.resolvedScope,
 					safetyIdentifier: input.safetyIdentifier,
-					selectedTarget: input.selectedTarget,
+					selectedTool: input.selectedTool,
 				});
 			});
 
-			await axiomSink.emit({
-				conversation_id: input.conversationId,
-				duration_ms: input.durationMs,
-				resolved_scope_summary: toScopeSummary(input.resolvedScope),
-				retryable: input.retryable,
-				safety_identifier: input.safetyIdentifier ?? null,
-				source_doc_ids_count: input.sourceDocIds.length,
-				source_doc_ids_summary: toSourceDocIdsSummary(input.sourceDocIds),
-				...buildAxiomEnvelope(
-					{
-						errorCode: input.errorCode,
-						eventType: "request.finalized",
-						principalType: input.principalType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						requestedScope: input.requestedScope,
-						selectedTarget: input.selectedTarget,
-						status: input.status,
-						surface: input.surface,
-						traceId: input.traceId,
-					},
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					conversation_id: input.conversationId,
+					duration_ms: input.durationMs,
+					resolved_scope_summary: toScopeSummary(input.resolvedScope),
+					retryable: input.retryable,
+					safety_identifier: input.safetyIdentifier ?? null,
+					source_doc_ids_count: input.sourceDocIds.length,
+					source_doc_ids_summary: toSourceDocIdsSummary(input.sourceDocIds),
+					...buildRuntimeEventEnvelope(
+						{
+							errorCode: input.errorCode,
+							eventType: "request.finalized",
+							principalType: input.principalType,
+							requestId: input.requestId,
+							requestedTool: input.requestedTool,
+							requestedScope: input.requestedScope,
+							selectedTool: input.selectedTool,
+							status: input.status,
+							surface: input.surface,
+							traceId: input.traceId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				emitStageTimingEvents({
+					errorCode: input.errorCode,
+					principalType: input.principalType,
+					requestId: input.requestId,
+					requestedScope: input.requestedScope,
+					requestedTool: input.requestedTool,
+					runtimeEventSink,
+					selectedTool: input.selectedTool,
+					stageTiming: input.stageTiming,
+					status: input.status,
+					surface: input.surface,
 					telemetryMetadata,
-				),
-			});
+					traceId: input.traceId,
+				}),
+			);
 		},
 
 		async recordRequestTransportError(input) {
@@ -262,7 +360,7 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: "error",
 					surface: input.surface,
@@ -276,55 +374,27 @@ export function createAppTelemetry(
 				});
 			});
 
-			await axiomSink.emit({
-				conversation_id: input.conversationId,
-				retryable: input.retryable,
-				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
-					{
-						errorCode: input.errorCode,
-						eventType: "request.transport_error",
-						principalType: input.principalType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						requestedScope: input.requestedScope,
-						status: "error",
-						surface: input.surface,
-						traceId: input.traceId,
-					},
-					telemetryMetadata,
-				),
-			});
-		},
-
-		async recordQualitySampledGrade(input) {
-			await axiomSink.emit({
-				collection: input.collection,
-				grade_domain: input.gradeDomain,
-				grade_id: input.gradeId,
-				grade_source: input.gradeSource,
-				grader_version: input.graderVersion,
-				model_name: input.modelName,
-				rationale_summary: input.rationaleSummary,
-				request_started_at: input.requestStartedAt,
-				sampled_at: input.sampledAt,
-				score_milli: input.scoreMilli,
-				verdict: input.verdict,
-				...buildAxiomEnvelope(
-					{
-						eventType: "quality.sampled_grade",
-						occurredAt: input.sampledAt,
-						principalType: input.principalType,
-						requestId: input.requestId,
-						requestedCapability: input.requestedCapability,
-						requestedScopeSummary: input.requestedScopeSummary,
-						selectedTarget: input.selectedTarget,
-						surface: input.surface,
-						traceId: input.traceId,
-					},
-					telemetryMetadata,
-				),
-			});
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					conversation_id: input.conversationId,
+					retryable: input.retryable,
+					safety_identifier: input.safetyIdentifier ?? null,
+					...buildRuntimeEventEnvelope(
+						{
+							errorCode: input.errorCode,
+							eventType: "request.transport_error",
+							principalType: input.principalType,
+							requestId: input.requestId,
+							requestedTool: input.requestedTool,
+							requestedScope: input.requestedScope,
+							status: "error",
+							surface: input.surface,
+							traceId: input.traceId,
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
 		},
 	};
 }

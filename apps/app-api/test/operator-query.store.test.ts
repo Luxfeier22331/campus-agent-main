@@ -14,12 +14,9 @@ vi.mock("../src/db/runtime", () => ({
 
 import { encodeBase64UrlJson } from "../src/base64url";
 import { createPgOperatorQueryStore } from "../src/modules/operator-query/store";
-import { summarizeSafetyAnomaly } from "../src/modules/operator-query/store/safety";
 import { registerOperatorQueryStoreCursorsSuite } from "./operator-query.store.cursors.suite";
-import { registerOperatorQueryStoreEvalCandidateReviewSuite } from "./operator-query.store.eval-candidate-review.suite";
-import { registerOperatorQueryStoreObservabilitySuite } from "./operator-query.store.observability.suite";
 import { registerOperatorQueryStoreOverviewSuite } from "./operator-query.store.overview.suite";
-import { registerOperatorQueryStoreQualitySuite } from "./operator-query.store.quality.suite";
+import { registerOperatorQueryStoreRequestDetailSuite } from "./operator-query.store.request-detail.suite";
 import type { OperatorQueryStoreSuiteContext } from "./operator-query.store.suite-context";
 
 function resetOperatorQueryStoreMocks(): void {
@@ -34,12 +31,9 @@ describe("pg operator query store", () => {
 		createRuntimeDatabase,
 		encodeBase64UrlJson,
 		resetOperatorQueryStoreMocks,
-		summarizeSafetyAnomaly,
 	} satisfies OperatorQueryStoreSuiteContext;
 
-	registerOperatorQueryStoreObservabilitySuite(ctx);
 	registerOperatorQueryStoreOverviewSuite(ctx);
 	registerOperatorQueryStoreCursorsSuite(ctx);
-	registerOperatorQueryStoreQualitySuite(ctx);
-	registerOperatorQueryStoreEvalCandidateReviewSuite(ctx);
+	registerOperatorQueryStoreRequestDetailSuite(ctx);
 });

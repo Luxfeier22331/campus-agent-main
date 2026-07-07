@@ -1,11 +1,9 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import { AppApiRouteError, errorEnvelope, jsonResponse } from "../../http";
+import { errorEnvelope, jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
-import type { DocsVersionMode } from "../../modules/docs";
 import { principalResolutionErrorResponse, resolvePrincipalForScope } from "../principal";
-import { parseLimit } from "../request-utils";
 import type { AppDocsReadinessResult, AppRequestScope } from "../types";
 
 export function registerDocsRoutes(input: {
@@ -58,30 +56,6 @@ export function registerDocsRoutes(input: {
 				collection: c.req.param("collection"),
 				corpus: c.req.param("corpus"),
 				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/docs/collections/:corpus/:collection/search", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await resolveOptionalPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveDocsService().search({
-				collection: c.req.param("collection"),
-				corpus: c.req.param("corpus"),
-				limit: parseLimit(c.req.query("limit")),
-				principal: resolved.principal,
-				query: requireNonEmptyQuery(c.req.query("q"), "q"),
-				versionMode: parseVersionMode(c.req.query("versionMode")),
 			}),
 		);
 	});
@@ -231,34 +205,4 @@ function parseHighlightRootUnitIds(value: string | null | undefined): string[] {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
-}
-
-function parseVersionMode(value: string | null | undefined): DocsVersionMode {
-	const normalized = normalizeOptionalString(value) ?? "current";
-	if (normalized === "current") {
-		return normalized;
-	}
-
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field: "versionMode" },
-		message: "versionMode must be current.",
-		retryable: false,
-		status: 400,
-	});
-}
-
-function requireNonEmptyQuery(value: string | null | undefined, field: string): string {
-	const normalized = normalizeOptionalString(value);
-	if (normalized) {
-		return normalized;
-	}
-
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field },
-		message: `${field} is required.`,
-		retryable: false,
-		status: 400,
-	});
 }

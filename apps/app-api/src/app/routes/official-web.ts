@@ -2,14 +2,9 @@ import type { Hono } from "hono";
 
 import type { Env } from "../../config";
 import { jsonResponse } from "../../http";
-import {
-	type ResolvedAppPrincipal,
-	resolveOfficialWebCollectorPrincipal,
-} from "../../modules/auth";
-import type { OfficialWebPlannerService } from "../../modules/official-web-planner";
+import type { ResolvedAppPrincipal } from "../../modules/auth";
 import { requireOperatorPrincipal } from "../principal";
 import { parseLimit, readJsonRequestBody } from "../request-utils";
-import { serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
 export function registerOfficialWebRoutes(input: {
@@ -21,69 +16,7 @@ export function registerOfficialWebRoutes(input: {
 		env: Env,
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
-	officialWebPlannerService: OfficialWebPlannerService;
 }) {
-	input.app.post("/api/official-web/runs", async (c) => {
-		const scope = input.createRequestScope();
-		const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, input.env);
-		if (!principal) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const response = await scope.resolveOfficialWebCommandService().start({
-			payload: await readJsonRequestBody(c.req.raw),
-			principal,
-		});
-
-		return jsonResponse(response);
-	});
-
-	input.app.post("/api/official-web/runs/:runId/heartbeats", async (c) => {
-		const scope = input.createRequestScope();
-		const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, input.env);
-		if (!principal) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const response = await scope.resolveOfficialWebCommandService().heartbeat({
-			payload: await readJsonRequestBody(c.req.raw),
-			principal,
-			runId: c.req.param("runId"),
-		});
-
-		return jsonResponse(response);
-	});
-
-	input.app.post("/api/official-web/runs/:runId/finalize", async (c) => {
-		const scope = input.createRequestScope();
-		const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, input.env);
-		if (!principal) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const response = await scope.resolveOfficialWebCommandService().finalize({
-			payload: await readJsonRequestBody(c.req.raw),
-			principal,
-			runId: c.req.param("runId"),
-		});
-
-		return jsonResponse(response);
-	});
-
-	input.app.post("/api/official-web/plans:resolve", async (c) => {
-		const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, input.env);
-		if (!principal) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await input.officialWebPlannerService.resolve({
-				payload: await readJsonRequestBody(c.req.raw),
-				principal,
-			}),
-		);
-	});
-
 	input.app.get("/api/operator/official-web/sites", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

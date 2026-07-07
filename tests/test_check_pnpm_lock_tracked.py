@@ -12,11 +12,13 @@ try:
         build_root_pnpm_lock_check_command,
         main,
         tracked_pnpm_lock_files,
+        validate_app_manifest_has_no_workspace_dependencies,
     )
 except ModuleNotFoundError:  # pragma: no cover - red phase for TDD
     app_package_manifest_for_lockfile = None
     build_app_pnpm_lock_check_command = None
     build_root_pnpm_lock_check_command = None
+    validate_app_manifest_has_no_workspace_dependencies = None
     main = None
     tracked_pnpm_lock_files = None
 
@@ -94,6 +96,20 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
                 repo_root / "tmp/missing/pnpm-lock.yaml", root=repo_root
             )
 
+    def test_app_local_lockfile_rejects_workspace_protocol_dependencies(self) -> None:
+        self.assertIsNotNone(validate_app_manifest_has_no_workspace_dependencies)
+        repo_root = Path(__file__).resolve().parents[1]
+        with self.assertRaisesRegex(ValueError, "workspace protocol"):
+            validate_app_manifest_has_no_workspace_dependencies(
+                {
+                    "dependencies": {
+                        "@campus-agent/dining": "workspace:*",
+                    }
+                },
+                repo_root / "apps/app-api/package.json",
+                root=repo_root,
+            )
+
     @patch("scripts.check_pnpm_lock_tracked.subprocess.run")
     def test_main_runs_root_and_app_local_checks(
         self, run_mock: subprocess.CompletedProcess[str]
@@ -105,11 +121,9 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / "pnpm-lock.yaml",
                 repo_root / "apps/app-api/pnpm-lock.yaml",
-                repo_root / "apps/protected-panel-web/pnpm-lock.yaml",
             ),
         ):
             run_mock.side_effect = [
-                subprocess.CompletedProcess(args=["pnpm"], returncode=0),
                 subprocess.CompletedProcess(args=["pnpm"], returncode=0),
                 subprocess.CompletedProcess(args=["pnpm"], returncode=0),
             ]
@@ -123,12 +137,5 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
             command_calls[1],
             build_app_pnpm_lock_check_command(
                 repo_root / "apps/app-api/pnpm-lock.yaml", root=repo_root
-            ),
-        )
-        self.assertEqual(
-            command_calls[2],
-            build_app_pnpm_lock_check_command(
-                repo_root / "apps/protected-panel-web/pnpm-lock.yaml",
-                root=repo_root,
             ),
         )

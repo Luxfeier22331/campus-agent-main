@@ -1,10 +1,17 @@
 ---
 doc_type: policy
+truth_scope: ops
+owner_boundary: domains/regulations
 status: active
 created: 2026-03-28
-updated: 2026-04-20
+updated: 2026-06-27
 ---
 # Student Handbook Judge Gate Policy
+
+> Historical note: the self-built judge gate policy/rubric fixtures were removed
+> from the active `packages/eval-langfuse` package. Current RAG scoring should
+> use Langfuse traces / datasets with Ragas, or an explicitly admitted mature
+> benchmark adapter.
 
 ## 目的
 
@@ -20,23 +27,10 @@ artifact 解释规则。
 
 ## Canonical Policy Source
 
-repo-tracked policy fixture：
-
-- [`packages/evals/fixtures/student_handbook_judge_gate_policy.json`](/home/rept
-  ilian/code/campus-agent/packages/evals/fixtures/student_handbook_judge_gate_po
-  licy.json)
-- [`packages/evals/fixtures/student_handbook_judge_rubrics.json`](/home/reptilia
-  n/code/campus-agent/packages/evals/fixtures/student_handbook_judge_rubrics.jso
-  n)
-
-代码读取入口：
-
-- [`packages/evals/src/campus_evals/judge_gate.py`](/home/reptilian/code/campus-
-  agent/packages/evals/src/campus_evals/judge_gate.py)
-- [`packages/evals/src/campus_evals/judge_adapters.py`](/home/reptilian/code/cam
-  pus-agent/packages/evals/src/campus_evals/judge_adapters.py)
-- [`packages/evals/src/campus_evals/formal_benchmark.py`](/home/reptilian/code/c
-  ampus-agent/packages/evals/src/campus_evals/formal_benchmark.py)
+旧 Python judge gate / adapter / formal benchmark entrypoints 已退役。旧
+repo-tracked policy fixture 也已删除；后续 judge/RAGAS scoring 必须通过
+`packages/eval-langfuse` 与 `packages/ragas-runner` 的窄执行边界，或通过明确
+admitted 的成熟 benchmark adapter 恢复。
 
 ## Policy Shape
 
@@ -142,9 +136,9 @@ judge / ragas runtime 的 HTTP tuning 由 repo-tracked live benchmark profile co
 - requests per minute / min interval
 - keep-alive expiry
 - max connections / max keepalive connections
-- `RAGAS_REASONING_EFFORT`
-- `RAGAS_TEXT_VERBOSITY`
-- `RAGAS_MAX_OUTPUT_TOKENS`
+- reasoning effort
+- text verbosity
+- max output tokens
 
 request pacing 语义固定为：
 
@@ -213,9 +207,7 @@ repair rerun 只允许针对 transient infra failure：
 
 ## Relation To Other Docs
 
-- deterministic retrieval / workflow / error gate 指标见 [`student-handbook-eval-me
-  trics.md`](/home/reptilian/code/campus-agent/docs/reference/student-handbook-e
-  val-metrics.md)
-- live rebuild 与 handbook serving collection 验收见 [`student-handbook-hybrid-rebui
-  ld-checklist.md`](/home/reptilian/code/campus-agent/docs/runbooks/student-hand
-  book-hybrid-rebuild-checklist.md)
+- deterministic retrieval / workflow / error gate 指标见
+  [`student-handbook-eval-metrics.md`](../reference/student-handbook-eval-metrics.md)
+- live rebuild 与 handbook serving collection 验收见
+  [`rag-release.md`](../runbooks/rag-release.md)

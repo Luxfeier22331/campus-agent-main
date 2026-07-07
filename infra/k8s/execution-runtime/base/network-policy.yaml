@@ -1,0 +1,77 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-default-deny
+  namespace: campus-agent-staging
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-namespace-traffic
+  namespace: campus-agent-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: campus-agent
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: campus-agent
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: campus-agent
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-platform-egress
+  namespace: campus-agent-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: campus-agent
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-temporal-keda-ingress
+  namespace: campus-agent-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: temporal
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+      ports:
+        - protocol: TCP
+          port: 7233

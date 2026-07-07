@@ -5,6 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	createTelemetryMock,
 	expectNoInternalLocators,
@@ -21,34 +22,34 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: clarificationConversationStore.store,
 			store: clarificationStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: null,
 					followUpQuestion: "你要问哪个校区？",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "needs_clarification",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 		const noAnswerService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: noAnswerConversationStore.store,
 			store: noAnswerStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "当前没有足够依据回答这个问题。",
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "no_answer",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		const clarification = await clarificationService.submit({
@@ -70,7 +71,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "clarification",
 			requestId: "req_0001",
 			text: "你要问哪个校区？",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -84,7 +85,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "no_answer",
 			requestId: "req_0001",
 			text: "当前没有足够依据回答这个问题。",
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -106,7 +107,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: clarificationStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "请说明班车方向。当前可查询：丰台至海淀通勤班车、海淀至丰台通勤班车。",
 					error: null,
@@ -122,66 +123,66 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							outcome: "clarification_required",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedTool: "transport_schedule_lookup",
 					status: "needs_clarification",
-					traceId: "trace_guardrail_01",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 		const noAnswerService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: noAnswerStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
-					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认招生办联系方式。",
+					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认班车临时变更。",
 					error: null,
 					followUpQuestion: "",
 					result: {
-						payload_kind: "contact_directory_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							fail_close_reason: "source_conflict",
 							outcome: "temporarily_unverifiable",
-							query_text: "招生办联系方式",
+							query_text: "班车临时变更",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedTool: "transport_schedule_lookup",
 					status: "no_answer",
-					traceId: "trace_guardrail_02",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 		const approvalService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: approvalStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
 					error: null,
 					followUpQuestion: "",
 					result: {
-						payload_kind: "service_guide_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							outcome: "resolved_current",
-							service_query: "地铁接驳车预约",
+							query_text: "地铁接驳车预约",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedTool: "transport_schedule_lookup",
 					status: "approval_required",
-					traceId: "trace_guardrail_03",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 		const rejectedService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: rejectedStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
@@ -191,17 +192,17 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					followUpQuestion: "",
 					result: {
-						payload_kind: "contact_directory_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							outcome: "resolved_current",
 							query_text: "招生办电话",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedTool: "transport_schedule_lookup",
 					status: "rejected",
-					traceId: "trace_guardrail_04",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		const clarification = await clarificationService.submit({
@@ -214,7 +215,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		const noAnswer = await noAnswerService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "招生办联系方式",
+				prompt: "班车临时变更",
 			},
 			principal: createPrincipal(),
 		});
@@ -242,7 +243,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expectNoInternalLocators(clarification.answer.result.text);
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				status: "needs_clarification",
 			},
 		});
@@ -253,11 +254,11 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(noAnswer.answer.result.text).toContain("为避免误导");
 		expect(noAnswer.answer.result.text).toContain("来源信息存在冲突");
-		expect(noAnswer.answer.result.text).toContain("招生办联系方式");
+		expect(noAnswer.answer.result.text).toContain("班车临时变更");
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				status: "no_answer",
 			},
 		});
@@ -269,7 +270,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(approval.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				status: "approval_required",
 			},
 		});
@@ -282,7 +283,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "request_rejected",
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				status: "rejected",
 			},
 		});
@@ -298,17 +299,17 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: approvalStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: null,
+					selectedTool: null,
 					status: "approval_required",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 			telemetry: approvalTelemetry,
 		});
 		const rejectedService = buildChatCommandService({
@@ -316,21 +317,21 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: rejectedStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
 						code: "request_rejected",
-						message: "request was rejected by supervisor policy",
+						message: "request was rejected by execution policy",
 						retryable: false,
 					},
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: null,
+					selectedTool: null,
 					status: "rejected",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 			telemetry: rejectedTelemetry,
 		});
 
@@ -355,31 +356,31 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			message: "该请求涉及需要人工确认的操作，必须先经过审批。",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
 				eventType: "request.approval_required",
 			},
 			requestExecution: {
-				selectedTarget: null,
+				selectedTool: null,
 				status: "approval_required",
 			},
 		});
 		expect(approvalTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTarget: null,
+				selectedTool: null,
 				status: "approval_required",
 			}),
 		);
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",
-			message: "request was rejected by supervisor policy",
+			message: "request was rejected by execution policy",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0002",
+			traceId: "trace_0001",
 		});
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			outboxEvent: {
@@ -387,14 +388,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			},
 			requestExecution: {
 				errorCode: "request_rejected",
-				selectedTarget: null,
+				selectedTool: null,
 				status: "rejected",
 			},
 		});
 		expect(rejectedTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTarget: null,
+				selectedTool: null,
 				status: "rejected",
 			}),
 		);

@@ -48,13 +48,31 @@ export function loadSnapshot(entryOrTag) {
 	return JSON.parse(fs.readFileSync(resolveSnapshotPath(entryOrTag), "utf8"));
 }
 
-function splitMigrationStatements(statement) {
+export function splitMigrationStatements(statement) {
 	return statement
 		.trim()
-		.split(/;\s*(?=(?:ALTER|CREATE|DROP)\b|$)/i)
+		.split(/;\s*(?=(?:ALTER|CREATE|DROP|INSERT|UPDATE|DELETE)\b|$)/i)
 		.map((item) => item.trim())
 		.filter(Boolean)
-		.map((item) => (item.endsWith(";") ? item : `${item};`));
+		.map((item) => (item.endsWith(";") ? item : `${item};`))
+		.flatMap(expandMultiClauseAlterTableStatement);
+}
+
+function expandMultiClauseAlterTableStatement(statement) {
+	const match = statement.match(/^(ALTER TABLE "[^"]+"\."[^"]+")\s+([\s\S]+?);?$/i);
+	if (!match) {
+		return [statement];
+	}
+
+	const clauses = match[2]
+		.split(/,\s*(?=(?:ADD\s+COLUMN|ALTER\s+COLUMN|DROP\s+COLUMN)\b)/i)
+		.map((item) => item.trim())
+		.filter(Boolean);
+	if (clauses.length <= 1) {
+		return [statement];
+	}
+
+	return clauses.map((clause) => `${match[1]}\n${clause.replace(/;$/u, "")};`);
 }
 
 export function loadMigrationContext() {

@@ -1,17 +1,19 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: apps/execution-control
 status: active
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-07-06
 ---
-
-<!-- markdownlint-disable MD013 -->
-
 # Runtime OTel Telemetry Taxonomy
 
-This document freezes the repo-owned telemetry taxonomy for the runtime OTel bridge workstream.
-It defines where OTel SDKs are allowed, which runtime owns each signal, which attributes are
-allowed, and which fields must never be sent to telemetry sinks.
+## Boundary
+
+This document freezes the repo-owned telemetry taxonomy for the runtime OTel
+bridge. It defines where OTel SDKs are allowed, which runtime owns each signal,
+which attributes are allowed, and which fields must never be sent to telemetry
+sinks.
 
 ## External Baseline
 
@@ -35,39 +37,65 @@ This taxonomy follows the OpenTelemetry direction that:
 
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
-| `apps/supervisor-api` | yes | Online trace owner for request admission, orchestration, bridge transport, tool/runtime dispatch, finalization, error and telemetry self-health |
-| `apps/supervisor-agent-worker` | yes, or runtime event bridge | Bridge `retrieval.runtime_observation` and agent execution events into sanitized OTel-compatible logs/events/spans |
-| `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
-| `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
-| `packages/retrieval-core` | no | Vendor-neutral `RetrievalObservationSink` only |
-| `packages/rag-agent` | no | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency |
-| `packages/ingestion-core` | no by default | Business/data-plane logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
+| `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
+| `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
+| `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
+| Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
+| Knowledge / RAG runtime | runtime adapter only | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency in contracts |
+| `packages/ingest-core` | no by default | Runtime-neutral ingestion helper logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
-| OTel Collector / equivalent adapter | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
-| Sentry | sink only | Error, trace and performance debugging |
-| Axiom | sink only | High-volume structured runtime events, retrieval/ingestion analysis and quality slicing |
+| Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
+| OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
+| Sentry | sink only | Error, trace and performance debugging; not an Operator Console database |
+| Axiom | sink only | Runtime logs/events, query dashboards and trend analysis through Collector exporter; not an app-api dashboard cache |
+| Langfuse | sink/platform only | LLM traces, controlled debug observations, datasets, scores and review workflows; not an app-api score or trace store |
 
 ## Signal Taxonomy
 
 Event names are low-cardinality and stable. Dynamic identifiers belong in attributes only when
 explicitly allowed below.
 
+Runtime observability has three data classes:
+
+- `safe telemetry`: sanitized OTel/log/metric/event data, repo observations,
+  stage timing and sink correlation. This is the default class for app-api,
+  Operator Console, Sentry, Axiom and Langfuse repo observations.
+- `restricted raw debug trace`: model/tool/provider trace detail admitted by
+  request-scoped `raw_capture_policy.v1` and sent only to controlled debug
+  sinks.
+- `replay artifact`: `llm_replay_packet.v1` raw or near-raw packet stored in
+  encrypted S3-compatible object storage with index, TTL, checksum, access
+  audit and deletion linkage.
+
+Metrics, log labels, repo-owned OTel attributes and Operator projections use
+safe telemetry only. Restricted raw trace and replay artifact bodies are never
+metric labels or app-api projection payloads.
+
+Replay-related safe telemetry may reference prompt registry attestation,
+primary attestation, tool runtime attestation, provider request safe hash, model
+params projection, evidence replay index refs, replay retention refs and access
+audit refs as metadata. These refs identify controlled artifacts and decisions;
+they do not authorize raw replay packet body export through telemetry.
+
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
-| `runtime.request.accepted` | `apps/supervisor-api`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
-| `runtime.request.finalized` | `apps/supervisor-api`, `apps/app-api` | Request terminal status, selected target/tool, duration, source count summary, fail-close reason |
-| `runtime.request.transport_error` | `apps/app-api` | Product entry to supervisor transport failure |
-| `agent.bridge.started` | `apps/supervisor-api` | Worker bridge call admitted with lane, timeout and request correlation |
-| `agent.bridge.completed` | `apps/supervisor-api` | Worker bridge terminal outcome, duration, queue wait, retry/cancel status |
-| `agent.bridge.failed` | `apps/supervisor-api` | Worker bridge failure code, retryability and circuit-breaker decision |
-| `agent.tool.dispatched` | `apps/supervisor-api` / worker | Tool call selected by allowed runtime policy |
-| `agent.tool.completed` | `apps/supervisor-api` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/supervisor-agent-worker` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
-| `ingestion.run.started` | `apps/ingestion-worker` | Offline ingestion/index run start with run id, source family, surface and collection |
-| `ingestion.run.completed` | `apps/ingestion-worker` | Run count summary, duration, cost estimate, release id and audit result |
-| `ingestion.run.failed` | `apps/ingestion-worker` | Run failure kind, stage and retryability |
-| `index.release.audit` | `apps/ingestion-worker` | Payload index, manifest, point payload and release guard audit result |
-| `index.release.publish` | `apps/ingestion-worker` | Alias/current pointer publish attempt and result |
+| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, legacy tool hint, scope summary, trace/request correlation |
+| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
+| `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control machine ingress transport failure |
+| `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
+| `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
+| `agent.bridge.failed` | `apps/execution-control` | Historical/offline bridge failure code, retryability and circuit-breaker decision |
+| `execution.activity.started` | `apps/execution-control` / Go activity worker | Temporal activity attempt started with task queue, worker identity and request correlation |
+| `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token/cost and cancel/timeout outcome |
+| `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
+| `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
+| `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
+| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `ingestion.run.started` | `apps/ingestion-control` | Offline ingestion/index run start with run id, source family, surface and collection |
+| `ingestion.run.completed` | `apps/ingestion-control` | Run count summary, duration, cost estimate, release id and audit result |
+| `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
+| `index.release.audit` | `apps/ingestion-control` | Payload index, manifest, point payload and release guard audit result |
+| `index.release.publish` | `apps/ingestion-control` | Alias/current pointer publish attempt and result |
 | `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; configured product answer paths fail closed |
 | `telemetry.export.dropped` | runtime / adapter | Explicitly sampled telemetry count |
 
@@ -97,10 +125,9 @@ explicitly allowed below.
 
 - `surface`
 - `lane`
-- `requested_capability`
+- `requested_tool`
 - `requested_scope`
 - `requested_scope_summary`
-- `selected_target`
 - `selected_tool`
 - `status`
 - `outcome`
@@ -113,6 +140,25 @@ explicitly allowed below.
 - `retryable`
 - `http_status`
 - `sample_ratio`
+
+### LLM Replay Safe Attributes
+
+- `llm.call_site`
+- `llm.provider`
+- `llm.model`
+- `llm.prompt_id`
+- `llm.prompt_registry_version`
+- `llm.prompt_template_sha256`
+- `llm.rendered_prompt_sha256`
+- `llm.model_params_hash`
+- `llm.provider_request_safe_hash`
+- `llm.tool_runtime_combined_sha256`
+- `llm.primary_attestation_kind`
+- `replay.packet_id`
+- `replay.packet_index_ref`
+- `replay.retention_class`
+- `replay.access_audit_ref`
+- `replay.evidence_ref_count`
 
 ### Retrieval Attributes
 
@@ -195,8 +241,8 @@ small bounded count for debugging sinks. They must not be promoted to metric lab
 
 ## Forbidden Fields
 
-The following must not be sent to OTel attributes, event bodies, Sentry contexts or Axiom events by
-default:
+The following must not be sent to repo-owned runtime OTel attributes, event
+bodies, Sentry contexts or Axiom events by default:
 
 - raw prompt
 - raw query text
@@ -218,16 +264,80 @@ default:
 - provider secret
 - phone number, email, student id or national id in clear text
 - full exporter endpoint URL if it contains credentials or query tokens
+- provider request safe-hash canonicalization input
+- model params projection input before allowlist filtering
+- replay retention deletion subject in clear text
+- replay access-audit body
 
-Any temporary debug override must be explicit, bounded, documented, disabled by default and excluded
-from production sink configuration.
+Any temporary debug override must be explicit, bounded, documented, disabled by
+default and excluded from safe telemetry projections.
+
+Controlled debug trace and replay artifact lanes are the only allowed exception
+for raw or near-raw model input/output. They are defined by
+`../contracts/langfuse-runtime.md` and `../contracts/replay-capture.md`, and must
+be admitted by request-scoped `raw_capture_policy.v1`. The exception never
+applies to app-api runtime events, Operator Console read models, Temporal
+metadata, repo-owned run/step projections, score metadata or metrics labels.
+Secrets, credentials, auth material, cookies, JWTs, database URLs,
+object-store secrets and raw Hindsight refs remain forbidden in every lane.
+
+Current LLM debug trace implementation exports only to Langfuse OTLP when an
+app-api-owned operator config is projected through execution-control and passed
+request-scoped to agent-runtime. Agent-runtime does not own environment
+variables for this behavior. The repo-owned projection surface may carry only
+safe `debug_trace_refs`, `stage_timing.v1` fields, replay packet metadata, safe
+replay index refs and replay attestation metadata defined in
+`../contracts/stage-timing.md` and `../contracts/replay-capture.md`; raw OTLP
+bodies, SDK trace payloads and replay packet bodies stay in their controlled
+sink/artifact lanes.
+
+## Stage Timing Projection
+
+`stage_timing.v1` is the repo-owned request latency projection. It is not an
+OTel schema, Langfuse trace body, SDK trace payload or Temporal history shape.
+
+Allowed timing fields are fixed by `../contracts/stage-timing.md`. Runtime
+adapters and Collector/backend aggregation may derive low-cardinality latency
+histograms from those fields, using the field name as a bounded stage label.
+They must not derive metric labels from request ids, user ids, raw URLs, raw
+errors, arbitrary tool names or vendor span names.
+
+Provider-internal queue timing is not a required repo-owned field. If an
+external sink exposes provider queue detail, it remains debug-sink detail unless
+an explicit contract admits a safe projection.
+
+App-api emits `request.stage_timing` as the bounded runtime event for this
+projection. Each event may contain only:
+
+- `stage_field`: canonical `stage_timing.v1` field
+- `duration_ms`: finite non-negative duration
+- `budget_state`: `within_budget`, `warn` or `critical`
+- normal request correlation fields admitted by the runtime event sanitizer
+
+The event must not carry raw SDK spans, provider queue internals, raw model IO,
+raw retrieval snippets or Temporal history.
+
+The app-api OTLP adapter also emits `campus.app_api.stage_duration_ms` for
+`request.stage_timing`. Its metric attributes are limited to `stage_field`,
+`surface`, `status`, `selected_tool` and `budget_state`; request ids and trace
+ids remain trace/log correlation fields, not metric labels.
 
 ## Metrics Derived From Events
 
 Runtime adapters or Collector/backend aggregation may derive these low-cardinality metrics:
 
-- request count by surface/capability/status
+- request count by surface/tool/status
 - request latency histogram
+- stage timing histogram by `stage_timing.v1` field
+- execution-control activity duration, queue wait and schedule-to-start
+  histograms:
+  - `campus.execution_control.activity_duration_ms`
+  - `campus.execution_control.queue_wait_ms`
+  - `campus.execution_control.schedule_to_start_ms`
+- execution-control runtime request/error/decision counters:
+  - `campus.execution_control.runtime_requests`
+  - `campus.execution_control.runtime_errors`
+  - `campus.execution_control.runtime_decisions`
 - bridge latency and queue wait histogram
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state
 - retrieval no-hit / low-confidence / forbidden-hit count
@@ -243,13 +353,13 @@ Raw document ids, raw query hashes and source urls must not become metric labels
 
 ## Focused Verification Expectations
 
-Phase implementations must add or maintain tests for:
+Runtime implementations must add or maintain tests for:
 
 - disabled telemetry is a no-op
 - missing endpoint when enabled reports degraded telemetry health and fails closed on configured product paths
 - exporter/sink failure fails closed on configured product paths
 - forbidden fields are absent from emitted attributes
 - `query_sha256` is present when retrieval observation is emitted
-- trace/request correlation propagates across app-api, supervisor-api and worker boundaries
+- trace/request correlation propagates across app-api, execution-control and worker boundaries
 - ingestion run telemetry summarizes counts and failure kind without raw body text
 - Collector/adapter config performs attribute filtering/redaction before sink export

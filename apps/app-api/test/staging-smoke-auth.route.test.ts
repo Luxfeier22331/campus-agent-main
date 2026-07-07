@@ -21,11 +21,12 @@ const env: Env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "staging",
 	APP_API_STAGING_SMOKE_AUTH_SECRET: "staging-smoke-secret",
+	APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.internal",
+	APP_API_OTEL_INGEST_SHARED_SECRET: "otel-collector-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -81,8 +82,8 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 			request: expect.any(Request),
 		});
 		const request = signInEmail.mock.calls[0]?.[0]?.request;
-		expect(request.url).toBe("https://hub.muc.wiki/api/auth/sign-in/email");
-		expect(request.headers.get("origin")).toBe("https://hub.muc.wiki");
+		expect(request.url).toBe("https://campus.muc.wiki/api/auth/sign-in/email");
+		expect(request.headers.get("origin")).toBe("https://campus.muc.wiki");
 	});
 
 	it("fails closed outside staging", async () => {

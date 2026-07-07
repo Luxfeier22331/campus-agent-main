@@ -6,10 +6,10 @@ import { toScopeSummary } from "./helpers";
 export function applyRequestTags(input: {
 	errorCode?: string | null;
 	principalType?: string | null;
-	requestedCapability?: string | null;
+	requestedTool?: string | null;
 	requestedScope?: RequestedScope | null;
 	route?: string | null;
-	selectedTarget?: string | null;
+	selectedTool?: string | null;
 	status?: string | null;
 	surface?: string | null;
 	traceId?: string | null;
@@ -26,11 +26,11 @@ export function applyRequestTags(input: {
 	if (input.status) {
 		Sentry.setTag("status", input.status);
 	}
-	if (input.selectedTarget) {
-		Sentry.setTag("selected_target", input.selectedTarget);
+	if (input.selectedTool) {
+		Sentry.setTag("selected_tool", input.selectedTool);
 	}
-	if (input.requestedCapability) {
-		Sentry.setTag("requested_capability", input.requestedCapability);
+	if (input.requestedTool) {
+		Sentry.setTag("requested_tool", input.requestedTool);
 	}
 	if (input.requestedScope) {
 		Sentry.setTag("requested_scope_summary", toScopeSummary(input.requestedScope));
@@ -49,7 +49,7 @@ export function applyRequestContext(input: {
 	requestedScope?: RequestedScope | null;
 	resolvedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;
-	selectedTarget?: string | null;
+	selectedTool?: string | null;
 }): void {
 	Sentry.setContext("request", {
 		conversation_id: input.conversationId ?? null,
@@ -57,6 +57,6 @@ export function applyRequestContext(input: {
 		requested_scope_summary: toScopeSummary(input.requestedScope),
 		resolved_scope_summary: toScopeSummary(input.resolvedScope),
 		safety_identifier: input.safetyIdentifier ?? null,
-		selected_target: input.selectedTarget ?? null,
+		selected_tool: input.selectedTool ?? null,
 	});
 }

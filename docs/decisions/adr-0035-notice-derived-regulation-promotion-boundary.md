@@ -1,15 +1,23 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0035
 status: accepted
 created: 2026-04-10
-updated: 2026-05-01
+updated: 2026-07-04
 ---
 # ADR-0035 Notice-Derived Regulation Promotion Boundary
 
 ## 状态
 
 Accepted on 2026-04-10.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 internal notice 到 regulation
+semantic-owner collection 的 promotion boundary。
 
 ## 背景
 
@@ -111,11 +119,11 @@ promotion boundary 至少负责判断：
 - 不生成 `regulations/*` target identity
 - 不进入 document reader manifest
 
-示例：`药学院2021年硕博连读博士研究生招生实施细则` 可被识别为
-`policy_regulation`，但它绑定 `药学院 + 2021 + 硕博连读招生` 的历史年度周期，
+示例：`甲学院2021年硕博连读博士研究生招生实施细则` 可被识别为
+`policy_regulation`，但它绑定 `甲学院 + 2021 + 硕博连读招生` 的历史年度周期，
 不应默认进入 regulation 文档站。
 
-示例：`生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 可被识别为
+示例：`示例生命学院关于2021年暑假期间实验室安全管理规定` 可被识别为
 `policy_regulation` 和 scoped operational rule，但它绑定 `2021 + 暑假期间`
 的已过期时间窗口，不应默认进入 regulation 文档站。
 
@@ -150,7 +158,7 @@ promotion boundary 至少负责判断：
 
 这只表示经 selected admission 的 canonical regulation target 可以进入受限
 knowledge query path；不表示 wrapper notice、source-channel triage rows 或
-public-chat citation 被打开。
+online answer citation 被打开。
 
 直到 promotion contract、quality gate、identity/version/provenance 规则都落盘为止，不推进
 release/index。
@@ -169,12 +177,11 @@ release/index。
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `git history authenticated-notice regulation consumption workstream`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
-  tial-review-boundary.md`
-- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md
+- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
+- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
   `
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`

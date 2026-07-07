@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0014
 status: accepted
 created: 2026-03-28
@@ -72,7 +74,7 @@ Accepted on 2026-03-28.
 
 这项决策 complements：
 
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/agentic-retrieval-architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/agentic-retrieval.md`
+- `docs/architecture/system/retrieval-serving.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`

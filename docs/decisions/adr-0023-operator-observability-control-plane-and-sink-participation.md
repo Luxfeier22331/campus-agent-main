@@ -1,38 +1,45 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0023
-status: accepted
+status: superseded
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-06-30
 ---
 # ADR-0023 Operator Observability Control Plane And Sink Participation
 
-适用范围：protected panel 的 operator-facing observability / audit / quality / safety
+> Superseded by ADR-0067. The accepted target is now Ops Index + External
+> Sinks. Broad app-api-owned audit / quality / safety / cost read models remain
+> historical context only.
+
+适用范围：Operator Console 的 operator-facing observability / audit / quality / safety
 / cost domain ownership，以及 `Sentry`、`Axiom`、grading / eval tooling 的长期参与边界
 
 ## 背景
 
 当前仓库已经具备以下事实：
 
-- `apps/protected-panel-web` 已冻结为 `runtime APIs only` 的 protected Worker shell
+- Operator Console 的当前 read-only implementation surface 是 `apps/operator-console-web`，
+  并已冻结为 `runtime APIs only` 的 protected Worker shell
 - `apps/app-api` 已拥有 `runtime.request_execution`、`runtime.projection_outbox` 与
   `operator.request_projection`
 - `ADR-0010` 已冻结 observability stack：`OTel-first`、`Sentry` 负责错误/trace、`Axiom`
   负责高吞吐结构化事件
-- `ADR-0016` 已冻结 panel `Requests` 不得直接读取 audit log 或 telemetry sink
+- `ADR-0016` 已冻结 Operator Console `Requests` 不得直接读取 audit log 或 telemetry sink
 
 但仓库仍缺一条更完整的长期规则：
 
 - operator-facing observability / audit / quality / safety / cost surface 由谁拥有
 - `Sentry`、`Axiom` 与 sampled grading 到底如何参与
-- panel 是否可以直接把 sink 当作 query backend
+- Operator Console 是否可以直接把 sink 当作 query backend
 
 如果这条边界不冻结，后续很容易长出以下腐烂路径：
 
-- panel 直接嵌入 `Sentry` 或 `Axiom` 查询，变成 sink viewer
+- Operator Console 直接嵌入 `Sentry` 或 `Axiom` 查询，变成 sink viewer
 - 继续只有 request list/detail，没有长期稳定的 quality / safety / cost control plane
 - sampled grading、runtime aggregate、release-gate eval 混成一套 truth
-- `apps/supervisor-api` 或 panel BFF 顺手长成 operator observability backend
+- `apps/execution-control` 或 Operator Console BFF 顺手长成 operator observability backend
 
 ## 决策 1：operator-facing observability control plane 的第一 owner 固定为 `apps/app-api`
 
@@ -40,8 +47,9 @@ updated: 2026-04-03
 
 - operator-facing observability / audit / quality / safety / cost read model 的第一
   owner 固定为 `apps/app-api`
-- `protected-panel-web` 继续只消费这些 runtime-owned APIs
-- `apps/supervisor-api` 不承担 operator observability query backend
+- 当前 read-only implementation surface `operator-console-web` 继续只消费这些 runtime-owned
+  APIs
+- `apps/execution-control` 不承担 operator observability query backend
 
 原因：
 
@@ -50,7 +58,7 @@ updated: 2026-04-03
 - observability control plane 仍属于 shared application/control-plane concern，而不是
   execution engine concern
 
-## 决策 2：panel 的 observability 域固定为 curated control-plane domains，而不是 raw sink explorer
+## 决策 2：Operator Console observability 域固定为 curated domains
 
 结论：
 
@@ -63,25 +71,25 @@ updated: 2026-04-03
   - `Audit`
   - `Official Web`
 - 这些域都属于 curated control-plane read model
-- 不把 panel 做成 raw log / trace / telemetry console
+- 不把 Operator Console 做成 raw log / trace / telemetry console
 
 原因：
 
-- protected panel 已冻结为受控 operator control plane，不是万能内部平台
+- Operator Console 已冻结为受控 operator control plane，不是万能内部平台
 - operator 需要的是解释清楚 request、quality、safety 与 cost，而不是直接暴露底层 sink 查询能力
 
-## 决策 3：`Sentry`、`Axiom` 与其他 sink 都不是 panel canonical read model
+## 决策 3：`Sentry`、`Axiom` 与其他 sink 都不是 Operator Console canonical read model
 
 结论：
 
-- `Sentry`、`Axiom`、raw audit log、trace dump、OpenAI trace store 都不是 panel
+- `Sentry`、`Axiom`、raw audit log、trace dump、OpenAI trace store 都不是 Operator Console
   canonical read model
 - 如果 operator-facing surface 需要消费某类 sink-derived truth，必须先经过 app-owned
   projection / aggregate seam
 
 原因：
 
-- 这能避免 panel truth 跟随 vendor schema 漂移
+- 这能避免 Operator Console truth 跟随 vendor schema 漂移
 - 也能避免把生产 query surface 绑定成调试产品的视图
 
 ## 决策 4：`Sentry` 的长期职责固定为错误、trace 与请求级调试
@@ -94,13 +102,13 @@ updated: 2026-04-03
   - dependency failure
   - release-aware debugging
   - AI / LLM span debugging
-- `Sentry` 可以为 panel 提供 trace deep link
+- `Sentry` 可以为 Operator Console 提供 trace deep link
 - `Sentry` 不承担高吞吐 operator aggregate truth 与 request list/detail truth
 
 原因：
 
 - `Sentry` 更适合 exception、performance tracing 与链路调试
-- 它不是高吞吐事件仓，也不应该成为 panel 查询后端
+- 它不是高吞吐事件仓，也不应该成为 Operator Console 查询后端
 
 ## 决策 5：`Axiom` 的长期职责固定为高吞吐结构化运行分析
 
@@ -110,7 +118,7 @@ updated: 2026-04-03
   - retrieval / citation / ACL / refusal / serving / ingestion 结构化事件
   - token usage 与 cost attribution trend
   - long-window aggregate、slice、cohort comparison、badcase slicing
-- `Axiom` 不承担 panel canonical request list/detail truth
+- `Axiom` 不承担 Operator Console canonical request list/detail truth
 - `Axiom` 也不是唯一错误调试面
 
 原因：
@@ -138,7 +146,7 @@ updated: 2026-04-03
 
 结论：
 
-- operator panel 可以展示 request-level estimated cost 与 rollup trend
+- Operator Console 可以展示 request-level estimated cost 与 rollup trend
 - 最终账务或 budget closure 以 provider-side reconciled cost 为准
 - 不把仓库内静态价格表当作长期 canonical truth
 
@@ -156,8 +164,8 @@ updated: 2026-04-03
   - `surface`
   - `route`
   - `status`
-  - `selected_target`
-  - `requested_capability`
+  - `selected_tool`
+  - `requested_tool`
   - `requested_scope_summary`
   - `principal_type`
   - `error_code`
@@ -178,7 +186,7 @@ updated: 2026-04-03
   - `citation_count`
   - `citation_missing`
   - `projection_lag_ms`
-- panel 只允许消费 app-owned 的最小回链信息，例如：
+- Operator Console 只允许消费 app-owned 的最小回链信息，例如：
   - `trace_link`
   - `issue_link`
   - `issue_fingerprint`
@@ -186,7 +194,7 @@ updated: 2026-04-03
 原因：
 
 - 这能保留 request-level debugging 所需的检索能力，同时避免把 `Sentry` 变成高基数 operator data store
-- 也能避免 panel 对 `Sentry` 查询能力形成结构性依赖
+- 也能避免 Operator Console 对 `Sentry` 查询能力形成结构性依赖
 
 ## 决策 9：`Axiom` 事件治理固定为 `event_type -> allowlist`，黑名单只做末端保护
 
@@ -200,8 +208,8 @@ updated: 2026-04-03
   - `request_id`
   - `trace_id`
   - `surface`
-  - `selected_target`
-  - `requested_capability`
+  - `selected_tool`
+  - `requested_tool`
   - `requested_scope_summary`
   - `principal_type`
   - `status`
@@ -232,7 +240,7 @@ updated: 2026-04-03
 - request-scoped observability facts 长期放入独立的 app-owned runtime fact family，接受命名为
   `runtime.request_observability_fact`
 - `runtime.request_execution` 继续只承担 command-side durable request truth
-- `operator.request_projection` 继续只承担 panel `Requests` list/detail truth
+- `operator.request_projection` 继续只承担 Operator Console `Requests` list/detail truth
 - `runtime.request_observability_fact` 作为 `metric_rollup`、request observability
   detail、sampled grade join 与 cost reconciliation join 的输入层
 
@@ -278,14 +286,14 @@ updated: 2026-04-03
   projection、metric rollup、quality grade projection
 - 需要新增 app-owned runtime fact family，例如 `request_observability_fact`
 - 需要为 `Quality` / `Safety/Authz` / `Cost` / `Audit` 增加 operator runtime APIs
-- panel 后续扩展必须沿着这些 app-owned APIs 做，而不是 panel BFF 自己向 sink 查询
+- Operator Console 后续扩展必须沿着这些 app-owned APIs 做，而不是 BFF 自己向 sink 查询
 - `Sentry` tag/context 需要按长期可控字段重整
 - `Axiom` sink 需要从黑名单治理升级到 `event_type -> allowlist`
 
 明确不做：
 
-- 不把 panel 做成 `Sentry` 或 `Axiom` 嵌入式 viewer
-- 不让 `apps/supervisor-api` 继续长成 operator observability backend
+- 不把 Operator Console 做成 `Sentry` 或 `Axiom` 嵌入式 viewer
+- 不让 `apps/execution-control` 继续长成 operator observability backend
 - 不把 sampled grading / release-gate eval / runtime aggregate 混成一张表
 - 不让 vendor-specific sink schema 反向定义 `packages/contracts`
 
@@ -296,11 +304,11 @@ updated: 2026-04-03
 
 ## 相关文档
 
-- `docs/architecture/system/operator-observability-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/ops-observability.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
-- `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-operator-observability-http.md`
-- `docs/data/app-api-schema.md`
+- `docs/contracts/app-api/README.md`
+- `docs/contracts/app-api/observability.md`
+- `docs/data/app-api/README.md`

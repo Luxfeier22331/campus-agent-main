@@ -1,0 +1,78 @@
+---
+doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
+decision_id: ADR-0065
+status: accepted
+created: 2026-07-03
+updated: 2026-07-06
+---
+# ADR-0065 GitOps Argo CD And Helm Boundary
+
+## Context
+
+ADR-0056 accepted Kubernetes + KEDA as the production target substrate for the
+execution runtime, but it intentionally did not decide Helm vs Kustomize vs raw
+manifests. The repository now needs a durable deployment-management boundary
+before K8s staging is promoted from target manifests into live operations.
+
+## Decision
+
+Adopt Argo CD as the target Kubernetes desired-state reconciler.
+
+- Argo CD owns K8s Application sync state only.
+- First-party `campus-agent` workloads continue to use Kustomize/raw YAML by
+  default.
+- Third-party Kubernetes platform components may be consumed as pinned upstream
+  Helm charts through Argo CD.
+- Helm is used by Argo CD to render charts; Argo CD owns the application
+  lifecycle.
+
+The initial first-party Kustomize applications are:
+
+- `execution-runtime-staging`
+- `dining-sync-staging`
+
+The initial third-party Helm applications are:
+
+- `platform-keda`
+- `platform-sealed-secrets` as the recommended default self-hosted/open-source
+  secret delivery controller
+- optional `platform-external-secrets` when the deployment selects External
+  Secrets Operator as its secret delivery backend
+
+## Consequences
+
+- Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
+  Hyperdrive bindings or Cloudflare Access policy.
+- Argo CD does not manage app-api provider-config active profiles.
+- First-party services are not charted until a later ADR accepts a concrete
+  reason such as multi-tenant reuse, a large environment matrix or external
+  installability.
+- Third-party Helm chart versions and values files must be pinned in GitOps
+  manifests to avoid automatic drift.
+- Secret delivery backend selection is governed by ADR-0066. Argo CD can manage
+  the selected backend's Kubernetes resources, but first-party workloads depend
+  only on stable Kubernetes Secret names and keys.
+- Argo CD / Kustomize owns tracked non-secret first-party deploy bootstrap
+  ConfigMaps. Local env renderers may be used only for one-off manual bootstrap
+  or migration diagnostics; they must not be documented as the GitOps staging or
+  production path.
+
+## Alternatives Considered
+
+### No Helm anywhere
+
+Rejected. It would force the repo to copy and maintain vendor manifests for
+KEDA, optional secret delivery controllers and other mature platform
+components.
+
+### Helm chart every first-party service now
+
+Rejected. The first-party execution runtime resource shape is still converging,
+and Kustomize gives clearer diffs and reviewable Kubernetes resources.
+
+### Let Argo CD manage Cloudflare Workers
+
+Rejected. Workers are not Kubernetes resources. Their deploy config and secret
+store stay with Wrangler / Cloudflare deploy workflows.

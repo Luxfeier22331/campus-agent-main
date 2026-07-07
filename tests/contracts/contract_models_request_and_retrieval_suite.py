@@ -4,13 +4,13 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
-    def test_supervisor_request_defaults_do_not_inject_fixed_capability_or_scope(self) -> None:
-        request = SupervisorRequest(user_goal="library hours")
+    def test_tool_request_defaults_do_not_inject_fixed_tool_or_scope(self) -> None:
+        request = ExecutionRequest(user_goal="library hours")
 
         self.assertEqual(request.conversation_id, "")
         self.assertEqual(request.request_id, "")
         self.assertIsNone(request.safety_identifier)
-        self.assertIsNone(request.requested_capability)
+        self.assertIsNone(request.requested_tool)
         self.assertIsNone(request.requested_scope)
         self.assertEqual(request.version_query, VersionQuery(mode="current"))
         self.assertEqual(
@@ -56,27 +56,26 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
-                profile_memory=ProfileMemorySummary(items=()),
                 session=SessionSummary(confirmed_slots=(), turn_count=0),
             ),
         )
 
-    def test_supervisor_request_rejects_removed_availability_capability(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported requested_capability: availability"):
-            SupervisorRequest(
+    def test_tool_request_rejects_removed_availability_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported requested_tool: availability"):
+            ExecutionRequest(
                 user_goal="官网能打开吗",
-                requested_capability="availability",  # type: ignore[arg-type]
+                requested_tool="availability",  # type: ignore[arg-type]
             )
 
-    def test_supervisor_request_does_not_accept_removed_availability_target_field(self) -> None:
+    def test_tool_request_does_not_accept_removed_availability_target_field(self) -> None:
         with self.assertRaisesRegex(TypeError, "availability_target_id"):
-            SupervisorRequest(
+            ExecutionRequest(
                 user_goal="官网能打开吗",
                 availability_target_id="official-homepage",  # type: ignore[call-arg]
             )
 
-    def test_supervisor_request_accepts_typed_context_projection(self) -> None:
-        request = SupervisorRequest(
+    def test_tool_request_accepts_typed_context_projection(self) -> None:
+        request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             context=ContextProjection(
                 actor=ActorContext(
@@ -103,19 +102,6 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
-                profile_memory=ProfileMemorySummary(
-                    items=(
-                        ProfileMemoryItem(
-                            item_id="memory-001",
-                            key="recent_goal",
-                            value="咨询保研",
-                            source_type="user_declared",
-                            confidence="high",
-                            visibility="user_visible",
-                            last_verified_at="2026-03-28",
-                        ),
-                    ),
-                ),
                 session=SessionSummary(
                     confirmed_slots=(
                         SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
@@ -137,12 +123,11 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             ("students",),
         )
         self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
-        self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
-    def test_supervisor_request_rejects_non_hex_safety_identifier(self) -> None:
+    def test_tool_request_rejects_non_hex_safety_identifier(self) -> None:
         with self.assertRaises(ValueError):
-            SupervisorRequest(
+            ExecutionRequest(
                 user_goal="保研政策怎么准备？",
                 safety_identifier="student-001",
             )
@@ -176,8 +161,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             ),
         )
 
-    def test_supervisor_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
-        request = SupervisorRequest(
+    def test_tool_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
+        request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             actor=ActorContext(
                 user_id="student-001",
@@ -305,8 +290,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 ),
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
-                "prompt_runtime_state": "",
-                "prompt_runtime_detail": "",
+                "model_execution_state": "",
+                "model_execution_detail": "",
                 "answer_presentation_kind": "",
                 "answer_presentation_path": "",
                 "answer_diagnostic_reason": "",
@@ -339,8 +324,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertIn("grounding_verdict", field_names)
         self.assertIn("grounding_downgraded", field_names)
         self.assertIn("freshness_fail_closed", field_names)
-        self.assertIn("prompt_runtime_state", field_names)
-        self.assertIn("prompt_runtime_detail", field_names)
+        self.assertIn("model_execution_state", field_names)
+        self.assertIn("model_execution_detail", field_names)
         self.assertIn("answer_presentation_kind", field_names)
         self.assertIn("answer_presentation_path", field_names)
         self.assertIn("answer_diagnostic_reason", field_names)
@@ -407,7 +392,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             is_current=True,
             snippet="学生受处分满考察期后，可以申请解除纪律处分。",
             score=0.91,
-            source_title="中央民族大学解除学生纪律处分实施办法",
+            source_title="示例大学解除学生纪律处分实施办法",
             content_role="procedure",
             is_answer_bearing=True,
             semantic_role="procedure_step",
@@ -433,13 +418,13 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
     def test_evidence_source_rejects_unknown_remote_content_suspicion_label(self) -> None:
         with self.assertRaises(ValueError):
             EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:inject-001",
+                doc_id="official_web:example_public:article_detail:inject-001",
                 revision_track="source-faithful",
                 version_id="owdocver:inject-001",
-                chunk_id="official_web:muc_public:article_detail:inject-001:chunk-0001",
+                chunk_id="official_web:example_public:article_detail:inject-001:chunk-0001",
                 anchor={"segment_ord": 1},
-                canonical_url="https://www.muc.edu.cn/inject-001.htm",
-                latest_url="https://www.muc.edu.cn/inject-001.htm",
+                canonical_url="https://www.example.edu/inject-001.htm",
+                latest_url="https://www.example.edu/inject-001.htm",
                 source_channel="official_web",
                 collection="stable_reference",
                 is_current=True,

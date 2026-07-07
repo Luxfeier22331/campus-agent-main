@@ -22,11 +22,11 @@ class CheckDecompositionTrackedTest(unittest.TestCase):
 
         candidates = set(tracked_decomposition_paths(root=repo_root))
 
-        self.assertIn("scripts/check_sql_tracked.py", candidates)
-        self.assertIn("tests/test_check_yaml_tracked.py", candidates)
+        self.assertIn("scripts/check_tracked_text_formats.ts", candidates)
+        self.assertIn("tests/test_check_ci_workflow_contracts.py", candidates)
         self.assertIn("apps/app-api/src/app/request-scope.ts", candidates)
-        self.assertIn("apps/supervisor-api/internal/execution/request.go", candidates)
-        self.assertNotIn("docs/architecture/current-architecture.md", candidates)
+        self.assertIn("apps/execution-control/internal/execution/request.go", candidates)
+        self.assertNotIn("docs/architecture/current.md", candidates)
         self.assertNotIn("package.json", candidates)
 
     def test_load_decomposition_baseline_reads_admitted_budget(self) -> None:

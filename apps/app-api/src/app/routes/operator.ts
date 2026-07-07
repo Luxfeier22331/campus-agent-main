@@ -37,7 +37,7 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
-	input.app.get("/api/operator/quality/summary", async (c) => {
+	input.app.get("/api/operator/runtime/health", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({
 			env: input.env,
@@ -50,125 +50,7 @@ export function registerOperatorRoutes(input: {
 		}
 
 		return jsonResponse(
-			await scope.resolveOperatorQueryService().getQualitySummary({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/quality/timeseries", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getQualityTimeseries({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/quality/badcases", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listQualityBadcases({
-				filters: {
-					causeClass: c.req.query("causeClass") ?? null,
-					cursor: c.req.query("cursor") ?? null,
-					detectedBy: c.req.query("detectedBy") ?? null,
-					limit: parseLimit(c.req.query("limit")),
-					selectedTarget: c.req.query("selectedTarget") ?? null,
-					status: c.req.query("status") ?? null,
-					surface: c.req.query("surface") ?? null,
-					window: c.req.query("window") ?? null,
-				},
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/quality/eval-candidates", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listQualityEvalCandidates({
-				filters: {
-					causeClass: c.req.query("causeClass") ?? null,
-					cursor: c.req.query("cursor") ?? null,
-					detectedBy: c.req.query("detectedBy") ?? null,
-					limit: parseLimit(c.req.query("limit")),
-					selectedTarget: c.req.query("selectedTarget") ?? null,
-					status: c.req.query("status") ?? null,
-					surface: c.req.query("surface") ?? null,
-					window: c.req.query("window") ?? null,
-				},
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/intent/summary", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getIntentSummary({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/evals/coverage", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getEvalCoverage({
+			await scope.resolveOperatorQueryService().getRuntimeHealth({
 				principal: resolved.principal,
 			}),
 		);
@@ -242,7 +124,7 @@ export function registerOperatorRoutes(input: {
 		return jsonResponse(
 			await scope.resolveAuthenticatedNoticeRunProcessingQueryService().list({
 				filters: {
-					collectorRunToken: c.req.query("collectorRunToken") ?? null,
+					sourceRunToken: c.req.query("sourceRunToken") ?? null,
 					cursor: c.req.query("cursor") ?? null,
 					limit: parseLimit(c.req.query("limit")),
 					q: c.req.query("q") ?? null,
@@ -332,7 +214,7 @@ export function registerOperatorRoutes(input: {
 		});
 	});
 
-	input.app.get("/api/operator/intent/timeseries", async (c) => {
+	input.app.get("/api/operator/ingestion/tasks", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({
 			env: input.env,
@@ -345,148 +227,8 @@ export function registerOperatorRoutes(input: {
 		}
 
 		return jsonResponse(
-			await scope.resolveOperatorQueryService().getIntentTimeseries({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/safety/summary", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getSafetySummary({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/safety/anomalies", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listSafetyAnomalies({
-				filters: {
-					anomalyCode: c.req.query("anomalyCode") ?? null,
-					cursor: c.req.query("cursor") ?? null,
-					limit: parseLimit(c.req.query("limit")),
-					selectedTarget: c.req.query("selectedTarget") ?? null,
-					severity: c.req.query("severity") ?? null,
-					status: c.req.query("status") ?? null,
-					surface: c.req.query("surface") ?? null,
-					window: c.req.query("window") ?? null,
-				},
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/cost/summary", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getCostSummary({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/cost/timeseries", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getCostTimeseries({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/audit", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listAudit({
-				filters: {
-					cursor: c.req.query("cursor") ?? null,
-					eventType: c.req.query("eventType") ?? null,
-					limit: parseLimit(c.req.query("limit")),
-					principalType: c.req.query("principalType") ?? null,
-					requestId: c.req.query("requestId") ?? null,
-					selectedTarget: c.req.query("selectedTarget") ?? null,
-					status: c.req.query("status") ?? null,
-					surface: c.req.query("surface") ?? null,
-					traceId: c.req.query("traceId") ?? null,
-				},
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/audit/:auditEventId", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getAuditById({
-				auditEventId: c.req.param("auditEventId"),
-				principal: resolved.principal,
+			await scope.resolveIngestionTaskProjectionClient().listTasks({
+				query: new URL(c.req.raw.url).searchParams,
 			}),
 		);
 	});
@@ -531,31 +273,11 @@ export function registerOperatorRoutes(input: {
 			return resolved.response;
 		}
 
-		const request = await scope.resolveOperatorQueryService().getById({
+		const detail = await scope.resolveOperatorQueryService().getById({
 			principal: resolved.principal,
 			requestId: c.req.param("requestId"),
 		});
 
-		return jsonResponse({ request });
-	});
-
-	input.app.get("/api/operator/requests/:requestId/observability", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getObservabilityById({
-				principal: resolved.principal,
-				requestId: c.req.param("requestId"),
-			}),
-		);
+		return jsonResponse(detail);
 	});
 }

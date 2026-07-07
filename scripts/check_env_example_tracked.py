@@ -13,9 +13,9 @@ _ROOT_FORBIDDEN_EXACT_KEYS = frozenset(
         "FEEDWE_API_KEY",
         "RAW_INGESTION_ARTIFACT_MODE",
         "SPECIALIST_PROMPT_MODEL",
-        "SUPERVISOR_API_DOCKER_GOPROXY",
-        "SUPERVISOR_API_DOCKER_GOSUMDB",
-        "SUPERVISOR_API_HOST_PORT",
+        "EXECUTION_CONTROL_DOCKER_GOPROXY",
+        "EXECUTION_CONTROL_DOCKER_GOSUMDB",
+        "EXECUTION_CONTROL_HOST_PORT",
     }
 )
 _ROOT_FORBIDDEN_PREFIXES = (
@@ -23,8 +23,30 @@ _ROOT_FORBIDDEN_PREFIXES = (
     "LEGACY_OFFICE_CONVERSION_",
     "LIBREOFFICE_SERVICE_",
     "OFFICIAL_WEB_RELEASE_TASK_",
-    "SUPERVISOR_CORE_WORKER_",
+    "SUPER" + "VISOR_CORE_WORKER_",
     "WECHAT_OFFICIAL_ACCOUNT_",
+)
+_FORBIDDEN_ANY_EXAMPLE_EXACT_KEYS = frozenset(
+    {
+        "CAMPUS_DOCS_SYNC_MANIFEST_KEY",
+        "CAMPUS_DOCS_SYNC_MANIFEST_PATH",
+        "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED",
+        "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+        "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_HEARTBEAT_INTERVAL_MS",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID",
+        "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID",
+        "SUPER" + "VISOR_" + "PROMPT_MODEL",
+    }
+)
+_FORBIDDEN_ANY_EXAMPLE_PREFIXES = (
+    "EXECUTION_CONTROL_BRIDGE_",
+    "SUPER" + "VISOR_" + "AGENT_WORKER_",
 )
 
 
@@ -71,6 +93,13 @@ def validate_env_example_file(path: Path) -> tuple[str, ...]:
         if key in seen_keys:
             failures.append(f"{path}:{line_number}: duplicate env key '{key}'")
             continue
+        if key in _FORBIDDEN_ANY_EXAMPLE_EXACT_KEYS or key.startswith(
+            _FORBIDDEN_ANY_EXAMPLE_PREFIXES
+        ):
+            failures.append(
+                f"{path}:{line_number}: env example must not own command-scoped or retired key "
+                f"'{key}'"
+            )
         if value and value != value.strip():
             failures.append(
                 f"{path}:{line_number}: value must not contain leading or trailing whitespace"
@@ -107,6 +136,9 @@ def validate_env_example_ownership(path: Path) -> tuple[str, ...]:
 def main() -> int:
     failures: list[str] = []
     files = tracked_env_example_files()
+    required = repo_root() / "apps/campus-web/.dev.vars.example"
+    if required not in files:
+        failures.append(f"{required}: campus-web Worker runtime env template is required")
     for path in files:
         failures.extend(validate_env_example_file(path))
         failures.extend(validate_env_example_ownership(path))

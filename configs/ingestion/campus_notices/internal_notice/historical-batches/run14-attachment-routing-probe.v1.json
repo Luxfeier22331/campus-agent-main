@@ -2,7 +2,7 @@
 	"schema_version": "authenticated_notice_selected_notice_batch_v1",
 	"corpus": "campus_notices",
 	"collection": "internal_notice",
-	"source_channel": "authenticated_notice_portal",
+	"source_channel": "internal_portal",
 	"batch_id": "run14-attachment-routing-probe-v1",
 	"selection_basis": {
 		"families": ["operational_procedure", "other"],

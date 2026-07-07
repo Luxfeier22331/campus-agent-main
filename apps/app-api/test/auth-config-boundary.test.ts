@@ -6,28 +6,27 @@ import { readAppAuthConfig } from "../src/config";
 import { buildRuntimeDatabaseConfig } from "../src/db/runtime";
 
 describe("app-api auth config boundary", () => {
-	it("reads auth runtime config without requiring supervisor transport or public-chat origin", () => {
+	it("reads auth runtime config without requiring execution transport or campus-web origin", () => {
 		expect(
 			readAppAuthConfig({
 				APP_API_NAME: "campus-agent-app-api",
 				APP_API_ENVIRONMENT: "test",
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 			}),
 		).toMatchObject({
 			appName: "campus-agent-app-api",
-			authShellOrigin: "https://hub.muc.wiki",
-			publicChatOrigin: undefined,
-			endUserEmailDomainAllowlist: ["muc.edu.cn"],
+			authShellOrigin: "https://campus.muc.wiki",
+			endUserEmailDomainAllowlist: ["example.edu"],
 			endUserEmailAllowlist: [],
 		});
 	});
 
-	it("requires AUTH_SHELL_ORIGIN instead of falling back to PUBLIC_CHAT_WEB_ORIGIN", () => {
+	it("requires AUTH_SHELL_ORIGIN when the account shell origin is missing", () => {
 		expect(() =>
 			readAppAuthConfig({
 				APP_API_NAME: "campus-agent-app-api",
@@ -36,8 +35,7 @@ describe("app-api auth config boundary", () => {
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat.muc.wiki",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 			}),
 		).toThrow("Missing auth runtime configuration: AUTH_SHELL_ORIGIN");
 	});

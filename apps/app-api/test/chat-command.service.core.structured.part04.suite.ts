@@ -5,15 +5,16 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	type SupervisorExecutionClient,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
 				error: null,
@@ -32,7 +33,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						},
 						source_refs: [
 							"seed:campus_navigation/place_catalog.v1",
-							"https://www.muc.edu.cn/xxgk1/xydt.htm",
+							"campus-map:private-source:official-map",
 						],
 					},
 					query_text: "民族博物馆在哪里",
@@ -44,9 +45,9 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						place_id: "muc.haidian.museum",
 					},
 				},
-				selectedTarget: "navigation-agent",
+				selectedTool: "place_lookup",
 				status: "completed",
-				traceId: "trace_0003",
+				traceId: "trace_0001",
 			}),
 		};
 
@@ -55,7 +56,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-04-11T10:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
@@ -64,7 +65,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 				prompt: "民族博物馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(finalWrites[0]).toMatchObject({
@@ -82,7 +83,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			},
 		});
 	});
-	it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
+	it("rejects finalized responses when execution omits the accepted traceId", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -90,7 +91,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
@@ -100,11 +101,53 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 							sources: [{ doc_id: "handbook:library-hours" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "",
 				}),
-			},
+			}),
+		});
+
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				},
+				principal: createPrincipal(),
+				surface: "eval_benchmark",
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+			traceId: "trace_0001",
+		});
+		expect(finalWrites).toHaveLength(0);
+	});
+
+	it("keeps the accepted traceId on finalized responses when execution echoes it", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime: createExecutionRuntimeFromToolClient({
+				execute: vi.fn().mockResolvedValue({
+					answerText: "图书馆开放到 22:00。",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						evidence: {
+							sources: [{ doc_id: "handbook:library-hours" }],
+						},
+					},
+					selectedTool: "knowledge_query",
+					status: "completed",
+					traceId: "trace_0001",
+				}),
+			}),
 		});
 
 		const response = await service.submit({
@@ -118,7 +161,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 
 		expect(response.traceId).toBe("trace_0001");
 		expect(response.answer.result.traceId).toBe("trace_0001");
-		expect(response.supervisor).toMatchObject({
+		expect(response.execution).toMatchObject({
 			status: "completed",
 			traceId: "trace_0001",
 		});

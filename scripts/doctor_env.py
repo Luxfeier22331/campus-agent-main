@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from campus_shared import (
@@ -11,9 +11,7 @@ from campus_shared import (
     load_repo_env,
     reset_repo_env_bootstrap_state,
 )
-from campus_shared.provider_config import ProviderConfigResolutionError
 
-from scripts.doctor_env_parse import read_bool_env, read_capability_set
 from scripts.doctor_env_surface_specs import SURFACE_SPECS
 from scripts.env_sync import parse_env_file
 
@@ -38,16 +36,18 @@ def _collect_env_doctor_status(
         current_env = dict(os.environ)
         spec = SURFACE_SPECS[normalized_surface]
 
-        providers = {
-            provider_name: _collect_provider_status(
-                env=current_env,
-                checked_keys=provider_spec["checked_keys"],
-                resolver=provider_spec["resolver"],
-                surface_name=provider_spec["surface_name"],
-            )
-            for provider_name, provider_spec in spec["providers"].items()
-        }
-
+        providers = (
+            {}
+            if normalized_surface == "evals"
+            else {
+                provider_name: _collect_provider_status(
+                    env=current_env,
+                    checked_keys=provider_spec["checked_keys"],
+                    surface_name=provider_spec["surface_name"],
+                )
+                for provider_name, provider_spec in spec["providers"].items()
+            }
+        )
         required_settings = {
             name: (
                 _collect_object_store_credentials_status(current_env)
@@ -77,6 +77,11 @@ def _collect_env_doctor_status(
                 check_connectivity=check_postgres_connectivity,
             ),
         }
+        runtime_config = _collect_execution_control_runtime_config_status(
+            repo_root=repo_root,
+            env=current_env,
+            surface=normalized_surface,
+        )
         conditions = _collect_surface_conditions(
             surface=normalized_surface,
             env=current_env,
@@ -85,6 +90,7 @@ def _collect_env_doctor_status(
                 "optional": optional_settings,
             },
             postgres=postgres,
+            runtime_config=runtime_config,
         )
 
         postgres_ready = _postgres_diagnostics_ready(
@@ -126,11 +132,13 @@ def _collect_env_doctor_status(
                 ),
             },
             "providers": providers,
+            "provider_projection": {},
             "settings": {
                 "required": required_settings,
                 "optional": optional_settings,
             },
             "conditions": conditions,
+            "runtime_config": runtime_config,
             "postgres": postgres,
             "files": files,
         }
@@ -207,34 +215,15 @@ def _collect_shared_postgres_status(
 
 
 def _probe_postgres_connectivity(database_url: str) -> dict[str, object]:
-    try:
-        import psycopg
-    except ImportError as exc:  # pragma: no cover
-        return {
-            "checked": True,
-            "ok": False,
-            "error": str(exc),
-            "error_class": exc.__class__.__name__,
-        }
-    try:
-        with (
-            psycopg.connect(database_url, autocommit=True, connect_timeout=3) as conn,
-            conn.cursor() as cursor,
-        ):
-            cursor.execute("select 1")
-            cursor.fetchone()
-    except Exception as exc:  # pragma: no cover - exercised by local doctor, not unit tests.
-        return {
-            "checked": True,
-            "ok": False,
-            "error": str(exc),
-            "error_class": exc.__class__.__name__,
-        }
+    del database_url
     return {
         "checked": True,
-        "ok": True,
-        "error": None,
-        "error_class": None,
+        "ok": False,
+        "error": (
+            "Python Postgres connectivity probe is retired; use the TS/Go database owner "
+            "readiness checks instead"
+        ),
+        "error_class": "PythonPostgresProbeRetired",
     }
 
 
@@ -244,8 +233,9 @@ def _collect_surface_conditions(
     env: dict[str, str],
     settings: dict[str, dict[str, dict[str, object]]],
     postgres: dict[str, object],
+    runtime_config: dict[str, object],
 ) -> dict[str, dict[str, object]]:
-    if surface != "supervisor-api":
+    if surface != "execution-control":
         return {}
 
     conditions: dict[str, dict[str, object]] = {}
@@ -255,13 +245,24 @@ def _collect_surface_conditions(
         isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
     )
 
-    execution_audit_enabled = read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    conditions["runtime_config_contract"] = {
+        "required": True,
+        "ready": bool(runtime_config.get("ready")),
+        "error": runtime_config.get("error"),
+    }
+
+    config = runtime_config.get("config")
+    config_payload = config if isinstance(config, dict) else {}
+    execution_audit = config_payload.get("execution_audit")
+    execution_audit_enabled = bool(
+        isinstance(execution_audit, dict) and execution_audit.get("enabled") is True
+    )
     audit_missing: list[str] = []
     if execution_audit_enabled:
         if not _setting_present(optional_settings, "execution_audit_url"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_URL")
+            audit_missing.append("EXECUTION_CONTROL_EXECUTION_AUDIT_URL")
         if not _setting_present(optional_settings, "execution_audit_shared_secret"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")
+            audit_missing.append("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET")
     conditions["execution_audit_contract"] = {
         "required": execution_audit_enabled,
         "ready": len(audit_missing) == 0,
@@ -272,30 +273,26 @@ def _collect_surface_conditions(
         ),
     }
 
-    opened_capabilities = read_capability_set(
-        env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
-    )
-    structured_runtime_required = bool(
-        opened_capabilities.intersection({"campus_services", "notice"})
-    )
-    structured_missing: list[str] = []
-    if structured_runtime_required:
+    opened_tools = _runtime_config_open_tools(config_payload)
+    tool_read_model_required = bool(_tool_read_model_tools(opened_tools))
+    tool_read_model_missing: list[str] = []
+    if tool_read_model_required:
         if not _setting_present(optional_settings, "internal_query_shared_secret"):
-            structured_missing.append("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+            tool_read_model_missing.append("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
-            structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
-    conditions["structured_runtime_contract"] = {
-        "required": structured_runtime_required,
-        "opened_capabilities": sorted(opened_capabilities),
-        "ready": len(structured_missing) == 0,
+            tool_read_model_missing.append("CAMPUS_SHARED_POSTGRES_URL")
+    conditions["tool_read_model_runtime_contract"] = {
+        "required": tool_read_model_required,
+        "open_tools": sorted(opened_tools),
+        "ready": len(tool_read_model_missing) == 0,
         "error": (
-            "structured runtime opened but missing " + " / ".join(structured_missing)
-            if structured_missing
+            "tool read model tools opened but missing " + " / ".join(tool_read_model_missing)
+            if tool_read_model_missing
             else None
         ),
     }
 
-    notice_capability_open = "notice" in opened_capabilities
+    notice_tools_open = bool(_notice_tools(opened_tools))
     notice_missing: list[str] = []
     notice_read_model_present = (
         _setting_present(
@@ -304,58 +301,107 @@ def _collect_surface_conditions(
         )
         or shared_postgres_present
     )
-    if notice_capability_open:
-        if not notice_read_model_present:
-            notice_missing.append(
-                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
-            )
-        if not _setting_present(optional_settings, "notice_object_store_endpoint"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
-        if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
-        if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
-        if not _setting_present(optional_settings, "notice_object_store_bucket"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET")
+    if notice_tools_open and not notice_read_model_present:
+        notice_missing.append(
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+        )
     conditions["notice_runtime_contract"] = {
-        "required": notice_capability_open,
+        "required": notice_tools_open,
+        "open_tools": sorted(_notice_tools(opened_tools)),
         "ready": len(notice_missing) == 0,
         "error": (
-            "notice capability opened but missing " + " / ".join(notice_missing)
+            "notice tools opened but missing " + " / ".join(notice_missing)
             if notice_missing
             else None
         ),
     }
 
     axiom_collector_endpoint = env.get("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", "").strip()
-    axiom_endpoint = env.get("AXIOM_ENDPOINT", "").strip()
     axiom_collector_endpoint_ready = (
         not axiom_collector_endpoint or axiom_collector_endpoint.startswith(("http://", "https://"))
     ) and "/" not in axiom_collector_endpoint.removeprefix("https://").removeprefix("http://")
-    axiom_collector_endpoint_matches_worker = (
-        not axiom_collector_endpoint
-        or not axiom_endpoint
-        or axiom_collector_endpoint.rstrip("/") == axiom_endpoint.rstrip("/")
-    )
     conditions["otel_axiom_collector_endpoint_contract"] = {
         "required": bool(axiom_collector_endpoint),
-        "ready": axiom_collector_endpoint_ready and axiom_collector_endpoint_matches_worker,
+        "ready": axiom_collector_endpoint_ready,
         "error": (
             "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be a base domain like "
             "https://us-east-1.aws.edge.axiom.co; do not include /v1/traces, /v1/logs, or /v1/metrics"
             if axiom_collector_endpoint and not axiom_collector_endpoint_ready
-            else (
-                "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and "
-                "Collector export to the same Axiom edge deployment"
-                if axiom_collector_endpoint
-                and axiom_endpoint
-                and not axiom_collector_endpoint_matches_worker
-                else None
-            )
+            else None
         ),
     }
 
     return conditions
+
+
+def _collect_execution_control_runtime_config_status(
+    *,
+    repo_root: Path,
+    env: dict[str, str],
+    surface: str,
+) -> dict[str, object]:
+    if surface != "execution-control":
+        return {}
+    raw_path = env.get("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", "").strip()
+    if not raw_path:
+        return {
+            "required": True,
+            "present": False,
+            "ready": False,
+            "path": None,
+            "config": None,
+            "error": "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH is required",
+        }
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = repo_root / path
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "required": True,
+            "present": True,
+            "ready": False,
+            "path": str(path),
+            "config": None,
+            "error": f"runtime config is not readable: {exc}",
+        }
+    if config.get("schema_version") != "campus_execution_control_runtime_config.v1":
+        return {
+            "required": True,
+            "present": True,
+            "ready": False,
+            "path": str(path),
+            "config": None,
+            "error": "runtime config schema_version must be campus_execution_control_runtime_config.v1",
+        }
+    return {
+        "required": True,
+        "present": True,
+        "ready": True,
+        "path": str(path),
+        "config": config,
+        "error": None,
+    }
+
+
+def _runtime_config_open_tools(config: dict[str, object]) -> set[str]:
+    raw_value = config.get("open_tools")
+    if not isinstance(raw_value, list):
+        return set()
+    return {item.strip() for item in raw_value if isinstance(item, str) and item.strip()}
+
+
+def _tool_read_model_tools(open_tools: set[str]) -> set[str]:
+    return {
+        tool
+        for tool in open_tools
+        if tool.startswith("campus_notice_") or tool == "transport_schedule_lookup"
+    }
+
+
+def _notice_tools(open_tools: set[str]) -> set[str]:
+    return {tool for tool in open_tools if tool.startswith("campus_notice_")}
 
 
 def _setting_present(
@@ -385,24 +431,25 @@ def _collect_provider_status(
     env: dict[str, str],
     surface_name: str,
     checked_keys: tuple[str, ...],
-    resolver: Callable[..., object],
 ) -> dict[str, object]:
-    try:
-        resolved = resolver(surface_name, env=env)
-    except ProviderConfigResolutionError as exc:
+    resolved_key = next((key for key in checked_keys if env.get(key, "").strip()), None)
+    if resolved_key is None:
         return {
             "present": False,
             "surface_name": surface_name,
-            "checked_keys": list(exc.checked_keys),
+            "checked_keys": list(checked_keys),
             "resolved_key": None,
-            "error": str(exc),
+            "error": (
+                f"missing provider api key for surface {surface_name}; checked "
+                + " > ".join(checked_keys)
+            ),
         }
 
     return {
         "present": True,
         "surface_name": surface_name,
         "checked_keys": list(checked_keys),
-        "resolved_key": getattr(resolved, "api_key_source", None),
+        "resolved_key": resolved_key,
         "error": None,
     }
 
@@ -511,7 +558,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "surface",
         choices=tuple(sorted(SURFACE_SPECS)),
-        help="Logical surface to diagnose, for example evals or supervisor-api.",
+        help="Logical surface to diagnose, for example evals or execution-control.",
     )
     parser.add_argument(
         "--repo-root",
@@ -528,8 +575,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--check-postgres-connectivity",
         action="store_true",
         help=(
-            "Connect to CAMPUS_SHARED_POSTGRES_URL after repo env bootstrap and include the "
-            "result in readiness."
+            "Report retired Python Postgres probe status after repo env bootstrap. This no "
+            "longer opens a Python database connection."
         ),
     )
     return parser.parse_args(argv)
@@ -561,6 +608,24 @@ def _print_text_report(status: dict[str, object]) -> None:
         print(f"provider.{provider_name}.checked_keys=" + ",".join(provider_status["checked_keys"]))
         if provider_status["error"]:
             print(f"provider.{provider_name}.error={provider_status['error']}")
+    provider_projection = status.get("provider_projection")
+    if isinstance(provider_projection, dict) and provider_projection:
+        print(
+            "provider_projection.ready="
+            f"{provider_projection['ready']} path={provider_projection.get('path')}"
+        )
+        print(
+            "provider_projection.required_roles="
+            + ",".join(provider_projection.get("required_roles", []))
+        )
+        for role, profile_status in dict(provider_projection.get("profiles", {})).items():
+            print(
+                f"provider_projection.profile.{role}.provider={profile_status['provider']} "
+                f"model={profile_status['model']} revision={profile_status['revision']} "
+                f"secret_configured={profile_status['secret_configured']}"
+            )
+        if provider_projection.get("error"):
+            print(f"provider_projection.error={provider_projection['error']}")
     settings = status["settings"]
     for requirement_group in ("required", "optional"):
         for setting_name, setting_status in settings[requirement_group].items():

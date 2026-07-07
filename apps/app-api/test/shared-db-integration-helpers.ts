@@ -67,9 +67,14 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 		APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub.muc.wiki",
-		PUBLIC_CHAT_WEB_ORIGIN:
-			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
+	});
+	await runSharedDatabaseAdoption({
+		apply: true,
+		env: {
+			...process.env,
+			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
+		},
 	});
 	await runSharedDatabaseDriftReconcile({
 		allowNonEmptyDriftTables: true,
@@ -108,7 +113,7 @@ export function buildSharedDbIntegrationEnv(input: {
 		APP_API_DB_FRESH: {
 			connectionString: input.runtimeConnectionString,
 		},
-		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub.muc.wiki",
+		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
 		AUTH_RESET_EMAIL_FROM:
 			process.env.AUTH_RESET_EMAIL_FROM?.trim() || "Campus Agent <auth@example.com>",
 		AUTH_TURNSTILE_SECRET_KEY:
@@ -116,19 +121,17 @@ export function buildSharedDbIntegrationEnv(input: {
 		APP_API_INTERNAL_SHARED_SECRET:
 			process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:
-			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "muc.edu.cn",
+			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "example.edu",
 		APP_API_OPERATOR_DATABASE_URL: input.managementConnectionString,
 		APP_API_OPERATOR_EMAIL_ALLOWLIST:
 			process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-		PUBLIC_CHAT_WEB_ORIGIN:
-			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
 		RESEND_API_KEY: process.env.RESEND_API_KEY?.trim() || "shared-db-integration-resend-key",
-		SUPERVISOR_API_BASE_URL:
-			process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
-		SUPERVISOR_API_SHARED_SECRET:
-			process.env.SUPERVISOR_API_SHARED_SECRET?.trim() || "shared-db-integration-secret",
+		EXECUTION_CONTROL_BASE_URL:
+			process.env.EXECUTION_CONTROL_BASE_URL?.trim() || "https://execution-control.internal",
+		EXECUTION_CONTROL_SHARED_SECRET:
+			process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
 	};
 
 	return {

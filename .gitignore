@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 dist/
 build/
+target/
 .env
 .env.*
 !.env.example
@@ -64,10 +65,18 @@ tmp-*.jpeg
 tmp-*.webp
 
 # Local runtime and scratch artifacts
-apps/authenticated-notice-collector/runtime/
+apps/source-collector/adapters/*/runtime/
 artifacts/
+infra/local/.generated/
 !apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/
 !apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/**
 tmp/
 docs-*.png
 rspress-*.png
+
+# Local secret-delivery inputs and key backups.
+secret.local.yaml
+*.secret.local.yaml
+sealed-secrets-*.pem
+sealed-secrets-key.backup.yaml
+sealed-secrets-key.*.backup.yaml

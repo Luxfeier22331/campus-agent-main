@@ -1,13 +1,23 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0006
 status: accepted
 created: 2026-03-25
-updated: 2026-04-22
+updated: 2026-06-12
 ---
 # ADR-0006 编排模式与安全边界
 
-适用范围：`campus-agent` v2 的长期 supervisor-led orchestration、agent 扩展方式，以及跨边界安全控制
+适用范围：`campus-agent` v2 的长期 Execution Agent Layer orchestration、agent
+扩展方式，以及跨边界安全控制
+
+## Terminology superseded
+
+本文早期使用的 `supervisor-led orchestration` 在当前目标态中映射为
+`execution-control` 内的 Execution Agent Layer + `ToolExecutionWorkflow`。
+`supervisor` 不再作为 active architecture concept；历史代码、旧 ADR 标题与
+offline bridge 语境中的旧名不改变本文决策的 agent / tool 边界。
 
 ## 目标
 
@@ -15,8 +25,8 @@ updated: 2026-04-22
 
 - 哪些编排模式是长期允许的
 - 何时应该新增 agent，何时不应该
-- 不可信数据在多 agent / 多 capability 系统中如何隔离
-- approval / HITL、trace 与 release gate 应处在什么边界上
+- 不可信数据在多 agent / 多 tool 系统中如何隔离
+- trace、eval 与 release gate 应处在什么边界上
 
 ## 非目标
 
@@ -27,6 +37,7 @@ updated: 2026-04-22
 - 某个 agent 的 prompt、tool 列表或具体实现
 - 某次迭代的 workflow 细节、阈值或上线节奏
 - retrieval backend、vector store 或 object storage 的具体产品更换计划
+- approval / HITL、预约、提交、支付、工单等状态变更 tool
 
 这些内容应分别进入 phase ADR、实施计划、运行时配置或后续代码设计，而不是写死在长期编排规则中。
 
@@ -37,14 +48,15 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 
 边界固定如下：
 
-- `code orchestration` 负责 auth、ACL / policy gate、approval hook、timeout /
+- `code orchestration` 负责 admission、source / tool gate、timeout /
   retry、deterministic stop condition、结构化输入输出校验、审计与 trace 投影
 - `LLM orchestration` 负责意图框定、开放式任务拆解、query rewriting、evidence
   synthesis、clarification / refusal wording 与其他非确定性推理
 
 长期约束：
 
-- 安全边界、权限边界和不可逆动作的门禁优先由 code orchestration 承担
+- source truth、tool readiness、tool admission、fail-close 与不可逆动作门禁优先由
+  code orchestration 承担
 - LLM 可以参与决策建议，但不应独占高风险控制权
 - 不将整个系统冻结成一次性 declarative graph / DSL 作为唯一编排真相源
 
@@ -75,9 +87,10 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 长期准入条件至少包括：
 
 - 它拥有稳定、可重复、可命名的单一职责边界
-- 它对应独立的 downstream capability、tool / permission boundary 或状态边界
+- 它对应独立的 downstream tool、tool / permission boundary 或状态边界
 - 把该能力继续塞在现有 supervisor 或现有 agent 内，已经造成 prompt / context / tool overload 或边界混乱
-- `packages/evals` 中已有足够证据表明拆分能提升质量、可观测性或安全性
+- repo-owned eval truth / `packages/eval-langfuse` 中已有足够证据表明拆分能提升质量、
+  可观测性或安全性
 
 如果这些条件不成立，则默认：
 
@@ -103,24 +116,36 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 - 节点之间的关键控制信号必须通过结构化 schema 和显式字段传递
 - 如需基于不可信内容触发后续动作，必须经过 code orchestration 的显式校验和 policy gate
 
-## 决策 5：Approval / HITL 是长期保留的系统边界
+## 决策 5：当前主问答产品不冻结 Approval / HITL
 
-`campus-agent` 不要求第一阶段一次做满完整 approval / HITL，但长期架构必须保留这条边界。
+当前 Campus Assistant 主问答产品只承诺成熟、只读、source-truth-ready 的校园能力。
+approval / HITL、预约、提交、支付、工单与其他状态变更 tool 不属于当前主问答目标。
 
-长期规则如下：
+当前规则如下：
 
-- 涉及不可逆 side effect、跨系统写入、权限变更、外部官方动作或高风险对外操作时，必须允许 approval / HITL 介入
-- agent 自由文本输出不能直接越过 deterministic gate 触发高风险动作
-- 即使当前阶段只保留 approval hook，也不能把这条边界从架构上删除
+- 不把 approval-required tool 当成 active product surface。
+- 不为尚未接受的状态变更能力预留用户可见 tool 语义。
+- 当前 trace / eval / release gate 只需要覆盖 read-only tool routing、typed
+  tool execution、evidence、fail-close、timeout / cancel 与 finalization。
+
+如果未来产品明确接受状态变更 tool，必须新建 ADR，并显式冻结：
+
+- human approval / operator intervention 边界
+- audit、rollback 与 cancellation 语义
+- trace / eval / release gate denominator
+- user-visible failure wording 与后台校对流程
+
+不能把本文解释成这些能力已经是长期 accepted surface。
 
 ## 决策 6：编排变更进入 Release Path 前必须通过 Trace / Eval Gate
 
-以下变化在进入正式 release gate 前，必须先在 `packages/evals` 中具备可重复验证：
+以下变化在进入正式 release gate 前，必须先在 repo-owned eval truth /
+`packages/eval-langfuse` 中具备可重复验证：
 
 - 新 agent
 - 新 routing rule
 - 新 handoff 路径
-- 新 approval-required capability
+- 新 typed tool / tool branch
 
 至少需要覆盖：
 
@@ -132,19 +157,21 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 
 ## 决策 7：文档分层关系
 
-- `docs/architecture/target-architecture.md` 负责长期编排边界、角色分工与系统形态
-- `docs/architecture/system/execution-and-agents-architecture.md` 负责 supervisor
-  如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d` 负责 identity / memory / personalization 如何作为 typed context 进入编排，而不稀释 ACL
-  或权限边界
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/target.md` 负责长期编排边界、角色分工与系统形态
+- `docs/architecture/system/execution-agent-layer.md` 负责 Execution
+  Agent Layer 如何承接这些长期规则
+- `docs/architecture/system/agent-framework.md` 负责当前
+  model-facing SDK runtime 边界
+- `./adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  负责 account / memory / personalization 如何作为 typed context 进入编排，而不稀释
+  tool readiness、source truth 或 fail-close 边界
+- `docs/architecture/system/data-plane.md`
   负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant
   组合理由
 - 本 ADR 负责长期编排模式、agent 准入与安全边界
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责与编排变更相关的 workflow / safety /
   gate 指标语义
-- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
+- `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state`
   负责某一轮文档刷新或实现落地的任务分解、文件落点和验收标准
 
 换句话说，本文回答“长期允许什么样的编排与安全边界”，而不是“这轮代码怎么改”。

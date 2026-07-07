@@ -19,56 +19,28 @@ from campus_contracts.models_shared import (
     _validate_source_trust_tier,
     _validate_version_query_mode,
 )
+from campus_contracts.raw_payload_guardrails import (
+    COMMON_RAW_KEY_TOKENS,
+    COMMON_RAW_VALUE_TOKENS,
+    reject_raw_mapping_payload,
+)
 
 _FORBIDDEN_SAFE_SUMMARY_KEY_TOKENS = (
-    "raw_prompt",
-    "raw_transcript",
-    "provider_raw_response",
-    "raw_response",
+    *COMMON_RAW_KEY_TOKENS,
     "raw_payload",
     "raw_body",
-    "jwt",
-    "cookie",
-    "auth_envelope",
-    "retrieval_backend_dump",
 )
-_FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS = (
-    "authorization:",
-    "bearer ",
-    "cookie:",
-    "set-cookie:",
-    "access_token=",
-    "refresh_token=",
-    "sessionid=",
-    "session_id=",
-    "sso_tgc=",
-    "token=",
-)
-
-
-def _normalize_safe_summary_key_token(value: str) -> str:
-    return "".join(char for char in value.strip().lower() if char.isalnum())
+_FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS = COMMON_RAW_VALUE_TOKENS
 
 
 def _reject_raw_safe_summary_keys(value: object, field_name: str) -> None:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            normalized_key = _normalize_safe_summary_key_token(str(key))
-            if any(
-                _normalize_safe_summary_key_token(token) in normalized_key
-                for token in _FORBIDDEN_SAFE_SUMMARY_KEY_TOKENS
-            ):
-                raise ValueError(f"{field_name} contains forbidden raw workflow trace key: {key}")
-            _reject_raw_safe_summary_keys(item, field_name)
-        return
-    if isinstance(value, list | tuple):
-        for item in value:
-            _reject_raw_safe_summary_keys(item, field_name)
-        return
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if any(token in normalized for token in _FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS):
-            raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
+    reject_raw_mapping_payload(
+        value,
+        field_name,
+        forbidden_key_tokens=_FORBIDDEN_SAFE_SUMMARY_KEY_TOKENS,
+        forbidden_value_tokens=_FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS,
+        detect_jwt_values=False,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -530,8 +502,8 @@ class RagResultDiagnostics:
     claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
-    prompt_runtime_state: str = ""
-    prompt_runtime_detail: str = ""
+    model_execution_state: str = ""
+    model_execution_detail: str = ""
     answer_presentation_kind: str = ""
     answer_presentation_path: str = ""
     answer_diagnostic_reason: str = ""

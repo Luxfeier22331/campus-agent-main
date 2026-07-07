@@ -11,7 +11,7 @@ function createRow(overrides: Record<string, unknown> = {}) {
 		childTaskSummaryJson: {
 			total: 3,
 		},
-		collectorRunToken: "20260428T181953007Z",
+		sourceRunToken: "20260428T181953007Z",
 		downstreamJson: {
 			candidateKinds: ["transport_schedule"],
 			materializedReleaseCount: 1,
@@ -40,11 +40,11 @@ function createRow(overrides: Record<string, unknown> = {}) {
 		},
 		redactionVersion: "authenticated_notice_processing_redaction.v1",
 		replayBatchId: "manual-smoke-20260501",
-		runId: "muc_internal_portal:notice:20260428T181953007Z",
-		runKey: "authenticated_notice_portal:notice:muc_internal_portal:20260428T181953007Z",
-		runProcessingId: "authenticated_notice_portal:run:muc_internal_portal:20260428T181953007Z",
-		siteId: "muc_internal_portal",
-		sourceChannel: "authenticated_notice_portal",
+		runId: "synthetic_internal_portal:notice:20260428T181953007Z",
+		runKey: "internal_portal:notice:synthetic_internal_portal:20260428T181953007Z",
+		runProcessingId: "internal_portal:run:synthetic_internal_portal:20260428T181953007Z",
+		siteId: "synthetic_internal_portal",
+		sourceChannel: "internal_portal",
 		sourceSurface: "notice",
 		sourceTruthJson: {
 			selectedNoticeCount: 1,
@@ -88,7 +88,7 @@ describe("authenticated notice run processing query store", () => {
 		});
 
 		const result = await store.list({
-			collectorRunToken: null,
+			sourceRunToken: null,
 			cursor: null,
 			limit: 20,
 			q: null,
@@ -103,7 +103,7 @@ describe("authenticated notice run processing query store", () => {
 		});
 
 		expect(result.runs[0]).toMatchObject({
-			collectorRunToken: "20260428T181953007Z",
+			sourceRunToken: "20260428T181953007Z",
 			freshnessStatus: "stale",
 			observedAgeSeconds: 3601,
 			queueJobCount: 2,
@@ -118,7 +118,7 @@ describe("authenticated notice run processing query store", () => {
 				runProcessingId: "run_processing_01",
 			}),
 			createRow({
-				collectorRunToken: "20260429T181953007Z",
+				sourceRunToken: "20260429T181953007Z",
 				projectedAt: new Date("2026-05-01T09:32:00.000Z"),
 				runProcessingId: "run_processing_02",
 			}),
@@ -138,7 +138,7 @@ describe("authenticated notice run processing query store", () => {
 		});
 
 		const result = await store.list({
-			collectorRunToken: null,
+			sourceRunToken: null,
 			cursor: null,
 			limit: 1,
 			q: null,

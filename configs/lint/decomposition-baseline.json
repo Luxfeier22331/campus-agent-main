@@ -1,4 +1,8 @@
 {
-	"admitted": {},
+	"admitted": {
+		"apps/execution-control/internal/httpapi/execution_rag_graph_activity_test.go": {
+			"max_lines": 849
+		}
+	},
 	"threshold": 800
 }

@@ -1,23 +1,21 @@
 import { and, gte, inArray, lt, type SQL } from "drizzle-orm";
 
 import { projectionOutbox } from "../../../db/schema";
+import {
+	evaluateStageTimingBudget,
+	LATENCY_BUDGET_RULES,
+	LATENCY_BUDGET_VERSION,
+	stageTimingBudgetState,
+} from "../../latency-budget";
 import type { NormalizedOperatorOverviewFilters, OperatorOverviewResult } from "../service";
 import { loadObservabilityRows } from "./loaders";
 import type { OperatorQueryRuntime } from "./runtime";
-import { buildSafetyAlerts } from "./safety";
 import { buildResultWindow, percentile, toRatio } from "./shared";
 
 const OUTBOX_STALE_MS = 5 * 60_000;
 
 function hasNarrowingOverviewFilters(filters: NormalizedOperatorOverviewFilters): boolean {
-	return Boolean(
-		filters.collection ||
-			filters.modelName ||
-			filters.principalType ||
-			filters.requestedCapability ||
-			filters.selectedTarget ||
-			filters.surface,
-	);
+	return Boolean(filters.principalType || filters.surface);
 }
 
 async function loadProjectionOutboxRows(
@@ -73,6 +71,62 @@ function buildProjectionOutboxHealth(input: { now: Date; rows: unknown[] }) {
 	};
 }
 
+function numericStageTiming(value: Record<string, unknown> | null | undefined) {
+	const timing: Record<string, number> = {};
+	for (const [field, durationMs] of Object.entries(value ?? {})) {
+		if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0) {
+			timing[field] = durationMs;
+		}
+	}
+	return timing;
+}
+
+function buildStageLatencyOverview(
+	rows: Array<{ stageTimingJson?: Record<string, unknown> | null }>,
+) {
+	const output: OperatorOverviewResult["overview"]["stageLatency"] = {};
+	for (const rule of LATENCY_BUDGET_RULES) {
+		const values = rows
+			.map((row) => numericStageTiming(row.stageTimingJson)[rule.field])
+			.filter((value): value is number => typeof value === "number");
+		if (values.length === 0) {
+			continue;
+		}
+		output[rule.field] = {
+			criticalCount: values.filter(
+				(value) => stageTimingBudgetState(rule.field, value) === "critical",
+			).length,
+			p50Ms: percentile(values, 50),
+			p95Ms: percentile(values, 95),
+			p99Ms: percentile(values, 99),
+			sampleCount: values.length,
+			warnCount: values.filter(
+				(value) => stageTimingBudgetState(rule.field, value) !== "within_budget",
+			).length,
+		};
+	}
+	return output;
+}
+
+function buildLatencyBudgetOverview(
+	rows: Array<{ stageTimingJson?: Record<string, unknown> | null }>,
+) {
+	const breaches = rows.flatMap((row) => evaluateStageTimingBudget(row.stageTimingJson).breaches);
+	const worst =
+		[...breaches].sort((left, right) => {
+			if (left.severity !== right.severity) {
+				return left.severity === "critical" ? -1 : 1;
+			}
+			return right.durationMs - left.durationMs;
+		})[0] ?? null;
+	return {
+		criticalFieldCount: breaches.filter((breach) => breach.severity === "critical").length,
+		version: LATENCY_BUDGET_VERSION,
+		warnFieldCount: breaches.length,
+		worstField: worst?.field ?? null,
+	};
+}
+
 export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 	return {
 		async getOverview(filters: NormalizedOperatorOverviewFilters) {
@@ -92,47 +146,16 @@ export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 			const durations = rows
 				.map((row) => row.durationMs)
 				.filter((value): value is number => typeof value === "number");
-			const retrievalEligible = rows.filter((row) => row.retrievalAttempted === true);
-			const citationEligible = rows.filter((row) => row.citationExpected === true);
-			const refusalCount = rows.filter(
-				(row) =>
-					row.status === "needs_clarification" ||
-					row.status === "no_answer" ||
-					row.status === "approval_required" ||
-					row.status === "rejected",
-			).length;
-			const estimatedCostMicrousd = rows.reduce(
-				(sum, row) => sum + (row.estimatedCostMicrousd ?? 0),
-				0,
-			);
-
 			return {
-				alerts: buildSafetyAlerts({
-					asOf: bounds.to,
-					rows,
-				}),
 				asOf: bounds.to.toISOString(),
 				overview: {
-					aclAnomalyRate: toRatio(rows.filter((row) => Boolean(row.aclAnomalyCode)).length, total),
-					citationMissRate: toRatio(
-						citationEligible.filter((row) => row.citationMissing === true).length,
-						citationEligible.length,
-					),
-					emptyRecallRate: toRatio(
-						retrievalEligible.filter((row) => row.emptyRecall === true).length,
-						retrievalEligible.length,
-					),
-					estimatedCost: {
-						currency: "USD",
-						microusd: estimatedCostMicrousd,
-					},
 					failureRate: toRatio(rows.filter((row) => row.status === "error").length, total),
 					latency: {
 						p50Ms: percentile(durations, 50),
 						p95Ms: percentile(durations, 95),
 						p99Ms: percentile(durations, 99),
 					},
-					refusalRate: toRatio(refusalCount, total),
+					latencyBudget: buildLatencyBudgetOverview(rows),
 					requestVolume: {
 						accepted: total,
 						completed: rows.filter((row) => row.status === "completed").length,
@@ -145,6 +168,7 @@ export function createOverviewMetricHandlers(runtime: OperatorQueryRuntime) {
 						),
 						...outboxHealth,
 					},
+					stageLatency: buildStageLatencyOverview(rows),
 				},
 				window: buildResultWindow(bounds),
 			} satisfies OperatorOverviewResult;

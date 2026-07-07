@@ -5,12 +5,12 @@ import {
 
 const DEFAULT_PASSWORD_ENV_KEY = "APP_API_SMOKE_IDENTITY_PASSWORD";
 const DEFAULT_APP_NAME = "campus-agent-app-api";
-const DEFAULT_PUBLIC_CHAT_ORIGIN = "https://chat-staging.mucwiki-edge.link";
-const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn";
+const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
+const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";
-const DEFAULT_SUPERVISOR_BASE_URL = "https://supervisor.internal";
-const DEFAULT_SUPERVISOR_SHARED_SECRET = "smoke-identity-supervisor-secret";
+const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";
+const DEFAULT_EXECUTION_CONTROL_SHARED_SECRET = "smoke-identity-execution-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
 const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
@@ -46,21 +46,21 @@ function requireValue(value, message) {
 	return value.trim();
 }
 
-function shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, publicChatOrigin) {
+function shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, authShellOrigin) {
 	if (appApiEnvironment === "development" || appApiEnvironment === "test") {
 		return true;
 	}
 
-	return /^(https?:\/\/)(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(publicChatOrigin);
+	return /^(https?:\/\/)(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(authShellOrigin);
 }
 
-function resolveTurnstileSecretKey(env, appApiEnvironment, publicChatOrigin) {
+function resolveTurnstileSecretKey(env, appApiEnvironment, authShellOrigin) {
 	const configuredSecret = env.AUTH_TURNSTILE_SECRET_KEY?.trim();
 	if (configuredSecret) {
 		return configuredSecret;
 	}
 
-	if (shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, publicChatOrigin)) {
+	if (shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, authShellOrigin)) {
 		return DEFAULT_TURNSTILE_TEST_SECRET_KEY;
 	}
 
@@ -107,12 +107,8 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 		readArgValue(argv, "--name"),
 		"Usage: --name <display name> is required.",
 	);
-	const publicChatOrigin = env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || DEFAULT_PUBLIC_CHAT_ORIGIN;
-	const authTurnstileSecretKey = resolveTurnstileSecretKey(
-		env,
-		appApiEnvironment,
-		publicChatOrigin,
-	);
+	const authShellOrigin = env.AUTH_SHELL_ORIGIN?.trim() || DEFAULT_AUTH_SHELL_ORIGIN;
+	const authTurnstileSecretKey = resolveTurnstileSecretKey(env, appApiEnvironment, authShellOrigin);
 	const endUserEmailAllowlist =
 		env.APP_API_END_USER_EMAIL_ALLOWLIST?.trim() || DEFAULT_END_USER_EMAIL_ALLOWLIST;
 	const endUserEmailDomainAllowlist =
@@ -153,10 +149,11 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 			env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || DEFAULT_OPERATOR_EMAIL_ALLOWLIST,
 		password,
 		passwordEnvKey,
-		publicChatOrigin,
-		supervisorApiBaseUrl: env.SUPERVISOR_API_BASE_URL?.trim() || DEFAULT_SUPERVISOR_BASE_URL,
-		supervisorApiSharedSecret:
-			env.SUPERVISOR_API_SHARED_SECRET?.trim() || DEFAULT_SUPERVISOR_SHARED_SECRET,
+		authShellOrigin,
+		executionControlBaseUrl:
+			env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_EXECUTION_CONTROL_BASE_URL,
+		executionControlSharedSecret:
+			env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || DEFAULT_EXECUTION_CONTROL_SHARED_SECRET,
 	};
 }
 
@@ -183,10 +180,10 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
 		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
 		AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,
 		BETTER_AUTH_SECRET: input.betterAuthSecret,
-		PUBLIC_CHAT_WEB_ORIGIN: input.publicChatOrigin,
+		AUTH_SHELL_ORIGIN: input.authShellOrigin,
 		RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
-		SUPERVISOR_API_BASE_URL: input.supervisorApiBaseUrl,
-		SUPERVISOR_API_SHARED_SECRET: input.supervisorApiSharedSecret,
+		EXECUTION_CONTROL_BASE_URL: input.executionControlBaseUrl,
+		EXECUTION_CONTROL_SHARED_SECRET: input.executionControlSharedSecret,
 	};
 }
 
@@ -214,8 +211,9 @@ export async function provisionSmokeIdentity(input, deps) {
 			}),
 			headers: {
 				"content-type": "application/json",
-				origin: input.publicChatOrigin,
-				referer: `${input.publicChatOrigin.replace(/\/$/, "")}/login`,
+				origin: input.authShellOrigin,
+				referer: `${input.authShellOrigin.replace(/\/$/, "")}/login`,
+				"x-campus-legal-accepted": "terms-and-privacy",
 				"x-captcha-response": input.captchaToken,
 			},
 			method: "POST",

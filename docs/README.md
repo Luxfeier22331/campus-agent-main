@@ -1,88 +1,176 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-04-23
+updated: 2026-07-05
 ---
+
 # Docs
 
-`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的 architecture、ADR、contract、data、
-policy、reference、runbook，以及已归档的历史 plan。
+`docs/` is the long-lived documentation surface for `campus-agent`.
 
-## Canonical Entry Points
+The repository uses mature documentation standards with a thin Source-of-Truth
+mapping layer. Use Diataxis, MADR / ADR, OpenAPI / JSON Schema, RFC 2119 / RFC
+8174 and GitHub's native templates for their respective surfaces. Read
+`documentation-architecture.md` when a question depends on which document owns a
+fact or which document wins a conflict.
 
-- [architecture/product-positioning.md](./architecture/product-positioning.md)
-  - 产品定位、目标用户与产品边界
-- [architecture/current-architecture.md](./architecture/current-architecture.md)
-  - 当前 accepted merged truth
-- [architecture/target-architecture.md](./architecture/target-architecture.md)
-  - 长期目标架构与不可退回约束
-- [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
-  - capability routing、surface admission 与 structured/runtime opening owner
-- [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
-  - supervisor runtime、agent family、handoff 与 workflow ownership
-- [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
-  - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
-- [../.planning/PROJECT.md](../.planning/PROJECT.md)
-  - 当前项目级 active lane 与 pending work
-- [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
-  - 当前 active / deferred / backlog workstreams 与 native planning 目录索引
+## Question Routing
+
+- Product boundary, users and non-promises:
+  - [architecture/product.md](./architecture/product.md)
+- Feature-level product requirements:
+  - [product/README.md](./product/README.md)
+  - [product/legal-consent.md](./product/legal-consent.md)
+  - [product/attachments.md](./product/attachments.md)
+  - [product/langfuse-evals.md](./product/langfuse-evals.md)
+  - [product/run-context.md](./product/run-context.md)
+  - [product/operator-diagnosis.md](./product/operator-diagnosis.md)
+- Current accepted merged truth:
+  - [architecture/current.md](./architecture/current.md)
+- Long-term architecture invariants:
+  - [architecture/target.md](./architecture/target.md)
+- Documentation standards mapping, truth classes and conflict resolution:
+  - [documentation-architecture.md](./documentation-architecture.md)
+- Main question-answer chain semantics:
+  - [architecture/system/execution-agent-layer.md](./architecture/system/execution-agent-layer.md)
+  - [architecture/system/tool-routing.md](./architecture/system/tool-routing.md)
+  - [contracts/app-api/chat.md](./contracts/app-api/chat.md)
+  - [architecture/current.md](./architecture/current.md)
+- Durable execution, Temporal, run/event/step projection, resume and cancel:
+  - [architecture/system/durable-runtime.md](./architecture/system/durable-runtime.md)
+  - [contracts/durable-runtime.md](./contracts/durable-runtime.md)
+- Langfuse LLM observability and eval platform:
+  - [architecture/system/learning-loop.md](./architecture/system/learning-loop.md)
+  - [product/langfuse-evals.md](./product/langfuse-evals.md)
+  - [architecture/system/langfuse.md](./architecture/system/langfuse.md)
+  - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
+  - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
+  - [contracts/stage-timing.md](./contracts/stage-timing.md)
+  - [contracts/replay-capture.md](./contracts/replay-capture.md)
+  - [reference/observability-ledger.md](./reference/observability-ledger.md)
+  - [decisions/adr-0069-raw-replay-capture.md](./decisions/adr-0069-raw-replay-capture.md)
+  - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
+  - [decisions/adr-0062-ragas-langfuse.md](./decisions/adr-0062-ragas-langfuse.md)
+  - [reference/eval.md](./reference/eval.md)
+  - [reference/eval-map.md](./reference/eval-map.md)
+  - [runbooks/eval-ragas.md](./runbooks/eval-ragas.md)
+  - [runbooks/eval-operations-governance.md](./runbooks/eval-operations-governance.md)
+- Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
+  - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
+- Runtime config, GitOps and secret delivery decisions:
+  - [decisions/adr-0064-runtime-config-governance.md](./decisions/adr-0064-runtime-config-governance.md)
+  - [decisions/adr-0065-gitops-argocd-helm-boundary.md](./decisions/adr-0065-gitops-argocd-helm-boundary.md)
+  - [decisions/adr-0066-secret-delivery.md](./decisions/adr-0066-secret-delivery.md)
+  - [runbooks/gitops-k8s.md](./runbooks/gitops-k8s.md)
+- Tool or domain readiness:
+  - [architecture/domains/README.md](./architecture/domains/README.md)
+  - [contracts/README.md](./contracts/README.md)
+  - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
+- Campus shuttle timetable capability:
+  - [domains/transport.md](./domains/transport.md)
+- Public official-web search capability:
+  - [domains/public-web-search.md](./domains/public-web-search.md)
+- Authenticated notice / internal notice document routing:
+  - [architecture/domains/authenticated-notice/architecture.md](./architecture/domains/authenticated-notice/architecture.md)
+  - [data/authenticated-notice.md](./data/authenticated-notice.md)
+  - [contracts/campus-notice-runtime-contract.md](./contracts/campus-notice-runtime-contract.md)
+  - [decisions/adr-0063-internal-portal-source-channel-name.md](./decisions/adr-0063-internal-portal-source-channel-name.md)
+- Data source truth, source-channel schema and read-model ownership:
+  - [data/README.md](./data/README.md)
+- Ingestion / collector / source-channel runtime shape:
+  - [architecture/system/data-plane.md](./architecture/system/data-plane.md)
+  - [decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md](./decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md)
+  - [runbooks/ingestion-control-clean-target.md](./runbooks/ingestion-control-clean-target.md)
+- HTTP/runtime wire contracts, DTOs and tool contracts:
+  - [contracts/README.md](./contracts/README.md)
+- ADR reasoning and supersession:
+  - [decisions/README.md](./decisions/README.md)
+- Deployment, staging, release, recovery or smoke procedure:
+  - [runbooks/README.md](./runbooks/README.md)
+  - [environment/README.md](./environment/README.md)
+  - [policies/README.md](./policies/README.md)
+- License, notices and third-party source attribution:
+  - [../LICENSE](../LICENSE)
+  - [../NOTICE](../NOTICE)
+  - [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
+  - [policies/public-source-data.md](./policies/public-source-data.md)
+  - [reference/open-source-data.md](./reference/open-source-data.md)
+- Active planning signals:
+  - [../.planning/PROJECT.md](../.planning/PROJECT.md)
+  - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
+- Account center, identity product projection and federation boundary:
+  - [architecture/system/identity-platform.md](./architecture/system/identity-platform.md)
+  - [architecture/system/identity-browser.md](./architecture/system/identity-browser.md)
+  - [architecture/system/mucwiki-login.md](./architecture/system/mucwiki-login.md)
+  - [contracts/app-api/identity.md](./contracts/app-api/identity.md)
+  - [contracts/app-api/federation.md](./contracts/app-api/federation.md)
+  - [data/identity-platform.md](./data/identity-platform.md)
+  - [runbooks/mucwiki-federation.md](./runbooks/mucwiki-federation.md)
+- campus-web docs reader, Rspress delivery and Q&A source-card jumps:
+  - [architecture/system/document-site.md](./architecture/system/document-site.md)
+  - [domains/source-card.md](./domains/source-card.md)
+  - [contracts/app-api/document-reader.md](./contracts/app-api/document-reader.md)
+  - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
+- Operator Console and dining map/menu/release operations:
+  - [decisions/adr-0055-unified-operator-console-surface.md](./decisions/adr-0055-unified-operator-console-surface.md)
+  - [architecture/system/operator-console.md](./architecture/system/operator-console.md)
+  - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
+  - [contracts/app-api/operator-ops.md](./contracts/app-api/operator-ops.md)
+  - [contracts/app-api/dining.md](./contracts/app-api/dining.md)
+  - [contracts/app-api/dining-ops.md](./contracts/app-api/dining-ops.md)
+  - [data/dining.md](./data/dining.md)
+  - [runbooks/dining-sync.md](./runbooks/dining-sync.md)
 
 ## Documentation Areas
 
 - [architecture/README.md](./architecture/README.md)
-  - repo-entry truth 与 supporting architecture 总入口
+  - product, current, target and supporting architecture entry
+- [product/README.md](./product/README.md)
+  - feature-level PRDs and launch-facing user experience requirements
 - [architecture/system/README.md](./architecture/system/README.md)
-  - 跨域 supporting architecture
+  - cross-domain runtime, execution, retrieval, data and observability boundaries
 - [architecture/domains/README.md](./architecture/domains/README.md)
-  - 领域 supporting architecture
-- [decisions/README.md](./decisions/README.md)
-  - ADR、接受原因与 supersession lifecycle
-- [contracts/README.md](./contracts/README.md)
-  - HTTP 与 runtime seam
-- [data/README.md](./data/README.md)
-  - schema、ownership 与 canonical data boundary
-- [reference/README.md](./reference/README.md)
-  - 术语、指标、清单与已落盘事实
-- [runbooks/README.md](./runbooks/README.md)
-  - 可重复执行的操作步骤与验收手册
-- [policies/README.md](./policies/README.md)
-  - 治理规则、阈值与 collection-specific 约束
+  - domain / tool architecture boundaries
 - [domains/README.md](./domains/README.md)
-  - 跨文档类型的领域导航
+  - narrow human capability docs and direct owner routing
+- [contracts/README.md](./contracts/README.md)
+  - contract truth for HTTP, runtime and tool seams
+- [data/README.md](./data/README.md)
+  - data truth, source truth schemas and read-model ownership
+- [decisions/README.md](./decisions/README.md)
+  - ADR lifecycle and accepted decision reasoning
+- [reference/README.md](./reference/README.md)
+  - glossary, inventory, matrices, baselines and reference material
+- [runbooks/README.md](./runbooks/README.md)
+  - operational procedure and release/staging/smoke runbooks
 - [environment/README.md](./environment/README.md)
-  - 环境变量 ownership、配置分层与 provider / secret inventory 入口
-- [plans/README.md](./plans/README.md)
-  - 已归档 plan 的索引入口；当前前向工作流改看 `.planning/WORKSTREAMS.md`
+  - env ownership, provider and secret inventory
+- [policies/README.md](./policies/README.md)
+  - governance rules, thresholds and collection-specific policies
 
-## Reading Model
+## Non-Ownership Rules
 
-- 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
-- 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
-  `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“supervisor、structured runtime、agent handoff 与 SDK-native execution 如何分层”，读
-  `architecture/system/execution-and-agents-architecture.md`
-- 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
-  `architecture/system/agentic-retrieval-architecture.md`
-- 需要回答“为什么接受这条边界”，读 `decisions/`
-- 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
-- 需要回答“source-channel 的 canonical data truth 是什么”，优先从 `data/` 进入，例如
-  `data/official-web-source-truth-schema.md`、
-  `data/authenticated-notice-source-truth-schema.md`、
-  `data/wechat-official-account-source-truth-schema.md`
-- 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
-- 需要按领域聚合同一主题下的多类材料，读 `domains/`
-- 需要查看历史方案、completed closeout 或 supersession 关系，读 `plans/`
+- `.planning/` is a compact planning signal surface. It does not override architecture,
+  contract, data or ADR truth.
+- `runbooks/` define operational procedures and release-closeout artifacts. They do not
+  define whether the main answer chain is architecturally complete.
+- Domain/tool docs define local readiness. They do not
+  redefine main-chain completion.
+- `current.md` describes accepted merged truth. It does not carry
+  feature-branch progress or release closeout.
+- `target.md` describes long-term invariants. It does not carry
+  P0/P1/P2 status or current implementation progress.
+- Reference material can support a discussion, but contracts, data schemas and
+  architecture docs own current product/runtime/data truth.
+- Historical planning material must be promoted into the correct active
+  document class before it can be cited as current truth.
 
-## Docs And Planning
+## Historical Material
 
-- `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
-- `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature
-  branch 进度
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；先看这里，再进入
-  `STATE / ROADMAP / REQUIREMENTS`
-- `docs/plans/` 已全部视为 archive namespace；当前 forward execution truth 固定在
-  `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`
-- `plans/`、`reference/`、`runbooks/` 的非默认入口材料应优先收进各自 `archive/` 子目录，而不是继续堆在根层命名空间
-- `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级
-  workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`
+Tracked planning archive trees have been removed from branch tip. Historical
+planning material is recovered through git history. If a historical decision,
+requirement or evidence reference is still needed, promote that specific fact
+into the correct active document class instead of restoring the archive tree.

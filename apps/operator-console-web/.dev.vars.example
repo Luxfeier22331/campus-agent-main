@@ -1,0 +1,16 @@
+OPERATOR_CONSOLE_APP_NAME=campus-agent-v2-operator-console
+# Must point to the shared `apps/app-api` runtime, not `apps/execution-control`.
+OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal
+OPERATOR_CONSOLE_PROTECTION_ENVELOPE=cloudflare-access
+# Use the real Access team domain for the current environment.
+ACCESS_TEAM_DOMAIN=https://team-your-org.cloudflareaccess.com
+# Use the real Access application audience for the current environment.
+ACCESS_POLICY_AUD=replace-with-operator-console-access-audience
+# Must match `APP_API_INTERNAL_SHARED_SECRET` in `apps/app-api`.
+OPERATOR_CONSOLE_APP_API_SHARED_SECRET=replace-with-operator-console-bridge-secret
+# Optional. Comma-separated Cloudflare Access service token client IDs allowed
+# to act as machine operators through the protected console surface.
+OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST=
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=development
+SENTRY_RELEASE=operator-console-web@dev-local

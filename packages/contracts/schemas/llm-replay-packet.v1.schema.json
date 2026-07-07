@@ -1,0 +1,690 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/llm-replay-packet.v1.schema.json",
+	"title": "campus-agent LLM replay packet",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"packet_id",
+		"run_id",
+		"request_id",
+		"trace_id",
+		"created_at",
+		"expires_at",
+		"capture_policy",
+		"llm_io_fingerprint",
+		"sensitivity_classification",
+		"object_checksum_sha256",
+		"encryption_key_ref",
+		"deletion_linkage",
+		"retention",
+		"access_audit",
+		"evidence_replay_index"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "llm_replay_packet.v1"
+		},
+		"packet_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"run_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"request_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"trace_id": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"created_at": {
+			"$ref": "#/$defs/DateTime"
+		},
+		"expires_at": {
+			"$ref": "#/$defs/DateTime"
+		},
+		"capture_policy": {
+			"$ref": "#/$defs/RawCapturePolicy"
+		},
+		"llm_io_fingerprint": {
+			"$ref": "#/$defs/LlmIoFingerprint"
+		},
+		"sensitivity_classification": {
+			"enum": [
+				"restricted_llm_io",
+				"restricted_llm_io_with_memory",
+				"restricted_llm_io_with_evidence"
+			]
+		},
+		"object_checksum_sha256": {
+			"$ref": "#/$defs/Sha256"
+		},
+		"encryption_key_ref": {
+			"$ref": "#/$defs/NonEmptyString"
+		},
+		"deletion_linkage": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["subject_ref", "conversation_id", "request_id", "trace_id"],
+			"properties": {
+				"subject_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"conversation_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"request_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"trace_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"memory_ref_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"evidence_ref_count": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"retention": {
+			"$ref": "#/$defs/ReplayRetention"
+		},
+		"access_audit": {
+			"$ref": "#/$defs/ReplayAccessAudit"
+		},
+		"evidence_replay_index": {
+			"$ref": "#/$defs/EvidenceReplayIndex"
+		},
+		"rendered_messages": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"provider_request_body": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"provider_response_body": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"provider_stream_deltas": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"tool_calls": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"tool_results": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"selected_evidence_packet": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"selected_memory_context": {
+			"$ref": "#/$defs/JsonValue"
+		},
+		"output_schema": {
+			"$ref": "#/$defs/JsonValue"
+		}
+	},
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1
+		},
+		"DateTime": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"Sha256": {
+			"type": "string",
+			"pattern": "^(sha256:)?[a-f0-9]{64}$"
+		},
+		"JsonValue": true,
+		"RawCapturePolicy": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"mode",
+				"capture_reason",
+				"ttl_days",
+				"allowed_sinks",
+				"allowed_raw_fields",
+				"operator_principal",
+				"approval_ref",
+				"request_id",
+				"run_id",
+				"trace_id",
+				"audit_required",
+				"dsar_delete_linkage_required"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "raw_capture_policy.v1"
+				},
+				"mode": {
+					"enum": [
+						"off",
+						"sampled",
+						"failure_triggered",
+						"operator_window",
+						"eval_case",
+						"manual_run_capture"
+					]
+				},
+				"capture_reason": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"ttl_days": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"allowed_sinks": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": ["s3_replay_packet", "langfuse_otlp", "openai_agents_trace"]
+					}
+				},
+				"allowed_raw_fields": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"rendered_messages",
+							"provider_request_body",
+							"provider_response_body",
+							"provider_stream_deltas",
+							"tool_calls",
+							"tool_results",
+							"selected_evidence_packet",
+							"selected_memory_context",
+							"output_schema"
+						]
+					}
+				},
+				"operator_principal": {
+					"type": ["string", "null"],
+					"minLength": 1
+				},
+				"approval_ref": {
+					"type": ["string", "null"],
+					"minLength": 1
+				},
+				"audit_required": {
+					"type": "boolean"
+				},
+				"dsar_delete_linkage_required": {
+					"type": "boolean"
+				},
+				"request_id": {
+					"type": ["string", "null"],
+					"minLength": 1
+				},
+				"run_id": {
+					"type": ["string", "null"],
+					"minLength": 1
+				},
+				"trace_id": {
+					"type": ["string", "null"],
+					"minLength": 1
+				}
+			}
+		},
+		"LlmIoFingerprint": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"run_id",
+				"request_id",
+				"trace_id",
+				"runtime_release",
+				"llm_call_site",
+				"provider_profile_revision",
+				"provider",
+				"model",
+				"model_params_hash",
+				"model_params_projection",
+				"prompt_id",
+				"prompt_registry_attestation",
+				"prompt_template_sha256",
+				"prompt_variables_schema_version",
+				"rendered_prompt_sha256",
+				"provider_request_safe_hash",
+				"tool_catalog_sha256",
+				"tool_schema_sha256",
+				"tool_runtime_fingerprint",
+				"tool_runtime_attestation",
+				"workflow_artifact_sha256",
+				"context_envelope_sha256",
+				"memory_selection_sha256",
+				"evidence_packet_sha256",
+				"output_schema_id",
+				"primary_attestation"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "llm_io_fingerprint.v1"
+				},
+				"run_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"request_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"trace_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"runtime_release": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"llm_call_site": {
+					"enum": ["agent.primary", "rag.synthesis"]
+				},
+				"provider_profile_revision": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"provider": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"model": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"model_params_hash": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"model_params_projection": {
+					"$ref": "#/$defs/ModelParamsProjection"
+				},
+				"prompt_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"prompt_registry_attestation": {
+					"$ref": "#/$defs/PromptRegistryAttestation"
+				},
+				"prompt_template_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"prompt_variables_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"rendered_prompt_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"provider_request_safe_hash": {
+					"$ref": "#/$defs/ProviderRequestSafeHash"
+				},
+				"tool_catalog_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"tool_schema_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"tool_runtime_fingerprint": {
+					"$ref": "#/$defs/ToolRuntimeFingerprint"
+				},
+				"tool_runtime_attestation": {
+					"$ref": "#/$defs/ToolRuntimeAttestation"
+				},
+				"workflow_artifact_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"context_envelope_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"memory_selection_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"evidence_packet_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"output_schema_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"primary_attestation": {
+					"$ref": "#/$defs/PrimaryAttestation"
+				}
+			}
+		},
+		"PromptRegistryAttestation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"prompt_registry_version",
+				"prompt_id",
+				"prompt_template_sha256",
+				"prompt_variables_schema_version",
+				"output_schema_id",
+				"attestation_sha256"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "prompt_registry_attestation.v1"
+				},
+				"prompt_registry_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"prompt_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"prompt_template_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"prompt_variables_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"output_schema_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"attestation_sha256": {
+					"$ref": "#/$defs/Sha256"
+				}
+			}
+		},
+		"PrimaryAttestation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema_version", "attestation_kind", "attested_by", "attestation_sha256"],
+			"properties": {
+				"schema_version": {
+					"const": "primary_attestation.v1"
+				},
+				"attestation_kind": {
+					"enum": ["primary_agent_call", "primary_admitted_rag_synthesis"]
+				},
+				"attested_by": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"attestation_sha256": {
+					"$ref": "#/$defs/Sha256"
+				}
+			}
+		},
+		"ProviderRequestSafeHash": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema_version", "canonicalization", "redaction_policy", "request_sha256"],
+			"properties": {
+				"schema_version": {
+					"const": "provider_request_safe_hash.v1"
+				},
+				"canonicalization": {
+					"const": "canonical_json_redacted_v1"
+				},
+				"redaction_policy": {
+					"const": "llm_provider_request_safe_projection.v1"
+				},
+				"request_sha256": {
+					"$ref": "#/$defs/Sha256"
+				}
+			}
+		},
+		"ModelParamsProjection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema_version", "params_schema_version", "params_sha256", "projected_params"],
+			"properties": {
+				"schema_version": {
+					"const": "model_params_projection.v1"
+				},
+				"params_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"params_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"projected_params": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"max_output_tokens": {
+							"type": ["integer", "null"],
+							"minimum": 1
+						},
+						"temperature": {
+							"type": ["number", "null"],
+							"minimum": 0,
+							"maximum": 2
+						},
+						"top_p": {
+							"type": ["number", "null"],
+							"minimum": 0,
+							"maximum": 1
+						},
+						"reasoning_effort": {
+							"type": ["string", "null"],
+							"enum": ["minimal", "low", "medium", "high", null]
+						},
+						"response_format": {
+							"type": ["string", "null"],
+							"enum": ["text", "json_schema", "json_object", null]
+						},
+						"tool_choice": {
+							"type": ["string", "null"],
+							"enum": ["auto", "none", "required", "tool_name", null]
+						}
+					}
+				}
+			}
+		},
+		"ToolRuntimeFingerprint": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"tools_schema_version",
+				"tools_registry_version",
+				"tools_sha256",
+				"function_schema_version",
+				"function_schema_sha256",
+				"workflow_artifact_schema_version",
+				"workflow_artifact_registry_version",
+				"workflow_artifact_sha256",
+				"combined_sha256"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "tool_runtime_fingerprint.v1"
+				},
+				"tools_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"tools_registry_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"tools_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"function_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"function_schema_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"workflow_artifact_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"workflow_artifact_registry_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"workflow_artifact_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"combined_sha256": {
+					"$ref": "#/$defs/Sha256"
+				}
+			}
+		},
+		"ToolRuntimeAttestation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"attested_by",
+				"config_refs",
+				"tools_registry_version",
+				"function_schema_version",
+				"workflow_artifact_registry_version",
+				"combined_sha256"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "tool_runtime_attestation.v1"
+				},
+				"attested_by": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"config_refs": {
+					"type": "array",
+					"minItems": 3,
+					"maxItems": 3,
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"configs/runtime/tools.v4.json",
+							"configs/runtime/tool-function-schemas.v1.json",
+							"configs/runtime/workflow-artifacts.v2.json"
+						]
+					},
+					"allOf": [
+						{
+							"contains": {
+								"const": "configs/runtime/tools.v4.json"
+							}
+						},
+						{
+							"contains": {
+								"const": "configs/runtime/tool-function-schemas.v1.json"
+							}
+						},
+						{
+							"contains": {
+								"const": "configs/runtime/workflow-artifacts.v2.json"
+							}
+						}
+					]
+				},
+				"tools_registry_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"function_schema_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"workflow_artifact_registry_version": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"combined_sha256": {
+					"$ref": "#/$defs/Sha256"
+				}
+			}
+		},
+		"ReplayRetention": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"retention_class",
+				"ttl_days",
+				"created_at",
+				"expires_at",
+				"dsar_delete_linkage_required",
+				"deletion_linkage_ref"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "replay_retention.v1"
+				},
+				"retention_class": {
+					"enum": ["restricted_raw_replay_packet", "safe_replay_packet_index"]
+				},
+				"ttl_days": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"created_at": {
+					"$ref": "#/$defs/DateTime"
+				},
+				"expires_at": {
+					"$ref": "#/$defs/DateTime"
+				},
+				"dsar_delete_linkage_required": {
+					"const": true
+				},
+				"deletion_linkage_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"ReplayAccessAudit": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema_version", "audit_required", "audit_log_ref", "access_policy_ref"],
+			"properties": {
+				"schema_version": {
+					"const": "replay_access_audit.v1"
+				},
+				"audit_required": {
+					"const": true
+				},
+				"audit_log_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"access_policy_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"last_accessed_at": {
+					"type": ["string", "null"],
+					"format": "date-time"
+				}
+			}
+		},
+		"EvidenceReplayIndex": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"evidence_packet_sha256",
+				"evidence_profile_ref",
+				"evidence_ref_count",
+				"evidence_refs"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "evidence_replay_index.v1"
+				},
+				"evidence_packet_sha256": {
+					"$ref": "#/$defs/Sha256"
+				},
+				"evidence_profile_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"evidence_ref_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"evidence_refs": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["evidence_ref", "evidence_sha256", "source_profile_ref"],
+						"properties": {
+							"evidence_ref": {
+								"$ref": "#/$defs/NonEmptyString"
+							},
+							"evidence_sha256": {
+								"$ref": "#/$defs/Sha256"
+							},
+							"source_profile_ref": {
+								"$ref": "#/$defs/NonEmptyString"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

@@ -2,25 +2,16 @@
 	"schema_version": 1,
 	"corpus": "curriculum",
 	"collection": "curriculum_plan",
-	"safe_aliases": [
+	"policy_objects": [
 		{
-			"alias": "民族班",
-			"canonical": "民族实验班"
-		}
-	],
-	"family_aliases": [
+			"document_id": "curriculum:synthetic-public-affairs-plan",
+			"title": "Synthetic public affairs curriculum plan",
+			"aliases": ["public affairs plan"]
+		},
 		{
-			"alias": "基地班",
-			"candidate_terms": ["强基计划", "强基"],
-			"major_candidates": {
-				"历史学": ["curriculum:历史学（强基计划）本科人才培养方案"],
-				"哲学": ["curriculum:哲学（强基计划）本科人才培养方案"],
-				"中国少数民族语言文学": [
-					"curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"
-				]
-			}
+			"document_id": "curriculum:synthetic-data-systems-plan",
+			"title": "Synthetic data systems curriculum plan",
+			"aliases": ["data systems plan"]
 		}
-	],
-	"scoped_aliases": [],
-	"forbidden_generic_aliases": ["实验班", "创新班"]
+	]
 }

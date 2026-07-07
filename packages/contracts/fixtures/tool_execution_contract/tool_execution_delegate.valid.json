@@ -1,0 +1,189 @@
+{
+	"execution_contract_version": "tool_execution_v1",
+	"response_contract": "execution_finalization_response_v2",
+	"user_goal": "学生手册请假制度怎么规定？",
+	"conversation_id": "conv-contract-001",
+	"request_id": "req-contract-001",
+	"safety_identifier": null,
+	"trace": {
+		"trace_id": "trace-contract-001"
+	},
+	"actor": {
+		"user_id": "student@example.edu",
+		"principal_id": "principal-contract-001",
+		"principal_type": "student",
+		"roles": ["student"],
+		"departments": []
+	},
+	"context": {
+		"actor": {
+			"user_id": "student@example.edu",
+			"principal_id": "principal-contract-001",
+			"principal_type": "student",
+			"roles": ["student"],
+			"departments": []
+		},
+		"authorization": {
+			"principal_id": "principal-contract-001",
+			"entitlement_groups": ["students"],
+			"retrieval_filter": {
+				"entitlement_groups": ["students"],
+				"visibility_level": "public",
+				"visibility_scope": "main",
+				"policy_projection_version": "phase1-authorization-projection-v1"
+			}
+		}
+	},
+	"requested_tool": "knowledge_query",
+	"effective_tool": "knowledge_query",
+	"requested_scope": {
+		"corpus": "regulations",
+		"collection": "student_rules"
+	},
+	"version_query": {
+		"mode": "current"
+	},
+	"runtime_decisions": {
+		"schema_version": "tool-execution-runtime-decisions-v1",
+		"effective_tool": "knowledge_query",
+		"scope_gate": {
+			"decision": "in_scope",
+			"reason": "explicit_requested_scope"
+		},
+		"policy_gate": {
+			"decision": "delegate",
+			"risk_level": "low"
+		},
+		"context_preflight": {
+			"state": "not_follow_up",
+			"reference_type": "none",
+			"missing_slots": [],
+			"resolved_slots": {}
+		},
+		"tool_policy": {
+			"policy_version": "runtime-policy-v1"
+		},
+		"routing_frame": {
+			"tool": "knowledge_query",
+			"task_kind": "knowledge_lookup",
+			"domain_candidates": ["knowledge_query"],
+			"missing_slots": [],
+			"risk_level": "low",
+			"needs_clarification": false,
+			"suggested_next_action": "delegate",
+			"resolved_slots": {},
+			"classifier_version": "go-runtime-policy-v2",
+			"schema_version": "intent-schema-1.0.0"
+		},
+		"runtime_decision_summary": {
+			"schema_version": "runtime-decision-summary-v1",
+			"scope_gate_decision": "in_scope",
+			"policy_gate_decision": "delegate",
+			"context_preflight_state": "not_follow_up",
+			"routing_next_action": "delegate",
+			"planning_outcome": "preplanned",
+			"selected_tool": "knowledge_query",
+			"runtime_versions": {
+				"tool_execution_contract": "tool_execution_v1"
+			},
+			"policy_artifact_versions": {
+				"intent_policy": "intent-policy.v1"
+			},
+			"task_queue": "campus-agent.workflow"
+		},
+		"workflow_plan": {
+			"schema_version": "workflow-plan-v1",
+			"plan_id": "plan:single_step:knowledge_query:rag_request",
+			"workflow_mode": "single_step",
+			"allowed_tools": ["knowledge_query"],
+			"steps": [
+				{
+					"step_id": "tool:knowledge_query:rag_request",
+					"step_kind": "handoff",
+					"tool": "knowledge_query",
+					"payload_kind": "rag_request",
+					"allowed_tools": [],
+					"selected_tool": "knowledge_query",
+					"task_queue": "campus-agent.activity.knowledge"
+				}
+			],
+			"edges": [],
+			"terminal_policy": {
+				"fail_close_on_invalid_plan": true
+			},
+			"resume_policy": {
+				"resume_supported": false
+			},
+			"semantic_retry_policy": {
+				"max_replans": 0
+			}
+		},
+		"handoff": {
+			"planning_outcome": "preplanned",
+			"tool": "knowledge_query",
+			"allowed_tools": [],
+			"tool_request": {
+				"tool": "knowledge_query",
+				"user_goal": "学生手册请假制度怎么规定？",
+				"conversation_id": "conv-contract-001",
+				"request_id": "req-contract-001",
+				"safety_identifier": null,
+				"trace": {
+					"trace_id": "trace-contract-001"
+				},
+				"actor": {
+					"user_id": "student@example.edu",
+					"principal_id": "principal-contract-001",
+					"principal_type": "student",
+					"roles": ["student"],
+					"departments": []
+				},
+				"context": {
+					"actor": {
+						"user_id": "student@example.edu",
+						"principal_id": "principal-contract-001",
+						"principal_type": "student",
+						"roles": ["student"],
+						"departments": []
+					},
+					"authorization": {
+						"principal_id": "principal-contract-001",
+						"entitlement_groups": ["students"],
+						"retrieval_filter": {
+							"entitlement_groups": ["students"],
+							"visibility_level": "public",
+							"visibility_scope": "main",
+							"policy_projection_version": "phase1-authorization-projection-v1"
+						}
+					}
+				},
+				"workflow_context": {
+					"schema_version": "workflow-tool-context-v1",
+					"visibility": "tool_private",
+					"workflow_run_ref": "workflow:req-contract-001",
+					"step_id": "tool:knowledge_query:rag_request",
+					"tool_id": "knowledge_query",
+					"expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
+					"projection_refs": [],
+					"task_queue": "campus-agent.activity.knowledge"
+				},
+				"payload": {
+					"kind": "rag_request",
+					"payload": {
+						"scope": {
+							"corpus": "regulations",
+							"collection": "student_rules"
+						},
+						"version_query": {
+							"mode": "current"
+						}
+					}
+				},
+				"allowed_tools": []
+			},
+			"task_queue": "campus-agent.activity.knowledge"
+		},
+		"task_queue": "campus-agent.workflow"
+	},
+	"task_queue": "campus-agent.workflow"
+}

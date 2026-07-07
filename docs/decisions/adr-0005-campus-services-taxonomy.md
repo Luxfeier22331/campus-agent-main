@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0005
 status: accepted
 created: 2026-03-24
@@ -15,10 +17,23 @@ updated: 2026-03-27
 - 首批 collection 固定为：
   - `service_catalog`
   - `contact_directory`
-- `中央民族大学校内常用电话` 不再属于 `regulations/student_rules` 的逻辑文档真相
+- `示例大学校内常用电话` 不再属于 `regulations/student_rules` 的逻辑文档真相
 - handbook 电话页后续作为 `campus_services/contact_directory` 的派生输入，而不是继续留在
   `regulations` 查询面
-- `campusRAG` 中的 `service_portal` 只作为迁移输入与历史来源参考，不作为 `campus-agent` 的长期 corpus 名
+- 历史原型中的 `service_portal` 只作为迁移输入与历史来源参考，不作为
+  `campus-agent` 的长期 corpus 名
+
+## Current Scope Note
+
+This ADR records the historical/offline taxonomy decision for campus-services
+corpus cleanup. It does not mean `service_catalog` or `contact_directory` are
+current model-visible runtime tools.
+
+Current campus-services serving scope is narrower: only the shuttle timetable
+capability is open through `transport_schedule_lookup` and the campus status
+projection. Service guide / catalog and contact-directory content are not
+current repo-maintained runtime surfaces; if they return later, they require a
+new serving design and owner contract instead of reopening this ADR directly.
 
 ## 原因
 
@@ -49,14 +64,16 @@ updated: 2026-03-27
 ## 当前阶段约束
 
 - 两个 collection 当前都只进入 offline data-plane，不开放 retrieval 或默认 query-serving
-- 不在本轮把 `campusRAG` canonical 目录直接当成运行时真相
+- 不在本轮把历史原型 canonical 目录直接当成运行时真相
 - 不在本轮实现新的 retrieval 路由、agent 暴露或 query-serving 开关
 
 ## 对现有 handbook truth 的影响
 
 - `configs/ingestion/regulations/student_rules/split-manifest.v1.json` 移除
-  `中央民族大学校内常用电话`
-- handbook cleanup 中的电话表结构化逻辑保留，作为未来 `contact_directory` 派生处理的实现基础
+  `示例大学校内常用电话`
+- 旧 Python handbook cleanup 电话表结构化逻辑不保留；未来
+  `contact_directory` 派生处理必须作为 TS handler / Rust kernel 或明确 source
+  adapter 重新设计，不从 Python cleanup 旧链路恢复
 - `student_rules` 继续表示规章导向的 handbook 逻辑文档集合，而不是整本手册中所有页面的无差别投影
 - handbook 到 `campus_services` 的 projection 选择器不再要求保留旧 `regulations`
   document_id； 对已从 split manifest 移出的页段，应由 source-truth selector `source_title +

@@ -4,7 +4,7 @@
 	"canonical_profile_version": "scoped_rules_canonical_v1",
 	"doc_id_strategy": "rule_title_issuing_org_semantic_scope_hash",
 	"version_id_strategy": "content_hash_effective_date_revision_signal",
-	"primary_input": "internal_notice_scoped_rule_materialization",
+	"primary_input": "canonical_document_units",
 	"structured_source": "promoted_document_units_jsonl",
 	"notes": [
 		"This collection stores canonical scoped rule text only, not source-channel wrapper notices.",

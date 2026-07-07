@@ -1,15 +1,34 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0026
-status: accepted
+status: superseded
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-07-04
+superseded_by:
+  - adr-0054-ingestion-control-plane-and-kernel-boundary.md
+  - adr-0063-internal-portal-source-channel-name.md
+  - docs/architecture/domains/authenticated-notice/architecture.md
 ---
 # ADR-0026 Authenticated Notice Batch-Leased Closeout Throughput Model
 
 适用范围：`authenticated_notice_portal` historical closeout throughput
 redesign、planning/worker split、batch leasing、worker progress truth、lightweight
 operator status、single-promoter parallel copy
+
+## 当前状态说明
+
+Superseded on 2026-07-04.
+
+本文保留 historical closeout throughput 的 batch / lease / worker rationale。当前
+notice ingestion mainline 不通过本文的 batch-leased closeout executor 定义；当前
+task admission 与 executor lifecycle 由 `apps/ingestion-control` 和
+`authenticated_notice_capture_release.v1` object-store input contract 收口。本文不再作为当前
+notice ingestion mainline 的 accepted runtime 决策。
+
+下文的 worker pool、closeout batch、staging table 与 promoter 描述只解释历史
+closeout design，不是当前 notice capture -> source-truth materialization 入口。
 
 ## 背景
 
@@ -194,6 +213,6 @@ single-promoter 语义保持不变：
 
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/data/authenticated-notice.md`
+- `docs/runbooks/ingestion-control-clean-target.md`

@@ -4,25 +4,44 @@ import { fileURLToPath } from "node:url";
 export const APP_API_MIGRATIONS_SCHEMA = "drizzle";
 export const APP_API_MIGRATIONS_TABLE = "app_api_migrations";
 export const APP_API_KNOWN_SCHEMAS = [
+	"campus_services_ops",
+	"dining",
 	"docs",
+	"identity",
 	"official_web",
+	"observability_config",
 	"operator",
 	"profile",
+	"provider_config",
 	"runtime",
 	"wechat_official_account",
 ];
 export const POSTGRES_IDENTIFIER_MAX_BYTES = 63;
 
 export const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
-export const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;
+export const CREATE_TABLE_RE = /^CREATE TABLE(?: IF NOT EXISTS)? "([^"]+)"\."([^"]+)" \(/i;
 export const ALTER_TABLE_ADD_COLUMN_RE =
-	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN "([^"]+)"/i;
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+"([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
+export const ALTER_TABLE_DROP_COLUMN_DEFAULT_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ALTER\s+COLUMN "([^"]+)"\s+DROP\s+DEFAULT;?$/i;
+export const ALTER_TABLE_DROP_COLUMN_NOT_NULL_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ALTER\s+COLUMN "([^"]+)"\s+DROP\s+NOT\s+NULL;?$/i;
+export const ALTER_TABLE_SET_COLUMN_NOT_NULL_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ALTER\s+COLUMN "([^"]+)"\s+SET\s+NOT\s+NULL;?$/i;
+export const DROP_TABLE_RE = /^DROP TABLE(?: IF EXISTS)? "([^"]+)"\."([^"]+)";?$/i;
+export const ALTER_TABLE_RENAME_COLUMN_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+RENAME\s+COLUMN "([^"]+)" TO "([^"]+)";?$/i;
 export const ALTER_TABLE_CONSTRAINT_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+CONSTRAINT\s+"([^"]+)"/i;
-export const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)"\s+ON\s+"([^"]+)"\."([^"]+)"/i;
+export const CREATE_INDEX_RE =
+	/^CREATE (?:UNIQUE )?INDEX(?: IF NOT EXISTS)? "([^"]+)"\s+ON\s+"([^"]+)"\."([^"]+)"/i;
 export const DROP_INDEX_RE = /^DROP INDEX "([^"]+)"\."([^"]+)";?$/i;
+export const ALTER_INDEX_RENAME_RE =
+	/^ALTER INDEX IF EXISTS "([^"]+)"\."([^"]+)"\s+RENAME TO "([^"]+)";?$/i;
+export const INSERT_INTO_RE = /^INSERT INTO "([^"]+)"\."([^"]+)"/i;
+export const UPDATE_TABLE_RE = /^UPDATE "([^"]+)"\."([^"]+)"/i;
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = dirname(scriptsDir);
@@ -55,6 +74,7 @@ export function normalizePostgresIdentifier(identifier) {
 
 export function normalizeColumnSpec(columnSpec) {
 	return {
+		defaultValue: "default" in columnSpec ? columnSpec.default : null,
 		name: columnSpec.name,
 		notNull: Boolean(columnSpec.notNull),
 		primaryKey: Boolean(columnSpec.primaryKey),

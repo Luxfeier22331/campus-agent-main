@@ -1,15 +1,24 @@
 ---
 doc_type: policy
+truth_scope: ops
+owner_boundary: domains/official-web
 status: active
 created: 2026-04-03
 updated: 2026-04-04
 ---
 # `official_web` Cleaning 与 Chunking 规则
 
+## 文档边界
+
+本文是 `official_web/muc_public_pages` 的 cleaning / chunking policy。它不拥有
+collector admission、source-truth schema、serving rollout、release runbook 或当前 work
+status。
+
 ## 目标
 
-把当前 `official_web/muc_public_pages` 在当前 scope 下的清洗、structured-unit 产出、chunking 与
-promote/release 约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
+把当前 `official_web/stable_reference` 与 `official_web/fresh_news`
+在当前 scope 下的清洗、structured-unit 产出、chunking 与 promote/release
+约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
 
 本文覆盖：
 
@@ -23,24 +32,26 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 
 - collector 的 host allowlist、crawl frontier、robots 与 parser 细节
 - `official_web` source-truth 字段级 schema
-- future `fresh_news` / `news_archive` collection 的 runtime profile 具体 JSON 形状
+- `fresh_news` / `news_archive` collection 的 serving config 具体 JSON 形状；
+  该范围需要单独治理决策
 - query-serving 是否开放
 
 对应文档：
 
 - source channel 边界：`docs/architecture/domains/official-web/architecture.md`
 - serving / news retrieval
-  语义：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
-- projection replay
-  流程：`docs/runbooks/official-web-source-truth-projection-replay.md`
+  语义：`docs/architecture/domains/official-web/architecture.md`
+- projection / release lifecycle:
+  `docs/runbooks/ingestion-control-clean-target.md`
 
 ## 适用范围
 
 - corpus: `official_web`
-- collection: `muc_public_pages`
-- current serving stage: `offline_preparation`
-- current work focus: improve current scope quality before any retrieval-opening
-  discussion
+- collections: `stable_reference`, `fresh_news`
+- current serving stages: `stable_reference=query_serving`,
+  `fresh_news=offline_preparation`
+- current work focus: keep stable reference answer-bearing and keep fresh news
+  fail-closed until freshness gate is proven
 
 当前 policy 的适用前提固定为：
 
@@ -97,9 +108,9 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 - 这类页面当前固定使用 `promotion_block_reason = low_value_public_notice_audit_only`
 - 它们允许进入 replay / validator / chunk audit，但不得进入 promote / release truth
 - 当前已确认落在这条规则下的页面包括：
-  - `中央民族大学公开招聘及公示信息`
-  - `中央民族大学2020年公开招聘补充公告`
-  - `中央民族大学海淀校区为新购置家具加装嵌入式插座项目采购谈判结果公示`
+  - `示例大学公开招聘及公示信息`
+  - `示例大学2020年公开招聘补充公告`
+  - `示例大学海淀校区家具加装嵌入式插座项目采购谈判结果公示`
 
 通过条件：
 
@@ -244,7 +255,7 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 
 - `semantic_content_hash` 用于同一 scope 内跨 host 等价正文的逻辑归并
 - 它必须只表达正文语义，不得把 host、canonical URL、`raw_version_id` 编进 hash
-- 当前 `official_web/muc_public_pages` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份
+- 当前 `official_web/stable_reference` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份
   current document
 - support-only role 可以保留在 structured-unit truth 中做审计与来源追溯，但：
   - 不进入 canonical markdown
@@ -330,12 +341,13 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `retain_inventory_only`
   - 保留在 current truth / audit truth 中，但当前 scope 下不再尝试升格 release gate
 - `current_scope_follow_up_candidate`
-  - 仍留在 `inventory_only`，但允许在当前 `muc_public_pages` scope 内继续做 cleaning /
-    chunking / answer-compression 治理
+  - 仍留在 `inventory_only`，但允许在当前 explicit active collection scope 内继续做
+    cleaning / chunking / answer-compression 治理
 - `future_fresh_news_surface`
   - 当前保留在 current truth 仅用于 regression / audit / local validation，不进入当前
     stable-reference gate
-  - 后续如要开放 query-serving，应转到 `fresh_news` / `news_archive` 语义下处理，而不是继续塞回当前 gate
+  - 后续如要开放 query-serving，应转到 `fresh_news` 语义下处理，而不是继续塞回
+    `stable_reference` gate
 
 当前 repo-tracked triage 固定为：
 
@@ -346,17 +358,18 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `current_scope_follow_up_candidate`
   - 当前为空
 - `future_fresh_news_surface`
-  - 当前 `8` 条 news 页面，包括 `中央民族大学与北京丰台人才集团共建就业实习实践基地` 这类已用于 cross-host regression
+  - 当前 `8` 条 news 页面，包括 `示例大学与示例人才集团共建就业实习实践基地` 这类已用于 cross-host regression
     的新闻页
 
 对应 machine-checkable fixture：
 
-- `packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory
-  .json`
+- historical `official_web_example_pages/current_truth_inventory` fixture
+  was removed from active `packages/eval-langfuse`; recover it from git history
+  only if the mixed inventory surface is reopened with an explicit owner
 
 ## Promote / Release Truth
 
-`muc_public_pages` 当前 promote / release 的最低真相要求固定为：
+`stable_reference` 当前 promote / release 的最低真相要求固定为：
 
 - document set 主要由高信号正文页组成
 - `listing_page` 与 staged-only generic 不进入 current truth
@@ -379,7 +392,7 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 本文不把以下事项假装成已完成：
 
 - `official_web` 已开放 retrieval
-- `fresh_news` / `news_archive` 已独立落 collection
+- fresh-news freshness gate 已证明可以开放默认 query-serving
 - collector 已稳定抽出所有 `published_at`
 - 所有 `directory_page` 都已按实体切分完成
 - repo 当前并未承诺本文目标已一次性全部完成

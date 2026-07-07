@@ -2,6 +2,7 @@
 name = "campus-agent-workspace"
 version = "0.1.0"
 description = "Monorepo for campus-agent v2."
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
@@ -9,6 +10,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "html5lib>=1.1",
+  "jsonschema>=4.26.0",
   "pre-commit>=4.2.0",
   "pytest>=8.0.0",
   "ruff>=0.15.11",
@@ -28,7 +30,6 @@ extend-exclude = [
   ".planning",
   ".tmp",
   ".worktrees",
-  "apps/public-chat-web/vendor",
   "apps/app-api/drizzle/meta",
 ]
 
@@ -124,14 +125,13 @@ package = false
 
 [tool.uv.workspace]
 members = [
-  "apps/app-api",
-  "apps/authenticated-notice-collector",
-  "apps/ingestion-worker",
-  "apps/legacy-office-conversion-service",
-  "apps/official-web-collector",
-  "apps/public-chat-web",
-  "apps/supervisor-agent-worker",
-  "packages/*",
+  "packages/contracts",
+  "packages/eval-langfuse",
+  "packages/ingestion-contracts",
+  "packages/ingestion-kernels-rs",
+  "packages/navigation-tool",
+  "packages/ragas-runner",
+  "packages/shared",
 ]
 
 [build-system]

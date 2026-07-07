@@ -1,0 +1,10 @@
+{
+	"schema_version": "notice_tool_contracts.v1",
+	"tool_name": "campus_notice_discover",
+	"packet_kind": "result",
+	"result": {
+		"query_text": "近期公告",
+		"outcome": "resolved_current",
+		"notice_cards": []
+	}
+}

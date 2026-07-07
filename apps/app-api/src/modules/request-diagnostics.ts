@@ -48,7 +48,6 @@ export interface RequestDiagnosticsSummary {
 	retrievalPlanSummary?: RequestRetrievalPlanSummary | null;
 	resolvedPolicyDocumentId: string | null;
 	resolvedPolicyTitle: string | null;
-	rewrittenQuery: string | null;
 	clarificationReason: string | null;
 	noAnswerReason: string | null;
 	semanticOutcome: string | null;
@@ -369,9 +368,6 @@ export function extractRequestDiagnosticsSummary(
 		sessionSemester: normalizeOptionalString(
 			readField(diagnosticsRecord, "session_semester", "sessionSemester"),
 		),
-		rewrittenQuery: normalizeOptionalString(
-			readField(diagnosticsRecord, "rewritten_query", "rewrittenQuery"),
-		),
 	};
 
 	if (
@@ -381,7 +377,6 @@ export function extractRequestDiagnosticsSummary(
 		summary.retrievalPlanSummary === null &&
 		!summary.resolvedPolicyDocumentId &&
 		!summary.resolvedPolicyTitle &&
-		!summary.rewrittenQuery &&
 		!summary.clarificationReason &&
 		!summary.noAnswerReason &&
 		!summary.semanticOutcome &&

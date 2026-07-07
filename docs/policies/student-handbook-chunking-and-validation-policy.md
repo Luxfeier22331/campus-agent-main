@@ -1,10 +1,18 @@
 ---
 doc_type: policy
+truth_scope: ops
+owner_boundary: domains/regulations
 status: active
 created: 2026-03-25
-updated: 2026-05-07
+updated: 2026-07-05
 ---
 # `student_rules` Chunking 与 Validation 规则
+
+## 文档边界
+
+本文是 `regulations/student_rules` 的 chunking / validation policy。它不拥有
+collection release runbook、runtime serving contract、query answer policy 或当前 work
+status。
 
 ## 目标
 
@@ -21,9 +29,8 @@ updated: 2026-05-07
 - handbook validation 的通过条件与诊断指标
 - 何时允许继续调整预算
 
-本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook
--normalization-strategy.md](../reference/student-handbook-normalization-strategy
-.md) 为准。
+本文同时冻结 handbook 当前 source normalization、split 与 chunking gate 的稳定不变量；
+不保留旧 prototype strategy reference 作为当前 truth。
 
 ## 适用范围
 
@@ -43,14 +50,21 @@ updated: 2026-05-07
 - tokenizer repo: `Qwen/Qwen3-Embedding-4B`
 - 运行时只允许使用本地已预取 tokenizer
 - 主链路默认离线，不允许在 chunking 或 validation 过程中隐式联网下载 tokenizer
+- 当前执行 owner 不在 Python。collection profile 由 TS
+  `packages/ingest-core` 解析，`document_units_validate` / `chunk_prepare` 由
+  `apps/ingestion-control` 调用 Rust kernel 执行。若 kernel 使用
+  `tokenizer.json`，只能通过本地 Hugging Face `tokenizers` 执行离线计数；不得重新引入
+  Python `transformers` runtime、Python tokenizer cache、semantic chunker 或 regex
+  fallback 作为 handbook v3 预算真相。
 
 额外约束：
 
 - handbook phase-1 必须显式请求 `Qwen3-Embedding-4B` 的 native `2560` 维向量
 - 不允许依赖兼容 API 的默认维度推断；如果 provider 默认返回 `1024`，必须通过显式参数覆盖
-- 当前项目的 provider reality 固定为：通过 `gitee` 官方 OpenAI-compatible embeddings 接口请求
-  `Qwen3-Embedding-4B`
-- `gitee` 路径下显式请求 `dimensions=2560` 已在本项目中验证通过；这里不再把 `2560` 视为待 provider 核验的假设
+- 当前项目的 provider enum 固定为 `openai-compatible`；endpoint reality 为通过 Gitee
+  OpenAI-compatible embeddings 接口请求 `Qwen3-Embedding-4B`
+- Gitee endpoint 路径下显式请求 `dimensions=2560` 已在本项目中验证通过；这里不再把 `2560`
+  视为待 provider 核验的假设
 - handbook 的 token budget、Qdrant collection 规划和回放验证都以 `2560` 维运行契约为前提
 
 字段边界：
@@ -79,13 +93,29 @@ updated: 2026-05-07
 
 ## 当前运行真相
 
-当前稳定输入链路：
+当前稳定输入链路语义：
 
-`provider-response.jsonl -> layout-elements.jsonl -> split-manifest ->
+`source truth / layout-elements -> handbook cleanup manifest ->
 canonical.md / document-units.jsonl -> chunks`
 
 chunking 只消费单篇逻辑文档的 `document-units.jsonl`，不直接消费 provider payload、raw PDF 或整本
 handbook markdown。
+
+当前 active workspace 不保留 Python handbook cleanup materializer。`handbook cleanup
+manifest` 只表示逻辑文档边界与授权投影的窄 helper；canonical.md /
+document-units.jsonl 的生成重新进入运行时前，必须作为 TS handler 或 Rust kernel bridge
+落地到 `apps/ingestion-control`，不能恢复 Python `handbook_cleanup*` 物化模块。
+
+Source-level normalization 固定为：
+
+- raw PDF / provider response 只作为 upstream replay/provenance 输入
+- `layout-elements.jsonl` 是 provider-agnostic layout truth
+- handbook cleanup manifest 冻结从同一 source asset 到多篇逻辑 handbook document 的边界；
+  Python 侧只保留 `handbook_cleanup_manifest` 窄 helper，不拥有通用
+  split-manifest runtime、canonical markdown 生成或 document-units 生成
+- `document_id`、`version_id` 与 canonical metadata 在逻辑文档层生成
+- downstream rebuild 默认从 source truth、canonical document artifact 或
+  `document-units` 继续，不把 provider payload 重新提升为 canonical rebuild owner
 
 固定 unit 集合：
 
@@ -120,7 +150,7 @@ handbook markdown。
 
 ## 预算来源
 
-当前 `student_rules_semantic_v3` 预算不是从旧 `campusRAG` 机械照抄，而是基于下列约束冻结的：
+当前 `student_rules_semantic_v3` 预算不是从旧原型机械照抄，而是基于下列约束冻结的：
 
 1. 上限必须给 `title + section/article identity + policy_doc_no + 正文` 留出稳定空间。
 1. 预算对象是最终 contextualized text，因此不能把 header 当作“免费 token”。
@@ -367,7 +397,9 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 当前 validation 入口：
 
-- `python -m campus_ingestion_worker.validate_student_handbook_chunking`
+- `regulations/student_rules` task registry 的 `document_units_validate` /
+  `chunk_prepare` 阶段；确定性文件检查由 Rust kernel 承接，task lifecycle
+  由 ingestion-control `ts_control` closeout 承接。
 
 当前核心指标：
 
@@ -452,26 +484,20 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - 仅凭 sample 观感觉得 chunk 偏短
 - 仅因为还存在诊断级 `tiny_textual_chunk_count`
-- 仅因为想和旧 `campusRAG` 参数保持一致
+- 仅因为想和旧原型参数保持一致
 
 如果未来需要继续调参，必须同时更新：
 
 - 本文
 - `configs/ingestion/regulations/student_rules/chunk-profile.json`
-- 对应 validation / processing tests
+- 对应 Rust kernel、TS parser / bridge 和 retrieval quality gate 测试
 
 ## 相关真相源
 
-- [configs/ingestion/regulations/student_rules/runtime-profile.json](../../confi
-  gs/ingestion/regulations/student_rules/runtime-profile.json)
-- [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs
-  /ingestion/regulations/student_rules/chunk-profile.json)
-- [docs/reference/student-handbook-normalization-strategy.md](../reference/stude
-  nt-handbook-normalization-strategy.md)
-- [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages
-  /ingestion-core/src/campus_ingestion_core/chunking.py)
-- [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/
-  ingestion-core/src/campus_ingestion_core/process.py)
-- [packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validatio
-  n.py](../../packages/ingestion-core/src/campus_ingestion_core/handbook_chunkin
-  g_validation.py)
+- [configs/ingestion/regulations/student_rules/serving-config.json](../../configs/ingestion/regulations/student_rules/serving-config.json)
+- [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
+- [configs/ingestion/regulations/student_rules/task-registry.v2.json](../../configs/ingestion/regulations/student_rules/task-registry.v2.json)
+- [packages/ingest-core/src/collection-profiles.ts](../../packages/ingest-core/src/collection-profiles.ts)
+- [packages/ingest-core/src/kernel-artifacts.ts](../../packages/ingest-core/src/kernel-artifacts.ts)
+- [packages/ingestion-kernels-rs/src/lib.rs](../../packages/ingestion-kernels-rs/src/lib.rs)
+- [apps/ingestion-control/src/rust-kernel-runner.ts](../../apps/ingestion-control/src/rust-kernel-runner.ts)

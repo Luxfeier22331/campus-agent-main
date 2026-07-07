@@ -10,10 +10,9 @@ const env = {
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -43,29 +42,29 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 }
 
 const releaseTaskRecord = {
-	id: "owrelease_contact",
+	id: "owrelease_calendar",
 	schemaVersion: "official_web_release_task_projection.v1",
-	taskId: "owrelease_contact",
-	taskType: "official_web_selected_write_contact_directory",
+	taskId: "owrelease_calendar",
+	taskType: "official_web_selected_write_academic_calendar",
 	sourceChannel: "official_web",
-	inventoryId: "muc-main-homepage-contact",
-	jobId: "owtarget_contact",
-	runId: "owrun_contact",
-	selectedWriteTarget: "campus_services/contact_directory",
+	inventoryId: "muc-public-academic-calendar",
+	jobId: "owtarget_calendar",
+	runId: "owrun_calendar",
+	selectedWriteTarget: "calendar/academic_calendar",
 	lifecycleStatus: "published",
 	latestStage: "published",
 	attemptCount: 1,
 	maxAttempts: 3,
 	inputSummary: {
 		sourceObjectCount: 1,
-		sourceUrls: ["https://www.muc.edu.cn/"],
+		sourceUrls: ["https://www.example.edu/ggfw/mdxl.htm"],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: ["中央民族大学", "中央民族大学信息公开联系方式"],
+		fullImpactDisplayNames: ["示例大学校历"],
 		fullRecordCount: 2,
 		recordCount: 1,
-		releaseId: "release_contact",
-		taskScopeDisplayNames: ["中央民族大学信息公开联系方式"],
+		releaseId: "release_calendar",
+		taskScopeDisplayNames: ["示例大学校历"],
 	},
 	timeline: [
 		{
@@ -90,26 +89,26 @@ const releaseTaskRecord = {
 
 const serviceGuideReleaseTaskRecord = {
 	...releaseTaskRecord,
-	id: "owrelease_service_guide",
-	taskId: "owrelease_service_guide",
-	taskType: "official_web_selected_write_service_guide",
-	inventoryId: "muc-information-disclosure-application-process",
-	jobId: "owtarget_service_guide",
-	runId: "owrun_service_guide",
-	selectedWriteTarget: "campus_services/service_guide",
+	id: "owrelease_regulation",
+	taskId: "owrelease_regulation",
+	taskType: "official_web_selected_write_regulation",
+	inventoryId: "muc-public-regulation",
+	jobId: "owtarget_regulation",
+	runId: "owrun_regulation",
+	selectedWriteTarget: "regulations/institutional_rules",
 	inputSummary: {
 		sourceObjectCount: 2,
 		sourceUrls: [
-			"https://xxgk.muc.edu.cn/info/1007/1113.htm",
-			"https://xxgk.muc.edu.cn/info/1007/1114.htm",
+			"https://info.example.edu/info/1198/4101.htm",
+			"https://info.example.edu/info/1198/4051.htm",
 		],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: ["学生校园卡服务", "中央民族大学信息公开依申请公开工作流程"],
+		fullImpactDisplayNames: ["示例大学学术委员会章程", "示例大学教职工代表大会规程"],
 		fullRecordCount: 2,
 		recordCount: 1,
-		releaseId: "release_service_guide",
-		taskScopeDisplayNames: ["中央民族大学信息公开依申请公开工作流程"],
+		releaseId: "release_regulation",
+		taskScopeDisplayNames: ["示例大学学术委员会章程"],
 	},
 };
 
@@ -171,7 +170,7 @@ describe("official web release task processing operator routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/release-tasks?status=published&taskType=official_web_selected_write_contact_directory&selectedWriteTarget=campus_services%2Fcontact_directory&inventoryId=muc-main-homepage-contact&jobId=owtarget_contact&runId=owrun_contact&limit=10",
+				"https://app-api.internal/api/operator/official-web/release-tasks?status=published&taskType=official_web_selected_write_academic_calendar&selectedWriteTarget=calendar%2Facademic_calendar&inventoryId=muc-public-academic-calendar&jobId=owtarget_calendar&runId=owrun_calendar&limit=10",
 			),
 		);
 
@@ -185,14 +184,14 @@ describe("official web release task processing operator routes", () => {
 		expect(queryService.list).toHaveBeenCalledWith({
 			filters: {
 				cursor: null,
-				inventoryId: "muc-main-homepage-contact",
-				jobId: "owtarget_contact",
+				inventoryId: "muc-public-academic-calendar",
+				jobId: "owtarget_calendar",
 				limit: 10,
 				q: null,
-				runId: "owrun_contact",
-				selectedWriteTarget: "campus_services/contact_directory",
+				runId: "owrun_calendar",
+				selectedWriteTarget: "calendar/academic_calendar",
 				status: "published",
-				taskType: "official_web_selected_write_contact_directory",
+				taskType: "official_web_selected_write_academic_calendar",
 				updatedAfter: null,
 				updatedBefore: null,
 			},
@@ -216,19 +215,19 @@ describe("official web release task processing operator routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/release-tasks/owrelease_contact",
+				"https://app-api.internal/api/operator/official-web/release-tasks/owrelease_calendar",
 			),
 		);
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({ task: releaseTaskRecord });
 		expect(queryService.getById).toHaveBeenCalledWith({
-			id: "owrelease_contact",
+			id: "owrelease_calendar",
 			principal,
 		});
 	});
 
-	it("returns service guide release task impact summary fields without dropping them", async () => {
+	it("returns regulation release task impact summary fields without dropping them", async () => {
 		const principal = createOperatorPrincipal();
 		const queryService = {
 			getById: vi.fn().mockResolvedValue(serviceGuideReleaseTaskRecord),
@@ -244,7 +243,7 @@ describe("official web release task processing operator routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/operator/official-web/release-tasks/owrelease_service_guide",
+				"https://app-api.internal/api/operator/official-web/release-tasks/owrelease_regulation",
 			),
 		);
 

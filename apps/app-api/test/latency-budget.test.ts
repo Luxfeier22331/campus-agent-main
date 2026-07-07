@@ -1,0 +1,43 @@
+// @vitest-environment node
+
+import { describe, expect, it } from "vitest";
+
+import { STAGE_TIMING_FIELDS } from "../src/modules/integration/execution-finalization-contract";
+import { evaluateStageTimingBudget, LATENCY_BUDGET_RULES } from "../src/modules/latency-budget";
+
+describe("runtime latency budget", () => {
+	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
+		const result = evaluateStageTimingBudget({
+			"agent.runtime_ms": 13_000,
+			"rag.lookup_ms": 2_000,
+			"request.total_ms": 900,
+		});
+
+		expect(result.version).toBe("latency-budget-v1");
+		expect(result.breaches).toEqual([
+			{
+				category: "model_provider_or_latency_budget_fix",
+				durationMs: 13_000,
+				field: "agent.runtime_ms",
+				reason: "agent_runtime_too_slow",
+				severity: "critical",
+				thresholdMs: 12_000,
+			},
+			{
+				category: "model_provider_or_latency_budget_fix",
+				durationMs: 2_000,
+				field: "rag.lookup_ms",
+				reason: "rag_lookup_too_slow",
+				severity: "warn",
+				thresholdMs: 1_500,
+			},
+		]);
+		expect(result.worstBreach?.field).toBe("agent.runtime_ms");
+	});
+
+	it("keeps every canonical stage timing field covered by the versioned budget artifact", () => {
+		expect(LATENCY_BUDGET_RULES.map((rule) => rule.field).sort()).toEqual(
+			[...STAGE_TIMING_FIELDS].sort(),
+		);
+	});
+});

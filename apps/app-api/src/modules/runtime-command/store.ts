@@ -1,4 +1,6 @@
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { createHash } from "node:crypto";
+
+import { and, asc, desc, eq, gte, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -10,6 +12,7 @@ import {
 	requestObservabilityFact,
 	sessionSlots,
 } from "../../db/schema";
+import type { AppPrincipalType } from "../auth";
 import type { ChatConversation } from "../chat";
 import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../safety-ops-policy";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
@@ -25,12 +28,17 @@ import {
 	buildRequestObservabilityFactUpdateValues,
 	buildSessionSlotInsertValues,
 } from "./store-mutations";
-import type { ChatCommandStore } from "./store-types";
+import type { AcceptedDurableRequestCloseout, ChatCommandStore } from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
+function stableContextHash(values: string[]): string {
+	return `sha256:${createHash("sha256").update(JSON.stringify(values)).digest("hex")}`;
+}
+
 export type {
 	AbuseControlState,
+	AcceptedDurableRequestCloseout,
 	AcceptRequestWrite,
 	ChatCommandStore,
 	FinalizeRequestWrite,
@@ -79,6 +87,143 @@ export function createPgChatCommandStore(
 	}
 
 	return {
+		async listPreviousToolResultRefs(input) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit, 10));
+			const rows = await db
+				.select({
+					answerPreview: requestExecution.answerPreview,
+					requestId: requestExecution.requestId,
+					runId: requestExecution.runId,
+					selectedTool: requestExecution.selectedTool,
+					status: requestExecution.status,
+					turnSequence: requestExecution.turnSequence,
+				})
+				.from(requestExecution)
+				.where(
+					and(
+						eq(requestExecution.actorUserId, input.ownerUserId),
+						eq(requestExecution.conversationId, input.conversationId),
+						eq(requestExecution.status, "completed"),
+						isNotNull(requestExecution.runId),
+						isNotNull(requestExecution.selectedTool),
+						lte(requestExecution.turnSequence, input.beforeTurnSequence - 1),
+					),
+				)
+				.orderBy(desc(requestExecution.turnSequence))
+				.limit(limit);
+			return rows.flatMap((row) => {
+				if (!(row.runId && row.selectedTool)) {
+					return [];
+				}
+				const projectionRef = `projection://runs/${row.runId}/finalization`;
+				return [
+					{
+						tool: row.selectedTool,
+						contentHash: stableContextHash([
+							row.requestId,
+							row.runId,
+							row.selectedTool,
+							row.status,
+							row.answerPreview ?? "",
+						]),
+						projectionRef,
+						requestId: row.requestId,
+						resultKind: "final_response",
+						runId: row.runId,
+						status: row.status,
+						...(row.answerPreview ? { summary: row.answerPreview } : {}),
+					},
+				];
+			});
+		},
+
+		async listAcceptedDurableRequestsForCloseout(input = {}) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
+			const startedBefore = input.startedBefore ? new Date(input.startedBefore) : new Date();
+			const runId = input.runId?.trim();
+			const executionRows = await db
+				.select()
+				.from(requestExecution)
+				.where(
+					and(
+						eq(requestExecution.status, "accepted"),
+						isNotNull(requestExecution.runId),
+						lte(requestExecution.startedAt, startedBefore),
+						...(runId ? [eq(requestExecution.runId, runId)] : []),
+					),
+				)
+				.orderBy(asc(requestExecution.startedAt))
+				.limit(limit);
+			const candidates: AcceptedDurableRequestCloseout[] = [];
+			for (const row of executionRows) {
+				if (!row.runId) {
+					continue;
+				}
+				const conversation = await loadConversation(row.actorUserId, row.conversationId);
+				if (!conversation) {
+					continue;
+				}
+				candidates.push({
+					acceptedAt: row.startedAt.toISOString(),
+					conversation,
+					conversationTitle: conversation.title,
+					idempotencyKey: row.idempotencyKey,
+					principal: {
+						actor: {
+							departments: row.actorDepartmentsJson,
+							principalId: row.actorPrincipalId,
+							principalType: row.principalType as AppPrincipalType,
+							roles: row.actorRolesJson,
+							userId: row.actorUserId,
+						},
+						authorization: {
+							...(row.applicabilityScope ? { applicabilityScope: row.applicabilityScope } : {}),
+							approvalState: "not_required",
+							entitlementGroups: row.entitlementGroupsJson,
+							entitlementSnapshotId: row.entitlementSnapshotId ?? "",
+							ownershipScopes: [`conversation:${row.actorUserId}`],
+							principalId: row.actorPrincipalId,
+							projectionSource: "campus_identity",
+							retrievalFilter: {
+								entitlementGroups: row.entitlementGroupsJson,
+								policyProjectionVersion: "phase1-authorization-projection-v1",
+								visibilityLevel: "public",
+								visibilityScope: row.visibilityScope ?? "main",
+							},
+							visibilityScope: row.visibilityScope,
+						},
+						permissions: {
+							chat: true,
+							operator: row.actorRolesJson.includes("operator"),
+						},
+						principal: {
+							displayName: row.principalLabel ?? row.actorPrincipalId,
+							email: null,
+							principalId: row.actorPrincipalId,
+							type: row.principalType as AppPrincipalType,
+						},
+						session: null,
+					},
+					questionPreview: row.questionPreview,
+					requestFingerprintSha256: row.requestFingerprintSha256,
+					requestId: row.requestId,
+					requestedTool: row.requestedTool,
+					requestedScope:
+						row.requestedScopeJson as AcceptedDurableRequestCloseout["requestedScope"],
+					runId: row.runId,
+					safetyIdentifier: row.safetyIdentifier,
+					surface: row.surface,
+					traceId: row.traceId,
+					turnSequence: row.turnSequence,
+					userMessageId: row.userMessageId,
+					versionQuery: row.versionQueryJson,
+				});
+			}
+			return candidates;
+		},
+
 		async findIdempotentRequest(input) {
 			const db = await getDb();
 			const executionRows = await db
@@ -153,6 +298,17 @@ export function createPgChatCommandStore(
 						.values(buildConversationSeedInsertValues(input.conversationSeed));
 				}
 
+				await tx
+					.update(messages)
+					.set({ isActiveBranchHead: false })
+					.where(
+						and(
+							eq(messages.conversationId, input.userMessage.conversationId),
+							eq(messages.branchId, input.userMessage.branchId ?? "branch_active"),
+							eq(messages.isActiveBranchHead, true),
+						),
+					);
+
 				await tx.insert(messages).values(buildChatMessageInsertValues(input.userMessage));
 
 				await tx
@@ -169,12 +325,16 @@ export function createPgChatCommandStore(
 
 				await tx
 					.update(conversations)
-					.set(
-						buildConversationTitleUpdateValues({
+					.set({
+						...buildConversationTitleUpdateValues({
 							title: input.conversationTitle,
 							updatedAt: input.userMessage.createdAt,
 						}),
-					)
+						activeBranchId: input.userMessage.branchId ?? "branch_active",
+						activeMessageId: input.userMessage.id,
+						activeRunId: input.userMessage.runId ?? null,
+						activeTurnSequence: input.requestExecution.turnSequence,
+					})
 					.where(
 						and(
 							eq(conversations.id, input.userMessage.conversationId),
@@ -186,6 +346,7 @@ export function createPgChatCommandStore(
 
 		async finalizeRequest(input) {
 			const db = await getDb();
+			let activeStateAdvanced = false;
 			await db.transaction(async (tx) => {
 				const finalizedRequestRows = await tx
 					.update(requestExecution)
@@ -203,7 +364,51 @@ export function createPgChatCommandStore(
 					);
 				}
 
-				await tx.insert(messages).values(buildChatMessageInsertValues(input.assistantMessage));
+				const activeUpdateRows = await tx
+					.update(conversations)
+					.set({
+						...buildConversationTitleUpdateValues({
+							title: input.conversationTitle,
+							updatedAt: input.assistantMessage.createdAt,
+						}),
+						activeBranchId: input.assistantMessage.branchId ?? "branch_active",
+						activeMessageId: input.assistantMessage.id,
+						activeRunId: input.assistantMessage.runId ?? null,
+						activeTurnSequence: input.requestExecution.turnSequence,
+						contextSummary: input.contextSummary,
+					})
+					.where(
+						and(
+							eq(conversations.id, input.assistantMessage.conversationId),
+							eq(conversations.ownerUserId, input.ownerUserId),
+							eq(conversations.activeTurnSequence, input.requestExecution.turnSequence),
+							input.requestExecution.runId
+								? eq(conversations.activeRunId, input.requestExecution.runId)
+								: isNull(conversations.activeRunId),
+						),
+					)
+					.returning({ id: conversations.id });
+				activeStateAdvanced = activeUpdateRows.length === 1;
+
+				if (activeStateAdvanced) {
+					await tx
+						.update(messages)
+						.set({ isActiveBranchHead: false })
+						.where(
+							and(
+								eq(messages.conversationId, input.assistantMessage.conversationId),
+								eq(messages.branchId, input.assistantMessage.branchId ?? "branch_active"),
+								eq(messages.isActiveBranchHead, true),
+							),
+						);
+				}
+
+				await tx.insert(messages).values(
+					buildChatMessageInsertValues({
+						...input.assistantMessage,
+						isActiveBranchHead: activeStateAdvanced,
+					}),
+				);
 
 				await tx
 					.insert(projectionOutbox)
@@ -217,26 +422,13 @@ export function createPgChatCommandStore(
 						target: requestObservabilityFact.requestId,
 					});
 
-				await tx
-					.update(conversations)
-					.set(
-						buildConversationTitleUpdateValues({
-							title: input.conversationTitle,
-							updatedAt: input.assistantMessage.createdAt,
-						}),
-					)
-					.where(
-						and(
-							eq(conversations.id, input.assistantMessage.conversationId),
-							eq(conversations.ownerUserId, input.ownerUserId),
-						),
-					);
+				if (activeStateAdvanced) {
+					await tx
+						.delete(sessionSlots)
+						.where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
+				}
 
-				await tx
-					.delete(sessionSlots)
-					.where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
-
-				if (input.sessionSlots.length > 0) {
+				if (activeStateAdvanced && input.sessionSlots.length > 0) {
 					await tx.insert(sessionSlots).values(
 						buildSessionSlotInsertValues({
 							conversationId: input.requestExecution.conversationId,

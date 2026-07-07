@@ -1,0 +1,689 @@
+x-host-gateway: &host-gateway
+  - host.docker.internal:host-gateway
+
+services:
+  temporal-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_DB: temporal
+      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
+    volumes:
+      - temporal-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    networks:
+      - execution-runtime
+
+  temporal:
+    image: temporalio/auto-setup:1.29.6.1
+    restart: unless-stopped
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_SEEDS: temporal-postgres
+      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
+      VISIBILITY_STORE: visibility
+      TEMPORAL_ADDRESS: temporal:7233
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - temporal operator cluster health --address temporal:7233 | grep -q SERVING
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    networks:
+      - execution-runtime
+
+  temporal-namespace-setup:
+    image: temporalio/admin-tools:1.29.6.1-tctl-1.18.4-cli-1.7.0
+    restart: "no"
+    depends_on:
+      temporal:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        for namespace in campus-agent-staging campus-agent-prod; do
+          temporal operator namespace describe --namespace "$${namespace}" >/dev/null 2>&1 ||
+            temporal operator namespace create --namespace "$${namespace}" --retention 30d
+        done
+    networks:
+      - execution-runtime
+
+  temporal-ui:
+    profiles: ["ui"]
+    image: temporalio/ui:2.43.3
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: ${TEMPORAL_UI_CORS_ORIGINS:-http://localhost:8233}
+    ports:
+      - "${TEMPORAL_UI_HOST_PORT:-127.0.0.1:8233}:8080"
+    networks:
+      - execution-runtime
+
+  hindsight-postgres:
+    image: pgvector/pgvector:pg18
+    restart: unless-stopped
+    shm_size: "128mb"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_DB: hindsight
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: ${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}
+    volumes:
+      - hindsight-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -q
+        - -d
+        - hindsight
+        - -U
+        - hindsight
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    networks:
+      - execution-runtime
+
+  hindsight-api:
+    build:
+      context: ../..
+      dockerfile: infra/local/hindsight-api-openai-default-headers/Dockerfile
+      args:
+        HINDSIGHT_API_BASE_IMAGE: ${HINDSIGHT_API_BASE_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.2}
+    image: ${HINDSIGHT_API_IMAGE:-campus-agent/hindsight-api:0.8.2-openai-default-headers}
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    depends_on:
+      hindsight-postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}@hindsight-postgres:5432/hindsight
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:?set HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL:-}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL:-text-embedding-3-small}
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: ${HINDSIGHT_API_EMBEDDINGS_PROVIDER:-openai}
+      HINDSIGHT_API_HOST: 0.0.0.0
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:?set HINDSIGHT_API_LLM_API_KEY}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-}
+      HINDSIGHT_API_LLM_DEFAULT_HEADERS: ${HINDSIGHT_API_LLM_DEFAULT_HEADERS:-null}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-4o-mini}
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_PORT: 8888
+      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_API_RERANKER_PROVIDER:-rrf}
+      HINDSIGHT_API_TENANT_API_KEY: ${PERSONAL_MEMORY_API_SECRET:?set PERSONAL_MEMORY_API_SECRET}
+      HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    networks:
+      - execution-runtime
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.127.0
+    restart: unless-stopped
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT: ${OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}
+      OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT: ${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-0.0.0.0:4318}
+      OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT: ${OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT:-0.0.0.0:13133}
+      OTEL_COLLECTOR_MEMORY_LIMIT_MIB: ${OTEL_COLLECTOR_MEMORY_LIMIT_MIB:-512}
+      OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB: ${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}
+      OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE: ${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}
+      OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE: ${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}
+      OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT: ${OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT:-}
+      OTEL_COLLECTOR_SENTRY_AUTH_VALUE: ${OTEL_COLLECTOR_SENTRY_AUTH_VALUE:-}
+      OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: ${OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT:-}
+      OTEL_COLLECTOR_AXIOM_AUTH_HEADER: ${OTEL_COLLECTOR_AXIOM_AUTH_HEADER:-}
+      OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: ${OTEL_COLLECTOR_AXIOM_EVENTS_DATASET:-}
+      OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: ${OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT:?set OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}
+      OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: ${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:?set OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}
+      OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: ${OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION:?set OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}
+      APP_API_OTEL_INGEST_SHARED_SECRET: ${APP_API_OTEL_INGEST_SHARED_SECRET:?set APP_API_OTEL_INGEST_SHARED_SECRET}
+    volumes:
+      - ../otel/collector-local-debug.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "${OTEL_COLLECTOR_OTLP_HTTP_HOST_PORT:-127.0.0.1:4318}:4318"
+    healthcheck:
+      test:
+        - CMD
+        - /otelcol-contrib
+        - validate
+        - --config=/etc/otelcol-contrib/config.yaml
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - execution-runtime
+
+  execution-control:
+    init: true
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    depends_on:
+      agent-runtime:
+        condition: service_healthy
+      hindsight-api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      CAMPUS_AGENT_HTTP_HOST: 0.0.0.0
+      CAMPUS_AGENT_HTTP_PORT: 8000
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      EXECUTION_CONTROL_RUNTIME_MODE: ${EXECUTION_CONTROL_RUNTIME_MODE:-local}
+      EXECUTION_CONTROL_RUNTIME_RELEASE: ${EXECUTION_CONTROL_RUNTIME_RELEASE:?set EXECUTION_CONTROL_RUNTIME_RELEASE}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-config.local-real-provider.json}
+      API_AUTH_MODE: ${API_AUTH_MODE:-trusted-worker}
+      API_BEARER_TOKEN: ${API_BEARER_TOKEN:-}
+      API_WORKER_SHARED_SECRET: ${API_WORKER_SHARED_SECRET:-}
+      API_DEFAULT_ACTOR_ID: ${API_DEFAULT_ACTOR_ID:-}
+      API_DEFAULT_ACTOR_ROLES: ${API_DEFAULT_ACTOR_ROLES:-}
+      EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
+      EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS: ${EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS:-}
+      QDRANT_URL: ${QDRANT_URL:?set QDRANT_URL}
+      QDRANT_QUERY_API_KEY: ${QDRANT_QUERY_API_KEY:?set QDRANT_QUERY_API_KEY}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-60}
+      EXECUTION_CONTROL_EXECUTION_AUDIT_URL: ${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}
+      EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET: ${EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET:-}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: ${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:?set EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
+      EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
+      EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}
+      EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: ${EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS:-180000}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY}
+      EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET: ${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-}
+      EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339: ${EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339:-}
+      CAMPUS_SHARED_POSTGRES_URL: ${CAMPUS_SHARED_POSTGRES_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
+    volumes:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
+      - ${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH}:ro
+      - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
+    ports:
+      - "${EXECUTION_CONTROL_HOST_PORT:-27051}:8000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1:8000/healthz >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - execution-runtime
+      - data-plane
+
+  worker-autoscaler-bin:
+    profiles: ["ops-proof"]
+    init: true
+    restart: "no"
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        cp /usr/local/bin/worker-autoscaler /runtime-bin/worker-autoscaler
+        chmod 0755 /runtime-bin/worker-autoscaler
+    volumes:
+      - execution-control-runtime-bin:/runtime-bin
+    networks:
+      - execution-runtime
+
+  agent-runtime:
+    init: true
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: apps/agent-runtime/Dockerfile
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      AGENT_RUNTIME_HOST: 0.0.0.0
+      AGENT_RUNTIME_PORT: 27062
+      AGENT_RUNTIME_SHARED_SECRET: ${AGENT_RUNTIME_SHARED_SECRET:?set AGENT_RUNTIME_SHARED_SECRET}
+      AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: ${AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL:-http://execution-control:8000}
+      AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET: ${AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET:?set AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:27062/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - execution-runtime
+
+  workflow-worker:
+    init: true
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    entrypoint:
+      - /usr/local/bin/workflow-worker
+    depends_on:
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+      hindsight-api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      EXECUTION_CONTROL_RUNTIME_MODE: ${EXECUTION_CONTROL_RUNTIME_MODE:-local}
+      EXECUTION_CONTROL_RUNTIME_RELEASE: ${EXECUTION_CONTROL_RUNTIME_RELEASE:?set EXECUTION_CONTROL_RUNTIME_RELEASE}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-config.local-real-provider.json}
+      EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS: ${EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS:-}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY}
+      EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
+    networks:
+      - execution-runtime
+      - data-plane
+
+
+  activity-worker-core:
+    init: true
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    entrypoint:
+      - /usr/local/bin/activity-worker-core
+    depends_on:
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+      hindsight-api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      EXECUTION_CONTROL_RUNTIME_MODE: ${EXECUTION_CONTROL_RUNTIME_MODE:-local}
+      EXECUTION_CONTROL_RUNTIME_RELEASE: ${EXECUTION_CONTROL_RUNTIME_RELEASE:?set EXECUTION_CONTROL_RUNTIME_RELEASE}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-config.local-real-provider.json}
+      EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS: ${EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS:-}
+      EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY}
+      EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: ${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:?set EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      QDRANT_URL: ${QDRANT_URL:?set QDRANT_URL}
+      QDRANT_QUERY_API_KEY: ${QDRANT_QUERY_API_KEY:?set QDRANT_QUERY_API_KEY}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-60}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
+      CAMPUS_SHARED_POSTGRES_URL: ${CAMPUS_SHARED_POSTGRES_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
+    volumes:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
+      - ${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH}:ro
+      - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
+    networks:
+      - execution-runtime
+      - data-plane
+
+  activity-worker-agent:
+    init: true
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    entrypoint:
+      - /usr/local/bin/activity-worker-agent
+    depends_on:
+      agent-runtime:
+        condition: service_healthy
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      EXECUTION_CONTROL_RUNTIME_MODE: ${EXECUTION_CONTROL_RUNTIME_MODE:-local}
+      EXECUTION_CONTROL_RUNTIME_RELEASE: ${EXECUTION_CONTROL_RUNTIME_RELEASE:?set EXECUTION_CONTROL_RUNTIME_RELEASE}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-config.local-real-provider.json}
+      EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS: ${EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS:-}
+      EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
+      EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
+      EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}
+      EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: ${EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS:-180000}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY}
+      EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: ${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:?set EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      QDRANT_URL: ${QDRANT_URL:?set QDRANT_URL}
+      QDRANT_QUERY_API_KEY: ${QDRANT_QUERY_API_KEY:?set QDRANT_QUERY_API_KEY}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-60}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
+      CAMPUS_SHARED_POSTGRES_URL: ${CAMPUS_SHARED_POSTGRES_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
+    volumes:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
+      - ${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH}:ro
+      - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
+    networks:
+      - execution-runtime
+      - data-plane
+
+  activity-worker-knowledge:
+    init: true
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    entrypoint:
+      - /usr/local/bin/activity-worker-knowledge
+    depends_on:
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      EXECUTION_CONTROL_RUNTIME_MODE: ${EXECUTION_CONTROL_RUNTIME_MODE:-local}
+      EXECUTION_CONTROL_RUNTIME_RELEASE: ${EXECUTION_CONTROL_RUNTIME_RELEASE:?set EXECUTION_CONTROL_RUNTIME_RELEASE}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-config.local-real-provider.json}
+      EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS: ${EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS:-}
+      EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY}
+      EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: ${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:?set EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH}
+      QDRANT_URL: ${QDRANT_URL:?set QDRANT_URL}
+      QDRANT_QUERY_API_KEY: ${QDRANT_QUERY_API_KEY:?set QDRANT_QUERY_API_KEY}
+      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-60}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
+      CAMPUS_SHARED_POSTGRES_URL: ${CAMPUS_SHARED_POSTGRES_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
+      INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
+    volumes:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
+      - ${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH:?set CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH}:ro
+      - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
+    networks:
+      - execution-runtime
+      - data-plane
+
+  temporal-task-queue-sampler:
+    profiles: ["ops-proof"]
+    init: true
+    restart: "no"
+    extra_hosts: *host-gateway
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        /usr/local/bin/temporal-task-queue-sampler \
+          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
+    depends_on:
+      temporal-namespace-setup:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      EXECUTION_CONTROL_APP_API_BASE_URL: ${EXECUTION_CONTROL_APP_API_BASE_URL:?set EXECUTION_CONTROL_APP_API_BASE_URL}
+      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:?set EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
+      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY}
+    networks:
+      - execution-runtime
+
+  worker-autoscaler:
+    profiles: ["ops-proof"]
+    init: true
+    restart: "no"
+    image: docker:28-cli
+    extra_hosts: *host-gateway
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        install -m 0755 /runtime-bin/worker-autoscaler /usr/local/bin/worker-autoscaler
+        /usr/local/bin/worker-autoscaler \
+          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
+    depends_on:
+      worker-autoscaler-bin:
+        condition: service_completed_successfully
+      temporal-task-queue-sampler:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      EXECUTION_CONTROL_APP_API_BASE_URL: ${EXECUTION_CONTROL_APP_API_BASE_URL:?set EXECUTION_CONTROL_APP_API_BASE_URL}
+      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:?set EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
+      EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY: ${EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY:?set EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY}
+      EXECUTION_CONTROL_COMPOSE_PROJECT_NAME: ${EXECUTION_CONTROL_COMPOSE_PROJECT_NAME:?set EXECUTION_CONTROL_COMPOSE_PROJECT_NAME}
+      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS:-60}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE:-dry-run}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_COOLDOWN_SECONDS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_COOLDOWN_SECONDS:-180}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_DOWN_WINDOWS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_DOWN_WINDOWS:-6}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_BACKLOG_THRESHOLD: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_BACKLOG_THRESHOLD:-8}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS:-30000}
+      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS:-2}
+    volumes:
+      - execution-control-runtime-bin:/runtime-bin:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - execution-runtime
+
+networks:
+  execution-runtime:
+    name: ${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}
+
+volumes:
+  execution-control-runtime-bin:
+  temporal-postgres-data:
+  hindsight-postgres-data:

@@ -1,5 +1,42 @@
-export { account, appAuthSchema, session, user, verification } from "./auth";
+export {
+	account,
+	appAuthSchema,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
+export {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
+export {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningReviewProjections,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
 export {
 	docsCollections,
 	docsDocuments,
@@ -8,7 +45,18 @@ export {
 	docsSearchUnits,
 } from "./docs";
 export {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+export { llmDebugTraceConfig } from "./observability-config";
+export {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -25,8 +73,6 @@ export {
 	authenticatedNoticeProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
 	metricRollup,
 	officialWebReleaseTaskEventProjection,
 	officialWebReleaseTaskProjection,
@@ -38,7 +84,17 @@ export {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+export {
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
+} from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
+export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+export { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -46,8 +102,44 @@ export {
 	wechatOfficialAccountRunHeartbeats,
 } from "./wechat-official-account";
 
-import { account, session, user, verification } from "./auth";
+import {
+	account,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
+import {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
+import {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningReviewProjections,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
 import {
 	docsCollections,
 	docsDocuments,
@@ -56,7 +148,18 @@ import {
 	docsSearchUnits,
 } from "./docs";
 import {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+import { llmDebugTraceConfig } from "./observability-config";
+import {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -73,8 +176,6 @@ import {
 	authenticatedNoticeProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
 	metricRollup,
 	officialWebReleaseTaskEventProjection,
 	officialWebReleaseTaskProjection,
@@ -86,7 +187,17 @@ import {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+import {
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
+} from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
+import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+import { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -99,6 +210,15 @@ export const appApiSchema = {
 	session,
 	account,
 	verification,
+	oauthClient,
+	oauthRefreshToken,
+	oauthAccessToken,
+	oauthConsent,
+	jwks,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+	campusServicesOpsReleases,
+	campusServicesOpsAuditEvents,
 	conversations,
 	messageFeedback,
 	messages,
@@ -108,12 +228,38 @@ export const appApiSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	diningHalls,
+	diningFloors,
+	diningWindows,
+	diningWindowAssignments,
+	diningStallProfiles,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReviewProjections,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningDraftVersions,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseScheduleJobs,
+	diningReleases,
+	diningReleaseSnapshots,
+	diningReleaseLatestPointer,
+	diningAuditEvents,
+	identityAccounts,
+	identityProfiles,
+	identityAccessSnapshots,
+	identityPreferenceSettings,
+	identityFederationClients,
+	identityFederationClaimsPolicies,
+	identityFederationUserGrants,
 	crawlRuns,
 	officialWebTargetJobs,
 	officialWebTargetJobCandidates,
 	officialWebTargetPageAttempts,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetReleaseGates,
+	officialWebRunAdmissionDecisions,
 	runHeartbeats,
 	runArtifacts,
 	pageObservations,
@@ -121,6 +267,11 @@ export const appApiSchema = {
 	runOutbox,
 	profileMemorySettings,
 	profileMemoryItems,
+	llmDebugTraceConfig,
+	providerConfigConnections,
+	providerConfigProfiles,
+	replayPacketAccessAudit,
+	replayPacketIndex,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,
@@ -138,8 +289,12 @@ export const appApiSchema = {
 	authenticatedNoticeProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
-	evalDiagnosticBadcaseProjection,
-	evalCoverageSnapshot,
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerDecision,
+	workerAutoscalerPosture,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

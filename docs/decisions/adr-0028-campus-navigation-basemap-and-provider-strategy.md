@@ -1,9 +1,11 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0028
 status: accepted
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-06-09
 ---
 # ADR-0028 Campus Navigation Basemap And Provider Strategy
 
@@ -15,7 +17,7 @@ Accepted on 2026-04-05.
 
 `ADR-0027` 已经冻结了以下长期边界：
 
-- 导航是独立 agent family
+- 导航是独立 tool domain
 - 校园空间真相属于 repo-owned institutional knowledge 子域
 - 瓦片地图只是 runtime presentation concern
 - 外部地图 provider 只允许作为 adapter 参与
@@ -80,7 +82,7 @@ Accepted on 2026-04-05.
 - 高德不再作为当前长期方案里的默认主链路前提
 - 如后续保留高德，只允许作为可替换 adapter 参与 geocode、POI search 或校外 secondary
   route candidate
-- 去掉高德不会使 campus navigation capability 失效
+- 去掉高德不会使 campus navigation tool 失效
 
 ### 决策 4：不使用 OSM Foundation 公共瓦片或公共 Nominatim 作为生产主链路
 
@@ -115,8 +117,26 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - route polyline、waypoint、summary、warning 由产品 contract 提供
 - 前端 renderer 可以是 provider-neutral map renderer，也可以在局部适配某个底图 SDK
-- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-agent` 的 shared
+- renderer 与底图切换不应反向改变 `app-api`、Execution Agent Layer 或 `navigation` 的 shared
   contract
+
+### 决策 6A：当前 browser map renderer 采用 MapLibre GL JS
+
+当前 `campus-web` 的 `/map` browser renderer 采用 `MapLibre GL JS`。
+
+直接含义：
+
+- MapLibre 是 browser renderer runtime，不是 campus spatial truth
+- MapLibre 不是底图 provider truth，也不拥有 place / route / audit contract
+- `campus-web` 仍只消费 `app-api` 的 `/api/campus-map/*` product projection
+- MapLibre vendor runtime 可以通过 route lazy loading、vendor split、自托管 asset
+  或构建分包控制 bundle size
+- 清理 large chunk warning 时，不得把 MapLibre 替换为自研 DOM / SVG / canvas
+  点位图
+
+如果未来要替换 browser map renderer，必须同时更新本文、相关 architecture /
+contract 文档、构建检查和前端测试。性能 gate 只能约束 delivery shape，不能反向决定
+renderer 选型。
 
 ### 决策 7：首个前向交付 slice 固定为地点寻找，而不是路线规划
 
@@ -154,6 +174,8 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - 后续实施应先建设 `place_catalog` 与周边关键地点受控数据，再按需要补齐 `route_graph`
 - 后续产品实现应采用 `chat-first, map-enhanced, full-map-optional`，但地图层继续保持底图弱依赖
+- 当前 browser map renderer 使用 MapLibre GL JS；bundle 治理应通过 lazy loading /
+  vendor split / 自托管 asset 完成，不通过替换 renderer 完成
 - 后续技术选型应把“中国区底图合规”和“商业 provider 成本”视为独立约束，而不是把任一 provider 反向提升为 architecture
   truth
 - 是否保留高德、是否引入天地图、是否未来自托管 OSM-derived tiles，都属于 adapter/runtime 取舍，不改变 `ADR-0027`
@@ -183,6 +205,6 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 ## Related Docs
 
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/product-runtime.md`

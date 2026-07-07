@@ -1,19 +1,21 @@
 ---
 doc_type: architecture
+truth_scope: execution
+owner_boundary: domains/navigation
 status: active
 created: 2026-04-05
-updated: 2026-05-01
+updated: 2026-06-12
 ---
 # Navigation And Wayfinding Architecture
 
 ## 文档边界
 
-本文冻结 `campus-agent` 长期导航 / wayfinding 能力的 supporting architecture。
+本文冻结 `campus-agent` 长期导航 / wayfinding tool domain 的 supporting architecture。
 
 它回答的是：
 
-- 校园导航在长期产品形态里属于什么能力边界
-- `supervisor`、`navigation-agent`、`app-api`、spatial truth 各自负责什么
+- 校园导航在长期产品形态里属于什么 tool domain 边界
+- Execution Agent Layer、`navigation`、`app-api`、spatial truth 各自负责什么
 - 用户当前位置、地点别名、路线图谱与地图呈现分别属于哪一层
 - 外部地图 provider 与瓦片地图在长期形态里应怎样参与
 
@@ -32,14 +34,18 @@ updated: 2026-05-01
 - campus service discovery
 - campus navigation / wayfinding
 
-其中导航不是附属工具，而是 supervisor-led multi-agent product 中的稳定 capability family。
+其中导航不是 generic retrieval fallback，而是 Execution Agent Layer-led
+tool-using product 中的稳定 tool domain。
 
 长期导航主链路固定为：
 
-`web surface -> app-api -> supervisor-api -> supervisor-agent-worker -> navigation-agent
--> spatial truth / provider adapters -> supervisor response`
+```text
+web surface -> app-api -> execution-control -> Temporal activity
+-> tool worker -> navigation / typed spatial tools
+-> spatial truth / provider adapters -> execution response
+```
 
-在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
+在长期 multi-tool / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
 specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
 `StopContext`、route summary 或 accessibility warning projection。它不因此拥有
 timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
@@ -73,9 +79,9 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 直接含义：
 
-- 导航能力既可以被 chat surface 消费，也可以被未来独立的 map / wayfinding surface 消费
+- 导航能力既可以被 chat surface 消费，也可以被独立 map / wayfinding surface 消费
 - chat 内 route card、mini-map 与路线解释仍然是重要消费形态，但不再被提升为唯一产品入口真相
-- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> supervisor-api -> navigation-agent`
+- 如果存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation`
   truth chain
 
 长期推荐形态包括：
@@ -92,13 +98,13 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Execution Ownership
 
-### `apps/supervisor-api`
+### `apps/execution-control`
 
 长期负责：
 
 - intent framing
 - risk / safety gate
-- capability routing
+- tool routing
 - handoff shaping
 - response finalization
 
@@ -109,15 +115,19 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - provider-specific route or geocode logic
 - browser map rendering
 
-### `packages/navigation-agent`
+### Navigation Tool Runtime
+
+当前 `place_lookup` 没有 model-visible runtime；旧 Python
+`packages/navigation-tool` 已退役。重新开放前必须在 TS/Go owner 中重新建立 typed
+tool runtime 或 internal query service。
 
 长期负责：
 
 - place / building / entrance / gate / stop resolution
-- route planning inside the capability boundary
+- route planning inside the tool boundary
 - ambiguity handling and clarification
 - navigation answer shaping
-- provider candidate orchestration inside the agent boundary
+- provider candidate orchestration inside the tool boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
 - manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
   projection
@@ -140,7 +150,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - request-scoped typed navigation context projection
 - canonical request identity and audit / projection input
 
-### `apps/public-chat-web` / future navigation surfaces
+### `apps/campus-web` / navigation surfaces
 
 长期负责：
 
@@ -166,7 +176,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 固定边界：
 
 - `spatial truth` 不属于 profile memory 或 session memory
-- `current location` 不属于 verified identity 或 authorization truth
+- `current location` 不属于 account / session、operator access 或 source truth
 - `current location` 不得被静默提升成长期 memory truth
 - preference 可以影响 route ranking / wording，但不能替代 origin / destination truth
 - transport schedule、service status 与 notice effective window 不是 route-graph
@@ -208,7 +218,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 固定规则：
 
 - alias 必须带 institution scope
-- alias resolution owner 在 `navigation-agent`
+- alias resolution owner 在 `navigation`
 - retrieval / graph executor 只消费 canonical entity truth，不消费自由文本 alias 真相
 - 高歧义地点默认进入 `needs_clarification`，不得用 top1 猜测代替
 
@@ -245,14 +255,15 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - canonical spatial truth
 - route correctness truth
-- agent capability boundary
+- agent tool boundary
 - shared contract vocabulary
 
 长期 provider posture 固定为：
 
 - browser geolocation 是 input source，不是 canonical truth
 - map / geocode / route provider 是 adapter，不是 campus truth owner
-- provider geocode、POI search、secondary route candidates 可以参与 agent 内部执行
+- provider geocode、POI search、secondary route candidates 可以参与
+  navigation tool 内部执行
 - provider-specific IDs、SDK types、payload shapes 不进入 `packages/contracts`
 
 针对“学校 + 周边关键地点”的底图、自建范围与 provider 成本 posture，见
@@ -260,21 +271,20 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Result Posture
 
-长期导航结果必须继续兼容 repo 现有 supervisor terminal semantics：
+长期导航结果必须继续兼容 repo 现有 execution terminal semantics：
 
 - `completed`
 - `needs_clarification`
 - `no_answer`
 - `error`
 - `rejected`
-- `approval_required` 仅在后续引入高风险 external action 时保留
 
 直接含义：
 
 - 无法安全解析地点时，应 `needs_clarification`
 - 缺少可信 route truth 时，应 `no_answer` 或 `error`
-- 未授权访问 restricted spatial truth 时，应 fail-closed
-- 不得在导航域为了“更像地图 app”而绕开 supervisor 终态合同
+- spatial truth 尚未开放、来源不足或地点不可安全解析时，应 fail-closed
+- 不得在导航域为了“更像地图 app”而绕开 execution 终态合同
 
 ## Non-Goals
 
@@ -289,15 +299,14 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Related Stable Docs
 
-- `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/target.md`
+- `docs/architecture/system/execution-agent-layer.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/retrieval-serving.md`
 - `docs/decisions/adr-0005-campus-services-taxonomy.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

@@ -3,12 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { OperatorQueryStoreSuiteContext } from "./operator-query.store.suite-context";
 
 export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreSuiteContext): void {
-	const {
-		createPgOperatorQueryStore,
-		createRuntimeDatabase,
-		resetOperatorQueryStoreMocks,
-		summarizeSafetyAnomaly,
-	} = ctx;
+	const { createPgOperatorQueryStore, createRuntimeDatabase, resetOperatorQueryStoreMocks } = ctx;
 
 	beforeEach(() => {
 		resetOperatorQueryStoreMocks();
@@ -21,6 +16,12 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				estimatedCostMicrousd: 10,
 				requestId: "req_health_01",
 				retrievalAttempted: false,
+				stageTimingJson: {
+					"agent.runtime_ms": 13_000,
+					"memory.recall_ms": 2_200,
+					"rag.lookup_ms": 2_000,
+					"stream.browser_ttft_ms": 5_500,
+				},
 				startedAt: new Date("2026-03-28T08:50:00.000Z"),
 				status: "completed",
 				traceAvailable: false,
@@ -30,6 +31,11 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				estimatedCostMicrousd: 20,
 				requestId: "req_health_02",
 				retrievalAttempted: false,
+				stageTimingJson: {
+					"agent.runtime_ms": 600,
+					"rag.lookup_ms": 100,
+					"stream.browser_ttft_ms": 800,
+				},
 				startedAt: new Date("2026-03-28T08:55:00.000Z"),
 				status: "completed",
 				traceAvailable: true,
@@ -75,12 +81,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 		});
 
 		const result = await store.getOverview({
-			collection: null,
 			granularity: null,
-			modelName: null,
 			principalType: null,
-			requestedCapability: null,
-			selectedTarget: null,
 			surface: null,
 			window: "1h",
 		});
@@ -96,134 +98,37 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			outboxStaleCount: 1,
 			projectionFailureCount: 1,
 		});
-	});
-	it("summarizes intent governance signals from request observability facts and intent grades", async () => {
-		const observabilityRows = [
-			{
-				intentAmbiguityReason: null,
-				intentAmbiguitySignal: null,
-				intentCapability: "knowledge",
-				intentClassifierVersion: "intent-classifier@2026-04-20",
-				intentContextResolutionState: "resolved",
-				intentLaunchState: "open",
-				intentNextAction: "delegate",
-				intentRoutingConfidence: "high",
-				intentSchemaVersion: "intent-schema-1.0.0",
-				intentScopeClass: "in_scope",
-				intentTaskKind: "knowledge_lookup",
-				requestId: "req_intent_01",
-				startedAt: new Date("2026-03-28T08:40:00.000Z"),
+		expect(result.overview.stageLatency).toMatchObject({
+			"agent.runtime_ms": {
+				criticalCount: 1,
+				p95Ms: 13_000,
+				sampleCount: 2,
+				warnCount: 1,
 			},
-			{
-				intentAmbiguityReason: "missing_slot",
-				intentAmbiguitySignal: "ambiguous",
-				intentCapability: "campus_services",
-				intentClassifierVersion: "intent-classifier@2026-04-20",
-				intentContextResolutionState: "unresolved",
-				intentLaunchState: "candidate_only",
-				intentNextAction: "clarify",
-				intentRoutingConfidence: "low",
-				intentSchemaVersion: "intent-schema-1.0.0",
-				intentScopeClass: "in_scope",
-				intentTaskKind: "campus_services_lookup",
-				requestId: "req_intent_02",
-				startedAt: new Date("2026-03-28T08:45:00.000Z"),
+			"memory.recall_ms": {
+				criticalCount: 1,
+				p95Ms: 2_200,
+				sampleCount: 1,
+				warnCount: 1,
 			},
-			{
-				intentAmbiguityReason: null,
-				intentAmbiguitySignal: null,
-				intentCapability: "knowledge",
-				intentClassifierVersion: "intent-classifier@2026-04-21",
-				intentContextResolutionState: "resolved",
-				intentLaunchState: "open",
-				intentNextAction: "delegate",
-				intentRoutingConfidence: "medium",
-				intentSchemaVersion: "intent-schema-1.1.0",
-				intentScopeClass: "out_of_scope",
-				intentTaskKind: "knowledge_lookup",
-				requestId: "req_intent_03",
-				startedAt: new Date("2026-03-28T08:50:00.000Z"),
+			"rag.lookup_ms": {
+				criticalCount: 0,
+				p95Ms: 2_000,
+				sampleCount: 2,
+				warnCount: 1,
 			},
-		];
-		const gradeRows = [
-			{
-				gradeDomain: "intent",
-				requestId: "req_intent_01",
-				verdict: "pass",
+			"stream.browser_ttft_ms": {
+				criticalCount: 1,
+				p95Ms: 5_500,
+				sampleCount: 2,
+				warnCount: 1,
 			},
-			{
-				gradeDomain: "intent",
-				requestId: "req_intent_02",
-				verdict: "fail",
-			},
-		];
-		const responses = [observabilityRows, gradeRows];
-		const observabilityWhere = vi.fn().mockResolvedValue(responses.shift());
-		const gradeOrderBy = vi.fn().mockResolvedValue(responses.shift());
-		const gradeWhere = vi.fn(() => ({ orderBy: gradeOrderBy }));
-		const select = vi
-			.fn()
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: observabilityWhere,
-				})),
-			})
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: gradeWhere,
-				})),
-			});
-
-		createRuntimeDatabase.mockResolvedValue({
-			select,
 		});
-
-		const store = createPgOperatorQueryStore({} as never, {
-			now: () => new Date("2026-03-28T09:00:00.000Z"),
+		expect(result.overview.latencyBudget).toMatchObject({
+			criticalFieldCount: 3,
+			version: "latency-budget-v1",
+			warnFieldCount: 4,
+			worstField: "agent.runtime_ms",
 		});
-
-		const result = await store.getIntentSummary({
-			collection: null,
-			granularity: null,
-			modelName: null,
-			principalType: null,
-			requestedCapability: null,
-			selectedTarget: null,
-			surface: null,
-			window: "1h",
-		});
-
-		expect(result.runtime.requestCount).toBe(3);
-		expect(result.runtime.lowConfidenceRate).toEqual({
-			count: 1,
-			eligibleCount: 3,
-			value: 0.3333,
-		});
-		expect(result.runtime.ambiguityRate.count).toBe(1);
-		expect(result.runtime.contextUnresolvedRate.count).toBe(1);
-		expect(result.runtime.distributions.capability).toEqual([
-			{ count: 2, value: "knowledge" },
-			{ count: 1, value: "campus_services" },
-		]);
-		expect(result.runtime.distributions.classifierVersion).toEqual([
-			{ count: 2, value: "intent-classifier@2026-04-20" },
-			{ count: 1, value: "intent-classifier@2026-04-21" },
-		]);
-		expect(result.sampledGrades?.intentPassRate).toEqual({
-			count: 1,
-			eligibleCount: 2,
-			value: 0.5,
-		});
-	});
-	it("renders operator-facing target labels in safety anomaly summaries", () => {
-		expect(
-			summarizeSafetyAnomaly({
-				aclAnomalyCode: "projection_missing",
-				failClosed: false,
-				requestedCapability: "knowledge",
-				selectedTarget: "rag-agent",
-				status: "completed",
-			}),
-		).toBe("knowledge request finalized without the required policy projection for rag agent.");
 	});
 }

@@ -1,0 +1,225 @@
+package httpapi
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+)
+
+func attachRunProjectionStoreForHandlerTest(
+	server *Server,
+	store execution.RunProjectionStore,
+) {
+	server.runProjectionStore = store
+	server.runProjectionStoreErr = nil
+}
+
+func durableRunCreateBodyForTest(runID string, conversationID string) string {
+	return fmt.Sprintf(`{
+		"run_id":%q,
+		"conversation_id":%q,
+		"turn_id":"turn-%s",
+		"request_id":"req-%s",
+		"trace_id":"trace-%s",
+		"owner_user_id":"user-executor",
+		"surface":"campus-web",
+		"requested_tool":"knowledge_query",
+		"selected_tool":"knowledge_query",
+		"task_queue":"campus-agent.workflow",
+		"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
+		"metadata":{
+			"execution_payload":{
+				"user_goal":"hello",
+				"request_id":"req-%s",
+				"conversation_id":%q,
+				"trace":{"trace_id":"trace-%s"},
+				"actor":{"user_id":"user-executor"},
+				"context":{
+					"actor":{"user_id":"user-executor"},
+					"authorization":{
+						"retrieval_filter":{
+							"policy_projection_version":"phase1-authorization-projection-v1",
+							"visibility_level":"public"
+						}
+					}
+				},
+				"runtime_decisions":{"runtime_decision_summary":{}}
+			},
+			"handoff":{
+				"tool":"rag-tool",
+				"payload_kind":"rag_request",
+				"allowed_tools":["knowledge_query"],
+				"payload":{"query_text":"hello"}
+			}
+		}
+	}`, runID, conversationID, runID, runID, runID, runID, conversationID, runID)
+}
+
+func createHTTPAPIQueuedDurableRunForTest(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	conversationID string,
+	now time.Time,
+	handoff map[string]any,
+) {
+	t.Helper()
+	userGoal := "hello"
+	if handoff != nil {
+		if payload, ok := handoff["payload"].(map[string]any); ok {
+			userGoal = firstNonEmptyText(payload["query_text"], userGoal)
+		}
+	}
+	metadata := map[string]any{
+		"execution_payload": map[string]any{
+			"user_goal":       userGoal,
+			"request_id":      "req-executor-001",
+			"conversation_id": conversationID,
+			"trace":           map[string]any{"trace_id": "trace-executor-001"},
+			"actor":           map[string]any{"user_id": "user-executor"},
+			"context": map[string]any{
+				"actor": map[string]any{"user_id": "user-executor"},
+				"authorization": map[string]any{
+					"retrieval_filter": publicRetrievalFilterForTest(),
+				},
+				"conversation": map[string]any{
+					"current_user_message": map[string]any{
+						"created_at": now.UTC().Format(time.RFC3339),
+					},
+				},
+			},
+			"runtime_decisions": map[string]any{
+				"runtime_decision_summary": map[string]any{},
+			},
+		},
+	}
+	if handoff != nil {
+		metadata["handoff"] = handoff
+	}
+	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
+		RunID:          runID,
+		ConversationID: conversationID,
+		TurnID:         "turn-" + runID,
+		RequestID:      "req-executor-001",
+		TraceID:        "trace-executor-001",
+		OwnerUserID:    "user-executor",
+		Surface:        "campus-web",
+		RequestedTool:  handoffToolForDurableWorkerTest(handoff),
+		SelectedTool:   handoffSelectedToolForDurableWorkerTest(handoff),
+		TaskQueue:      "campus-agent.workflow",
+		Status:         execution.DurableRunStatusCreated,
+		CreatedAt:      now,
+		Metadata:       metadata,
+	}); err != nil {
+		t.Fatalf("create run projection: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		runID,
+		execution.DurableRunStatusQueued,
+		"",
+		now.Add(time.Second),
+	); err != nil {
+		t.Fatalf("queue run projection: %v", err)
+	}
+}
+
+func ragHandoffForDurableWorkerTest(queryText string) map[string]any {
+	return map[string]any{
+		"tool":          "knowledge_query",
+		"payload_kind":  "rag_request",
+		"allowed_tools": []any{"knowledge_query"},
+		"payload":       map[string]any{"query_text": queryText},
+	}
+}
+
+func handoffToolForDurableWorkerTest(handoff map[string]any) string {
+	if handoff == nil {
+		return ""
+	}
+	return firstNonEmptyText(handoff["tool"], "")
+}
+
+func handoffSelectedToolForDurableWorkerTest(handoff map[string]any) string {
+	if handoff == nil {
+		return ""
+	}
+	allowed, _ := handoff["allowed_tools"].([]any)
+	if len(allowed) == 1 {
+		return firstNonEmptyText(allowed[0], "")
+	}
+	return firstNonEmptyText(handoff["tool"], "")
+}
+
+func assertHTTPAPIDurableEventTypes(
+	t *testing.T,
+	events []execution.DurableRunEvent,
+	expected []execution.DurableRunEventType,
+) {
+	t.Helper()
+	if len(events) != len(expected) {
+		t.Fatalf("event count = %d, want %d: %#v", len(events), len(expected), events)
+	}
+	for index, expectedType := range expected {
+		if events[index].EventType != expectedType {
+			t.Fatalf("event[%d] type = %q, want %q", index, events[index].EventType, expectedType)
+		}
+		if events[index].Sequence != int64(index+1) {
+			t.Fatalf("event[%d] sequence = %d, want %d", index, events[index].Sequence, index+1)
+		}
+	}
+}
+
+func expectInternalFinalizationResponseForTest(
+	t *testing.T,
+	events []execution.DurableRunEvent,
+) map[string]any {
+	t.Helper()
+	var finalizationResponse map[string]any
+	for _, event := range events {
+		if event.EventType != execution.DurableRunEventTypeFinalizationCompleted {
+			continue
+		}
+		if event.Visibility == execution.DurableRunEventVisibilityBrowser {
+			if _, exists := event.Payload["response"]; exists {
+				t.Fatalf("browser finalization.completed event leaked response: %#v", event.Payload)
+			}
+			continue
+		}
+		if event.Visibility != execution.DurableRunEventVisibilityInternal {
+			continue
+		}
+		response, ok := event.Payload["response"].(map[string]any)
+		if !ok {
+			t.Fatalf("internal finalization response payload = %#v", event.Payload["response"])
+		}
+		finalizationResponse = response
+	}
+	if finalizationResponse == nil {
+		t.Fatal("internal finalization.completed event missing")
+	}
+	return finalizationResponse
+}
+
+func durableToolResponseBodyForTest(answerText string) json.RawMessage {
+	body, err := json.Marshal(map[string]any{
+		"tool":               "knowledge_query",
+		"status":             "completed",
+		"answer_text":        answerText,
+		"follow_up_question": "",
+		"confidence":         "high",
+		"result": map[string]any{
+			"evidence": map[string]any{
+				"sources": []map[string]any{{"doc_id": "student_rules:test"}},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return body
+}

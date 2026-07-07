@@ -1,26 +1,16 @@
 import { eq, gte, inArray, lte } from "drizzle-orm";
 
-import {
-	qualityGradeProjection,
-	requestExecution,
-	requestObservabilityFact,
-	traceBacklinkProjection,
-} from "../../../db/schema";
+import { requestExecution, requestObservabilityFact } from "../../../db/schema";
+import { isStageTimingField, projectStageTimingBudget } from "../../latency-budget";
 import type {
 	MetricRatio,
 	NormalizedOperatorOverviewFilters,
-	OperatorRequestObservabilityRecord as ObservabilityRecord,
-	OperatorAuditEventListItem,
 	OperatorOverviewWindow,
+	OperatorRequestOpsIndex,
 	OperatorResultWindow,
 	RequestProjectionRecord,
 } from "../service";
-import type {
-	QualityGradeProjectionRow,
-	RequestObservabilityFactRow,
-	RuntimeDatabase,
-	TraceBacklinkProjectionRow,
-} from "./runtime";
+import type { RequestObservabilityFactRow, RuntimeDatabase } from "./runtime";
 
 export function toIsoString(value: Date | null): string | null {
 	return value ? value.toISOString() : null;
@@ -52,11 +42,11 @@ export function toRequestProjectionRecord(
 		questionPreview: row.questionPreview,
 		requestId: row.requestId,
 		runId: input.runId ?? null,
-		requestedCapability: row.requestedCapability ?? null,
+		requestedTool: row.requestedTool ?? null,
 		requestedScope: row.requestedScopeJson ?? null,
 		...(row.versionQueryJson ? { versionQuery: row.versionQueryJson } : {}),
 		resolvedScope: row.resolvedScopeJson ?? null,
-		selectedTarget: row.selectedTarget ?? null,
+		selectedTool: row.selectedTool ?? null,
 		sourceDocIds: row.sourceDocIdsJson ?? [],
 		startedAt: row.startedAt.toISOString(),
 		status: row.status as RequestProjectionRecord["status"],
@@ -93,20 +83,63 @@ export async function loadRunBacklinksByRequestIds(
 	return backlinks;
 }
 
-export function toAuditListItem(
-	row: typeof import("../../../db/schema").requestAuditProjection.$inferSelect,
-): OperatorAuditEventListItem {
+function normalizeStageTiming(
+	value: Record<string, unknown> | null | undefined,
+): Record<string, number> {
+	const entries = Object.entries(value ?? {}).filter(
+		(entry): entry is [string, number] =>
+			isStageTimingField(entry[0]) &&
+			typeof entry[1] === "number" &&
+			Number.isFinite(entry[1]) &&
+			entry[1] >= 0,
+	);
+	return Object.fromEntries(entries);
+}
+
+export function toOperatorRequestOpsIndex(
+	row: RequestObservabilityFactRow,
+): OperatorRequestOpsIndex {
 	return {
-		auditEventId: row.auditEventId,
-		eventType: row.eventType,
-		occurredAt: row.occurredAt.toISOString(),
-		principalType: row.principalType,
-		requestId: row.requestId,
-		selectedTarget: row.selectedTarget ?? null,
-		status: row.status,
-		summary: row.summary,
-		surface: row.surface,
-		traceId: row.traceId,
+		debugTraceRefs: row.debugTraceRefsJson ?? [],
+		model: {
+			billableStepCount: row.billableStepCount ?? null,
+			cachedInputTokens: row.cachedInputTokens ?? null,
+			estimatedCostMicrousd: row.estimatedCostMicrousd ?? null,
+			executionDetail: row.modelExecutionDetail ?? null,
+			executionState: row.modelExecutionState ?? null,
+			answerEvalFingerprint: row.answerEvalFingerprintJson ?? null,
+			llmIoFingerprint: row.llmIoFingerprintJson ?? null,
+			inputTokens: row.inputTokens ?? null,
+			modelName: row.modelName ?? null,
+			modelProvider: row.modelProvider ?? null,
+			outputTokens: row.outputTokens ?? null,
+			promptId: row.promptId ?? null,
+			promptVersion: row.promptVersion ?? null,
+			templateSha256: row.templateSha256 ?? null,
+			usageSummary: row.modelUsageSummaryJson ?? [],
+		},
+		retrieval: {
+			adequacyReason: row.retrievalAdequacyReason ?? null,
+			adequacyVerdict: row.retrievalAdequacyVerdict ?? null,
+			candidateCount: row.candidateCount ?? null,
+			collection: row.collection ?? null,
+			retrievalAttempted: row.retrievalAttempted ?? null,
+			retrievedSourceCount: row.retrievedSourceCount ?? null,
+		},
+		sinkLinks: {
+			projectionLagMs: row.projectionLagMs ?? null,
+			traceAvailable: row.traceAvailable,
+		},
+		stageTiming: normalizeStageTiming(row.stageTimingJson),
+		stageTimingBudget: projectStageTimingBudget(row.stageTimingJson),
+		tool: {
+			failClosed: row.failClosed ?? null,
+			failCloseReason: row.toolFailCloseReason ?? null,
+			historicalDowngradeReason: row.toolHistoricalDowngradeReason ?? null,
+			requestedTool: row.requestedTool ?? null,
+			selectedTool: row.selectedTool ?? null,
+			toolBusinessOutcome: row.toolBusinessOutcome ?? null,
+		},
 	};
 }
 
@@ -207,20 +240,8 @@ export function buildObservabilityConditions(
 	if (filters.surface) {
 		conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 	}
-	if (filters.selectedTarget) {
-		conditions.push(eq(requestObservabilityFact.selectedTarget, filters.selectedTarget));
-	}
-	if (filters.requestedCapability) {
-		conditions.push(eq(requestObservabilityFact.requestedCapability, filters.requestedCapability));
-	}
 	if (filters.principalType) {
 		conditions.push(eq(requestObservabilityFact.principalType, filters.principalType));
-	}
-	if (filters.collection) {
-		conditions.push(eq(requestObservabilityFact.collection, filters.collection));
-	}
-	if (filters.modelName) {
-		conditions.push(eq(requestObservabilityFact.modelName, filters.modelName));
 	}
 
 	return conditions;
@@ -234,209 +255,9 @@ export function buildResultWindow(bounds: ReturnType<typeof resolveWindowBounds>
 	} as const;
 }
 
-export function buildQualityGradeConditions(
-	filters: NormalizedOperatorOverviewFilters,
-	bounds: ReturnType<typeof resolveWindowBounds>,
-	input: {
-		gradeDomain?: string;
-	} = {},
-) {
-	const conditions = [
-		gte(qualityGradeProjection.requestStartedAt, bounds.from),
-		lte(qualityGradeProjection.requestStartedAt, bounds.to),
-	];
-
-	if (filters.surface) {
-		conditions.push(eq(qualityGradeProjection.surface, filters.surface));
-	}
-	if (filters.selectedTarget) {
-		conditions.push(eq(qualityGradeProjection.selectedTarget, filters.selectedTarget));
-	}
-	if (filters.requestedCapability) {
-		conditions.push(eq(qualityGradeProjection.requestedCapability, filters.requestedCapability));
-	}
-	if (filters.principalType) {
-		conditions.push(eq(qualityGradeProjection.principalType, filters.principalType));
-	}
-	if (filters.collection) {
-		conditions.push(eq(qualityGradeProjection.collection, filters.collection));
-	}
-	if (filters.modelName) {
-		conditions.push(eq(qualityGradeProjection.modelName, filters.modelName));
-	}
-	if (input.gradeDomain) {
-		conditions.push(eq(qualityGradeProjection.gradeDomain, input.gradeDomain));
-	}
-
-	return conditions;
-}
-
-export function toLinks(
-	row: TraceBacklinkProjectionRow | null | undefined,
-): ObservabilityRecord["links"] {
-	return {
-		issueFingerprint: row?.issueFingerprint ?? null,
-		issueLink: row?.issueLink ?? null,
-		traceLink: row?.traceLink ?? null,
-	};
-}
-
-export function toScore(scoreMilli: number | null): number | null {
-	return typeof scoreMilli === "number" ? Number((scoreMilli / 1000).toFixed(3)) : null;
-}
-
-export function inferEvalFamilyFromCauseClass(
-	causeClass: string,
-): "citation" | "grounding" | "intent" | "policy" | "unknown" {
-	const normalized = causeClass.toLowerCase();
-	if (normalized.includes("citation")) {
-		return "citation";
-	}
-	if (
-		normalized.includes("intent") ||
-		normalized.includes("routing") ||
-		normalized.includes("classifier") ||
-		normalized.includes("context_resolution") ||
-		normalized.includes("missing_slot") ||
-		normalized.includes("handoff")
-	) {
-		return "intent";
-	}
-	if (
-		normalized.includes("policy") ||
-		normalized.includes("acl") ||
-		normalized.includes("authz") ||
-		normalized.includes("access") ||
-		normalized.includes("restricted") ||
-		normalized.includes("approval")
-	) {
-		return "policy";
-	}
-	if (
-		normalized.includes("ground") ||
-		normalized.includes("recall") ||
-		normalized.includes("retrieval") ||
-		normalized.includes("evidence") ||
-		normalized.includes("freshness")
-	) {
-		return "grounding";
-	}
-
-	return "unknown";
-}
-
-export function inferGradeDomainFromCauseClass(causeClass: string): string | null {
-	const family = inferEvalFamilyFromCauseClass(causeClass);
-	if (family === "unknown") {
-		return null;
-	}
-
-	return family;
-}
-
-export function buildGradeBucketMap(rows: QualityGradeProjectionRow[]) {
-	const buckets = new Map<
-		string,
-		{
-			latest: QualityGradeProjectionRow | null;
-			byDomain: Map<string, QualityGradeProjectionRow>;
-		}
-	>();
-
-	for (const row of rows) {
-		const current = buckets.get(row.requestId) ?? {
-			byDomain: new Map<string, QualityGradeProjectionRow>(),
-			latest: null,
-		};
-		if (!current.latest) {
-			current.latest = row;
-		}
-		if (!current.byDomain.has(row.gradeDomain)) {
-			current.byDomain.set(row.gradeDomain, row);
-		}
-		buckets.set(row.requestId, current);
-	}
-
-	return buckets;
-}
-
-export async function loadTraceBacklinksByRequestIds(
-	db: RuntimeDatabase,
-	requestIds: string[],
-): Promise<Map<string, TraceBacklinkProjectionRow>> {
-	if (requestIds.length === 0) {
-		return new Map();
-	}
-
-	const rows = await db
-		.select()
-		.from(traceBacklinkProjection)
-		.where(inArray(traceBacklinkProjection.requestId, [...new Set(requestIds)]));
-
-	return new Map(rows.map((row) => [row.requestId, row]));
-}
-
 export function resolveResultGranularity(
 	filters: NormalizedOperatorOverviewFilters,
 	bounds: ReturnType<typeof resolveWindowBounds>,
 ) {
 	return filters.granularity ?? bounds.granularity;
-}
-
-export function sumNullableInteger(
-	rows: RequestObservabilityFactRow[],
-	selector: (row: RequestObservabilityFactRow) => number | null,
-): number {
-	return rows.reduce((sum, row) => sum + (selector(row) ?? 0), 0);
-}
-
-export function aggregateCostByModel(rows: RequestObservabilityFactRow[]) {
-	const grouped = new Map<
-		string,
-		{ modelName: string; requestCount: number; estimatedCostMicrousd: number }
-	>();
-
-	for (const row of rows) {
-		const modelName = row.modelName ?? "unknown";
-		const current = grouped.get(modelName) ?? {
-			estimatedCostMicrousd: 0,
-			modelName,
-			requestCount: 0,
-		};
-		current.requestCount += 1;
-		current.estimatedCostMicrousd += row.estimatedCostMicrousd ?? 0;
-		grouped.set(modelName, current);
-	}
-
-	return [...grouped.values()].sort(
-		(left, right) =>
-			right.estimatedCostMicrousd - left.estimatedCostMicrousd ||
-			right.requestCount - left.requestCount ||
-			left.modelName.localeCompare(right.modelName),
-	);
-}
-
-export function aggregateCostBySurface(rows: RequestObservabilityFactRow[]) {
-	const grouped = new Map<
-		string,
-		{ surface: string; requestCount: number; estimatedCostMicrousd: number }
-	>();
-
-	for (const row of rows) {
-		const current = grouped.get(row.surface) ?? {
-			estimatedCostMicrousd: 0,
-			requestCount: 0,
-			surface: row.surface,
-		};
-		current.requestCount += 1;
-		current.estimatedCostMicrousd += row.estimatedCostMicrousd ?? 0;
-		grouped.set(row.surface, current);
-	}
-
-	return [...grouped.values()].sort(
-		(left, right) =>
-			right.estimatedCostMicrousd - left.estimatedCostMicrousd ||
-			right.requestCount - left.requestCount ||
-			left.surface.localeCompare(right.surface),
-	);
 }

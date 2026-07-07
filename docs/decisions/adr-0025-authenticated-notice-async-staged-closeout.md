@@ -1,14 +1,34 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0025
-status: accepted
+status: superseded
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-07-04
+superseded_by:
+  - adr-0054-ingestion-control-plane-and-kernel-boundary.md
+  - adr-0063-internal-portal-source-channel-name.md
+  - docs/architecture/domains/authenticated-notice/architecture.md
 ---
 # ADR-0025 Authenticated Notice Async Staged Closeout
 
 适用范围：`authenticated_notice_portal` historical export closeout、对象存储 operations
 prefix、staging tables、single-promoter commit、deterministic verification
+
+## 当前状态说明
+
+Superseded on 2026-07-04.
+
+本文记录 historical authenticated notice closeout 的 staged-pipeline rationale。当前
+notice mainline handoff 已收口为 ingestion-control task lifecycle 读取
+`authenticated_notice_capture_release.v1` object-store refs；本文中的 historical operations
+prefix、staging 表、single-promoter 与旧 closeout runner 不拥有当前 source-truth
+materialization contract，不再作为当前 notice ingestion mainline 的 accepted
+runtime 决策。
+
+需要恢复 closeout 历史细节时，应从本文或 git history 提取具体事实，再提升到当前
+domain architecture、data doc 或 runbook。
 
 ## 背景
 
@@ -152,7 +172,8 @@ promoter 的职责固定为：
 
 - `packages/ingestion-core` 新增 authenticated notice closeout planner / store /
   service / verifier
-- `apps/ingestion-worker` 新增 run / show / promote 三条 CLI
+- 历史实现曾在 `apps/ingestion-worker` 暴露 run / show / promote CLI；该 executable
+  surface 已被 ingestion-control clean target 取代，不再是 active operation path
 - historical cumulative closeout runner 降级为 legacy workflow，保留给已启动或需要对照的旧执行
 - operations prefix 与 closeout staging schema 成为 authenticated notice historical
   closeout 的 canonical progress truth
@@ -160,6 +181,6 @@ promoter 的职责固定为：
 ## Complementary Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/data/authenticated-notice.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/runbooks/ingestion-control-clean-target.md`

@@ -3,7 +3,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import { buildProfileMemoryService, type ProfileMemoryStore } from "../src/modules/profile-memory";
+import {
+	buildProfileMemoryService,
+	type ProfileMemoryIndexer,
+	type ProfileMemoryStore,
+} from "../src/modules/profile-memory";
+
+type OwnerAwareProfileMemoryIndexer = ProfileMemoryIndexer & {
+	disableOwnerMemory(input: {
+		tenantId?: string;
+		updatedAt: string;
+		userId: string;
+	}): Promise<{ status: string; userId: string }>;
+};
 
 function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 	return {
@@ -35,8 +47,14 @@ function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 function createStore(): ProfileMemoryStore {
 	return {
 		deleteItem: vi.fn(async () => true),
+		findItemIdByKey: vi.fn(async () => null),
+		getItemRuntimeRef: vi.fn(async () => ({
+			itemId: "mem_01HQ",
+			runtimeEpisodeUUID: "episode_mem_01HQ",
+		})),
 		listByOwner: vi.fn(async () => ({ enabled: true, items: [] })),
 		listProjectionItems: vi.fn(async () => []),
+		loadSummary: vi.fn(async () => ({ enabled: true, itemCount: 0 })),
 		setEnabled: vi.fn(async (input) => input.enabled),
 		upsertUserDeclared: vi.fn(async (input) => ({
 			confidence: "low" as const,
@@ -51,11 +69,32 @@ function createStore(): ProfileMemoryStore {
 	};
 }
 
+function createIndexer(): OwnerAwareProfileMemoryIndexer {
+	return {
+		disableOwnerMemory: vi.fn(async () => ({
+			status: "disabled",
+			userId: "user_01HQ",
+		})),
+		disableExplicitMemory: vi.fn(async () => ({
+			episodeUUID: "episode_mem_01HQ",
+			memoryId: "mem_01HQ",
+			status: "disabled",
+		})),
+		upsertExplicitMemory: vi.fn(async () => ({
+			episodeUUID: "episode_mem_01HQ",
+			memoryId: "mem_01HQ",
+			status: "active",
+		})),
+	};
+}
+
 describe("profile memory service", () => {
-	it("normalizes user-declared memory before durable upsert", async () => {
+	it("normalizes and writes user-declared memory to Hindsight before PG projection upsert", async () => {
 		const store = createStore();
+		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
 			generateId: () => "mem_01HQ",
+			memoryIndexer: indexer,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			store,
 		});
@@ -66,10 +105,19 @@ describe("profile memory service", () => {
 			value: " 先给   结论 ",
 		});
 
+		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			canonicalSubject: "answer_style",
+			compactText: "answer_style: 先给 结论",
+			memoryId: "mem_01HQ",
+			tenantId: "tenant-main",
+			updatedAt: "2026-04-27T08:00:00.000Z",
+			userId: "user_01HQ",
+		});
 		expect(store.upsertUserDeclared).toHaveBeenCalledWith({
 			itemId: "mem_01HQ",
 			key: "answer_style",
 			ownerUserId: "user_01HQ",
+			runtimeEpisodeUUID: "episode_mem_01HQ",
 			updatedAt: "2026-04-27T08:00:00.000Z",
 			value: "先给 结论",
 		});
@@ -82,9 +130,170 @@ describe("profile memory service", () => {
 		});
 	});
 
+	it("does not write PG projection when Hindsight explicit memory indexing fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(
+			new Error("hindsight unavailable"),
+		);
+		const service = buildProfileMemoryService({
+			generateId: () => "mem_01HQ",
+			memoryIndexer: indexer,
+			store,
+		});
+
+		await expect(
+			service.upsert({
+				key: "answer_style",
+				principal: createPrincipal(),
+				value: "先给结论",
+			}),
+		).rejects.toThrow("hindsight unavailable");
+
+		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
+	});
+
+	it("reuses the existing PG memory id for repeated key upsert before indexing Hindsight", async () => {
+		const store = createStore();
+		vi.mocked(store.findItemIdByKey).mockResolvedValueOnce("mem_existing");
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			generateId: () => "mem_new",
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T08:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.upsert({
+			key: "answer_style",
+			principal: createPrincipal(),
+			value: "先给结论",
+		});
+
+		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			canonicalSubject: "answer_style",
+			compactText: "answer_style: 先给结论",
+			memoryId: "mem_existing",
+			tenantId: "tenant-main",
+			updatedAt: "2026-04-27T08:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.upsertUserDeclared).toHaveBeenCalledWith(
+			expect.objectContaining({ itemId: "mem_existing", runtimeEpisodeUUID: "episode_mem_01HQ" }),
+		);
+		expect(result.item.itemId).toBe("mem_existing");
+	});
+
+	it("deletes Hindsight document before deleting PG projection", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.deleteItem({
+			itemId: "mem_01HQ",
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableExplicitMemory).toHaveBeenCalledWith({
+			episodeUUID: "episode_mem_01HQ",
+			memoryId: "mem_01HQ",
+			tenantId: "tenant-main",
+			updatedAt: "2026-04-27T09:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.deleteItem).toHaveBeenCalledWith({
+			itemId: "mem_01HQ",
+			ownerUserId: "user_01HQ",
+		});
+		expect(result).toEqual({ deleted: true });
+	});
+
+	it("does not delete PG projection when Hindsight memory disable fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.disableExplicitMemory).mockRejectedValueOnce(new Error("disable failed"));
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await expect(
+			service.deleteItem({
+				itemId: "mem_01HQ",
+				principal: createPrincipal(),
+			}),
+		).rejects.toThrow("disable failed");
+
+		expect(store.deleteItem).not.toHaveBeenCalled();
+	});
+
+	it("deletes Hindsight runtime owner before disabling PG memory setting", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T10:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.setEnabled({
+			enabled: false,
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableOwnerMemory).toHaveBeenCalledWith({
+			tenantId: "tenant-main",
+			updatedAt: "2026-04-27T10:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.setEnabled).toHaveBeenCalledWith({
+			enabled: false,
+			ownerUserId: "user_01HQ",
+			updatedAt: "2026-04-27T10:00:00.000Z",
+		});
+		expect(result).toEqual({ enabled: false });
+	});
+
+	it("does not disable PG memory setting when Hindsight owner memory disable fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.disableOwnerMemory).mockRejectedValueOnce(new Error("owner disable failed"));
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await expect(
+			service.setEnabled({
+				enabled: false,
+				principal: createPrincipal(),
+			}),
+		).rejects.toThrow("owner disable failed");
+
+		expect(store.setEnabled).not.toHaveBeenCalled();
+	});
+
+	it("does not call Hindsight owner disable when enabling memory setting", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await service.setEnabled({
+			enabled: true,
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableOwnerMemory).not.toHaveBeenCalled();
+		expect(store.setEnabled).toHaveBeenCalledWith(
+			expect.objectContaining({
+				enabled: true,
+				ownerUserId: "user_01HQ",
+			}),
+		);
+	});
+
 	it("rejects memory keys that look like authorization state", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
 
 		await expect(
 			service.upsert({
@@ -96,6 +305,7 @@ describe("profile memory service", () => {
 			code: "invalid_profile_memory_item",
 			status: 400,
 		});
+		expect(indexer.upsertExplicitMemory).not.toHaveBeenCalled();
 		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
 	});
 });

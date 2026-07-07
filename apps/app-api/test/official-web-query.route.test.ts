@@ -10,10 +10,9 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -79,11 +78,11 @@ describe("official web operator query routes", () => {
 				sites: [
 					{
 						displayName: "Www Muc Edu Cn",
-						hostRoots: ["www.muc.edu.cn"],
+						hostRoots: ["www.example.edu"],
 						id: "www_muc_edu_cn",
 						lastFailureAt: null,
 						lastSuccessAt: "2026-03-29T08:17:32.000Z",
-						latestCollectorVersion: "official-web-collector@0.1.0",
+						latestCollectorVersion: "source-collector@0.1.0",
 						latestConfigVersion: "git:abc1234",
 						latestIngestionDispatchStatus: "queued",
 						latestRunId: "owrun_01HQ",
@@ -108,11 +107,11 @@ describe("official web operator query routes", () => {
 			sites: [
 				{
 					displayName: "Www Muc Edu Cn",
-					hostRoots: ["www.muc.edu.cn"],
+					hostRoots: ["www.example.edu"],
 					id: "www_muc_edu_cn",
 					lastFailureAt: null,
 					lastSuccessAt: "2026-03-29T08:17:32.000Z",
-					latestCollectorVersion: "official-web-collector@0.1.0",
+					latestCollectorVersion: "source-collector@0.1.0",
 					latestConfigVersion: "git:abc1234",
 					latestIngestionDispatchStatus: "queued",
 					latestRunId: "owrun_01HQ",
@@ -136,14 +135,14 @@ describe("official web operator query routes", () => {
 					deletedPages: [
 						{
 							cadenceClass: "baseline_static",
-							host: "www.muc.edu.cn",
+							host: "www.example.edu",
 							lastChangeReason: "http_deleted",
 							lastChangedAt: "2026-03-29T08:17:32.000Z",
 							lastFetchDisposition: "deleted",
 							lastHttpStatus: 404,
 							lastSeenAt: "2026-03-29T08:17:32.000Z",
 							nextEligibleFetchAt: "2026-03-30T08:17:32.000Z",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/deleted",
+							normalizedCanonicalUrl: "https://www.example.edu/news/deleted",
 							pageFamily: "article_detail",
 							pageTitleNormalized: "Deleted Notice",
 							priorityScore: 40,
@@ -153,14 +152,14 @@ describe("official web operator query routes", () => {
 					duePages: [
 						{
 							cadenceClass: "listing_hot",
-							host: "www.muc.edu.cn",
+							host: "www.example.edu",
 							lastChangeReason: "main_content_changed",
 							lastChangedAt: "2026-03-29T08:17:32.000Z",
 							lastFetchDisposition: "fetched",
 							lastHttpStatus: 200,
 							lastSeenAt: "2026-03-29T08:17:32.000Z",
 							nextEligibleFetchAt: "2026-03-29T08:30:00.000Z",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+							normalizedCanonicalUrl: "https://www.example.edu/news/",
 							pageFamily: "listing_page",
 							pageTitleNormalized: "News",
 							priorityScore: 90,
@@ -170,14 +169,14 @@ describe("official web operator query routes", () => {
 					failedFetchPages: [
 						{
 							cadenceClass: "repair",
-							host: "www.muc.edu.cn",
+							host: "www.example.edu",
 							lastChangeReason: "fetch_failed",
 							lastChangedAt: "2026-03-29T08:17:32.000Z",
 							lastFetchDisposition: "fetch_failed",
 							lastHttpStatus: 502,
 							lastSeenAt: "2026-03-29T08:17:32.000Z",
 							nextEligibleFetchAt: "2026-03-29T09:00:00.000Z",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/failure",
+							normalizedCanonicalUrl: "https://www.example.edu/news/failure",
 							pageFamily: "article_detail",
 							pageTitleNormalized: "Failed Notice",
 							priorityScore: 85,
@@ -187,14 +186,14 @@ describe("official web operator query routes", () => {
 					hotPages: [
 						{
 							cadenceClass: "detail_recent",
-							host: "www.muc.edu.cn",
+							host: "www.example.edu",
 							lastChangeReason: "new_page",
 							lastChangedAt: "2026-03-29T08:17:32.000Z",
 							lastFetchDisposition: "fetched",
 							lastHttpStatus: 200,
 							lastSeenAt: "2026-03-29T08:17:32.000Z",
 							nextEligibleFetchAt: "2026-03-29T08:35:00.000Z",
-							normalizedCanonicalUrl: "https://www.muc.edu.cn/news/2",
+							normalizedCanonicalUrl: "https://www.example.edu/news/2",
 							pageFamily: "article_detail",
 							pageTitleNormalized: "Hot Detail",
 							priorityScore: 88,
@@ -215,11 +214,11 @@ describe("official web operator query routes", () => {
 					{
 						changeStatus: "changed",
 						fetchDisposition: "fetched",
-						host: "www.muc.edu.cn",
+						host: "www.example.edu",
 						httpStatus: 200,
 						id: "owobs_01",
 						lastChangeReason: "main_content_changed",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+						normalizedCanonicalUrl: "https://www.example.edu/news/1",
 						observedAt: "2026-03-29T08:17:32.000Z",
 						pageFamily: "article_detail",
 						pageTitleNormalized: "News 1",
@@ -231,7 +230,7 @@ describe("official web operator query routes", () => {
 				recentRuns: [
 					{
 						artifacts: [],
-						collectorVersion: "official-web-collector@0.1.0",
+						collectorVersion: "source-collector@0.1.0",
 						configVersion: "git:abc1234",
 						failureCount: 0,
 						finishedAt: "2026-03-29T08:17:32.000Z",
@@ -252,11 +251,11 @@ describe("official web operator query routes", () => {
 				],
 				site: {
 					displayName: "Www Muc Edu Cn",
-					hostRoots: ["www.muc.edu.cn"],
+					hostRoots: ["www.example.edu"],
 					id: "www_muc_edu_cn",
 					lastFailureAt: null,
 					lastSuccessAt: "2026-03-29T08:17:32.000Z",
-					latestCollectorVersion: "official-web-collector@0.1.0",
+					latestCollectorVersion: "source-collector@0.1.0",
 					latestConfigVersion: "git:abc1234",
 					latestIngestionDispatchStatus: "queued",
 					latestRunId: "owrun_01HQ",
@@ -283,25 +282,25 @@ describe("official web operator query routes", () => {
 				deletedPages: [
 					expect.objectContaining({
 						lastFetchDisposition: "deleted",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/deleted",
+						normalizedCanonicalUrl: "https://www.example.edu/news/deleted",
 					}),
 				],
 				duePages: [
 					expect.objectContaining({
 						cadenceClass: "listing_hot",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+						normalizedCanonicalUrl: "https://www.example.edu/news/",
 					}),
 				],
 				failedFetchPages: [
 					expect.objectContaining({
 						lastFetchDisposition: "fetch_failed",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/failure",
+						normalizedCanonicalUrl: "https://www.example.edu/news/failure",
 					}),
 				],
 				hotPages: [
 					expect.objectContaining({
 						cadenceClass: "detail_recent",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/2",
+						normalizedCanonicalUrl: "https://www.example.edu/news/2",
 					}),
 				],
 			},
@@ -312,7 +311,7 @@ describe("official web operator query routes", () => {
 			recentPageChanges: [
 				expect.objectContaining({
 					changeStatus: "changed",
-					normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+					normalizedCanonicalUrl: "https://www.example.edu/news/1",
 				}),
 			],
 			recentRuns: [
@@ -340,7 +339,7 @@ describe("official web operator query routes", () => {
 				runs: [
 					{
 						artifacts: [],
-						collectorVersion: "official-web-collector@0.1.0",
+						collectorVersion: "source-collector@0.1.0",
 						configVersion: "git:abc1234",
 						failureCount: 0,
 						finishedAt: "2026-03-29T08:17:32.000Z",
@@ -416,11 +415,11 @@ describe("official web operator query routes", () => {
 					{
 						changeStatus: "changed",
 						fetchDisposition: "fetched",
-						host: "www.muc.edu.cn",
+						host: "www.example.edu",
 						httpStatus: 200,
 						id: "owobs_01",
 						lastChangeReason: "main_content_changed",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+						normalizedCanonicalUrl: "https://www.example.edu/news/1",
 						observedAt: "2026-03-29T08:17:32.000Z",
 						pageFamily: "article_detail",
 						pageTitleNormalized: "News 1",
@@ -438,7 +437,7 @@ describe("official web operator query routes", () => {
 							recordCount: 1,
 						},
 					],
-					collectorVersion: "official-web-collector@0.1.0",
+					collectorVersion: "source-collector@0.1.0",
 					configVersion: "git:abc1234",
 					failureCount: 0,
 					finishedAt: "2026-03-29T08:17:32.000Z",
@@ -480,7 +479,7 @@ describe("official web operator query routes", () => {
 				pageChanges: [
 					expect.objectContaining({
 						changeStatus: "changed",
-						normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+						normalizedCanonicalUrl: "https://www.example.edu/news/1",
 					}),
 				],
 				run: expect.objectContaining({

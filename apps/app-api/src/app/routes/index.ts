@@ -8,12 +8,19 @@ import type {
 	AppRuntimeReadinessResult,
 } from "../types";
 import { registerAuthRoutes } from "./auth";
+import { registerCampusExperienceRoutes } from "./campus-experience";
+import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
+import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
+import { registerFederationRoutes } from "./federation";
+import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
+import { registerObservabilityConfigRoutes } from "./observability-config";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
+import { registerProviderConfigRoutes } from "./provider-config";
 import { registerRuntimeRoutes } from "./runtime";
 import { registerWeChatOfficialAccountRoutes } from "./wechat-official-account";
 
@@ -23,10 +30,6 @@ export function registerAppRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 	getPrincipal: NonNullable<AppDependencies["getPrincipal"]>;
-	officialWebExecutionStatusService: NonNullable<
-		AppDependencies["officialWebExecutionStatusService"]
-	>;
-	officialWebPlannerService: NonNullable<AppDependencies["officialWebPlannerService"]>;
 	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
@@ -43,12 +46,35 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 	});
+	registerFederationRoutes({
+		app: input.app,
+		authHandler: input.authHandler,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerIdentityPlatformRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
 	registerChatRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
+	});
+	registerCampusExperienceRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerDiningOpsRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
 	});
 	registerDocsRoutes({
 		app: input.app,
@@ -68,7 +94,6 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
-		officialWebPlannerService: input.officialWebPlannerService,
 	});
 	registerWeChatOfficialAccountRoutes({
 		app: input.app,
@@ -80,10 +105,27 @@ export function registerAppRoutes(input: {
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
-		officialWebExecutionStatusService: input.officialWebExecutionStatusService,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerProviderConfigRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerObservabilityConfigRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerCampusServicesOpsRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

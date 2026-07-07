@@ -2,12 +2,15 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration/supervisor";
-import { SupervisorTransportError } from "../src/modules/integration/supervisor";
+import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
+import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
+import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
+import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	answerResponsePayload,
 	durableEvent,
+	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
@@ -16,20 +19,22 @@ import {
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
+
+const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
 
 describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes accepted requests as errors when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionControlTransportError({
 					code: "conversation_active_run",
 					message: "Conversation already has an active primary run.",
 					retryable: true,
@@ -38,25 +43,25 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const response = await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
@@ -66,7 +71,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "accepted",
 			},
 		});
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "conversation_active_run",
@@ -87,14 +92,14 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("does not expose a resumable accepted event when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionControlTransportError({
 					code: "invalid_request",
 					message: "metadata.execution_payload.trace.trace_id must match trace_id",
 					retryable: false,
@@ -103,26 +108,26 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const events: ChatCommandStreamEvent[] = [];
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		}) ?? []) {
 			events.push(event);
 		}
@@ -157,17 +162,88 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "error",
 			},
 		});
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.listRunEvents).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
+		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
+	});
+
+	it("keeps execution-control transport details out of user-visible streaming errors", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_control_unavailable",
+					message: "Network connection lost.",
+					retryable: true,
+					status: 503,
+				}),
+			),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "hi 你是谁",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		}) ?? []) {
+			events.push(event);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			data: {
+				answer: {
+					result: {
+						errorCode: "execution_control_unavailable",
+						kind: "error",
+						message: "问答服务暂时无法连接，请稍后再试。",
+						retryable: true,
+					},
+				},
+				error: {
+					code: "execution_control_unavailable",
+					message: "问答服务暂时无法连接，请稍后再试。",
+					retryable: true,
+				},
+				status: "error",
+			},
+			event: "request.failed",
+		});
+		expect(events[0]?.data.answer?.conversation.messages.at(-1)).toMatchObject({
+			kind: "error",
+			role: "assistant",
+			text: "问答服务暂时无法连接，请稍后再试。",
+		});
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "execution_control_unavailable",
+				status: "error",
+			},
+		});
 	});
 
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -176,16 +252,16 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -193,21 +269,25 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				workflowPlanRef: "",
 			}),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				{
-					conversationId: "conv_01HQ",
-					eventId: "event-queued",
-					eventType: "run.queued",
-					occurredAt: "2026-06-04T01:02:04.000Z",
-					payload: {
-						status: "queued",
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{
+						conversationId: "conv_01HQ",
+						eventId: "event-queued",
+						eventType: "run.queued",
+						occurredAt: "2026-06-04T01:02:04.000Z",
+						payload: {
+							status: "queued",
+						},
+						payloadSchemaVersion: "run-event-v1",
+						runId: "run_0001",
+						sequence: 1,
+						visibility: "internal",
 					},
-					payloadSchemaVersion: "run-event-v1",
-					runId: "run_0001",
-					sequence: 1,
-					visibility: "internal",
-				},
-			]),
+				])
+				.mockResolvedValueOnce([]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -216,25 +296,24 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				pollIntervalMs: 0,
 				sleep: vi.fn(async () => undefined),
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const response = await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "execution_timeout",
@@ -255,11 +334,11 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -268,16 +347,16 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -316,9 +395,10 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 							trace_id: "trace_0001",
 						},
 						sequence: 3,
-						visibility: "browser",
+						visibility: "internal",
 					}),
 				]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -327,12 +407,11 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				pollIntervalMs: 0,
 				sleep: vi.fn(async () => undefined),
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 
@@ -346,11 +425,11 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		}) ?? []) {
 			events.push({
 				event: event.event,
@@ -362,25 +441,29 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			});
 		}
 
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.createRun).toHaveBeenCalledOnce();
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 2,
 			runId: "run_0001",
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(events).toEqual([
 			{
@@ -390,11 +473,31 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "accepted",
 				text: undefined,
 			},
-			{ event: "execution.queued", runId: undefined, status: "queued", text: undefined },
-			{ event: "execution.running", runId: undefined, status: "running", text: undefined },
+			{
+				event: "execution.queued",
+				runId: undefined,
+				runPhase: undefined,
+				status: "queued",
+				text: undefined,
+			},
+			{
+				event: "execution.running",
+				runId: undefined,
+				runPhase: undefined,
+				status: "running",
+				text: undefined,
+			},
+			{
+				event: "answer.delta",
+				runId: "run_0001",
+				runPhase: undefined,
+				status: "streaming",
+				text: undefined,
+			},
 			{
 				event: "request.completed",
 				runId: undefined,
+				runPhase: undefined,
 				status: "completed",
 				text: "国家奖学金每学年评审一次。",
 			},
@@ -411,6 +514,114 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",
+			},
+		});
+	});
+
+	it("streams durable run cancellation as a cancelled terminal event", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const supervisor: ToolExecutionClient = {
+			execute: vi.fn(),
+			executeStream: vi.fn(),
+		};
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue({
+				admittedAt: "",
+				completedAt: "",
+				conversationId: "conv_01HQ",
+				createdAt: "2026-06-04T01:02:03Z",
+				failCloseReason: "",
+				finalResponseRef: "",
+				ownerUserId: "user_01HQ",
+				requestId: "req_0001",
+				requestedTool: "knowledge_query",
+				runId: "run_0001",
+				selectedTool: "knowledge_query",
+				startedAt: "",
+				taskQueue: "campus-agent.workflow",
+				status: "queued",
+				streamingStartedAt: "",
+				surface: "campus_web",
+				terminalReason: "",
+				traceId: "trace_0001",
+				turnId: "turn_0001",
+				updatedAt: "2026-06-04T01:02:04Z",
+				workflowPlanRef: "",
+			}),
+			getRun: vi.fn(),
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventId: "event-queued",
+						eventType: "run.queued",
+						occurredAt: "2026-06-04T01:02:04.000Z",
+						payload: { status: "queued" },
+						sequence: 1,
+						visibility: "browser",
+					}),
+				])
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventId: "event-canceled",
+						eventType: "run.canceled",
+						occurredAt: "2026-06-04T01:02:05.000Z",
+						payload: {
+							request_id: "req_0001",
+							status: "canceled",
+							terminal_reason: "user_canceled",
+							trace_id: "trace_0001",
+						},
+						sequence: 2,
+						visibility: "browser",
+					}),
+				]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			durableEventPolling: {
+				maxAttempts: 2,
+				pollIntervalMs: 0,
+				sleep: vi.fn(async () => undefined),
+			},
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: Array<{ event: string; status: string }> = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+				requestedTool: "knowledge_query",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		}) ?? []) {
+			events.push({
+				event: event.event,
+				status: event.data.status,
+			});
+		}
+
+		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ event: "request.accepted", status: "accepted" },
+			{ event: "execution.queued", status: "queued" },
+			{ event: "request.cancelled", status: "cancelled" },
+		]);
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "execution_cancelled",
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "cancelled",
 			},
 		});
 	});

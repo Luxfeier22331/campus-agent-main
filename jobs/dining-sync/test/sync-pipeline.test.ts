@@ -1,0 +1,348 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type {
+	DiningSourceObservation,
+	FeishuReviewSourceIdentity,
+} from "../src/catalog-source-types";
+import { runDiningSync } from "../src/sync-pipeline";
+import type { DiningSourceRecord } from "../src/types";
+
+const SAFE_RECORD: DiningSourceRecord = {
+		attachments: [
+			{
+				fileToken: "placeholder",
+				name: "meal.jpg",
+				size: 100,
+		},
+	],
+	campus: "海淀校区",
+	comment: "清淡，分量合适",
+	contributorName: "果小生",
+	dishName: "金汤鱼粉",
+	hallName: "第一食堂",
+	paidPriceLabel: "12 元",
+	rating: 4,
+	sourceRecordId: "rec-safe",
+	stallName: "鱼粉",
+};
+
+const SOURCE_IDENTITY = {
+	baseToken: "base",
+	reviewTableId: "tbl_review",
+} satisfies FeishuReviewSourceIdentity;
+
+function defaultHallResolver() {
+	return {
+		resolve: vi.fn(() => ({
+			hallId: "haidian-canteen-1",
+			hallName: "海淀一食堂",
+			stallProfileId: "stall:fish-noodle",
+			windowId: "window:haidian-canteen-1:01",
+		})),
+	};
+}
+
+function createInMemoryReviewObservationStore(initial: DiningSourceObservation[] = []) {
+	let activeObservations = [...initial];
+	return {
+		listActiveFeishuReviewObservations: vi.fn(async () => activeObservations),
+		upsertFeishuReviewObservations: vi.fn(
+			async (observations: DiningSourceObservation[]) => {
+				activeObservations = observations;
+				return {
+					acceptedCount: observations.filter((observation) => observation.status === "accepted")
+						.length,
+					blockedCount: observations.filter((observation) => observation.status === "blocked")
+						.length,
+					runId: "dining_feishu_review_sync:test",
+					staleCount: 0,
+					totalCount: observations.length,
+				};
+			},
+		),
+	};
+}
+
+describe("dining sync pipeline", () => {
+	it("publishes safe records with materialized attachment URLs and no Lark tokens", async () => {
+		const report = await runDiningSync({
+			attachmentStore: {
+				materialize: vi.fn(async ({ record }) => [
+					{
+						alt: `${record.dishName}评价图片`,
+						imageId: `dining-review-image:${record.sourceRecordId}:1`,
+						url: `/assets/dining/reviews/${record.sourceRecordId}.jpg`,
+					},
+				]),
+			},
+			hallResolver: defaultHallResolver(),
+			moderator: {
+				check: vi.fn(async () => ({ status: "safe" as const })),
+			},
+			observationStore: createInMemoryReviewObservationStore(),
+			publisher: {
+				publishReviews: vi.fn(async () => undefined),
+			},
+			records: [SAFE_RECORD],
+			sourceIdentity: SOURCE_IDENTITY,
+		});
+
+		expect(report).toMatchObject({
+			attachmentCount: 1,
+			blockedCount: 0,
+			blockedReasons: {},
+			observationSync: {
+				acceptedCount: 1,
+				blockedCount: 0,
+				runId: "dining_feishu_review_sync:test",
+				staleCount: 0,
+				totalCount: 1,
+			},
+			publishedCount: 1,
+			readCount: 1,
+			status: "published",
+		});
+		expect(report.reviews).toEqual([
+			expect.objectContaining({
+				images: [
+					{
+						alt: "金汤鱼粉评价图片",
+						imageId: "dining-review-image:rec-safe:1",
+						url: "/assets/dining/reviews/rec-safe.jpg",
+					},
+				],
+				sourceRecordId: "rec-safe",
+				stallProfileId: "stall:fish-noodle",
+				windowId: "window:haidian-canteen-1:01",
+			}),
+		]);
+		expect(JSON.stringify(report)).not.toContain("fileToken");
+		expect(JSON.stringify(report)).not.toContain("placeholder");
+	});
+
+	it("lands review observations before publishing active review projections", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+		const upsertFeishuReviewObservations = vi.fn(async () => ({
+			acceptedCount: 1,
+			blockedCount: 0,
+			runId: "dining_feishu_review_sync:test",
+			staleCount: 0,
+			totalCount: 1,
+		}));
+		const listActiveFeishuReviewObservations = vi.fn(async () => [
+			{
+				observationId: "feishu:review:rec-safe",
+				observedAt: "2026-07-01T00:00:00.000Z",
+				payloadJson: {
+					blockReason: null,
+					campus: "海淀校区",
+					comment: "清淡，分量合适",
+					contributorName: "果小生",
+					dishName: "金汤鱼粉",
+					hallId: "haidian-canteen-1",
+					hallName: "海淀一食堂",
+					images: [],
+					paidPriceLabel: "12 元",
+					rating: 4,
+					reviewId: "dining-review:rec-safe",
+					sourceRecordId: "rec-safe",
+					stallName: "鱼粉",
+					stallProfileId: "stall:fish-noodle",
+					windowId: "window:haidian-canteen-1:01",
+				},
+				sourceType: "feishu_review" as const,
+				status: "accepted" as const,
+				targetId: "dining-review:rec-safe",
+				targetKind: "review" as const,
+			},
+		]);
+
+		await runDiningSync({
+			attachmentStore: {
+				materialize: vi.fn(async () => []),
+			},
+			hallResolver: defaultHallResolver(),
+			moderator: {
+				check: vi.fn(async () => ({ status: "safe" as const })),
+			},
+			observationStore: {
+				listActiveFeishuReviewObservations,
+				upsertFeishuReviewObservations,
+			},
+			publisher: { publishReviews },
+			records: [SAFE_RECORD],
+			sourceIdentity: { baseToken: "base", reviewTableId: "tbl_review" },
+		});
+
+		expect(upsertFeishuReviewObservations).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					sourceType: "feishu_review",
+					targetKind: "review",
+				}),
+			],
+			{ baseToken: "base", reviewTableId: "tbl_review" },
+		);
+		expect(listActiveFeishuReviewObservations).toHaveBeenCalled();
+		expect(publishReviews).toHaveBeenCalledWith([
+			expect.objectContaining({
+				reviewId: "dining-review:rec-safe",
+				stallProfileId: "stall:fish-noodle",
+				windowId: "window:haidian-canteen-1:01",
+			}),
+		]);
+	});
+
+	it("fails closed when the moderation provider errors", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+
+		await expect(
+			runDiningSync({
+				attachmentStore: {
+					materialize: vi.fn(async () => []),
+				},
+				hallResolver: defaultHallResolver(),
+				moderator: {
+					check: vi.fn(async () => {
+						throw new Error("moderation unavailable");
+					}),
+				},
+				publisher: { publishReviews },
+				records: [SAFE_RECORD],
+				observationStore: createInMemoryReviewObservationStore(),
+				sourceIdentity: SOURCE_IDENTITY,
+			}),
+		).rejects.toThrow(/moderation unavailable/);
+
+		expect(publishReviews).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when attachment materialization errors", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+
+		await expect(
+			runDiningSync({
+				attachmentStore: {
+					materialize: vi.fn(async () => {
+						throw new Error("object store unavailable");
+					}),
+				},
+				hallResolver: defaultHallResolver(),
+				moderator: {
+					check: vi.fn(async () => ({ status: "safe" as const })),
+				},
+				publisher: { publishReviews },
+				records: [SAFE_RECORD],
+				observationStore: createInMemoryReviewObservationStore(),
+				sourceIdentity: SOURCE_IDENTITY,
+			}),
+		).rejects.toThrow(/object store unavailable/);
+
+		expect(publishReviews).not.toHaveBeenCalled();
+	});
+
+	it("publishes an empty projection when no records are publishable", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+		const report = await runDiningSync({
+			attachmentStore: {
+				materialize: vi.fn(async () => {
+					throw new Error("should not materialize blocked records");
+				}),
+			},
+			hallResolver: defaultHallResolver(),
+			moderator: {
+				check: vi
+					.fn()
+					.mockResolvedValueOnce({ status: "blocked" })
+					.mockResolvedValueOnce({ status: "uncertain" }),
+			},
+			publisher: { publishReviews },
+			records: [
+				{ ...SAFE_RECORD, sourceRecordId: "rec-blocked" },
+				{ ...SAFE_RECORD, sourceRecordId: "rec-uncertain" },
+			],
+			observationStore: createInMemoryReviewObservationStore(),
+			sourceIdentity: SOURCE_IDENTITY,
+		});
+
+		expect(report).toMatchObject({
+			blockedCount: 2,
+			blockedReasons: {
+				content_moderation_blocked: 2,
+			},
+			publishedCount: 0,
+			readCount: 2,
+			status: "no_publishable_records",
+		});
+		expect(report.reviews).toEqual([]);
+		expect(publishReviews).toHaveBeenCalledWith([]);
+	});
+
+	it("publishes an empty projection when the source has no records", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+		const report = await runDiningSync({
+			attachmentStore: {
+				materialize: vi.fn(async () => {
+					throw new Error("should not materialize empty source records");
+				}),
+			},
+			hallResolver: defaultHallResolver(),
+			moderator: {
+				check: vi.fn(async () => ({ status: "safe" as const })),
+			},
+			observationStore: createInMemoryReviewObservationStore(),
+			publisher: { publishReviews },
+			records: [],
+			sourceIdentity: SOURCE_IDENTITY,
+		});
+
+		expect(report).toMatchObject({
+			blockedCount: 0,
+			publishedCount: 0,
+			readCount: 0,
+			status: "no_publishable_records",
+		});
+		expect(report.reviews).toEqual([]);
+		expect(publishReviews).toHaveBeenCalledWith([]);
+	});
+
+	it("blocks records whose image moderation rejects and continues later records", async () => {
+		const publishReviews = vi.fn(async () => undefined);
+		const report = await runDiningSync({
+			attachmentStore: {
+				materialize: vi
+					.fn()
+					.mockRejectedValueOnce(new Error("Dining review image moderation blocked publication."))
+					.mockResolvedValueOnce([]),
+			},
+			hallResolver: defaultHallResolver(),
+			moderator: {
+				check: vi.fn(async () => ({ status: "safe" as const })),
+			},
+			observationStore: createInMemoryReviewObservationStore(),
+			publisher: { publishReviews },
+			records: [
+				{ ...SAFE_RECORD, sourceRecordId: "rec-image-blocked" },
+				{ ...SAFE_RECORD, sourceRecordId: "rec-safe-after-image-block" },
+			],
+			sourceIdentity: SOURCE_IDENTITY,
+		});
+
+		expect(report).toMatchObject({
+			attachmentCount: 0,
+			blockedCount: 1,
+			blockedReasons: {
+				image_moderation_blocked: 1,
+			},
+			publishedCount: 1,
+			readCount: 2,
+			status: "published",
+		});
+		expect(report.reviews).toEqual([
+			expect.objectContaining({ sourceRecordId: "rec-safe-after-image-block" }),
+		]);
+		expect(publishReviews).toHaveBeenCalledWith([
+			expect.objectContaining({ sourceRecordId: "rec-safe-after-image-block" }),
+		]);
+	});
+});

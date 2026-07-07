@@ -7,6 +7,8 @@ from campus_contracts.models_shared import (
     ToolBusinessOutcome,
     ToolFailCloseReason,
     TransportDaypart,
+    TransportDepartureKind,
+    TransportDepartureStatus,
     TransportScheduleClarificationReason,
     TransportScheduleIntent,
     TransportServiceDateMode,
@@ -15,6 +17,8 @@ from campus_contracts.models_shared import (
     _validate_tool_business_outcome,
     _validate_tool_fail_close_reason,
     _validate_transport_daypart,
+    _validate_transport_departure_kind,
+    _validate_transport_departure_status,
     _validate_transport_schedule_clarification_reason,
     _validate_transport_schedule_intent,
     _validate_transport_service_date_mode,
@@ -139,10 +143,16 @@ class ScheduledDeparture:
     arrival_at: str = ""
     origin_stop_ref: TransportStopRef | None = None
     destination_stop_ref: TransportStopRef | None = None
+    departure_status: TransportDepartureStatus | str = "normal"
+    departure_kind: TransportDepartureKind | str = "other"
+    operational_note: str = ""
+    related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not self.departure_at.strip():
             raise ValueError("departure_at must not be empty")
+        _validate_transport_departure_status(self.departure_status)
+        _validate_transport_departure_kind(self.departure_kind)
 
 
 @dataclass(frozen=True, slots=True)

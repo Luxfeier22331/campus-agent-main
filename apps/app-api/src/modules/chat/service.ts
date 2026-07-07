@@ -14,16 +14,22 @@ import {
 	toVendorChatHistoryItemResponse,
 	type VendorChatHistoryPageResponse,
 } from "./model";
-import type { ChatConversationStore } from "./store";
+import type { ChatConversationListView, ChatConversationStore } from "./store";
 
 export interface ChatConversationService {
+	archive(input: {
+		conversationId: string;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ conversation: ChatConversationSummaryResponse }>;
 	deleteMessageFeedback(input: {
 		conversationId: string;
 		messageId: string;
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ deleted: true }>;
 	list(input: {
+		limit?: number;
 		principal: ResolvedAppPrincipal;
+		view?: ChatConversationListView;
 	}): Promise<{ conversations: ChatConversationSummaryResponse[] }>;
 	listHistoryPage(input: {
 		principal: ResolvedAppPrincipal;
@@ -47,6 +53,21 @@ export interface ChatConversationService {
 		conversationId: string;
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ conversation: ChatConversationResponse }>;
+	pin(input: {
+		conversationId: string;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ conversation: ChatConversationSummaryResponse }>;
+	rename(input: {
+		conversationId: string;
+		principal: ResolvedAppPrincipal;
+		title: string;
+	}): Promise<{ conversation: ChatConversationSummaryResponse }>;
+	search(input: {
+		limit?: number;
+		principal: ResolvedAppPrincipal;
+		query: string;
+		view?: ChatConversationListView;
+	}): Promise<{ query: string; conversations: ChatConversationSummaryResponse[] }>;
 	setMessageFeedback(input: {
 		conversationId: string;
 		messageId: string;
@@ -54,9 +75,18 @@ export interface ChatConversationService {
 		reasonCodes?: string[];
 		vote: ChatMessageFeedbackVote;
 	}): Promise<{ feedback: ChatMessageFeedback }>;
+	unarchive(input: {
+		conversationId: string;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ conversation: ChatConversationSummaryResponse }>;
+	unpin(input: {
+		conversationId: string;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ conversation: ChatConversationSummaryResponse }>;
 }
 
 export interface ChatConversationServiceDependencies {
+	detailStore?: Pick<ChatConversationStore, "getConversationDetailByOwner">;
 	generateId?: (prefix: string) => string;
 	now?: () => Date;
 	store: ChatConversationStore;
@@ -99,6 +129,54 @@ const MESSAGE_FEEDBACK_REASON_CODES = new Set<ChatMessageFeedbackReasonCode>([
 	"unclear_or_hard_to_use",
 	"other",
 ]);
+
+function normalizeConversationLimit(input: {
+	defaultLimit: number;
+	limit?: number;
+	maxLimit: number;
+}): number {
+	if (input.limit === undefined) {
+		return input.defaultLimit;
+	}
+	if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > input.maxLimit) {
+		throw createChatRouteError({
+			code: "invalid_conversation_limit",
+			message: `limit must be an integer from 1 to ${input.maxLimit}.`,
+			status: 400,
+		});
+	}
+	return input.limit;
+}
+
+function normalizeConversationView(
+	view: ChatConversationListView | undefined,
+): ChatConversationListView {
+	return view ?? "active";
+}
+
+function normalizeConversationTitle(title: string): string {
+	const trimmed = title.trim();
+	if (trimmed.length === 0 || trimmed.length > 80) {
+		throw createChatRouteError({
+			code: "invalid_conversation_title",
+			message: "Conversation title must be 1 to 80 characters.",
+			status: 400,
+		});
+	}
+	return trimmed;
+}
+
+function normalizeSearchQuery(query: string): string {
+	const trimmed = query.trim();
+	if (trimmed.length === 0 || trimmed.length > 80) {
+		throw createChatRouteError({
+			code: "invalid_conversation_search_query",
+			message: "Search query must be 1 to 80 characters.",
+			status: 400,
+		});
+	}
+	return trimmed;
+}
 
 function normalizeMessageFeedbackReasonCodes(input: {
 	reasonCodes?: string[];
@@ -174,7 +252,15 @@ export function buildChatConversationService(
 
 		async list(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
-			const conversations = await dependencies.store.listConversationSummariesByOwner(ownerUserId);
+			const conversations = await dependencies.store.listConversationSummariesByOwner({
+				limit: normalizeConversationLimit({
+					defaultLimit: 50,
+					limit: input.limit,
+					maxLimit: 100,
+				}),
+				ownerUserId,
+				view: normalizeConversationView(input.view),
+			});
 
 			return {
 				conversations: conversations.map(toConversationSummaryResponse),
@@ -220,10 +306,13 @@ export function buildChatConversationService(
 
 		async deleteById(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
-			const deleted = await dependencies.store.deleteConversationByOwner(
+			const updatedAt = now().toISOString();
+			const deleted = await dependencies.store.markConversationDeletedByOwner({
+				conversationId: input.conversationId,
+				deletedAt: updatedAt,
 				ownerUserId,
-				input.conversationId,
-			);
+				updatedAt,
+			});
 			if (!deleted) {
 				throw createChatRouteError({
 					code: "conversation_not_found",
@@ -256,7 +345,8 @@ export function buildChatConversationService(
 
 		async getById(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
-			const conversation = await dependencies.store.getConversationDetailByOwner(
+			const detailStore = dependencies.detailStore ?? dependencies.store;
+			const conversation = await detailStore.getConversationDetailByOwner(
 				ownerUserId,
 				input.conversationId,
 			);
@@ -270,6 +360,120 @@ export function buildChatConversationService(
 
 			return {
 				conversation: toConversationResponse(conversation),
+			};
+		},
+
+		async archive(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const updatedAt = now().toISOString();
+			const conversation = await dependencies.store.markConversationArchivedByOwner({
+				archivedAt: updatedAt,
+				conversationId: input.conversationId,
+				ownerUserId,
+				updatedAt,
+			});
+			if (!conversation) {
+				throw createChatRouteError({
+					code: "conversation_not_found",
+					message: "Conversation not found.",
+					status: 404,
+				});
+			}
+			return { conversation: toConversationSummaryResponse(conversation) };
+		},
+
+		async unarchive(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const updatedAt = now().toISOString();
+			const conversation = await dependencies.store.markConversationArchivedByOwner({
+				archivedAt: null,
+				conversationId: input.conversationId,
+				ownerUserId,
+				updatedAt,
+			});
+			if (!conversation) {
+				throw createChatRouteError({
+					code: "conversation_not_found",
+					message: "Conversation not found.",
+					status: 404,
+				});
+			}
+			return { conversation: toConversationSummaryResponse(conversation) };
+		},
+
+		async pin(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const updatedAt = now().toISOString();
+			const conversation = await dependencies.store.markConversationPinnedByOwner({
+				conversationId: input.conversationId,
+				ownerUserId,
+				pinnedAt: updatedAt,
+				updatedAt,
+			});
+			if (!conversation) {
+				throw createChatRouteError({
+					code: "conversation_not_found",
+					message: "Conversation not found.",
+					status: 404,
+				});
+			}
+			return { conversation: toConversationSummaryResponse(conversation) };
+		},
+
+		async unpin(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const updatedAt = now().toISOString();
+			const conversation = await dependencies.store.markConversationPinnedByOwner({
+				conversationId: input.conversationId,
+				ownerUserId,
+				pinnedAt: null,
+				updatedAt,
+			});
+			if (!conversation) {
+				throw createChatRouteError({
+					code: "conversation_not_found",
+					message: "Conversation not found.",
+					status: 404,
+				});
+			}
+			return { conversation: toConversationSummaryResponse(conversation) };
+		},
+
+		async rename(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const conversation = await dependencies.store.renameConversationByOwner({
+				conversationId: input.conversationId,
+				ownerUserId,
+				title: normalizeConversationTitle(input.title),
+				updatedAt: now().toISOString(),
+			});
+			if (!conversation) {
+				throw createChatRouteError({
+					code: "conversation_not_found",
+					message: "Conversation not found.",
+					status: 404,
+				});
+			}
+			return { conversation: toConversationSummaryResponse(conversation) };
+		},
+
+		async search(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const query = normalizeSearchQuery(input.query);
+			const conversations = await dependencies.store.searchConversationSummariesByOwner({
+				limit: normalizeConversationLimit({
+					defaultLimit: 20,
+					limit: input.limit,
+					maxLimit: 50,
+				}),
+				ownerUserId,
+				query,
+				view: normalizeConversationView(input.view),
+			});
+
+			return {
+				query,
+				conversations: conversations.map(toConversationSummaryResponse),
 			};
 		},
 

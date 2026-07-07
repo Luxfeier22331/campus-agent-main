@@ -18,17 +18,23 @@ import type { FinalizeRequestWrite } from "../src/modules/runtime-command/store-
 function finalizedWrite(): FinalizeRequestWrite {
 	return {
 		assistantMessage: {
+			branchId: "branch_active",
 			conversationId: "conv_01HQ",
 			createdAt: "2026-06-04T01:02:06.000Z",
 			id: "msg_assistant_01HQ",
+			isActiveBranchHead: true,
 			kind: "answer",
+			parentMessageId: "msg_user_01HQ",
 			requestId: "req_01HQ",
 			retryable: null,
 			role: "assistant",
+			runId: "run_01HQ",
 			structuredParts: [],
 			text: "国家奖学金每学年评审一次。",
+			turnSequence: 1,
 		},
-		conversationTitle: "中央民族大学本科学生国家奖学金评审办法",
+		contextSummary: "国家奖学金每学年评审一次。",
+		conversationTitle: "示例大学本科学生国家奖学金评审办法",
 		ownerUserId: "user_01HQ",
 		outboxEvent: {
 			attemptCount: 0,
@@ -60,20 +66,21 @@ function finalizedWrite(): FinalizeRequestWrite {
 			idempotencyKey: null,
 			principalLabel: "Jane Doe",
 			principalType: "student",
-			questionPreview: "中央民族大学本科学生国家奖学金评审办法",
-			requestedCapability: "knowledge",
+			questionPreview: "示例大学本科学生国家奖学金评审办法",
+			requestedTool: "knowledge_query",
 			requestedScope: null,
 			requestFingerprintSha256: null,
 			requestId: "req_01HQ",
 			resolvedScope: null,
 			runId: "run_01HQ",
 			safetyIdentifier: "safety_01HQ",
-			selectedTarget: "rag-agent",
+			selectedTool: "knowledge_query",
 			sourceDocIds: ["student_rules:national-scholarship"],
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
+			turnSequence: 1,
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			userMessageId: "msg_user_01HQ",
 			versionQuery: null,
@@ -98,7 +105,9 @@ function finalizedWrite(): FinalizeRequestWrite {
 			estimatedCostMicrousd: null,
 			failClosed: false,
 			inputTokens: null,
-			intentCapability: null,
+			billableStepCount: null,
+			modelUsageSummary: null,
+			intentTool: null,
 			intentClassifierVersion: null,
 			intentLaunchState: null,
 			intentNextAction: null,
@@ -115,12 +124,12 @@ function finalizedWrite(): FinalizeRequestWrite {
 			principalType: "student",
 			projectionLagMs: null,
 			promptId: null,
-			promptRuntimeDetail: null,
-			promptRuntimeState: null,
+			modelExecutionDetail: null,
+			modelExecutionState: null,
 			promptVersion: null,
 			refusalClass: null,
 			remoteContentSuspicionSummary: null,
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScopeSummary: null,
 			requestId: "req_01HQ",
 			resolvedScopeSummary: null,
@@ -131,20 +140,57 @@ function finalizedWrite(): FinalizeRequestWrite {
 			retrievedSources: [],
 			safetyIdentifier: "safety_01HQ",
 			scopeClass: null,
-			selectedTarget: "rag-agent",
-			selectedTool: null,
+			selectedTool: "knowledge_query",
 			semanticOutcome: null,
 			sourceTrustSummary: null,
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
 			supportingSources: [],
-			surface: "public_chat_web",
+			surface: "campus_web",
 			templateSha256: null,
 			toolBusinessOutcome: null,
 			toolFailCloseReason: null,
 			toolHistoricalDowngradeReason: null,
 			traceAvailable: true,
 			traceId: "trace_01HQ",
+			debugTraceRefs: [
+				{
+					sink: "langfuse_otlp",
+					traceId: "trace_01HQ",
+					traceRef: "langfuse://trace_01HQ",
+					url: "https://langfuse.example/project/demo/traces/trace_01HQ",
+				},
+			],
+			stageTiming: {
+				"agent.runtime_ms": 320,
+			},
+			answerEvalFingerprint: {
+				answerFingerprintSha256:
+					"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+				branchIdentity: {
+					branchKind: "tool_routed",
+					promptId: "primary_agent",
+					schemaVersion: "answer_branch_identity.v1",
+					workflowMode: "single_step",
+				},
+				llmCallSite: "agent.primary",
+				llmIoFingerprintSha256:
+					"sha256:1313131313131313131313131313131313131313131313131313131313131313",
+				outputSchemaId: "primary_agent_terminal_output.v1",
+				providerProfileRevision: "primary_agent:provider_profile_primary:3",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				runtimeRelease: "execution-control@test",
+				schemaVersion: "answer_eval_fingerprint.v1",
+				selectedTool: "knowledge_query",
+				selectedTools: ["knowledge_query"],
+				stageTimingProfileSha256:
+					"sha256:1414141414141414141414141414141414141414141414141414141414141414",
+				terminalOutcome: "grounded_answer",
+				toolRuntimeCombinedSha256:
+					"sha256:1515151515151515151515151515151515151515151515151515151515151515",
+				traceId: "trace_01HQ",
+			},
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			versionQueryMode: null,
 			versionQuerySummary: null,
@@ -250,7 +296,7 @@ describe("pg chat command store", () => {
 		const state = await store.getAbuseControlState({
 			now: "2026-03-28T08:06:00.000Z",
 			safetyIdentifier: "safe_01HQ",
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(state).toEqual({
@@ -287,5 +333,106 @@ describe("pg chat command store", () => {
 		expect(update).toHaveBeenCalledTimes(1);
 		expect(returning).toHaveBeenCalledWith({ requestId: expect.anything() });
 		expect(insert).not.toHaveBeenCalled();
+	});
+
+	it("keeps session slots and active branch state when a stale run finalizes after a newer turn", async () => {
+		const requestReturning = vi.fn().mockResolvedValueOnce([{ requestId: "req_01HQ" }]);
+		const conversationReturning = vi.fn().mockResolvedValueOnce([]);
+		const onConflictDoUpdate = vi.fn();
+		const updateWhere = vi
+			.fn()
+			.mockReturnValueOnce({ returning: requestReturning })
+			.mockReturnValueOnce({ returning: conversationReturning })
+			.mockReturnValueOnce(undefined);
+		const updateSet = vi.fn(() => ({ where: updateWhere }));
+		const update = vi.fn(() => ({ set: updateSet }));
+		const insertValues = vi.fn(() => ({ onConflictDoUpdate }));
+		const insert = vi.fn(() => ({ values: insertValues }));
+		const deleteFn = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+			callback({
+				delete: deleteFn,
+				insert,
+				update,
+			}),
+		);
+		const selectLimit = vi.fn().mockResolvedValue([
+			{
+				activeBranchId: "branch_active",
+				activeMessageId: "msg_newer",
+				activeRunId: "run_newer",
+				activeTurnSequence: 2,
+				contextSummary: "newer summary",
+				createdAt: new Date("2026-06-04T01:02:00.000Z"),
+				id: "conv_01HQ",
+				ownerUserId: "user_01HQ",
+				title: "示例大学本科学生国家奖学金评审办法",
+				updatedAt: new Date("2026-06-04T01:02:10.000Z"),
+			},
+		]);
+		const selectOrderBy = vi
+			.fn()
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				{
+					confirmed: true,
+					conversationId: "conv_01HQ",
+					name: "policy_topic",
+					updatedAt: new Date("2026-06-04T01:02:10.000Z"),
+					value: "newer topic",
+				},
+			]);
+		const selectWhere = vi.fn(() => ({ orderBy: selectOrderBy, limit: selectLimit }));
+		const selectFrom = vi.fn(() => ({ where: selectWhere }));
+		const select = vi.fn(() => ({ from: selectFrom }));
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+			transaction,
+		});
+
+		const store = createPgChatCommandStore({} as never);
+		const conversation = await store.finalizeRequest(finalizedWrite());
+
+		expect(conversation).toMatchObject({
+			activeMessageId: "msg_newer",
+			activeRunId: "run_newer",
+			activeTurnSequence: 2,
+			contextSummary: "newer summary",
+			sessionSlots: [
+				expect.objectContaining({
+					name: "policy_topic",
+					value: "newer topic",
+				}),
+			],
+		});
+		expect(update).toHaveBeenCalledTimes(2);
+		expect(insert).toHaveBeenCalledTimes(3);
+		expect(deleteFn).not.toHaveBeenCalled();
+		expect(insertValues).toHaveBeenCalledWith(
+			expect.objectContaining({
+				isActiveBranchHead: false,
+				id: "msg_assistant_01HQ",
+				runId: "run_01HQ",
+				turnSequence: 1,
+			}),
+		);
+		expect(insertValues).toHaveBeenCalledWith(
+			expect.objectContaining({
+				answerEvalFingerprintJson: expect.objectContaining({
+					schemaVersion: "answer_eval_fingerprint.v1",
+					runId: "run_01HQ",
+				}),
+				debugTraceRefsJson: [
+					expect.objectContaining({
+						sink: "langfuse_otlp",
+						traceRef: "langfuse://trace_01HQ",
+					}),
+				],
+				stageTimingJson: {
+					"agent.runtime_ms": 320,
+				},
+			}),
+		);
 	});
 });

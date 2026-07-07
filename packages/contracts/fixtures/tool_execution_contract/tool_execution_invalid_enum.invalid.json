@@ -1,0 +1,26 @@
+{
+	"execution_contract_version": "tool_execution_v1",
+	"response_contract": "execution_finalization_response_v2",
+	"user_goal": "学生手册请假制度怎么规定？",
+	"request_id": "req-contract-invalid-enum",
+	"trace": {
+		"trace_id": "trace-contract-invalid-enum"
+	},
+	"actor": {},
+	"context": {},
+	"requested_tool": "legacy_rag",
+	"effective_tool": "legacy_rag",
+	"version_query": {},
+	"runtime_decisions": {
+		"schema_version": "tool-execution-runtime-decisions-v1",
+		"effective_tool": "legacy_rag",
+		"routing_frame": {},
+		"runtime_decision_summary": {
+			"schema_version": "runtime-decision-summary-v1",
+			"planning_outcome": "preplanned",
+			"task_queue": "campus-agent.workflow"
+		},
+		"task_queue": "campus-agent.workflow"
+	},
+	"task_queue": "campus-agent.workflow"
+}

@@ -36,7 +36,7 @@ describe("official web target inventory field status store", () => {
 									source_version_evidence: "present",
 								},
 								inventoryId: "muc-library-reference",
-								normalizedCanonicalUrl: "https://www.muc.edu.cn/jgsz/jxfwjg/tsg.htm",
+								normalizedCanonicalUrl: "https://www.example.edu/jgsz/jxfwjg/tsg.htm",
 								schemaVersion: "official_web_target_field_review.v1",
 							},
 							{
@@ -44,7 +44,7 @@ describe("official web target inventory field status store", () => {
 									authoritative_source_url: "missing",
 								},
 								inventoryId: "muc-museum-reference",
-								normalizedCanonicalUrl: "https://www.muc.edu.cn/jgsz/jxfwjg/mzbwg.htm",
+								normalizedCanonicalUrl: "https://www.example.edu/jgsz/jxfwjg/mzbwg.htm",
 								schemaVersion: "official_web_target_field_review.v1",
 							},
 						],
@@ -62,10 +62,10 @@ describe("official web target inventory field status store", () => {
 				{
 					admissionTargetId: "official-web-stable-reference",
 					inventoryId: "muc-library-reference",
-					sourceUrls: ["https://www.muc.edu.cn/jgsz/jxfwjg/tsg.htm"],
+					sourceUrls: ["https://www.example.edu/jgsz/jxfwjg/tsg.htm"],
 				} as never,
 			],
-			siteId: "muc_public",
+			siteId: "example_public",
 		});
 
 		expect(result).toEqual({

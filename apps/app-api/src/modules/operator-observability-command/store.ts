@@ -3,15 +3,21 @@ import { eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
 	projectionOutbox,
-	qualityGradeProjection,
 	requestObservabilityFact,
-	traceBacklinkProjection,
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "../../db/schema";
-import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
-import type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
+import type {
+	TemporalTaskQueueSnapshotWrite,
+	WorkerAutoscalerActuationWrite,
+	WorkerAutoscalerDecisionWrite,
+	WorkerAutoscalerPostureWrite,
+} from "../operator-runtime-observability";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -21,42 +27,11 @@ export interface StoredRequestObservabilitySeed {
 	surface: string;
 	requestStartedAt: string;
 	requestedScopeSummary: string | null;
-	selectedTarget: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string;
 	collection: string | null;
 	modelName: string | null;
-}
-
-export interface QualityGradeProjectionWrite {
-	gradeId: string;
-	requestId: string;
-	traceId: string;
-	surface: string;
-	requestStartedAt: string;
-	selectedTarget: string | null;
-	requestedCapability: string | null;
-	principalType: string;
-	collection: string | null;
-	modelName: string | null;
-	gradeSource: string;
-	gradeDomain: "grounding" | "citation" | "policy" | "intent";
-	verdict: "pass" | "fail" | "needs_review";
-	scoreMilli: number | null;
-	graderVersion: string;
-	rationaleSummary: string | null;
-	requestedScopeSummary: string | null;
-	sampledAt: string;
-	projectedAt: string;
-}
-
-export interface TraceBacklinkProjectionWrite {
-	requestId: string;
-	traceId: string;
-	traceLink: string | null;
-	issueLink: string | null;
-	issueFingerprint: string | null;
-	projectedAt: string;
 }
 
 export interface ExecutionAuditEventWrite {
@@ -68,16 +43,18 @@ export interface ExecutionAuditEventWrite {
 	availableAt: string;
 }
 
+export interface TemporalTaskQueueRuntimeProjectionWrite {
+	actuations: WorkerAutoscalerActuationWrite[];
+	decisions: WorkerAutoscalerDecisionWrite[];
+	persistHistory?: boolean;
+	postures?: WorkerAutoscalerPostureWrite[];
+	snapshots: TemporalTaskQueueSnapshotWrite[];
+}
+
 export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
 	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
-	upsertEvalCoverageSnapshot(input: { snapshot: EvalCoverageProjectionWrite }): Promise<void>;
-	upsertEvalDiagnosticBadcases(input: {
-		badcases: EvalDiagnosticBadcaseProjectionWrite[];
-		snapshotId: string;
-	}): Promise<void>;
-	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
-	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
+	upsertTemporalTaskQueueRuntime(input: TemporalTaskQueueRuntimeProjectionWrite): Promise<void>;
 }
 
 function toStoredRequestObservabilitySeed(
@@ -88,13 +65,21 @@ function toStoredRequestObservabilitySeed(
 		modelName: row.modelName ?? null,
 		principalType: row.principalType,
 		requestId: row.requestId,
-		requestedCapability: row.requestedCapability ?? null,
+		requestedTool: row.requestedTool ?? null,
 		requestedScopeSummary: row.requestedScopeSummary ?? null,
 		requestStartedAt: row.startedAt.toISOString(),
-		selectedTarget: row.selectedTarget ?? null,
+		selectedTool: row.selectedTool ?? null,
 		surface: row.surface,
 		traceId: row.traceId,
 	};
+}
+
+function buildTemporalTaskQueueCurrentId(snapshot: TemporalTaskQueueSnapshotWrite): string {
+	return `${snapshot.namespace}:${snapshot.taskQueueKind}:${snapshot.taskQueue}`;
+}
+
+function buildWorkerAutoscalerDecisionCurrentId(decision: WorkerAutoscalerDecisionWrite): string {
+	return decision.targetService;
 }
 
 export function createPgOperatorObservabilityCommandStore(
@@ -143,151 +128,245 @@ export function createPgOperatorObservabilityCommandStore(
 			return rows[0] ? toStoredRequestObservabilitySeed(rows[0]) : null;
 		},
 
-		async upsertEvalCoverageSnapshot(input) {
-			const db = await getDb();
-			await db
-				.insert(evalCoverageSnapshot)
-				.values({
-					createdAt: new Date(),
-					generatedAt: new Date(input.snapshot.generatedAt),
-					payloadJson: input.snapshot.payload,
-					schemaVersion: input.snapshot.schemaVersion,
-					snapshotId: input.snapshot.snapshotId,
-					sourceGitHead: input.snapshot.sourceGitHead,
-				})
-				.onConflictDoUpdate({
-					set: {
-						generatedAt: new Date(input.snapshot.generatedAt),
-						payloadJson: input.snapshot.payload,
-						schemaVersion: input.snapshot.schemaVersion,
-						sourceGitHead: input.snapshot.sourceGitHead,
-					},
-					target: evalCoverageSnapshot.snapshotId,
-				});
-		},
-
-		async upsertEvalDiagnosticBadcases(input) {
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				await tx
-					.delete(evalDiagnosticBadcaseProjection)
-					.where(eq(evalDiagnosticBadcaseProjection.snapshotId, input.snapshotId));
-				if (input.badcases.length === 0) {
-					return;
-				}
-				for (const badcase of input.badcases) {
-					await tx.insert(evalDiagnosticBadcaseProjection).values({
-						answerShape: badcase.answerShape,
-						badcaseId: badcase.badcaseId,
-						caseId: badcase.caseId,
-						causeClass: badcase.causeClass,
-						evalRunId: badcase.evalRunId,
-						expectedDocIdsJson: badcase.expectedDocIds,
-						failureStage: badcase.failureStage,
-						generatedAt: new Date(badcase.generatedAt),
-						metricFailureReason: badcase.metricFailureReason,
-						metricName: badcase.metricName,
-						presentationKind: badcase.presentationKind,
-						projectedAt: new Date(badcase.projectedAt),
-						queryPreview: badcase.queryPreview,
-						retrievedContextIdsJson: badcase.retrievedContextIds,
-						retrievedDocIdsJson: badcase.retrievedDocIds,
-						scoreMilli: badcase.scoreMilli,
-						snapshotId: badcase.snapshotId,
-						sourceGitHead: badcase.sourceGitHead,
-						sourceReportSchema: badcase.sourceReportSchema,
-						supportingChunkIdsJson: badcase.supportingChunkIds,
-						supportingDocIdsJson: badcase.supportingDocIds,
-						surfaceKey: badcase.surfaceKey,
-						thresholdMilli: badcase.thresholdMilli,
-					});
-				}
-			});
-		},
-
-		async upsertQualityGrades(input) {
-			if (input.grades.length === 0) {
+		async upsertTemporalTaskQueueRuntime(input) {
+			const postures = input.postures ?? [];
+			if (
+				input.snapshots.length === 0 &&
+				input.decisions.length === 0 &&
+				input.actuations.length === 0 &&
+				postures.length === 0
+			) {
 				return;
 			}
 
 			const db = await getDb();
 			await db.transaction(async (tx) => {
-				for (const grade of input.grades) {
+				for (const snapshot of input.snapshots) {
 					await tx
-						.insert(qualityGradeProjection)
+						.insert(temporalTaskQueueCurrent)
 						.values({
-							collection: grade.collection,
-							gradeDomain: grade.gradeDomain,
-							gradeId: grade.gradeId,
-							gradeSource: grade.gradeSource,
-							graderVersion: grade.graderVersion,
-							modelName: grade.modelName,
-							principalType: grade.principalType,
-							projectedAt: new Date(grade.projectedAt),
-							rationaleSummary: grade.rationaleSummary,
-							requestId: grade.requestId,
-							requestStartedAt: new Date(grade.requestStartedAt),
-							requestedCapability: grade.requestedCapability,
-							sampledAt: new Date(grade.sampledAt),
-							scoreMilli: grade.scoreMilli,
-							selectedTarget: grade.selectedTarget,
-							surface: grade.surface,
-							traceId: grade.traceId,
-							verdict: grade.verdict,
+							backlogJson: snapshot.backlog,
+							currentId: buildTemporalTaskQueueCurrentId(snapshot),
+							namespace: snapshot.namespace,
+							oldestTaskAgeJson: snapshot.oldestTaskAge,
+							pollerCount: snapshot.pollerCount,
+							pollerIdentitiesJson: snapshot.pollerIdentities,
+							projectedAt: new Date(snapshot.projectedAt),
+							sampledAt: new Date(snapshot.sampledAt),
+							scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+							snapshotId: snapshot.snapshotId,
+							source: snapshot.source,
+							taskQueue: snapshot.taskQueue,
+							taskQueueKind: snapshot.taskQueueKind,
 						})
 						.onConflictDoUpdate({
 							set: {
-								collection: grade.collection,
-								gradeDomain: grade.gradeDomain,
-								gradeSource: grade.gradeSource,
-								graderVersion: grade.graderVersion,
-								modelName: grade.modelName,
-								principalType: grade.principalType,
-								projectedAt: new Date(grade.projectedAt),
-								rationaleSummary: grade.rationaleSummary,
-								requestId: grade.requestId,
-								requestStartedAt: new Date(grade.requestStartedAt),
-								requestedCapability: grade.requestedCapability,
-								sampledAt: new Date(grade.sampledAt),
-								scoreMilli: grade.scoreMilli,
-								selectedTarget: grade.selectedTarget,
-								surface: grade.surface,
-								traceId: grade.traceId,
-								verdict: grade.verdict,
+								backlogJson: snapshot.backlog,
+								namespace: snapshot.namespace,
+								oldestTaskAgeJson: snapshot.oldestTaskAge,
+								pollerCount: snapshot.pollerCount,
+								pollerIdentitiesJson: snapshot.pollerIdentities,
+								projectedAt: new Date(snapshot.projectedAt),
+								sampledAt: new Date(snapshot.sampledAt),
+								scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+								source: snapshot.source,
+								taskQueue: snapshot.taskQueue,
+								taskQueueKind: snapshot.taskQueueKind,
 							},
-							target: qualityGradeProjection.gradeId,
+							target: temporalTaskQueueCurrent.currentId,
+						});
+					if (input.persistHistory !== true) {
+						continue;
+					}
+					await tx
+						.insert(temporalTaskQueueSnapshot)
+						.values({
+							backlogJson: snapshot.backlog,
+							namespace: snapshot.namespace,
+							oldestTaskAgeJson: snapshot.oldestTaskAge,
+							pollerCount: snapshot.pollerCount,
+							pollerIdentitiesJson: snapshot.pollerIdentities,
+							projectedAt: new Date(snapshot.projectedAt),
+							sampledAt: new Date(snapshot.sampledAt),
+							scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+							snapshotId: snapshot.snapshotId,
+							source: snapshot.source,
+							taskQueue: snapshot.taskQueue,
+							taskQueueKind: snapshot.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								backlogJson: snapshot.backlog,
+								namespace: snapshot.namespace,
+								oldestTaskAgeJson: snapshot.oldestTaskAge,
+								pollerCount: snapshot.pollerCount,
+								pollerIdentitiesJson: snapshot.pollerIdentities,
+								projectedAt: new Date(snapshot.projectedAt),
+								sampledAt: new Date(snapshot.sampledAt),
+								scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+								source: snapshot.source,
+								taskQueue: snapshot.taskQueue,
+								taskQueueKind: snapshot.taskQueueKind,
+							},
+							target: temporalTaskQueueSnapshot.snapshotId,
 						});
 				}
-			});
-		},
 
-		async upsertTraceBacklinks(input) {
-			if (input.backlinks.length === 0) {
-				return;
-			}
-
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				for (const backlink of input.backlinks) {
+				for (const decision of input.decisions) {
 					await tx
-						.insert(traceBacklinkProjection)
+						.insert(workerAutoscalerDecisionCurrent)
 						.values({
-							issueFingerprint: backlink.issueFingerprint,
-							issueLink: backlink.issueLink,
-							projectedAt: new Date(backlink.projectedAt),
-							requestId: backlink.requestId,
-							traceId: backlink.traceId,
-							traceLink: backlink.traceLink,
+							budgetState: decision.budgetState,
+							currentId: buildWorkerAutoscalerDecisionCurrentId(decision),
+							currentReplicas: decision.currentReplicas,
+							decidedAt: new Date(decision.decidedAt),
+							decision: decision.decision,
+							decisionId: decision.decisionId,
+							desiredReplicas: decision.desiredReplicas,
+							evidenceJson: decision.evidence,
+							projectedAt: new Date(decision.projectedAt),
+							reason: decision.reason,
+							sourceSnapshotId: decision.sourceSnapshotId,
+							targetService: decision.targetService,
+							taskQueue: decision.taskQueue,
+							taskQueueKind: decision.taskQueueKind,
 						})
 						.onConflictDoUpdate({
 							set: {
-								issueFingerprint: backlink.issueFingerprint,
-								issueLink: backlink.issueLink,
-								projectedAt: new Date(backlink.projectedAt),
-								traceId: backlink.traceId,
-								traceLink: backlink.traceLink,
+								budgetState: decision.budgetState,
+								currentReplicas: decision.currentReplicas,
+								decidedAt: new Date(decision.decidedAt),
+								decision: decision.decision,
+								desiredReplicas: decision.desiredReplicas,
+								evidenceJson: decision.evidence,
+								projectedAt: new Date(decision.projectedAt),
+								reason: decision.reason,
+								sourceSnapshotId: decision.sourceSnapshotId,
+								targetService: decision.targetService,
+								taskQueue: decision.taskQueue,
+								taskQueueKind: decision.taskQueueKind,
 							},
-							target: traceBacklinkProjection.requestId,
+							target: workerAutoscalerDecisionCurrent.currentId,
+						});
+					if (input.persistHistory !== true) {
+						continue;
+					}
+					await tx
+						.insert(workerAutoscalerDecision)
+						.values({
+							budgetState: decision.budgetState,
+							currentReplicas: decision.currentReplicas,
+							decidedAt: new Date(decision.decidedAt),
+							decision: decision.decision,
+							decisionId: decision.decisionId,
+							desiredReplicas: decision.desiredReplicas,
+							evidenceJson: decision.evidence,
+							projectedAt: new Date(decision.projectedAt),
+							reason: decision.reason,
+							sourceSnapshotId: decision.sourceSnapshotId,
+							targetService: decision.targetService,
+							taskQueue: decision.taskQueue,
+							taskQueueKind: decision.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								budgetState: decision.budgetState,
+								currentReplicas: decision.currentReplicas,
+								decidedAt: new Date(decision.decidedAt),
+								decision: decision.decision,
+								desiredReplicas: decision.desiredReplicas,
+								evidenceJson: decision.evidence,
+								projectedAt: new Date(decision.projectedAt),
+								reason: decision.reason,
+								sourceSnapshotId: decision.sourceSnapshotId,
+								targetService: decision.targetService,
+								taskQueue: decision.taskQueue,
+								taskQueueKind: decision.taskQueueKind,
+							},
+							target: workerAutoscalerDecision.decisionId,
+						});
+				}
+
+				for (const actuation of input.actuations) {
+					await tx
+						.insert(workerAutoscalerActuation)
+						.values({
+							actedAt: new Date(actuation.actedAt),
+							action: actuation.action,
+							actuationId: actuation.actuationId,
+							actuatorKind: actuation.actuatorKind,
+							decisionId: actuation.decisionId,
+							errorCode: actuation.errorCode,
+							fromReplicas: actuation.fromReplicas,
+							projectedAt: new Date(actuation.projectedAt),
+							status: actuation.status,
+							targetService: actuation.targetService,
+							toReplicas: actuation.toReplicas,
+						})
+						.onConflictDoUpdate({
+							set: {
+								actedAt: new Date(actuation.actedAt),
+								action: actuation.action,
+								actuatorKind: actuation.actuatorKind,
+								decisionId: actuation.decisionId,
+								errorCode: actuation.errorCode,
+								fromReplicas: actuation.fromReplicas,
+								projectedAt: new Date(actuation.projectedAt),
+								status: actuation.status,
+								targetService: actuation.targetService,
+								toReplicas: actuation.toReplicas,
+							},
+							target: workerAutoscalerActuation.actuationId,
+						});
+				}
+
+				for (const posture of postures) {
+					const postureId = `${posture.targetService}:${posture.observedAt}`;
+					await tx
+						.insert(workerAutoscalerPosture)
+						.values({
+							currentReplicas: posture.currentReplicas,
+							desiredReplicas: posture.desiredReplicas,
+							evidenceJson: posture.evidence,
+							lastScaleEventAt: posture.lastScaleEventAt
+								? new Date(posture.lastScaleEventAt)
+								: null,
+							lastScaleEventId: posture.lastScaleEventId,
+							maxReplicas: posture.maxReplicas,
+							metricFreshnessJson: posture.metricFreshness,
+							minReplicas: posture.minReplicas,
+							observedAt: new Date(posture.observedAt),
+							postureId,
+							projectedAt: new Date(posture.projectedAt),
+							reason: posture.reason,
+							scalerKind: posture.scalerKind,
+							scalerStatus: posture.scalerStatus,
+							targetService: posture.targetService,
+							taskQueue: posture.taskQueue,
+							taskQueueKind: posture.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								currentReplicas: posture.currentReplicas,
+								desiredReplicas: posture.desiredReplicas,
+								evidenceJson: posture.evidence,
+								lastScaleEventAt: posture.lastScaleEventAt
+									? new Date(posture.lastScaleEventAt)
+									: null,
+								lastScaleEventId: posture.lastScaleEventId,
+								maxReplicas: posture.maxReplicas,
+								metricFreshnessJson: posture.metricFreshness,
+								minReplicas: posture.minReplicas,
+								observedAt: new Date(posture.observedAt),
+								projectedAt: new Date(posture.projectedAt),
+								reason: posture.reason,
+								scalerKind: posture.scalerKind,
+								scalerStatus: posture.scalerStatus,
+								targetService: posture.targetService,
+								taskQueue: posture.taskQueue,
+								taskQueueKind: posture.taskQueueKind,
+							},
+							target: workerAutoscalerPosture.postureId,
 						});
 				}
 			});

@@ -18,9 +18,11 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.mucwiki-edge.link",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID": "execution-control-access-client-id",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": "execution-control-access-client-secret",
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
+                    "STAGING_ACCESS_POLICY_AUD": "operator-console-staging-audience",
                 },
                 clear=True,
             ):
@@ -28,7 +30,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
+                status["settings"]["required"]["staging_execution_control_base_url"]["present"]
             )
             self.assertTrue(status["settings"]["required"]["staging_access_team_domain"]["present"])
             self.assertTrue(status["settings"]["required"]["staging_access_policy_aud"]["present"])
@@ -41,7 +43,9 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.mucwiki-edge.link",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID": "execution-control-access-client-id",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": "execution-control-access-client-secret",
                 },
                 clear=True,
             ):
@@ -51,27 +55,21 @@ class DoctorEnvStagingTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
+                status["settings"]["required"]["staging_execution_control_base_url"]["present"]
+            )
+            self.assertTrue(
+                status["settings"]["required"]["staging_execution_control_access_client_id"][
+                    "present"
+                ]
+            )
+            self.assertTrue(
+                status["settings"]["required"]["staging_execution_control_access_client_secret"][
+                    "present"
+                ]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
-    def test_collect_env_doctor_status_reports_public_chat_worker_staging_without_shell_inputs(
-        self,
-    ) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(os.environ, {}, clear=True):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-public-chat-web"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertEqual(status["settings"]["required"], {})
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
-
-    def test_collect_env_doctor_status_reports_hub_worker_staging_requirements(self) -> None:
+    def test_collect_env_doctor_status_reports_campus_web_worker_staging_requirements(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
@@ -79,21 +77,23 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_HUB_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
+                    "STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
                 },
                 clear=True,
             ):
                 status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-hub-web"
+                    repo_root=repo_root, surface="worker-staging-campus-web"
                 )
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"]["present"]
+                status["settings"]["required"]["staging_campus_auth_turnstile_site_key"]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
-    def test_collect_env_doctor_status_reports_panel_worker_staging_requirements(self) -> None:
+    def test_collect_env_doctor_status_reports_operator_console_worker_staging_requirements(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
@@ -102,12 +102,12 @@ class DoctorEnvStagingTest(unittest.TestCase):
                 os.environ,
                 {
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
+                    "STAGING_ACCESS_POLICY_AUD": "operator-console-staging-audience",
                 },
                 clear=True,
             ):
                 status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-protected-panel-web"
+                    repo_root=repo_root, surface="worker-staging-operator-console-web"
                 )
 
             self.assertTrue(status["overall_ready"])

@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0033
 status: accepted
 created: 2026-04-09
@@ -32,11 +34,11 @@ Accepted on 2026-04-09.
 
 2026-04-09 已确认三个 live 样本：
 
-- `355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知`
+- `355282 / 关于发布《示例大学关于学生使用人工智能的指导意见（2026版）》的通知`
   - 附件为 `.docx`
-- `351704 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
+- `351704 / 关于发布《示例大学新一轮本科教育教学审核评估应知应会手册》的通知`
   - 附件为 `.pdf`
-- `351699 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
+- `351699 / 关于发布《示例大学新一轮本科教育教学审核评估应知应会手册》的通知`
   - 附件为 `.pdf`
 
 其中：
@@ -121,6 +123,7 @@ native PDF extraction 仍可存在，但职责固定收窄为：
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/data/authenticated-notice.md`
+- `docs/reference/internal-notice-pdf-chunks.md`
+- 旧 offline-preparation 与 replay 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。

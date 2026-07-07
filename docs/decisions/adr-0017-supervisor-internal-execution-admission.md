@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0017
 status: accepted
 created: 2026-03-28
@@ -11,36 +13,42 @@ updated: 2026-03-30
 
 Accepted on 2026-03-28.
 
+## Terminology Superseded
+
+本 ADR 标题中的 `Supervisor` 是历史命名。目标态 active architecture term 是
+`Execution Agent Layer`；本 ADR 的长期约束继续适用于 `execution-control` 内的
+Execution Agent Layer 与 internal execution admission。
+
 ## 背景
 
 `ADR-0012`、`ADR-0013`、`ADR-0015`、`ADR-0016` 与 `ADR-0034` 已经冻结了以下方向：
 
-- `public-chat-web` 与 `protected-panel-web` 是两个 Worker web surface
+- `campus-web` 与 `operator-console-web` 是两个 Worker web surface
 - `apps/app-api` 是 shared application/control-plane backend
 - `apps/app-api` 拥有 canonical identity / memory projection
-- `apps/supervisor-api` 是 execution engine
+- `apps/execution-control` 是 execution engine
 - request projection 由 `apps/app-api` 拥有
 
 但还存在四个必须继续收口的问题：
 
 - product-layer auth/session/principal mapping 由哪一层拥有
-- `apps/supervisor-api` 是否还应该继续承担 user-auth 语义
+- `apps/execution-control` 是否还应该继续承担 user-auth 语义
 - request projection 应该以什么 durable truth 为 canonical source
 - Better Auth、Drizzle schema 与 migration pipeline 应该如何组织
 
 如果这些问题继续悬空，后续实现很容易再次退化为：
 
-- `supervisor-api` 继续从 edge/header 恢复最终业务 actor
+- `execution-control` 继续从 edge/header 恢复最终业务 actor
 - request projection 先做成 queue-first 或日志重算，再回头补数据库 truth
 - Better Auth 与 app-domain schema 分裂成两套 migration 世界观
-- `public-chat-web`、panel 或 `supervisor-api` 分别长出自己的身份语义
+- `campus-web`、panel 或 `execution-control` 分别长出自己的身份语义
 
 ## 决策
 
 1. `apps/app-api` 是唯一的 product-layer identity owner。
 1. `apps/app-api` 负责 auth、session、principal mapping，并显式把 `actor` 交给
-   `apps/supervisor-api`。
-1. `apps/supervisor-api` 只负责 internal execution caller admission，不再承担 user-auth
+   `apps/execution-control`。
+1. `apps/execution-control` 只负责 internal execution caller admission，不再承担 user-auth
    语义。
 1. canonical request projection 采用 database
    outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是第一
@@ -57,13 +65,13 @@ Accepted on 2026-03-28.
 
 这项决策同时冻结以下约束：
 
-- `apps/supervisor-api` 不从 Access JWT、edge header 或 browser-facing session
+- `apps/execution-control` 不从 Access JWT、edge header 或 browser-facing session
   恢复最终业务 actor
-- `actor` 是 `app-api -> supervisor-api` execution contract 的显式字段，而不是 runtime
+- `actor` 是 `app-api -> execution-control` execution contract 的显式字段，而不是 runtime
   side inference
 - queue 可以在 outbox 之后作为加速或 fan-out 手段，但不是 canonical request truth
 - panel 不直接消费 `runtime.request_execution`、audit log、telemetry sink 或
-  `apps/supervisor-api`
+  `apps/execution-control`
 - Better Auth adapter-owned 表仍需遵守适配器约定，但 shared DB owner 之间不得再隐式共用同一 migration
   journal
 
@@ -71,7 +79,7 @@ Accepted on 2026-03-28.
 
 直接结果如下：
 
-- `apps/supervisor-api` 文档应从“auth”改写为“internal caller admission”
+- `apps/execution-control` 文档应从“auth”改写为“internal caller admission”
 - `app-api` contract / lifecycle / schema 文档应明确 `actor` 显式传递与 outbox-first
   projection
 - request projection 的第一版实现应优先采用同库 outbox + scheduled/internal consumer，而不是
@@ -81,7 +89,7 @@ Accepted on 2026-03-28.
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` ingress 形态，用于
+当前仓库里的 `apps/execution-control` 仍保留 `bearer` / `trusted-worker` ingress 形态，用于
 repo-local dev 和历史 runtime 兼容。
 
 这些模式现在应被理解为：
@@ -92,7 +100,7 @@ repo-local dev 和历史 runtime 兼容。
 而不应再被解释为：
 
 - forward product identity ownership
-- `supervisor-api` 继续负责 campus end-user / operator auth 的长期依据
+- `execution-control` 继续负责 campus end-user / operator auth 的长期依据
 
 ## Complements
 
@@ -100,7 +108,6 @@ repo-local dev 和历史 runtime 兼容。
 
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`

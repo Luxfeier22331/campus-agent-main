@@ -1,4 +1,29 @@
 export {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
+export {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -6,7 +31,18 @@ export {
 	docsSearchUnits,
 } from "./docs";
 export {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+export { llmDebugTraceConfig } from "./observability-config";
+export {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -23,8 +59,6 @@ export {
 	authenticatedNoticeProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
 	metricRollup,
 	officialWebReleaseTaskEventProjection,
 	officialWebReleaseTaskProjection,
@@ -36,7 +70,17 @@ export {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+export {
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
+} from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
+export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+export { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -45,6 +89,31 @@ export {
 } from "./wechat-official-account";
 
 import {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
+import {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+import {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -52,7 +121,18 @@ import {
 	docsSearchUnits,
 } from "./docs";
 import {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+import { llmDebugTraceConfig } from "./observability-config";
+import {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -69,8 +149,6 @@ import {
 	authenticatedNoticeProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
 	metricRollup,
 	officialWebReleaseTaskEventProjection,
 	officialWebReleaseTaskProjection,
@@ -82,7 +160,17 @@ import {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+import {
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
+} from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
+import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
+import { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -91,12 +179,17 @@ import {
 } from "./wechat-official-account";
 
 export const appApiOwnedSchema = {
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsTransportOverrides,
+	campusServicesOpsReleases,
+	campusServicesOpsAuditEvents,
 	crawlRuns,
 	officialWebTargetJobs,
 	officialWebTargetJobCandidates,
 	officialWebTargetPageAttempts,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetReleaseGates,
+	officialWebRunAdmissionDecisions,
 	pageObservations,
 	pageFreshness,
 	runHeartbeats,
@@ -107,8 +200,37 @@ export const appApiOwnedSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	diningHalls,
+	diningFloors,
+	diningWindows,
+	diningWindowAssignments,
+	diningStallProfiles,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningSourceObservations,
+	diningSourceSyncRuns,
+	diningDraftVersions,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseScheduleJobs,
+	diningReleases,
+	diningReleaseSnapshots,
+	diningReleaseLatestPointer,
+	diningAuditEvents,
+	identityAccounts,
+	identityProfiles,
+	identityAccessSnapshots,
+	identityPreferenceSettings,
+	identityFederationClients,
+	identityFederationClaimsPolicies,
+	identityFederationUserGrants,
 	profileMemorySettings,
 	profileMemoryItems,
+	llmDebugTraceConfig,
+	providerConfigConnections,
+	providerConfigProfiles,
+	replayPacketAccessAudit,
+	replayPacketIndex,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,
@@ -126,8 +248,12 @@ export const appApiOwnedSchema = {
 	authenticatedNoticeProcessingEventProjection,
 	authenticatedNoticeRunProcessingProjection,
 	authenticatedNoticeRunProcessingEventProjection,
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
+	temporalTaskQueueCurrent,
+	temporalTaskQueueSnapshot,
+	workerAutoscalerActuation,
+	workerAutoscalerDecisionCurrent,
+	workerAutoscalerDecision,
+	workerAutoscalerPosture,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

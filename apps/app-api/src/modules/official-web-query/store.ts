@@ -1,5 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, lt, lte, not, or, type SQL } from "drizzle-orm";
-
+import type {
+	OfficialWebFetchDisposition,
+	OfficialWebPageChangeStatus,
+	OfficialWebRunIntent,
+} from "ingestion-contracts";
 import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -9,11 +13,6 @@ import {
 	pageFreshness,
 	pageObservations,
 } from "../../db/schema";
-import type {
-	OfficialWebFetchDisposition,
-	OfficialWebPageChangeStatus,
-	OfficialWebRunIntent,
-} from "../official-web-command";
 import type {
 	OfficialWebFreshnessPageRecord,
 	OfficialWebPageChangeRecord,

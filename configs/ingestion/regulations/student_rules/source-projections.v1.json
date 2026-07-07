@@ -2,44 +2,17 @@
 	"schema_version": "student_rules_source_projections_v1",
 	"source_corpus": "regulations",
 	"source_collection": "student_rules",
-	"raw_asset_id": "asset:student-handbook-pdf",
-	"source_truth_artifacts": [
-		"provider-response.jsonl",
-		"layout-elements.jsonl",
-		"split-manifest.v1.json",
-		"per-document source rows"
-	],
-	"rebuild_boundary": "source_truth",
-	"rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+	"raw_asset_id": "asset:synthetic-student-handbook",
+	"source_truth_artifacts": ["document-units.jsonl"],
 	"derived_document_fields": [
 		"projection_name",
-		"derived_from_raw_asset_id",
-		"derived_from_raw_version_id",
 		"derived_from",
 		"derived_from_document_id",
-		"parent_document_id",
-		"source_title",
-		"source_handbook_section",
-		"source_page_start",
-		"source_page_end",
-		"attachment_kind",
-		"attachment_role"
+		"target_corpus",
+		"target_collection"
 	],
-	"selector_coverage": {
-		"required_projection_names": [
-			"handbook_phone_directory",
-			"handbook_navigation_service_catalog",
-			"handbook_form_template_documents",
-			"handbook_tabular_appendix_documents",
-			"handbook_navigation_leaf_documents"
-		],
-		"deferred_projection_families": [
-			{
-				"projection_name": "handbook_appendix_documents",
-				"reason": "No narrative appendix source slice is opened in the first handbook PDF consumption batch; future selectors must be declared before materialization."
-			}
-		]
-	},
+	"rebuild_boundary": "source_truth_release",
+	"rebuild_rule": "replay_from_source_truth_only",
 	"projections": [
 		{
 			"projection_name": "student_rules_primary_documents",
@@ -52,145 +25,13 @@
 			"parent_document_id": null,
 			"attachment_kind": null,
 			"attachment_role": null,
-			"description": "Primary handbook projection into canonical handbook documents and document-units."
-		},
-		{
-			"projection_name": "handbook_phone_directory",
-			"target_corpus": "campus_services",
-			"target_collection": "contact_directory",
-			"projection_family": "derived_documents",
-			"replay_from_source_truth": true,
-			"derived_from": "source_truth",
-			"derived_from_document_id": null,
-			"parent_document_id": null,
-			"source_title": "中央民族大学校内常用电话",
-			"source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
-			"source_page_start": 261,
-			"source_page_end": 261,
-			"attachment_kind": "navigation_like",
-			"attachment_role": "service_contact_directory",
-			"target_title": "中央民族大学校内常用电话",
-			"migration_reason": "handbook_phone_directory_projection"
-		},
-		{
-			"projection_name": "handbook_navigation_service_catalog",
-			"target_corpus": "campus_services",
-			"target_collection": "service_catalog",
-			"projection_family": "derived_documents",
-			"replay_from_source_truth": true,
-			"derived_from": "source_truth",
-			"derived_from_document_id": null,
-			"parent_document_id": null,
-			"source_title": "中央民族大学公寓及公费医疗管理规定",
-			"source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
-			"source_page_start": 252,
-			"source_page_end": 255,
-			"attachment_kind": "navigation_like",
-			"attachment_role": "service_navigation_document",
-			"target_title": "中央民族大学学生公寓管理工作流程",
-			"migration_reason": "handbook_navigation_document"
+			"description": "Synthetic primary handbook projection contract testdata."
 		}
 	],
-	"attachment_projection_selectors": [
-		{
-			"projection_name": "handbook_form_template_documents",
-			"target_corpus": "regulations",
-			"target_collection": "student_rules",
-			"projection_family": "derived_documents",
-			"replay_from_source_truth": true,
-			"derived_from": "source_truth",
-			"derived_from_document_id": null,
-			"parent_document_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
-			"source_title": "中央民族大学补办学生证申请表",
-			"source_handbook_section": "中央民族大学学生日常管理规定",
-			"source_page_start": 165,
-			"source_page_end": 165,
-			"attachment_kind": "form_template",
-			"attachment_role": "standalone_form_document",
-			"target_title": "中央民族大学补办学生证申请表",
-			"migration_reason": "handbook_form_template_projection"
-		},
-		{
-			"projection_name": "handbook_tabular_appendix_documents",
-			"target_corpus": "regulations",
-			"target_collection": "student_rules",
-			"projection_family": "derived_documents",
-			"replay_from_source_truth": true,
-			"derived_from": "source_truth",
-			"derived_from_document_id": null,
-			"parent_document_id": "handbook:571a5df6b6bd0fb133b0e7849f577d4a22d7a53e",
-			"source_title": "中央民族大学国家助学金申请表",
-			"source_handbook_section": "中央民族大学学生资助管理规定",
-			"source_page_start": 229,
-			"source_page_end": 229,
-			"attachment_kind": "tabular_appendix",
-			"attachment_role": "standalone_appendix_table_document",
-			"target_title": "中央民族大学国家助学金申请表",
-			"migration_reason": "handbook_tabular_appendix_projection"
-		},
-		{
-			"projection_name": "handbook_navigation_leaf_documents",
-			"target_corpus": "campus_services",
-			"target_collection": "service_catalog",
-			"projection_family": "derived_documents",
-			"replay_from_source_truth": true,
-			"derived_from": "source_truth",
-			"derived_from_document_id": null,
-			"parent_document_id": "handbook:5585e19eb4afad9af061ef9334ce167aa2e4fe59",
-			"source_title": "第四章 岗位聘用",
-			"source_handbook_section": "中央民族大学学生资助管理规定",
-			"source_page_start": 222,
-			"source_page_end": 223,
-			"attachment_kind": "navigation_like",
-			"attachment_role": "service_navigation_leaf",
-			"target_title": "勤工助学岗位聘用流程",
-			"migration_reason": "handbook_navigation_leaf_projection"
-		}
-	],
-	"attachment_projection_families": [
-		{
-			"projection_name": "handbook_appendix_documents",
-			"target_corpus": "regulations",
-			"target_collection": "student_rules",
-			"projection_family": "derived_documents",
-			"derived_from": "source_truth",
-			"derived_from_document_id": "*",
-			"parent_document_id": "*",
-			"attachment_kind": "narrative_appendix",
-			"attachment_role": "standalone_appendix_document"
-		},
-		{
-			"projection_name": "handbook_tabular_appendix_documents",
-			"target_corpus": "regulations",
-			"target_collection": "student_rules",
-			"projection_family": "derived_documents",
-			"derived_from": "source_truth",
-			"derived_from_document_id": "*",
-			"parent_document_id": "*",
-			"attachment_kind": "tabular_appendix",
-			"attachment_role": "standalone_appendix_table_document"
-		},
-		{
-			"projection_name": "handbook_form_template_documents",
-			"target_corpus": "regulations",
-			"target_collection": "student_rules",
-			"projection_family": "derived_documents",
-			"derived_from": "source_truth",
-			"derived_from_document_id": "*",
-			"parent_document_id": "*",
-			"attachment_kind": "form_template",
-			"attachment_role": "standalone_form_document"
-		},
-		{
-			"projection_name": "handbook_navigation_leaf_documents",
-			"target_corpus": "campus_services",
-			"target_collection": "service_catalog",
-			"projection_family": "derived_documents",
-			"derived_from": "source_truth",
-			"derived_from_document_id": "*",
-			"parent_document_id": "*",
-			"attachment_kind": "navigation_like",
-			"attachment_role": "service_navigation_leaf"
-		}
-	]
+	"attachment_projection_families": [],
+	"attachment_projection_selectors": [],
+	"selector_coverage": {
+		"covered": [],
+		"excluded": []
+	}
 }

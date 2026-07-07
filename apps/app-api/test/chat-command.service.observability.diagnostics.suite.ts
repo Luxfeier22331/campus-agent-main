@@ -5,6 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 } from "./chat-command.service.test-support";
 
@@ -17,10 +18,10 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
-						"在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+						"在《示例大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
 					error: null,
 					followUpQuestion: "",
 					result: {
@@ -28,10 +29,10 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 							clarification_reason: "",
 							no_answer_reason: "resolved_policy_clause_not_found",
 							resolved_policy_document_id: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-							resolved_policy_title: "中央民族大学本科学生国家奖学金评审办法",
-							retrieved_title_summary: ["中央民族大学本科学生国家奖学金评审办法"],
+							resolved_policy_title: "示例大学本科学生国家奖学金评审办法",
+							retrieved_title_summary: ["示例大学本科学生国家奖学金评审办法"],
 							rewritten_query:
-								"中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+								"示例大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
 						},
 						evidence: {
 							sources: [
@@ -41,11 +42,11 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 							],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "no_answer",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -64,10 +65,8 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 						noAnswerReason: "resolved_policy_clause_not_found",
 						policyReason: null,
 						resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-						resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
-						retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
-						rewrittenQuery:
-							"中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+						resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
+						retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
 						scopeClass: null,
 						semanticOutcome: null,
 					},
@@ -79,10 +78,8 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 					noAnswerReason: "resolved_policy_clause_not_found",
 					policyReason: null,
 					resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-					resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
-					retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
-					rewrittenQuery:
-						"中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+					resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
+					retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
 					scopeClass: null,
 					semanticOutcome: null,
 				},
@@ -90,7 +87,7 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 		});
 	});
 
-	it("keeps requested scope empty and records resolved curriculum scope when supervisor selects the serving surface", async () => {
+	it("keeps requested scope empty and records resolved curriculum scope when execution runtime selects the serving surface", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -98,7 +95,7 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
 					error: null,
@@ -128,11 +125,11 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 							sources: [{ doc_id: "curriculum:民族学本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedTool: "knowledge_query",
 					status: "completed",
-					traceId: "trace_0002",
+					traceId: "trace_0001",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({

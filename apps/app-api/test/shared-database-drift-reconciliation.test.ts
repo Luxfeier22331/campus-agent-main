@@ -7,7 +7,10 @@ import {
 	loadMigrationContext,
 	makeInventory,
 } from "../scripts/adopt-shared-database.mjs";
-import { buildSharedDatabaseDriftReconcilePlan } from "../scripts/reconcile-shared-db-drift.mjs";
+import {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	buildSharedDatabaseDriftReconcilePlan,
+} from "../scripts/reconcile-shared-db-drift.mjs";
 
 const migrationContext = loadMigrationContext();
 function requireSnapshot(key: string) {
@@ -19,8 +22,60 @@ function requireSnapshot(key: string) {
 }
 
 const snapshot0009 = requireSnapshot("0009_melted_nightmare");
-const latestSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
+const latestSpecs = buildCurrentSharedDatabaseExpectedTableSpecs(migrationContext.latestSnapshot);
 const snapshot0009Specs = buildExpectedTableSpecs(snapshot0009);
+const DINING_TABLES = [
+	"dining.audit_events",
+	"dining.draft_versions",
+	"dining.floors",
+	"dining.halls",
+	"dining.menu_items",
+	"dining.menu_offerings",
+	"dining.release_candidate_validation_reports",
+	"dining.release_candidates",
+	"dining.release_latest_pointer",
+	"dining.release_schedule_jobs",
+	"dining.release_snapshots",
+	"dining.releases",
+	"dining.review_projections",
+	"dining.source_observations",
+	"dining.source_sync_runs",
+	"dining.stall_profiles",
+	"dining.window_assignments",
+	"dining.windows",
+];
+
+interface DropTableOperationProjection {
+	kind: "drop_table";
+	qualifiedName: string;
+	statement: string;
+}
+
+interface ExpectedTableProjection {
+	schema: string;
+	table: string;
+	columns: Array<{
+		name: string;
+		notNull: boolean;
+		primaryKey: boolean;
+		type: string;
+	}>;
+	constraints: string[];
+	indexes: Array<{
+		name: string;
+		columns: string[];
+		method: string | null;
+		unique: boolean | null;
+	}>;
+}
+
+function isDropTableOperation<T extends { kind: string }>(
+	operation: T,
+): operation is T & DropTableOperationProjection {
+	return (
+		operation.kind === "drop_table" && "qualifiedName" in operation && "statement" in operation
+	);
+}
 
 function buildTableFromSnapshot(
 	specs: ReturnType<typeof buildExpectedTableSpecs>,
@@ -48,7 +103,86 @@ function buildAllExpectedTables() {
 	return [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName));
 }
 
+function tableName(table: ExpectedTableProjection) {
+	return `${table.schema}.${table.table}`;
+}
+
+function withLegacyColumn(
+	table: ExpectedTableProjection,
+	input: { fromColumn: string; keepTarget?: boolean; toColumn: string },
+) {
+	const targetColumn = table.columns.find((column) => column.name === input.toColumn);
+	if (!targetColumn) {
+		throw new Error(`Missing expected column ${tableName(table)}.${input.toColumn}`);
+	}
+
+	return {
+		...table,
+		columns: [
+			...table.columns.filter((column) => input.keepTarget || column.name !== input.toColumn),
+			{
+				...targetColumn,
+				name: input.fromColumn,
+			},
+		],
+	};
+}
+
+function withLegacyColumns(
+	table: ExpectedTableProjection,
+	renames: Array<{ fromColumn: string; keepTarget?: boolean; toColumn: string }>,
+) {
+	return renames.reduce((currentTable, rename) => withLegacyColumn(currentTable, rename), table);
+}
+
+function withLegacyIndex(
+	table: ExpectedTableProjection,
+	input: { fromIndex: string; keepTarget?: boolean; toIndex: string },
+) {
+	const targetIndex = table.indexes.find((index) => index.name === input.toIndex);
+	if (!targetIndex) {
+		throw new Error(`Missing expected index ${tableName(table)}.${input.toIndex}`);
+	}
+
+	return {
+		...table,
+		indexes: [
+			...table.indexes.filter((index) => input.keepTarget || index.name !== input.toIndex),
+			{
+				...targetIndex,
+				name: input.fromIndex,
+			},
+		],
+	};
+}
+
 describe("shared database drift reconciliation", () => {
+	it("treats dining operations tables as current repo truth", () => {
+		expect([...latestSpecs.keys()]).toEqual(expect.arrayContaining(DINING_TABLES));
+
+		const inventory = makeInventory({
+			journalRows: migrationContext.migrations.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			})),
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: buildAllExpectedTables(),
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(
+			plan.extraTables.filter((item: { qualifiedName: string }) =>
+				item.qualifiedName.startsWith("dining."),
+			),
+		).toEqual([]);
+	});
+
 	it("plans cleanup for the known retired official-web orphaned journal shape", () => {
 		const inventory = makeInventory({
 			journalRows: [
@@ -170,6 +304,168 @@ describe("shared database drift reconciliation", () => {
 		]);
 	});
 
+	it("plans cleanup for retired execution runtime tables with non-empty approval surfaced", () => {
+		const inventory = makeInventory({
+			journalRows: [],
+			schemas: ["runtime"],
+			tables: [
+				...buildAllExpectedTables().filter((table) => table.schema === "runtime"),
+				{
+					columns: [
+						{
+							name: "lane",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "lane_budgets",
+				},
+				{
+					columns: [
+						{
+							name: "event_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_run_events",
+				},
+				{
+					columns: [
+						{
+							name: "run_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_runs",
+				},
+			],
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map([
+				["runtime.agent_run_events", 0],
+				["runtime.agent_runs", 0],
+				["runtime.lane_budgets", 1],
+			]),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraTables).toEqual([
+			{ qualifiedName: "runtime.agent_run_events", rowCount: 0 },
+			{ qualifiedName: "runtime.agent_runs", rowCount: 0 },
+			{ qualifiedName: "runtime.lane_budgets", rowCount: 1 },
+		]);
+		expect(plan.nonEmptyDriftTables).toEqual([
+			{ qualifiedName: "runtime.lane_budgets", rowCount: 1 },
+		]);
+		expect(plan.operations.map((operation) => operation.kind)).toEqual([
+			"drop_table",
+			"drop_table",
+			"drop_table",
+		]);
+		expect(
+			plan.operations.filter(isDropTableOperation).map((operation) => ({
+				qualifiedName: operation.qualifiedName,
+				statement: operation.statement,
+			})),
+		).toEqual([
+			{
+				qualifiedName: "runtime.agent_run_events",
+				statement: 'drop table if exists "runtime"."agent_run_events" cascade',
+			},
+			{
+				qualifiedName: "runtime.agent_runs",
+				statement: 'drop table if exists "runtime"."agent_runs" cascade',
+			},
+			{
+				qualifiedName: "runtime.lane_budgets",
+				statement: 'drop table if exists "runtime"."lane_budgets" cascade',
+			},
+		]);
+	});
+
+	it("allows execution-control-owned run projection step tables to coexist in shared runtime schema", () => {
+		const inventory = makeInventory({
+			journalRows: [],
+			schemas: ["runtime"],
+			tables: [
+				...buildAllExpectedTables().filter((table) => table.schema === "runtime"),
+				{
+					columns: [
+						{
+							name: "step_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_run_steps",
+				},
+				{
+					columns: [
+						{
+							name: "attempt_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_step_attempts",
+				},
+				{
+					columns: [
+						{
+							name: "result_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_step_results",
+				},
+			],
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map([
+				["runtime.agent_run_steps", 1],
+				["runtime.agent_step_attempts", 1],
+				["runtime.agent_step_results", 1],
+			]),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraTables).toEqual([]);
+		expect(plan.operations.filter((operation) => operation.kind === "drop_table")).toEqual([]);
+	});
+
 	it("blocks journal-managed shared databases that still miss repo migrations", () => {
 		const inventory = makeInventory({
 			journalRows: migrationContext.migrations
@@ -268,5 +564,225 @@ describe("shared database drift reconciliation", () => {
 		expect(
 			plan.operations.filter((operation) => operation.kind === "insert_journal_row"),
 		).toHaveLength(6);
+	});
+
+	it("repairs known legacy capability and provider column names without dropping data", () => {
+		const legacyTables = buildAllExpectedTables().map((table) => {
+			switch (tableName(table)) {
+				case "operator.request_projection":
+					return withLegacyColumns(table, [
+						{ fromColumn: "requested_capability", toColumn: "requested_tool" },
+						{ fromColumn: "selected_capability", toColumn: "selected_tool" },
+					]);
+				case "operator.metric_rollup":
+					return withLegacyIndex(table, {
+						fromIndex: "operator_metric_rollup_domain_capability_bucket_idx",
+						toIndex: "operator_metric_rollup_domain_tool_bucket_idx",
+					});
+				case "provider_config.connections":
+					return withLegacyColumns(table, [
+						{ fromColumn: "capabilities_json", toColumn: "features_json" },
+						{ fromColumn: "capability_config_json", toColumn: "feature_config_json" },
+					]);
+				case "runtime.request_observability_fact":
+					return withLegacyIndex(
+						withLegacyColumns(table, [
+							{ fromColumn: "intent_capability", toColumn: "intent_tool" },
+							{ fromColumn: "requested_capability", toColumn: "requested_tool" },
+							{
+								fromColumn: "selected_capability",
+								keepTarget: true,
+								toColumn: "selected_tool",
+							},
+						]),
+						{
+							fromIndex: "runtime_request_observability_selected_capability_started_at_idx",
+							toIndex: "runtime_request_observability_selected_tool_started_at_idx",
+						},
+					);
+				default:
+					return table;
+			}
+		});
+		const staleHashRows = migrationContext.migrations
+			.filter(
+				(migration) =>
+					migration.tag !== "0035_tool_naming" &&
+					migration.tag !== "0046_provider_config_connections",
+			)
+			.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			}));
+		const inventory = makeInventory({
+			journalRows: staleHashRows,
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: legacyTables,
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.legacyColumnResolutions).toEqual(
+			expect.arrayContaining([
+				{
+					fromColumn: "requested_capability",
+					kind: "rename_legacy_column",
+					qualifiedName: "operator.request_projection",
+					toColumn: "requested_tool",
+				},
+				{
+					fromColumn: "capabilities_json",
+					kind: "rename_legacy_column",
+					qualifiedName: "provider_config.connections",
+					toColumn: "features_json",
+				},
+				{
+					fromColumn: "selected_capability",
+					kind: "merge_drop_legacy_column",
+					qualifiedName: "runtime.request_observability_fact",
+					toColumn: "selected_tool",
+				},
+			]),
+		);
+		expect(plan.missingColumns).toEqual([]);
+		expect(plan.extraColumns).toEqual([]);
+		expect(plan.extraIndexes).toEqual([]);
+		expect(plan.missingIndexes).toEqual([]);
+		expect(plan.legacyIndexResolutions).toEqual(
+			expect.arrayContaining([
+				{
+					fromIndex: "operator_metric_rollup_domain_capability_bucket_idx",
+					kind: "rename_legacy_index",
+					qualifiedName: "operator.metric_rollup",
+					toIndex: "operator_metric_rollup_domain_tool_bucket_idx",
+				},
+				{
+					fromIndex: "runtime_request_observability_selected_capability_started_at_idx",
+					kind: "rename_legacy_index",
+					qualifiedName: "runtime.request_observability_fact",
+					toIndex: "runtime_request_observability_selected_tool_started_at_idx",
+				},
+			]),
+		);
+		expect(plan.operations.filter((operation) => operation.kind === "rename_column")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					fromColumn: "requested_capability",
+					qualifiedName: "operator.request_projection",
+					toColumn: "requested_tool",
+				}),
+				expect.objectContaining({
+					fromColumn: "capabilities_json",
+					qualifiedName: "provider_config.connections",
+					toColumn: "features_json",
+				}),
+			]),
+		);
+		expect(plan.operations.filter((operation) => operation.kind === "copy_legacy_column")).toEqual([
+			expect.objectContaining({
+				fromColumn: "selected_capability",
+				qualifiedName: "runtime.request_observability_fact",
+				toColumn: "selected_tool",
+			}),
+		]);
+		expect(plan.pendingMigrationTags).toEqual([
+			"0035_tool_naming",
+			"0046_provider_config_connections",
+		]);
+		expect(
+			plan.operations
+				.filter((operation) => operation.kind === "insert_journal_row")
+				.map((operation) => "tag" in operation && operation.tag),
+		).toEqual(["0035_tool_naming", "0046_provider_config_connections"]);
+	});
+
+	it("creates known legacy indexes when previous rename already lost the old index name", () => {
+		const legacyTables = buildAllExpectedTables().map((table) => {
+			if (tableName(table) !== "runtime.request_observability_fact") {
+				return table;
+			}
+			return {
+				...table,
+				indexes: table.indexes.filter(
+					(index) => index.name !== "runtime_request_observability_selected_tool_started_at_idx",
+				),
+			};
+		});
+		const inventory = makeInventory({
+			journalRows: migrationContext.migrations.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			})),
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: legacyTables,
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.legacyIndexResolutions).toEqual([
+			expect.objectContaining({
+				kind: "create_missing_index",
+				qualifiedName: "runtime.request_observability_fact",
+				toIndex: "runtime_request_observability_selected_tool_started_at_idx",
+			}),
+		]);
+		expect(plan.operations).toEqual([
+			expect.objectContaining({
+				indexName: "runtime_request_observability_selected_tool_started_at_idx",
+				kind: "create_index",
+				qualifiedName: "runtime.request_observability_fact",
+				statement:
+					'create index "runtime_request_observability_selected_tool_started_at_idx" on "runtime"."request_observability_fact" using btree ("selected_tool", "started_at")',
+			}),
+		]);
+	});
+
+	it("does not treat primary key backing indexes as unknown drift", () => {
+		const table = buildTableFromExpected("runtime.request_execution");
+		const tables = buildAllExpectedTables().map((expectedTable) => {
+			if (tableName(expectedTable) !== "runtime.request_execution") {
+				return expectedTable;
+			}
+			return {
+				...table,
+				constraints: [...table.constraints, "request_execution_pkey"],
+				indexes: [
+					...table.indexes,
+					{
+						columns: ["request_id"],
+						method: "btree",
+						name: "request_execution_pkey",
+						unique: true,
+					},
+				],
+			};
+		});
+		const inventory = makeInventory({
+			journalRows: migrationContext.migrations.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			})),
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables,
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraIndexes).toEqual([]);
 	});
 });

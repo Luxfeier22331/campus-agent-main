@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,21 @@ def repo_root() -> Path:
 def tracked_shell_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
     return worktree_paths("*.sh", root=base)
+
+
+def select_affected_shell_files(
+    paths: tuple[str, ...], *, root: Path | None = None
+) -> tuple[Path, ...]:
+    base = root or repo_root()
+    selected: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        candidate = base / path
+        if not path.endswith(".sh") or not candidate.exists() or path in seen:
+            continue
+        seen.add(path)
+        selected.append(candidate)
+    return tuple(selected)
 
 
 def build_local_shellcheck_command(path: Path, *, root: Path | None = None) -> list[str]:
@@ -69,8 +85,19 @@ def validate_shell_file(path: Path, *, command_builder=None, root: Path | None =
     )
 
 
-def main() -> int:
-    files = tracked_shell_files()
+def main(argv: tuple[str, ...] = ()) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--affected", nargs="*")
+    args = parser.parse_args(argv)
+
+    files = (
+        select_affected_shell_files(tuple(args.affected))
+        if args.affected is not None
+        else tracked_shell_files()
+    )
+    if not files:
+        print("No current-worktree shell files matched the requested pathspecs.")
+        return 0
     try:
         command_builder = resolve_shellcheck_command_builder()
     except FileNotFoundError as exc:
@@ -96,4 +123,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(tuple(sys.argv[1:])))

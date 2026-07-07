@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { OfficialWebTargetInventoryPreviewEvidence } from "official-web-core/target-inventory";
 
 import type { Env } from "../../config";
 import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
@@ -14,6 +13,7 @@ import {
 import type {
 	OfficialWebTargetInventoryFieldStatus,
 	OfficialWebTargetInventoryFieldStatusStore,
+	OfficialWebTargetInventoryPreviewEvidence,
 	OfficialWebTargetInventoryPreviewEvidenceStore,
 } from "./service";
 

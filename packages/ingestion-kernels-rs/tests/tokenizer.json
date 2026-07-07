@@ -1,0 +1,81 @@
+{
+	"version": "1.0",
+	"truncation": null,
+	"padding": null,
+	"added_tokens": [
+		{
+			"id": 2,
+			"content": "[CLS]",
+			"single_word": false,
+			"lstrip": false,
+			"rstrip": false,
+			"normalized": false,
+			"special": true
+		}
+	],
+	"normalizer": null,
+	"pre_tokenizer": {
+		"type": "Whitespace"
+	},
+	"post_processor": {
+		"type": "TemplateProcessing",
+		"single": [
+			{
+				"SpecialToken": {
+					"id": "[CLS]",
+					"type_id": 0
+				}
+			},
+			{
+				"Sequence": {
+					"id": "A",
+					"type_id": 0
+				}
+			}
+		],
+		"pair": [
+			{
+				"SpecialToken": {
+					"id": "[CLS]",
+					"type_id": 0
+				}
+			},
+			{
+				"Sequence": {
+					"id": "A",
+					"type_id": 0
+				}
+			},
+			{
+				"Sequence": {
+					"id": "B",
+					"type_id": 0
+				}
+			}
+		],
+		"special_tokens": {
+			"[CLS]": {
+				"id": "[CLS]",
+				"ids": [2],
+				"tokens": ["[CLS]"]
+			}
+		}
+	},
+	"decoder": null,
+	"model": {
+		"type": "WordLevel",
+		"vocab": {
+			"alpha": 0,
+			"beta": 1,
+			"[CLS]": 2,
+			"[UNK]": 3,
+			"gamma": 4,
+			"delta": 5,
+			"epsilon": 6,
+			"zeta": 7,
+			"hello": 8,
+			"world": 9
+		},
+		"unk_token": "[UNK]"
+	}
+}

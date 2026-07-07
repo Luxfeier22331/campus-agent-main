@@ -3,9 +3,6 @@ import process from "node:process";
 
 const localRealProviderTimeoutMs =
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS?.trim() || "180000";
-const localRealProviderSupervisorTimeoutMs =
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_SUPERVISOR_TIMEOUT_MS?.trim() ||
-	localRealProviderTimeoutMs;
 
 const args = [
 	"--dir",
@@ -14,30 +11,29 @@ const args = [
 	"tsx",
 	"./scripts/chat-e2e-local-dev.ts",
 	"--prompt",
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() ||
-		"中央民族大学本科学生国家奖学金评审办法",
-	"--expect-prompt-runtime-state",
-	"rag_sdk_completed",
-	"--restart-public-chat",
-	"--restart-supervisor-runtime",
+	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() || "示例大学本科学生国家奖学金评审办法",
+	"--expect-model-execution-state",
+	"go_provider_synthesis_completed",
+	"--restart-campus-web",
 ];
 
 const child = spawn("pnpm", args, {
 	cwd: new URL("..", import.meta.url),
 	env: {
 		...process.env,
-		AGENT_RUNTIME_PROVIDER:
-			process.env.AGENT_RUNTIME_PROVIDER ||
-			process.env.PROMPT_RUNTIME_PROVIDER ||
-			"openai-responses",
-		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
-		SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED:
-			process.env.SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED || "true",
-		SUPERVISOR_API_TIMEOUT_MS: process.env.SUPERVISOR_API_TIMEOUT_MS || localRealProviderTimeoutMs,
-		SUPERVISOR_API_REQUEST_TIMEOUT_MS:
-			process.env.SUPERVISOR_API_REQUEST_TIMEOUT_MS || localRealProviderSupervisorTimeoutMs,
-		SUPERVISOR_AGENT_WORKER_TIMEOUT_MS:
-			process.env.SUPERVISOR_AGENT_WORKER_TIMEOUT_MS || localRealProviderSupervisorTimeoutMs,
+		EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:
+			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
+			process.env.AGENT_RUNTIME_SHARED_SECRET ||
+			"agent-runtime-local-placeholder",
+		AGENT_RUNTIME_SHARED_SECRET:
+			process.env.AGENT_RUNTIME_SHARED_SECRET ||
+			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
+			"agent-runtime-local-placeholder",
+		EXECUTION_CONTROL_TIMEOUT_MS:
+			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderTimeoutMs,
+		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:
+			process.env.EXECUTION_CONTROL_RUNTIME_CONFIG_PATH ||
+			"/etc/campus-agent/runtime-config.local-real-provider.json",
 	},
 	stdio: "inherit",
 });

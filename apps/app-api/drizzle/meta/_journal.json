@@ -246,6 +246,167 @@
       "when": 1780566000000,
       "tag": "0034_durable_run_backlink",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1780963200000,
+      "tag": "0035_tool_naming",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781182473970,
+      "tag": "0036_silky_prowler",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781193665476,
+      "tag": "0037_fat_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1780637623167,
+      "tag": "0038_numerous_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781001301690,
+      "tag": "0039_known_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781192720039,
+      "tag": "0040_condemned_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781510400000,
+      "tag": "0041_dining_floorplan_manifest_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1781683200000,
+      "tag": "0042_provider_config_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1781683200001,
+      "tag": "0043_profile_memory_runtime_ref",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1781693033566,
+      "tag": "0044_concerned_carmella_unuscione",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1781740800000,
+      "tag": "0045_model_execution_observability",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1781740800001,
+      "tag": "0046_provider_config_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781827200000,
+      "tag": "0047_langfuse_eval_backlink_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0048_request_usage_summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1782111391880,
+      "tag": "0049_context_turn_branch_control",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782172800000,
+      "tag": "0050_simplify_dining_offerings",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1782246773687,
+      "tag": "0051_foamy_umar",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1782256320055,
+      "tag": "0052_worker_autoscaler_posture",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1782604800000,
+      "tag": "0053_retire_eval_projection_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1782691200000,
+      "tag": "0054_retire_langfuse_eval_backlink_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1782828530065,
+      "tag": "0055_nullable_dining_price_label",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1782864000000,
+      "tag": "0056_dining_source_observation_incremental",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1782950400000,
+      "tag": "0057_rename_authenticated_notice_source_run_token",
+      "breakpoints": true
     }
   ]
 }

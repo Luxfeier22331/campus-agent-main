@@ -17,7 +17,7 @@ def add_repo_venv_site_packages() -> None:
 
 def add_workspace_sources() -> None:
     add_repo_venv_site_packages()
-    for base in ("apps", "packages"):
+    for base in ("apps", "jobs", "packages"):
         base_path = ROOT / base
         if not base_path.exists():
             continue

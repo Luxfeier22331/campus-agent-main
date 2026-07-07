@@ -1,8 +1,10 @@
 ---
 doc_type: reference
+truth_scope: eval
+owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-03-27
-updated: 2026-04-20
+updated: 2026-06-27
 ---
 # Student Handbook Eval Metrics
 
@@ -18,7 +20,7 @@ updated: 2026-04-20
 边界：
 
 - live rebuild、collection schema、points count 与 query 验收步骤仍以
-  `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
+  `docs/runbooks/rag-release.md` 为准
 - 本文不承担当前执行状态板
 - 本文不长期暴露 `.tmp` artifact 路径
 
@@ -27,12 +29,19 @@ updated: 2026-04-20
 repo-tracked 基线入口固定为：
 
 - retrieval qrels：
-  `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
-- workflow / release gate： `packages/evals/src/campus_evals/scenarios.py`
-- supplemental policy：
-  `packages/evals/fixtures/student_handbook_judge_gate_policy.json`
-- live benchmark entry： `uv run --all-packages python -m
-  campus_evals.handbook_live_benchmark ...`
+  `packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json`
+- answer quality cases：
+  `packages/eval-langfuse/assets/datasets/rag/student_rules/answer_quality_cases.v1.json`
+
+这些 repo-tracked assets 是公开 source-clean synthetic examples，只验证
+schema、dataset manifest、qrels-only projection 和 answer-quality contract
+形状。真实 handbook gold truth / release denominator 不在公开仓库 assets 中
+发布，应通过私有 asset root 或 Langfuse dataset 进入 eval loop。
+
+历史 workflow / release acceptance fixture 与 judge policy fixture 已从
+`packages/eval-langfuse` active package 删除。后续 release-closeout observation 应由 owning
+runtime 产出 sanitized observation，再通过 Langfuse datasets / Ragas scoring 或
+明确的新 benchmark adapter 消费；不得恢复 corpus-specific Python live runner。
 
 ## Accepted Release Baseline Snapshot
 
@@ -66,8 +75,8 @@ repo-tracked 基线入口固定为：
 
 `student_rules` gate 固定拆成两条轨道：
 
-- live release gate
-  - 验证真实 handbook collection 上的稳定主链路
+- release acceptance gate
+  - 验证真实 `student_rules` collection 上的稳定主链路
   - 覆盖 `completed`、`needs_clarification`、`no_answer`
 - deterministic error gate
   - 通过受控故障注入验证 `error` 终态、fail-close 和 trace error path
@@ -80,40 +89,21 @@ repo-tracked 基线入口固定为：
 
 ## Retrieval Baseline
 
-accepted retrieval benchmark 固定为以下 repo-tracked denominator：
+accepted retrieval benchmark 的历史数值来自私有/历史 benchmark record，不再由
+公开 repo-tracked synthetic fixture denominator 直接代表。
 
-- total cases：`13`
-- `Hit@1 = 1.0`
-- `Hit@3 = 1.0`
-- `Recall@5 = 0.9743589743589743`
-- `Precision@5 = 0.35384615384615387`
-- `MRR@5 = 1.0`
-- `forbidden_hit_rate = 0.0`
+当前公开 synthetic qrels denominator：
 
-split 汇总：
-
-- `regression_locked`
-  - total cases：`4`
-  - `Hit@1 = 1.0`
-  - `Hit@3 = 1.0`
-  - `Recall@5 = 1.0`
-  - `Precision@5 = 0.2`
-  - `MRR@5 = 1.0`
-  - `forbidden_hit_rate = 0.0`
-- `smoke`
-  - total cases：`9`
-  - `Hit@1 = 1.0`
-  - `Hit@3 = 1.0`
-  - `Recall@5 = 0.9629629629629629`
-  - `Precision@5 = 0.4222222222222223`
-  - `MRR@5 = 1.0`
-  - `forbidden_hit_rate = 0.0`
+- total cases：`6`
+- `smoke = 2`
+- `curated = 1`
+- `regression = 3`
 
 解释：
 
-- `regression_locked` 已收敛到全量 top-rank 正确命中
-- `smoke` 的 `Recall@5 < 1.0` 表示 qrels 允许多相关文档并存
-- `Precision@5` 在这里不应被误读为失败信号
+- public synthetic fixture 不承诺线上 retrieval 指标。
+- historical accepted retrieval metrics 需要从对应 private benchmark record
+  或 Langfuse run 中解释。
 
 ## Workflow And Error Baseline
 
@@ -167,10 +157,10 @@ deterministic error gate 固定为：
 
 实现落点：
 
-- [backend_qdrant.py](/home/reptilian/code/campus-agent/packages/retrieval-core/
-  src/campus_retrieval_core/backend_qdrant.py)
-- [test_backend_qdrant.py](/home/reptilian/code/campus-agent/tests/retrieval/tes
-  t_backend_qdrant.py)
+- 旧 Python `packages/retrieval-core` / `tests/retrieval` 实现已从 active workspace
+  删除；该 marker 现在只保留为 regression behavior 说明
+- 后续等价检查应落在 Go-owned retrieval runtime seam 与 repo-owned qrels /
+  release acceptance closeout artifact 上
 
 ## Maintenance Rules
 
@@ -178,6 +168,6 @@ deterministic error gate 固定为：
 - 一次性 acceptance/rerun 历史、补救过程和 `.tmp` 目录不再长期挂在本文
 - 只有在以下情况才更新这里：
   - release-gate denominator 改变
-  - qrels denominator 改变
+  - public synthetic qrels denominator 改变
   - accepted baseline verdict 改变
   - supplemental accepted baseline 改变

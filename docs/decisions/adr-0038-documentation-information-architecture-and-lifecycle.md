@@ -1,22 +1,29 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0038
 status: accepted
 created: 2026-04-12
-updated: 2026-04-22
+updated: 2026-06-27
 ---
 # ADR-0038 Documentation Information Architecture And Lifecycle
 
 ## 状态
 
-Accepted on 2026-04-12.
+Accepted on 2026-04-12. Updated on 2026-06-08 to remove tracked planning/archive
+trees from branch tip; historical planning material is now recovered through git
+history instead of a tracked `docs/plans` or `.planning/workstreams` archive.
+Updated on 2026-06-27 to add short-name and narrow-capability single-document
+governance.
 
 ## 背景
 
 `campus-agent` 的架构方向已经基本稳定，但文档系统出现了明显漂移：
 
 - `README.md` 与 `docs/README.md` 逐渐退化成超长入口清单
-- `docs/plans/` 中存在明显已完成或只剩历史价值的文档，却仍保留 `active`
+- tracked planning / archive trees 中存在明显已完成或只剩历史价值的文档，却仍保留为默认
+  branch-tip 噪音
 - `docs/` 与 `.planning/` 的边界虽然口头存在，但入口页没有持续执行
 - ADR 基本只有 `accepted`，缺少更清晰的 lifecycle 语义
 - 某些 plan 正文仍保留 agent/tool 专属协作噪音，而不是长期可引用内容
@@ -55,16 +62,15 @@ Accepted on 2026-04-12.
   - reference-oriented 稳定真相
 - `runbooks/`
   - how-to oriented 可重复操作步骤
-- `docs/plans/archive/`
-  - archived implementation snapshots、supporting references 与 superseded
-    predecessor
 - `.planning/`
-  - live execution state、native workstream entry、phase artefacts 与
-    worktree-local execution context
+  - compact project truth 与 active work map
+- git history
+  - archived implementation snapshots、phase artefacts、superseded predecessor 与
+    historical workstream material
 
 这意味着：
 
-- `plans/` 不承担当前 merged truth
+- removed planning archives 不承担当前 merged truth
 - `.planning/` 不承担长期 canonical architecture index
 - `reference/` 不承担 phase 状态
 
@@ -95,29 +101,23 @@ Accepted on 2026-04-12.
 
 - 文档 front matter 的 `status` 只表达该文档自己的 lifecycle，不表达 repo 级 workstream registry
   state
-- `.planning/WORKSTREAMS.md` 中的 `active / deferred / backlog / legacy` 是
-  planning registry 语义，不是 `docs/plans/*.md` 的第二套 front matter 枚举
+- `.planning/WORKSTREAMS.md` 中的 owner areas / backlog signals 是 compact
+  active work map 语义，不是历史 plan front matter 的第二套枚举
 - 因此 backlog entry plan 继续使用 `status: deferred`；`backlog` 只在
   registry、索引说明和正文解释里出现，不新增为 plan front matter status
 
-### 决策 4：已完成或历史性计划必须退出默认阅读路径
+### 决策 4：已完成或历史性计划必须退出 branch-tip tracked truth
 
-native workstream 的 live entry 固定迁到 `.planning/workstreams/<slug>/README.md`。
+tracked `.planning/workstreams`、`.planning/quick`、`.planning/legacy-flat`,
+`.planning/milestones`, `.planning/research`, `.planning/todos`,
+`.planning/codebase`, `.planning/seeds`, and `docs/plans` no longer carry
+branch-tip truth.
 
-`docs/plans/` 不再承载 active / deferred workstream entry；根层只保留索引页，archive namespace
-默认分成：
-
-- `completed`
-- `historical`
-- `superseded`
-
-这些 archived plan 不再进入根入口与默认阅读路径。
-
-`docs/plans/README.md` 只负责解释 archive contract，不再扮演 repo 级 active/deferred
-workstream registry。
-
-当 archived plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担
-archive 角色。
+Historical material is recovered through git history. If a historical decision,
+requirement, or evidence reference is still needed, recover only that specific
+content into an active architecture doc, ADR, contract, data doc, runbook, or
+compact planning entry. Do not restore the archive directory or use old phase
+status as current execution state.
 
 历史证据型 `reference` 和历史操作型 `runbook` 可以继续保留在 `docs/` 下，但必须：
 
@@ -146,20 +146,34 @@ archive 角色。
 
 这类协作信息只属于当轮执行产物，不属于 repo 的长期 source of truth。
 
+### 决策 7：短命名与窄能力单文档
+
+文档路径用目录表达上下文，文件名只表达对象本身。新增或重命名长期文档时，优先使用
+`transport.md`、`dining.md`、`status.md` 这类短名，避免在文件名中重复
+domain、source-truth、contract、schema 等目录语义。
+
+一个窄能力只能有一个 canonical human document。对于班车时刻表这类能力，tool
+contract、status projection、source/projection truth、config README 与 audit 结论不得再各自形成一份
+长期人类真相；它们应合并进同一能力文档，或降为 machine-readable schema、fixture、历史
+ADR / archive reference。
+
+JSON Schema、OpenAPI、fixture 与 registry 是 executable contract，可以单独存在。ADR
+保持历史 lifecycle，不为短命名治理而删除。
+
 ## 结果
 
 本 ADR 接受后，仓库应逐步完成以下收口：
 
 - 根 `README.md` 与 `docs/README.md` 缩回真正的入口页
 - 顶层文档分区补齐 `README.md`
-- native workstream entry 统一回到 `.planning/workstreams/<slug>/README.md`
-- `docs/plans/` 收口为 archive-only namespace
+- tracked planning truth 收口为 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`
+- historical planning archives 退出 branch tip，通过 git history 恢复
 - 后续文档清理按 lifecycle 继续推进，而不是继续向入口页堆内容
+- 窄能力按一个 canonical human document 收口；机器 contract 单独保留，重复人类文档删除或并入
 
 ## 关联文档
 
 - `docs/README.md`
-- `docs/architecture/current-architecture.md`
-- `docs/plans/README.md`
+- `docs/architecture/current.md`
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`

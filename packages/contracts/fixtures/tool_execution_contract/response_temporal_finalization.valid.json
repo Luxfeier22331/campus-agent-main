@@ -1,0 +1,54 @@
+{
+	"selected_tool": "knowledge_query",
+	"status": "completed",
+	"answer_text": "示例奖学金按合成评审办法执行。",
+	"error": null,
+	"follow_up_question": "",
+	"confidence": "high",
+	"result": {
+		"evidence": {
+			"query_text": "示例学生奖学金评审办法",
+			"sources": [
+				{
+					"doc_id": "student_rules:national-scholarship",
+					"chunk_id": "student_rules:national-scholarship:chunk-001",
+					"source_title": "示例学生奖学金评审办法",
+					"snippet": "示例奖学金实行合成评审流程，坚持公开、公平、公正的原则。",
+					"source_ref": "campus-agent://regulations/student_rules/docs/student_rules:national-scholarship",
+					"structural_ref": "span://student_rules:national-scholarship/chunk-001"
+				}
+			]
+		},
+		"diagnostics": {
+			"semantic_outcome": "grounded_answer",
+			"grounding_verdict": "supported",
+			"model_execution_state": "go_provider_synthesis_completed",
+			"model_execution_detail": "provider_execution_summary_v1",
+			"answer_artifact_ref": "provider://requests/run_temporal_finalization/synthesis",
+			"provider_response_ref": "resp_temporal_finalization",
+			"provider_pricing_ref": "provider-pricing-v1",
+			"retrieval_stage_ref": "projection://runs/run_temporal_finalization/retrieval/indexed-lookup",
+			"evidence_selection_ref": "projection://runs/run_temporal_finalization/evidence/selection",
+			"synthesis_step_ref": "projection://runs/run_temporal_finalization/synthesis",
+			"step_projection_schema": "step-result-projection-v1"
+		}
+	},
+	"observability": {
+		"selected_tool": "knowledge_query",
+		"result_outcome": "grounded_answer"
+	},
+	"workflow_trace_summary": {
+		"workflow_mode": "single_step",
+		"selected_tool": "knowledge_query",
+		"selected_tools": ["knowledge_query"],
+		"answer_artifact_kinds": ["provider_execution_summary"],
+		"answer_artifact_refs": ["provider://requests/run_temporal_finalization/synthesis"],
+		"runtime_versions": {
+			"provider_summary": "provider_execution_summary_v1"
+		},
+		"policy_artifact_versions": {
+			"provider_pricing": "provider-pricing-v1"
+		}
+	},
+	"trace_id": "trace-temporal-finalization"
+}

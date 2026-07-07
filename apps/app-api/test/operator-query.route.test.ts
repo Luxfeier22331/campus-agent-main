@@ -1,13 +1,13 @@
 // @vitest-environment node
 
-import { registerOperatorQueryObservabilitySuite } from "./operator-query.route.observability.suite";
-import { registerOperatorQueryQualitySuite } from "./operator-query.route.quality.suite";
 import { registerOperatorQueryRequestDetailSuite } from "./operator-query.route.request-detail.suite";
 import { registerOperatorQueryRequestsListSuite } from "./operator-query.route.requests-list.suite";
-import { registerOperatorQuerySafetyCostAuditSuite } from "./operator-query.route.safety-cost-audit.suite";
+import { registerOperatorQueryRetiredRoutesSuite } from "./operator-query.route.retired.suite";
+import { registerOperatorQueryRuntimeHealthSuite } from "./operator-query.route.runtime-health.suite";
+import { registerOperatorQueryRuntimeOpsSuite } from "./operator-query.route.runtime-ops.suite";
 
 registerOperatorQueryRequestsListSuite();
 registerOperatorQueryRequestDetailSuite();
-registerOperatorQueryObservabilitySuite();
-registerOperatorQueryQualitySuite();
-registerOperatorQuerySafetyCostAuditSuite();
+registerOperatorQueryRuntimeHealthSuite();
+registerOperatorQueryRuntimeOpsSuite();
+registerOperatorQueryRetiredRoutesSuite();

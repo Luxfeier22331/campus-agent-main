@@ -3,17 +3,21 @@ export {
 	buildBetterAuthConfig,
 	buildEndUserEmailAdmissionPolicy,
 	createAppAuth,
+	enforceSignupLegalConsent,
 	getAppAuth,
 	handleAuthRequest,
 	hashAppPassword,
 	isEndUserEmailAllowedForAuth,
 	probeAppAuthRuntime,
 	resolvePasswordResetRedirectTarget,
+	SIGNUP_LEGAL_CONSENT_HEADER_NAME,
+	SIGNUP_LEGAL_CONSENT_HEADER_VALUE,
 	verifyAppPassword,
 } from "./auth";
 export type {
 	AppPermissions,
 	AppPrincipalPayload,
+	AppPrincipalType,
 	AppSessionPayload,
 	AuthorizationProjectionSource,
 	BetterAuthSessionPayload,
@@ -22,7 +26,6 @@ export type {
 	ExecutionAuthorizationContext,
 	ExecutionAuthorizationRetrievalFilter,
 	InternalEvalPrincipalInput,
-	OfficialWebCollectorPrincipal,
 	ResolvedAppPrincipal,
 	WeChatOfficialAccountCollectorPrincipal,
 } from "./principal";
@@ -34,7 +37,6 @@ export {
 	mapOperatorHeadersToPrincipal,
 	mapSessionToAppPrincipal,
 	mapSessionToCampusMemberPrincipal,
-	resolveOfficialWebCollectorPrincipal,
 	resolveRequestPrincipal,
 	resolveWeChatOfficialAccountCollectorPrincipal,
 } from "./principal";

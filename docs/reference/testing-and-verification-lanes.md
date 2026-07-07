@@ -1,235 +1,313 @@
 ---
 doc_type: reference
+truth_scope: repository
+owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-04-26
+updated: 2026-07-03
 ---
 # Testing And Verification Lanes
 
-## 文档边界
+## Boundary
 
-这份文档只固定当前仓库的验证入口语义，不重复：
+This document names the stable verification lanes and their meaning. It does not
+replace architecture, app-local README commands, release runbooks or CI
+configuration.
 
-- 长期架构边界：`docs/architecture/target-architecture.md`
-- `app-api` Worker 形态：`docs/architecture/system/product-runtime-architecture.md`
-- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
-  `STATE.md`
+## CI Model
 
-## 仓库级 lane
+GitHub Actions keeps one automatic PR / develop / main workflow:
+`.github/workflows/pr-checks.yml`.
 
-### Repo Lint Lane
+- Workflow responsibility: event trigger, changed-surface detection and the
+  stable `required-checks` aggregate job.
+- Script responsibility: all verification behavior lives behind root
+  `package.json` `ci:*` lanes and must be locally reproducible.
+- Branch protection should require `pr-checks / required-checks`, not every
+  conditional job name. Conditional jobs may be skipped when their surface is
+  untouched.
+- When the private repository plan cannot enable branch protection / rulesets,
+  the same rule is enforced manually: do not merge to `develop` until
+  `pr-checks / required-checks` is success.
+- Skipped conditional jobs are acceptable only when changed-surface detection
+  correctly marks the untouched surface as out of scope.
 
-命令：
+Manual workflows remain separate for image build / push and controlled release
+validation. They must not become ordinary PR blockers. Ragas/Langfuse scoring
+is an internal eval shell/runtime lane, not a GitHub Actions workflow.
 
-```bash
-pnpm web:lint
-pnpm docs:lint
-pnpm public-docs:lint
-pnpm coverage:lint
-pnpm java:lint
-pnpm editorconfig:lint
-pnpm env:lint
-pnpm html:lint
-pnpm yaml:lint
-pnpm toml:lint
-pnpm shell:lint
-pnpm xml:lint
-pnpm jsonl:lint
-pnpm sql:lint
-pnpm docker:lint
-pnpm lock:lint
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
-```
+## Scheduled Full Health Checks
 
-语义：
+`.github/workflows/scheduled-checks.yml` runs full non-release health checks on
+a weekly schedule and through manual dispatch. It is for drift / regression
+detection after PR-level affected checks have kept ordinary feedback cheap.
 
-- 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
-- JS/TS 与 JSON/JSONC config 侧使用 Biome，默认检查当前 worktree live
-  files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked +
-  untracked 文件，以及 repo-owned root JSON/JSONC config（如
-  `package.json`、`turbo.json`、`biome.jsonc`、`.markdownlint-cli2.jsonc`）；默认忽略
-  unknown file types
-- Markdown 侧通过 repo-owned runner 调用 `markdownlint-cli2`，覆盖当前 worktree 中的 root
-  live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth
-  文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
-  historical plan 文档、vendor、`node_modules`、scratch markdown，以及
-  `apps/public-docs/docs/**` 生成文档
-- public-docs generated 侧通过 repo-owned checker 覆盖
-  `apps/public-docs/docs/**/*.md` 与 `apps/public-docs/docs/**/*.mdx`；该 lane 面向
-  canonical / reader projection 产物，允许为表格保真使用 HTML table 与长行，但 fail-close
-  检查空文档、frontmatter 结构、Git conflict marker、restricted collection marker 与内部
-  locator 泄漏
-- `coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
-  都被某个 lint lane 接管；它不扩到未跟踪文件
-- Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
-  repo-owned Python wrapper 调用 Docker `lint` target，并在容器内执行 `mvn
-  spotless:check`；默认检查当前 worktree 文件，不承担 Checkstyle / PMD / SpotBugs 这类更强规则治理
-- EditorConfig 侧使用 `editorconfig-checker`，覆盖 repo dotfile
-  config（`.editorconfig`、`.gitignore`、`.gitattributes`）；该 lane 通过 repo-owned
-  wrapper 检查当前 worktree 中未被其他 lint 入口覆盖的 dotfile surface
-- env example 侧使用 repo-owned Python checker，覆盖当前 worktree 的 `*.env.example` 与
-  `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前要求 `KEY=VALUE` 结构、key
-  命名合法且不重复，并禁止 comment / value 尾随空白或 value 前后空白；仍不做跨文件一致性治理
-- HTML 侧使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
-  解析与最小文档结构校验；当前要求存在 `<!doctype html>`、单一 `html/head/body`，以及非空 `<title>`；默认排除
-  `.planning/`、临时目录、vendor 与 `node_modules`
-- YAML 侧通过 repo-owned runner 调用 `pre-commit` 的 `check-yaml` hook，检查当前 worktree
-  YAML files，默认排除 `.planning/`
-- TOML 侧使用 repo-owned Python checker，对当前 worktree `*.toml` 做 `tomllib` 结构校验
-- shell 侧使用 repo-owned Python checker，对当前 worktree `*.sh` 做 `bash -n` 语法校验
-- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm lint`
-- XML 侧使用 repo-owned Python checker，对当前 worktree `*.xml` 做 well-formedness 结构校验
-- JSONL 侧使用 repo-owned Python checker，对当前 worktree `*.jsonl` 做逐行 JSON object
-  校验，并对 repo 当前已承诺的 sample 形状做最小 schema
-  守卫：`provider-result*.jsonl`、`layout-elements*.jsonl`、`*.structured.jsonl`
-  必须保留对应核心字段；当前仍不扩成通用 schema 平台
-- SQL 侧使用 repo-owned Python wrapper 调用 `sqlfluff parse --dialect postgres`，对当前
-  worktree `*.sql` 做可解析性校验；当前不承担 SQL 风格治理
-- Dockerfile 侧使用 repo-owned Python wrapper 调用 `hadolint`，覆盖当前 worktree
-  Dockerfile surface，并已并入默认 `pnpm lint`
-- lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
-  - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对当前 worktree app-local
-    `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
-  - `uv-lock:lint` 通过 `uv lock --check --offline` 校验 repo root `uv.lock` 是否仍与当前
-    Python dependency truth 同步
-- app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json`
-  变化，lockfile 必须同步刷新
-- Python 侧使用 Ruff，同时承担 import 排序与格式检查；当前 repo 默认门禁包含 `W` 与 `B904`
-- 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
+- It runs `pnpm ci:repo-static`, `pnpm ci:web-graph:full`,
+  `uv run --all-packages python -m unittest discover -s tests -t .`,
+  `pnpm ci:go` and `pnpm ci:deps:vuln`.
+- It must not define `pull_request` triggers or participate in
+  `pr-checks / required-checks`.
+- It may use explicitly allowed CI infrastructure credentials, such as Turbo
+  Remote Cache variables on Turbo jobs. It must not use deploy, provider,
+  database, object-store, eval publishing or release credentials.
+- It is not a PR blocker, release closeout, deployment validation, eval scoring
+  lane or image publishing lane.
 
-### Python Baseline
+## Security / Supply Chain Lanes
 
-命令：
+CodeQL / code scanning, Dependency Review and artifact attestations are security
+and supply-chain lanes with GitHub plan / repository setting prerequisites for
+private repositories. Do not add them as ordinary PR blockers until the required
+GitHub security features are confirmed for this repository.
 
-```bash
-uv run --all-packages python -m unittest discover -s tests -t .
-```
+- Secret scanning:
+  - `pnpm ci:secrets` runs Gitleaks against the current repository tree and is
+    part of `pr-checks / required-checks`.
+  - `pre-commit` also runs the Gitleaks staged-file hook for local hygiene.
+  - It does not replace GitHub Secret Protection when that feature becomes
+    available.
+- Dependency vulnerability scanning:
+  - `pnpm ci:deps:vuln` runs OSV-Scanner against root `pnpm-lock.yaml` and
+    `uv.lock`.
+  - It is scheduled / manual by default, not an ordinary PR blocker.
+  - Dependabot or dependency-risk PRs may run it explicitly and record the
+    result in the PR.
+- Workflow security:
+  - `pnpm ci:config:lint` includes actionlint, repo-owned workflow contract
+    checks and workflow action policy checks.
+  - Trusted version-tagged actions are allowlisted; new untrusted actions must
+    use a full commit SHA or be added to the policy with a reason.
+  - Workflow secret rules are capability-based. CI infrastructure credentials
+    may be allowed on the narrow job that consumes them. Deploy, provider,
+    database, object-store, eval publishing and release credentials remain
+    manual or protected-environment only.
+- CodeQL / code scanning:
+  - Private repositories require GitHub Code Security / Advanced Security before
+    code scanning can be enabled.
+  - Prefer GitHub default setup after the feature is available. Add an advanced
+    workflow only when this monorepo needs explicit build or language control.
+  - It is not represented by a repo-owned workflow until the prerequisite is
+    confirmed.
+- Dependency Review:
+  - The action is available for public repositories and for private repositories
+    with GitHub Code Security / Advanced Security enabled.
+  - Until that prerequisite is confirmed, Dependabot PRs use their dependency
+    surface plus the documented verification commands as the enforceable rule.
+  - After enablement, make it a dependency-change PR blocker, not a universal
+    PR blocker.
+- Artifact attestations / SBOM / SLSA:
+  - Use only for real release artifacts, such as pushed container images or
+    release bundles.
+  - Do not generate provenance for ordinary PR checks, repo static checks,
+    scheduled health checks or workflows that do not publish a release artifact.
+  - For private / internal repositories, confirm the required GitHub plan before
+    adding attestation steps.
 
-语义：
+## PR Blocker Lanes
 
-- 这是仓库级 Python 基线验证入口
-- Python 侧继续独立运行在 `uv` / `unittest` 链路，不并入 `pnpm` / `vitest`
+- Always-on PR blockers:
+  - `pnpm ci:repo-guard`
+  - `pnpm ci:repo-static:affected` on pull requests
+  - `pnpm ci:config:lint`
+  - `pnpm ci:secrets`
+  - `pr-checks / required-checks`
+- Push-to-`develop` / `main` full static blocker:
+  - `pnpm ci:repo-static`
+- Conditional PR blockers from changed-surface detection:
+  - `pnpm ci:web-graph:affected`
+  - `pnpm ci:worker-runtime`
+  - `pnpm ci:contracts`
+  - `pnpm ci:go`
+  - `pnpm ci:langfuse`
+  - `pnpm ci:ingestion`
 
-### JS/TS Stable Gate
+## Repo Lanes
 
-命令：
+- `pre-commit`
+  - Local developer hygiene hook for lightweight file checks such as large
+    files, merge conflicts, JSON / TOML / YAML parseability, EOF and trailing
+    whitespace, plus staged secret scanning through Gitleaks.
+  - It is the only repository-level local hook system. Do not add Husky,
+    lint-staged, lefthook or root `prepare` hooks unless a separate governance
+    decision replaces this policy.
+  - Not a typecheck, unit test, build, runtime smoke, CI replacement or release
+    closeout.
+- `pnpm repo:guard`
+  - Fast collaboration / docs structure / workspace layout guard.
+  - Not a lint, build, test, runtime validation or release closeout.
+- `pnpm repo:static`
+  - Repo-wide static gate for live tracked surfaces: docs, configs, env examples,
+    JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, HTML checker,
+    Biome, Ruff format checks and decomposition guard.
+  - The lane is based on tracked + current worktree files selected by the repo
+    checker; untracked 文件 do not demonstrate branch-tip compliance until they
+    are intentionally added.
+  - The HTML checker validates tracked + untracked 文件 matched by the live
+    HTML pathspecs; it is part of repo static structure validation, not browser
+    runtime validation.
+  - PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`。
+  - Not a typecheck, unit test, integration test or E2E validation.
+- `pnpm repo:static:affected`
+  - Local changed-file static lane against `origin/develop`.
+  - Skips unrelated heavy checks such as Dockerfile lint when the affected file
+    set does not touch those surfaces.
+  - Not a replacement for CI / release full `pnpm repo:static`.
+- `pnpm ci:repo-static:affected`
+  - CI wrapper for PR affected static checks.
+- `pnpm ci:config:lint`
+  - CI workflow / lane contract check through actionlint, repo-owned workflow
+    contract checks and workflow action policy checks.
+  - It proves automation shape, not business runtime behavior.
+- `pnpm ci:secrets`
+  - Gitleaks current-tree secret scan.
+  - Requires the `gitleaks` CLI locally; the wrapper fails closed with the
+    pinned install command when the CLI is missing, and CI installs Gitleaks
+    before calling the script.
+  - Not a full historical secret audit and not a replacement for GitHub Secret
+    Protection.
+- `pnpm ci:deps:vuln`
+  - OSV-Scanner dependency vulnerability scan over root `pnpm-lock.yaml` and
+    `uv.lock`.
+  - Runs in scheduled checks and may be used for Dependabot / dependency-risk
+    PRs.
+  - Requires the `osv-scanner` CLI locally; the wrapper fails closed with the
+    pinned install command when the CLI is missing.
+- `uv run --all-packages python -m unittest discover -s tests -t .`
+  - Repo Python baseline through `uv` / `unittest`.
+- `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:web-graph:full`
+  - JS/TS stable graph checks.
+  - `pnpm web:test` is the stable default lane, not all Worker / integration
+    tests.
+- `pnpm web:build`
+  - Full JS/TS build lane.
+  - It is not a hermetic public-clone PR blocker because `campus-web`
+    `build:docs` needs an existing public docs sync manifest or access to the
+    app-api operator database through `APP_API_OPERATOR_DATABASE_URL`.
+- `pnpm web:test:worker`
+  - Explicit Worker runtime lane for app-api, campus-web and
+    operator-console-web.
+- `pnpm web:test:integration`
+  - Explicit external dependency integration lane; currently app-api shared DB
+    integration.
 
-```bash
-pnpm web:typecheck
-pnpm web:test
-pnpm web:build
-```
+## Conditional CI Lanes
 
-语义：
+- `pnpm ci:web-graph:affected`
+  - Affected JS/TS typecheck / test lane for app, package and job code.
+  - Used by PR CI when changed-surface detection marks `web_graph=true`.
+- `pnpm ci:worker-runtime`
+  - Worker runtime test lane for app-api, campus-web and operator-console-web.
+  - Used by PR CI when Worker app or runtime config files change.
+- `pnpm ci:contracts`
+  - Contract schema generation/checks plus contract unittest suite.
+  - Used by PR CI when contracts, runtime schemas or contract tests change.
+- `pnpm ci:go`
+  - Execution-control Go static checks and tests.
+  - Used by PR CI when execution-control or runtime tool config changes.
+- `pnpm ci:langfuse`
+  - Eval-langfuse typecheck/test plus app-api Langfuse trace-id vector check.
+  - Used by PR CI when Langfuse, Ragas runner, telemetry or eval docs/contracts
+    change.
+- `pnpm ci:ingestion`
+  - Ingestion/data-plane Python unittest lane.
+  - Used by PR CI when ingestion apps, packages or ingestion tests change.
 
-- 这是仓库级 JS/TS 默认稳定门禁
-- `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
-- 当前它包含：
-  - `apps/app-api` 的 `test:node`
-  - `apps/public-chat-web` 的 `test:worker`
-  - `apps/protected-panel-web` 的 `test:worker`
+## PR Verification Decision Table
 
-### JS/TS Worker Lane
+| Changed surface | PR lane | Extra lane decision |
+| --- | --- | --- |
+| `.github/workflows/pr-checks.yml`, root package / turbo config or CI scripts | all conditional PR lanes through changed-surface detection | Run `pnpm ci:config:lint`; do not add new automatic workflows without updating this document. |
+| Other manual workflow files | `pnpm ci:config:lint` and `pnpm ci:repo-static:affected` | If the workflow can publish artifacts or use secrets, confirm manual-only triggers and environment / input guards. |
+| npm / pnpm workspace dependency files | `pnpm ci:web-graph:affected` | Dependabot PRs use the dependency surface rule above; run `pnpm ci:deps:vuln` for dependency-risk changes. Run `pnpm web:build` only when the docs manifest / operator DB env is available. Dependency Review waits for GitHub security feature enablement. |
+| `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
+| `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker-runtime` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
+| `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:langfuse` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
+| ingestion apps/packages/kernels | `pnpm ci:ingestion` plus web graph when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
+| release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
-命令：
-
-```bash
-pnpm web:test:worker
-```
-
-语义：
-
-- 这是显式 Worker runtime lane
-- 用于补跑 Worker shell、route admission、runtime readiness 与绑定契约
-- 当前它覆盖：
-  - `apps/app-api` 的 `test:worker`
-  - `apps/public-chat-web` 的 `test:worker`
-  - `apps/protected-panel-web` 的 `test:worker`
-
-### JS/TS Integration Lane
-
-命令：
-
-```bash
-pnpm web:test:integration
-```
-
-语义：
-
-- 这是显式外部依赖 integration lane
-- 当前仅映射到 `apps/app-api` 的 `test:shared-db-integration`
-- 它不属于默认 `pnpm web:test` 门禁
-- 该 lane 会显式检查 shared DB bootstrap / adoption 是否仍与 repo-owned snapshot 收敛；如果连接到的
-  shared DB 已漂移，会 fail-close
-- 当前 repo 的 repair 入口是 `pnpm --dir apps/app-api db:reconcile-shared-drift --
-  --json`
-
-### E2E QA Release Lane
-
-入口：
-
-```bash
-docs/runbooks/e2e-qa-release-runbook.md
-```
-
-语义：
-
-- 这是上线前真实 staging 验收 lane，不替代 unit、typecheck、build、lint 或 integration lane
-- 它只在真实 staging deployment、真实 auth/session、真实 browser surface、真实 data plane 与真实
-  observability sink 均存在时执行
-- 当前默认目标环境是 `mucwiki-edge.link` staging；`hub.muc.wiki` production custom-hostname
-  path 不属于当前 gate
-- 它串联 repo preflight、supervisor runtime readiness、public surface health、chat E2E、
-  docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification
-  与 data-plane sanity
-- 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`
-- 它不能使用 fallback、兜底、best-effort、silent recovery、`--expect-result-kind any` 或跳过
-  Access / auth / readyz 的方式标绿
-- Sentry closure 默认查询 Explore `spans`；issue-list endpoint 权限不足不是 staging
-  observability blocker
-
-对应 runbook：
-
-- `docs/runbooks/e2e-qa-release-runbook.md`
-- `docs/runbooks/templates/e2e-qa-release-artifact-template.md`
-
-## app-api lane 语义
-
-`apps/app-api` 同时承载 Node 业务逻辑测试与 Worker runtime 测试，因此 lane 明确拆分：
+## App / Runtime Lanes
 
 - `pnpm --dir apps/app-api test`
-  - 默认稳定 gate，等价于 `pnpm --dir apps/app-api test:node`
-- `pnpm --dir apps/app-api test:all`
-  - app-owned 聚合入口，统一运行本地非 DB Vitest projects（`node` + `worker`）
+  - App-api default Node lane.
 - `pnpm --dir apps/app-api test:worker`
-  - 显式 Worker runtime lane
+  - App-api Worker runtime lane.
 - `pnpm --dir apps/app-api test:shared-db-integration`
-  - 显式 shared Postgres / Better Auth integration lane
+  - Shared Postgres / Better Auth integration lane.
+- `pnpm --dir apps/campus-web test`
+  - Campus-web Worker lane.
+- `pnpm --dir apps/campus-web test:e2e`
+  - Campus-web local browser E2E lane through Playwright Test.
+  - Uses the local Cloudflare Vite dev server and deterministic browser-side
+    API mocks for product UI journeys.
+  - Focuses on React shell user journeys; docs / Worker route boundary coverage
+    belongs to `test:e2e:worker`.
+- `pnpm --dir apps/campus-web test:e2e:worker`
+  - Campus-web local Worker/docs browser E2E lane through Playwright Test.
+  - Uses the local Cloudflare Vite dev server without browser-side API mocks.
+  - Proves Worker-owned routes such as probes, docs redirects, missing docs
+    fail-closed behavior, protected docs asset denial and unknown API paths.
+  - Not staging release closeout and not part of the root web graph lane.
+- `pnpm --dir apps/operator-console-web test`
+  - Operator-console-web Worker lane.
+- `cd apps/execution-control && go test ./...`
+  - Go unit / integration lane using package tests and Temporal test
+    environment where applicable.
+- `cd apps/execution-control && go test -tags temporal_e2e ...`
+  - Explicit Temporal dev-server / test-server lane. It is not part of the
+    default Go lane.
+- `pnpm --dir apps/app-api hindsight:memory:e2e:staging`
+  - Explicit live Hindsight personal-memory lane through execution-control
+    internal memory commands.
+  - It verifies async append acceptance, operation status/materialization confirmation,
+    operation list sanitized projection, recall, reflect, explicit profile memory
+    commands, owner disable and user isolation against a self-hosted Hindsight
+    runtime.
+  - Unit mocks or offline fixtures must not be reported as this live lane.
 
-对应配置文件：
+## Release / Staging Lanes
 
-- `apps/app-api/vitest.config.mts`
-  - Vitest projects 编排入口
-- `apps/app-api/vitest.node.config.mts`
-  - Node 默认稳定 lane
-- `apps/app-api/vitest.worker.config.mts`
-  - Worker runtime lane
-- `apps/app-api/vitest.shared-db.config.mts`
-  - shared DB integration lane
+- `docs/runbooks/e2e-qa-release.md`
+  - Real staging release QA. It requires real deployment, auth/session, browser
+    surfaces, data plane and observability sinks.
+  - It must not use fallback expectations, skipped auth, skipped readyz or
+    `--expect-result-kind any` to pass.
+- `docs/runbooks/rag-release.md`
+  - Fresh RAG collection release / rebuild acceptance for current query-serving
+    collections.
+- `docs/runbooks/execution-smoke.md`
+  - Execution-control deployment smoke.
+- `docs/runbooks/worker-observability-smoke.md`
+  - Forward Worker observability preflight / post-deploy smoke.
+- `docs/runbooks/eval-ragas.md`
+  - Internal Ragas/Langfuse scoring shell/runtime procedure. It may publish
+    Langfuse scores only through configured internal eval credentials.
+- `.github/workflows/dining-sync-image.yml`
+  - Manual dining-sync image build / optional GHCR push workflow.
+  - It builds a local image, blocks on Trivy HIGH / CRITICAL findings, and
+    generates an SBOM artifact when `push_image=true`.
+- `.github/workflows/scorecard.yml`
+  - Scheduled / manual OpenSSF Scorecard security posture signal.
+  - It is not a PR blocker and must not be treated as branch protection
+    replacement while the repository cannot enforce rulesets.
+- `.github/workflows/scheduled-checks.yml`
+  - Scheduled / manual full repository health check.
+  - It is not a PR blocker and does not replace staging release closeout.
 
-## 单一 Worker app 语义
+## Rules
 
-`apps/public-chat-web` 与 `apps/protected-panel-web` 当前都只有单一 Worker test lane，因此：
-
-- `pnpm --dir apps/public-chat-web test` 等价于 `pnpm --dir apps/public-chat-web
-  test:worker`
-- `pnpm --dir apps/protected-panel-web test` 等价于 `pnpm --dir
-  apps/protected-panel-web test:worker`
-
-## 当前约束
-
-- 不要把 Node、Worker、Python 合并成一套单 runtime 测试链路
-- 不要把显式 integration lane 混入默认稳定 gate
-- 仓库级 JS/TS 验证优先走 repo root `pnpm` + `turbo` 入口；app-local 命令只用于聚焦单 app
-- Worker lane 在某些受限环境中可能需要允许本地监听端口
+- Run the smallest lane that proves the changed surface, then broader repo gates
+  when the change crosses boundaries.
+- Dependabot PRs must use their dependency surface as the verification surface:
+  GitHub Actions dependency updates run `pnpm ci:config:lint`, npm / pnpm
+  workspace updates run `pnpm ci:web-graph:affected`, and Go module updates run
+  `pnpm ci:go`. Run `pnpm ci:deps:vuln` when dependency risk is material.
+- CodeQL, Dependency Review and artifact attestations require an explicit
+  security / supply-chain lane decision before they become PR or release
+  requirements.
+- Do not treat release-closeout artifacts as main-chain architecture completion.
+- Do not treat static/lint success as runtime correctness.
+- Do not mix integration lanes into the default stable gate unless the changed
+  surface requires external dependency validation.
+- Record exact commands in PRs and final handoff; do not write "should pass".
+- Do not add CI behavior directly in workflow YAML when a root `ci:*` script can
+  own it. Workflow YAML should route; scripts should verify.

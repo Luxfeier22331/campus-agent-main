@@ -4,7 +4,7 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsAgenticRagSummariesSuite(unittest.TestCase):
-    def test_rag_agentic_depth_summaries_are_safe_public_contracts(self) -> None:
+    def test_knowledge_tool_depth_summaries_are_safe_public_contracts(self) -> None:
         diagnostics = RagResultDiagnostics(
             planner_information_needs=(
                 RagPlannerInformationNeed(
@@ -19,7 +19,7 @@ class ContractModelsAgenticRagSummariesSuite(unittest.TestCase):
             projection_context_summaries=(
                 RagProjectionContextSummary(
                     projection_id="projection:notice_context:test",
-                    source_step_id="handoff:notice-agent:campus_notice_get",
+                    source_step_id="handoff:notice:campus_notice_get",
                     projection_kind="notice_context",
                     content_hash="sha256:test",
                     safety_summary={"max_chars": 1600, "fields_present": ["title"]},
@@ -117,7 +117,7 @@ class ContractModelsAgenticRagSummariesSuite(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
             RagProjectionContextSummary(
                 projection_id="projection:notice_context:test",
-                source_step_id="handoff:notice-agent:campus_notice_get",
+                source_step_id="handoff:notice:campus_notice_get",
                 projection_kind="notice_context",
                 content_hash="sha256:test",
                 safety_summary={"raw_payload": "secret"},

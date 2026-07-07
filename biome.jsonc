@@ -15,13 +15,14 @@
 			"apps/**",
 			"packages/**",
 			"configs/**",
+			"docs/reference/eval/**",
 			"scripts/**",
 			"tests/**",
+			"!!apps/campus-web/public/vendor",
 			"!!.planning",
 			"!!.tmp",
 			"!!.worktrees",
 			"!!var",
-			"!!apps/public-chat-web/vendor",
 			"!!apps/app-api/drizzle/meta"
 		]
 	},

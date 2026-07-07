@@ -10,7 +10,7 @@ export interface BaseRequestTelemetry {
 	conversationId: string;
 	principalType?: string | null;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope?: RequestedScope | null;
 	resolvedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;
@@ -41,20 +41,28 @@ export interface AppTelemetry {
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
 	recordExecutionAuditEvent(input: {
-		bridgeDurationMs: number | null;
+		activityDurationMs: number | null;
 		decision: string | null;
 		durationMs: number | null;
 		eventType: string;
 		failureKind: string | null;
 		httpStatus: number | null;
-		lane: string | null;
+		taskQueue: string | null;
 		queueWaitMs: number | null;
 		requestId: string;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		retryable: boolean | null;
 		status: string;
 		surface: string;
 		traceId: string;
+	}): Promise<void>;
+	recordIdentityEndpoint(input: {
+		correlationId: string;
+		endpoint: string;
+		errorCode: string | null;
+		principalType: string | null;
+		status: number;
+		surface: string;
 	}): Promise<void>;
 	recordProjectionDrain(input: {
 		abandoned?: number;
@@ -80,8 +88,9 @@ export interface AppTelemetry {
 			durationMs: number;
 			errorCode: string | null;
 			retryable: boolean | null;
-			selectedTarget: string | null;
+			selectedTool: string | null;
 			sourceDocIds: string[];
+			stageTiming?: Record<string, unknown> | null;
 			status:
 				| "completed"
 				| "error"
@@ -98,24 +107,4 @@ export interface AppTelemetry {
 			retryable: boolean;
 		},
 	): Promise<void>;
-	recordQualitySampledGrade(input: {
-		collection: string | null;
-		gradeDomain: "grounding" | "citation" | "policy" | "intent";
-		gradeId: string;
-		gradeSource: string;
-		graderVersion: string;
-		modelName: string | null;
-		principalType: string;
-		rationaleSummary: string | null;
-		requestId: string;
-		requestStartedAt: string;
-		requestedCapability: string | null;
-		requestedScopeSummary: string | null;
-		sampledAt: string;
-		scoreMilli: number | null;
-		selectedTarget: string | null;
-		surface: string;
-		traceId: string;
-		verdict: "pass" | "fail" | "needs_review";
-	}): Promise<void>;
 }

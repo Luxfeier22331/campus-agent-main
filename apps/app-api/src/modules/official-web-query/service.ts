@@ -1,10 +1,10 @@
-import { AppApiRouteError } from "../../http";
-import type { ResolvedAppPrincipal } from "../auth";
 import type {
 	OfficialWebFetchDisposition,
 	OfficialWebPageChangeStatus,
 	OfficialWebRunIntent,
-} from "../official-web-command";
+} from "ingestion-contracts";
+import { AppApiRouteError } from "../../http";
+import type { ResolvedAppPrincipal } from "../auth";
 
 export interface OfficialWebArtifactRecord {
 	artifactType: string;

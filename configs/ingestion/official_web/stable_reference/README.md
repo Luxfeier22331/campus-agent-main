@@ -1,6 +1,6 @@
 # stable_reference collection config
 
-This directory holds the repo-tracked runtime profile for the `stable_reference`
+This directory holds the repo-tracked serving config for the `stable_reference`
 collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
@@ -8,7 +8,7 @@ collection within the `official_web` corpus.
 - this collection is the future stable-reference serving scope for public-web
   content derived from `official_web` source truth
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - serving surface: `stable_reference`
@@ -23,8 +23,8 @@ Current runtime truth:
 - collection prefix: `official_web_stable_reference`
 - repo-tracked split manifest:
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
-- repo-tracked retrieval qrels:
-  `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json`
+- repo-tracked retrieval qrels: the eval-langfuse-owned
+  `official_web_stable_reference` retrieval dataset
 
 Boundary notes:
 
@@ -37,10 +37,8 @@ Boundary notes:
   surface is admitted
 - it is now the first query-enabled `official_web/*` surface and should be
   consumed through the published alias `official_web_stable_reference`
-- it is the only default query-enabled official-web surface; `fresh_news` and
-  `news_archive` remain explicitly out of the default online answer path
+- it is the only default query-enabled official-web surface; `fresh_news`
+  remains explicitly out of the default online answer path
 - it is not a mirror for formal regulations or formal curriculum documents;
   those continue to belong to `regulations/*` and `curriculum/*`
-- `official_web/muc_public_pages` remains the mixed bridge for replay, QC, and
-  regression truth; it is no longer the forward-facing official-web query
-  surface
+- replay and QC now target explicit active collections

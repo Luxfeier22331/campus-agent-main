@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dining-sync-config
+  namespace: campus-agent-dining-sync
+data:
+  DINING_LARK_BASE_TOKEN: replace-me
+  DINING_LARK_CAMPUS_TABLE_ID: replace-me
+  DINING_LARK_DISH_TABLE_ID: replace-me
+  DINING_LARK_HALL_TABLE_ID: replace-me
+  DINING_LARK_REVIEW_TABLE_ID: replace-me
+  DINING_LARK_REVIEW_VIEW_ID: replace-me
+  DINING_LARK_STALL_TABLE_ID: replace-me
+  DINING_MODERATION_BASE_URL: https://ai.gitee.com/v1
+  DINING_MODERATION_IMAGE_MODEL: nsfw-classifier
+  DINING_MODERATION_TEXT_MODEL: Security-semantic-filtering
+  DINING_MODERATION_TIMEOUT_MS: "10000"
+  DINING_OBJECT_STORE_BUCKET: campus-dining-public
+  DINING_OBJECT_STORE_PUBLIC_BASE_URL: https://assets.example.invalid
+  DINING_OBJECT_STORE_REVIEW_PREFIX: dining/reviews
+  OBJECT_STORE_ENDPOINT: https://s3.example.invalid
+  OBJECT_STORE_REGION: us-east-1

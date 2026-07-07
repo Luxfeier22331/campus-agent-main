@@ -1,23 +1,33 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-04-26
+updated: 2026-06-15
 ---
 # ADR-0010 观测与遥测栈决策
 
 适用范围：`campus-agent` v2 的应用错误监控、trace、AI 调用观测、结构化运行事件、告警与数据最小化边界
 
+## 当前边界说明
+
+本文的 OpenTelemetry-first / Axiom / Sentry 分层决策仍有效。背景中涉及旧 Python
+supervisor、旧 Python knowledge/retrieval 在线链路的 runtime 拆分已由
+ADR-0048 与 `python-boundaries` 局部 supersede；当前 online execution /
+retrieval telemetry 由 `apps/execution-control`、Temporal、`agent-runtime` 与 typed
+activity workers 产出。
+
 ## 背景
 
 `campus-agent` 的长期运行形态不是单一 HTTP 服务，而是至少包含：
 
-- `apps/supervisor-api` 入口边界
-- `apps/supervisor-api` execution runtime、runtime policy、finalization 与审计投影
-- `apps/supervisor-agent-worker` private agent bridge
-- `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
-- `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
+- `apps/execution-control` 入口边界
+- `apps/execution-control` execution runtime、runtime policy、finalization 与审计投影
+- `agent-runtime` / typed activity workers 的 semantic execution surfaces
+- `apps/execution-control` 内部 retrieval seam / Go RAG Temporal graph 的在线回答链路
+- `apps/ingestion-control` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 
 因此系统需要同时满足两类不同的运行诉求：
@@ -86,7 +96,7 @@ updated: 2026-04-26
 
 默认进入 `Sentry` 的信息包括：
 
-- `apps/supervisor-api`、worker、consumer app 的未捕获异常与错误聚合
+- `apps/execution-control`、worker、consumer app 的未捕获异常与错误聚合
 - 慢请求、timeout、retry、外部依赖失败
 - 关键 runtime trace 与 downstream span
 - AI / LLM / agent 相关 span、token 使用与调用失败
@@ -183,9 +193,9 @@ redaction 与字段裁剪。
 
 - `apps/app-api` 接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product
   topology 的主 observability owner
-- `apps/public-chat-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+- `apps/campus-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
-- `apps/protected-panel-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+- `apps/operator-console-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
 - `Axiom` 当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest
   adapter，但不改变长期 `OTel -> Collector -> sink` 方向
@@ -204,8 +214,7 @@ redaction 与字段裁剪。
 
 ## 相关文档
 
-- `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/target.md`
+- `docs/architecture/system/durable-runtime.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

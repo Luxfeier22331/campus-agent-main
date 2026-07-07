@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import type { SupervisorExecutionResponse } from "../src/modules/integration";
+import type { ToolExecutionResponse } from "../src/modules/integration";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
@@ -48,16 +48,14 @@ function createPrincipal(): ResolvedAppPrincipal {
 	};
 }
 
-function createResponse(
-	overrides: Partial<SupervisorExecutionResponse> = {},
-): SupervisorExecutionResponse {
+function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExecutionResponse {
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedTarget: "rag-agent",
+		selectedTool: "knowledge_query",
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
@@ -72,7 +70,7 @@ describe("request observability", () => {
 			conversationId: "conv_01HQ",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -80,7 +78,7 @@ describe("request observability", () => {
 			resolvedScope: null,
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			versionQuery: {
 				compareToVersionId: "v2025-student-rules",
@@ -97,7 +95,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -109,11 +107,12 @@ describe("request observability", () => {
 			response: createResponse({
 				status: "completed",
 			}),
+			runId: "run_01HQ",
 			safetyIdentifier,
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			versionQuery: {
 				compareToVersionId: "v2025-student-rules",
@@ -152,15 +151,14 @@ describe("request observability", () => {
 				retrievalAdequacyVerdict: "insufficient",
 				resolvedEntityType: null,
 				resolvedPolicyDocumentId: "handbook:scholarship",
-				resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+				resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
 				resolvedProgramFamilyTitle: null,
 				remoteContentSuspicionSummary: {
 					flagLabels: ["instructional_imperative"],
 					flaggedSourceCount: 1,
 					generationBlocked: false,
 				},
-				retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
-				rewrittenQuery: "中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
+				retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
 				scopeClass: null,
 				semanticOutcome: null,
 				sessionProgram: null,
@@ -179,7 +177,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -189,11 +187,12 @@ describe("request observability", () => {
 				corpus: "regulations",
 			},
 			response: createResponse(),
+			runId: "run_01HQ",
 			safetyIdentifier: null,
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -226,7 +225,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("prefers explicit supervisor observability semantics when provided", () => {
+	it("prefers explicit execution observability semantics when provided", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-05T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -235,7 +234,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
@@ -264,8 +263,9 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -275,7 +275,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("persists structured tool and workflow trace summaries from supervisor response", () => {
+	it("persists structured tool and workflow trace summaries from execution response", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-13T08:00:01.000Z",
 			conversationId: "conv_workflow_01HQ",
@@ -284,7 +284,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_workflow_01HQ",
-			requestedCapability: "campus_services",
+			requestedTool: "transport_schedule_lookup",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
@@ -312,7 +312,7 @@ describe("request observability", () => {
 					toolFailCloseReason: null,
 					toolHistoricalDowngradeReason: null,
 				},
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				status: "completed",
 				workflowTraceSummary: {
 					contextResolution: {
@@ -325,7 +325,7 @@ describe("request observability", () => {
 					},
 					handoff: {
 						payload_kind: "transport_schedule_lookup",
-						target: "campus-services-agent",
+						target: "transport_schedule_lookup",
 					},
 					handoffChain: [],
 					contextProjections: [],
@@ -337,40 +337,40 @@ describe("request observability", () => {
 						suggested_next_action: "delegate",
 					},
 					runtimeVersions: {
-						"supervisor-api": "test",
+						"execution-control": "test",
 					},
-					selectedTarget: "campus-services-agent",
+					selectedTool: "transport_schedule_lookup",
 					selectedTools: ["transport_schedule_lookup"],
 					traceSteps: [],
 					toolCallSummaries: [],
 					toolArgumentSummary: {
 						payload_kind: "transport_schedule_lookup",
 					},
-					workflowMode: "direct_runtime",
+					workflowMode: "single_step",
 				},
 			}),
 			sourceDocIds: [],
 			startedAt: "2026-04-13T08:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_workflow_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
-			selectedTarget: "campus-services-agent",
 			selectedTool: "transport_schedule_lookup",
 			toolBusinessOutcome: "resolved_current",
 			toolFailCloseReason: null,
 			toolHistoricalDowngradeReason: null,
 			workflowTraceSummary: {
 				directVsDelegateBranch: "direct",
-				selectedTarget: "campus-services-agent",
+				selectedTool: "transport_schedule_lookup",
 				selectedTools: ["transport_schedule_lookup"],
 			},
 		});
 	});
 
-	it("projects prompt metadata and prompt runtime state from supervisor observability", () => {
+	it("projects prompt metadata and model execution state from execution observability", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-12T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -379,7 +379,7 @@ describe("request observability", () => {
 			errorCode: "prompt_runtime_failed",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -404,16 +404,16 @@ describe("request observability", () => {
 					modelProvider: "openai-responses",
 					outputTokens: 0,
 					policyReason: null,
-					promptRuntimeDetail: "content_filter",
-					promptRuntimeState: "content_filter",
+					modelExecutionDetail: "content_filter",
+					modelExecutionState: "content_filter",
 					promptTrace: {
 						modelName: "gpt-5.2-mini",
 						modelProvider: "openai-responses",
-						outputSchemaVersion: "v1",
-						promptId: "rag_answer_v1",
+						outputSchemaVersion: "v2",
+						promptId: "rag_synthesis_answer",
 						promptVersion: "v1",
 						templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-						variablesSchemaVersion: "v1",
+						variablesSchemaVersion: "rag_synthesis_packet.v1",
 					},
 					refusalClass: "no_answer",
 					retrievedSourceCount: 0,
@@ -425,23 +425,24 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
 			modelName: "gpt-5.2-mini",
 			modelProvider: "openai-responses",
-			promptId: "rag_answer_v1",
-			promptRuntimeDetail: "content_filter",
-			promptRuntimeState: "content_filter",
+			promptId: "rag_synthesis_answer",
+			modelExecutionDetail: "content_filter",
+			modelExecutionState: "content_filter",
 			promptVersion: "v1",
 			semanticOutcome: "unsupported_by_evidence",
 			templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		});
 	});
 
-	it("derives out-of-scope supervisor stop semantics from diagnostics when observability is absent", () => {
+	it("derives out-of-scope executionClient stop semantics from diagnostics when observability is absent", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-11T09:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -460,7 +461,6 @@ describe("request observability", () => {
 				resolvedPolicyTitle: null,
 				resolvedProgramFamilyTitle: null,
 				retrievedTitleSummary: [],
-				rewrittenQuery: null,
 				scopeClass: "out_of_scope",
 				semanticOutcome: null,
 				sessionProgram: null,
@@ -472,17 +472,18 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
-				selectedTarget: null,
+				selectedTool: null,
 			}),
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -491,7 +492,7 @@ describe("request observability", () => {
 			refusalClass: "out_of_scope",
 			scopeClass: "out_of_scope",
 			semanticOutcome: "out_of_scope",
-			selectedTarget: null,
+			selectedTool: null,
 		});
 	});
 
@@ -523,7 +524,6 @@ describe("request observability", () => {
 				resolvedPolicyTitle: null,
 				resolvedProgramFamilyTitle: null,
 				retrievedTitleSummary: ["习近平新时代中国特色社会主义思想概论"],
-				rewrittenQuery: null,
 				scopeClass: "in_scope",
 				semanticOutcome: null,
 				sessionProgram: null,
@@ -535,7 +535,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -548,8 +548,9 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
+			runId: "run_01HQ",
 		});
 
 		expect(fact).toMatchObject({
@@ -569,7 +570,7 @@ describe("request observability", () => {
 			refusalClass: "no_answer",
 			scopeClass: "in_scope",
 			semanticOutcome: "unsupported_by_evidence",
-			selectedTarget: "rag-agent",
+			selectedTool: "knowledge_query",
 		});
 	});
 
@@ -582,7 +583,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_trace",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -658,8 +659,9 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T10:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_trace",
+			runId: "run_01HQ",
 		});
 
 		expect(fact.retrievedSourceCount).toBe(2);
@@ -702,7 +704,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_empty_recall",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -755,8 +757,9 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T11:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_empty_recall",
+			runId: "run_01HQ",
 		});
 
 		expect(fact.retrievalAttempted).toBe(true);

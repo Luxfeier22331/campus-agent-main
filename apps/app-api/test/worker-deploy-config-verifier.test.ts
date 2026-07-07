@@ -21,31 +21,31 @@ function writeConfig(payload: unknown) {
 describe("worker deploy config verifier", () => {
 	it("requires ROUTE assertions to be custom domain routes", () => {
 		const configPath = writeConfig({
-			routes: [{ pattern: "hub-staging.mucwiki-edge.link" }],
+			routes: [{ pattern: "campus-staging.mucwiki-edge.link" }],
 			services: [],
 			vars: {},
 		});
 
 		const result = spawnSync(
 			process.execPath,
-			[verifierScript, configPath, "ROUTE:hub-staging.mucwiki-edge.link"],
+			[verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
 			{ encoding: "utf8" },
 		);
 
 		expect(result.status).toBe(1);
-		expect(result.stderr).toContain("custom domain route hub-staging.mucwiki-edge.link");
+		expect(result.stderr).toContain("custom domain route campus-staging.mucwiki-edge.link");
 	});
 
 	it("accepts ROUTE assertions for custom domain routes", () => {
 		const configPath = writeConfig({
-			routes: [{ custom_domain: true, pattern: "hub-staging.mucwiki-edge.link" }],
+			routes: [{ custom_domain: true, pattern: "campus-staging.mucwiki-edge.link" }],
 			services: [],
 			vars: {},
 		});
 
 		const result = spawnSync(
 			process.execPath,
-			[verifierScript, configPath, "ROUTE:hub-staging.mucwiki-edge.link"],
+			[verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
 			{ encoding: "utf8" },
 		);
 

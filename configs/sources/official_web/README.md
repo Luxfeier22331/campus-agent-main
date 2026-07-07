@@ -28,4 +28,4 @@ Multiple lanes may share the same `run_intent` when their `lane_id` values are
 different. Use `host_filter` and host-level `rollout_order` to keep university
 pages first, then roll out college/topic hosts one at a time.
 
-These files are source-channel truth. They are not collection runtime profiles.
+These files are source-channel truth. They are not collection serving configs.

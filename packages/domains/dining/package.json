@@ -1,0 +1,24 @@
+{
+	"name": "@campus-agent/dining",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Dining domain model, floorplan manifest, release, and projection logic.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"exports": {
+		"./domain": "./src/domain/index.ts",
+		"./floorplans": "./src/floorplans/index.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"fast-xml-parser": "^5.9.3"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.0",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.9"
+	}
+}

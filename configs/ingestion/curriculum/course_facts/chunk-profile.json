@@ -14,6 +14,6 @@
 	"notes": [
 		"course_facts is an internal curriculum serving surface for specialist-side entity-aware retrieval.",
 		"Projection rows are already fact-shaped, so generic runtime chunking is sufficient.",
-		"Keep this profile aligned with ingestion-core projection truth rather than curriculum_plan semantic table chunking."
+		"Keep this profile aligned with TS ingest-core projection helpers rather than curriculum_plan semantic table chunking."
 	]
 }

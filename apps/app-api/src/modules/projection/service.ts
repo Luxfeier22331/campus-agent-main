@@ -1,4 +1,4 @@
-import { formatOperatorTargetSummaryLabel } from "../operator-target-labels";
+import { formatOperatorToolSummaryLabel } from "../operator-target-labels";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
 import type { VersionQuery } from "../version-query";
@@ -28,11 +28,11 @@ export interface RequestExecutionProjectionSource {
 	entitlementGroups: string[];
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: Record<string, unknown> | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -64,11 +64,11 @@ export interface RequestProjectionMaterialization {
 	entitlementGroups: string[];
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: Record<string, unknown> | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -91,8 +91,8 @@ export interface RequestAuditProjectionMaterialization {
 	principalType: string;
 	entitlementSnapshotId: string | null;
 	policyProjectionVersion: string | null;
-	requestedCapability: string | null;
-	selectedTarget: string | null;
+	requestedTool: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	terminalCode: RequestExecutionStatus | null;
 	summary: string;
@@ -100,12 +100,12 @@ export interface RequestAuditProjectionMaterialization {
 		failClosed: boolean | null;
 		aclAnomalyCode: string | null;
 		sourceDocIds: string[];
-		bridgeDurationMs?: number | null;
+		activityDurationMs?: number | null;
 		decision?: string | null;
 		durationMs?: number | null;
 		failureKind?: string | null;
 		httpStatus?: number | null;
-		lane?: string | null;
+		taskQueue?: string | null;
 		queueWaitMs?: number | null;
 		retryable?: boolean | null;
 	};
@@ -120,8 +120,8 @@ export interface MetricRollupMaterialization {
 	bucketStart: string;
 	bucketEnd: string;
 	surface: string;
-	selectedTarget: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string;
 	collection: string | null;
 	modelName: string | null;
@@ -144,7 +144,7 @@ export interface QualityBadcaseProjectionMaterialization {
 	requestId: string;
 	traceId: string;
 	surface: string;
-	selectedTarget: string | null;
+	selectedTool: string | null;
 	status: "open";
 	causeClass: string;
 	detectedBy: "runtime_monitor";
@@ -239,12 +239,13 @@ function resolveAuditEventStatus(
 	}
 }
 
-function toAuditCapabilityLabel(requestedCapability: string | null): string {
-	if (!requestedCapability) {
+function toAuditToolLabel(requestedTool: string | null): string {
+	if (!requestedTool) {
 		return "Request";
 	}
 
-	return `${requestedCapability.slice(0, 1).toUpperCase()}${requestedCapability.slice(1)} request`;
+	const toolLabel = formatOperatorToolSummaryLabel(requestedTool);
+	return `${toolLabel.slice(0, 1).toUpperCase()}${toolLabel.slice(1).replace(/ tool$/, "")} request`;
 }
 
 function buildAuditSummary(input: {
@@ -253,9 +254,9 @@ function buildAuditSummary(input: {
 	payload: Record<string, unknown>;
 	status: RequestExecutionStatus;
 }): string {
-	const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
-	const targetSuffix = input.execution.selectedTarget
-		? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedTarget)}`
+	const toolLabel = toAuditToolLabel(input.execution.requestedTool);
+	const targetSuffix = input.execution.selectedTool
+		? ` via ${formatOperatorToolSummaryLabel(input.execution.selectedTool)}`
 		: "";
 
 	if (input.eventType === "execution.admission_rejected") {
@@ -267,8 +268,8 @@ function buildAuditSummary(input: {
 	if (input.eventType === "execution.cancelled") {
 		return "Execution cancelled.";
 	}
-	if (input.eventType === "execution.bridge_failed") {
-		return `Execution bridge failed: ${readNullableString(input.payload.failureKind) ?? "unknown"}.`;
+	if (input.eventType === "execution.activity_failed") {
+		return `Execution activity failed: ${readNullableString(input.payload.failureKind) ?? "unknown"}.`;
 	}
 	if (input.eventType === "execution.timed_out") {
 		return "Execution timed out.";
@@ -276,21 +277,21 @@ function buildAuditSummary(input: {
 
 	switch (input.status) {
 		case "accepted":
-			return `${capabilityLabel} accepted.`;
+			return `${toolLabel} accepted.`;
 		case "completed":
-			return `${capabilityLabel} completed${targetSuffix}.`;
+			return `${toolLabel} completed${targetSuffix}.`;
 		case "needs_clarification":
-			return `${capabilityLabel} requires clarification.`;
+			return `${toolLabel} requires clarification.`;
 		case "no_answer":
-			return `${capabilityLabel} returned no answer.`;
+			return `${toolLabel} returned no answer.`;
 		case "approval_required":
-			return `${capabilityLabel} requires approval before execution continues.`;
+			return `${toolLabel} requires approval before execution continues.`;
 		case "rejected":
-			return `${capabilityLabel} was rejected by supervisor policy.`;
+			return `${toolLabel} was rejected by execution policy.`;
 		case "error":
-			return `${capabilityLabel} ended with ${input.execution.errorCode ?? "internal_error"}.`;
+			return `${toolLabel} ended with ${input.execution.errorCode ?? "internal_error"}.`;
 		default:
-			return `${capabilityLabel} recorded audit event ${input.eventType}.`;
+			return `${toolLabel} recorded audit event ${input.eventType}.`;
 	}
 }
 
@@ -316,12 +317,12 @@ function buildAuditDiagnostics(input: {
 		sourceDocIds: input.execution.sourceDocIds,
 	};
 	if (input.event.eventType.startsWith("execution.")) {
-		diagnostics.bridgeDurationMs = readNullableNumber(input.event.payload.bridgeDurationMs);
+		diagnostics.activityDurationMs = readNullableNumber(input.event.payload.activityDurationMs);
 		diagnostics.decision = readNullableString(input.event.payload.decision);
 		diagnostics.durationMs = readNullableNumber(input.event.payload.durationMs);
 		diagnostics.failureKind = readNullableString(input.event.payload.failureKind);
 		diagnostics.httpStatus = readNullableNumber(input.event.payload.httpStatus);
-		diagnostics.lane = readNullableString(input.event.payload.lane);
+		diagnostics.taskQueue = readNullableString(input.event.payload.taskQueue);
 		diagnostics.queueWaitMs = readNullableNumber(input.event.payload.queueWaitMs);
 		diagnostics.retryable = readNullableBoolean(input.event.payload.retryable);
 	}
@@ -380,8 +381,8 @@ function buildMetricRollupId(input: {
 	granularity: MetricRollupMaterialization["granularity"];
 	bucketStart: string;
 	surface: string;
-	selectedTarget: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string;
 	collection: string | null;
 	modelName: string | null;
@@ -392,8 +393,8 @@ function buildMetricRollupId(input: {
 		input.granularity,
 		input.bucketStart,
 		input.surface,
-		input.selectedTarget ?? "_",
-		input.requestedCapability ?? "_",
+		input.selectedTool ?? "_",
+		input.requestedTool ?? "_",
 		input.principalType,
 		input.collection ?? "_",
 		input.modelName ?? "_",
@@ -431,7 +432,7 @@ function buildQualityRollups(input: {
 			principalType: input.execution.principalType,
 			projectedAt: input.projectedAt,
 			requestId: input.execution.requestId,
-			requestedCapability: input.execution.requestedCapability,
+			requestedTool: input.execution.requestedTool,
 			rollupId: buildMetricRollupId({
 				bucketStart: bucketStartIso,
 				collection: parseScopeCollection(input.execution.resolvedScope),
@@ -440,11 +441,11 @@ function buildQualityRollups(input: {
 				modelName: input.execution.modelName ?? null,
 				principalType: input.execution.principalType,
 				requestId: input.execution.requestId,
-				requestedCapability: input.execution.requestedCapability,
-				selectedTarget: input.execution.selectedTarget,
+				requestedTool: input.execution.requestedTool,
+				selectedTool: input.execution.selectedTool,
 				surface: input.execution.surface,
 			}),
-			selectedTarget: input.execution.selectedTarget,
+			selectedTool: input.execution.selectedTool,
 			surface: input.execution.surface,
 		};
 	});
@@ -513,7 +514,7 @@ function buildQualityBadcases(input: {
 		openedAt: input.execution.completedAt ?? input.execution.startedAt,
 		projectedAt: input.projectedAt,
 		requestId: input.execution.requestId,
-		selectedTarget: input.execution.selectedTarget,
+		selectedTool: input.execution.selectedTool,
 		status: "open",
 		summary: badcase.summary,
 		surface: input.execution.surface,
@@ -541,11 +542,11 @@ export function toRequestProjectionMaterialization(input: {
 		projectedAt: input.projectedAt,
 		questionPreview: input.execution.questionPreview,
 		requestId: input.execution.requestId,
-		requestedCapability: input.execution.requestedCapability,
+		requestedTool: input.execution.requestedTool,
 		requestedScope: input.execution.requestedScope,
 		versionQuery: input.execution.versionQuery,
 		resolvedScope: input.execution.resolvedScope,
-		selectedTarget: input.execution.selectedTarget,
+		selectedTool: input.execution.selectedTool,
 		diagnostics: input.execution.diagnostics,
 		sourceDocIds: input.execution.sourceDocIds,
 		startedAt: input.execution.startedAt,
@@ -572,8 +573,8 @@ export function toRequestAuditProjectionMaterialization(input: {
 		principalType: input.execution.principalType,
 		projectedAt: input.projectedAt,
 		requestId: input.execution.requestId,
-		requestedCapability: input.execution.requestedCapability,
-		selectedTarget: input.execution.selectedTarget,
+		requestedTool: input.execution.requestedTool,
+		selectedTool: input.execution.selectedTool,
 		status,
 		summary: buildAuditSummary({
 			eventType: input.event.eventType,

@@ -3,20 +3,32 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { profileMemoryItems, profileMemorySettings } from "../../db/schema";
-import type { ProfileMemoryItem, ProfileMemoryList, ProfileMemoryProjectionItem } from "./model";
+import type {
+	ProfileMemoryItem,
+	ProfileMemoryList,
+	ProfileMemoryProjectionItem,
+	ProfileMemorySummary,
+} from "./model";
 import { toIsoString } from "./model";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface ProfileMemoryStore {
 	deleteItem(input: { itemId: string; ownerUserId: string }): Promise<boolean>;
+	findItemIdByKey(input: { key: string; ownerUserId: string }): Promise<string | null>;
+	getItemRuntimeRef(input: {
+		itemId: string;
+		ownerUserId: string;
+	}): Promise<{ itemId: string; runtimeEpisodeUUID: string } | null>;
 	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
 	listProjectionItems(input: { ownerUserId: string }): Promise<ProfileMemoryProjectionItem[]>;
+	loadSummary(input: { ownerUserId: string }): Promise<ProfileMemorySummary>;
 	setEnabled(input: { enabled: boolean; ownerUserId: string; updatedAt: string }): Promise<boolean>;
 	upsertUserDeclared(input: {
 		itemId: string;
 		key: string;
 		ownerUserId: string;
+		runtimeEpisodeUUID: string;
 		updatedAt: string;
 		value: string;
 	}): Promise<ProfileMemoryItem>;
@@ -82,6 +94,39 @@ export function createPgProfileMemoryStore(
 			return deletedRows.length > 0;
 		},
 
+		async findItemIdByKey(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({ itemId: profileMemoryItems.itemId })
+				.from(profileMemoryItems)
+				.where(
+					and(
+						eq(profileMemoryItems.ownerUserId, input.ownerUserId),
+						eq(profileMemoryItems.key, input.key),
+					),
+				)
+				.limit(1);
+			return rows[0]?.itemId ?? null;
+		},
+
+		async getItemRuntimeRef(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({
+					itemId: profileMemoryItems.itemId,
+					runtimeEpisodeUUID: profileMemoryItems.runtimeEpisodeUUID,
+				})
+				.from(profileMemoryItems)
+				.where(
+					and(
+						eq(profileMemoryItems.ownerUserId, input.ownerUserId),
+						eq(profileMemoryItems.itemId, input.itemId),
+					),
+				)
+				.limit(1);
+			return rows[0] ?? null;
+		},
+
 		async listByOwner(ownerUserId) {
 			const db = await getDb();
 			const enabled = await isProjectionEnabled({ getDb, ownerUserId });
@@ -121,6 +166,23 @@ export function createPgProfileMemoryStore(
 			return rows.map(toProjectionItem);
 		},
 
+		async loadSummary(input) {
+			const db = await getDb();
+			const enabled = await isProjectionEnabled({
+				getDb,
+				ownerUserId: input.ownerUserId,
+			});
+			const rows = await db
+				.select({ itemId: profileMemoryItems.itemId })
+				.from(profileMemoryItems)
+				.where(eq(profileMemoryItems.ownerUserId, input.ownerUserId));
+
+			return {
+				enabled,
+				itemCount: rows.length,
+			};
+		},
+
 		async setEnabled(input) {
 			const db = await getDb();
 			await db
@@ -149,6 +211,7 @@ export function createPgProfileMemoryStore(
 				key: input.key,
 				lastVerifiedAt: new Date(input.updatedAt),
 				ownerUserId: input.ownerUserId,
+				runtimeEpisodeUUID: input.runtimeEpisodeUUID,
 				sourceType: "user_declared",
 				updatedAt: new Date(input.updatedAt),
 				value: input.value,
@@ -161,6 +224,7 @@ export function createPgProfileMemoryStore(
 					set: {
 						confidence: values.confidence,
 						lastVerifiedAt: values.lastVerifiedAt,
+						runtimeEpisodeUUID: values.runtimeEpisodeUUID,
 						sourceType: values.sourceType,
 						updatedAt: values.updatedAt,
 						value: values.value,

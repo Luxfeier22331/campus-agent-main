@@ -1,49 +1,69 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/architecture
 status: active
 created: 2026-04-12
-updated: 2026-04-23
+updated: 2026-06-13
 ---
 # Architecture
 
-`architecture/` 负责解释产品定位、当前 merged truth、长期目标与 supporting
-architecture。它回答“系统是什么”“为什么这样分层”“哪些边界不能退回”。
+`architecture/` owns product, current, target and supporting architecture truth.
+It explains what the system is, how owner boundaries are split, and which
+boundaries must not regress.
+
+It does not own contracts, data schemas, runbook procedure, release-closeout artifacts or
+planning status.
 
 ## Repo Entry Truth
 
-- `product-positioning.md`
-  - 产品定位、目标用户与产品边界
-- `current-architecture.md`
-  - 当前 accepted merged-truth snapshot
-- `target-architecture.md`
-  - 长期目标架构与不可退回的硬约束
+- `product.md`
+  - product boundary, target users and explicit non-promises
+- `current.md`
+  - current accepted merged-truth snapshot
+- `target.md`
+  - long-term architecture invariants and non-regression boundaries
 
 ## Supporting Architecture Layout
 
 - `system/README.md`
-  - 跨域 supporting architecture；负责 runtime、execution、retrieval、data plane
-    等 repo-wide supporting truth
+  - cross-domain supporting architecture for runtime, execution, retrieval,
+    data-plane, observability and related system boundaries
 - `domains/README.md`
-  - 领域 supporting architecture；负责 navigation、official-web、authenticated
-    notice、campus services 等领域边界
+  - domain architecture for navigation, official-web, authenticated notice,
+    campus services and other tool/domain boundaries
 
-补充说明：
+## Related Truth Owners
 
-- `docs/architecture/domains/` 是 architecture-only 目录
-- `docs/domains/` 是跨文档类型的领域 hub
-- source-truth schema 已迁到 `docs/data/`，不继续留在 `architecture/`
+- Source-truth schemas live in `docs/data/`, not in architecture docs.
+- Runtime and HTTP contracts live in `docs/contracts/`.
+- Accepted decision reasoning lives in `docs/decisions/`.
+- Deployment, staging, release and recovery procedures live in `docs/runbooks/`,
+  `docs/environment/` and `docs/policies/`.
+- Active planning signals live in `.planning/PROJECT.md` and
+  `.planning/WORKSTREAMS.md`.
 
-## Source-Truth Schema
+## Question Routing
 
-- `../data/official-web-source-truth-schema.md`
-- `../data/authenticated-notice-source-truth-schema.md`
+- "What is the product?" -> `product.md`
+- "What is already merged and accepted?" -> `current.md`
+- "What must the system converge to?" -> `target.md`
+- "How does a cross-domain runtime or owner boundary work?" -> `system/`
+- "How does one domain or tool boundary work?" -> `domains/`
+- "Where is official-web source truth?" ->
+  `../data/official-web.md`
+- "Where is authenticated notice source truth?" ->
+  `../data/authenticated-notice.md`
+- "Where is dining operations data truth?" ->
+  `../data/dining.md`
 
-## 使用规则
+## Use Rules
 
-- `current-architecture.md` 只写 merged truth，不写 worktree-local 进度
-- `target-architecture.md` 只写长期目标，不写当前 phase 顺序
-- supporting architecture 负责解释某个边界，不承接一次性 plan 或执行历史
-- 跨域 supporting architecture 放进 `system/`
-- 领域 supporting architecture 放进 `domains/`
-- canonical source-truth artifact/schema 放进 `docs/data/`，不伪装成 explanation-oriented
-  architecture
+- `current.md` writes merged truth only.
+- `target.md` writes long-term invariants only.
+- Supporting architecture explains boundaries and owners, not one-off plans or
+  execution history.
+- Cross-domain supporting architecture belongs in `system/`.
+- Domain-specific architecture belongs in `domains/`.
+- Canonical source-truth artifacts and schemas belong in `docs/data/`, not in
+  explanation-oriented architecture docs.

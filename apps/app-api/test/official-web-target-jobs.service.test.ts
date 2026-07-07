@@ -44,26 +44,27 @@ const targetJob: OfficialWebTargetJobRecord = {
 	},
 	attemptCount: 1,
 	candidateCount: 2,
-	consumerFamily: "contact_directory_candidate",
+	consumerFamily: "academic_calendar_candidate",
 	createdAt: "2026-05-01T08:00:00.000Z",
-	declarationVersion: "muc_public_target_source_map_v2",
-	id: "owtarget_muc_public_contact",
-	idempotencyKey: "muc_public:muc_public_target_source_map_v2:campus-services-contact-directory",
+	declarationVersion: "example_public_target_source_map_v2",
+	id: "owtarget_example_public_calendar",
+	idempotencyKey:
+		"example_public:example_public_target_source_map_v2:official-web-academic-calendar",
 	inventoryOnly: false,
 	latestRunId: null,
 	materializationPolicy: "candidate_only",
-	ownerSurface: "contact_directory_lookup",
-	requiredEvidence: ["phone", "location"],
+	ownerSurface: "calendar/academic_calendar",
+	requiredEvidence: ["calendar_arrangement"],
 	retentionPolicy: "retain_source_truth",
 	reviewPolicy: "selected_write_requires_review",
-	selectedWriteTarget: "campus_services/contact_directory",
-	siteId: "muc_public",
-	sourceHosts: ["www.muc.edu.cn"],
+	selectedWriteTarget: "calendar/academic_calendar",
+	siteId: "example_public",
+	sourceHosts: ["www.example.edu"],
 	status: "declared",
-	targetId: "campus-services-contact-directory",
-	titleHints: ["联系"],
+	targetId: "official-web-academic-calendar",
+	titleHints: ["校历"],
 	updatedAt: "2026-05-01T08:00:00.000Z",
-	urlHints: ["contact"],
+	urlHints: ["calendar"],
 };
 
 describe("official web target job service", () => {
@@ -87,7 +88,7 @@ describe("official web target job service", () => {
 		const service = buildOfficialWebTargetJobService({ store });
 
 		const result = await service.listTargetJobs({
-			filters: { limit: 10, siteId: "muc_public" },
+			filters: { limit: 10, siteId: "example_public" },
 			principal: createOperatorPrincipal(),
 		});
 
@@ -99,7 +100,7 @@ describe("official web target job service", () => {
 		expect(store.listTargetJobs).toHaveBeenCalledWith({
 			cursor: null,
 			limit: 10,
-			siteId: "muc_public",
+			siteId: "example_public",
 			status: null,
 			targetId: null,
 		});
@@ -117,33 +118,33 @@ describe("official web target job service", () => {
 		});
 
 		await service.upsertDeclaredTargetJobs({
-			declarationVersion: "muc_public_target_source_map_v2",
-			siteId: "muc_public",
+			declarationVersion: "example_public_target_source_map_v2",
+			siteId: "example_public",
 			targets: [
 				{
-					consumerFamily: "contact_directory_candidate",
+					consumerFamily: "academic_calendar_candidate",
 					inventoryOnly: false,
 					materializationPolicy: "candidate_only",
-					ownerSurface: "contact_directory_lookup",
-					requiredEvidence: ["phone", "location"],
+					ownerSurface: "calendar/academic_calendar",
+					requiredEvidence: ["calendar_arrangement"],
 					retentionPolicy: "retain_source_truth",
 					reviewPolicy: "selected_write_requires_review",
-					selectedWriteTarget: "campus_services/contact_directory",
-					sourceHosts: ["www.muc.edu.cn"],
-					targetId: "campus-services-contact-directory",
-					titleHints: ["联系"],
-					urlHints: ["contact"],
+					selectedWriteTarget: "calendar/academic_calendar",
+					sourceHosts: ["www.example.edu"],
+					targetId: "official-web-academic-calendar",
+					titleHints: ["校历"],
+					urlHints: ["calendar"],
 				},
 			],
 		});
 
 		expect(store.upsertDeclaredTargetJobs).toHaveBeenCalledWith([
 			expect.objectContaining({
-				declarationVersion: "muc_public_target_source_map_v2",
+				declarationVersion: "example_public_target_source_map_v2",
 				idempotencyKey:
-					"muc_public:muc_public_target_source_map_v2:campus-services-contact-directory",
+					"example_public:example_public_target_source_map_v2:official-web-academic-calendar",
 				status: "declared",
-				targetId: "campus-services-contact-directory",
+				targetId: "official-web-academic-calendar",
 			}),
 		]);
 	});
@@ -173,7 +174,7 @@ describe("official web target job service", () => {
 					candidateId: "owcand_01",
 					completedAt: "2026-05-01T08:05:30.000Z",
 					httpStatus: 200,
-					normalizedCanonicalUrl: "https://www.muc.edu.cn/contact",
+					normalizedCanonicalUrl: "https://www.example.edu/contact",
 					runId: "owrun_01",
 				},
 			],
@@ -182,9 +183,9 @@ describe("official web target job service", () => {
 					candidateId: "owcand_01",
 					createdAt: "2026-05-01T08:00:00.000Z",
 					eligibilityReason: "url_hint_match",
-					normalizedCandidateUrl: "https://www.muc.edu.cn/contact",
+					normalizedCandidateUrl: "https://www.example.edu/contact",
 					priorityScore: 90,
-					sourceHost: "www.muc.edu.cn",
+					sourceHost: "www.example.edu",
 					status: "eligible",
 					titleHint: "联系",
 					updatedAt: "2026-05-01T08:00:00.000Z",
@@ -202,11 +203,11 @@ describe("official web target job service", () => {
 
 		await expect(
 			service.getTargetJobById({
-				jobId: " owtarget_muc_public_contact ",
+				jobId: " owtarget_example_public_calendar ",
 				principal: createOperatorPrincipal(),
 			}),
 		).resolves.toEqual(detail);
-		expect(store.getTargetJobById).toHaveBeenCalledWith("owtarget_muc_public_contact");
+		expect(store.getTargetJobById).toHaveBeenCalledWith("owtarget_example_public_calendar");
 	});
 
 	it("fails closed when target job detail is missing", async () => {

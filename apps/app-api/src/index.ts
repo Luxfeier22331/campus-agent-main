@@ -2,25 +2,34 @@ import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
 import { type AppDependencies, createApp } from "./app";
-import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "./config";
-import { AppApiRouteError } from "./http";
-import { createOfficialWebHandoffPublisher } from "./modules/integration";
 import {
-	buildOfficialWebProjectionProjector,
-	createPgOfficialWebProjectionStore,
-	type OfficialWebProjectionProjector,
-} from "./modules/official-web-projection";
+	type Env,
+	isDeployedEnvironment,
+	readPublicNoticeURLAllowlist,
+	resolveAppName,
+	resolveEnvironment,
+} from "./config";
+import { AppApiRouteError } from "./http";
+import { createPgChatConversationStore } from "./modules/chat";
+import {
+	createExecutionControlRuntimeClient,
+	isExecutionControlRuntimeConfigured,
+} from "./modules/integration";
 import {
 	buildRequestProjectionProjector,
 	createPgProjectionStore,
 	type RequestProjectionProjector,
 } from "./modules/projection";
+import {
+	buildChatCommandService,
+	type ChatCommandService,
+	createPgChatCommandStore,
+} from "./modules/runtime-command";
 import { createAppTelemetry } from "./modules/telemetry";
 
 export type { Env } from "./config";
 
 export interface WorkerRuntimeDependencies extends AppDependencies {
-	officialWebProjector?: OfficialWebProjectionProjector;
 	requestProjector?: RequestProjectionProjector;
 }
 
@@ -92,6 +101,10 @@ function createSentryOptions(env: Env): CloudflareOptions | undefined {
 	};
 }
 
+function isExplicitlyEnabled(value: string | undefined): boolean {
+	return value?.trim().toLowerCase() === "true";
+}
+
 async function drainRequestProjection(input: {
 	op: "cron" | "task";
 	requestProjector: RequestProjectionProjector;
@@ -127,12 +140,40 @@ export function createWorkerRuntime(
 		buildRequestProjectionProjector({
 			store: createPgProjectionStore(env),
 		});
-	const officialWebProjector =
-		dependencies.officialWebProjector ??
-		buildOfficialWebProjectionProjector({
-			handoffPublisher: createOfficialWebHandoffPublisher(env),
-			store: createPgOfficialWebProjectionStore(env),
+	let durableCloseoutService = dependencies.chatCommandService ?? null;
+	function resolveDurableCloseoutService(): ChatCommandService {
+		if (durableCloseoutService) {
+			return durableCloseoutService;
+		}
+		if (resolveEnvironment(env) === "test") {
+			durableCloseoutService = {
+				async reconcileDurableCloseouts() {
+					return { failed: 0, finalized: 0, scanned: 0 };
+				},
+				async submit() {
+					throw new AppApiRouteError({
+						code: "dependency_not_ready",
+						message: "Chat command service is not configured.",
+						retryable: true,
+						status: 503,
+					});
+				},
+			};
+			return durableCloseoutService;
+		}
+		const executionRuntime = isExecutionControlRuntimeConfigured(env)
+			? createExecutionControlRuntimeClient(env)
+			: undefined;
+		durableCloseoutService = buildChatCommandService({
+			conversationStore: createPgChatConversationStore(env),
+			executionRuntime,
+			isExecutionRuntimeConfigured: Boolean(executionRuntime),
+			publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(env),
+			store: createPgChatCommandStore(env),
+			telemetry,
 		});
+		return durableCloseoutService;
+	}
 	const scheduleRequestProjectionDrain =
 		dependencies.scheduleRequestProjectionDrain ??
 		((input: {
@@ -203,32 +244,24 @@ export function createWorkerRuntime(
 			return app.fetch(request, env, executionCtx as ExecutionContext | undefined);
 		},
 		async scheduled(): Promise<void> {
-			const requestResult = await drainRequestProjection({
-				op: "cron",
-				requestProjector,
-				telemetry,
-			});
-			const officialWebResult = await Sentry.startSpan(
-				{
-					name: "app-api.official-web-projection.drain",
-					op: "cron",
-				},
-				() => officialWebProjector.drain(),
-			);
-			if (
-				officialWebResult.processed > 0 ||
-				officialWebResult.failed > 0 ||
-				officialWebResult.abandoned > 0
-			) {
-				await telemetry.recordProjectionDrain({
-					abandoned: officialWebResult.abandoned,
-					failed: officialWebResult.failed,
-					processed: officialWebResult.processed,
-					projector: "official_web_projection",
-					projectorLastErrorCode: officialWebResult.failed > 0 ? "projection_failed" : null,
-					surface: "official_web",
-				});
-			}
+			const closeoutResult = isExplicitlyEnabled(env.APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED)
+				? await Sentry.startSpan(
+						{
+							name: "app-api.durable-closeout.reconcile",
+							op: "cron",
+						},
+						() =>
+							resolveDurableCloseoutService().reconcileDurableCloseouts?.() ??
+							Promise.resolve(null),
+					)
+				: null;
+			const requestResult = isExplicitlyEnabled(env.APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED)
+				? await drainRequestProjection({
+						op: "cron",
+						requestProjector,
+						telemetry,
+					})
+				: { failed: 0, processed: 0 };
 			if (requestResult.processed > 0) {
 				console.info(
 					JSON.stringify({
@@ -238,32 +271,32 @@ export function createWorkerRuntime(
 					}),
 				);
 			}
+			if (closeoutResult && (closeoutResult.finalized > 0 || closeoutResult.failed > 0)) {
+				console.info(
+					JSON.stringify({
+						failed: closeoutResult.failed,
+						finalized: closeoutResult.finalized,
+						scanned: closeoutResult.scanned,
+						source: "app-api.durable-closeout-reconciler",
+					}),
+				);
+			}
+			if (closeoutResult && closeoutResult.failed > 0) {
+				console.error(
+					JSON.stringify({
+						failed: closeoutResult.failed,
+						finalized: closeoutResult.finalized,
+						scanned: closeoutResult.scanned,
+						source: "app-api.durable-closeout-reconciler",
+					}),
+				);
+			}
 			if (requestResult.failed > 0) {
 				console.error(
 					JSON.stringify({
 						failed: requestResult.failed,
 						processed: requestResult.processed,
 						source: "app-api.request-projection-projector",
-					}),
-				);
-			}
-			if (officialWebResult.processed > 0 || officialWebResult.abandoned > 0) {
-				console.info(
-					JSON.stringify({
-						abandoned: officialWebResult.abandoned,
-						failed: officialWebResult.failed,
-						processed: officialWebResult.processed,
-						source: "app-api.official-web-projection-projector",
-					}),
-				);
-			}
-			if (officialWebResult.failed > 0) {
-				console.error(
-					JSON.stringify({
-						abandoned: officialWebResult.abandoned,
-						failed: officialWebResult.failed,
-						processed: officialWebResult.processed,
-						source: "app-api.official-web-projection-projector",
 					}),
 				);
 			}

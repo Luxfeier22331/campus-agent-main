@@ -14,7 +14,7 @@ export interface AuthenticatedNoticeRunProcessingSnapshotWrite
 }
 
 export interface AuthenticatedNoticeRunProcessingEventWrite {
-	collectorRunToken: string;
+	sourceRunToken: string;
 	eventId: string;
 	jobId: string | null;
 	occurredAt: string;
@@ -56,7 +56,7 @@ export function createPgAuthenticatedNoticeRunProcessingCommandStore(
 						.values({
 							attemptCount: snapshot.attemptCount,
 							childTaskSummaryJson: snapshot.childTaskSummary,
-							collectorRunToken: snapshot.collectorRunToken,
+							sourceRunToken: snapshot.sourceRunToken,
 							downstreamJson: snapshot.downstream,
 							enqueueSource: snapshot.enqueueSource,
 							firstObservedAt: new Date(snapshot.firstObservedAt),
@@ -86,7 +86,7 @@ export function createPgAuthenticatedNoticeRunProcessingCommandStore(
 							set: {
 								attemptCount: snapshot.attemptCount,
 								childTaskSummaryJson: snapshot.childTaskSummary,
-								collectorRunToken: snapshot.collectorRunToken,
+								sourceRunToken: snapshot.sourceRunToken,
 								downstreamJson: snapshot.downstream,
 								enqueueSource: snapshot.enqueueSource,
 								firstObservedAt: new Date(snapshot.firstObservedAt),
@@ -119,7 +119,7 @@ export function createPgAuthenticatedNoticeRunProcessingCommandStore(
 					await tx
 						.insert(authenticatedNoticeRunProcessingEventProjection)
 						.values({
-							collectorRunToken: event.collectorRunToken,
+							sourceRunToken: event.sourceRunToken,
 							eventId: event.eventId,
 							jobId: event.jobId,
 							occurredAt: new Date(event.occurredAt),
@@ -134,7 +134,7 @@ export function createPgAuthenticatedNoticeRunProcessingCommandStore(
 						})
 						.onConflictDoUpdate({
 							set: {
-								collectorRunToken: event.collectorRunToken,
+								sourceRunToken: event.sourceRunToken,
 								jobId: event.jobId,
 								occurredAt: new Date(event.occurredAt),
 								payloadJson: event.payload,

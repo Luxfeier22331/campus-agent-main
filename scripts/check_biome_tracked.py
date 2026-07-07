@@ -11,8 +11,10 @@ _BIOME_TRACKED_PATHS = (
     "package.json",
     "turbo.json",
     "apps",
+    "jobs",
     "packages",
     "configs",
+    "docs/reference/eval",
     "scripts",
     "tests",
 )

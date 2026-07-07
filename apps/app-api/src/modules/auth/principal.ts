@@ -14,16 +14,10 @@ export type AppPrincipalType =
 
 export type AuthorizationProjectionSource = "campus_identity" | "operator_headers" | "service_auth";
 
-export interface OfficialWebCollectorPrincipal {
-	kind: "service";
-	serviceClass: "official_web_collector";
-	serviceId: "official-web-collector";
-}
-
 export interface WeChatOfficialAccountCollectorPrincipal {
 	kind: "service";
 	serviceClass: "wechat_official_account_collector";
-	serviceId: "wechat-official-account-collector";
+	serviceId: "source-collector/wechat-official-account";
 }
 
 export interface AppPermissions {
@@ -186,7 +180,9 @@ export function hasTrustedInternalRequest(
 }
 
 function parseHeaderList(request: Request, headerName: string): string[] {
-	return parseCsvList(request.headers.get(headerName) ?? undefined);
+	return parseCsvList(request.headers.get(headerName) ?? undefined)
+		.map((value) => decodeOptionalHeaderValue(value))
+		.filter((value): value is string => Boolean(value));
 }
 
 function normalizeStringList(values: readonly string[] | undefined): string[] {
@@ -569,16 +565,80 @@ type OperatorHeadersAdmission =
 	| { kind: "not_admitted" }
 	| { kind: "admitted"; principal: ResolvedAppPrincipal };
 
+function mapInternalCampusPrincipalHeaders(
+	request: Request,
+	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): ResolvedAppPrincipal | null {
+	if (!hasMatchingInternalSecret(request, env)) {
+		return null;
+	}
+
+	const principalId = normalizeHeaderValue(request.headers.get("x-app-campus-principal-id"));
+	const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
+	if (!(principalId && principalType && isCampusEndUserPrincipalType(principalType))) {
+		return null;
+	}
+
+	const displayName =
+		normalizeHeaderValue(request.headers.get("x-app-campus-display-name")) ?? principalId;
+	const email = normalizeHeaderValue(request.headers.get("x-app-campus-email"));
+	const roles = parseHeaderList(request, "x-app-campus-actor-roles");
+	const departments = parseHeaderList(request, "x-app-campus-departments");
+	const actor: ExecutionActorContext = {
+		userId: principalId,
+		principalId,
+		principalType,
+		roles: roles.length > 0 ? roles : buildDefaultEndUserRoles(principalType),
+		departments,
+		cohort: decodeOptionalHeaderValue(request.headers.get("x-app-campus-cohort")) ?? undefined,
+		major: decodeOptionalHeaderValue(request.headers.get("x-app-campus-major")) ?? undefined,
+		program: decodeOptionalHeaderValue(request.headers.get("x-app-campus-program")) ?? undefined,
+	};
+	const campusIdentity = parseCampusIdentityClaims(request, env);
+
+	return {
+		principal: {
+			type: principalType,
+			principalId,
+			displayName,
+			email,
+		},
+		session: null,
+		permissions: {
+			chat: true,
+			operator: false,
+		},
+		actor,
+		authorization: campusIdentity
+			? buildCampusAuthorizationContext({
+					actor,
+					applicabilityScope: campusIdentity.applicabilityScope,
+					entitlementGroups: campusIdentity.entitlementGroups ?? [],
+					entitlementSnapshotId: campusIdentity.entitlementSnapshotId ?? "",
+					ownershipScopes: campusIdentity.ownershipScopes ?? [],
+					visibilityLevel: campusIdentity.visibilityLevel ?? "public",
+					visibilityScope: campusIdentity.visibilityScope ?? null,
+				})
+			: buildExecutionAuthorizationContext(actor),
+	};
+}
+
 function isOperatorRouteRequest(request: Request): boolean {
 	const pathname = new URL(request.url).pathname;
 	return pathname.startsWith("/api/operator/");
 }
 
-function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPrincipal {
-	const principalId = normalizeHeaderValue(request.headers.get("x-app-operator-id")) ?? email;
-	const displayName = normalizeHeaderValue(request.headers.get("x-app-operator-name")) ?? email;
-	const roles = parseHeaderList(request, "x-app-operator-roles");
-	const departments = parseHeaderList(request, "x-app-operator-departments");
+function buildOperatorPrincipal(input: {
+	email: string | null;
+	identity: string;
+	request: Request;
+}): ResolvedAppPrincipal {
+	const principalId =
+		normalizeHeaderValue(input.request.headers.get("x-app-operator-id")) ?? input.identity;
+	const displayName =
+		normalizeHeaderValue(input.request.headers.get("x-app-operator-name")) ?? input.identity;
+	const roles = parseHeaderList(input.request, "x-app-operator-roles");
+	const departments = parseHeaderList(input.request, "x-app-operator-departments");
 
 	const actor: ExecutionActorContext = {
 		userId: principalId,
@@ -593,7 +653,7 @@ function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPri
 			type: "operator",
 			principalId,
 			displayName,
-			email,
+			email: input.email,
 		},
 		session: null,
 		permissions: {
@@ -605,52 +665,49 @@ function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPri
 	};
 }
 
-function resolveOperatorHeadersAdmission(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
-): OperatorHeadersAdmission {
+function resolveOperatorHeadersAdmission(request: Request, env: Env): OperatorHeadersAdmission {
 	const email = normalizeEmail(request.headers.get("x-app-operator-email"));
-	if (!email) {
+	const serviceId = normalizeHeaderValue(request.headers.get("x-app-operator-service-id"));
+	if (!(email || serviceId)) {
 		return { kind: "absent" };
 	}
 	if (!hasMatchingInternalSecret(request, env)) {
 		return { kind: "internal_auth_required" };
 	}
 
-	const allowlist = parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
-		item.toLowerCase(),
+	if (serviceId) {
+		const serviceAllowlist = new Set(parseCsvList(env.APP_API_OPERATOR_SERVICE_ID_ALLOWLIST));
+		if (serviceAllowlist.has(serviceId)) {
+			return {
+				kind: "admitted",
+				principal: buildOperatorPrincipal({ email: null, identity: serviceId, request }),
+			};
+		}
+	}
+
+	if (!email) {
+		return { kind: "not_admitted" };
+	}
+
+	const allowlist = new Set(
+		parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) => item.toLowerCase()),
 	);
-	if (allowlist.length === 0 || !allowlist.includes(email)) {
+	if (allowlist.size === 0 || !allowlist.has(email)) {
 		return { kind: "not_admitted" };
 	}
 
 	return {
 		kind: "admitted",
-		principal: buildOperatorPrincipal(request, email),
+		principal: buildOperatorPrincipal({ email, identity: email, request }),
 	};
 }
 
 export function mapOperatorHeadersToPrincipal(
 	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
+	env: Env,
 ): ResolvedAppPrincipal | null {
 	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
 	return operatorHeadersAdmission.kind === "admitted" ? operatorHeadersAdmission.principal : null;
-}
-
-export async function resolveOfficialWebCollectorPrincipal(
-	request: Request,
-	env: Pick<Env, "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN">,
-): Promise<OfficialWebCollectorPrincipal | null> {
-	if (!hasMatchingBearerToken(request, env.APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN ?? null)) {
-		return null;
-	}
-
-	return {
-		kind: "service",
-		serviceClass: "official_web_collector",
-		serviceId: "official-web-collector",
-	};
 }
 
 export async function resolveWeChatOfficialAccountCollectorPrincipal(
@@ -666,7 +723,7 @@ export async function resolveWeChatOfficialAccountCollectorPrincipal(
 	return {
 		kind: "service",
 		serviceClass: "wechat_official_account_collector",
-		serviceId: "wechat-official-account-collector",
+		serviceId: "source-collector/wechat-official-account",
 	};
 }
 
@@ -675,6 +732,11 @@ export async function resolveRequestPrincipal(
 	env: Env,
 	input: AppAuthResolutionInput = {},
 ): Promise<ResolvedAppPrincipal | null> {
+	const internalCampusPrincipal = mapInternalCampusPrincipalHeaders(request, env);
+	if (internalCampusPrincipal) {
+		return internalCampusPrincipal;
+	}
+
 	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
 	if (operatorHeadersAdmission.kind === "admitted") {
 		return operatorHeadersAdmission.principal;

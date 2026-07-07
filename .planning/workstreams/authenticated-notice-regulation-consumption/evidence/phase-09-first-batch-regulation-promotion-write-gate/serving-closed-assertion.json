@@ -1,9 +1,0 @@
-{
-  "generated_at": "2026-04-30T00:16:28.042686+00:00",
-  "phase": "phase-09-first-batch-regulation-promotion-write-gate",
-  "public_chat_citation_opened": false,
-  "qdrant_alias_opened": false,
-  "query_serving_opened": false,
-  "rag_release_opened": false,
-  "schema_version": "collected_notice_regulation_first_batch_serving_closed.v1"
-}

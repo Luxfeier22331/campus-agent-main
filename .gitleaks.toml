@@ -1,0 +1,32 @@
+title = "campus-agent gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Repository policy and documentation references to secret words"
+paths = [
+  '''^SECURITY\.md$''',
+  '''^CONTRIBUTING\.md$''',
+  '''^docs/reference/testing-and-verification-lanes\.md$''',
+]
+
+[[allowlists]]
+description = "Cloudflare resource identifiers that are not bearer secrets"
+paths = [
+  '''^apps/app-api/scripts/staging-runtime-db-proof\.ts$''',
+  '''^apps/operator-console-web/wrangler\.toml$''',
+]
+regexes = [
+  '''APP_API_DB_(FRESH_)?CONFIG_ID = "[a-f0-9]{32}"''',
+  '''OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST = "[a-f0-9]{32}"''',
+]
+
+[[allowlists]]
+description = "Tokenizer constant name includes token but value is not a credential"
+paths = [
+  '''^packages/ingestion-core/src/campus_ingestion_core/chunking_tokenizers\.py$''',
+]
+regexes = [
+  '''DEFAULT_TOKENIZER_NAME = "regex_approximation_v1"''',
+]

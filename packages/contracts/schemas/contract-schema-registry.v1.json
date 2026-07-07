@@ -1,0 +1,384 @@
+{
+	"schema_version": "contract-schema-registry.v1",
+	"updated": "2026-07-05",
+	"entries": [
+		{
+			"id": "contract-schema-registry.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/contract-schema-registry.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["packages/contracts/schemas/contract-schema-registry.v1.json"],
+			"notes": "Machine-readable inventory for contract schema governance."
+		},
+		{
+			"id": "tool-execution.openapi",
+			"kind": "openapi_wire",
+			"path": "docs/contracts/schemas/tool-execution.openapi.yaml",
+			"owner": "docs/contracts",
+			"status": "active",
+			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by scripts.generate_tool_execution_contracts."
+		},
+		{
+			"id": "tool-handoff.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/tool-handoff.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Execution Agent Layer -> tool handoff schema."
+		},
+		{
+			"id": "campus-services-tool-result.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-services-tool-result.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/campus_services_tool_result",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "Canonical cross-language envelope consumed by finalization for campus_services typed tool results."
+		},
+		{
+			"id": "campus-services-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/campus_services_tool_contracts",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "Canonical JSON Schema for currently opened campus_services typed tool payload/result packets. Current active scope is transport_schedule_lookup only."
+		},
+		{
+			"id": "transport-schedule-status.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/transport-schedule-status.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/transport_status",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
+		},
+		{
+			"id": "notice-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/notice-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/notice_tool_contracts",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "Canonical JSON Schema for notice typed tool payload/result packets, including public display-policy and fail-close invariants."
+		},
+		{
+			"id": "knowledge-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/knowledge-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
+		},
+		{
+			"id": "public-web-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/public-web-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Canonical JSON Schema for the public_web_search typed tool payload/result packets."
+		},
+		{
+			"id": "runtime-tools.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tools.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/tools.v4.json"],
+			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
+		},
+		{
+			"id": "runtime-tool-function-schemas.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/tool-function-schemas.v1.json"],
+			"notes": "Strict model-facing function parameter schema artifact."
+		},
+		{
+			"id": "runtime-workflow-artifacts.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-workflow-artifacts.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/workflow-artifacts.v2.json"],
+			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
+		},
+		{
+			"id": "execution-control-runtime-config.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/execution-control-runtime-config.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": [
+				"configs/runtime/execution-control/runtime-config.local.json",
+				"configs/runtime/execution-control/runtime-config.local-real-provider.json",
+				"configs/runtime/execution-control/runtime-config.staging.json"
+			],
+			"notes": "Execution-control runtime config artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
+		},
+		{
+			"id": "query-serving-scopes.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/query-serving-scopes.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/query-serving-scopes.v2.json"],
+			"notes": "Knowledge query-serving scope admission policy consumed by execution-control."
+		},
+		{
+			"id": "intent-policy.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/intent-policy.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/intent-policy.v1.json"],
+			"notes": "Execution-control deterministic intent policy artifact."
+		},
+		{
+			"id": "intent-drift-thresholds.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/intent-drift-thresholds.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/intent-drift-thresholds.v1.json"],
+			"notes": "Intent drift release/eval threshold artifact."
+		},
+		{
+			"id": "provider-pricing.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/provider-pricing.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/provider-pricing.v1.json"],
+			"notes": "Provider usage pricing catalog consumed by execution-control cost projection."
+		},
+		{
+			"id": "runtime-latency-budgets.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-latency-budgets.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/latency-budgets.v1.json"],
+			"notes": "Repo-owned latency budget artifact consumed by app-api and learning-loop candidate selection."
+		},
+		{
+			"id": "runtime-observability-alerts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-observability-alerts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/observability-alerts.v1.json"],
+			"notes": "Repo-owned symptom alert policy artifact for safe runtime observability signals."
+		},
+		{
+			"id": "llm-io-fingerprint.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/llm-io-fingerprint.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "llm-io-fingerprint.v1.*.valid.json",
+					"invalid_glob": "llm-io-fingerprint.v1.*.invalid.json"
+				}
+			],
+			"notes": "Safe comparable run-level fingerprint for LLM IO without raw prompt, memory, evidence or provider bodies."
+		},
+		{
+			"id": "raw-capture-policy.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/raw-capture-policy.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "raw-capture-policy.v1.*.valid.json",
+					"invalid_glob": "raw-capture-policy.v1.*.invalid.json"
+				}
+			],
+			"notes": "Request-scoped policy gate for restricted raw or near-raw LLM IO capture."
+		},
+		{
+			"id": "llm-replay-packet.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/llm-replay-packet.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "llm-replay-packet.v1.*.valid.json",
+					"invalid_glob": "llm-replay-packet.v1.*.invalid.json"
+				}
+			],
+			"notes": "Restricted raw replay artifact contract with fingerprint, policy, TTL, checksum, encryption ref and deletion linkage."
+		},
+		{
+			"id": "llm-replay-packet-index.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/llm-replay-packet-index.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "llm-replay-packet-index.v1.*.valid.json",
+					"invalid_glob": "llm-replay-packet-index.v1.*.invalid.json"
+				}
+			],
+			"notes": "App-api safe replay packet index ingest contract. It stores metadata, object refs, checksum, policy, fingerprint and deletion linkage, never raw replay sections."
+		},
+		{
+			"id": "replay-result-diff.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/replay-result-diff.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "replay-result-diff.v1.*.valid.json",
+					"invalid_glob": "replay-result-diff.v1.*.invalid.json"
+				}
+			],
+			"notes": "Safe replay comparison output for eval and diagnostics without raw prompt, answer, evidence, provider body or memory text."
+		},
+		{
+			"id": "answer-eval-fingerprint.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/answer-eval-fingerprint.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "answer-eval-fingerprint.v1.*.valid.json",
+					"invalid_glob": "answer-eval-fingerprint.v1.*.invalid.json"
+				}
+			],
+			"notes": "Safe answer-level eval identity binding LLM IO, branch outcome, tool runtime and stage timing fingerprints."
+		},
+		{
+			"id": "truncation-summary.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/truncation-summary.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "truncation-summary.v1.*.valid.json",
+					"invalid_glob": "truncation-summary.v1.*.invalid.json"
+				}
+			],
+			"notes": "Count-only context truncation diagnostic summary without raw dropped content."
+		},
+		{
+			"id": "sink-identity-projection.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/sink-identity-projection.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/replay_capture",
+					"valid_glob": "sink-identity-projection.v1.*.valid.json",
+					"invalid_glob": "sink-identity-projection.v1.*.invalid.json"
+				}
+			],
+			"notes": "Pseudonymous identity projection for external observability/eval sinks."
+		},
+		{
+			"id": "env-surface-policy.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/env-surface-policy.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/env-surface-policy.v1.json"],
+			"notes": "Repo-wide environment surface policy consumed by static checks."
+		},
+		{
+			"id": "canonical-document-units.v1",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"notes": "Canonical document-unit JSONL row contract for Rust kernels and ingestion task inputs."
+		},
+		{
+			"id": "ingestion-task-envelope.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v2.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/ingestion-contracts/assertions",
+					"valid_glob": "task-envelope.valid.json",
+					"invalid_glob": "task-envelope.invalid-*.json"
+				}
+			],
+			"notes": "Offline ingestion task envelope contract."
+		},
+		{
+			"id": "ingestion-task-registry.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v2.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/ingestion-contracts/assertions",
+					"valid_glob": "task-registry.valid.json",
+					"invalid_glob": "task-registry.invalid-*.json"
+				}
+			],
+			"notes": "Offline ingestion task registry contract."
+		},
+		{
+			"id": "python-campus-contracts",
+			"kind": "language_local",
+			"path": "packages/contracts/src/campus_contracts",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Python dataclasses and validators are language-local consumer/helper models. Runtime tool catalogs must not reference campus_contracts.* names; cross-language contract truth requires a matching JSON Schema or OpenAPI registry entry."
+		},
+		{
+			"id": "agent-runtime-tool-catalog-zod",
+			"kind": "language_local",
+			"path": "apps/agent-runtime/src/tool-catalog.ts",
+			"owner": "apps/agent-runtime",
+			"status": "active",
+			"notes": "TypeScript/Zod boundary parser for the local agent runtime process."
+		}
+	]
+}

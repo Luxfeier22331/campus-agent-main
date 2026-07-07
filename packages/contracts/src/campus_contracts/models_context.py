@@ -3,16 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_shared import (
-    ALLOWED_CONFIDENCE_LEVELS,
-    ALLOWED_MEMORY_SOURCE_TYPES,
-    ALLOWED_MEMORY_VISIBILITIES,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
     CURRICULUM_SEMESTER_SLOT_NAME,
     DEFAULT_POLICY_PROJECTION_VERSION,
-    ConfidenceLevel,
-    MemorySourceType,
-    MemoryVisibility,
     NoticeSourceFamily,
     NoticeTargetSurface,
     _validate_notice_source_family,
@@ -37,36 +31,6 @@ class ActorContext:
     cohort: str | None = None
     major: str | None = None
     program: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ProfileMemoryItem:
-    item_id: str
-    key: str
-    value: str
-    source_type: MemorySourceType = "user_declared"
-    confidence: ConfidenceLevel = "low"
-    visibility: MemoryVisibility = "user_visible"
-    last_verified_at: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.item_id.strip():
-            raise ValueError("item_id must not be empty")
-        if not self.key.strip():
-            raise ValueError("key must not be empty")
-        if not self.value.strip():
-            raise ValueError("value must not be empty")
-        if self.source_type not in ALLOWED_MEMORY_SOURCE_TYPES:
-            raise ValueError(f"unsupported memory source_type: {self.source_type}")
-        if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
-            raise ValueError(f"unsupported confidence level: {self.confidence}")
-        if self.visibility not in ALLOWED_MEMORY_VISIBILITIES:
-            raise ValueError(f"unsupported visibility: {self.visibility}")
-
-
-@dataclass(frozen=True, slots=True)
-class ProfileMemorySummary:
-    items: tuple[ProfileMemoryItem, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,7 +145,6 @@ class AuthorizationProjection:
 class ContextProjection:
     actor: ActorContext = field(default_factory=ActorContext)
     authorization: AuthorizationProjection = field(default_factory=AuthorizationProjection)
-    profile_memory: ProfileMemorySummary = field(default_factory=ProfileMemorySummary)
     session: SessionSummary = field(default_factory=SessionSummary)
 
 

@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0019
 status: accepted
 created: 2026-03-31
@@ -111,9 +113,10 @@ updated: 2026-06-01
 直接结果如下：
 
 - `docs/reference/runtime-serving-and-index-terms.md` 需要补充 retention role 定义
-- `docs/runbooks/index-release-runbook.md` 需要补充旧 collection 清理门禁与操作流程
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
   冻结当前 self-hosted native snapshot 恢复覆盖策略
+- 旧 Python ingestion worker index release runbook 已归档；如需旧 collection
+  清理门禁，只能把仍有效的检查迁入 ingestion-control task / runbook 后再执行
 - 后续如果实现自动 GC / cleanup worker，必须严格遵守本 ADR 的角色与门禁，而不是重新发明 time-only policy
 
 明确不做：
@@ -126,8 +129,8 @@ updated: 2026-06-01
 
 这项决策 complements：
 
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/runbooks/index-release-runbook.md`
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `docs/runbooks/temporal-self-host-operations.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

@@ -44,8 +44,12 @@ _JS_LIKE_SUFFIXES = {
 _MARKDOWN_ROOT_FILES = {
     ".github/pull_request_template.md",
     "AGENTS.md",
+    "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "README.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    "THIRD_PARTY_NOTICES.md",
 }
 _ROOT_BIOME_FILES = {
     ".markdownlint-cli2.jsonc",
@@ -55,7 +59,6 @@ _ROOT_BIOME_FILES = {
 }
 _ROOT_LOCK_FILES = {"pnpm-lock.yaml", "uv.lock"}
 _ROOT_SQL_LINT_FILES = {".sqlfluff"}
-_LEGACY_OFFICE_JAVA_PREFIX = "apps/legacy-office-conversion-service/src/"
 _TEXT_LIKE_SUFFIXES = {
     ".cjs",
     ".css",
@@ -84,7 +87,16 @@ _TEXT_LIKE_SUFFIXES = {
     ".yaml",
     ".yml",
 }
-_WEB_LINT_PREFIXES = ("apps/", "configs/", "packages/", "scripts/", "tests/")
+_WEB_LINT_PREFIXES = (
+    "apps/",
+    "configs/",
+    "docs/reference/eval/",
+    "infra/local/scripts/",
+    "jobs/",
+    "packages/",
+    "scripts/",
+    "tests/",
+)
 
 
 def repo_root() -> Path:
@@ -115,16 +127,16 @@ def lint_exclusion_reason(path: str) -> str | None:
         return "temporary_workspace_artifact"
     if path.startswith(".worktrees/"):
         return "worktree_runtime_artifact"
-    if path.startswith("apps/public-docs/docs/.generated/course-maps/"):
-        return "generated_public_docs_course_map_data"
-    if path.startswith("apps/public-chat-web/vendor/"):
-        return "vendor_snapshot"
+    if path.startswith("apps/app-api/drizzle/") and path.endswith(".sql"):
+        return "generated_drizzle_migration"
     if path.startswith("apps/app-api/drizzle/meta/"):
         return "generated_drizzle_metadata"
+    if path.startswith("docs/reference/muc-campus-qa-frontend-design/"):
+        return "design_reference_asset_snapshot"
+    if path.startswith("docs/runbooks/muc-wiki-visual-modernization-assets/"):
+        return "runbook_visual_asset_snapshot"
     if path in _EXCLUDED_GENERATED_FILES:
         return _EXCLUDED_GENERATED_FILES[path]
-    if path.startswith("docs/plans/"):
-        return "archived_plan_documentation"
     if path.startswith("docs/") and "/archive/" in path:
         return "archived_reference_documentation"
     if Path(path).suffix.lower() in _BINARY_SUFFIXES:
@@ -149,38 +161,43 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
     families: list[str] = []
     if _is_biome_tracked_file(path):
         families.append("web:lint")
-    if _is_public_docs_generated_file(path):
-        families.append("public-docs:lint")
     if _is_markdown_tracked_file(path):
-        families.append("docs:lint")
+        families.append("repo:static")
     if _is_python_tracked_file(path):
-        families.extend(("py:lint", "py:format:check"))
+        families.append("repo:static")
     if _is_go_tracked_file(path):
-        families.append("go:static:check")
+        families.append("ci:go")
     if path.endswith((".yaml", ".yml")):
-        families.append("yaml:lint")
+        families.append("repo:static")
     if path.endswith(".toml"):
-        families.append("toml:lint")
+        families.append("repo:static")
     if path.endswith(".sh"):
-        families.append("shell:lint")
+        families.append("repo:static")
     if path.endswith(".xml"):
-        families.append("xml:lint")
+        families.append("repo:static")
     if path.endswith(".jsonl"):
-        families.append("jsonl:lint")
-    if _is_legacy_office_java_tracked_file(path):
-        families.append("java:lint")
+        families.append("repo:static")
+    if path in {
+        "scripts/check_dependency_license_policy.py",
+        "scripts/check_object_store_bucket_policy.py",
+        "scripts/check_open_source_metadata.py",
+        "scripts/check_public_asset_source_clean.py",
+        "scripts/check_public_fixture_source_clean.py",
+        "scripts/check_public_source_tokens.py",
+    }:
+        families.append("repo:static")
     if path.endswith(".sql") or path in _ROOT_SQL_LINT_FILES:
-        families.append("sql:lint")
+        families.append("repo:static")
     if _is_docker_tracked_file(path):
-        families.append("docker:lint")
+        families.append("repo:static")
     if _is_env_tracked_file(path):
-        families.append("env:lint")
+        families.append("repo:static")
     if _is_editorconfig_tracked_file(path):
-        families.append("editorconfig:lint")
+        families.append("repo:static")
     if path in _ROOT_LOCK_FILES or path.endswith("/pnpm-lock.yaml"):
-        families.append("lock:lint")
+        families.append("repo:static")
     if path.endswith(".html"):
-        families.append("html:lint")
+        families.append("repo:static")
     return tuple(dict.fromkeys(families))
 
 
@@ -206,23 +223,13 @@ def _is_biome_tracked_file(path: str) -> bool:
 def _is_markdown_tracked_file(path: str) -> bool:
     if path in _MARKDOWN_ROOT_FILES:
         return True
+    if path.startswith(".github/ISSUE_TEMPLATE/"):
+        return path.endswith(".md")
     if path.startswith("docs/"):
-        return (
-            path.endswith(".md") and "/archive/" not in path and not path.startswith("docs/plans/")
-        )
-    if path.startswith("apps/public-docs/docs/"):
-        return False
-    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
+        return path.endswith(".md") and "/archive/" not in path
+    if path.startswith(("apps/", "jobs/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
-
-
-def _is_public_docs_generated_file(path: str) -> bool:
-    if not path.startswith("apps/public-docs/docs/"):
-        return False
-    if path.startswith("apps/public-docs/docs/.generated/"):
-        return False
-    return path.endswith((".md", ".mdx"))
 
 
 def _is_python_tracked_file(path: str) -> bool:
@@ -231,14 +238,13 @@ def _is_python_tracked_file(path: str) -> bool:
             ".planning/",
             ".tmp/",
             ".worktrees/",
-            "apps/public-chat-web/vendor/",
             "apps/app-api/drizzle/meta/",
         )
     )
 
 
 def _is_go_tracked_file(path: str) -> bool:
-    return path.startswith("apps/supervisor-api/") and path.endswith(".go")
+    return path.startswith("apps/execution-control/") and path.endswith(".go")
 
 
 def _is_docker_tracked_file(path: str) -> bool:
@@ -247,10 +253,6 @@ def _is_docker_tracked_file(path: str) -> bool:
         or path.endswith(".dockerfile")
         or path in _DOCKER_NAMES
     )
-
-
-def _is_legacy_office_java_tracked_file(path: str) -> bool:
-    return path.startswith(_LEGACY_OFFICE_JAVA_PREFIX) and path.endswith(".java")
 
 
 def _is_env_tracked_file(path: str) -> bool:

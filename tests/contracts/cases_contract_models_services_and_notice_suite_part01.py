@@ -1,96 +1,12 @@
 # ruff: noqa: F403,F405
 from __future__ import annotations
 
-import json
 import unittest
 
 from tests.contracts.contract_models_services_and_notice_suite_support import *
 
 
 class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
-    def test_academic_calendar_payload_and_result_serialize(self) -> None:
-        payload = AcademicCalendarLookupPayload(
-            query_text="今天第几教学周",
-            temporal_query=TemporalQuery(mode="current"),
-            query_kind="date_week",
-            target_date="2026-05-04",
-            audience="student",
-        )
-        result = AcademicCalendarLookupResult(
-            query_text="今天第几教学周",
-            outcome="resolved_current",
-            query_kind="date_week",
-            resolved_date="2026-05-04",
-            academic_year_label="2025-2026学年",
-            term_label="春季学期",
-            week_index=12,
-            day_kind="teaching_day",
-            source_refs=("official_web:muc-academic-calendar-2025-2026:owver",),
-        )
-
-        self.assertEqual(asdict(payload)["query_text"], "今天第几教学周")
-        self.assertEqual(asdict(payload)["query_kind"], "date_week")
-        self.assertEqual(asdict(payload)["target_date"], "2026-05-04")
-        self.assertEqual(asdict(result)["week_index"], 12)
-        self.assertEqual(asdict(result)["academic_year_label"], "2025-2026学年")
-
-    def test_academic_calendar_contract_represents_named_event_ranges(self) -> None:
-        payload = AcademicCalendarLookupPayload(
-            query_text="劳动节放假怎么安排",
-            temporal_query=TemporalQuery(mode="current_year", year_hint="2026"),
-            query_kind="named_event_range",
-            event_query="劳动节",
-            audience="student",
-        )
-        result = AcademicCalendarLookupResult(
-            query_text="劳动节放假怎么安排",
-            outcome="resolved_current",
-            query_kind="named_event_range",
-            event_name="劳动节假期",
-            event_type="holiday",
-            event_aliases=("五一", "劳动节"),
-            event_start_date="2026-05-01",
-            event_end_date_exclusive="2026-05-06",
-            display_start_date="2026-05-01",
-            display_end_date="2026-05-05",
-            applies_to=("all",),
-            source_title="中央民族大学 2025-2026 学年校历",
-            source_url="https://www.muc.edu.cn/ggfw/mdxl.htm",
-            calendar_record_id="academic-calendar:2025-2026:holiday:labor-day",
-            source_refs=("https://www.muc.edu.cn/ggfw/mdxl.htm",),
-        )
-
-        self.assertEqual(asdict(payload)["event_query"], "劳动节")
-        self.assertEqual(asdict(result)["event_end_date_exclusive"], "2026-05-06")
-        self.assertEqual(asdict(result)["display_end_date"], "2026-05-05")
-        self.assertEqual(tuple(asdict(result)["event_aliases"]), ("五一", "劳动节"))
-
-    def test_academic_calendar_result_requires_source_refs_when_resolved(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "source_refs must not be empty for resolved academic calendar",
-        ):
-            AcademicCalendarLookupResult(
-                query_text="今天第几教学周",
-                outcome="resolved_current",
-                resolved_date="2026-05-04",
-                week_index=12,
-            )
-
-    def test_academic_calendar_payload_rejects_unknown_query_kind(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported academic calendar query_kind"):
-            AcademicCalendarLookupPayload(
-                query_text="今天第几教学周",
-                query_kind="raw_calendar_scan",
-            )
-
-    def test_academic_calendar_payload_requires_query_kind(self) -> None:
-        with self.assertRaisesRegex(ValueError, "query_kind must not be empty"):
-            AcademicCalendarLookupPayload(
-                query_text="今天第几教学周",
-                query_kind="",
-            )
-
     def test_session_summary_exposes_selected_notice_ref_field(self) -> None:
         summary = SessionSummary(
             selected_notice_ref=SelectedNoticeRef(
@@ -112,28 +28,28 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             "regulations/student_rules",
         )
 
-    def test_agent_request_serializes_forward_agent_allowed_tools(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
-            user_goal="图书馆今天开门吗",
-            payload=ServiceStatusLookupPayload(
-                subject_query="图书馆今天开门吗",
-                temporal_query=TemporalQuery(mode="current"),
+    def test_tool_request_serializes_forward_allowed_tools(self) -> None:
+        request = ToolRequest(
+            tool="transport_schedule_lookup",
+            user_goal="校车下一班几点",
+            payload=TransportScheduleLookupPayload(
+                query_text="校车下一班几点",
+                intent="next_departure",
             ),
-            allowed_tools=("service_status_lookup",),
+            allowed_tools=("transport_schedule_lookup",),
         )
 
         payload = asdict(request)
 
-        self.assertEqual(payload["target"], "campus-services-agent")
-        self.assertEqual(tuple(payload["allowed_tools"]), ("service_status_lookup",))
+        self.assertEqual(payload["tool"], "transport_schedule_lookup")
+        self.assertEqual(tuple(payload["allowed_tools"]), ("transport_schedule_lookup",))
 
     def test_agent_request_rejects_unknown_allowed_tool(self) -> None:
         with self.assertRaisesRegex(
             ValueError, "unsupported allowed_tool: transport_notice_latest"
         ):
-            AgentRequest(
-                target="campus-services-agent",
+            ToolRequest(
+                tool="transport_schedule_lookup",
                 user_goal="校车现在开吗",
                 payload=TransportScheduleLookupPayload(
                     query_text="校车现在开吗",
@@ -142,43 +58,15 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                 allowed_tools=("transport_notice_latest",),  # type: ignore[arg-type]
             )
 
-    def test_agent_request_accepts_contact_directory_allowed_tool(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
-            user_goal="招生办电话是多少",
-            payload=ContactDirectoryLookupPayload(
-                query_text="招生办电话是多少",
-                contact_focus="phone",
-            ),
-            allowed_tools=("contact_directory_lookup",),
-        )
-
-        self.assertEqual(request.allowed_tools, ("contact_directory_lookup",))
-
-    def test_agent_request_accepts_academic_calendar_as_campus_service_tool(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
-            user_goal="今天第几教学周",
-            payload=AcademicCalendarLookupPayload(
-                query_text="今天第几教学周",
-                temporal_query=TemporalQuery(mode="current"),
-                query_kind="date_week",
-            ),
-            allowed_tools=("academic_calendar_lookup",),
-        )
-
-        self.assertEqual(request.allowed_tools, ("academic_calendar_lookup",))
-
-    def test_agent_request_rejects_retired_calendar_agent_target(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported agent target: calendar-agent"):
-            AgentRequest(
-                target="calendar-agent",  # type: ignore[arg-type]
-                user_goal="今天第几教学周",
-                payload=AcademicCalendarLookupPayload(
-                    query_text="今天第几教学周",
-                    query_kind="date_week",
-                ),
-                allowed_tools=("academic_calendar_lookup",),
+    def test_agent_request_rejects_closed_navigation_as_model_facing_allowed_tool(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: place_lookup"):
+            ToolRequest(
+                tool="place_lookup",
+                user_goal="图书馆在哪",
+                payload=PlaceLookupPayload(query_text="图书馆在哪"),
+                allowed_tools=("place_lookup",),
             )
 
     def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
@@ -192,258 +80,88 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         ):
             TemporalQuery(mode="current", year_hint="2026")
 
-    def test_service_status_payload_and_result_serialize(self) -> None:
-        payload = ServiceStatusLookupPayload(
-            subject_query="图书馆今天开门吗",
-            temporal_query=TemporalQuery(mode="current"),
-            campus_scope="haidian",
-        )
-        result = ServiceStatusLookupResult(
-            subject_query="图书馆今天开门吗",
+    def test_campus_services_tool_result_envelope_wraps_transport_schedule_facts(self) -> None:
+        result = CampusServicesToolResultEnvelope(
+            tool_name="transport_schedule_lookup",
+            query_kind="transport_schedule",
             outcome="resolved_current",
-            resolved_subject="海淀校区图书馆",
-            observed_status="open",
-            status_note="工作日开放，节假日另行通知",
-            queried_time_anchor="2026-04-21T10:30:00+08:00",
-            effective_from="2026-04-21T08:00:00+08:00",
-            effective_until="2026-04-21T22:00:00+08:00",
-            override_source_refs=("notice:muc-library-holiday-adjustment-2026",),
-            related_notice_refs=("notice:muc-library-holiday-adjustment-2026",),
-        )
-
-        self.assertEqual(
-            asdict(payload),
-            {
-                "subject_query": "图书馆今天开门吗",
-                "temporal_query": {
-                    "mode": "current",
-                    "as_of": "",
-                    "year_hint": "",
-                },
-                "campus_scope": "haidian",
-            },
-        )
-        self.assertEqual(asdict(result)["observed_status"], "open")
-        self.assertEqual(asdict(result)["status_note"], "工作日开放，节假日另行通知")
-        self.assertEqual(
-            tuple(asdict(result)["override_source_refs"]),
-            ("notice:muc-library-holiday-adjustment-2026",),
-        )
-
-    def test_service_guide_payload_and_result_serialize(self) -> None:
-        payload = ServiceGuideLookupPayload(
-            service_query="宿舍入住怎么办理",
-            guide_focus="procedure",
-            temporal_query=TemporalQuery(mode="current"),
-            audience="student",
-        )
-        result = ServiceGuideLookupResult(
-            service_query="宿舍入住怎么办理",
-            guide_focus="procedure",
-            outcome="resolved_current",
-            resolved_service=ServiceGuideServiceRef(
-                service_id="service:handbook:check-in",
-                display_name="公寓楼新生办理入住手续流程",
-                aliases=("入住", "宿舍"),
-                category="student_housing",
-                campus_scope="all",
-                audience=("student",),
-            ),
-            guide_sections=(
-                ServiceGuideSection(
-                    section_id="service:handbook:check-in:section:procedure",
-                    section_type="procedure",
-                    title="公寓楼新生办理入住手续流程",
-                    content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
-                    source_refs=("handbook:student_rules:pages:252-255#page=253",),
-                ),
-            ),
-            source_refs=("handbook:student_rules:pages:252-255#page=253",),
-            queried_time_anchor="2026-04-25T10:30:00+08:00",
-            effective_from="2018-09-01T00:00:00+08:00",
-            effective_until="2099-12-31T23:59:59+08:00",
-            field_status={"contact": "source_not_provided"},
-            matched_service_category="student_housing",
-        )
-
-        self.assertEqual(asdict(payload)["guide_focus"], "procedure")
-        self.assertEqual(
-            asdict(result)["resolved_service"]["display_name"], "公寓楼新生办理入住手续流程"
-        )
-        self.assertEqual(
-            tuple(asdict(result)["source_refs"]),
-            ("handbook:student_rules:pages:252-255#page=253",),
-        )
-        self.assertEqual(asdict(result)["field_status"], {"contact": "source_not_provided"})
-
-    def test_service_guide_contract_exposes_grouped_procedure_and_focus_metadata(self) -> None:
-        result_fields = {field.name for field in fields(ServiceGuideLookupResult)}
-        self.assertTrue(
-            {
-                "procedure_groups",
-                "selected_section_ids",
-                "omitted_section_ids",
-                "omitted_section_reasons",
-            }.issubset(result_fields)
-        )
-        self.assertIn("section_id", {field.name for field in fields(ServiceGuideSection)})
-
-    def test_service_guide_vpn_grouped_procedure_fixture_matches_contract(self) -> None:
-        payload = json.loads(VPN_GROUPED_PROCEDURE_FIXTURE_PATH.read_text(encoding="utf-8"))
-        procedure_groups = tuple(
-            ServiceGuideProcedureGroup(
-                group_id=str(group["group_id"]),
-                title=str(group["title"]),
-                focus_tags=tuple(group.get("focus_tags") or ()),
-                steps=tuple(
-                    ServiceGuideProcedureStep(
-                        step_id=str(step["step_id"]),
-                        content=str(step["content"]),
-                        source_refs=tuple(step.get("source_refs") or ()),
-                    )
-                    for step in (group.get("steps") or [])
-                ),
-                source_refs=tuple(group.get("source_refs") or ()),
-            )
-            for group in payload["procedure_groups"]
-        )
-        result = ServiceGuideLookupResult(
-            service_query=str(payload["service_query"]),
-            guide_focus=str(payload["guide_focus"]),
-            outcome=str(payload["outcome"]),
-            resolved_service=ServiceGuideServiceRef(
-                service_id=str(payload["resolved_service"]["service_id"]),
-                display_name=str(payload["resolved_service"]["display_name"]),
-                aliases=tuple(payload["resolved_service"].get("aliases") or ()),
-                category=str(payload["resolved_service"]["category"]),
-                campus_scope=str(payload["resolved_service"]["campus_scope"]),
-                audience=tuple(payload["resolved_service"].get("audience") or ()),
-            ),
-            guide_sections=tuple(
-                ServiceGuideSection(
-                    section_id=str(section["section_id"]),
-                    section_type=str(section["section_type"]),
-                    title=str(section["title"]),
-                    content=str(section["content"]),
-                    source_refs=tuple(section.get("source_refs") or ()),
+            facts=CampusServicesScheduleFacts(
+                result=TransportScheduleLookupResult(
+                    query_text="校车下一班几点",
+                    intent="next_departure",
+                    outcome="resolved_current",
+                    resolved_route=TransportRouteRef(
+                        route_id="route:intercampus",
+                        display_name="两校区接驳",
+                        service_family="intercampus",
+                    ),
+                    selected_departure=ScheduledDeparture(departure_at="18:30"),
+                    schedule_snapshot=TransportScheduleSnapshotRef(
+                        snapshot_id="snapshot:transport:current",
+                        published_at="2026-06-01T00:00:00+08:00",
+                        source_ref="campus_services:transport_schedule:current",
+                    ),
                 )
-                for section in payload["guide_sections"]
             ),
-            procedure_groups=procedure_groups,
-            source_refs=tuple(payload["source_refs"]),
-            queried_time_anchor=str(payload["queried_time_anchor"]),
-            effective_from=str(payload["effective_from"]),
-            effective_until=str(payload["effective_until"]),
-            matched_service_category=str(payload["matched_service_category"]),
-            selected_section_ids=tuple(payload["selected_section_ids"]),
-            omitted_section_ids=tuple(payload["omitted_section_ids"]),
-            omitted_section_reasons=dict(payload["omitted_section_reasons"]),
-            field_status=dict(payload["field_status"]),
+            source_refs=("campus_services:transport_schedule:current",),
+            projection_ref="projection:campus_services:transport_schedule:current",
+            content_hash="sha256:transport-current",
         )
 
-        rendered = asdict(result)
+        payload = asdict(result)
+
+        self.assertEqual(payload["schema_version"], "campus_services_tool_result.v1")
+        self.assertEqual(payload["tool"], "transport_schedule_lookup")
+        self.assertEqual(payload["facts"]["kind"], "schedule_facts")
         self.assertEqual(
-            rendered["procedure_groups"][0]["group_id"],
-            "service:official_web:vpn:procedure_group:client_install",
-        )
-        self.assertEqual(
-            tuple(rendered["selected_section_ids"]),
-            ("service:official_web:vpn:procedure_group:client_install",),
-        )
-        self.assertEqual(
-            tuple(rendered["omitted_section_ids"]),
-            (
-                "service:official_web:vpn:procedure_group:direct_login",
-                "service:official_web:vpn:procedure_group:mobile_usage",
-            ),
-        )
-        self.assertEqual(
-            rendered["omitted_section_reasons"][
-                "service:official_web:vpn:procedure_group:direct_login"
-            ],
-            "focus_mismatch",
+            payload["facts"]["result"]["resolved_route"]["route_id"],
+            "route:intercampus",
         )
 
-    def test_service_guide_result_requires_fail_close_reason(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "fail_close_reason must not be empty for fail-closed service guide results",
-        ):
-            ServiceGuideLookupResult(
-                service_query="宿舍入住怎么办理",
-                guide_focus="procedure",
-                outcome="temporarily_unverifiable",
+    def test_campus_services_tool_result_envelope_rejects_raw_projection_refs(self) -> None:
+        with self.assertRaisesRegex(ValueError, "forbidden raw campus services projection key"):
+            CampusServicesToolResultEnvelope(
+                tool_name="transport_schedule_lookup",
+                query_kind="transport_schedule",
+                outcome="resolved_current",
+                facts=CampusServicesScheduleFacts(
+                    result=TransportScheduleLookupResult(
+                        query_text="校车下一班几点",
+                        intent="next_departure",
+                        outcome="resolved_current",
+                        resolved_route=TransportRouteRef(
+                            route_id="route:intercampus",
+                            display_name="两校区接驳",
+                            service_family="intercampus",
+                        ),
+                    )
+                ),
+                source_refs=("campus_services:transport_schedule:current",),
+                projection_ref="object_store_key:s3://raw/source",
+                content_hash="sha256:transport-current",
             )
 
-    def test_contact_directory_payload_and_result_serialize(self) -> None:
-        payload = ContactDirectoryLookupPayload(
-            query_text="招生办电话是多少",
-            contact_focus="phone",
-            campus_scope="haidian",
-            audience="student",
-            result_limit=3,
-        )
-        result = ContactDirectoryLookupResult(
-            query_text="招生办电话是多少",
-            contact_focus="phone",
-            outcome="resolved_current",
-            resolved_contact=ContactDirectoryContactRef(
-                contact_id="contact:admission-office",
-                display_name="招生办公室",
-                aliases=("招生办",),
-                entity_type="office",
-                department="本科招生办公室",
-                contact_group="招生",
-                campus_scope="haidian",
-                audience=("student",),
-            ),
-            contact_points=(
-                ContactDirectoryContactPoint(
-                    channel_type="phone",
-                    label="咨询电话",
-                    value="010-68930001",
-                    source_refs=("handbook:student_rules:pages:261-261#page=261",),
-                ),
-            ),
-            office_hours=(
-                ContactDirectoryOfficeHours(
-                    hours_id="hours:admission-office",
-                    label="办公时间",
-                    day_pattern="工作日",
-                    time_range="08:30-11:30,14:00-17:00",
-                    source_refs=("handbook:student_rules:pages:261-261#page=261",),
-                ),
-            ),
-            source_refs=("handbook:student_rules:pages:261-261#page=261",),
-            field_status={"email": "source_not_provided"},
-        )
-
-        self.assertEqual(asdict(payload)["contact_focus"], "phone")
-        self.assertEqual(asdict(result)["resolved_contact"]["display_name"], "招生办公室")
-        self.assertEqual(asdict(result)["contact_points"][0]["channel_type"], "phone")
-        self.assertEqual(asdict(result)["field_status"], {"email": "source_not_provided"})
-
-    def test_field_not_provided_by_source_is_canonical_fail_close_reason(self) -> None:
-        result = ServiceGuideLookupResult(
-            service_query="公费医疗报销联系电话是多少",
-            guide_focus="contact",
+    def test_campus_services_tool_result_envelope_allows_fail_closed_without_source_refs(
+        self,
+    ) -> None:
+        result = CampusServicesToolResultEnvelope(
+            tool_name="transport_schedule_lookup",
+            query_kind="transport_schedule",
             outcome="temporarily_unverifiable",
-            fail_close_reason="field_not_provided_by_source",
-            field_status={"contact": "source_not_provided"},
+            facts=CampusServicesScheduleFacts(
+                result=TransportScheduleLookupResult(
+                    query_text="校车下一班几点",
+                    intent="next_departure",
+                    outcome="temporarily_unverifiable",
+                    fail_close_reason="source_truth_unavailable",
+                )
+            ),
+            projection_ref="projection:campus_services:transport_schedule:unavailable",
+            content_hash="sha256:transport-unavailable",
+            fail_close_reason="source_truth_unavailable",
         )
 
-        self.assertEqual(result.fail_close_reason, "field_not_provided_by_source")
-
-    def test_contact_directory_result_requires_fail_close_reason(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "fail_close_reason must not be empty for fail-closed contact directory results",
-        ):
-            ContactDirectoryLookupResult(
-                query_text="招生办电话是多少",
-                contact_focus="phone",
-                outcome="temporarily_unverifiable",
-            )
+        self.assertEqual(asdict(result)["source_refs"], ())
 
     def test_transport_schedule_payload_requires_non_empty_query_text(self) -> None:
         with self.assertRaisesRegex(ValueError, "query_text must not be empty"):
@@ -474,6 +192,37 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                 "operational_notices",
             }.issubset({field.name for field in fields(TransportScheduleLookupResult)})
         )
+
+    def test_scheduled_departure_exposes_status_kind_note_and_source_refs(self) -> None:
+        departure = ScheduledDeparture(
+            departure_at="2026-06-24T07:00:00+08:00",
+            departure_status="changed",
+            departure_kind="student",
+            operational_note="该班次临时改至南门上车",
+            related_notice_refs=("https://portal.example.edu/notice/456",),
+        )
+
+        payload = asdict(departure)
+
+        self.assertEqual(payload["departure_status"], "changed")
+        self.assertEqual(payload["departure_kind"], "student")
+        self.assertEqual(payload["operational_note"], "该班次临时改至南门上车")
+        self.assertEqual(
+            tuple(payload["related_notice_refs"]),
+            ("https://portal.example.edu/notice/456",),
+        )
+
+    def test_scheduled_departure_rejects_invalid_status_and_kind(self) -> None:
+        with self.assertRaises(ValueError):
+            ScheduledDeparture(
+                departure_at="2026-06-24T07:00:00+08:00",
+                departure_status="silently_normalized",
+            )
+        with self.assertRaises(ValueError):
+            ScheduledDeparture(
+                departure_at="2026-06-24T07:00:00+08:00",
+                departure_kind="vip",
+            )
 
     def test_transport_schedule_result_serializes_stop_refs(self) -> None:
         result = TransportScheduleLookupResult(
@@ -526,8 +275,8 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                     notice_id="notice:muc-spring-break-2025",
                     title="2025年春假安排通知",
                     source_family="official_web_public_notice",
-                    source_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
-                    canonical_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
+                    source_url="https://www.example.edu/info/2025-spring-break.htm",
+                    canonical_url="https://www.example.edu/info/2025-spring-break.htm",
                     summary="当前年份未命中，仅返回上一年度相关通知作为历史参考。",
                     published_at="2025-03-01",
                     effective_at="2025-03-10",
@@ -571,7 +320,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
     def test_notice_card_and_get_result_carry_minimum_web_card_surface(self) -> None:
         card = NoticeCard(
             notice_id="355222",
-            title="中央民族大学丰台校区家具采购项目比选公告",
+            title="示例大学丰台校区家具采购项目比选公告",
             source_family="internal_notice_restricted",
             source_url="https://portal.example.edu/notices/355222",
             canonical_url="https://portal.example.edu/notices/355222",
@@ -595,17 +344,6 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         self.assertEqual(result.display_policy.public_surface, "card_only")
         self.assertTrue(result.display_policy.full_body_forbidden)
 
-    def test_service_status_historical_result_allows_missing_downgrade_reason(self) -> None:
-        result = ServiceStatusLookupResult(
-            subject_query="2024年图书馆开放状态",
-            outcome="resolved_historical_reference",
-            resolved_subject="海淀校区图书馆",
-            observed_status="closed",
-        )
-
-        self.assertEqual(result.outcome, "resolved_historical_reference")
-        self.assertEqual(result.historical_downgrade_reason, "")
-
     def test_notice_discover_historical_result_allows_missing_downgrade_reason(self) -> None:
         result = CampusNoticeDiscoverResult(
             query_text="2024年春假通知",
@@ -615,7 +353,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
                     notice_id="notice:muc-spring-break-2024",
                     title="2024年春假安排通知",
                     source_family="official_web_public_notice",
-                    source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+                    source_url="https://www.example.edu/info/2024-spring-break.htm",
                 ),
             ),
         )
@@ -629,7 +367,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             outcome="resolved_historical_reference",
             title="2024年春假安排通知",
             source_family="official_web_public_notice",
-            source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+            source_url="https://www.example.edu/info/2024-spring-break.htm",
         )
 
         self.assertEqual(result.outcome, "resolved_historical_reference")
@@ -643,7 +381,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             title="2026年春假安排通知",
             outcome="resolved_current",
             source_family="official_web_public_notice",
-            source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+            source_url="https://www.example.edu/info/2026-spring-break.htm",
         )
 
         self.assertEqual(result.normalized_body, "")

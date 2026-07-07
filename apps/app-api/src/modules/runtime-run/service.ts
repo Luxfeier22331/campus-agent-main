@@ -6,11 +6,12 @@ import { requestExecution } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
-	createSupervisorDurableRuntimeClient,
-	type SupervisorDurableRun,
-	type SupervisorDurableRunEvent,
-	type SupervisorDurableRuntimeClient,
-	SupervisorTransportError,
+	createExecutionControlRuntimeClient,
+	type ExecutionControlRun,
+	type ExecutionControlRunEvent,
+	type ExecutionControlRunStepTrajectory,
+	type ExecutionControlRuntimeClient,
+	ExecutionControlTransportError,
 } from "../integration";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -50,7 +51,7 @@ export type RuntimeRunPhase =
 	| "canceled"
 	| "expired";
 
-export function runtimeRunPhaseFromSupervisorStatus(status: string): RuntimeRunPhase {
+export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPhase {
 	switch (status) {
 		case "created":
 			return "created";
@@ -71,9 +72,9 @@ export function runtimeRunPhaseFromSupervisorStatus(status: string): RuntimeRunP
 		case "expired":
 			return "expired";
 		default:
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
-				message: "Supervisor durable run status is not supported.",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Execution durable run status is not supported.",
 				retryable: true,
 				status: 502,
 			});
@@ -88,6 +89,10 @@ export interface RuntimeRunEventProjection {
 	runId: string;
 	sequence: number;
 	visibility: string;
+}
+
+export interface RuntimeRunStepTrajectory extends ExecutionControlRunStepTrajectory {
+	run: RuntimeRunSummary;
 }
 
 export interface RuntimeRunEventSubscriptionPolicy {
@@ -111,6 +116,10 @@ export interface RuntimeRunService {
 		principal: ResolvedAppPrincipal;
 		runId: string;
 	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }>;
+	listSteps(input: {
+		principal: ResolvedAppPrincipal;
+		runId: string;
+	}): Promise<RuntimeRunStepTrajectory>;
 	subscribeEvents(input: {
 		afterSequence?: number;
 		polling?: RuntimeRunEventSubscriptionPolicy;
@@ -120,9 +129,184 @@ export interface RuntimeRunService {
 }
 
 const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
-	maxAttempts: 30,
+	maxAttempts: 180,
 	pollIntervalMs: 1000,
 } as const;
+
+const STUDENT_FORBIDDEN_MEMORY_REF_KEYS = new Set([
+	"bank_id",
+	"bankId",
+	"operation_id",
+	"operationId",
+	"operation_ref",
+	"operationRef",
+	"operation_status_ref",
+	"operationStatusRef",
+	"result_metadata_shape",
+	"resultMetadataShape",
+	"runtime_document_ref",
+	"runtimeDocumentRef",
+]);
+
+const STUDENT_FORBIDDEN_MEMORY_REF_TOKENS = [
+	"hindsight_bank_",
+	"memory/documents",
+	"memory/operations",
+] as const;
+
+function isHindsightMemoryDocumentID(value: string): boolean {
+	return /^conversation:[a-f0-9]{32}$/i.test(value) || /^profile:[A-Za-z0-9_-]{3,128}$/.test(value);
+}
+
+function sanitizeStudentRunStepTrajectory(
+	trajectory: ExecutionControlRunStepTrajectory,
+): ExecutionControlRunStepTrajectory {
+	return sanitizeStudentRuntimeValue(trajectory) as ExecutionControlRunStepTrajectory;
+}
+
+function getStringPayloadField(payload: Record<string, unknown>, key: string): string | undefined {
+	const value = payload[key];
+	return typeof value === "string" ? value : undefined;
+}
+
+function getNumberPayloadField(payload: Record<string, unknown>, key: string): number | undefined {
+	const value = payload[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function getBooleanPayloadField(
+	payload: Record<string, unknown>,
+	key: string,
+): boolean | undefined {
+	const value = payload[key];
+	return typeof value === "boolean" ? value : undefined;
+}
+
+function getRecordPayloadField(
+	payload: Record<string, unknown>,
+	key: string,
+): Record<string, unknown> | undefined {
+	const value = payload[key];
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function pickStringPayloadFields(
+	payload: Record<string, unknown>,
+	keys: string[],
+): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+	for (const key of keys) {
+		const value = getStringPayloadField(payload, key);
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record<string, unknown> {
+	const payload = event.payload;
+	switch (event.eventType) {
+		case "execution.queued":
+		case "execution.running":
+		case "run.queued":
+		case "run.started":
+		case "run.running":
+			return pickStringPayloadFields(payload, ["request_id", "status", "trace_id"]);
+		case "run.answer_started":
+			return pickStringPayloadFields(payload, ["message_id", "request_id", "status", "trace_id"]);
+		case "run.answer_delta": {
+			const result = pickStringPayloadFields(payload, [
+				"accumulated_text",
+				"delta",
+				"message_id",
+				"request_id",
+				"trace_id",
+			]);
+			const chunkIndex = getNumberPayloadField(payload, "chunk_index");
+			if (chunkIndex !== undefined) {
+				result.chunk_index = chunkIndex;
+			}
+			return result;
+		}
+		case "run.answer_completed":
+			return pickStringPayloadFields(payload, [
+				"accumulated_text",
+				"message_id",
+				"request_id",
+				"trace_id",
+			]);
+		case "finalization.completed":
+			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
+		case "run.completed":
+			return pickStringPayloadFields(payload, [
+				"request_id",
+				"status",
+				"terminal_reason",
+				"trace_id",
+			]);
+		case "run.canceled":
+			return pickStringPayloadFields(payload, [
+				"request_id",
+				"status",
+				"terminal_reason",
+				"trace_id",
+			]);
+		case "run.failed":
+		case "run.expired": {
+			const result = pickStringPayloadFields(payload, [
+				"failure_kind",
+				"request_id",
+				"status",
+				"terminal_reason",
+				"trace_id",
+			]);
+			const error = getRecordPayloadField(payload, "error");
+			if (error) {
+				const errorProjection = pickStringPayloadFields(error, ["code", "message"]);
+				const retryable = getBooleanPayloadField(error, "retryable");
+				if (retryable !== undefined) {
+					errorProjection.retryable = retryable;
+				}
+				result.error = errorProjection;
+			}
+			return result;
+		}
+		default:
+			return {};
+	}
+}
+
+function sanitizeStudentRuntimeValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value
+			.map((item) => sanitizeStudentRuntimeValue(item))
+			.filter((item) => item !== undefined);
+	}
+	if (value && typeof value === "object") {
+		const sanitized: Record<string, unknown> = {};
+		for (const [key, nested] of Object.entries(value)) {
+			if (STUDENT_FORBIDDEN_MEMORY_REF_KEYS.has(key)) {
+				continue;
+			}
+			const nextValue = sanitizeStudentRuntimeValue(nested);
+			if (nextValue !== undefined) {
+				sanitized[key] = nextValue;
+			}
+		}
+		return sanitized;
+	}
+	if (
+		typeof value === "string" &&
+		(STUDENT_FORBIDDEN_MEMORY_REF_TOKENS.some((token) => value.includes(token)) ||
+			isHindsightMemoryDocumentID(value))
+	) {
+		return;
+	}
+	return value;
+}
 
 export function createPgRuntimeRunStore(
 	env: Env,
@@ -165,7 +349,7 @@ export function createPgRuntimeRunStore(
 }
 
 export function buildRuntimeRunService(input: {
-	durableRuntime: SupervisorDurableRuntimeClient;
+	executionRuntime: ExecutionControlRuntimeClient;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	function validateSubscriptionPolicy(
@@ -238,7 +422,7 @@ export function buildRuntimeRunService(input: {
 
 	function assertRunMatchesOwnership(
 		owned: RuntimeRunOwnershipRecord,
-		run: SupervisorDurableRun,
+		run: ExecutionControlRun,
 	): void {
 		if (
 			run.runId !== owned.runId ||
@@ -246,19 +430,19 @@ export function buildRuntimeRunService(input: {
 			run.conversationId !== owned.conversationId ||
 			run.traceId !== owned.traceId
 		) {
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
-				message: "Supervisor durable run identity does not match app-api request ownership.",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Execution durable run identity does not match app-api request ownership.",
 				retryable: true,
 				status: 502,
 			});
 		}
 	}
 
-	function toRunSummary(run: SupervisorDurableRun): RuntimeRunSummary {
+	function toRunSummary(run: ExecutionControlRun): RuntimeRunSummary {
 		return {
 			conversationId: run.conversationId,
-			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
+			phase: runtimeRunPhaseFromExecutionStatus(run.status),
 			requestId: run.requestId,
 			runId: run.runId,
 			status: run.status,
@@ -267,7 +451,7 @@ export function buildRuntimeRunService(input: {
 		};
 	}
 
-	function toBrowserRunEvent(event: SupervisorDurableRunEvent): RuntimeRunEventProjection | null {
+	function toBrowserRunEvent(event: ExecutionControlRunEvent): RuntimeRunEventProjection | null {
 		if (event.visibility !== "browser") {
 			return null;
 		}
@@ -275,7 +459,7 @@ export function buildRuntimeRunService(input: {
 			eventId: event.eventId,
 			eventType: event.eventType,
 			occurredAt: event.occurredAt,
-			payload: event.payload,
+			payload: sanitizeBrowserRunEventPayload(event),
 			runId: event.runId,
 			sequence: event.sequence,
 			visibility: event.visibility,
@@ -297,9 +481,9 @@ export function buildRuntimeRunService(input: {
 		event: Pick<RuntimeRunEventProjection, "sequence">,
 	): number {
 		if (!Number.isInteger(event.sequence) || event.sequence <= lastSequence) {
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
-				message: "Supervisor durable run events must advance the requested cursor.",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Execution durable run events must advance the requested cursor.",
 				retryable: true,
 				status: 502,
 			});
@@ -313,12 +497,12 @@ export function buildRuntimeRunService(input: {
 		runId: string;
 	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
-		const run = await input.durableRuntime.getRun({
+		const run = await input.executionRuntime.getRun({
 			runId: owned.runId,
 			traceId: owned.traceId,
 		});
 		assertRunMatchesOwnership(owned, run);
-		const events = await input.durableRuntime.listRunEvents({
+		const events = await input.executionRuntime.listRunEvents({
 			afterSequence: eventsInput.afterSequence,
 			runId: owned.runId,
 			traceId: owned.traceId,
@@ -327,9 +511,9 @@ export function buildRuntimeRunService(input: {
 		const browserEvents: RuntimeRunEventProjection[] = [];
 		for (const event of events) {
 			if (event.runId !== owned.runId) {
-				throw new SupervisorTransportError({
-					code: "supervisor_invalid_response",
-					message: "Supervisor durable run event identity does not match requested run.",
+				throw new ExecutionControlTransportError({
+					code: "execution_control_invalid_response",
+					message: "Execution durable run event identity does not match requested run.",
 					retryable: true,
 					status: 502,
 				});
@@ -349,7 +533,7 @@ export function buildRuntimeRunService(input: {
 	return {
 		async cancel(cancelInput) {
 			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
-			const run = await input.durableRuntime.cancelRun({
+			const run = await input.executionRuntime.cancelRun({
 				reason: cancelInput.reason.trim(),
 				runId: owned.runId,
 				traceId: owned.traceId,
@@ -359,7 +543,7 @@ export function buildRuntimeRunService(input: {
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
-			const run = await input.durableRuntime.getRun({
+			const run = await input.executionRuntime.getRun({
 				runId: owned.runId,
 				traceId: owned.traceId,
 			});
@@ -367,6 +551,22 @@ export function buildRuntimeRunService(input: {
 			return { run: toRunSummary(run) };
 		},
 		listEvents,
+		async listSteps(stepsInput) {
+			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.runId);
+			const run = await input.executionRuntime.getRun({
+				runId: owned.runId,
+				traceId: owned.traceId,
+			});
+			assertRunMatchesOwnership(owned, run);
+			const trajectory = await input.executionRuntime.listRunSteps({
+				runId: owned.runId,
+				traceId: owned.traceId,
+			});
+			return {
+				...sanitizeStudentRunStepTrajectory(trajectory),
+				run: toRunSummary(run),
+			};
+		},
 		async *subscribeEvents(eventsInput) {
 			const polling = validateSubscriptionPolicy(eventsInput.polling);
 			let lastSequence = eventsInput.afterSequence ?? 0;
@@ -393,7 +593,7 @@ export function buildRuntimeRunService(input: {
 
 export function buildDefaultRuntimeRunService(env: Env): RuntimeRunService {
 	return buildRuntimeRunService({
-		durableRuntime: createSupervisorDurableRuntimeClient(env),
+		executionRuntime: createExecutionControlRuntimeClient(env),
 		store: createPgRuntimeRunStore(env),
 	});
 }

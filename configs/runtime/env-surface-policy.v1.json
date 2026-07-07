@@ -1,0 +1,690 @@
+{
+	"schema_version": "campus_env_surface_policy.v1",
+	"allowed_templates": [
+		".env.example",
+		"apps/app-api/.dev.vars.example",
+		"apps/app-api/.env.example",
+		"apps/campus-web/.dev.vars.example",
+		"apps/operator-console-web/.dev.vars.example",
+		"apps/source-collector/adapters/internal-portal/.env.example",
+		"apps/source-collector/adapters/official-web/.env.example",
+		"apps/source-collector/adapters/wechat-official-account/.env.example",
+		"env/commands/campus-docs-reader-build.env.example",
+		"env/commands/execution-control-runtime.env.example",
+		"env/commands/ingestion-control-runtime.env.example",
+		"env/commands/provider-config-seed.env.example",
+		"infra/otel/collector.env.example"
+	],
+	"template_key_limits": {
+		".env.example": 2,
+		"apps/source-collector/adapters/internal-portal/.env.example": 45,
+		"env/commands/campus-docs-reader-build.env.example": 8,
+		"env/commands/execution-control-runtime.env.example": 39,
+		"env/commands/ingestion-control-runtime.env.example": 13,
+		"env/commands/provider-config-seed.env.example": 18
+	},
+	"keys": {
+		"AGENT_PROMPT_MODEL": {
+			"owner": "retired",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"SPECIALIST_PROMPT_MODEL": {
+			"owner": "retired",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_INTENT_POLICY_PATH": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUEUE_CAPACITY": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OPEN_TOOLS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_ENABLED": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_METRICS_ENABLED": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_SERVICE_NAME": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_SAMPLE_RATIO": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_PROVIDER_PRICING_PATH": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_TOP_K_MAX": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_SELECTED_EVIDENCE_MAX": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_RETRIEVAL_MAX_CONCURRENT": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_SYNTHESIS_MAX_CONCURRENT": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_EMBEDDING_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_QDRANT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_PROVIDER_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_COLLECTION": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_TOP_K": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_MAX_CHARS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_SCORE_THRESHOLD": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RUNTIME": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_TIMEOUT_SECONDS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RECALL_LIMIT": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RECALL_MAX_CHARS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RECALL_MAX_TOKENS": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_CONTEXT_CHAR_BUDGET": {
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"RAG_SYNTHESIS_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"RERANK_BASE_URL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"RERANK_API_KEY": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"RERANK_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"RERANK_PATH": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"DEPLOYMENT_ENVIRONMENT": {
+			"owner": "runtime-observability",
+			"scopes": ["infra", "staging-local"],
+			"secret": false
+		},
+		"EXECUTION_CONTROL_RUNTIME_RELEASE": {
+			"owner": "runtime-observability",
+			"scopes": ["command", "staging-local"],
+			"secret": false
+		},
+		"APP_API_OTEL_INGEST_SHARED_SECRET": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"INGESTION_CONTROL_BASE_URL": {
+			"owner": "ingestion-control-task-admission",
+			"scopes": ["app-api"],
+			"secret": false
+		},
+		"INGESTION_CONTROL_DATABASE_URL": {
+			"owner": "ingestion-control-runtime-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"INGESTION_TASK_REGISTRY_ROOT": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_CONTROL_HOST": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_CONTROL_PORT": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_ADDRESS": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_NAMESPACE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"LANGFUSE_BASE_URL": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"LANGFUSE_PUBLIC_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": true
+		},
+		"LANGFUSE_SECRET_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": true
+		},
+		"LANGFUSE_ENVIRONMENT": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"LLM_BASE_URL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"LLM_API_KEY": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"LLM_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"EMBEDDING_BASE_URL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"EMBEDDING_API_KEY": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"EMBEDDING_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"EMBEDDING_DIMENSIONS": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"PUBLIC_WEB_SEARCH_BASE_URL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"PUBLIC_WEB_SEARCH_API_KEY": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"PUBLIC_WEB_SEARCH_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"PUBLIC_WEB_SEARCH_PROVIDER": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"PUBLIC_WEB_SEARCH_TRANSPORT": {
+			"owner": "local-provider-seed",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"BETTER_AUTH_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"AUTH_TURNSTILE_SECRET_KEY": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"RESEND_API_KEY": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_SHARED_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"APP_API_INTERNAL_SHARED_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN": {
+			"owner": "worker-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"SENTRY_DSN": {
+			"owner": "worker-secret",
+			"scopes": ["app-api", "campus-web", "operator-console-web"],
+			"secret": true
+		},
+		"APP_API_OPERATOR_DATABASE_URL": {
+			"owner": "app-api-process-secret",
+			"scopes": ["app-api", "command"],
+			"secret": true
+		},
+		"APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET": {
+			"owner": "app-api-process-secret",
+			"scopes": ["app-api"],
+			"secret": true
+		},
+		"INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DATABASE_URL": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
+			"secret": true
+		},
+		"INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
+			"secret": true
+		},
+		"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN": {
+			"owner": "source-collector-runtime",
+			"scopes": ["source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_ENDPOINT": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "campus-web", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_REGION": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "campus-web", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_BUCKET_SOURCE": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_SOURCE_ACCESS_KEY": {
+			"owner": "object-store-source-secret",
+			"scopes": ["command", "ingestion-control", "source-collector"],
+			"secret": true
+		},
+		"OBJECT_STORE_SOURCE_SECRET_KEY": {
+			"owner": "object-store-source-secret",
+			"scopes": ["command", "ingestion-control", "source-collector"],
+			"secret": true
+		},
+		"OBJECT_STORE_ACCESS_KEY": {
+			"owner": "object-store-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"OBJECT_STORE_SECRET_KEY": {
+			"owner": "object-store-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"OBJECT_STORE_DERIVED_ACCESS_KEY": {
+			"owner": "object-store-derived-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"OBJECT_STORE_DERIVED_SECRET_KEY": {
+			"owner": "object-store-derived-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"OFFICIAL_WEB_SERVICE_TOKEN": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
+			"secret": true
+		},
+		"OPERATOR_CONSOLE_APP_API_SHARED_SECRET": {
+			"owner": "worker-secret",
+			"scopes": ["operator-console-web"],
+			"secret": true
+		},
+		"OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST": {
+			"owner": "worker-non-secret-config",
+			"scopes": ["operator-console-web"],
+			"secret": false
+		},
+		"FEEDWE_PASSWORD": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
+			"secret": true
+		},
+		"WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
+			"secret": true
+		},
+		"API_WORKER_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"AGENT_RUNTIME_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_METRICS_BEARER_TOKEN": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": {
+			"owner": "execution-control-command-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": {
+			"owner": "internal-notice-read-model-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"OTEL_COLLECTOR_SENTRY_AUTH_VALUE": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"OTEL_COLLECTOR_AXIOM_AUTH_HEADER": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		}
+	},
+	"allowed_prefixes": {
+		"ACCESS_": ["operator-console-web"],
+		"AGENT_RUNTIME_": ["command"],
+		"API_": ["command"],
+		"APP_API_": ["app-api", "campus-web", "command", "staging-local"],
+		"AUTH_": ["app-api", "campus-web"],
+		"BETTER_AUTH_": ["app-api"],
+		"CAMPUS_AGENT_": [],
+		"CAMPUS_SHARED_": ["root", "command"],
+		"CAMPUS_WEB_": ["campus-web"],
+		"CLOUDFLARE_": ["app-api"],
+		"DEPLOYMENT_": ["infra"],
+		"DINING_": ["command", "infra", "staging-local"],
+		"DOCUMENT_REGISTRY_": [],
+		"EMBEDDING_": ["command"],
+		"EVAL_": [],
+		"EXECUTION_CONTROL_": ["app-api", "command", "staging-local"],
+		"EXECUTION_PROMPT_": ["command"],
+		"FEEDWE_": ["source-collector"],
+		"INGESTION_QDRANT_": [],
+		"INTERNAL_PORTAL_": ["source-collector"],
+		"INTERNAL_NOTICE_": ["command"],
+		"LLM_": ["command"],
+		"OBJECT_STORE_": ["app-api", "campus-web", "command", "source-collector"],
+		"OCR_": [],
+		"OFFICIAL_WEB_": ["source-collector"],
+		"OPERATOR_CONSOLE_": ["operator-console-web"],
+		"OTEL_": ["infra"],
+		"PROMPT_": ["command"],
+		"QDRANT_": [],
+		"RAGAS_": [],
+		"RAW_ASSET_": [],
+		"RESEND_": ["app-api"],
+		"SENTRY_": ["app-api", "campus-web", "operator-console-web"],
+		"SMOKE_": [],
+		"SPARSE_": [],
+		"STAGING_": ["staging-local"],
+		"TEMPORAL_": ["staging-local"],
+		"WECHAT_OFFICIAL_ACCOUNT_": ["source-collector"]
+	},
+	"retired_scan_paths": [
+		".env.example",
+		"apps/**/*.env.example",
+		"apps/**/*.dev.vars.example",
+		"docs/environment/**/*.md",
+		"env/commands/**/*.env.example",
+		"infra/**/*.env.example",
+		"infra/**/*.sh",
+		"infra/**/*.yml",
+		"infra/**/*.yaml"
+	]
+}

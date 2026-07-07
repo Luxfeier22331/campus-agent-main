@@ -1,8 +1,10 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-06-04
+updated: 2026-07-05
 ---
 # Contracts
 
@@ -10,47 +12,98 @@ updated: 2026-06-04
 
 ## App API 核心 contract
 
-- `app-api-http.md`
-- `app-api-eval-benchmark-http.md`
-- `app-api-document-reader-http.md`
-- `document-reader-publish-contract.md`
-- `app-api-error-model.md`
-- `app-api-request-lifecycle.md`
-- `app-api-supervisor-execution.md`
-- `durable-agent-runtime-contract.md`
+- `app-api/README.md`
+  - `app-api/system-auth-memory.md`
+  - `app-api/chat.md`
+  - `app-api/operator.md`
+- `app-api/chat.md`
+- `app-api/eval-benchmark.md`
+- `eval-artifact.md`
+- `app-api/document-reader.md`
+- `document-reader-publish.md`
+- `app-api/error.md`
+- `app-api/request-lifecycle.md`
+- `tool-execution.md`
+- `app-api/identity.md`
+- `app-api/federation.md`
+- `app-api/operator-ops.md`
+- `app-api/dining.md`
+- `app-api/dining-ops.md`
+- `tool-read-model.md`
+- `tool-trajectory.md`
+- `durable-runtime.md`
+- `operator-runtime.md`
+- `langfuse-runtime.md`
+- `stage-timing.md`
+- `replay-capture.md`
 
 ## Operator / Official Web contract
 
-- `app-api-authenticated-notice-processing-http.md`
-- `app-api-operator-observability-http.md`
-- `app-api-official-web-http.md`
-- `app-api-official-web-run-lifecycle.md`
+- `app-api/campus-services-ops.md`
+- `app-api-notice.md`
+  - app-api owned authenticated notice operator-safe processing projection
+    ingest/query seam only; it does not own source-truth or ingestion lifecycle
+- `app-api/observability.md`
+- `stage-timing.md`
+- `app-api/official-web.md`
 
 ## Navigation contract
 
-- `navigation-place-finding-contract.md`
+- `place-finding.md`
 
 ## Campus services contract
 
-- `service-status-lookup-contract.md`
-- `service-guide-lookup-contract.md`
-- `transport-schedule-lookup-contract.md`
-- `contact-directory-lookup-contract.md`
+- Human transport capability truth lives in `../domains/transport.md`.
+- Machine-readable transport tool/status schemas live in
+  `../../packages/contracts/schemas/`.
 
 ## Notice runtime contract
 
 - `campus-notice-runtime-contract.md`
+  - query-time notice tool/internal-query seam; current model-visible surface is
+    `campus_notice_discover` only
+- `authenticated-notice-file-release-export.md`
 
 ## Retrieval internal contract
 
-- `rag-agent-retrieval-plan-contract.md`
+- `retrieval-plan.md`
+
+## Machine-readable schemas
+
+- `schemas/tool-execution.openapi.yaml` 是 app-api -> execution-control
+  private wire contract。
+- `../packages/contracts/schemas/contract-schema-registry.v1.json` 是当前
+  JSON Schema / OpenAPI registry，登记 active schema、runtime JSON artifact、
+  language-local helper 与 legacy helper 的边界身份。
+- `../packages/contracts/schemas/campus-services-tool-result.v1.schema.json`
+  是 `campus_services` typed tool result envelope 的 canonical schema。
+- `../packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json`
+  是 `campus_services` typed tool payload / result packet 的 canonical schema。
+- `../packages/contracts/schemas/notice-tool-contracts.v1.schema.json` 是
+  `notice` typed tool payload / result packet 的 canonical schema。
+- `../packages/contracts/schemas/runtime-*.schema.json` 校验 execution runtime
+  实际读取的 runtime JSON artifacts。
+- `tool-execution.openapi.yaml` 覆盖 app-api -> execution-control durable
+  run create / read / events / steps / cancel，以及 private tool execution
+  wire shape。
 
 ## 使用规则
 
 - contract 只写稳定 seam，不写执行历史
 - request/response shape 的 current truth 以这里为准，不以 panel UI 或 sink payload 为准
+- `tool-trajectory.md` 是 tool-use 观测 / eval 的 sanitized trajectory
+  contract；Langfuse score payload、Operator Console 展示和本地 eval runner
+  都只能消费它或它的更窄投影，不反向定义工具轨迹字段
+- 跨语言或跨 runtime 的 contract 默认使用 JSON Schema / OpenAPI 作为 canonical
+  source；Python dataclass、Go struct、TS interface / Zod parser 是消费侧 helper、
+  runtime parser 或生成物，不单独成为跨语言真相源
+- typed tool payload / result 的 machine-readable schema 应登记在
+  `packages/contracts/schemas/contract-schema-registry.v1.json`，并配套正反
+  fixture；不要只把 Python dataclass、Go struct 或 provider function schema 当作
+  完整 contract
+- 新增或修改 machine-readable contract 后必须运行 `pnpm contracts:check`
 - contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane /
   pending work / closeout 状态说明
 - 当 supporting architecture 已冻结 forward design，但 current wire shape
-  尚未切换时，contract 必须显式区分 `current truth` 与 `forward evolution`，不得把 future routing
+  尚未切换时，contract 必须显式区分 `current truth` 与 `forward evolution`，不得把 candidate routing
   shape 写成现状

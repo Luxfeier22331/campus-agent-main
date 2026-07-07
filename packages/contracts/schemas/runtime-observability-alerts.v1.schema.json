@@ -1,0 +1,127 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/runtime-observability-alerts.v1.schema.json",
+	"title": "campus-agent runtime observability alerts artifact",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "alert_version", "rules"],
+	"properties": {
+		"schema_version": {
+			"const": "runtime-observability-alerts-v1"
+		},
+		"alert_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"rules": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"$ref": "#/$defs/AlertRule"
+			}
+		}
+	},
+	"$defs": {
+		"StageTimingField": {
+			"enum": [
+				"request.total_ms",
+				"stream.browser_ttft_ms",
+				"execution.admission_ms",
+				"memory.recall_ms",
+				"agent.primary_ms",
+				"agent.runtime_ms",
+				"agent.first_delta_ms",
+				"tool.total_ms",
+				"tool.knowledge_query_ms",
+				"tool.transport_schedule_lookup_ms",
+				"tool.campus_notice_discover_ms",
+				"rag.plan_ms",
+				"rag.lookup_ms",
+				"rag.rerank_ms",
+				"rag.synthesis_ms",
+				"rag.grounding_ms",
+				"finalization.write_ms",
+				"projection.closeout_ms"
+			]
+		},
+		"AlertSignal": {
+			"enum": [
+				"stage_latency_p95",
+				"request_error_rate",
+				"projection_outbox_stale",
+				"telemetry_export_failure",
+				"missing_trace_rate"
+			]
+		},
+		"AlertRule": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "signal", "severity", "window", "threshold", "runbook_anchor", "enabled"],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z0-9_.-]+$"
+				},
+				"signal": {
+					"$ref": "#/$defs/AlertSignal"
+				},
+				"severity": {
+					"enum": ["page", "ticket"]
+				},
+				"window": {
+					"enum": ["15m", "1h", "24h"]
+				},
+				"stage_field": {
+					"$ref": "#/$defs/StageTimingField"
+				},
+				"threshold": {
+					"$ref": "#/$defs/AlertThreshold"
+				},
+				"runbook_anchor": {
+					"type": "string",
+					"pattern": "^#[a-z0-9-]+$"
+				},
+				"enabled": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"signal": {
+								"const": "stage_latency_p95"
+							}
+						},
+						"required": ["signal"]
+					},
+					"then": {
+						"required": ["stage_field"]
+					},
+					"else": {
+						"not": {
+							"required": ["stage_field"]
+						}
+					}
+				}
+			]
+		},
+		"AlertThreshold": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["operator", "value", "unit"],
+			"properties": {
+				"operator": {
+					"enum": ["gte"]
+				},
+				"value": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"unit": {
+					"enum": ["ms", "ratio", "count"]
+				}
+			}
+		}
+	}
+}

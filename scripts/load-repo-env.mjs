@@ -21,27 +21,39 @@ export function loadRepoEnvFile(importMetaUrl, repoRootRelativePath = ".") {
 }
 
 export function loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath = ".") {
-	const scriptDir = dirname(fileURLToPath(importMetaUrl));
-	const repoRoot = resolve(scriptDir, repoRootRelativePath);
-	const originalEnvKeys = new Set(Object.keys(process.env));
-	loadRepoEnvFile(importMetaUrl, repoRootRelativePath);
+	const repoEnvPath = loadRepoEnvFile(importMetaUrl, repoRootRelativePath);
+	const explicitEnvPath =
+		process.env.STAGING_RUNTIME_ENV_FILE?.trim() ||
+		process.env.EXECUTION_CONTROL_STAGING_ENV_FILE?.trim() ||
+		"";
+	const runtimeEnvPath = explicitEnvPath;
 
-	const stagingEnvPath = resolve(repoRoot, ".env.staging.local");
-	let parsedStagingEnv;
-	try {
-		parsedStagingEnv = parseEnv(readFileSync(stagingEnvPath, "utf8"));
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-			throw error;
-		}
-		return { repoEnvPath: resolve(repoRoot, ".env"), stagingEnvPath };
+	if (runtimeEnvPath) {
+		loadEnvFileWithoutOverridingExisting(runtimeEnvPath);
+		return {
+			repoEnvPath,
+			runtimeEnvPath,
+			source: "ops-runtime",
+		};
 	}
 
-	for (const [key, value] of Object.entries(parsedStagingEnv)) {
+	return {
+		repoEnvPath,
+		runtimeEnvPath: "",
+		source: "environment",
+	};
+}
+
+export function loadStagingSmokeEnvFile(importMetaUrl, repoRootRelativePath = ".") {
+	return loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath);
+}
+
+function loadEnvFileWithoutOverridingExisting(envPath) {
+	const originalEnvKeys = new Set(Object.keys(process.env));
+	const parsedEnv = parseEnv(readFileSync(envPath, "utf8"));
+	for (const [key, value] of Object.entries(parsedEnv)) {
 		if (!originalEnvKeys.has(key)) {
 			process.env[key] = value;
 		}
 	}
-
-	return { repoEnvPath: resolve(repoRoot, ".env"), stagingEnvPath };
 }

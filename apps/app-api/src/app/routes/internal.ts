@@ -14,17 +14,18 @@ import {
 } from "../../http";
 import {
 	buildEndUserEmailAdmissionPolicy,
+	buildExecutionAuthorizationContext,
 	hashAppPassword,
 	hasMatchingInternalSecret,
-	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
+	mapOperatorHeadersToPrincipal,
+	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
-import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
 import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
-import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
+import { serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
 function normalizeHeaderValue(value: string | null | undefined): string | null {
@@ -51,9 +52,57 @@ function hasMatchingStagingSmokeAuthSecret(
 	return timingSafeEqual(expectedBytes, providedBytes);
 }
 
+function hasMatchingInternalBearerSecret(
+	request: Request,
+	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): boolean {
+	const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET);
+	const authorization = normalizeHeaderValue(request.headers.get("authorization"));
+	const provided = authorization?.toLowerCase().startsWith("bearer ")
+		? authorization.slice("bearer ".length).trim()
+		: null;
+	if (!(expected && provided)) {
+		return false;
+	}
+
+	const expectedBytes = Buffer.from(expected);
+	const providedBytes = Buffer.from(provided);
+	if (expectedBytes.length !== providedBytes.length) {
+		return false;
+	}
+
+	return timingSafeEqual(expectedBytes, providedBytes);
+}
+
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
 	const value = payload[fieldName];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readStringFieldFromSearch(request: Request, fieldName: string): string | null {
+	const value = new URL(request.url).searchParams.get(fieldName);
+	return value?.trim() ? value.trim() : null;
+}
+
+function resolveReplayOperatorPrincipal(request: Request, env: Env): ResolvedAppPrincipal {
+	const principal = mapOperatorHeadersToPrincipal(request, env);
+	if (!principal?.permissions.operator) {
+		throw new AppApiRouteError({
+			code: "operator_access_required",
+			message: "Replay packet access requires an admitted operator principal.",
+			retryable: false,
+			status: 403,
+		});
+	}
+	return principal;
+}
+
+function replayActorPrincipal(principal: ResolvedAppPrincipal): string {
+	return (
+		principal.principal.email?.trim() ||
+		principal.actor.principalId ||
+		principal.principal.principalId
+	);
 }
 
 function readBooleanField(payload: Record<string, unknown>, fieldName: string): boolean {
@@ -131,27 +180,168 @@ function collectExecutionAuditRequestIds(payload: Record<string, unknown>): stri
 	return [...requestIds];
 }
 
+function buildInternalRuntimeOperatorPrincipal(): ResolvedAppPrincipal {
+	const principalId = "execution-control-runtime";
+	const actor = {
+		departments: [],
+		principalId,
+		principalType: "operator" as const,
+		roles: ["operator", "execution_control_runtime"],
+		userId: principalId,
+	};
+	return {
+		actor,
+		authorization: buildExecutionAuthorizationContext(actor),
+		permissions: {
+			chat: false,
+			operator: true,
+		},
+		principal: {
+			displayName: "Execution Control Runtime",
+			email: null,
+			principalId,
+			type: "operator",
+		},
+		session: null,
+	};
+}
+
+function providerConfigProxyError(input: {
+	code: string;
+	message: string;
+	status: number;
+}): Response {
+	return routeErrorResponse(
+		new AppApiRouteError({
+			code: input.code,
+			message: input.message,
+			retryable: false,
+			status: input.status,
+		}),
+	);
+}
+
+async function readProviderProxyJsonBody(request: Request): Promise<Record<string, unknown>> {
+	const payload = await readJsonRequestBody(request);
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new AppApiRouteError({
+			code: "invalid_provider_proxy_request",
+			message: "Provider proxy request body must be a JSON object.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return payload as Record<string, unknown>;
+}
+
+function openAiCompatibleTargetUrl(input: {
+	baseUrl: string;
+	requestUrl: string;
+	role: string;
+}): string | null {
+	const requestUrl = new URL(input.requestUrl);
+	const prefix = `/api/internal/provider-config/openai-compatible/${input.role}/v1/`;
+	if (!requestUrl.pathname.startsWith(prefix)) {
+		return null;
+	}
+	const upstreamPath = requestUrl.pathname.slice(prefix.length);
+	if (!upstreamPath) {
+		return null;
+	}
+	const baseUrl = input.baseUrl.replace(/\/+$/, "");
+	return `${baseUrl}/${upstreamPath}${requestUrl.search}`;
+}
+
+function responseHeadersFromProvider(providerResponse: Response): Headers {
+	const headers = new Headers();
+	const contentType = providerResponse.headers.get("content-type");
+	if (contentType) {
+		headers.set("content-type", contentType);
+	}
+	return headers;
+}
+
 export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
-	officialWebExecutionStatusService: OfficialWebExecutionStatusService;
 	scheduleRequestProjectionDrain?: (value: {
 		requestId: string;
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 	}) => void;
 }) {
-	input.app.post("/api/internal/operator/quality/grades", async (c) => {
+	input.app.all("/api/internal/provider-config/openai-compatible/:role/v1/*", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalBearerSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		try {
+			const role = c.req.param("role");
+			const { profile } = await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+				role,
+			});
+			if (profile.transport === "embeddings") {
+				return providerConfigProxyError({
+					code: "provider_proxy_role_not_prompt",
+					message: "Provider proxy role must be a prompt provider role.",
+					status: 422,
+				});
+			}
+			const targetUrl = openAiCompatibleTargetUrl({
+				baseUrl: profile.base_url,
+				requestUrl: c.req.url,
+				role,
+			});
+			if (!targetUrl) {
+				return providerConfigProxyError({
+					code: "invalid_provider_proxy_path",
+					message: "Provider proxy path is invalid.",
+					status: 404,
+				});
+			}
+			const payload = await readProviderProxyJsonBody(c.req.raw);
+			const providerResponse = await fetch(targetUrl, {
+				body: JSON.stringify({
+					...payload,
+					model: profile.model,
+				}),
+				headers: {
+					authorization: `Bearer ${profile.api_key}`,
+					"content-type": "application/json",
+				},
+				method: c.req.method,
+			});
+			return new Response(providerResponse.body, {
+				headers: responseHeadersFromProvider(providerResponse),
+				status: providerResponse.status,
+			});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/internal/provider-config/active", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
 			return serviceCredentialRequiredResponse();
 		}
 
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestGrades({
-				payload: await readJsonRequestBody(c.req.raw),
-			}),
-		);
+		try {
+			return jsonResponse(
+				await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+					role: c.req.query("role") ?? "",
+				}),
+			);
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
 	});
 
 	input.app.post("/api/internal/operator/authenticated-notices/processing-snapshots", async (c) => {
@@ -202,28 +392,74 @@ export function registerInternalRoutes(input: {
 		);
 	});
 
-	input.app.post("/api/internal/operator/evals/coverage-snapshots", async (c) => {
+	input.app.post("/api/internal/operator/runtime/temporal-task-queue-snapshots", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
 			return serviceCredentialRequiredResponse();
 		}
 
 		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestEvalCoverageSnapshot({
+			await scope.resolveOperatorObservabilityCommandService().ingestTemporalTaskQueueSnapshots({
 				payload: await readJsonRequestBody(c.req.raw),
+				persistHistory: c.req.query("history") === "1",
 			}),
 		);
 	});
 
-	input.app.post("/api/internal/operator/evals/diagnostic-badcases", async (c) => {
+	input.app.get("/api/internal/operator/runtime/temporal-task-queues", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
 			return serviceCredentialRequiredResponse();
 		}
 
 		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestEvalDiagnosticBadcases({
-				payload: await readJsonRequestBody(c.req.raw),
+			await scope.resolveOperatorQueryService().listTemporalTaskQueues({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					taskQueue: c.req.query("taskQueue") ?? null,
+					taskQueueKind: c.req.query("taskQueueKind") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/autoscaler/actuations", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerActuations({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					decisionId: c.req.query("decisionId") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					status: c.req.query("status") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/autoscaler/postures", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerPostures({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					scalerStatus: c.req.query("scalerStatus") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
 			}),
 		);
 	});
@@ -249,6 +485,73 @@ export function registerInternalRoutes(input: {
 		}
 
 		return jsonResponse(result);
+	});
+
+	input.app.post("/api/internal/observability/replay-packet-index", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		const action = readStringFieldFromSearch(c.req.raw, "action");
+		const record =
+			payload && typeof payload === "object" && !Array.isArray(payload)
+				? (payload as Record<string, unknown>)
+				: {};
+		if (action === "read" || action === "export" || action === "replay") {
+			const principal = resolveReplayOperatorPrincipal(c.req.raw, input.env);
+			return jsonResponse(
+				await scope.resolveReplayCaptureService().getReplayPacketIndex({
+					accessKind: action,
+					actorPrincipal: replayActorPrincipal(principal),
+					approvalRef: readStringField(record, "approval_ref") ?? undefined,
+					packetId: readStringField(record, "packet_id") ?? "",
+					purpose: readStringField(record, "purpose") ?? "",
+				}),
+			);
+		}
+		if (action === "delete") {
+			const mode = readStringField(record, "mode");
+			if (mode === "hard_delete") {
+				return routeErrorResponse(
+					new AppApiRouteError({
+						code: "replay_packet_hard_delete_not_configured",
+						message:
+							"Replay packet hard_delete requires object-store deletion and is not enabled on this route.",
+						retryable: false,
+						status: 409,
+					}),
+				);
+			}
+			if (mode !== "mark_deleted") {
+				return routeErrorResponse(
+					new AppApiRouteError({
+						code: "validation_failed",
+						message: "Replay packet delete mode must be mark_deleted.",
+						retryable: false,
+						status: 422,
+					}),
+				);
+			}
+			const principal = resolveReplayOperatorPrincipal(c.req.raw, input.env);
+			return jsonResponse(
+				await scope.resolveReplayCaptureService().deleteReplayPacketsByLinkage({
+					actorPrincipal: replayActorPrincipal(principal),
+					approvalRef: readStringField(record, "approval_ref") ?? undefined,
+					mode,
+					purpose: readStringField(record, "purpose") ?? "",
+					requestId: readStringField(record, "request_id") ?? undefined,
+					subjectRef: readStringField(record, "subject_ref") ?? undefined,
+					traceId: readStringField(record, "trace_id") ?? undefined,
+				}),
+			);
+		}
+		return jsonResponse(
+			await scope.resolveReplayCaptureService().ingestReplayPacketIndex({
+				payload,
+			}),
+		);
 	});
 
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {
@@ -333,32 +636,6 @@ export function registerInternalRoutes(input: {
 				},
 				headers: signInRequest.headers,
 				request: signInRequest,
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/official-web/runs/:runId/ingestion-execution", async (c) => {
-		if (!hasTrustedInternalRequest(c.req.raw, input.env)) {
-			return internalAuthRequiredResponse();
-		}
-
-		return jsonResponse(
-			await input.officialWebExecutionStatusService.updateRunExecutionStatus({
-				payload: await readJsonRequestBody(c.req.raw),
-				runId: c.req.param("runId"),
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/operator/trace-backlinks", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestTraceBacklinks({
-				payload: await readJsonRequestBody(c.req.raw),
 			}),
 		);
 	});

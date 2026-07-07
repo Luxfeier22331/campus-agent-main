@@ -1,0 +1,12 @@
+{
+	"schema_version": "raw_capture_policy.v1",
+	"mode": "off",
+	"capture_reason": "default_disabled",
+	"ttl_days": 0,
+	"allowed_sinks": [],
+	"allowed_raw_fields": [],
+	"operator_principal": null,
+	"approval_ref": null,
+	"audit_required": false,
+	"dsar_delete_linkage_required": false
+}

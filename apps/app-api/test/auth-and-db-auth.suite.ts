@@ -4,6 +4,7 @@ import {
 	buildBetterAuthConfig,
 	buildEndUserEmailAdmissionPolicy,
 	enforceEndUserEmailAdmission,
+	enforceSignupLegalConsent,
 	hashAppPassword,
 	isEndUserEmailAllowedForAuth,
 	migration0000,
@@ -24,23 +25,22 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://chat.example.com",
+				authShellOrigin: "https://campus.example.com",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
 
-			expect(config.baseURL).toBe("https://chat.example.com");
-			expect(config.trustedOrigins).toEqual(["https://chat.example.com"]);
-			expect(config.basePath).toBe("/api/auth");
+			expect(config.baseURL).toBe("https://campus.example.com");
+			expect(config.trustedOrigins).toEqual(["https://campus.example.com"]);
+			expect(config.basePath).toBe("/");
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: true,
 				enabled: true,
@@ -67,28 +67,94 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.plugins).toEqual(
 				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
 			);
+			expect(config.disabledPaths).toContain("/token");
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: "jwt" }),
+					expect.objectContaining({ id: "oauth-provider" }),
+				]),
+			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "jwt",
+						options: expect.objectContaining({
+							disableSettingJwtHeader: true,
+							jwks: expect.objectContaining({
+								keyPairConfig: {
+									alg: "RS256",
+									modulusLength: 2048,
+								},
+							}),
+						}),
+					}),
+				]),
+			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "oauth-provider",
+						options: expect.objectContaining({
+							allowDynamicClientRegistration: false,
+							cachedTrustedClients: new Set(["muc-wiki"]),
+							customIdTokenClaims: expect.any(Function),
+							customUserInfoClaims: expect.any(Function),
+							loginPage: "/account/login",
+							scopes: ["openid", "profile", "email"],
+						}),
+					}),
+				]),
+			);
 			expect(config.hooks?.before).toBeDefined();
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
-		it("can move the browser auth shell origin to hub while retaining public-chat as an explicit trusted origin", () => {
+		it("uses the campus browser auth shell origin as the only trusted browser origin", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
 
-			expect(config.baseURL).toBe("https://hub.muc.wiki");
-			expect(config.trustedOrigins).toEqual(["https://hub.muc.wiki", "https://chat.example.com"]);
+			expect(config.baseURL).toBe("https://campus.muc.wiki");
+			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
+		});
+
+		it("materializes identity product state through better-auth user creation hooks", async () => {
+			const onIdentityUserCreated = vi.fn().mockResolvedValue(undefined);
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				resendApiKey: "resend_test_key",
+				endUserEmailDomainAllowlist: ["example.edu"],
+				endUserEmailAllowlist: ["help_bot@outlook.com"],
+				database: {} as never,
+				onIdentityUserCreated,
+			} as never);
+
+			await config.databaseHooks?.user?.create?.after?.({
+				email: "jane@example.edu",
+				id: "user_01HQ",
+				name: "Jane Doe",
+			});
+
+			expect(onIdentityUserCreated).toHaveBeenCalledWith({
+				displayName: "Jane Doe",
+				email: "jane@example.edu",
+				userId: "user_01HQ",
+			});
 		});
 
 		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
@@ -102,16 +168,15 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
@@ -119,14 +184,14 @@ export function registerAppApiAuthConfigSuite() {
 			await config.emailAndPassword.sendResetPassword?.({
 				token: "reset_token_01HQ",
 				user: {
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					name: "Jane Doe",
 				},
 			});
 
 			await config.emailAndPassword.onPasswordReset?.({
 				user: {
-					email: "jane@muc.edu.cn",
+					email: "jane@example.edu",
 					name: "Jane Doe",
 				},
 			});
@@ -154,13 +219,13 @@ export function registerAppApiAuthConfigSuite() {
 				from: "Campus Agent <auth@example.com>",
 				reply_to: "support@example.com",
 				subject: "Reset your Campus Agent password",
-				to: ["jane@muc.edu.cn"],
+				to: ["jane@example.edu"],
 			});
 			expect(firstPayload.html).toContain(
-				"https://chat.example.com/api/auth/reset-password/reset_token_01HQ",
+				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
 			);
 			expect(firstPayload.html).toContain(
-				"callbackURL=https%3A%2F%2Fhub.muc.wiki%2Faccount%2Freset-password",
+				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Freset-password",
 			);
 			expect(firstPayload.text).toContain("Campus Agent");
 
@@ -170,35 +235,35 @@ export function registerAppApiAuthConfigSuite() {
 			};
 			expect(secondPayload).toMatchObject({
 				subject: "Your Campus Agent password was changed",
-				to: ["jane@muc.edu.cn"],
+				to: ["jane@example.edu"],
 			});
 		});
 
 		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/account/reset-password",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/chat",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/chat",
 				}),
 			).toThrowError(/reset-password/i);
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "https://evil.example.com/account/reset-password",
 				}),
 			).toThrowError(/reset-password/i);
@@ -241,6 +306,18 @@ export function registerAppApiAuthConfigSuite() {
 					"session",
 					"account",
 					"verification",
+					"oauthClient",
+					"oauthRefreshToken",
+					"oauthAccessToken",
+					"oauthConsent",
+					"jwks",
+					"identityAccounts",
+					"identityProfiles",
+					"identityAccessSnapshots",
+					"identityPreferenceSettings",
+					"identityFederationClients",
+					"identityFederationClaimsPolicies",
+					"identityFederationUserGrants",
 					"conversations",
 					"messageFeedback",
 					"messages",
@@ -265,21 +342,21 @@ export function registerAppApiAuthConfigSuite() {
 
 		it("admits campus-domain and explicitly allowlisted end-user emails for email/password auth", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: [" muc.edu.cn ", "@students.muc.edu.cn"],
+				endUserEmailDomainAllowlist: [" example.edu ", "@students.example.edu"],
 				endUserEmailAllowlist: [" Help_Bot@Outlook.com "],
 			});
 
-			expect(isEndUserEmailAllowedForAuth("student@muc.edu.cn", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("student@sub.muc.edu.cn", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("freshman@students.muc.edu.cn", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("student@example.edu", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("student@sub.example.edu", policy)).toBe(true);
+			expect(isEndUserEmailAllowedForAuth("freshman@students.example.edu", policy)).toBe(true);
 			expect(isEndUserEmailAllowedForAuth("help_bot@outlook.com", policy)).toBe(true);
 			expect(isEndUserEmailAllowedForAuth("student@example.com", policy)).toBe(false);
-			expect(isEndUserEmailAllowedForAuth("student@badmuc.edu.cn", policy)).toBe(false);
+			expect(isEndUserEmailAllowedForAuth("student@badexample.edu", policy)).toBe(false);
 		});
 
 		it("rejects non-campus emails on email/password auth routes, including password reset requests", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 			});
 
@@ -308,7 +385,7 @@ export function registerAppApiAuthConfigSuite() {
 
 		it("does not apply end-user email admission checks to unrelated auth routes", () => {
 			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: [],
 			});
 
@@ -317,6 +394,43 @@ export function registerAppApiAuthConfigSuite() {
 					email: "outsider@example.com",
 					path: "/get-session",
 					policy,
+				}),
+			).not.toThrow();
+		});
+
+		it("requires explicit legal consent only for email sign-up", () => {
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/sign-up/email",
+				}),
+			).toThrowError(/legal_consent_required/i);
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers({
+						"x-campus-legal-accepted": "wrong",
+					}),
+					path: "/sign-up/email",
+				}),
+			).toThrowError(/legal_consent_required/i);
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers({
+						"x-campus-legal-accepted": "terms-and-privacy",
+					}),
+					path: "/sign-up/email",
+				}),
+			).not.toThrow();
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/sign-in/email",
+				}),
+			).not.toThrow();
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/request-password-reset",
 				}),
 			).not.toThrow();
 		});

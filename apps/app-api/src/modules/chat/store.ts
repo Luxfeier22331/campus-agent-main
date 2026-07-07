@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -22,13 +22,19 @@ export interface ChatConversationDraftWrite {
 	updatedAt: string;
 }
 
+export type ChatConversationListView = "active" | "archived";
+
 export interface ChatConversationStore {
 	deleteMessageFeedbackByOwner(input: {
 		conversationId: string;
 		messageId: string;
 		ownerUserId: string;
 	}): Promise<boolean>;
-	listConversationSummariesByOwner(ownerUserId: string): Promise<ChatConversationSummary[]>;
+	listConversationSummariesByOwner(input: {
+		ownerUserId: string;
+		view: ChatConversationListView;
+		limit: number;
+	}): Promise<ChatConversationSummary[]>;
 	listConversationSummariesPageByOwner(input: {
 		ownerUserId: string;
 		limit: number;
@@ -51,6 +57,36 @@ export interface ChatConversationStore {
 		ownerUserId: string,
 		conversationId: string,
 	): Promise<ChatConversation | null>;
+	markConversationArchivedByOwner(input: {
+		ownerUserId: string;
+		conversationId: string;
+		archivedAt: string | null;
+		updatedAt: string;
+	}): Promise<ChatConversationSummary | null>;
+	markConversationDeletedByOwner(input: {
+		ownerUserId: string;
+		conversationId: string;
+		deletedAt: string;
+		updatedAt: string;
+	}): Promise<boolean>;
+	markConversationPinnedByOwner(input: {
+		ownerUserId: string;
+		conversationId: string;
+		pinnedAt: string | null;
+		updatedAt: string;
+	}): Promise<ChatConversationSummary | null>;
+	renameConversationByOwner(input: {
+		ownerUserId: string;
+		conversationId: string;
+		title: string;
+		updatedAt: string;
+	}): Promise<ChatConversationSummary | null>;
+	searchConversationSummariesByOwner(input: {
+		ownerUserId: string;
+		query: string;
+		view: ChatConversationListView;
+		limit: number;
+	}): Promise<ChatConversationSummary[]>;
 	upsertMessageFeedbackByOwner(input: {
 		conversationId: string;
 		feedbackId: string;
@@ -88,8 +124,13 @@ function toChatMessage(
 		kind: (row.kind as ChatMessage["kind"]) ?? null,
 		text: row.text,
 		createdAt: toIsoString(row.createdAt),
+		parentMessageId: row.parentMessageId ?? null,
 		requestId: row.requestId ?? null,
 		retryable: row.retryable ?? null,
+		branchId: row.branchId ?? "branch_active",
+		turnSequence: row.turnSequence ?? 0,
+		runId: row.runId ?? null,
+		isActiveBranchHead: row.isActiveBranchHead ?? false,
 		structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
 	};
 	if (message.role === "assistant") {
@@ -106,7 +147,24 @@ function toChatConversationSummary(
 		title: row.title,
 		createdAt: toIsoString(row.createdAt),
 		updatedAt: toIsoString(row.updatedAt),
+		archivedAt: row.archivedAt ? toIsoString(row.archivedAt) : null,
+		pinnedAt: row.pinnedAt ? toIsoString(row.pinnedAt) : null,
 	};
+}
+
+function buildConversationViewCondition(input: {
+	ownerUserId: string;
+	view: ChatConversationListView;
+}) {
+	const archiveCondition =
+		input.view === "archived"
+			? isNotNull(conversations.archivedAt)
+			: isNull(conversations.archivedAt);
+	return and(
+		eq(conversations.ownerUserId, input.ownerUserId),
+		isNull(conversations.deletedAt),
+		archiveCondition,
+	);
 }
 
 function toChatConversation(
@@ -124,6 +182,11 @@ function toChatConversation(
 		title: row.title,
 		createdAt: toIsoString(row.createdAt),
 		updatedAt: toIsoString(row.updatedAt),
+		activeBranchId: row.activeBranchId ?? "branch_active",
+		activeMessageId: row.activeMessageId ?? null,
+		activeRunId: row.activeRunId ?? null,
+		activeTurnSequence: row.activeTurnSequence ?? 0,
+		contextSummary: row.contextSummary ?? null,
 		sessionSlots: sessionSlotRows.map(
 			(slot): ChatSessionSlot => ({
 				confirmed: slot.confirmed,
@@ -149,6 +212,7 @@ async function loadFeedbackTarget(input: {
 			and(
 				eq(conversations.ownerUserId, input.ownerUserId),
 				eq(conversations.id, input.conversationId),
+				isNull(conversations.deletedAt),
 			),
 		)
 		.limit(1);
@@ -190,7 +254,13 @@ export function createPgChatConversationStore(
 		const conversationRows = await db
 			.select()
 			.from(conversations)
-			.where(and(eq(conversations.id, conversationId), eq(conversations.ownerUserId, ownerUserId)))
+			.where(
+				and(
+					eq(conversations.id, conversationId),
+					eq(conversations.ownerUserId, ownerUserId),
+					isNull(conversations.deletedAt),
+				),
+			)
 			.limit(1);
 		const conversationRow = conversationRows[0];
 		if (!conversationRow) {
@@ -249,13 +319,18 @@ export function createPgChatConversationStore(
 			return deletedRows.length > 0;
 		},
 
-		async listConversationSummariesByOwner(ownerUserId) {
+		async listConversationSummariesByOwner(input) {
 			const db = await getDb();
 			const rows = await db
 				.select()
 				.from(conversations)
-				.where(eq(conversations.ownerUserId, ownerUserId))
-				.orderBy(desc(conversations.updatedAt));
+				.where(buildConversationViewCondition(input))
+				.orderBy(
+					sql`${conversations.pinnedAt} IS NULL`,
+					desc(conversations.pinnedAt),
+					desc(conversations.updatedAt),
+				)
+				.limit(input.limit);
 
 			return rows.map(toChatConversationSummary);
 		},
@@ -265,8 +340,18 @@ export function createPgChatConversationStore(
 			const rows = await db
 				.select()
 				.from(conversations)
-				.where(eq(conversations.ownerUserId, input.ownerUserId))
-				.orderBy(desc(conversations.updatedAt));
+				.where(
+					and(
+						eq(conversations.ownerUserId, input.ownerUserId),
+						isNull(conversations.deletedAt),
+						isNull(conversations.archivedAt),
+					),
+				)
+				.orderBy(
+					sql`${conversations.pinnedAt} IS NULL`,
+					desc(conversations.pinnedAt),
+					desc(conversations.updatedAt),
+				);
 
 			const summaries = rows.map(toChatConversationSummary);
 			const startIndex = input.endingBeforeConversationId
@@ -305,21 +390,29 @@ export function createPgChatConversationStore(
 
 		async deleteConversationByOwner(ownerUserId, conversationId) {
 			const db = await getDb();
-			const deletedRows = await db
-				.delete(conversations)
+			const now = new Date();
+			const rows = await db
+				.update(conversations)
+				.set({ deletedAt: now, updatedAt: now })
 				.where(
-					and(eq(conversations.ownerUserId, ownerUserId), eq(conversations.id, conversationId)),
+					and(
+						eq(conversations.ownerUserId, ownerUserId),
+						eq(conversations.id, conversationId),
+						isNull(conversations.deletedAt),
+					),
 				)
 				.returning({ id: conversations.id });
 
-			return deletedRows.length > 0;
+			return rows.length > 0;
 		},
 
 		async deleteConversationsByOwner(ownerUserId) {
 			const db = await getDb();
+			const now = new Date();
 			const deletedRows = await db
-				.delete(conversations)
-				.where(eq(conversations.ownerUserId, ownerUserId))
+				.update(conversations)
+				.set({ deletedAt: now, updatedAt: now })
+				.where(and(eq(conversations.ownerUserId, ownerUserId), isNull(conversations.deletedAt)))
 				.returning({ id: conversations.id });
 
 			return deletedRows.length;
@@ -334,6 +427,7 @@ export function createPgChatConversationStore(
 					and(
 						eq(conversations.ownerUserId, input.ownerUserId),
 						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
 					),
 				)
 				.limit(1);
@@ -374,6 +468,7 @@ export function createPgChatConversationStore(
 					and(
 						eq(conversations.ownerUserId, input.ownerUserId),
 						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
 					),
 				);
 
@@ -386,6 +481,123 @@ export function createPgChatConversationStore(
 
 		async getConversationByOwner(ownerUserId, conversationId) {
 			return loadConversation(ownerUserId, conversationId);
+		},
+
+		async markConversationArchivedByOwner(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(conversations)
+				.set({
+					archivedAt: input.archivedAt ? new Date(input.archivedAt) : null,
+					updatedAt: new Date(input.updatedAt),
+				})
+				.where(
+					and(
+						eq(conversations.ownerUserId, input.ownerUserId),
+						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
+					),
+				)
+				.returning();
+
+			return rows[0] ? toChatConversationSummary(rows[0]) : null;
+		},
+
+		async markConversationDeletedByOwner(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(conversations)
+				.set({
+					deletedAt: new Date(input.deletedAt),
+					updatedAt: new Date(input.updatedAt),
+				})
+				.where(
+					and(
+						eq(conversations.ownerUserId, input.ownerUserId),
+						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
+					),
+				)
+				.returning({ id: conversations.id });
+
+			return rows.length > 0;
+		},
+
+		async markConversationPinnedByOwner(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(conversations)
+				.set({
+					pinnedAt: input.pinnedAt ? new Date(input.pinnedAt) : null,
+					updatedAt: new Date(input.updatedAt),
+				})
+				.where(
+					and(
+						eq(conversations.ownerUserId, input.ownerUserId),
+						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
+					),
+				)
+				.returning();
+
+			return rows[0] ? toChatConversationSummary(rows[0]) : null;
+		},
+
+		async renameConversationByOwner(input) {
+			const db = await getDb();
+			const updatedAt = new Date(input.updatedAt);
+			const rows = await db
+				.update(conversations)
+				.set({
+					title: input.title,
+					titleUpdatedAt: updatedAt,
+					updatedAt,
+				})
+				.where(
+					and(
+						eq(conversations.ownerUserId, input.ownerUserId),
+						eq(conversations.id, input.conversationId),
+						isNull(conversations.deletedAt),
+					),
+				)
+				.returning();
+
+			return rows[0] ? toChatConversationSummary(rows[0]) : null;
+		},
+
+		async searchConversationSummariesByOwner(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({ conversation: conversations })
+				.from(conversations)
+				.leftJoin(messages, eq(messages.conversationId, conversations.id))
+				.where(
+					and(
+						buildConversationViewCondition(input),
+						or(
+							ilike(conversations.title, `%${input.query}%`),
+							ilike(messages.text, `%${input.query}%`),
+						),
+					),
+				)
+				.orderBy(
+					sql`${conversations.pinnedAt} IS NULL`,
+					desc(conversations.pinnedAt),
+					desc(conversations.updatedAt),
+				)
+				.limit(input.limit * 4);
+
+			const summariesById = new Map<string, ChatConversationSummary>();
+			for (const row of rows) {
+				if (!summariesById.has(row.conversation.id)) {
+					summariesById.set(row.conversation.id, toChatConversationSummary(row.conversation));
+				}
+				if (summariesById.size >= input.limit) {
+					break;
+				}
+			}
+
+			return [...summariesById.values()];
 		},
 
 		async upsertMessageFeedbackByOwner(input) {

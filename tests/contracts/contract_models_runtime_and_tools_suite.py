@@ -4,8 +4,8 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
-    def test_supervisor_observability_exposes_intent_governance_fields(self) -> None:
-        observability = SupervisorObservability(
+    def test_execution_observability_exposes_intent_governance_fields(self) -> None:
+        observability = ExecutionObservability(
             intent_schema_version="intent-schema-1.0.0",
             intent_classifier_version="deterministic-intent-v1",
             intent_routing_confidence="high",
@@ -37,13 +37,13 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             },
         )
 
-    def test_agent_response_serializes_safe_agent_observability(self) -> None:
-        response = AgentResponse(
-            target="campus-services-agent",
+    def test_tool_response_serializes_safe_tool_observability(self) -> None:
+        response = ToolResponse(
+            tool="transport_schedule_lookup",
             status="completed",
             answer_text="当前班车正常运行。",
             confidence="high",
-            agent_observability=AgentObservability(
+            tool_observability=ToolObservability(
                 selected_tool="transport_schedule_lookup",
                 tool_attempted=True,
                 tool_outcome="resolved_current",
@@ -56,14 +56,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         payload = asdict(response)
 
         self.assertEqual(
-            payload["agent_observability"]["selected_tool"],
+            payload["tool_observability"]["selected_tool"],
             "transport_schedule_lookup",
         )
-        self.assertEqual(payload["agent_observability"]["tool_attempted"], True)
-        self.assertEqual(payload["agent_observability"]["source_ref_count"], 2)
-        self.assertNotIn("raw_prompt", str(payload["agent_observability"]))
+        self.assertEqual(payload["tool_observability"]["tool_attempted"], True)
+        self.assertEqual(payload["tool_observability"]["source_ref_count"], 2)
+        self.assertNotIn("raw_prompt", str(payload["tool_observability"]))
 
-    def test_agent_observability_rejects_raw_or_auth_material_keys(self) -> None:
+    def test_tool_observability_rejects_raw_or_auth_material_keys(self) -> None:
         for key in (
             "raw_prompt",
             "rawPrompt",
@@ -79,14 +79,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "forbidden raw workflow trace key",
                 ),
             ):
-                AgentObservability(
-                    selected_tool="service_status_lookup",
+                ToolObservability(
+                    selected_tool="transport_schedule_lookup",
                     safe_details={"debug": {key: "secret"}},
                 )
 
-    def test_supervisor_response_serializes_workflow_trace_summary(self) -> None:
-        response = SupervisorResponse(
-            selected_target="campus-services-agent",
+    def test_execution_response_serializes_workflow_trace_summary(self) -> None:
+        response = ExecutionResponse(
+            selected_tool="transport_schedule_lookup",
             status="completed",
             confidence="high",
             workflow_trace_summary=WorkflowTraceSummary(
@@ -95,22 +95,22 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 planning_outcome="preplanned",
                 direct_vs_delegate_branch="delegate",
                 handoff={
-                    "target": "campus-services-agent",
+                    "target": "transport_schedule_lookup",
                     "payload_kind": "transport_schedule_lookup",
                 },
-                agent_invocations=(
+                tool_invocations=(
                     {
                         "invocation_id": "agent-invocation:1",
                         "workflow_run_ref": "workflow:req-1",
-                        "agent_id": "campus-services-agent",
+                        "tool_id": "transport_schedule_lookup",
                         "status": "completed",
                     },
                 ),
-                selected_target="campus-services-agent",
+                selected_tool="transport_schedule_lookup",
                 selected_tools=("transport_schedule_lookup",),
                 tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
                 guardrail_outcomes={"scope_gate": "allow", "policy_gate": "allow"},
-                runtime_versions={"supervisor-api": "test"},
+                runtime_versions={"execution-control": "test"},
                 policy_artifact_versions={"intent-policy": "v1"},
             ),
         )
@@ -123,11 +123,11 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(
             payload["workflow_trace_summary"]["handoff"]["target"],
-            "campus-services-agent",
+            "transport_schedule_lookup",
         )
         self.assertEqual(
-            payload["workflow_trace_summary"]["agent_invocations"][0]["agent_id"],
-            "campus-services-agent",
+            payload["workflow_trace_summary"]["tool_invocations"][0]["tool_id"],
+            "transport_schedule_lookup",
         )
 
     def test_workflow_trace_summary_rejects_nested_raw_or_auth_material_keys(self) -> None:
@@ -285,8 +285,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_agent_request_requires_explicit_payload(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = ToolRequest(
+            tool="knowledge_query",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules")
@@ -302,48 +302,6 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             ),
         )
         self.assertEqual(request.context.actor, ActorContext())
-
-    def test_agent_response_serializes_contact_directory_result_shape(self) -> None:
-        response = AgentResponse(
-            target="campus-services-agent",
-            status="completed",
-            answer_text="招生办公室电话是010-68930001。",
-            confidence="high",
-            result=ContactDirectoryLookupResult(
-                query_text="招生办电话是多少",
-                contact_focus="phone",
-                outcome="resolved_current",
-                resolved_contact=ContactDirectoryContactRef(
-                    contact_id="contact:admission-office",
-                    display_name="招生办公室",
-                    entity_type="office",
-                ),
-                contact_points=(
-                    ContactDirectoryContactPoint(
-                        channel_type="phone",
-                        label="咨询电话",
-                        value="010-68930001",
-                        source_refs=("handbook:student_rules:pages:261-261#page=261",),
-                    ),
-                ),
-                source_refs=("handbook:student_rules:pages:261-261#page=261",),
-            ),
-        )
-
-        payload = asdict(response)
-        self.assertEqual(payload["result"]["contact_focus"], "phone")
-        self.assertEqual(
-            payload["result"]["resolved_contact"]["contact_id"], "contact:admission-office"
-        )
-
-    def test_tool_fail_close_reason_rejects_legacy_manual_review_required(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported tool fail-close reason"):
-            ServiceGuideLookupResult(
-                service_query="校园卡丢了怎么办",
-                guide_focus="full_guide",
-                outcome="temporarily_unverifiable",
-                fail_close_reason="manual_review_required",
-            )
 
     def test_version_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when version mode is as_of"):
@@ -379,6 +337,31 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(query.version_id, "v1:student-handbook")
         self.assertEqual(query.compare_to_version_id, "v2:student-handbook")
 
+    def test_version_query_accepts_freshness_and_live_modes_without_indexed_anchors(
+        self,
+    ) -> None:
+        for mode in ("freshness_sensitive", "live_assisted"):
+            with self.subTest(mode=mode):
+                query = VersionQuery(mode=mode)
+
+                self.assertEqual(query.mode, mode)
+                self.assertEqual(query.as_of, "")
+                self.assertEqual(query.version_id, "")
+                self.assertEqual(query.compare_to_version_id, "")
+
+    def test_version_query_rejects_indexed_anchors_for_freshness_and_live_modes(
+        self,
+    ) -> None:
+        for mode in ("freshness_sensitive", "live_assisted"):
+            with (
+                self.subTest(mode=mode),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "version_id is only allowed when version mode is historical or compare",
+                ),
+            ):
+                VersionQuery(mode=mode, version_id="v1:student-handbook")
+
     def test_version_query_rejects_compare_secondary_anchor_without_primary_version_id(
         self,
     ) -> None:
@@ -389,8 +372,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             VersionQuery(mode="compare", compare_to_version_id="v2:student-handbook")
 
     def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = ToolRequest(
+            tool="knowledge_query",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
@@ -404,8 +387,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "curriculum_plan")
 
     def test_request_accepts_offline_campus_services_scope(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = ToolRequest(
+            tool="knowledge_query",
             user_goal="校园110电话是多少？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
@@ -419,8 +402,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "contact_directory")
 
     def test_response_serializes_rag_result_shape(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = ToolResponse(
+            tool="knowledge_query",
             status="completed",
             answer_text="The library is open.",
             confidence="high",
@@ -457,7 +440,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "rag-agent")
+        self.assertEqual(payload["tool"], "knowledge_query")
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["confidence"], "high")
         self.assertEqual(payload["result"]["evidence"]["corpus"], "regulations")
@@ -529,22 +512,22 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 score=0.98,
             )
         self.assertEqual(
-            tuple(field.name for field in fields(AgentResponse)),
+            tuple(field.name for field in fields(ToolResponse)),
             (
-                "target",
+                "tool",
                 "status",
                 "answer_text",
                 "follow_up_question",
                 "confidence",
                 "result",
                 "error",
-                "agent_observability",
+                "tool_observability",
             ),
         )
 
     def test_response_serializes_place_lookup_result_shape(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = ToolResponse(
+            tool="place_lookup",
             status="completed",
             answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
             confidence="high",
@@ -582,7 +565,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-agent")
+        self.assertEqual(payload["tool"], "place_lookup")
         self.assertEqual(payload["result"]["query_text"], "图书馆在哪里")
         self.assertEqual(payload["result"]["matched_alias"], "图书馆")
         self.assertEqual(payload["result"]["resolved_place"]["place_id"], "muc.haidian.library")
@@ -597,8 +580,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = ToolResponse(
+            tool="place_lookup",
             status="needs_clarification",
             follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
             confidence="medium",
@@ -632,7 +615,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-agent")
+        self.assertEqual(payload["tool"], "place_lookup")
         self.assertEqual(len(payload["result"]["candidate_places"]), 2)
         self.assertEqual(
             payload["result"]["candidate_places"][1]["place"]["display_name"],
@@ -640,8 +623,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = ToolResponse(
+            tool="place_lookup",
             status="completed",
             answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
             confidence="high",
@@ -666,7 +649,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     location_description="海淀校区西侧，靠近图书馆。",
                     source_refs=(
                         "seed:campus_navigation/place_catalog.v1",
-                        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+                        "https://www.example.edu/xxgk1/xydt.htm",
                     ),
                 ),
             ),
@@ -682,8 +665,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             PlaceLookupPayload(query_text=" ")
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = ToolResponse(
+            tool="knowledge_query",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -694,13 +677,13 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 ),
                 diagnostics=RagResultDiagnostics(
                     resolved_policy_document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-                    resolved_policy_title="中央民族大学本科学生国家奖学金评审办法",
-                    rewritten_query="中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
+                    resolved_policy_title="示例大学本科学生国家奖学金评审办法",
+                    rewritten_query="示例大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
                     clarification_reason="",
                     no_answer_reason="resolved_policy_clause_not_found",
                     semantic_outcome="unsupported_by_evidence",
                     scope_class="in_scope",
-                    retrieved_title_summary=("中央民族大学本科学生国家奖学金评审办法",),
+                    retrieved_title_summary=("示例大学本科学生国家奖学金评审办法",),
                 ),
             ),
         )
@@ -709,7 +692,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         self.assertEqual(
             payload["result"]["diagnostics"]["resolved_policy_title"],
-            "中央民族大学本科学生国家奖学金评审办法",
+            "示例大学本科学生国家奖学金评审办法",
         )
         self.assertEqual(
             payload["result"]["diagnostics"]["no_answer_reason"],
@@ -726,12 +709,12 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(
             tuple(payload["result"]["diagnostics"]["retrieved_title_summary"]),
-            ("中央民族大学本科学生国家奖学金评审办法",),
+            ("示例大学本科学生国家奖学金评审办法",),
         )
 
-    def test_supervisor_response_serializes_selected_target_and_context_free_shape(self) -> None:
-        response = SupervisorResponse(
-            selected_target="rag-agent",
+    def test_execution_response_serializes_selected_tool_and_context_free_shape(self) -> None:
+        response = ExecutionResponse(
+            selected_tool="knowledge_query",
             status="needs_clarification",
             follow_up_question="请说明你想咨询哪一类奖学金。",
             confidence="low",
@@ -739,7 +722,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["selected_target"], "rag-agent")
+        self.assertEqual(payload["selected_tool"], "knowledge_query")
         self.assertEqual(payload["status"], "needs_clarification")
         self.assertEqual(payload["follow_up_question"], "请说明你想咨询哪一类奖学金。")
-        self.assertNotIn("target", payload)
+        self.assertNotIn("tool", payload)

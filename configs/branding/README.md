@@ -6,11 +6,7 @@
 
 `configs/branding/web-public/favicon.ico` is the repo-owned canonical copy.
 
-- `public-chat-web`
-- `protected-panel-web`
-- `hub-web`
+- `campus-web`
+- `operator-console-web`
 
 consume it through a shared Vite `publicDir`.
-
-`public-docs` keeps a synchronized copy at `apps/public-docs/docs/public/favicon.ico`
-because Rspress serves static root assets from that in-tree `docs/public/` directory.

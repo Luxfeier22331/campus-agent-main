@@ -1,68 +1,84 @@
 {
 	"name": "campus-agent-web-workspace",
 	"private": true,
-	"packageManager": "pnpm@10.17.1",
+	"packageManager": "pnpm@10.26.1",
+	"pnpm": {
+		"overrides": {
+			"@babel/core": "7.29.6",
+			"@tanstack/react-start": "1.168.27",
+			"@tanstack/react-start-client": "1.168.15",
+			"@tanstack/react-start-rsc": "0.1.26",
+			"@tanstack/react-start-server": "1.167.21",
+			"@tanstack/router-plugin": "1.168.19",
+			"@tanstack/router-utils": "1.162.2",
+			"@tanstack/start-plugin-core": "1.171.19",
+			"@tanstack/start-server-core": "1.169.16",
+			"defu": "6.1.5",
+			"esbuild@<0.25.0": "0.25.12",
+			"js-yaml@4.1.1": "5.2.1",
+			"lodash": "4.18.1",
+			"react-router@7.13.2": "7.18.1"
+		},
+		"packageExtensions": {
+			"@hookform/resolvers@*": {
+				"peerDependencies": {
+					"zod": "^3.25 || ^4.0"
+				},
+				"peerDependenciesMeta": {
+					"zod": {
+						"optional": true
+					}
+				}
+			}
+		}
+	},
 	"engines": {
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"official-web:live-seam:no-promotion": "uv run --all-packages python -m scripts.official_web_live_seam_no_promotion",
-		"web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
+		"repo:guard": "uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration tests.test_package_script_policy tests.ingestion.test_ingestion_task_executability tests.api.test_app_api_collector_execution_boundary -q",
+		"repo:static": "uv run --all-packages python -m scripts.check_repo_static",
+		"repo:static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected",
+		"ci:repo-guard": "pnpm repo:guard",
+		"ci:repo-static": "pnpm repo:static",
+		"ci:repo-static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected --base \"${CI_BASE_REF:-origin/develop}\"",
+		"ci:contracts": "pnpm contracts:check && uv run --all-packages python -m unittest discover -s tests/contracts -t . -q",
+		"ci:ingestion": "uv run --all-packages python -m unittest discover -s tests/ingestion -t . -q",
+		"ci:langfuse": "pnpm --dir packages/eval-langfuse typecheck && pnpm --dir packages/eval-langfuse test && pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts",
+		"ci:go": "pnpm go:check",
+		"ci:web-graph:affected": "turbo run typecheck test --affected --concurrency=2",
+		"ci:web-graph:full": "pnpm web:check",
+		"ci:worker-runtime": "pnpm web:test:worker",
+		"ci:config:lint": "pnpm ci:actions:lint && uv run --all-packages python -m scripts.check_ci_workflow_contracts && uv run --all-packages python -m scripts.check_workflow_action_policy",
+		"ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
+		"ci:secrets": "uv run --all-packages python -m scripts.run_gitleaks_scan",
+		"ci:deps:vuln": "uv run --all-packages python -m scripts.run_osv_scan",
+		"dev": "turbo run dev --filter=campus-web --filter=app-api",
 		"web:build": "turbo run build",
-		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",
-		"web:check": "turbo run typecheck test build",
-		"web:dev": "turbo run dev",
-		"web:dev:chat": "turbo run dev --filter=public-chat-web",
-		"web:dev:docs": "turbo run dev --filter=public-docs",
+		"web:check": "turbo run typecheck test build --concurrency=2",
 		"web:lint": "uv run --all-packages python -m scripts.check_biome_tracked",
-		"web:lint:fix": "pnpm exec biome check --write .",
-		"web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
 		"web:test": "turbo run test",
 		"web:test:worker": "turbo run test:worker",
 		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
-		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
 		"web:typecheck": "turbo run typecheck",
-		"contracts:generate": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts",
-		"contracts:check": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts --check",
-		"durable:cutover:preflight": "uv run --all-packages python -m scripts.check_durable_runtime_cutover_preflight",
-		"eval:intent": "uv run --all-packages python -m scripts.intent_gate",
-		"eval:intent:release": "uv run --all-packages python -m scripts.intent_release_gate",
-		"eval:service-guide:release": "uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup --json",
-		"docs:lint": "uv run --all-packages python -m scripts.check_markdown_tracked",
-		"public-docs:lint": "pnpm --filter public-docs lint:generated",
-		"coverage:lint": "uv run --all-packages python -m scripts.check_lint_coverage_tracked",
-		"decomposition:lint": "uv run --all-packages python -m scripts.check_decomposition_tracked",
-		"java:lint": "uv run --all-packages python -m scripts.check_java_tracked",
-		"editorconfig:lint": "uv run --all-packages python -m scripts.check_editorconfig_tracked",
-		"docker:lint": "uv run --all-packages python -m scripts.check_dockerfile_tracked",
-		"env:lint": "uv run --all-packages python -m scripts.check_env_example_tracked",
-		"html:lint": "uv run --all-packages python -m scripts.check_html_tracked",
-		"jsonl:lint": "uv run --all-packages python -m scripts.check_jsonl_tracked",
-		"lock:lint": "pnpm pnpm-lock:lint && pnpm uv-lock:lint",
-		"pnpm-lock:lint": "uv run --all-packages python -m scripts.check_pnpm_lock_tracked",
-		"py:lint": "uv run --all-packages ruff check .",
-		"py:lint:fix": "uv run --all-packages ruff check . --fix",
-		"py:format": "uv run --all-packages ruff format .",
-		"py:format:check": "uv run --all-packages ruff format . --check",
-		"uv-lock:lint": "uv run --all-packages python -m scripts.check_uv_lock",
-		"shell:lint": "uv run --all-packages python -m scripts.check_shell_tracked",
-		"sql:lint": "uv run --all-packages python -m scripts.check_sql_tracked",
-		"toml:lint": "uv run --all-packages python -m scripts.check_toml_syntax",
-		"xml:lint": "uv run --all-packages python -m scripts.check_xml_tracked",
-		"yaml:lint": "uv run --all-packages python -m scripts.check_yaml_tracked",
-		"go:fmt:check": "test -z \"$(gofmt -l apps/supervisor-api)\"",
-		"go:vet": "cd apps/supervisor-api && go vet ./...",
-		"go:lint": "export PATH=\"$(go env GOPATH)/bin:$PATH\"; command -v golangci-lint >/dev/null 2>&1 || { echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; } && cd apps/supervisor-api && golangci-lint run ./...",
-		"go:static:check": "pnpm go:fmt:check && pnpm go:vet && pnpm go:lint",
-		"go:test": "cd apps/supervisor-api && go test ./...",
-		"go:check": "pnpm go:static:check && pnpm go:test",
-		"lint": "pnpm web:lint && pnpm docs:lint && pnpm public-docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
-		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
+		"contracts:generate": "uv run --all-packages python -m scripts.generate_tool_execution_contracts",
+		"contracts:check": "uv run --all-packages python -m scripts.check_contract_schemas && uv run --all-packages python -m scripts.generate_tool_execution_contracts --check",
+		"go:check": "test -z \"$(gofmt -l apps/execution-control)\" && cd apps/execution-control && go vet ./... && export PATH=\"$(go env GOPATH)/bin:$PATH\" && if ! command -v golangci-lint >/dev/null 2>&1; then echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; fi && golangci-lint run ./... && go test ./..."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.12",
 		"editorconfig-checker": "^6.1.1",
-		"markdownlint-cli2": "^0.22.0",
-		"turbo": "^2.8.21"
+		"markdownlint-cli2": "^0.23.0",
+		"tsx": "^4.22.5",
+		"turbo": "^2.10.3"
+	},
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MUC-WIKI/campus-agent.git"
+	},
+	"homepage": "https://github.com/MUC-WIKI/campus-agent#readme",
+	"bugs": {
+		"url": "https://github.com/MUC-WIKI/campus-agent/issues"
 	}
 }

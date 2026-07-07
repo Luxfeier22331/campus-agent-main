@@ -17,10 +17,6 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
         for table_name in (
             "ingestion_projection.notice_consumption_projection",
             "ingestion_projection.internal_notice_read_model",
-            "ingestion_projection.internal_notice_consumption_admission",
-            "ingestion_projection.internal_notice_consumption_admission_event",
-            "ingestion_projection.internal_notice_multimodal_attempt",
-            "ingestion_projection.internal_notice_schedule_image_ocr_attempt",
             "ingestion_projection.collected_notice_released_file_text_extraction_attempt",
             "ingestion_projection.collected_notice_pdf_ocr_text_extraction_attempt",
             "ingestion_projection.collected_notice_office_text_extraction_attempt",
@@ -28,15 +24,17 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
         ):
             self.assertIn(table_name, sql)
 
+        for removed_table_name in (
+            "ingestion_projection.internal_notice_consumption_admission",
+            "ingestion_projection.internal_notice_consumption_admission_event",
+        ):
+            self.assertNotIn(removed_table_name, sql)
+
         for required_column in (
             "consumer_admission_batch_id",
-            "selection_source",
-            "selection_sha256",
-            "event_id",
             "attempt_number",
             "provider_response_key",
             "layout_elements_key",
-            "ocr_manifest_key",
             "media_ref_id",
             "plain_text_key",
             "searchable_merge_input_key",

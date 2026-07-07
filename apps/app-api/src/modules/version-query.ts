@@ -155,7 +155,7 @@ export function summarizeVersionQuery(input: VersionQuery | null | undefined): {
 	};
 }
 
-export function toSupervisorVersionQuery(input: VersionQuery): Record<string, unknown> {
+export function toToolExecutionVersionQuery(input: VersionQuery): Record<string, unknown> {
 	return {
 		mode: input.mode,
 		...(input.asOf ? { as_of: input.asOf } : {}),

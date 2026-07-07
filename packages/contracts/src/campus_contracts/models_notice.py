@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_context import SelectedNoticeRef
-from campus_contracts.models_notice_change_set import NoticeChangeSet
 from campus_contracts.models_shared import (
     HistoricalDowngradeReason,
     NoticeBodyAccessPolicy,
@@ -217,61 +216,7 @@ class CampusNoticeGetResult:
             )
 
 
-@dataclass(frozen=True, slots=True)
-class CampusNoticeChangeSetLookupPayload:
-    query_text: str = field(
-        metadata=schema_metadata(description="Original transport notice override question.")
-    )
-    route_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted route labels."),
-    )
-    direction_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted direction labels."),
-    )
-    stop_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted stop labels."),
-    )
-    service_date: str = field(
-        default="",
-        metadata=schema_metadata(description="Optional ISO local service date."),
-    )
-    query_time_anchor: str = field(
-        default="",
-        metadata=schema_metadata(description="Optional RFC3339 query time anchor."),
-    )
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeChangeSetLookupResult:
-    query_text: str
-    outcome: ToolBusinessOutcome
-    change_set: NoticeChangeSet | None = None
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_tool_business_outcome(self.outcome)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome == "resolved_current" and self.change_set is None:
-            raise ValueError("change_set must not be empty for resolved notice change-set results")
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed notice change-set results"
-            )
-
-
 __all__ = [
-    "CampusNoticeChangeSetLookupPayload",
-    "CampusNoticeChangeSetLookupResult",
     "CampusNoticeDiscoverPayload",
     "CampusNoticeDiscoverResult",
     "CampusNoticeGetPayload",

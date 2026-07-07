@@ -14,10 +14,9 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -52,8 +51,10 @@ function createCampusPrincipal() {
 function createConversationService() {
 	const conversations: ChatConversationSummaryResponse[] = [
 		{
+			archivedAt: null,
 			createdAt: "2026-03-28T08:00:00.000Z",
 			id: "conv_01HQ",
+			pinnedAt: "2026-03-28T08:02:00.000Z",
 			title: "图书馆开放时间",
 			updatedAt: "2026-03-28T08:01:00.000Z",
 		},
@@ -87,6 +88,7 @@ function createConversationService() {
 		deleteById: vi.fn().mockResolvedValue({ deleted: true }),
 		deleteMessageFeedback: vi.fn(),
 		deleteTrailingMessages,
+		archive: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
 		getById: vi.fn().mockResolvedValue({ conversation }),
 		listHistoryPage: vi.fn().mockResolvedValue({
 			chats: [
@@ -101,7 +103,12 @@ function createConversationService() {
 			hasMore: false,
 		}),
 		list: vi.fn().mockResolvedValue({ conversations }),
+		pin: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
+		rename: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
+		search: vi.fn().mockResolvedValue({ query: "图书馆", conversations }),
 		setMessageFeedback: vi.fn(),
+		unarchive: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
+		unpin: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
 	};
 
 	return {
@@ -132,6 +139,119 @@ describe("chat conversation routes", () => {
 					principalId: "user_01HQ",
 				}),
 			}),
+		});
+	});
+
+	it("passes view and limit options when listing conversations", async () => {
+		const { service, conversations } = createConversationService();
+		const app = createApp(env, {
+			chatConversationService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations?view=archived&limit=25"),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ conversations });
+		expect(service.list).toHaveBeenCalledWith({
+			limit: 25,
+			principal: expect.objectContaining({
+				principal: expect.objectContaining({ principalId: "user_01HQ" }),
+			}),
+			view: "archived",
+		});
+	});
+
+	it("searches conversations through the product search route", async () => {
+		const { service, conversations } = createConversationService();
+		const app = createApp(env, {
+			chatConversationService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/search?q=图书馆&limit=10"),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ query: "图书馆", conversations });
+		expect(service.search).toHaveBeenCalledWith({
+			limit: 10,
+			principal: expect.objectContaining({
+				principal: expect.objectContaining({ principalId: "user_01HQ" }),
+			}),
+			query: "图书馆",
+			view: "active",
+		});
+	});
+
+	it("renames, pins, unpins, archives, and unarchives owned conversations", async () => {
+		const { service, conversations } = createConversationService();
+		const app = createApp(env, {
+			chatConversationService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const renameResponse = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/conv_01HQ", {
+				body: JSON.stringify({ title: "新的会话标题" }),
+				headers: { "content-type": "application/json" },
+				method: "PATCH",
+			}),
+		);
+		const pinResponse = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/conv_01HQ/pin", {
+				method: "POST",
+			}),
+		);
+		const unpinResponse = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/conv_01HQ/pin", {
+				method: "DELETE",
+			}),
+		);
+		const archiveResponse = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/conv_01HQ/archive", {
+				method: "POST",
+			}),
+		);
+		const unarchiveResponse = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations/conv_01HQ/archive", {
+				method: "DELETE",
+			}),
+		);
+
+		for (const response of [
+			renameResponse,
+			pinResponse,
+			unpinResponse,
+			archiveResponse,
+			unarchiveResponse,
+		]) {
+			expect(response.status).toBe(200);
+			await expect(response.json()).resolves.toEqual({ conversation: conversations[0] });
+		}
+		expect(service.rename).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			principal: expect.any(Object),
+			title: "新的会话标题",
+		});
+		expect(service.pin).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			principal: expect.any(Object),
+		});
+		expect(service.unpin).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			principal: expect.any(Object),
+		});
+		expect(service.archive).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			principal: expect.any(Object),
+		});
+		expect(service.unarchive).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			principal: expect.any(Object),
 		});
 	});
 

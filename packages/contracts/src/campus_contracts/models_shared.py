@@ -5,7 +5,7 @@ from typing import Literal
 
 type AllowedCorpus = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
-SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
+SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "internal_portal"]
 SourceTrustTier = Literal["T0", "T1", "T2", "T3"]
 RemoteContentSuspicionLabel = Literal[
     "prompt_override_signal",
@@ -16,28 +16,32 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-AgentTarget = Literal[
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
-]
-AgentToolName = Literal[
-    "service_status_lookup",
-    "service_guide_lookup",
-    "transport_schedule_lookup",
-    "contact_directory_lookup",
-    "academic_calendar_lookup",
-    "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-]
-RequestedCapability = Literal[
-    "knowledge",
+ToolID = Literal[
+    "knowledge_query",
     "place_lookup",
-    "campus_services",
-    "notice",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
 ]
-SupervisorStatus = Literal[
+ToolName = Literal[
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
+]
+ModelVisibleToolName = Literal[
+    "knowledge_query",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+]
+RequestedTool = Literal[
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+]
+ExecutionStatus = Literal[
     "completed",
     "needs_clarification",
     "no_answer",
@@ -52,22 +56,8 @@ MemoryVisibility = Literal["user_visible", "internal_only"]
 PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
-VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
-AcademicCalendarQueryKind = Literal[
-    "date_week",
-    "named_event_range",
-    "day_status",
-    "class_day_pattern",
-    "term_window",
-]
-AcademicCalendarAnswerFocus = Literal[
-    "teaching_week",
-    "holiday_duration",
-    "campus_break_window",
-    "course_adjustment",
-    "day_status",
-    "term_window",
-    "official_notice_reference",
+VersionQueryMode = Literal[
+    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
 ]
 ToolBusinessOutcome = Literal[
     "resolved_current",
@@ -82,51 +72,6 @@ ToolFailCloseReason = Literal[
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "privacy_policy_restricted",
-    "stable_contact_unavailable",
-    "field_not_provided_by_source",
-]
-ServiceGuideFocus = Literal[
-    "overview",
-    "procedure",
-    "required_materials",
-    "entry",
-    "office_hours",
-    "contact",
-    "eligibility",
-    "full_guide",
-]
-ServiceGuideAudience = Literal["student", "faculty", "visitor", "unknown"]
-ServiceGuideClarificationReason = Literal[
-    "service_ambiguous",
-    "campus_scope_required",
-    "audience_required",
-    "guide_focus_required",
-]
-ContactDirectoryFocus = Literal[
-    "phone",
-    "email",
-    "location",
-    "office_hours",
-    "contact_person",
-    "all_contacts",
-]
-ContactDirectoryEntityType = Literal[
-    "department",
-    "office",
-    "service_point",
-    "role_contact",
-    "public_person_role",
-    "hotline",
-]
-ContactDirectoryChannelType = Literal["phone", "email", "fax", "website"]
-ContactDirectoryClarificationReason = Literal[
-    "contact_entity_ambiguous",
-    "contact_focus_required",
-    "department_required",
-    "campus_scope_required",
-    "audience_required",
-    "purpose_required",
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
 NoticeSourceFamily = Literal[
@@ -159,7 +104,6 @@ NoticeBodyAccessPolicy = Literal[
     "internal_context_only",
     "downstream_materialization_only",
 ]
-ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
     "running",
     "not_running",
@@ -167,6 +111,8 @@ TransportServiceStatusValue = Literal[
     "limited_service",
     "unknown",
 ]
+TransportDepartureStatus = Literal["normal", "added", "cancelled", "changed", "delayed"]
+TransportDepartureKind = Literal["student", "teacher", "other"]
 TransportScheduleIntent = Literal[
     "next_departure",
     "first_departure",
@@ -192,7 +138,7 @@ ALLOWED_SOURCE_CHANNELS = (
     "pdf_ocr",
     "official_web",
     "manual_curated",
-    "authenticated_notice_portal",
+    "internal_portal",
     "wechat_official_account",
 )
 ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
@@ -207,28 +153,32 @@ DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_AGENT_TARGETS = (
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
-)
-ALLOWED_AGENT_TOOL_NAMES = (
-    "service_status_lookup",
-    "service_guide_lookup",
-    "transport_schedule_lookup",
-    "contact_directory_lookup",
-    "academic_calendar_lookup",
-    "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-)
-ALLOWED_REQUESTED_CAPABILITIES = (
-    "knowledge",
+ALLOWED_TOOL_IDS = (
+    "knowledge_query",
     "place_lookup",
-    "campus_services",
-    "notice",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
 )
-ALLOWED_SUPERVISOR_STATUSES = (
+ALLOWED_TOOL_NAMES = (
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
+)
+ALLOWED_MODEL_VISIBLE_TOOL_NAMES = (
+    "knowledge_query",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+)
+ALLOWED_REQUESTED_TOOLS = (
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+)
+ALLOWED_EXECUTION_STATUSES = (
     "completed",
     "needs_clarification",
     "no_answer",
@@ -245,22 +195,13 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
-ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
-ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS = (
-    "date_week",
-    "named_event_range",
-    "day_status",
-    "class_day_pattern",
-    "term_window",
-)
-ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES = (
-    "teaching_week",
-    "holiday_duration",
-    "campus_break_window",
-    "course_adjustment",
-    "day_status",
-    "term_window",
-    "official_notice_reference",
+ALLOWED_VERSION_QUERY_MODES = (
+    "current",
+    "historical",
+    "as_of",
+    "compare",
+    "freshness_sensitive",
+    "live_assisted",
 )
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
@@ -275,56 +216,6 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "privacy_policy_restricted",
-    "stable_contact_unavailable",
-    "field_not_provided_by_source",
-)
-ALLOWED_SERVICE_GUIDE_FOCUSES = (
-    "overview",
-    "procedure",
-    "required_materials",
-    "entry",
-    "office_hours",
-    "contact",
-    "eligibility",
-    "full_guide",
-)
-ALLOWED_SERVICE_GUIDE_AUDIENCES = ("student", "faculty", "visitor", "unknown")
-ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS = (
-    "service_ambiguous",
-    "campus_scope_required",
-    "audience_required",
-    "guide_focus_required",
-)
-ALLOWED_CONTACT_DIRECTORY_FOCUSES = (
-    "phone",
-    "email",
-    "location",
-    "office_hours",
-    "contact_person",
-    "all_contacts",
-)
-ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES = (
-    "department",
-    "office",
-    "service_point",
-    "role_contact",
-    "public_person_role",
-    "hotline",
-)
-ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES = (
-    "phone",
-    "email",
-    "fax",
-    "website",
-)
-ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS = (
-    "contact_entity_ambiguous",
-    "contact_focus_required",
-    "department_required",
-    "campus_scope_required",
-    "audience_required",
-    "purpose_required",
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = (
@@ -357,13 +248,6 @@ ALLOWED_NOTICE_BODY_ACCESS_POLICIES = (
     "internal_context_only",
     "downstream_materialization_only",
 )
-ALLOWED_SERVICE_STATUS_VALUES = (
-    "open",
-    "closed",
-    "temporarily_closed",
-    "limited_service",
-    "unknown",
-)
 ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "running",
     "not_running",
@@ -371,6 +255,8 @@ ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "limited_service",
     "unknown",
 )
+ALLOWED_TRANSPORT_DEPARTURE_STATUSES = ("normal", "added", "cancelled", "changed", "delayed")
+ALLOWED_TRANSPORT_DEPARTURE_KINDS = ("student", "teacher", "other")
 ALLOWED_TRANSPORT_SCHEDULE_INTENTS = (
     "next_departure",
     "first_departure",
@@ -439,16 +325,6 @@ def _validate_version_query_mode(mode: str) -> None:
         raise ValueError(f"unsupported version mode: {mode}")
 
 
-def _validate_academic_calendar_query_kind(query_kind: str) -> None:
-    if query_kind not in ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS:
-        raise ValueError(f"unsupported academic calendar query_kind: {query_kind}")
-
-
-def _validate_academic_calendar_answer_focus(answer_focus: str) -> None:
-    if answer_focus not in ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES:
-        raise ValueError(f"unsupported academic calendar answer_focus: {answer_focus}")
-
-
 def _validate_tool_business_outcome(outcome: str) -> None:
     if outcome not in ALLOWED_TOOL_BUSINESS_OUTCOMES:
         raise ValueError(f"unsupported tool business outcome: {outcome}")
@@ -457,41 +333,6 @@ def _validate_tool_business_outcome(outcome: str) -> None:
 def _validate_tool_fail_close_reason(reason: str) -> None:
     if reason not in ALLOWED_TOOL_FAIL_CLOSE_REASONS:
         raise ValueError(f"unsupported tool fail-close reason: {reason}")
-
-
-def _validate_service_guide_focus(focus: str) -> None:
-    if focus not in ALLOWED_SERVICE_GUIDE_FOCUSES:
-        raise ValueError(f"unsupported service guide focus: {focus}")
-
-
-def _validate_service_guide_audience(audience: str) -> None:
-    if audience not in ALLOWED_SERVICE_GUIDE_AUDIENCES:
-        raise ValueError(f"unsupported service guide audience: {audience}")
-
-
-def _validate_service_guide_clarification_reason(reason: str) -> None:
-    if reason not in ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS:
-        raise ValueError(f"unsupported service guide clarification reason: {reason}")
-
-
-def _validate_contact_directory_focus(focus: str) -> None:
-    if focus not in ALLOWED_CONTACT_DIRECTORY_FOCUSES:
-        raise ValueError(f"unsupported contact directory focus: {focus}")
-
-
-def _validate_contact_directory_entity_type(entity_type: str) -> None:
-    if entity_type not in ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES:
-        raise ValueError(f"unsupported contact directory entity_type: {entity_type}")
-
-
-def _validate_contact_directory_channel_type(channel_type: str) -> None:
-    if channel_type not in ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES:
-        raise ValueError(f"unsupported contact directory channel_type: {channel_type}")
-
-
-def _validate_contact_directory_clarification_reason(reason: str) -> None:
-    if reason not in ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS:
-        raise ValueError(f"unsupported contact directory clarification reason: {reason}")
 
 
 def _validate_historical_downgrade_reason(reason: str) -> None:
@@ -519,14 +360,19 @@ def _validate_notice_body_access_policy(body_access: str) -> None:
         raise ValueError(f"unsupported notice body access policy: {body_access}")
 
 
-def _validate_service_status_value(status: str) -> None:
-    if status not in ALLOWED_SERVICE_STATUS_VALUES:
-        raise ValueError(f"unsupported service status value: {status}")
-
-
 def _validate_transport_service_status_value(status: str) -> None:
     if status not in ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES:
         raise ValueError(f"unsupported transport service status value: {status}")
+
+
+def _validate_transport_departure_status(status: str) -> None:
+    if status not in ALLOWED_TRANSPORT_DEPARTURE_STATUSES:
+        raise ValueError(f"unsupported transport departure status: {status}")
+
+
+def _validate_transport_departure_kind(kind: str) -> None:
+    if kind not in ALLOWED_TRANSPORT_DEPARTURE_KINDS:
+        raise ValueError(f"unsupported transport departure kind: {kind}")
 
 
 def _validate_transport_schedule_intent(intent: str) -> None:
@@ -583,7 +429,7 @@ def _normalize_source_trust_tier(
 
     if source_channel == "official_web":
         return "T2"
-    if source_channel == "authenticated_notice_portal":
+    if source_channel == "internal_portal":
         return "T1"
     if source_channel == "manual_curated":
         return "T0"

@@ -40,20 +40,35 @@ export type ChatSourceTargetKind =
 	| "canonical_reader"
 	| "notice_reader"
 	| "public_notice_url"
+	| "public_web_url"
 	| "restricted_notice";
 
-export type ChatSourceKind = "campus_service" | "curriculum" | "document" | "notice" | "regulation";
+export type ChatSourceKind =
+	| "campus_service"
+	| "curriculum"
+	| "document"
+	| "notice"
+	| "public_web"
+	| "regulation";
 
 export interface ChatSourceAction {
-	label: "原通知" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
+	label: "原通知" | "打开网页" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
 	href: string | null;
 	external: boolean;
 	disabledReason: string | null;
 }
 
 export interface ChatSourceItem {
+	accessScope?: string;
+	collection?: string;
 	targetKind: ChatSourceTargetKind;
+	contentHash?: string;
+	documentId?: string;
+	evidenceId?: string;
+	evidenceRole?: string;
 	sourceKind: ChatSourceKind;
+	sourceId?: string;
+	snapshotId?: string;
 	title: string;
 	snippet: string | null;
 	primaryAction: ChatSourceAction;
@@ -65,6 +80,7 @@ export interface ChatSourceItem {
 	versionLabel: string;
 	pageLabel: string;
 	trustLabel: string;
+	versionId?: string;
 }
 
 export interface ChatSourceItemsStructuredPart {
@@ -97,14 +113,19 @@ export interface ChatSessionSlot {
 export interface ChatMessage {
 	id: string;
 	conversationId: string;
+	branchId?: string;
+	isActiveBranchHead?: boolean;
 	role: ChatMessageRole;
 	kind: AssistantMessageKind | null;
 	text: string;
 	createdAt: string;
 	feedback?: ChatMessageFeedback | null;
+	parentMessageId?: string | null;
 	requestId: string | null;
 	retryable: boolean | null;
+	runId?: string | null;
 	structuredParts: ChatMessageStructuredPart[];
+	turnSequence?: number;
 }
 
 export interface ChatMessageFeedback {
@@ -122,6 +143,11 @@ export interface ChatConversation {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	activeBranchId?: string;
+	activeMessageId?: string | null;
+	activeRunId?: string | null;
+	activeTurnSequence?: number;
+	contextSummary?: string | null;
 	sessionSlots: ChatSessionSlot[];
 	messages: ChatMessage[];
 }
@@ -131,6 +157,8 @@ export interface ChatConversationSummary {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	archivedAt: string | null;
+	pinnedAt: string | null;
 }
 
 export interface ChatConversationResponse {
@@ -146,6 +174,8 @@ export interface ChatConversationSummaryResponse {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	archivedAt: string | null;
+	pinnedAt: string | null;
 }
 
 export interface VendorChatHistoryItemResponse {
@@ -179,6 +209,8 @@ export function toConversationSummaryResponse(
 		title: conversation.title,
 		createdAt: conversation.createdAt,
 		updatedAt: conversation.updatedAt,
+		archivedAt: conversation.archivedAt,
+		pinnedAt: conversation.pinnedAt,
 	};
 }
 
@@ -268,6 +300,7 @@ function normalizeSourceKind(value: unknown): ChatSourceKind | null {
 		normalized === "curriculum" ||
 		normalized === "document" ||
 		normalized === "notice" ||
+		normalized === "public_web" ||
 		normalized === "regulation"
 	) {
 		return normalized;
@@ -281,6 +314,7 @@ function normalizeSourceTargetKind(value: unknown): ChatSourceTargetKind | null 
 		normalized === "canonical_reader" ||
 		normalized === "notice_reader" ||
 		normalized === "public_notice_url" ||
+		normalized === "public_web_url" ||
 		normalized === "restricted_notice"
 	) {
 		return normalized;
@@ -291,11 +325,21 @@ function normalizeSourceTargetKind(value: unknown): ChatSourceTargetKind | null 
 function isBrowserSafePublicNoticeHref(value: string): boolean {
 	try {
 		const url = new URL(value);
+		return url.protocol === "https:";
+	} catch {
+		return false;
+	}
+}
+
+function isBrowserSafePublicWebHref(value: string): boolean {
+	try {
+		const url = new URL(value);
 		const hostname = url.hostname.toLowerCase();
-		const isMucPublicHost =
+		return (
+			url.protocol === "https:" &&
 			(hostname === "muc.edu.cn" || hostname.endsWith(".muc.edu.cn")) &&
-			hostname !== "my.muc.edu.cn";
-		return url.protocol === "https:" && (isMucPublicHost || hostname === "mp.weixin.qq.com");
+			hostname !== "my.muc.edu.cn"
+		);
 	} catch {
 		return false;
 	}
@@ -314,6 +358,7 @@ function normalizeSourceAction(
 	const disabledReason = normalizeOptionalString(value.disabledReason);
 	if (
 		label !== "原通知" &&
+		label !== "打开网页" &&
 		label !== "打开原通知" &&
 		label !== "查看文档" &&
 		label !== "查看整理版" &&
@@ -332,13 +377,24 @@ function normalizeSourceAction(
 	}
 
 	if (!href) {
-		return null;
+		const isReaderTarget = targetKind === "canonical_reader" || targetKind === "notice_reader";
+		if (!(isReaderTarget && disabledReason) || Boolean(value.external)) {
+			return null;
+		}
+		return {
+			label,
+			href: null,
+			external: false,
+			disabledReason,
+		};
 	}
 	const external = Boolean(value.external);
 	const isAllowedHref =
 		targetKind === "public_notice_url"
 			? isBrowserSafePublicNoticeHref(href)
-			: isBrowserSafeDocsHref(href);
+			: targetKind === "public_web_url"
+				? isBrowserSafePublicWebHref(href)
+				: isBrowserSafeDocsHref(href);
 	if (!isAllowedHref) {
 		return null;
 	}
@@ -378,6 +434,38 @@ function normalizeSecondarySourceActions(value: unknown): ChatSourceAction[] {
 		.slice(0, 2);
 }
 
+function optionalSourceProofFields(value: Record<string, unknown>): Partial<ChatSourceItem> {
+	return {
+		...(normalizeOptionalString(value.accessScope)
+			? { accessScope: normalizeOptionalString(value.accessScope) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.collection)
+			? { collection: normalizeOptionalString(value.collection) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.contentHash)
+			? { contentHash: normalizeOptionalString(value.contentHash) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.documentId)
+			? { documentId: normalizeOptionalString(value.documentId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.evidenceId)
+			? { evidenceId: normalizeOptionalString(value.evidenceId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.evidenceRole)
+			? { evidenceRole: normalizeOptionalString(value.evidenceRole) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.sourceId)
+			? { sourceId: normalizeOptionalString(value.sourceId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.snapshotId)
+			? { snapshotId: normalizeOptionalString(value.snapshotId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.versionId)
+			? { versionId: normalizeOptionalString(value.versionId) ?? undefined }
+			: {}),
+	};
+}
+
 function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	if (!isRecord(value)) {
 		return null;
@@ -396,6 +484,7 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	}
 
 	return {
+		...optionalSourceProofFields(value),
 		targetKind,
 		sourceKind,
 		title,

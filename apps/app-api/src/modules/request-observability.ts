@@ -1,5 +1,17 @@
+import { AppApiRouteError } from "../http";
 import type { ResolvedAppPrincipal } from "./auth";
-import type { RequestedScope, SupervisorExecutionResponse } from "./integration";
+import type {
+	RequestedScope,
+	ToolExecutionAnswerEvalFingerprint,
+	ToolExecutionLlmIoFingerprint,
+	ToolExecutionResponse,
+} from "./integration";
+import { answerEvalFingerprintSha256 } from "./integration/answer-eval-fingerprint-hash";
+import {
+	STAGE_TIMING_FIELDS,
+	type StageTimingField,
+} from "./integration/execution-finalization-contract";
+import { llmIoFingerprintSha256 } from "./integration/llm-io-fingerprint-hash";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -21,9 +33,175 @@ function toScopeSummary(scope: RequestedScope | null | undefined): string | null
 	return `${scope.corpus}/${scope.collection}`;
 }
 
+const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
+
+function assertStageTimingField(field: string): asserts field is StageTimingField {
+	if (!STAGE_TIMING_FIELD_SET.has(field)) {
+		throw new Error(`stage_timing.${field} is not an allowed stage timing field`);
+	}
+}
+
+function addStageTimingField(
+	timing: Partial<Record<StageTimingField, number>>,
+	field: string,
+	value: unknown,
+) {
+	assertStageTimingField(field);
+	if (!(typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+		throw new Error(`stage_timing.${field} must be a finite non-negative number`);
+	}
+	timing[field] = value;
+}
+
+function addOptionalStageTimingField(
+	timing: Partial<Record<StageTimingField, number>>,
+	field: StageTimingField,
+	value: number | null | undefined,
+) {
+	if (!(typeof value === "number" && Number.isFinite(value) && value > 0)) {
+		return;
+	}
+	timing[field] = value;
+}
+
+function mergeStageTiming(input: {
+	executionStageTiming?: Record<string, unknown> | null;
+	appApiStageTiming?: Record<string, unknown> | null;
+	requestTotalMs: number;
+	projectionCloseoutMs?: number | null;
+	streamBrowserTtftMs?: number | null;
+}): Partial<Record<StageTimingField, number>> {
+	const timing: Partial<Record<StageTimingField, number>> = {};
+	for (const [field, value] of Object.entries(input.executionStageTiming ?? {})) {
+		addStageTimingField(timing, field, value);
+	}
+	for (const [field, value] of Object.entries(input.appApiStageTiming ?? {})) {
+		addStageTimingField(timing, field, value);
+	}
+	addOptionalStageTimingField(timing, "request.total_ms", input.requestTotalMs);
+	addOptionalStageTimingField(timing, "stream.browser_ttft_ms", input.streamBrowserTtftMs);
+	addOptionalStageTimingField(timing, "projection.closeout_ms", input.projectionCloseoutMs);
+	return timing;
+}
+
+function assertAnswerEvalFingerprintSourceConsistent(input: {
+	answerEvalFingerprint: ToolExecutionAnswerEvalFingerprint | null | undefined;
+	llmIoFingerprint: ToolExecutionLlmIoFingerprint | null | undefined;
+}): void {
+	const { answerEvalFingerprint, llmIoFingerprint } = input;
+	if (!answerEvalFingerprint) {
+		return;
+	}
+	if (!llmIoFingerprint) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			message: "answer_eval_fingerprint requires observability.llm_io_fingerprint",
+			retryable: false,
+			status: 422,
+		});
+	}
+	const checks = [
+		{
+			actual: answerEvalFingerprint.llmIoFingerprintSha256,
+			expected: llmIoFingerprintSha256(llmIoFingerprint),
+			field: "llm_io_fingerprint_sha256",
+		},
+		{ actual: answerEvalFingerprint.runId, expected: llmIoFingerprint.runId, field: "run_id" },
+		{
+			actual: answerEvalFingerprint.requestId,
+			expected: llmIoFingerprint.requestId,
+			field: "request_id",
+		},
+		{
+			actual: answerEvalFingerprint.traceId,
+			expected: llmIoFingerprint.traceId,
+			field: "trace_id",
+		},
+		{
+			actual: answerEvalFingerprint.runtimeRelease,
+			expected: llmIoFingerprint.runtimeRelease,
+			field: "runtime_release",
+		},
+		{
+			actual: answerEvalFingerprint.llmCallSite,
+			expected: llmIoFingerprint.llmCallSite,
+			field: "llm_call_site",
+		},
+		{
+			actual: answerEvalFingerprint.providerProfileRevision,
+			expected: llmIoFingerprint.providerProfileRevision,
+			field: "provider_profile_revision",
+		},
+		{
+			actual: answerEvalFingerprint.outputSchemaId,
+			expected: llmIoFingerprint.outputSchemaId,
+			field: "output_schema_id",
+		},
+		{
+			actual: answerEvalFingerprint.branchIdentity.promptId,
+			expected: llmIoFingerprint.promptId,
+			field: "branch_identity.prompt_id",
+		},
+		{
+			actual: answerEvalFingerprint.toolRuntimeCombinedSha256,
+			expected: llmIoFingerprint.toolRuntimeFingerprint.combinedSha256,
+			field: "tool_runtime_combined_sha256",
+		},
+	];
+	for (const check of checks) {
+		if (check.actual !== check.expected) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				message: `answer_eval_fingerprint.${check.field} must match llm_io_fingerprint`,
+				retryable: false,
+				status: 422,
+			});
+		}
+	}
+	if (
+		answerEvalFingerprint.answerFingerprintSha256 !==
+		answerEvalFingerprintSha256(answerEvalFingerprint)
+	) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			message:
+				"answer_eval_fingerprint.answer_fingerprint_sha256 must match answer_eval_fingerprint",
+			retryable: false,
+			status: 422,
+		});
+	}
+}
+
+function assertLlmIoFingerprintRunConsistent(input: {
+	llmIoFingerprint: ToolExecutionLlmIoFingerprint | null | undefined;
+	requestId: string;
+	runId: string;
+	traceId: string;
+}): void {
+	const { llmIoFingerprint } = input;
+	if (!llmIoFingerprint) {
+		return;
+	}
+	const checks = [
+		{ actual: llmIoFingerprint.requestId, expected: input.requestId, field: "request_id" },
+		{ actual: llmIoFingerprint.runId, expected: input.runId, field: "run_id" },
+		{ actual: llmIoFingerprint.traceId, expected: input.traceId, field: "trace_id" },
+	];
+	for (const check of checks) {
+		if (check.actual !== check.expected) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				message: `llm_io_fingerprint.${check.field} must match finalized request`,
+				retryable: false,
+				status: 422,
+			});
+		}
+	}
+}
+
 function normalizeAclDecision(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.aclDecision) {
@@ -44,7 +222,7 @@ function normalizeAclDecision(input: {
 
 function normalizeFailClosed(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): boolean | null {
 	if (typeof input.response.observability?.failClosed === "boolean") {
@@ -71,7 +249,7 @@ function normalizeFailClosed(input: {
 
 function normalizeRefusalClass(
 	diagnostics: RequestDiagnosticsSummary | null,
-	response: SupervisorExecutionResponse,
+	response: ToolExecutionResponse,
 	status: RequestExecutionStatus,
 ): string | null {
 	if (response.observability?.refusalClass) {
@@ -122,7 +300,7 @@ function deriveSemanticOutcomeFromDiagnostics(
 
 function normalizeSemanticOutcome(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.semanticOutcome) {
@@ -157,7 +335,7 @@ function normalizeScopeClass(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.scopeClass) {
@@ -183,7 +361,7 @@ function normalizeScopeClass(input: {
 
 function normalizePolicyReason(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.policyReason) {
@@ -239,7 +417,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	conversationId: string;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
 	safetyIdentifier?: string | null;
@@ -273,7 +451,9 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		estimatedCostMicrousd: null,
 		failClosed: null,
 		inputTokens: null,
-		intentCapability: null,
+		billableStepCount: null,
+		modelUsageSummary: null,
+		intentTool: null,
 		intentClassifierVersion: null,
 		intentLaunchState: null,
 		intentNextAction: null,
@@ -293,8 +473,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		modelName: null,
 		modelProvider: null,
 		promptId: null,
-		promptRuntimeDetail: null,
-		promptRuntimeState: null,
+		modelExecutionDetail: null,
+		modelExecutionState: null,
 		promptVersion: null,
 		outputTokens: null,
 		policyProjectionVersion:
@@ -305,7 +485,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability,
+		requestedTool: input.requestedTool,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
 		versionQueryMode: versionSummary.mode,
 		versionQuerySummary: versionSummary.summary,
@@ -317,7 +497,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		templateSha256: null,
 		retrievedSourceCount: null,
 		retrievalAttempted: null,
-		selectedTarget: null,
 		selectedTool: null,
 		startedAt: input.startedAt,
 		status: "accepted",
@@ -329,6 +508,10 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		toolHistoricalDowngradeReason: null,
 		updatedAt: input.startedAt,
 		workflowTraceSummary: null,
+		stageTiming: {},
+		debugTraceRefs: [],
+		answerEvalFingerprint: null,
+		llmIoFingerprint: null,
 	};
 }
 
@@ -338,15 +521,19 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	durationMs: number;
 	errorCode: string | null;
 	principal: ResolvedAppPrincipal;
+	projectionCloseoutMs?: number | null;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: ToolExecutionResponse;
+	runId: string;
 	safetyIdentifier?: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
+	stageTiming?: Record<string, unknown> | null;
 	status: RequestExecutionStatus;
+	streamBrowserTtftMs?: number | null;
 	surface: string;
 	traceId: string;
 	conversationId: string;
@@ -367,6 +554,19 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		typeof observability?.citationExpected === "boolean" ? observability.citationExpected : null;
 	const citationCount =
 		observability?.citationCount ?? (citationExpected === true ? supportingSources.length : 0);
+	const usageSummary = observability?.usageSummary ?? null;
+	const answerEvalFingerprint = observability?.answerEvalFingerprint ?? null;
+	const llmIoFingerprint = observability?.llmIoFingerprint ?? null;
+	assertLlmIoFingerprintRunConsistent({
+		llmIoFingerprint,
+		requestId: input.requestId,
+		runId: input.runId,
+		traceId: input.traceId,
+	});
+	assertAnswerEvalFingerprintSourceConsistent({
+		answerEvalFingerprint,
+		llmIoFingerprint,
+	});
 
 	return {
 		aclAnomalyCode: observability?.aclAnomalyCode ?? null,
@@ -375,7 +575,9 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			response: input.response,
 			status: input.status,
 		}),
-		cachedInputTokens: observability?.cachedInputTokens ?? null,
+		cachedInputTokens: usageSummary
+			? usageSummary.cachedInputTokens
+			: (observability?.cachedInputTokens ?? null),
 		candidateCount: observability?.candidateCount ?? null,
 		claimSupportSummary: normalizeClaimSupportSummary(input.diagnostics),
 		remoteContentSuspicionSummary: normalizeRemoteContentSuspicionSummary(input.diagnostics),
@@ -397,14 +599,18 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		emptyRecall: retrievalAttempted === true ? retrievedSourceCount === 0 : null,
 		entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId ?? null,
 		errorCode: input.errorCode,
-		estimatedCostMicrousd: observability?.estimatedCostMicrousd ?? null,
+		estimatedCostMicrousd: usageSummary
+			? usageSummary.estimatedCostMicrousd
+			: (observability?.estimatedCostMicrousd ?? null),
 		failClosed: normalizeFailClosed({
 			diagnostics: input.diagnostics,
 			response: input.response,
 			status: input.status,
 		}),
-		inputTokens: observability?.inputTokens ?? null,
-		intentCapability: normalizeIntentString(observability?.intentCapability),
+		inputTokens: usageSummary ? usageSummary.inputTokens : (observability?.inputTokens ?? null),
+		billableStepCount: usageSummary?.billableStepCount ?? null,
+		modelUsageSummary: usageSummary?.modelUsage ?? null,
+		intentTool: normalizeIntentString(observability?.intentTool),
 		intentClassifierVersion: normalizeIntentString(observability?.intentClassifierVersion),
 		intentLaunchState: normalizeIntentString(observability?.intentLaunchState),
 		intentNextAction: normalizeIntentString(observability?.intentNextAction),
@@ -423,14 +629,17 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		intentMissingSlots: observability?.intentMissingSlots ?? null,
 		intentAmbiguityReason: normalizeIntentString(observability?.intentAmbiguityReason),
 		measuredAt: input.completedAt,
-		modelName: observability?.promptTrace?.modelName ?? observability?.modelName ?? null,
-		modelProvider:
-			observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null,
+		modelName: usageSummary
+			? usageSummary.modelName
+			: (observability?.promptTrace?.modelName ?? observability?.modelName ?? null),
+		modelProvider: usageSummary
+			? usageSummary.modelProvider
+			: (observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null),
 		promptId: observability?.promptTrace?.promptId ?? null,
-		promptRuntimeDetail: observability?.promptRuntimeDetail ?? null,
-		promptRuntimeState: observability?.promptRuntimeState ?? null,
+		modelExecutionDetail: observability?.modelExecutionDetail ?? null,
+		modelExecutionState: observability?.modelExecutionState ?? null,
 		promptVersion: observability?.promptTrace?.promptVersion ?? null,
-		outputTokens: observability?.outputTokens ?? null,
+		outputTokens: usageSummary ? usageSummary.outputTokens : (observability?.outputTokens ?? null),
 		policyProjectionVersion:
 			input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
 		policyReason: normalizePolicyReason({
@@ -443,7 +652,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability,
+		requestedTool: input.requestedTool,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
 		versionQueryMode: versionSummary.mode,
 		versionQuerySummary: versionSummary.summary,
@@ -465,8 +674,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		templateSha256: observability?.promptTrace?.templateSha256 ?? null,
 		retrievedSourceCount,
 		retrievalAttempted,
-		selectedTarget: input.response.selectedTarget,
-		selectedTool: observability?.selectedTool ?? null,
+		selectedTool: input.response.selectedTool,
 		startedAt: input.startedAt,
 		status: input.status,
 		surface: input.surface,
@@ -477,6 +685,16 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		toolHistoricalDowngradeReason: observability?.toolHistoricalDowngradeReason ?? null,
 		updatedAt: input.completedAt,
 		workflowTraceSummary: input.response.workflowTraceSummary ?? null,
+		stageTiming: mergeStageTiming({
+			appApiStageTiming: input.stageTiming,
+			executionStageTiming: input.response.stageTiming,
+			projectionCloseoutMs: input.projectionCloseoutMs,
+			requestTotalMs: input.durationMs,
+			streamBrowserTtftMs: input.streamBrowserTtftMs,
+		}),
+		debugTraceRefs: input.response.debugTraceRefs ?? [],
+		answerEvalFingerprint,
+		llmIoFingerprint,
 	};
 }
 

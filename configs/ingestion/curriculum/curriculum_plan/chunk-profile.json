@@ -10,14 +10,23 @@
 		"chunk_overlap": 72,
 		"min_chunk_size": 50
 	},
+	"lane_defaults": {
+		"table_unit": {
+			"strategy_name": "curriculum_plan_table_structure_v2",
+			"chunk_size": 420,
+			"max_chunk_size": 640,
+			"chunk_overlap": 72,
+			"min_chunk_size": 64
+		}
+	},
 	"cleaning_policy_version": "curriculum_plan_cleaning_v1",
 	"notes": [
 		"Use split-manifest logical documents as the pre-chunking boundary.",
-		"Resolve the accepted runtime profile through build_curriculum_chunk_profile(...) instead of handbook defaults.",
+		"Resolve this payload through TS parseCollectionChunkProfile(...) instead of handbook defaults or Python profile helpers.",
 		"curriculum_plan_semantic_v2 keeps 360/540/72/50 for section_text and raises table_unit to 420/640/72/64.",
 		"Preserve provider tables, figure titles, and page-level layout blocks through cleaning before semantic chunking.",
 		"Chunk only source-truth-preserving document-units.jsonl rows generated after split-manifest document projection.",
 		"Treat provider labels as normalization hints instead of final curriculum semantics.",
-		"Keep this profile aligned with ingestion-core runtime truth before enabling online retrieval."
+		"Keep this profile aligned with TS ingest-core profile parsing and Rust kernel chunk preparation before enabling online retrieval."
 	]
 }

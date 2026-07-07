@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: execution-runtime-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MUC-WIKI/campus-agent.git
+    targetRevision: develop
+    path: infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: campus-agent-staging
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

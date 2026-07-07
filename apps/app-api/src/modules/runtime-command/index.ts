@@ -3,8 +3,7 @@ export {
 	type ChatConversationStore,
 	DRAFT_CONVERSATION_TITLE,
 } from "../chat";
-export { SupervisorTransportError } from "../integration";
-export type { ProfileMemoryProjectionStore } from "../profile-memory";
+export { ExecutionControlTransportError } from "../integration";
 export {
 	buildChatCommandService,
 	type ChatCommandPayload,
@@ -17,6 +16,7 @@ export {
 } from "./service";
 export {
 	type AbuseControlState,
+	type AcceptedDurableRequestCloseout,
 	type AcceptRequestWrite,
 	type ChatCommandStore,
 	createPgChatCommandStore,

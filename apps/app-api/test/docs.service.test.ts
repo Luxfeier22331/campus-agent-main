@@ -40,16 +40,16 @@ const restrictedDoc = {
 
 const restrictedRegulationDoc = {
 	canonicalUrl:
-		"/docs/regulations/scoped_rules/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+		"/docs/regulations/scoped_rules/示例大学示例共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
 	collection: "scoped_rules",
 	corpus: "regulations",
 	currentVersionId: "ver_scoped_rule",
 	currentVersionSlug: "2026-current",
 	deliveryMode: "gated_asset" as const,
-	docId: "institutional_regulation:muc:scoped-rule",
-	documentSlug: "中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+	docId: "institutional_regulation:example:scoped-rule",
+	documentSlug: "示例大学示例共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
 	entitlementGroups: ["campus_members"],
-	title: "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+	title: "示例大学示例共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
 	updatedAt: "2026-04-28T12:53:09.490Z",
 	versionId: "ver_scoped_rule",
 	versionSlug: "2026-current",
@@ -94,7 +94,7 @@ function createStore(): DocsReadModelStore {
 			return {
 				...publicDoc,
 				objectStoreKey: "reader-assets/private/reader.json",
-				rawSourceLocator: "s3://campus-rag-derived/private/raw-source.json",
+				rawSourceLocator: "s3://campus-agent-derived/private/raw-source.json",
 			};
 		},
 		async getReaderAsset(input) {
@@ -151,7 +151,7 @@ function createStore(): DocsReadModelStore {
 				objectStoreKey: "reader-assets/private/reader.json",
 				outlineUrl:
 					"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/outline.json",
-				rawSourceLocator: "s3://campus-rag-derived/private/raw-source.json",
+				rawSourceLocator: "s3://campus-agent-derived/private/raw-source.json",
 			};
 		},
 		async listCollectionDocuments(input) {
@@ -193,30 +193,6 @@ function createStore(): DocsReadModelStore {
 				},
 			];
 		},
-		async searchCurrentPublic() {
-			return [
-				{
-					...publicDoc,
-					anchor: "semester-4",
-					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
-					chunkId: "chunk-private-001",
-					documentTitle: publicDoc.title,
-					highlightRootUnitIds: ["semester-4-course-list"],
-					rawSourceLocator: "s3://campus-rag-derived/private/chunk.jsonl",
-					snippet: "第四学期开设法理学、宪法学。",
-					title: "第四学期",
-				},
-				{
-					...restrictedDoc,
-					anchor: "restricted",
-					canonicalUrl: restrictedDoc.canonicalUrl,
-					documentTitle: restrictedDoc.title,
-					highlightRootUnitIds: ["restricted-root"],
-					snippet: "受限内容",
-					title: "受限章节",
-				},
-			];
-		},
 	};
 }
 
@@ -250,7 +226,7 @@ function createStudentPrincipal(): ResolvedAppPrincipal {
 		},
 		principal: {
 			displayName: "学生用户",
-			email: "student@muc.edu.cn",
+			email: "student@example.edu",
 			principalId: "user_student",
 			type: "student",
 		},
@@ -282,6 +258,7 @@ describe("docs service", () => {
 				{
 					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
 					documentSlug: "law-ethnic-class-program",
+					displayTitle: "法学（民族班）培养方案",
 					isCurrent: true,
 					kind: "document",
 					title: "法学（民族班）培养方案",
@@ -409,6 +386,7 @@ describe("docs service", () => {
 			{
 				canonicalUrl: restrictedRegulationDoc.canonicalUrl,
 				documentSlug: restrictedRegulationDoc.documentSlug,
+				displayTitle: "示例大学示例共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
 				isCurrent: true,
 				kind: "document",
 				title: restrictedRegulationDoc.title,
@@ -491,34 +469,9 @@ describe("docs service", () => {
 		} satisfies Partial<AppApiRouteError>);
 	});
 
-	it("returns source-card search targets without chunk or raw locator leakage", async () => {
+	it("does not expose docs search through the app-api docs service", () => {
 		const service = buildDocsService({ store: createStore() });
 
-		const response = await service.search({
-			collection: "curriculum_plan",
-			corpus: "curriculum",
-			limit: 5,
-			principal: null,
-			query: "第四学期",
-			versionMode: "current",
-		});
-
-		expect(response).toEqual({
-			query: "第四学期",
-			results: [
-				{
-					anchor: "semester-4",
-					canonicalUrl:
-						"/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
-					documentTitle: "法学（民族班）培养方案",
-					highlightRootUnitIds: ["semester-4-course-list"],
-					kind: "section_hit",
-					snippet: "第四学期开设法理学、宪法学。",
-					title: "第四学期",
-				},
-			],
-		});
-		expect(JSON.stringify(response)).not.toContain("chunk-private-001");
-		expect(JSON.stringify(response)).not.toContain("rawSourceLocator");
+		expect("search" in service).toBe(false);
 	});
 });
