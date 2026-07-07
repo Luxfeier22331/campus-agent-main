@@ -7,27 +7,22 @@ import {
 } from "../src/index.ts";
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_curriculum_chunk_001",
 	run_id: "run_curriculum_20260611",
 	source_family: "curriculum",
 	source_channel: "curriculum_plan",
 	corpus: "curriculum",
 	collection: "curriculum_plan",
+	registry_task_id: "chunk_prepare",
 	task_kind: "chunk_prepare",
 	input_ref: {
 		kind: "object_store",
 		uri: "s3://campus-agent-derived/curriculum/curriculum_plan/document-units.jsonl",
 	},
+	input_contract: "canonical_document_units.v1",
 	output_contract: "ingestion_chunk_set.v1",
 	idempotency_key: "curriculum/curriculum_plan/chunk_prepare/document-units-v1",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 3,
-	},
 	created_by: "operator",
 	created_at: "2026-06-11T00:00:00Z",
 };
@@ -40,23 +35,28 @@ describe("ingestion-control operator projection", () => {
 		const handler = createIngestionControlHandler({
 			registryCatalog: createIngestionTaskRegistryCatalog([
 				{
-					schema_version: "ingestion_task_registry.v1",
+					schema_version: "ingestion_task_registry.v2",
 					source_family: "curriculum",
 					corpus: "curriculum",
 					collection: "curriculum_plan",
 					tasks: [
 						{
+							registry_task_id: "chunk_prepare",
 							task_kind: "chunk_prepare",
 							executor_kind: "rust_kernel",
 							kernel_id: "chunk-document-units",
 							input_contract: "canonical_document_units.v1",
 							output_contract: "ingestion_chunk_set.v1",
-							can_publish_alias: false,
 						},
 					],
 				},
 			]),
 			store,
+			workflowStarter: {
+				async startTask(admitted) {
+					return { workflowId: admitted.workflow_id, workflowRunId: "temporal-run-001" };
+				},
+			},
 		});
 
 		const admitResponse = await handler(
@@ -67,11 +67,13 @@ describe("ingestion-control operator projection", () => {
 		);
 		expect(admitResponse.status).toBeLessThan(400);
 
-		const claimed = store.claimNextTask({ workerId: "worker-a" });
-		expect(claimed?.task_id).toBe(task.task_id);
+		const running = store.markTaskRunning({
+			taskId: task.task_id,
+			workflowRunId: "temporal-run-001",
+		});
+		expect(running.task_id).toBe(task.task_id);
 		store.completeTask({
 			taskId: task.task_id,
-			workerId: "worker-a",
 			artifactRefs: [
 				{
 					kind: "object_store",
@@ -99,17 +101,18 @@ describe("ingestion-control operator projection", () => {
 					source_channel: "curriculum_plan",
 					corpus: "curriculum",
 					collection: "curriculum_plan",
+					registry_task_id: "chunk_prepare",
 					task_kind: "chunk_prepare",
 					status: "completed",
-					attempt_count: 1,
 					created_at: "2026-06-11T00:00:00Z",
 					updated_at: "2026-06-11T00:00:00.000Z",
-					lease_expires_at: null,
 					terminal_status: "completed",
 					outcome_kind: "success",
 					artifact_count: 1,
 					last_error_code: null,
 					last_error_message: null,
+					workflow_id: task.task_id,
+					workflow_run_id: "temporal-run-001",
 				},
 			],
 		});

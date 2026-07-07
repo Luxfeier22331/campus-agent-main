@@ -118,9 +118,9 @@ framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier -
 supporting evidence -> evidence integrity verification -> execution finalization`
 
 允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
-`CanonicalNoticeContext`、`NoticeChangeSet`、`ScheduleBaseline` 或
-`PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
-input，不得绕过 query-enabled surface、freshness gate 或 source-trust gate。
+`CanonicalNoticeContext`、`ScheduleBaseline` 或 `PlaceContext`。这些 projection
+只能作为 retrieval framing / evidence comparison input，不得绕过
+query-enabled surface、freshness gate 或 source-trust gate。
 
 ## Ownership Model
 

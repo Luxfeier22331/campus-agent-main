@@ -14,16 +14,10 @@ export type AppPrincipalType =
 
 export type AuthorizationProjectionSource = "campus_identity" | "operator_headers" | "service_auth";
 
-export interface OfficialWebCollectorPrincipal {
-	kind: "service";
-	serviceClass: "official_web_collector";
-	serviceId: "official-web-collector";
-}
-
 export interface WeChatOfficialAccountCollectorPrincipal {
 	kind: "service";
 	serviceClass: "wechat_official_account_collector";
-	serviceId: "wechat-official-account-collector";
+	serviceId: "source-collector/wechat-official-account";
 }
 
 export interface AppPermissions {
@@ -716,21 +710,6 @@ export function mapOperatorHeadersToPrincipal(
 	return operatorHeadersAdmission.kind === "admitted" ? operatorHeadersAdmission.principal : null;
 }
 
-export async function resolveOfficialWebCollectorPrincipal(
-	request: Request,
-	env: Pick<Env, "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN">,
-): Promise<OfficialWebCollectorPrincipal | null> {
-	if (!hasMatchingBearerToken(request, env.APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN ?? null)) {
-		return null;
-	}
-
-	return {
-		kind: "service",
-		serviceClass: "official_web_collector",
-		serviceId: "official-web-collector",
-	};
-}
-
 export async function resolveWeChatOfficialAccountCollectorPrincipal(
 	request: Request,
 	env: Pick<Env, "APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN">,
@@ -744,7 +723,7 @@ export async function resolveWeChatOfficialAccountCollectorPrincipal(
 	return {
 		kind: "service",
 		serviceClass: "wechat_official_account_collector",
-		serviceId: "wechat-official-account-collector",
+		serviceId: "source-collector/wechat-official-account",
 	};
 }
 

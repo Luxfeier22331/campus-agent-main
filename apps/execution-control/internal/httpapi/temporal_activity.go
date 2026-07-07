@@ -398,8 +398,6 @@ func isConcreteTemporalToolTarget(toolTarget string) bool {
 	case "knowledge_query",
 		"transport_schedule_lookup",
 		"campus_notice_discover",
-		"campus_notice_change_set_lookup",
-		"campus_notice_period_summary",
 		"campus_notice_get":
 		return true
 	default:

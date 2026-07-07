@@ -48,7 +48,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                 self.assertIn(entry_id, entries)
                 self.assertEqual(entries[entry_id].get("validates"), validates)
 
-        for entry_id in ("ingestion-task-envelope.v1", "ingestion-task-registry.v1"):
+        for entry_id in ("ingestion-task-envelope.v2", "ingestion-task-registry.v2"):
             with self.subTest(entry_id=entry_id):
                 self.assertIn(entry_id, entries)
                 self.assertTrue(entries[entry_id].get("fixture_groups"))

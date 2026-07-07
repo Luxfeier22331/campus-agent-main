@@ -5,8 +5,6 @@ const ACCEPTED_EXPLICIT_CHAT_TOOLS = new Set([
 	"place_lookup",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
-	"campus_notice_change_set_lookup",
-	"campus_notice_period_summary",
 ]);
 
 function normalizeRequestedTool(value: unknown): string | null {

@@ -165,14 +165,20 @@ uv run --all-packages python -m unittest discover -s tests -t .
 - `apps/execution-control`: Go execution admission, Temporal control, memory
   recall, RAG activities, finalization and runtime observability.
 - `apps/agent-runtime`: OpenAI Agents SDK primary agent runtime.
-- `apps/ingestion-control`: TS ingestion task control plane.
-- `apps/ingestion-worker`: narrow Python extraction adapter island.
+- `apps/ingestion-control`: TS ingestion task control plane; owns task
+  admission, Temporal workflow start, registry-aware activity dispatch,
+  terminal closeout and operator projection.
+- `apps/source-collector`: TS/Crawlee source collectors and source-channel
+  adapters that emit object-store handoff artifacts.
+- `apps/ingestion-worker`: removed from the active workspace; old code may only
+  be traced through git history and must not be reattached to serving or
+  ingestion lifecycle.
 - `jobs/dining-sync`: dining data write job/cronjob.
 - `packages/contracts`: shared execution/tool/evidence schemas without runtime
   infrastructure leakage.
-- `packages/ingestion-core`: ingestion/data-plane logical consumer.
+- `packages/ingest-core`: runtime-neutral TS ingestion helpers, parsers,
+  canonical artifact writers and registry-aware dispatch helpers.
 - `packages/ingestion-kernels-rs`: deterministic file-level ingestion kernels.
-- `packages/regulation-semantics`: regulation answer-ready evidence semantics.
 - `packages/eval-langfuse`: TS Langfuse eval adapter.
 - `packages/ragas-runner`: narrow Python Ragas execution island.
 - `packages/shared`: lightweight constants and env/provider helpers only.

@@ -9,7 +9,7 @@ This directory holds the repo-tracked config scaffold for the
   regulation documents
 - `chunk-profile.json`: chunk-preparation contract for canonical regulation text
 - `query-planning.json`: runtime policy-object registry for title-targeted
-  retrieval planning; it is not a qrels asset
+  retrieval planning; it is not a qrels assertion
 - `source-projections.v1.json`: promotion-facing projection scaffold from
   `campus_notices/internal_notice`
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`:
@@ -43,12 +43,12 @@ Collection boundary:
 
 Current scaffold note:
 
-- this directory no longer only freezes shape: repo now includes a scope-refresh
-  materialization path from `campus_notices/internal_notice` into
-  `regulations/institutional_rules`
-- materialization strategy remains in ingestion-core during the transition, but
-  task lifecycle belongs to ingestion-control and must be admitted through the
-  collection task registry before it can publish
+- this directory freezes the target-side promotion scaffold from
+  `campus_notices/internal_notice` into `regulations/institutional_rules`
+- the old Python promotion manifest / export / scan path has been retired from
+  the active workspace; future promotion execution must be rebuilt as an
+  admitted ingestion-control handler or deterministic kernel-backed task before
+  it can publish
 - local-only target acceptance chunk preparation is no longer a Python worker
   command surface; rebuild it as a registry-declared `rust_kernel` /
   `ts_control` task before opening new release automation

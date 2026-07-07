@@ -5,13 +5,20 @@ owner_boundary: docs/decisions
 decision_id: ADR-0027
 status: accepted
 created: 2026-04-05
-updated: 2026-04-22
+updated: 2026-07-04
 ---
 # ADR-0027 Navigation Tool And Spatial Truth
 
 ## 状态
 
 Accepted on 2026-04-05.
+
+## 术语说明
+
+本文早期使用的 `supervisor` 是历史术语。当前 active architecture term 是
+Execution Agent Layer / `apps/execution-control` / `ToolExecutionWorkflow`。本文继续冻结
+navigation tool domain 与 spatial truth 边界，不把 `supervisor` 作为当前 runtime
+组件名引用。
 
 ## 背景
 

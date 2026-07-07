@@ -5,14 +5,36 @@ owner_boundary: docs/decisions
 decision_id: ADR-0054
 status: accepted
 created: 2026-06-11
-updated: 2026-06-30
+updated: 2026-07-04
 supersedes: []
+partially_superseded_by:
+  - adr-0048-temporal.md
 ---
 # ADR-0054 Ingestion Control Plane And Kernel Boundary
 
 ## 状态
 
 Accepted on 2026-06-11.
+
+2026-07-02 update: the self-built claim / lease / retry / dead-letter executor
+part of this ADR is superseded by Temporal-owned workflow / activity execution
+inside `apps/ingestion-control`. `apps/ingestion-worker` has been removed from
+the active workspace; Python extraction may remain only as package library or
+private service dependency behind explicit TS handlers.
+
+2026-07-04 update: this ADR keeps its existing decision. The TS ingest core
+boundary is clarified as runtime-neutral package space: it may host contracts,
+artifact refs, interfaces and pure helpers, but Temporal, Crawlee, concrete
+object-store / database clients and provider transports remain in app/job
+runtime boundaries.
+
+2026-07-07 update: `packages/ingestion-contracts` now validates through shared
+JSON Schema in both TypeScript and Python (`Ajv` / `jsonschema`) and owns
+`canonical_document_units.v1`. The canonical unit identity is `doc_id` +
+`chunk_id`, not legacy `document_id` + `unit_id`. The ingestion-control
+Postgres schema no longer relaxes old self-built lease / retry / attempt
+columns; old queued / dead-letter rows fail closed instead of being treated as
+an active compatibility path.
 
 ## 背景
 
@@ -36,29 +58,35 @@ ingestion 当前存在大量 Python CLI、collection strategy 与 historical rep
 artifact / handler boundary，再逐 collection 替换实现；不表示保留旧 Python CLI
 作为长期兼容层。
 
-- `packages/ingestion-contracts` 是 ingestion task envelope、task registry 与 closeout
-  DTO 的 source of truth。
+- `packages/ingestion-contracts` 是 ingestion task envelope、task registry、
+  canonical document units 与 closeout DTO 的 source of truth。validator 必须由
+  JSON Schema 驱动；不得在 TS、Python 或 Rust boundary 重新手写字段规则。
+- TypeScript ingest core 能力如后续新增，只能作为 runtime-neutral helper / interface
+  package 消费 `packages/ingestion-contracts`；它不拥有 Temporal workflow / activity、
+  Crawlee queue/storage、S3 / Postgres / Qdrant concrete client lifecycle、provider
+  HTTP transport 或 terminal closeout。
 - `apps/ingestion-control` 是 self-hosted internal task control-plane package。Docker
   只是 local / transitional substrate，不是长期架构约束。
 - `apps/ingestion-control` 的部署角色拆为 `ingestion-control-api` 与
-  `ingestion-control-executor`。两者可以共享 package / image，但必须作为不同 runtime
-  process 部署和扩缩：API role 拥有 admission、idempotency、registry validation 与
-  operator projection；executor worker process 拥有 claim / lease、retry、
-  dead-letter、registry-aware execution 与 closeout lifecycle。
+  `ingestion-control-temporal-worker`。两者可以共享 package / image，但必须作为不同
+  runtime process 部署和扩缩：API role 拥有 admission、idempotency、registry
+  validation、Temporal workflow start 与 operator projection；Temporal worker
+  process 拥有 workflow / activity execution、registry-aware execution 与 closeout
+  lifecycle。
 - `apps/ingestion-control` 通过 registry-aware executor dispatch
   `ts_control` handler 或 `rust_kernel`、report terminal closeout。既有 Python
   collection CLI 不迁入 executor seam；它们按 delete-first clean-target triage
   处理，只有当前生产生命周期仍需要的能力才以 TS / Rust target runtime 或 Python
   adapter 重新建模。
-- `app-api`、collector 进程与 Cloudflare Worker surface 都不得承载 claim / lease /
-  executor callback 或 terminal closeout truth。
+- `app-api`、collector 进程与 Cloudflare Worker surface 都不得承载 Temporal
+  workflow / activity execution 或 terminal closeout truth。
 - `ts_control` handler 是 source-channel / collection materialization 的默认 owner。
   source-truth materialization、canonical document materialization、structured
   projection publish、operator projection snapshot 与 alias publish 只有在存在真实
   TypeScript handler 后，才能进入 task registry；未实现的生命周期步骤只记录在设计文档 /
   backlog，不作为 registry 占位项。
-- `apps/ingestion-worker` 只保留 Python extraction adapter island；它不拥有 task
-  claim / lease / retry / closeout，不作为 registry fallback executor。
+- `apps/ingestion-worker` 已移除；Python extraction 不拥有 task workflow /
+  activity / closeout，不作为 registry fallback executor。
 - `packages/ingestion-kernels-rs` 只承接 file-level deterministic kernels；不得连接
   Postgres、Qdrant、S3 或 provider，不得拥有 source-channel 语义。
 - `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` 是 collection
@@ -78,7 +106,7 @@ artifact / handler boundary，再逐 collection 替换实现；不表示保留�
 
 第一批 source-channel proof point：
 
-- `authenticated_notice_portal` / `campus_notices/internal_notice`
+- `internal_portal` / `campus_notices/internal_notice`
 
 它必须证明 verified collector run 能通过 source bucket object refs 进入
 `source_truth_materialize` TS handler，并由 ingestion-control 完成

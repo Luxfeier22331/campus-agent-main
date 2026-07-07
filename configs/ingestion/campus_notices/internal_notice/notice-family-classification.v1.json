@@ -2,7 +2,7 @@
 	"schema_version": "authenticated_notice_notice_family_classification_v1",
 	"corpus": "campus_notices",
 	"collection": "internal_notice",
-	"source_channel": "authenticated_notice_portal",
+	"source_channel": "internal_portal",
 	"default_family": "other",
 	"default_admission_policy": "no_adoption",
 	"default_priority": 40,

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-13
+updated: 2026-07-05
 ---
 # 目标架构
 
@@ -193,8 +193,9 @@ flowchart LR
 ```text
 collector/source admission
 -> ingestion control plane
--> task registry / lease / retry / dead-letter
--> source-family executor
+-> Temporal workflow start / task registry validation
+-> registry-aware activity dispatch
+-> source-family handler or deterministic kernel
 -> raw asset
 -> provider output
 -> canonical source truth
@@ -215,16 +216,22 @@ collector/source admission
   operator-safe read model；不拥有 ingestion task execution、source mutation、
   document/index materialization 或 Qdrant alias publish。
 - ingestion control plane 拥有 task admission、task registry、claim / lease /
-  retry / dead-letter、run shard state、registry-aware executor dispatch、telemetry
-  closeout 与 operator projection snapshot。
-- `apps/ingestion-control` 的 executor shell 按 registry 分派 `ts_control` /
-  `rust_kernel` 任务，并把 redacted closeout 投影回 operator surface；缺失 handler /
-  kernel 时 fail closed。
-- `apps/ingestion-worker` 只保留 Python adapter island；Python extraction 只能由显式
-  TS task handler 调用，不作为 collection lifecycle 或 fallback executor。
-- `packages/ingestion-core` 继续拥有 canonical data-plane contract、shared file asset
-  loader、source-truth / materialization strategy 与 collection strategy；release
-  lifecycle 由 ingestion-control task registry/executor 承接。
+  retry / dead-letter、run shard state、Temporal workflow start、run-level
+  orchestration、registry-aware executor dispatch、telemetry closeout 与 operator
+  projection snapshot。
+- `apps/ingestion-control` 的 executor shell / Temporal workflow activity worker 按
+  registry 分派 `ts_control` / `rust_kernel` 任务，并把 redacted closeout 投影回
+  operator surface；缺失 handler / kernel 时 fail closed。
+- `apps/ingestion-worker` 已移除；Python extraction 只能作为 package library 或
+  private service dependency 由显式 TS task handler 调用，不作为 collection
+  lifecycle 或 fallback executor。
+- `packages/ingest-core` 继续拥有 runtime-neutral TS ingestion helper：
+  source-channel parser、canonical JSON/artifact helper、registry-aware dispatch
+  helper、collection profile parser 与纯 materialization/projection helper。
+  release lifecycle 由 ingestion-control Temporal workflow/activity worker 承接。
+  旧 Python ingestion package 已删除；后续 shared file / OCR / Office 能力必须作为
+  explicit adapter boundary 重新 admission，不拥有 source-truth / registry /
+  release / database runtime truth。
 - Rust 只作为 validation-gated deterministic kernel lane，用于 profiling 已确认的高吞吐
   CPU / memory 热点，例如 JSONL streaming、document-units validation、chunk packing、
   hash / dedup / diff、release manifest validation 与 embedding batch input preparation。

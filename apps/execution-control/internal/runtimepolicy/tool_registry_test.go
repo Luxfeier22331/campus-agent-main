@@ -52,16 +52,12 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if _, ok := registry.ModelVisibleToolByName("campus_notice_get"); ok {
 		t.Fatal("campus_notice_get must not be model-visible")
 	}
-	for _, closedTool := range []string{"campus_notice_period_summary", "campus_notice_change_set_lookup"} {
-		tool, ok := registry.ToolByName(closedTool)
-		if !ok {
-			t.Fatalf("%s missing from tool registry", closedTool)
+	for _, removedTool := range []string{"campus_notice_period_summary", "campus_notice_change_set_lookup"} {
+		if _, ok := registry.ToolByName(removedTool); ok {
+			t.Fatalf("%s must not be registered", removedTool)
 		}
-		if tool.Exposure != "closed" || tool.RequiresApproval || tool.ReadOnly != true {
-			t.Fatalf("%s exposure/requires_approval/read_only = %q/%t/%t, want closed/false/true", closedTool, tool.Exposure, tool.RequiresApproval, tool.ReadOnly)
-		}
-		if _, ok := registry.ModelVisibleToolByName(closedTool); ok {
-			t.Fatalf("%s must not be model-visible", closedTool)
+		if _, ok := registry.ModelVisibleToolByName(removedTool); ok {
+			t.Fatalf("%s must not be model-visible", removedTool)
 		}
 	}
 }

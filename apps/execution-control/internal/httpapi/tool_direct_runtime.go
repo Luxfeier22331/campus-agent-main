@@ -14,7 +14,6 @@ func isToolReadModelPayloadKind(payloadKind string) bool {
 	switch payloadKind {
 	case toolreadmodel.ToolTransportScheduleLookup,
 		toolreadmodel.ToolCampusNoticeDiscover,
-		toolreadmodel.ToolCampusNoticeChangeSet,
 		toolreadmodel.ToolCampusNoticeGet:
 		return true
 	default:
@@ -84,10 +83,6 @@ func (s *Server) executeToolReadModelRuntime(
 		return s.toolReadModel.LookupTransportSchedule(ctx, rawPayload)
 	case toolreadmodel.ToolCampusNoticeDiscover:
 		return s.toolReadModel.LookupCampusNoticeDiscover(ctx, rawPayload)
-	case toolreadmodel.ToolCampusNoticePeriodSummary:
-		return s.toolReadModel.LookupCampusNoticePeriodSummary(ctx, rawPayload)
-	case toolreadmodel.ToolCampusNoticeChangeSet:
-		return s.toolReadModel.LookupCampusNoticeChangeSet(ctx, rawPayload)
 	case toolreadmodel.ToolCampusNoticeGet:
 		return s.toolReadModel.LookupCampusNoticeGet(ctx, rawPayload)
 	default:

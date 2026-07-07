@@ -59,7 +59,6 @@ _ROOT_BIOME_FILES = {
 }
 _ROOT_LOCK_FILES = {"pnpm-lock.yaml", "uv.lock"}
 _ROOT_SQL_LINT_FILES = {".sqlfluff"}
-_LEGACY_OFFICE_JAVA_PREFIX = "apps/legacy-office-conversion-service/src/"
 _TEXT_LIKE_SUFFIXES = {
     ".cjs",
     ".css",
@@ -187,8 +186,6 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
         "scripts/check_public_source_tokens.py",
     }:
         families.append("repo:static")
-    if _is_legacy_office_java_tracked_file(path):
-        families.append("repo:static")
     if path.endswith(".sql") or path in _ROOT_SQL_LINT_FILES:
         families.append("repo:static")
     if _is_docker_tracked_file(path):
@@ -256,10 +253,6 @@ def _is_docker_tracked_file(path: str) -> bool:
         or path.endswith(".dockerfile")
         or path in _DOCKER_NAMES
     )
-
-
-def _is_legacy_office_java_tracked_file(path: str) -> bool:
-    return path.startswith(_LEGACY_OFFICE_JAVA_PREFIX) and path.endswith(".java")
 
 
 def _is_env_tracked_file(path: str) -> bool:

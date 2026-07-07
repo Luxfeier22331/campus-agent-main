@@ -5,11 +5,11 @@ owner_boundary: docs/decisions
 decision_id: ADR-0057
 status: superseded
 created: 2026-06-16
-updated: 2026-06-17
+updated: 2026-07-04
 supersedes:
   - adr-0053-qdrant-native-personal-memory-index
 superseded_by:
-  - ADR-0058 Hindsight Self-Hosted Personal Memory Plane
+  - adr-0058-hindsight-self-hosted-personal-memory-plane.md
 ---
 # ADR-0057: Zep CE Self-Hosted Personal Memory Plane
 

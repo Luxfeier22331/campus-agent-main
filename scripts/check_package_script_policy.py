@@ -55,15 +55,7 @@ DEPLOY_INTERNAL_PREFIXES = (
     "deploy:verify-config",
 )
 COLLECTOR_ALLOWED_SCRIPTS_BY_PACKAGE = {
-    "apps/authenticated-notice-collector/package.json": frozenset(
-        {
-            "build",
-            "test",
-            "typecheck",
-        }
-    ),
-    "apps/official-web-collector/package.json": frozenset({"test", "typecheck"}),
-    "apps/wechat-official-account-collector/package.json": frozenset({"test", "typecheck"}),
+    "apps/source-collector/package.json": frozenset({"test", "typecheck"}),
 }
 
 

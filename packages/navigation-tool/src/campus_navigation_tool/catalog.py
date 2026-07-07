@@ -9,7 +9,12 @@ from campus_contracts import GeoPoint, PlaceCandidate, PlaceCard, PlaceEntityTyp
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _DEFAULT_SEED_PATH = (
-    _REPO_ROOT / "configs" / "ingestion" / "campus_navigation" / "place_catalog" / "seed.v1.json"
+    _REPO_ROOT
+    / "configs"
+    / "reference-data"
+    / "campus_navigation"
+    / "place_catalog"
+    / "seed.v1.json"
 )
 _TRAILING_QUERY_PATTERNS = (
     r"(在哪里|在哪儿|在哪|位于哪里|在什么地方|位置在哪)$",

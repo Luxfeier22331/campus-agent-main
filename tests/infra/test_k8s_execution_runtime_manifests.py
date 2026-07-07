@@ -26,10 +26,11 @@ FORBIDDEN_K8S_WORKLOADS = (
     "operator-panel",
     "authenticated-notice-collector",
     "official-web-collector",
+    "source-collector",
     "wechat-official-account-collector",
     "ingestion-control",
     "ingestion-worker",
-    "legacy-office-conversion-service",
+    "legacy-office-" + "conversion-service",
     "super" + "visor-agent-worker",
     "worker-autoscaler",
 )

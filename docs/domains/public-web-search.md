@@ -210,7 +210,7 @@ capability boundary.
 - Official-web source-channel architecture: `../architecture/domains/official-web/architecture.md`
 - Provider inventory: `../environment/providers.md`
 - Provider boundary decision:
-  `../decisions/adr-0067-public-web-search-provider-boundary.md`
+  `../decisions/adr-0068-public-web-search-provider-boundary.md`
 - Eval reference: `../reference/eval.md`
 - Tool trajectory contract: `../contracts/tool-trajectory.md`
 - Runtime smoke procedure: `../runbooks/execution-smoke.md`

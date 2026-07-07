@@ -165,7 +165,7 @@ repo's eval truth.
   isolated in `packages/ragas-runner`. ADR-0062 supersedes the earlier
   artifact-only RAGAS input assumption and aligns RAGAS with the official
   Langfuse trace / dataset scoring workflow.
-- ADR-0068 narrows the former blanket raw-payload prohibition: safe projection
+- ADR-0069 narrows the former blanket raw-payload prohibition: safe projection
   remains raw-free, while restricted raw replay / capture is allowed only in the
   separate policy-governed data plane defined by
   `docs/contracts/replay-capture.md`.
@@ -184,4 +184,4 @@ ids rather than inferring success from trace presence alone.
 - `docs/architecture/system/learning-loop.md`
 - `docs/product/langfuse-evals.md`
 - `docs/decisions/adr-0059-langfuse-observability-and-eval-platform.md`
-- `docs/decisions/adr-0068-raw-replay-capture.md`
+- `docs/decisions/adr-0069-raw-replay-capture.md`

@@ -4,13 +4,13 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-06-28
+updated: 2026-07-02
 ---
 # Authenticated Notice Source-Truth Schema
 
 ## 文档边界
 
-本文冻结 `authenticated_notice_portal` source channel 的 canonical source-truth
+本文冻结 `internal_portal` source channel 的 canonical source-truth
 schema。
 
 当前作用域只覆盖 `notice` surface，不覆盖同一 portal 下的 `file_release` surface。`file_release`
@@ -62,7 +62,8 @@ fan-out、可审计的 canonical upstream，而不是让下游长期依赖 colle
 - source-truth 可以服务多个下游 collection / corpus，但不得提前携带 document、chunk、retrieval 或
   serving 语义
 - 一旦 canonical notice source-truth 存在，后续 replay / rebuild 必须从 source-truth
-  开始，而不是返回 bootstrap export 或 collector DB
+  开始，而不是返回 notice export、collector DB、Python replay CLI 或 local
+  attachment blob root
 
 ## Canonical 形态
 
@@ -175,6 +176,10 @@ authenticated notice 采集必须把“增量游标”和“内容版本”分�
   audit / owner recovery；不得无限重复下载同一失败资源
 - full-scope replay 只允许作为显式 operator operation；日常运行应按 cursor / selected
   notice ids / changed raw version 进入 source-truth rebuild
+- historical Python source-truth replay、browser-url backfill、attachment object
+  backfill 与 local `attachment_blob_root` import path 不属于 active schema
+  operation surface；需要恢复同类能力时必须重新建模为 object-store backed
+  ingestion-control activity
 
 这条 contract 不改变 source-truth schema 的对象存储布局；它补充的是持续 ingest 的幂等、
 去重和失败终态语义。
@@ -199,7 +204,7 @@ authenticated notice 采集必须把“增量游标”和“内容版本”分�
 - `detail_observed_at`
 - `fetcher_name`
 - `fetcher_version`
-- `collector_version`
+- `capture_runtime_version`
 - `credentials_mode`
 
 `credentials_mode` 第一版允许：
@@ -434,7 +439,7 @@ consumer admission manifest 决定。
   `uploaded_quarantine`，`byte_fetch_required=false`。
 - `fetch_to_quarantine` 如果尚无有效 object-backed bytes，必须保持
   `byte_fetch_required=true` 并进入 fetch request manifest；如果 candidate inventory 已暴露
-  `source_capture_repair`，也必须存在对应 fetch request 或 operator action。
+  `capture_repair`，也必须存在对应 fetch request 或 operator action。
 - retryable download / upload failure 不得只写 legacy `last_error`。collector 必须写
   `last_error_class=transient_failed`；source retention 必须保留
   `attachment_capture_state=transient_failed`、`byte_fetch_required=true`，并继续进入 fetch
@@ -496,8 +501,8 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
   media extraction candidate，且该 candidate 对目标事实 `target_blocking=true`。
 - 如果高价值 target unit 的 attachment policy 要求 quarantine/required bytes，但当前 ref
   仍没有 object-backed bytes，candidate inventory 必须产出
-  `processing_family=source_capture_repair`、`reason_codes` 包含
-  `source_capture_pending` 和 `missing_collected_attachment_bytes`，
+  `processing_family=capture_repair`、`reason_codes` 包含
+  `capture_pending` 和 `missing_collected_attachment_bytes`，
   并标记为非 target-blocking gap。
 - Reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
   extraction candidate 生成输入，但其 write manifest 中的 generic consumer admission
@@ -604,7 +609,7 @@ source-level extension fields，用于在 attachment relation 缺失时保留“
 - projection / rebuild 必须从
   `source-truth/notice-manifest.json`、`content-blocks.jsonl` 与
   `attachment-refs.jsonl` 开始
-- later rebuild 不得返回 bootstrap export、collector SQLite 或本地附件目录重新吸收
+- later rebuild 不得返回 notice export、collector SQLite 或本地附件目录重新吸收
 - collector -> ingestion-control 的 current mainline handoff 是
   `authenticated_notice_capture_release.v1` object-store release。它只声明本次 capture
   的 bundle / manifest refs、hash 与 size，不替代 canonical source-truth。

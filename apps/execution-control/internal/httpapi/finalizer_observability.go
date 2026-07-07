@@ -18,8 +18,6 @@ func allowedToolID(target string) bool {
 		"place_lookup",
 		"transport_schedule_lookup",
 		"campus_notice_discover",
-		"campus_notice_change_set_lookup",
-		"campus_notice_period_summary",
 		"campus_notice_get":
 		return true
 	default:
@@ -192,8 +190,6 @@ func scopeClassForTarget(target string) string {
 		"place_lookup",
 		"transport_schedule_lookup",
 		"campus_notice_discover",
-		"campus_notice_change_set_lookup",
-		"campus_notice_period_summary",
 		"campus_notice_get":
 		return "in_scope"
 	default:
@@ -210,7 +206,7 @@ func aclDecision(denied bool) string {
 
 func candidateCountForTool(tool string, result map[string]any) int {
 	switch tool {
-	case "campus_notice_discover", "campus_notice_period_summary":
+	case "campus_notice_discover":
 		return len(arrayValue(result["notice_cards"]))
 	case "transport_schedule_lookup":
 		return len(arrayValue(result["candidate_routes"]))

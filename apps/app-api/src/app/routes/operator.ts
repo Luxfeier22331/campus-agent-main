@@ -124,7 +124,7 @@ export function registerOperatorRoutes(input: {
 		return jsonResponse(
 			await scope.resolveAuthenticatedNoticeRunProcessingQueryService().list({
 				filters: {
-					collectorRunToken: c.req.query("collectorRunToken") ?? null,
+					sourceRunToken: c.req.query("sourceRunToken") ?? null,
 					cursor: c.req.query("cursor") ?? null,
 					limit: parseLimit(c.req.query("limit")),
 					q: c.req.query("q") ?? null,

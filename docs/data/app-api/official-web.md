@@ -1,37 +1,39 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: apps/app-api
+owner_boundary: shared-postgres/official-web
 status: active
 created: 2026-03-29
-updated: 2026-05-02
+updated: 2026-07-07
 ---
-# App API Official Web Schema
+# Official Web Shared Schema
 
 ## 文档边界
 
-这份文档冻结 `apps/app-api` 为 `official_web` control plane 引入的逻辑分域、最小表形态与 ownership
-规则。
+这份文档冻结 `official_web` shared Postgres 逻辑分域、最小表形态与 runtime ownership
+规则。它是 official-web 数据 schema 的唯一 human canonical 文档；历史路径仍在
+`docs/data/app-api/` 下，不表示当前 collector control plane 属于 app-api。
 
 它补充但不替代以下文档：
 
-- `app-api` 基础 schema：`docs/data/app-api/README.md`
 - `official_web` control-plane
   架构：`docs/architecture/domains/official-web/architecture.md`
 - source-channel architecture：`docs/architecture/domains/official-web/architecture.md`
-- `official_web` HTTP contract：`docs/contracts/app-api/official-web.md`
+- app-api operator HTTP contract：`docs/contracts/app-api/official-web.md`
 
 这份文档不冻结：
 
 - 物理拆库
 - 具体托管商
 - 对象存储 bucket 细节
-- ingestion-control 内部 task schema
-- `fresh_news` / `news_archive` 的 rollout/opening posture
+- ingestion-control generic task schema
+- `fresh_news` 与未来 historical-news/archive surface 的 rollout/opening posture
 
 ## Schema 与实现范围说明
 
-这份文档冻结的是 `official_web` control-plane 的逻辑 schema、ownership 与最小表形态。
+这份文档冻结的是 `official_web` collector run ledger、page observation/freshness、
+target workset、operator release-gate ledger 与 operator projection 的逻辑 schema、
+ownership 与最小表形态。
 
 判断当前已实现子集时：
 
@@ -41,43 +43,56 @@ updated: 2026-05-02
 
 ## Storage Conclusion
 
-第一版接受：
+当前接受：
 
-- 继续使用 repo 共享 Postgres 上由 `app-api` 拥有的逻辑 schema 与同一 migration pipeline
-- 新增 `official_web.*` 逻辑分域
+- 继续使用 repo 共享 Postgres 上的 `official_web.*` 逻辑分域
 - 继续允许 `operator.*` 承接 panel-facing read models
+- 历史 app-api Drizzle migration baseline 可以保留 `official_web.*` schema
+  definition，但不得据此恢复 app-api collector write/control-plane route
 
 固定 ownership：
 
-- `official_web.*` crawl-run control-plane durable truth
-- `operator.*` panel-facing site/run projections
+- `apps/ingestion-control` owns collector service admission, crawl-run lifecycle
+  writes, heartbeat/finalize, artifact refs, page observations, page freshness,
+  target workset resolution, run outbox, and ingestion task admission.
+- `apps/app-api` owns operator list/detail query, `operator.*` panel-facing
+  site/run projections, stable-reference release-gate operator command ledger,
+  and redacted release task projection ingest/read.
 - `operator.official_web_release_task_*` ingestion-produced operator-safe
   release task projections
 
 ## Global Rules
 
-- DB 只保存 run ledger、heartbeat、artifact refs、ingestion task admission
+- DB 只保存 run ledger、heartbeat、artifact refs、ingestion dispatch/execution projection
   state 与 operator projections
 - retained HTML、provider payload、source-truth rows 保存在对象存储，不保存在这些表里
 - site config 仍然是 repo-tracked source config，不迁移进数据库当作真相源
-- ingestion execution 由 `apps/ingestion-control` 拥有，不在这里复制其内部 task schema
-- release task truth、claim、lease、retry、dead-letter 与 publish 状态机属于
+- ingestion execution 由 `apps/ingestion-control` 拥有，不在这里复制其 generic task schema
+- release task truth、Temporal workflow、activity dispatch 与 publish 状态机属于
   `apps/ingestion-control`；app-api 只接收 redacted operator
   projection snapshot
 
 ## Schema Code Ownership
 
-`apps/app-api` 新增的数据库代码组织固定为：
+当前代码组织：
 
-- `official_web.*`
-- `operator.*` 下的 `official_web` projections
+- `apps/ingestion-control` owns the runtime store that writes `official_web.crawl_runs`,
+  `run_heartbeats`, `run_artifacts`, `run_outbox`, `page_observations`,
+  `page_freshness`, target attempts and target workset reads.
+- `apps/app-api` may keep Drizzle schema exports for `official_web.*` to support
+  historical migration baseline, operator projection, target inventory queries and
+  release-gate command ledger.
+- `apps/app-api` must not expose `/api/official-web/*` collector write routes or
+  app-api-owned planner/command services.
 
-它们继续共享：
+Migration posture:
 
-- 一套 Drizzle schema codebase
-- 一条 migration pipeline
-- 一份 schema 版本历史
-- `drizzle.app_api_migrations` 这张 `app-api` 专属 journal table
+- Existing app-api Drizzle migrations that created `official_web.*` are historical
+  shared-database baseline.
+- New collector control-plane behavior belongs in `apps/ingestion-control` store
+  code and migrations/ensure logic owned by ingestion-control.
+- Do not create an app-api compatibility proxy or second app-api command service
+  for collector lifecycle.
 
 ## `official_web.crawl_runs`
 
@@ -92,7 +107,7 @@ updated: 2026-05-02
 - `scheduler_run_key`
 - `run_intent`
 - `trigger_type`
-- `collector_version`
+- `source_adapter_version`
 - `config_version`
 - `crawl_policy_version`
 - `status`
@@ -135,7 +150,8 @@ updated: 2026-05-02
 
 规则：
 
-- 这是 crawl-run lifecycle 的 canonical owner
+- 这是 crawl-run lifecycle 的 durable truth，runtime writer owner 是
+  `apps/ingestion-control`
 - `summary_json` 只保存 projection-friendly summary，不保存整份 artifact 内容
 - `ingestion_dispatch_status` 只表达 task admission / dispatched 语义，不替代
   ingestion-control 的内部 task truth
@@ -211,7 +227,7 @@ updated: 2026-05-02
 
 用途：
 
-- crawl-run terminal facts 到 projector / ingestion-control task admission 的边界
+- crawl-run lifecycle facts 到 projector / ingestion task admission 的边界
 
 最小列：
 
@@ -247,7 +263,7 @@ updated: 2026-05-02
 
 用途：
 
-- 记录 app-api 对 crawl-run 是否允许继续进入 projection / ingestion / selected-write 的控制面决策
+- 记录历史 app-api 对 crawl-run 是否允许继续进入 projection / ingestion / selected-write 的控制面决策
 - 为 pre-target-workset 历史 run cleanup 提供显式 ledger，而不是物理删除 source truth
 
 最小列：
@@ -283,7 +299,8 @@ updated: 2026-05-02
 用途：
 
 - durable 记录 collector 上报的 page-level observation
-- 为 page freshness state 和 ingestion task admission change-set 提供 canonical 上游事实
+- 为 page freshness state 和 ingestion task admission change-set 提供 historical canonical
+  上游事实
 
 最小列：
 
@@ -320,11 +337,12 @@ updated: 2026-05-02
 
 - `fetch_disposition` 反映 collector 观察到的 fetch 结果，例如 `fetched` / `not_modified` /
   `deleted` / `fetch_failed`
-- `change_status` 反映 `app-api` 依据 freshness truth 计算出的 `new` / `changed` /
+- `change_status` 反映 control plane 依据 freshness truth 计算出的 `new` / `changed` /
   `deleted` / `not_modified` / `fetch_failed`
 - `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion task
   page change
-- 这是 control-plane durable truth，不退回对象存储扫描或 ingestion-control 内部状态
+- 这是 official-web control-plane durable truth，不退回对象存储扫描或 generic
+  ingestion task 内部状态
 
 ## `official_web.page_freshness`
 
@@ -401,9 +419,9 @@ updated: 2026-05-02
 - stable-reference target release 默认 `publish_alias = false`
 - app-api 不保存 selected-write admission/task truth；contact/service selected-write
   release task 属于 ingestion data plane
-- 单 target release import、registry scope chunk preparation、claim/lease、
-  retry/dead-letter 与 publish 进度均由 `apps/ingestion-control` 的 release task
-  state machine 承担
+- 单 target release import、registry scope chunk preparation、Temporal workflow /
+  activity dispatch 与 publish 进度均由 `apps/ingestion-control` 的 release task
+  lifecycle 承担
 - 若物理 schema 中仍存在历史 `execution_json` / `error_json` 列，它们不再是 forward
   executor contract 的一部分
 
@@ -413,7 +431,7 @@ updated: 2026-05-02
 
 - panel `Official Web / Release Tasks` 的 canonical read model
 - 展示 ingestion-owned release task state machine 的 redacted operator projection
-- 不承担 task truth、claim、lease、retry、dead-letter 或 publish 状态推进
+- 不承担 task truth、workflow、activity dispatch 或 publish 状态推进
 
 最小列：
 
@@ -426,13 +444,13 @@ updated: 2026-05-02
 - `selected_write_target` nullable
 - `lifecycle_status`
 - `latest_stage`
-- `attempt_count`
-- `max_attempts`
 - `input_summary_json`
 - `output_summary_json`
 - `timeline_json`
 - `last_error_code` nullable
 - `last_error_message` nullable
+- `workflow_id`
+- `workflow_run_id` nullable
 - `created_at`
 - `updated_at`
 - `projected_at`
@@ -505,7 +523,7 @@ updated: 2026-05-02
 - `site_id`
 - `status`
 - `ingestion_dispatch_status`
-- `collector_version`
+- `source_adapter_version`
 - `config_version`
 - `started_at`
 - `finished_at` nullable
@@ -543,7 +561,7 @@ updated: 2026-05-02
 - `latest_run_status` nullable
 - `last_success_at` nullable
 - `last_failure_at` nullable
-- `latest_collector_version` nullable
+- `latest_source_adapter_version` nullable
 - `latest_config_version` nullable
 - `latest_ingestion_dispatch_status` nullable
 - `projected_at`
@@ -567,6 +585,7 @@ updated: 2026-05-02
 以下形态不接受：
 
 - 在 DB 中保存 retained HTML、provider payload 或 chunk 文本
-- 把 `official_web.crawl_runs` 当成 ingestion-control 内部 task store
+- 把 `official_web.crawl_runs` 当成 generic ingestion-control task store
+- 恢复 app-api-owned collector command/planner route 或 app-api proxy
 - 让 panel 直接查询 `official_web.run_artifacts` 并把它暴露成对象存储浏览器
 - 为 `official_web` 再单独长出另一条 migration pipeline

@@ -3,12 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_notice import (
-    CampusNoticeChangeSetLookupPayload as CampusNoticeChangeSetLookupPayload,
-)
-from campus_contracts.models_notice import (
-    CampusNoticeChangeSetLookupResult as CampusNoticeChangeSetLookupResult,
-)
-from campus_contracts.models_notice import (
     CampusNoticeDiscoverPayload as CampusNoticeDiscoverPayload,
 )
 from campus_contracts.models_notice import (
@@ -21,25 +15,13 @@ from campus_contracts.models_notice import (
     CampusNoticeGetResult as CampusNoticeGetResult,
 )
 from campus_contracts.models_notice import (
-    CampusNoticePeriodSummaryPayload as CampusNoticePeriodSummaryPayload,
-)
-from campus_contracts.models_notice import (
-    CampusNoticePeriodSummaryResult as CampusNoticePeriodSummaryResult,
-)
-from campus_contracts.models_notice import (
     NoticeCard as NoticeCard,
 )
 from campus_contracts.models_notice import (
     NoticeContextProjection as NoticeContextProjection,
 )
 from campus_contracts.models_notice import (
-    NoticeDateRange as NoticeDateRange,
-)
-from campus_contracts.models_notice import (
     NoticeDisplayPolicy as NoticeDisplayPolicy,
-)
-from campus_contracts.models_notice import (
-    NoticePeriodSummaryGroup as NoticePeriodSummaryGroup,
 )
 from campus_contracts.models_shared import (
     CoordinateReferenceSystem,

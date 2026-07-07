@@ -1,72 +1,79 @@
 import type {
 	IngestionArtifactRef,
 	IngestionTaskEnvelope,
-	IngestionTaskRecord,
 	IngestionTaskRegistry,
 	IngestionTaskRegistryTask,
-	IngestionTaskStore,
-} from "./types";
+} from "ingestion-contracts";
 
 export interface TsTaskHandlerResult {
 	artifactRefs?: IngestionArtifactRef[];
 }
 
 export type TsTaskHandler = (
-	task: IngestionTaskRecord,
+	task: IngestionTaskEnvelope,
 	registryTask: IngestionTaskRegistryTask,
 ) => Promise<TsTaskHandlerResult>;
 
-export type RustKernelHandler = (task: IngestionTaskRecord) => Promise<TsTaskHandlerResult>;
+export type RustKernelHandler = (task: IngestionTaskEnvelope) => Promise<TsTaskHandlerResult>;
 
-export interface TsTaskHandlerIdentity {
+export interface IngestionHandlerIdentity {
 	sourceFamily: string;
 	corpus: string;
 	collection: string;
-	taskKind: IngestionTaskEnvelope["task_kind"];
+	registryTaskId: string;
 }
 
+export type TsTaskHandlerIdentity = IngestionHandlerIdentity;
+
 export class TsTaskHandlerRegistry {
-	readonly #handlers = new Map<string, TsTaskHandler>();
+	readonly #handlers = new Map<
+		string,
+		{ handler: TsTaskHandler; identity: TsTaskHandlerIdentity }
+	>();
 
 	register(identity: TsTaskHandlerIdentity, handler: TsTaskHandler): void {
-		const key = tsTaskHandlerIdentityKey(identity);
+		const key = ingestionHandlerIdentityKey(identity);
 		if (this.#handlers.has(key)) {
 			throw new Error(`TS task handler already registered: ${key}`);
 		}
-		this.#handlers.set(key, handler);
+		this.#handlers.set(key, { handler, identity: { ...identity } });
 	}
 
-	require(task: IngestionTaskRecord): TsTaskHandler {
-		const key = tsTaskHandlerIdentityKey({
+	has(identity: TsTaskHandlerIdentity): boolean {
+		return this.#handlers.has(ingestionHandlerIdentityKey(identity));
+	}
+
+	registeredIdentities(): TsTaskHandlerIdentity[] {
+		return [...this.#handlers.values()].map((entry) => ({ ...entry.identity }));
+	}
+
+	require(task: IngestionTaskEnvelope): TsTaskHandler {
+		const key = ingestionHandlerIdentityKey({
 			sourceFamily: task.source_family,
 			corpus: task.corpus,
 			collection: task.collection,
-			taskKind: task.task_kind,
+			registryTaskId: task.registry_task_id,
 		});
 		const handler = this.#handlers.get(key);
 		if (!handler) {
 			throw new TsTaskHandlerNotRegisteredError({
-				taskKind: task.task_kind,
+				registryTaskId: task.registry_task_id,
 				key,
 			});
 		}
-		return handler;
+		return handler.handler;
 	}
 }
 
 export class TsTaskHandlerNotRegisteredError extends Error {
-	readonly taskKind: IngestionTaskEnvelope["task_kind"];
+	readonly registryTaskId: string;
 	readonly key: string;
 
-	constructor(input: { taskKind: IngestionTaskEnvelope["task_kind"]; key: string }) {
+	constructor(input: { registryTaskId: string; key: string }) {
 		super(`TS task handler not registered: ${input.key}`);
-		this.taskKind = input.taskKind;
+		this.registryTaskId = input.registryTaskId;
 		this.key = input.key;
 	}
-}
-
-function tsTaskHandlerIdentityKey(identity: TsTaskHandlerIdentity): string {
-	return [identity.sourceFamily, identity.corpus, identity.collection, identity.taskKind].join("/");
 }
 
 export class RustKernelRegistry {
@@ -77,6 +84,14 @@ export class RustKernelRegistry {
 			throw new Error(`Rust kernel already registered: ${kernelId}`);
 		}
 		this.#handlers.set(kernelId, handler);
+	}
+
+	has(kernelId: string): boolean {
+		return this.#handlers.has(kernelId);
+	}
+
+	registeredKernelIds(): string[] {
+		return [...this.#handlers.keys()];
 	}
 
 	require(kernelId: string): RustKernelHandler {
@@ -98,139 +113,75 @@ export class RustKernelNotRegisteredError extends Error {
 }
 
 export class RustKernelIdMissingError extends Error {
-	readonly taskKind: IngestionTaskEnvelope["task_kind"];
+	readonly registryTaskId: string;
 
-	constructor(taskKind: IngestionTaskEnvelope["task_kind"]) {
-		super(`Rust kernel id missing for task kind: ${taskKind}`);
-		this.taskKind = taskKind;
+	constructor(registryTaskId: string) {
+		super(`Rust kernel id missing for registry task: ${registryTaskId}`);
+		this.registryTaskId = registryTaskId;
 	}
 }
 
 export class RegistryTaskNotDeclaredError extends Error {
-	readonly taskKind: IngestionTaskEnvelope["task_kind"];
+	readonly registryTaskId: string;
 
-	constructor(taskKind: IngestionTaskEnvelope["task_kind"]) {
-		super(`task is not declared by ingestion registry: ${taskKind}`);
-		this.taskKind = taskKind;
+	constructor(registryTaskId: string) {
+		super(`task is not declared by ingestion registry: ${registryTaskId}`);
+		this.registryTaskId = registryTaskId;
 	}
 }
 
 export class RegistryTaskContractMismatchError extends Error {
-	readonly taskKind: IngestionTaskEnvelope["task_kind"];
+	readonly registryTaskId: string;
 
 	constructor(input: {
-		taskKind: IngestionTaskEnvelope["task_kind"];
+		registryTaskId: string;
+		expectedInputContract: string;
+		actualInputContract: string;
 		expectedOutputContract: string;
 		actualOutputContract: string;
 	}) {
 		super(
-			`output contract mismatch for ${input.taskKind}: expected ${input.expectedOutputContract}, got ${input.actualOutputContract}`,
+			`contract mismatch for ${input.registryTaskId}: expected ${input.expectedInputContract} -> ${input.expectedOutputContract}, got ${input.actualInputContract} -> ${input.actualOutputContract}`,
 		);
-		this.taskKind = input.taskKind;
+		this.registryTaskId = input.registryTaskId;
 	}
 }
 
-export class TaskHeartbeatFailedError extends Error {}
+export class TaskInputRefNotObjectStoreError extends Error {
+	readonly inputRefKind: IngestionTaskEnvelope["input_ref"]["kind"];
 
-export type ClaimedTaskRunResult =
-	| { status: "idle"; task?: undefined }
-	| { status: "completed" | "failed"; task: IngestionTaskRecord };
+	constructor(inputRefKind: IngestionTaskEnvelope["input_ref"]["kind"]) {
+		super(`input_ref must be object_store, got ${inputRefKind}`);
+		this.inputRefKind = inputRefKind;
+	}
+}
 
-export async function runClaimedRegistryTask(input: {
+export async function runDeclaredIngestionTask(input: {
 	registry: IngestionTaskRegistry;
 	rustKernels: RustKernelRegistry;
-	store: IngestionTaskStore;
-	task: IngestionTaskRecord;
+	task: IngestionTaskEnvelope;
 	tsHandlers: TsTaskHandlerRegistry;
-	workerId: string;
-	beforeComplete?: () => void;
-}): Promise<Extract<ClaimedTaskRunResult, { task: IngestionTaskRecord }>> {
-	try {
-		const registryTask = requireRegistryTask(input.registry, input.task);
-		requireTaskContracts(input.task, registryTask);
-		const result =
-			registryTask.executor_kind === "ts_control"
-				? await input.tsHandlers.require(input.task)(input.task, registryTask)
-				: await runRustKernelTask({
-						task: input.task,
-						registryTask,
-						rustKernels: input.rustKernels,
-					});
-		input.beforeComplete?.();
-		const completed = await input.store.completeTask({
-			taskId: input.task.task_id,
-			workerId: input.workerId,
-			artifactRefs: result.artifactRefs ?? [],
-		});
-		return { status: "completed", task: completed };
-	} catch (error) {
-		const failed = await input.store.failTask({
-			taskId: input.task.task_id,
-			workerId: input.workerId,
-			errorCode: taskExecutorErrorCode(error),
-			errorMessage: error instanceof Error ? error.message : "ingestion registry task failed",
-		});
-		return { status: "failed", task: failed };
-	}
-}
-
-export async function runRegistryTaskOnce(input: {
-	store: IngestionTaskStore;
-	registry: IngestionTaskRegistry;
-	tsHandlers: TsTaskHandlerRegistry;
-	rustKernels: RustKernelRegistry;
-	workerId: string;
-}): Promise<ClaimedTaskRunResult> {
-	const task = await input.store.claimNextTask({ workerId: input.workerId });
-	if (!task) {
-		return { status: "idle" };
-	}
-	return runClaimedRegistryTask({ ...input, task });
-}
-
-function requireRegistryTask(
-	registry: IngestionTaskRegistry,
-	task: IngestionTaskRecord,
-): IngestionTaskRegistryTask {
-	if (
-		registry.source_family !== task.source_family ||
-		registry.corpus !== task.corpus ||
-		registry.collection !== task.collection
-	) {
-		throw new RegistryTaskNotDeclaredError(task.task_kind);
-	}
-	const registryTask = registry.tasks.find((candidate) => candidate.task_kind === task.task_kind);
-	if (!registryTask) {
-		throw new RegistryTaskNotDeclaredError(task.task_kind);
-	}
-	return registryTask;
-}
-
-function requireTaskContracts(
-	task: IngestionTaskRecord,
-	registryTask: IngestionTaskRegistryTask,
-): void {
-	if (task.output_contract !== registryTask.output_contract) {
-		throw new RegistryTaskContractMismatchError({
-			taskKind: task.task_kind,
-			expectedOutputContract: registryTask.output_contract,
-			actualOutputContract: task.output_contract,
-		});
-	}
-}
-
-async function runRustKernelTask(input: {
-	task: IngestionTaskRecord;
-	registryTask: IngestionTaskRegistryTask;
-	rustKernels: RustKernelRegistry;
 }): Promise<TsTaskHandlerResult> {
-	if (!input.registryTask.kernel_id) {
-		throw new RustKernelIdMissingError(input.task.task_kind);
+	const registryTask = requireRegistryTask(input.registry, input.task);
+	requireTaskContracts(input.task, registryTask);
+	requireObjectStoreInputRef(input.task);
+	switch (registryTask.executor_kind) {
+		case "ts_control":
+			return input.tsHandlers.require(input.task)(input.task, registryTask);
+		case "rust_kernel":
+			return runRustKernelTask({
+				task: input.task,
+				registryTask,
+				rustKernels: input.rustKernels,
+			});
+		default: {
+			const exhaustiveCheck: never = registryTask.executor_kind;
+			throw new Error(`unsupported executor kind: ${exhaustiveCheck}`);
+		}
 	}
-	return input.rustKernels.require(input.registryTask.kernel_id)(input.task);
 }
 
-function taskExecutorErrorCode(error: unknown): string {
+export function ingestionTaskExecutionErrorCode(error: unknown): string {
 	if (error instanceof RegistryTaskNotDeclaredError) {
 		return "registry_task_not_declared";
 	}
@@ -246,8 +197,77 @@ function taskExecutorErrorCode(error: unknown): string {
 	if (error instanceof RustKernelNotRegisteredError) {
 		return "rust_kernel_not_registered";
 	}
-	if (error instanceof TaskHeartbeatFailedError) {
-		return "heartbeat_failed";
+	if (error instanceof TaskInputRefNotObjectStoreError) {
+		return "task_input_ref_not_object_store";
 	}
-	return "task_executor_failed";
+	return "ingestion_task_execution_failed";
+}
+
+export function ingestionTaskExecutionErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : "ingestion registry task failed";
+}
+
+function requireRegistryTask(
+	registry: IngestionTaskRegistry,
+	task: IngestionTaskEnvelope,
+): IngestionTaskRegistryTask {
+	if (
+		registry.source_family !== task.source_family ||
+		registry.corpus !== task.corpus ||
+		registry.collection !== task.collection
+	) {
+		throw new RegistryTaskNotDeclaredError(task.registry_task_id);
+	}
+	const registryTask = registry.tasks.find(
+		(candidate) => candidate.registry_task_id === task.registry_task_id,
+	);
+	if (!registryTask) {
+		throw new RegistryTaskNotDeclaredError(task.registry_task_id);
+	}
+	return registryTask;
+}
+
+function requireTaskContracts(
+	task: IngestionTaskEnvelope,
+	registryTask: IngestionTaskRegistryTask,
+): void {
+	if (
+		task.task_kind !== registryTask.task_kind ||
+		task.input_contract !== registryTask.input_contract ||
+		task.output_contract !== registryTask.output_contract
+	) {
+		throw new RegistryTaskContractMismatchError({
+			registryTaskId: task.registry_task_id,
+			expectedInputContract: registryTask.input_contract,
+			actualInputContract: task.input_contract,
+			expectedOutputContract: registryTask.output_contract,
+			actualOutputContract: task.output_contract,
+		});
+	}
+}
+
+function requireObjectStoreInputRef(task: IngestionTaskEnvelope): void {
+	if (task.input_ref.kind !== "object_store") {
+		throw new TaskInputRefNotObjectStoreError(task.input_ref.kind);
+	}
+}
+
+async function runRustKernelTask(input: {
+	task: IngestionTaskEnvelope;
+	registryTask: IngestionTaskRegistryTask;
+	rustKernels: RustKernelRegistry;
+}): Promise<TsTaskHandlerResult> {
+	if (!input.registryTask.kernel_id) {
+		throw new RustKernelIdMissingError(input.task.registry_task_id);
+	}
+	return input.rustKernels.require(input.registryTask.kernel_id)(input.task);
+}
+
+function ingestionHandlerIdentityKey(identity: IngestionHandlerIdentity): string {
+	return [
+		identity.sourceFamily,
+		identity.corpus,
+		identity.collection,
+		identity.registryTaskId,
+	].join("/");
 }

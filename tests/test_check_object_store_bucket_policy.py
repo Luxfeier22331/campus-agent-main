@@ -21,7 +21,7 @@ class CheckObjectStoreBucketPolicyTest(unittest.TestCase):
                         'OBJECT_STORE_BUCKET_SOURCE = "campus-rag-source"',
                         'OBJECT_STORE_BUCKET_DERIVED = "campus-rag-derived"',
                         'source_uri = "campusrag://promotion/internal_notice/1"',
-                        "from campus_ingestion_core.campusrag_ingestion_support import utc_now",
+                        "source_key = 'campusrag_ingestion/legacy/key.json'",
                     )
                 ),
                 encoding="utf-8",

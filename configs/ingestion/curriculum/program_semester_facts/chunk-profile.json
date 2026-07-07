@@ -13,6 +13,6 @@
 	"cleaning_policy_version": "curriculum_program_semester_facts_projection_v1",
 	"notes": [
 		"program_semester_facts is an internal curriculum serving surface for resolved program + semester course-list retrieval.",
-		"Projection rows are already answer-shaped and should stay aligned with ingestion-core projection truth."
+		"Projection rows are already answer-shaped and should stay aligned with TS ingest-core projection helpers."
 	]
 }

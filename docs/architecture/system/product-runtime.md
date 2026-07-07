@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-22
+updated: 2026-07-05
 ---
 # Product Runtime Architecture
 
@@ -123,8 +123,8 @@ projection / operator read model / operator-safe operations domains`
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
-  - `official_web` control plane 不包括 release task claim / lease / retry /
-    dead-letter / publish 状态机；这些状态属于 ingestion data plane
+  - `official_web` control plane 不包括 release task workflow start、activity
+    dispatch 或 publish 状态机；这些状态属于 ingestion data plane
   - `authenticated_notice_processing` operator projection 已是 accepted app-owned
     Operator Console read-only domain；它只展示处理状态，不成为 collector scheduler、queue
     mutation API 或对象存储浏览器
@@ -182,8 +182,8 @@ projection / operator read model / operator-safe operations domains`
 - selected operator control-plane domains，例如 `official_web`
 - selected operator-safe processing projections，例如
   `authenticated_notice_processing`
-- `official_web` 中只拥有 collector command ingress、operator-safe projection/query 与
-  stable-reference approve/reject ledger；不拥有 selected-write admission/task
+- `official_web` 中只拥有 operator-safe projection/query 与 stable-reference
+  approve/reject ledger；不拥有 collector command ingress、selected-write admission/task
   truth、
   executor read route 或 executor callback route
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
@@ -232,18 +232,22 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
 
 产品 runtime 与 offline data plane 的分界固定为：
 
-`app-api operator/collector control plane -> ingestion-control release task runtime`
+`app-api operator projection/read surface -> ingestion-control collector and task control plane`
 
 固定规则：
 
-- `apps/app-api` 可以接收 collector lifecycle command、维护 crawl-run ledger、物化
-  operator-safe projections，并记录 stable-reference release gate approve/reject
-  ledger
+- `apps/ingestion-control` 接收 official-web collector lifecycle command、维护
+  crawl-run ledger、解析 target workset，并启动 ingestion tasks
+- `apps/app-api` 物化 operator-safe projections，并记录 stable-reference release gate
+  approve/reject ledger
 - `apps/app-api` 不提供 official-web release executor read/callback routes
 - `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
-- `apps/ingestion-control` 定义并执行 release task lifecycle，负责 claim、lease、
-  retry、dead-letter、materialize、publish 与失败状态
-- `packages/ingestion-core` 保留 canonical data-plane contract 与 collection strategy
+- `apps/ingestion-control` 定义并执行 release task lifecycle，负责 Temporal workflow
+  start、registry-aware activity dispatch、materialize、publish 与失败状态
+- `packages/ingest-core` 保留 runtime-neutral TS contract/helper、source-channel
+  parser、canonical artifact helper、registry-aware dispatch helper 与纯
+  materialization/projection helper；旧 Python ingestion package 已删除，file/OCR/
+  Office 能力后续需要重新 admission 为 explicit adapter boundary
 - Operator Console 不调用 release task mutation；它只展示 app-api/operator projection 或未来
   ingestion 投影后的 read model
 

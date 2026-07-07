@@ -37,12 +37,6 @@ Notice user-facing output is card-first and source-link-first.
 - Agents SDK may only expose repo-owned ToolSpec-admitted read-only tools.
   `campus_notice_get` remains closed; current notice-family SDK exposure is
   limited to `campus_notice_discover`.
-- `campus_notice_period_summary` and `campus_notice_change_set_lookup` are
-  closed ToolSpec / workflow-artifact contract residues, not model-visible
-  runtime tools.
-- Closed notice tools are not roadmap promises. Reopening either tool requires
-  a concrete product need, an opened ToolSpec entry, runtime profile exposure,
-  read-model ownership, eval denominators and a documented failure policy.
 - Transport notice-derived operational facts belong in
   `transport_schedule_lookup` output (`related_notice_refs` /
   `operational_notices`), not a standalone notice change-set tool.
@@ -114,17 +108,10 @@ CampusNoticeGetResult
 materialization, but it is not required for resolved results and must not be
 used for default answer rendering.
 
-Closed contract residue:
-
-```text
-CampusNoticePeriodSummaryPayload / Result
-CampusNoticeChangeSetLookupPayload / Result
-```
-
-These packets may remain in machine-readable schemas and Go read-model code for
-closed-surface tests and reopening review. They must not be exposed to the
-model, provider function schema, Agents SDK loop or public product surface while
-their ToolSpec exposure remains `closed`.
+Removed notice tools and packets are not compatibility surfaces. If product
+needs a period summary or change-set capability later, it must enter as a new
+design with ToolSpec, runtime profile exposure, read-model ownership, eval
+denominators and failure policy defined together.
 
 ## Display Policy
 
@@ -217,9 +204,7 @@ NoticeContextProjection / StepOutputProjection
   - source_url
 ```
 
-`notice_period_summary` and `notice_change_set` projection kinds remain closed
-registry entries only. They must not appear as open producer artifacts in
-current workflow traces.
+Current notice workflow context uses only `notice_context` projections.
 
 Operator/eval-visible workflow trace summaries expose projection id, source
 step, kind, content hash and safety metadata only. They must not expose the

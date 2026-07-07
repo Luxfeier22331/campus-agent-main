@@ -162,9 +162,7 @@ func validateOpenTools(values []string) ([]string, error) {
 		case "knowledge_query",
 			"public_web_search",
 			"transport_schedule_lookup",
-			"campus_notice_change_set_lookup",
-			"campus_notice_discover",
-			"campus_notice_period_summary":
+			"campus_notice_discover":
 		case "*", "all":
 			return nil, fmt.Errorf("runtime profile open_tools does not support wildcard value %q", value)
 		default:

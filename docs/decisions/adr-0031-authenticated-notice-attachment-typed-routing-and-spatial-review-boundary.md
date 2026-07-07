@@ -5,13 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0031
 status: accepted
 created: 2026-04-08
-updated: 2026-04-28
+updated: 2026-07-04
 ---
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
 ## 状态
 
 Accepted on 2026-04-08.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 `campus_notices/internal_notice` 的
+attachment-level typed routing 与 spatial review 边界。
 
 ## 背景
 

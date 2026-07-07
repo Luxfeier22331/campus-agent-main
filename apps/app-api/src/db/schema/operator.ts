@@ -543,7 +543,7 @@ export const authenticatedNoticeRunProcessingProjection = operator.table(
 		sourceChannel: text("source_channel").notNull(),
 		sourceSurface: text("source_surface").notNull(),
 		siteId: text("site_id").notNull(),
-		collectorRunToken: text("collector_run_token").notNull(),
+		sourceRunToken: text("source_run_token").notNull(),
 		runId: text("run_id").notNull(),
 		replayBatchId: text("replay_batch_id"),
 		enqueueSource: text("enqueue_source"),
@@ -582,9 +582,9 @@ export const authenticatedNoticeRunProcessingProjection = operator.table(
 		redactionVersion: text("redaction_version").notNull(),
 	},
 	(table) => ({
-		collectorRunProjectedAtIndex: index(
-			"operator_auth_notice_run_processing_token_projected_idx",
-		).on(table.collectorRunToken, table.projectedAt),
+		sourceRunProjectedAtIndex: index(
+			"operator_auth_notice_run_processing_source_run_projected_idx",
+		).on(table.sourceRunToken, table.projectedAt),
 		runProjectedAtIndex: index("operator_auth_notice_run_processing_run_projected_idx").on(
 			table.runId,
 			table.projectedAt,
@@ -607,7 +607,7 @@ export const authenticatedNoticeRunProcessingEventProjection = operator.table(
 		eventId: text("event_id").primaryKey(),
 		runProcessingId: text("run_processing_id").notNull(),
 		runKey: text("run_key").notNull(),
-		collectorRunToken: text("collector_run_token").notNull(),
+		sourceRunToken: text("source_run_token").notNull(),
 		runId: text("run_id").notNull(),
 		jobId: text("job_id"),
 		stage: text("stage").notNull(),
@@ -621,8 +621,8 @@ export const authenticatedNoticeRunProcessingEventProjection = operator.table(
 		runProcessingOccurredAtIndex: index(
 			"operator_auth_notice_run_event_processing_occurred_idx",
 		).on(table.runProcessingId, table.occurredAt),
-		collectorRunOccurredAtIndex: index("operator_auth_notice_run_event_token_occurred_idx").on(
-			table.collectorRunToken,
+		sourceRunOccurredAtIndex: index("operator_auth_notice_run_event_source_run_occurred_idx").on(
+			table.sourceRunToken,
 			table.occurredAt,
 		),
 	}),

@@ -1,16 +1,32 @@
 # campus-ingestion-contracts
 
-Shared ingestion task contract schemas and lightweight validators.
+Shared ingestion task and canonical document-unit contract schemas plus
+lightweight validators.
 
 This package is the source of truth for cross-runtime ingestion task shapes used
-by TypeScript control-plane code and Rust kernel dispatch. Runtime packages must
-validate task envelopes and task registries through the TypeScript validator or
-JSON Schema instead of copying DTO rules.
+by TypeScript control-plane code, Python boundary tests and Rust kernel dispatch.
+Runtime packages must validate task envelopes, task registries and canonical
+document units through the TypeScript Ajv validator, the Python `jsonschema`
+validator or JSON Schema directly instead of copying DTO rules.
+
+This package is not the ingestion runtime core. It must not import Temporal,
+Crawlee, object-store clients, database clients or provider transports. Runtime
+code may consume these contracts from `apps/*` / `jobs/*`; reusable ingest
+helpers must remain runtime-neutral.
 
 Current contracts:
 
+- `CanonicalDocumentUnit`
+- `IngestionReleaseManifest`
 - `IngestionTaskEnvelope`
 - `IngestionTaskRegistry`
 
-The JSON fixtures under `fixtures/` are used by TypeScript tests and contract
-schema checks.
+Canonical document units use reader-facing identity fields: `doc_id`,
+`version_id`, `chunk_id`, `root_unit_id`, `text`, `clean_text`, `metadata` and
+`anchor`. Legacy `document_id` / `unit_id` input is not accepted for
+`canonical_document_units.v1`.
+
+The JSON assertions under `assertions/` are used by both TypeScript and Python
+tests. The Python package resource schemas under
+`src/campus_ingestion_contracts/schemas/` must stay byte-for-byte identical to
+the canonical files in `schemas/`; repo tests enforce this.

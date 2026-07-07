@@ -278,7 +278,6 @@ prompt 判断是否调用已配置工具，必要时用 `tool_choice` 约束行�
 
 - `knowledge_query`
 - `campus_notice_discover`
-- `campus_notice_period_summary`
 - `transport_schedule_lookup`
 
 如果明确接受新的 deterministic ability，它必须先以 repo-owned typed tool / internal query

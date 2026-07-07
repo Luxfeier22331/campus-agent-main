@@ -154,8 +154,6 @@ func toolReadModelEndpointsByPath() map[string]string {
 		"/internal/query/campus-services/transport-schedule": toolreadmodel.ToolTransportScheduleLookup,
 		"/internal/query/public-web/search":                  "public_web_search",
 		"/internal/query/notices/discover":                   toolreadmodel.ToolCampusNoticeDiscover,
-		"/internal/query/notices/period-summary":             toolreadmodel.ToolCampusNoticePeriodSummary,
-		"/internal/query/notices/change-set":                 toolreadmodel.ToolCampusNoticeChangeSet,
 		"/internal/query/notices/get":                        toolreadmodel.ToolCampusNoticeGet,
 	}
 }

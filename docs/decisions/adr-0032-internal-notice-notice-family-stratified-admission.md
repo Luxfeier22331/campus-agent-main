@@ -5,13 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0032
 status: accepted
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-07-04
 ---
 # ADR-0032 Internal Notice Notice-Family Stratified Admission
 
 ## 状态
 
 Accepted on 2026-04-09.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 `campus_notices/internal_notice`
+的 notice-family admission 边界。
 
 ## 背景
 

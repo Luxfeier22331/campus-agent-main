@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib
-import tomllib
 import unittest
 from pathlib import Path
 
@@ -10,25 +8,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 class QdrantNativeBackupContractTest(unittest.TestCase):
     def test_object_store_snapshot_create_restore_are_not_active_worker_commands(self) -> None:
-        pyproject_path = REPO_ROOT / "apps" / "ingestion-worker" / "pyproject.toml"
-        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        scripts = pyproject["project"].get("scripts", {})
+        self.assertFalse((REPO_ROOT / "apps" / "ingestion-worker").exists())
 
-        self.assertNotIn("campus-ingestion-qdrant-backup-create", scripts)
-        self.assertNotIn("campus-ingestion-qdrant-backup-restore", scripts)
-        self.assertNotIn("campus-ingestion-qdrant-filesystem-backup-create", scripts)
-        self.assertNotIn("campus-ingestion-qdrant-backup-cleanup", scripts)
-
-    def test_object_store_snapshot_create_restore_are_not_public_core_api(self) -> None:
-        core = importlib.import_module("campus_ingestion_core")
-
-        self.assertFalse(hasattr(core, "SnapshotBackupRequest"))
-        self.assertFalse(hasattr(core, "SnapshotRestoreRequest"))
-        self.assertFalse(hasattr(core, "SnapshotRestoreReport"))
-        self.assertFalse(hasattr(core, "create_snapshot_backup"))
-        self.assertFalse(hasattr(core, "restore_snapshot_backup"))
-        self.assertFalse(hasattr(core, "FilesystemSnapshotBackupRequest"))
-        self.assertFalse(hasattr(core, "create_filesystem_snapshot_backup"))
+    def test_object_store_snapshot_create_restore_are_not_public_python_core_api(self) -> None:
+        self.assertFalse((REPO_ROOT / "packages" / "ingestion-core").exists())
 
     def test_self_hosted_qdrant_healthcheck_uses_configured_tls_tcp_probe(self) -> None:
         compose_path = REPO_ROOT / "infra" / "local" / "docker-compose.qdrant-single-node.yml"

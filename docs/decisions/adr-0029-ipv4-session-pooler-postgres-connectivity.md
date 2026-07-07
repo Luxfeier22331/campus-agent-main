@@ -121,6 +121,9 @@ canonical chain。
 - `docs/architecture/system/data-plane.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
-- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
+
+Closeout references retained only as historical / superseded background:
+
+- historical / superseded: `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- historical / superseded: `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
   .md`

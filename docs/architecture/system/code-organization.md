@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-06-03
-updated: 2026-06-03
+updated: 2026-07-04
 ---
 # Code Organization And Decomposition Architecture
 
@@ -55,6 +55,12 @@ updated: 2026-06-03
 `jobs/*` 是 runtime boundary，不是脚本垃圾桶。能进入 `jobs/*` 的代码必须有清晰
 deploy identity、输入环境、失败语义与验证命令。只有本地开发辅助、不需要部署或调度的工具仍应留在
 `scripts/` 或 owner package 的 `scripts/` 下。
+
+Temporal workflow / activity worker、Crawlee crawler runtime、Postgres / S3 /
+Qdrant concrete client lifecycle 与 provider HTTP client 默认属于 `apps/*` 或
+`jobs/*` runtime boundary。`packages/*` 只能暴露 runtime-neutral contract、DTO、
+interface、纯 helper 或 domain logic；不得为了复用方便把具体 runtime framework、
+queue/storage handle、数据库连接生命周期或 deploy-time env bootstrap 下沉到 package。
 
 ## 目录美感
 

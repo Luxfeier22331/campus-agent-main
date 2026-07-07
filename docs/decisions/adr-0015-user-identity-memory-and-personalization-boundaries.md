@@ -5,7 +5,9 @@ owner_boundary: docs/decisions
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-06-17
+updated: 2026-07-04
+partially_superseded_by:
+  - adr-0058-hindsight-self-hosted-personal-memory-plane.md
 ---
 # ADR-0015 用户身份、长期记忆与个性化边界
 

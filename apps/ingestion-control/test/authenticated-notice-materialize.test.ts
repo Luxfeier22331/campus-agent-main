@@ -1,60 +1,58 @@
 import { createHash } from "node:crypto";
+import { parseAuthenticatedNoticeNoticeFamilyConfig } from "ingest-core";
 import { describe, expect, it } from "vitest";
 import {
-	createAuthenticatedNoticeTsTaskHandlerRegistry,
-	createDefaultTsTaskHandlerRegistry,
 	type IngestionTaskEnvelope,
 	type IngestionTaskRegistry,
 	InMemoryIngestionTaskStore,
-	RustKernelRegistry,
-	runRegistryTaskOnce,
 } from "../src/index.ts";
+import { RustKernelRegistry } from "../src/task-executor";
+import {
+	createAuthenticatedNoticeTsTaskHandlerRegistry,
+	createDefaultTsTaskHandlerRegistry,
+} from "../src/ts-task-handlers";
+import { runDeclaredTaskForTest } from "./test-support.ts";
 
 const captureReleaseKey =
-	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/capture-release.json";
+	"internal_portal/runs/synthetic_internal_portal/20260404T012345Z/capture-release.json";
 const bundleKey =
-	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/notices-bundle.json";
+	"internal_portal/runs/synthetic_internal_portal/20260404T012345Z/notices-bundle.json";
 const manifestKey =
-	"authenticated_notice_portal/runs/example_internal_portal/20260404T012345Z/export-manifest.json";
+	"internal_portal/runs/synthetic_internal_portal/20260404T012345Z/export-manifest.json";
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_internal_notice_source_truth_materialize_001",
 	run_id: "run_internal_notice_20260404",
 	source_family: "authenticated_notice",
-	source_channel: "authenticated_notice_portal",
+	source_channel: "internal_portal",
 	corpus: "campus_notices",
 	collection: "internal_notice",
+	registry_task_id: "source_truth_materialize",
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
 		uri: `s3://campus-agent-source/${captureReleaseKey}`,
 	},
+	input_contract: "authenticated_notice_capture_release.v1",
 	output_contract: "authenticated_notice_source_truth.v1",
 	idempotency_key: "campus_notices/internal_notice/source_truth_materialize/run-001",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 1,
-	},
 	created_by: "operator",
 	created_at: "2026-04-04T01:25:00.000Z",
 };
 
 const registry: IngestionTaskRegistry = {
-	schema_version: "ingestion_task_registry.v1",
+	schema_version: "ingestion_task_registry.v2",
 	source_family: "authenticated_notice",
 	corpus: "campus_notices",
 	collection: "internal_notice",
 	tasks: [
 		{
+			registry_task_id: "source_truth_materialize",
 			task_kind: "source_truth_materialize",
 			executor_kind: "ts_control",
 			input_contract: "authenticated_notice_capture_release.v1",
 			output_contract: "authenticated_notice_source_truth.v1",
-			can_publish_alias: false,
 		},
 	],
 };
@@ -72,36 +70,48 @@ describe("authenticated notice source truth materialization", () => {
 		objectStore.putJson(manifestKey, manifest);
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "authenticated_notice_portal",
+			source_channel: "internal_portal",
 			source_surface: "notice",
-			site_id: "example_internal_portal",
-			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
+			site_id: "synthetic_internal_portal",
+			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
-			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({ objectStore }),
+			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({
+				noticeFamilyConfig: sampleNoticeFamilyConfig(),
+				objectStore,
+			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "authenticated-notice-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("completed");
 		const artifactRefs = result.task?.closeout?.artifact_refs ?? [];
-		expect(artifactRefs).toHaveLength(3);
+		expect(artifactRefs).toHaveLength(11);
 		expect(artifactRefs.every((ref) => ref.kind === "object_store")).toBe(true);
+		expect(artifactRefs.map((ref) => ref.uri)).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("/capture/list-response.json"),
+				expect.stringContaining("/provider/normalized-notice.json"),
+				expect.stringContaining("/source-truth/notice-manifest.json"),
+				expect.stringContaining("/canonical/canonical.md"),
+				expect.stringContaining("/canonical/document-units.jsonl"),
+			]),
+		);
 		const manifestRef = artifactRefs.find((ref) => ref.uri.endsWith("/notice-manifest.json"));
-		expect(manifestRef?.uri).toContain("s3://campus-agent-source/authenticated_notice_portal/");
+		expect(manifestRef?.uri).toContain("s3://campus-agent-source/internal_portal/");
 		const materializedManifest = JSON.parse(
 			objectStore.getTextFromUri(requiredString(manifestRef?.uri)),
 		) as Record<string, unknown>;
 		expect(materializedManifest).toMatchObject({
 			schema_version: "authenticated_notice_manifest_v1",
-			source_channel: "authenticated_notice_portal",
-			site_id: "example_internal_portal",
+			source_channel: "internal_portal",
+			site_id: "synthetic_internal_portal",
 			notice_id: "355119",
 			notice_title_normalized: "通知标题",
 		});
@@ -124,27 +134,28 @@ describe("authenticated notice source truth materialization", () => {
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "authenticated_notice_portal",
+			source_channel: "internal_portal",
 			source_surface: "notice",
-			site_id: "example_internal_portal",
-			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
+			site_id: "synthetic_internal_portal",
+			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
+				authenticatedNoticeFamilyConfig: sampleNoticeFamilyConfig(),
 				authenticatedNoticeObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "default-registry-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("completed");
-		expect(result.task?.closeout?.artifact_refs).toHaveLength(3);
+		expect(result.task?.closeout?.artifact_refs).toHaveLength(11);
 		expect(result.task?.closeout?.artifact_refs.every((ref) => ref.kind === "object_store")).toBe(
 			true,
 		);
@@ -156,12 +167,12 @@ describe("authenticated notice source truth materialization", () => {
 		});
 		store.admitTask(task);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry(),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "default-registry-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
@@ -180,25 +191,28 @@ describe("authenticated notice source truth materialization", () => {
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "authenticated_notice_portal",
+			source_channel: "internal_portal",
 			source_surface: "notice",
-			site_id: "example_internal_portal",
-			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
+			site_id: "synthetic_internal_portal",
+			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: { bucket: "other-bucket", key: bundleKey },
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
-			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({ objectStore }),
+			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({
+				noticeFamilyConfig: sampleNoticeFamilyConfig(),
+				objectStore,
+			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "authenticated-notice-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"capture release object refs must use the source bucket",
 		);
@@ -214,21 +228,24 @@ describe("authenticated notice source truth materialization", () => {
 		objectStore.putJson(manifestKey, sampleManifest());
 		objectStore.putJson(captureReleaseKey, {
 			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "authenticated_notice_portal",
+			source_channel: "internal_portal",
 			source_surface: "notice",
-			site_id: "example_internal_portal",
-			capture_id: "capture:example_internal_portal:notice:20260404T012345Z",
+			site_id: "synthetic_internal_portal",
+			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
 			exported_at: "2026-04-04T01:23:45.000Z",
 			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
 			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
-			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({ objectStore }),
+			tsHandlers: createAuthenticatedNoticeTsTaskHandlerRegistry({
+				noticeFamilyConfig: sampleNoticeFamilyConfig(),
+				objectStore,
+			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "authenticated-notice-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
@@ -283,7 +300,7 @@ class InMemoryObjectStore {
 	refFor(key: string, role: string): Record<string, unknown> {
 		const body = this.objects.get(key);
 		if (!body) {
-			throw new Error(`missing fixture object: ${key}`);
+			throw new Error(`missing assertion object: ${key}`);
 		}
 		return {
 			role,
@@ -340,15 +357,15 @@ function sampleBundleRecord(): Record<string, unknown> {
 
 function sampleManifest(): Record<string, unknown> {
 	return {
-		schema_version: "authenticated_notice_collector_export_v2",
+		schema_version: "internal_portal_notice_export_v1",
 		exported_at: "2026-04-04T01:23:45.000Z",
-		source_channel: "authenticated_notice_portal",
+		source_channel: "internal_portal",
 		source_surface: "notice",
-		site_id: "example_internal_portal",
+		site_id: "synthetic_internal_portal",
 		source_home_url: "https://portal.example.edu",
-		collector: {
-			runtime_shell: "repo_local_node",
-			export_contract_version: "authenticated_notice_collector_export_v2",
+		capture_runtime: {
+			runtime_shell: "source_collector_node",
+			export_contract_version: "internal_portal_notice_export_v1",
 		},
 	};
 }
@@ -362,4 +379,35 @@ function requiredString(value: string | undefined): string {
 		throw new Error("expected string");
 	}
 	return value;
+}
+
+function sampleNoticeFamilyConfig() {
+	return parseAuthenticatedNoticeNoticeFamilyConfig({
+		schema_version: "authenticated_notice_notice_family_classification_v1",
+		corpus: "campus_notices",
+		collection: "internal_notice",
+		source_channel: "internal_portal",
+		default_family: "other",
+		default_admission_policy: "no_adoption",
+		default_priority: 40,
+		routing_policy: {
+			family_policies: {
+				other: {
+					consumption_route: "notice_level_query",
+					machine_processing_policy: "not_required",
+				},
+			},
+			terminal_no_adoption_title_patterns: [],
+			default_family_route_overrides: [],
+			machine_processing_value_terms: [],
+		},
+		rules: [
+			{
+				family: "course_teaching_arrangement",
+				admission_policy: "hold_notice_runtime",
+				priority: 20,
+				notice_type_names: ["教学通知"],
+			},
+		],
+	});
 }

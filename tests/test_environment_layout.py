@@ -6,7 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
     "campus-docs-reader-build.env.example",
-    "legacy-office-conversion-service.env.example",
     "execution-control-runtime.env.example",
 }
 HISTORICAL_COMMAND_ENV_EXAMPLES: set[str] = set()
@@ -26,21 +25,11 @@ class EnvironmentLayoutTest(unittest.TestCase):
     def test_docs_reference_active_and_historical_env_surfaces(self) -> None:
         docs_environment = (ROOT / "docs" / "environment" / "README.md").read_text(encoding="utf-8")
         root_env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        ingestion_readme = (ROOT / "apps" / "ingestion-worker" / "README.md").read_text(
-            encoding="utf-8"
-        )
 
         self.assertIn("env/commands/*.env.example", docs_environment)
         self.assertNotIn("env/commands/historical/*.env.example", docs_environment)
         self.assertNotIn("env/commands/historical/*.env.example", root_env)
-        self.assertIn(
-            "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment",
-            ingestion_readme,
-        )
-        self.assertIn("No compatibility wrapper or fallback command", ingestion_readme)
-        self.assertNotIn("--pdf-path", ingestion_readme)
-        self.assertNotIn("official-web-history-backfill", ingestion_readme)
-        self.assertNotIn("migrate-student-handbook", ingestion_readme)
+        self.assertFalse((ROOT / "apps" / "ingestion-worker" / "README.md").exists())
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import { canonicalJsonString } from "ingest-core";
 import { validateIngestionTaskEnvelope } from "ingestion-contracts";
 
 import {
@@ -6,14 +7,15 @@ import {
 	toOperatorProjection,
 } from "./projection";
 import type {
-	ExpiredLeaseSweepResult,
 	IngestionArtifactRef,
+	IngestionTaskAdmissionResult,
+	IngestionTaskCloseout,
 	IngestionTaskEnvelope,
 	IngestionTaskOperatorProjectionList,
 	IngestionTaskProjectionFilters,
 	IngestionTaskRecord,
-	IngestionTaskStatus,
 	IngestionTaskStore,
+	IngestionWorkflowStatus,
 	StoreClock,
 } from "./types";
 
@@ -26,7 +28,7 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		this.#now = input.now ?? (() => new Date());
 	}
 
-	admitTask(task: IngestionTaskEnvelope): IngestionTaskRecord {
+	admitTask(task: IngestionTaskEnvelope): IngestionTaskAdmissionResult {
 		const validation = validateIngestionTaskEnvelope(task);
 		if (!validation.ok) {
 			throw new Error(`invalid ingestion task: ${validation.errors.join("; ")}`);
@@ -34,50 +36,57 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 
 		const existingTaskId = this.#idempotencyIndex.get(task.idempotency_key);
 		if (existingTaskId) {
-			return this.#requireTask(existingTaskId);
+			const existing = this.#requireTask(existingTaskId);
+			if (existing.task_id !== task.task_id) {
+				throw new Error(`ingestion task idempotency key already belongs to ${existing.task_id}`);
+			}
+			return { created: false, record: existing };
 		}
 
 		const record: IngestionTaskRecord = {
 			...task,
-			status: "queued",
-			attempt_count: 0,
-			leased_by: null,
-			lease_expires_at: null,
+			status: "accepted",
 			updated_at: this.#nowIso(),
 			closeout: null,
+			workflow_id: task.task_id,
+			workflow_run_id: null,
 		};
 		this.#tasks.set(record.task_id, record);
 		this.#idempotencyIndex.set(record.idempotency_key, record.task_id);
-		return record;
-	}
-
-	nextTask(): IngestionTaskRecord | null {
-		for (const task of this.#tasks.values()) {
-			if (task.status === "queued") {
-				return task;
-			}
-		}
-		return null;
+		return { created: true, record };
 	}
 
 	getTask(taskId: string): IngestionTaskRecord | null {
 		return this.#tasks.get(taskId) ?? null;
 	}
 
-	claimNextTask(input: { workerId: string }): IngestionTaskRecord | null {
-		const task = this.nextTask();
-		if (!task) {
-			return null;
+	markTaskRunning(input: { taskId: string; workflowRunId?: string | null }): IngestionTaskRecord {
+		const task = this.#requireTask(input.taskId);
+		const workflowRunId = normalizeWorkflowRunId(input.workflowRunId);
+		if (task.status === "running") {
+			assertCompatibleWorkflowRunId(task, workflowRunId);
+			if (!task.workflow_run_id && workflowRunId) {
+				const updated: IngestionTaskRecord = {
+					...task,
+					updated_at: this.#nowIso(),
+					workflow_run_id: workflowRunId,
+				};
+				this.#tasks.set(task.task_id, updated);
+				return updated;
+			}
+			return task;
+		}
+		assertCanTransition(task, "running", null);
+		if (!workflowRunId) {
+			throw new Error(
+				`workflow run id is required to mark ingestion task running: ${input.taskId}`,
+			);
 		}
 		const updated: IngestionTaskRecord = {
 			...task,
 			status: "running",
-			attempt_count: task.attempt_count + 1,
-			leased_by: input.workerId,
-			lease_expires_at: new Date(
-				this.#now().getTime() + task.lease_policy.lease_seconds * 1000,
-			).toISOString(),
 			updated_at: this.#nowIso(),
+			workflow_run_id: workflowRunId,
 		};
 		this.#tasks.set(task.task_id, updated);
 		return updated;
@@ -85,35 +94,24 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 
 	completeTask(input: {
 		taskId: string;
-		workerId: string;
 		artifactRefs?: IngestionArtifactRef[];
 	}): IngestionTaskRecord {
-		const task = this.#requireLeasedTask(input.taskId, input.workerId);
+		const task = this.#requireTask(input.taskId);
+		const closeout: IngestionTaskCloseout = {
+			task_id: task.task_id,
+			terminal_status: "completed",
+			outcome_kind: "success",
+			artifact_refs: input.artifactRefs ?? [],
+		};
+		if (isIdempotentTerminalTransition(task, closeout, null)) {
+			return task;
+		}
+		assertCanTransition(task, "completed", null);
 		const updated: IngestionTaskRecord = {
 			...task,
 			status: "completed",
-			leased_by: null,
-			lease_expires_at: null,
 			updated_at: this.#nowIso(),
-			closeout: {
-				task_id: task.task_id,
-				terminal_status: "completed",
-				outcome_kind: "success",
-				artifact_refs: input.artifactRefs ?? [],
-			},
-		};
-		this.#tasks.set(task.task_id, updated);
-		return updated;
-	}
-
-	heartbeatTask(input: { taskId: string; workerId: string }): IngestionTaskRecord {
-		const task = this.#requireLeasedTask(input.taskId, input.workerId);
-		const updated: IngestionTaskRecord = {
-			...task,
-			lease_expires_at: new Date(
-				this.#now().getTime() + task.lease_policy.lease_seconds * 1000,
-			).toISOString(),
-			updated_at: this.#nowIso(),
+			closeout,
 		};
 		this.#tasks.set(task.task_id, updated);
 		return updated;
@@ -121,75 +119,58 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 
 	failTask(input: {
 		taskId: string;
-		workerId: string;
 		errorCode: string;
 		errorMessage: string;
 	}): IngestionTaskRecord {
-		const task = this.#requireLeasedTask(input.taskId, input.workerId);
-		const exhausted = task.attempt_count >= task.retry_policy.max_attempts;
-		const status: IngestionTaskStatus = exhausted ? "dead_lettered" : "queued";
+		const task = this.#requireTask(input.taskId);
+		const closeout: IngestionTaskCloseout = {
+			task_id: task.task_id,
+			terminal_status: "failed",
+			outcome_kind: "error",
+			artifact_refs: [],
+			error: {
+				code: input.errorCode,
+				message: input.errorMessage,
+			},
+		};
+		if (isIdempotentTerminalTransition(task, closeout, input.errorCode)) {
+			return task;
+		}
+		assertCanTransition(task, "failed", input.errorCode);
 		const updated: IngestionTaskRecord = {
 			...task,
-			status,
-			leased_by: null,
-			lease_expires_at: null,
+			status: "failed",
 			updated_at: this.#nowIso(),
-			closeout: exhausted
-				? {
-						task_id: task.task_id,
-						terminal_status: "dead_lettered",
-						outcome_kind: "error",
-						artifact_refs: [],
-						error: {
-							code: input.errorCode,
-							message: input.errorMessage,
-						},
-					}
-				: null,
+			closeout,
 		};
 		this.#tasks.set(task.task_id, updated);
 		return updated;
 	}
 
-	sweepExpiredLeases(): ExpiredLeaseSweepResult {
-		let deadLettered = 0;
-		let requeued = 0;
-		for (const task of this.#tasks.values()) {
-			if (!isExpiredRunningTask(task, this.#now())) {
-				continue;
-			}
-			const exhausted = task.attempt_count >= task.retry_policy.max_attempts;
-			if (exhausted) {
-				deadLettered += 1;
-				this.#tasks.set(task.task_id, {
-					...task,
-					closeout: {
-						artifact_refs: [],
-						error: {
-							code: "lease_expired",
-							message: "Ingestion task lease expired.",
-						},
-						outcome_kind: "error",
-						task_id: task.task_id,
-						terminal_status: "dead_lettered",
-					},
-					leased_by: null,
-					lease_expires_at: null,
-					status: "dead_lettered",
-					updated_at: this.#nowIso(),
-				});
-			} else {
-				requeued += 1;
-				this.#tasks.set(task.task_id, {
-					...task,
-					leased_by: null,
-					lease_expires_at: null,
-					status: "queued",
-					updated_at: this.#nowIso(),
-				});
-			}
+	cancelTask(input: { taskId: string; reason: string }): IngestionTaskRecord {
+		const task = this.#requireTask(input.taskId);
+		const closeout: IngestionTaskCloseout = {
+			task_id: task.task_id,
+			terminal_status: "canceled",
+			outcome_kind: "error",
+			artifact_refs: [],
+			error: {
+				code: "workflow_canceled",
+				message: input.reason,
+			},
+		};
+		if (isIdempotentTerminalTransition(task, closeout, "workflow_canceled")) {
+			return task;
 		}
-		return { deadLettered, requeued };
+		assertCanTransition(task, "canceled", null);
+		const updated: IngestionTaskRecord = {
+			...task,
+			status: "canceled",
+			updated_at: this.#nowIso(),
+			closeout,
+		};
+		this.#tasks.set(task.task_id, updated);
+		return updated;
 	}
 
 	listOperatorTaskProjections(
@@ -220,25 +201,83 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		return task;
 	}
 
-	#requireLeasedTask(taskId: string, workerId: string): IngestionTaskRecord {
-		const task = this.#requireTask(taskId);
-		if (task.status !== "running" || task.leased_by !== workerId) {
-			throw new Error(`ingestion task is not leased by worker: ${taskId}`);
-		}
-		if (isExpiredRunningTask(task, this.#now())) {
-			throw new Error(`ingestion task lease expired: ${taskId}`);
-		}
-		return task;
-	}
-
 	#nowIso(): string {
 		return this.#now().toISOString();
 	}
 }
 
-function isExpiredRunningTask(task: IngestionTaskRecord, now: Date): boolean {
-	if (task.status !== "running" || !task.lease_expires_at) {
+function assertCanTransition(
+	task: IngestionTaskRecord,
+	nextStatus: IngestionWorkflowStatus,
+	errorCode: string | null,
+): void {
+	if (isTerminalStatus(task.status)) {
+		throw new Error(`terminal ingestion task cannot transition: ${task.task_id}`);
+	}
+	if (task.status === "accepted" && nextStatus === "running") {
+		return;
+	}
+	if (
+		task.status === "accepted" &&
+		nextStatus === "failed" &&
+		errorCode === "workflow_start_failed"
+	) {
+		return;
+	}
+	if (
+		task.status === "running" &&
+		(nextStatus === "completed" || nextStatus === "failed" || nextStatus === "canceled")
+	) {
+		return;
+	}
+	throw new Error(
+		`invalid ingestion task state transition: ${task.task_id} ${task.status} -> ${nextStatus}`,
+	);
+}
+
+function isIdempotentTerminalTransition(
+	task: IngestionTaskRecord,
+	nextCloseout: IngestionTaskCloseout,
+	errorCode: string | null,
+): boolean {
+	if (!isTerminalStatus(task.status)) {
 		return false;
 	}
-	return new Date(task.lease_expires_at).getTime() <= now.getTime();
+	const currentCloseout = task.closeout;
+	if (!currentCloseout || currentCloseout.terminal_status !== nextCloseout.terminal_status) {
+		return false;
+	}
+	if (currentCloseout.terminal_status === "failed") {
+		return currentCloseout.error?.code === errorCode;
+	}
+	if (currentCloseout.terminal_status === "canceled") {
+		return currentCloseout.error?.code === "workflow_canceled";
+	}
+	return canonicalJsonString(currentCloseout) === canonicalJsonString(nextCloseout);
+}
+
+function isTerminalStatus(status: IngestionWorkflowStatus): boolean {
+	return status === "completed" || status === "failed" || status === "canceled";
+}
+
+function normalizeWorkflowRunId(value: string | null | undefined): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed ? trimmed : null;
+}
+
+function assertCompatibleWorkflowRunId(
+	task: IngestionTaskRecord,
+	incomingWorkflowRunId: string | null,
+): void {
+	if (!(incomingWorkflowRunId && task.workflow_run_id)) {
+		return;
+	}
+	if (task.workflow_run_id !== incomingWorkflowRunId) {
+		throw new Error(
+			`ingestion task workflow run id mismatch: ${task.task_id} has ${task.workflow_run_id}, got ${incomingWorkflowRunId}`,
+		);
+	}
 }

@@ -5,7 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0022
 status: superseded
 created: 2026-04-02
-updated: 2026-06-15
+updated: 2026-07-04
+superseded_by:
+  - docs/architecture/product.md
+  - docs/architecture/system/identity-authz.md
+  - docs/architecture/system/tool-routing.md
+  - docs/architecture/system/memory-plane.md
 ---
 # ADR-0022 Campus Identity And Restricted Document Authorization
 

@@ -5,7 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0041
 status: superseded
 created: 2026-04-14
-updated: 2026-06-12
+updated: 2026-07-04
+superseded_by:
+  - docs/architecture/product.md
+  - docs/architecture/system/identity-authz.md
+  - docs/architecture/domains/authenticated-notice/architecture.md
+  - docs/data/authenticated-notice.md
 ---
 # ADR-0041 Authenticated Document Center And Regulation Layer Split
 

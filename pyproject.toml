@@ -125,17 +125,12 @@ package = false
 
 [tool.uv.workspace]
 members = [
-  "apps/app-api",
-  "apps/ingestion-worker",
-  "apps/legacy-office-conversion-service",
   "packages/contracts",
   "packages/eval-langfuse",
   "packages/ingestion-contracts",
-  "packages/ingestion-core",
   "packages/ingestion-kernels-rs",
   "packages/navigation-tool",
   "packages/ragas-runner",
-  "packages/regulation-semantics",
   "packages/shared",
 ]
 

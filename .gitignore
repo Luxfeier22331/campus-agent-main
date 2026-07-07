@@ -65,7 +65,7 @@ tmp-*.jpeg
 tmp-*.webp
 
 # Local runtime and scratch artifacts
-apps/authenticated-notice-collector/runtime/
+apps/source-collector/adapters/*/runtime/
 artifacts/
 infra/local/.generated/
 !apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/

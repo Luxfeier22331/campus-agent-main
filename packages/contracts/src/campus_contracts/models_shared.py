@@ -5,7 +5,7 @@ from typing import Literal
 
 type AllowedCorpus = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
-SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
+SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "internal_portal"]
 SourceTrustTier = Literal["T0", "T1", "T2", "T3"]
 RemoteContentSuspicionLabel = Literal[
     "prompt_override_signal",
@@ -21,8 +21,6 @@ ToolID = Literal[
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
     "campus_notice_get",
 ]
 ToolName = Literal[
@@ -30,8 +28,6 @@ ToolName = Literal[
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
     "campus_notice_get",
 ]
 ModelVisibleToolName = Literal[
@@ -140,7 +136,7 @@ ALLOWED_SOURCE_CHANNELS = (
     "pdf_ocr",
     "official_web",
     "manual_curated",
-    "authenticated_notice_portal",
+    "internal_portal",
     "wechat_official_account",
 )
 ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
@@ -160,8 +156,6 @@ ALLOWED_TOOL_IDS = (
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
     "campus_notice_get",
 )
 ALLOWED_TOOL_NAMES = (
@@ -169,8 +163,6 @@ ALLOWED_TOOL_NAMES = (
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
     "campus_notice_get",
 )
 ALLOWED_MODEL_VISIBLE_TOOL_NAMES = (
@@ -428,7 +420,7 @@ def _normalize_source_trust_tier(
 
     if source_channel == "official_web":
         return "T2"
-    if source_channel == "authenticated_notice_portal":
+    if source_channel == "internal_portal":
         return "T1"
     if source_channel == "manual_curated":
         return "T0"

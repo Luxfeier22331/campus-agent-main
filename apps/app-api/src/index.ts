@@ -13,14 +13,8 @@ import { AppApiRouteError } from "./http";
 import { createPgChatConversationStore } from "./modules/chat";
 import {
 	createExecutionControlRuntimeClient,
-	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "./modules/integration";
-import {
-	buildOfficialWebProjectionProjector,
-	createPgOfficialWebProjectionStore,
-	type OfficialWebProjectionProjector,
-} from "./modules/official-web-projection";
 import {
 	buildRequestProjectionProjector,
 	createPgProjectionStore,
@@ -36,7 +30,6 @@ import { createAppTelemetry } from "./modules/telemetry";
 export type { Env } from "./config";
 
 export interface WorkerRuntimeDependencies extends AppDependencies {
-	officialWebProjector?: OfficialWebProjectionProjector;
 	requestProjector?: RequestProjectionProjector;
 }
 
@@ -146,15 +139,6 @@ export function createWorkerRuntime(
 		dependencies.requestProjector ??
 		buildRequestProjectionProjector({
 			store: createPgProjectionStore(env),
-		});
-	const officialWebProjector =
-		dependencies.officialWebProjector ??
-		buildOfficialWebProjectionProjector({
-			ingestionTasks: env.INGESTION_CONTROL_BASE_URL?.trim()
-				? createIngestionTaskProjectionClient(env)
-				: undefined,
-			sourceBucket: env.OBJECT_STORE_BUCKET_SOURCE,
-			store: createPgOfficialWebProjectionStore(env),
 		});
 	let durableCloseoutService = dependencies.chatCommandService ?? null;
 	function resolveDurableCloseoutService(): ChatCommandService {
@@ -278,31 +262,6 @@ export function createWorkerRuntime(
 						telemetry,
 					})
 				: { failed: 0, processed: 0 };
-			const officialWebResult = isExplicitlyEnabled(
-				env.APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED,
-			)
-				? await Sentry.startSpan(
-						{
-							name: "app-api.official-web-projection.drain",
-							op: "cron",
-						},
-						() => officialWebProjector.drain(),
-					)
-				: { abandoned: 0, failed: 0, processed: 0 };
-			if (
-				officialWebResult.processed > 0 ||
-				officialWebResult.failed > 0 ||
-				officialWebResult.abandoned > 0
-			) {
-				await telemetry.recordProjectionDrain({
-					abandoned: officialWebResult.abandoned,
-					failed: officialWebResult.failed,
-					processed: officialWebResult.processed,
-					projector: "official_web_projection",
-					projectorLastErrorCode: officialWebResult.failed > 0 ? "projection_failed" : null,
-					surface: "official_web",
-				});
-			}
 			if (requestResult.processed > 0) {
 				console.info(
 					JSON.stringify({
@@ -338,26 +297,6 @@ export function createWorkerRuntime(
 						failed: requestResult.failed,
 						processed: requestResult.processed,
 						source: "app-api.request-projection-projector",
-					}),
-				);
-			}
-			if (officialWebResult.processed > 0 || officialWebResult.abandoned > 0) {
-				console.info(
-					JSON.stringify({
-						abandoned: officialWebResult.abandoned,
-						failed: officialWebResult.failed,
-						processed: officialWebResult.processed,
-						source: "app-api.official-web-projection-projector",
-					}),
-				);
-			}
-			if (officialWebResult.failed > 0) {
-				console.error(
-					JSON.stringify({
-						abandoned: officialWebResult.abandoned,
-						failed: officialWebResult.failed,
-						processed: officialWebResult.processed,
-						source: "app-api.official-web-projection-projector",
 					}),
 				);
 			}

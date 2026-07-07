@@ -57,13 +57,11 @@ updated: 2026-06-30
 
 当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
 
-`dependencies.ingestionControl` 只表达 official-web projection 是否具备向
-`apps/ingestion-control` admission task 的配置条件：
+`dependencies.ingestionControl` 只表达 app-api 是否具备读取
+`apps/ingestion-control` operator task projection 的基础配置：
 
 - `not_configured`：未配置 `INGESTION_CONTROL_BASE_URL`
-- `misconfigured`：配置了 `INGESTION_CONTROL_BASE_URL`，但缺少用于构造 object-store
-  task input refs 的 `OBJECT_STORE_BUCKET_SOURCE`
-- `configured`：`INGESTION_CONTROL_BASE_URL` 与 `OBJECT_STORE_BUCKET_SOURCE` 都已配置
+- `configured`：`INGESTION_CONTROL_BASE_URL` 已配置
 
 它不是 ingestion-control service 的完整 readiness probe。
 

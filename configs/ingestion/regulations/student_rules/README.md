@@ -27,10 +27,12 @@ Stable handbook-specific policy docs:
   document-level chunk budgeting, short-text aggregation, header policy, and
   validation gate truth
 
-The primary handbook input is source-bucket `provider-response.jsonl`.
-`layout-elements.jsonl` is the only source-truth artifact before document
-splitting. Each cleaned document then emits `canonical.md` and
-`document-units.jsonl` before chunking.
+The historical handbook input was source-bucket `provider-response.jsonl`.
+`layout-elements.jsonl` remains the source-truth artifact before document
+splitting, but branch tip does not keep a Python handbook cleanup materializer.
+Current executable registry tasks start from already-materialized canonical
+`document-units`; a future document materializer must be added as a real TS
+handler or Rust kernel bridge before it re-enters `apps/ingestion-control`.
 
 Current OCR ingestion stores document-level artifacts under `regulations/documen
 ts/student_rules/{title_slug}-{docid8}/{revision_track}/{year}/...`. Chunk
@@ -55,5 +57,6 @@ kernel steps over already-materialized canonical `document-units`:
 Document materialization, structured projection publish, and alias publish are
 not active registry tasks for `regulations/student_rules`. Add them back only in
 the same change that adds the real handler or kernel bridge. The retired Python
-raw-ingestion CLI is not an active ingestion entry path; missing TS handlers or
-Rust kernels fail closed instead of spawning that old path.
+raw-ingestion CLI and Python handbook cleanup materializer are not active
+ingestion entry paths; missing TS handlers or Rust kernels fail closed instead
+of spawning those old paths.

@@ -94,26 +94,11 @@ describe("runtime readiness", () => {
 		});
 	});
 
-	it("marks ingestion-control misconfigured when admission has no source bucket", async () => {
+	it("marks ingestion-control configured when projection base URL is configured", async () => {
 		await expect(
 			defaultRuntimeReadinessProbe({
 				...env,
 				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.internal",
-			}),
-		).resolves.toMatchObject({
-			dependencies: {
-				ingestionControl: "misconfigured",
-			},
-			failed: {},
-		});
-	});
-
-	it("marks ingestion-control configured when admission and source bucket are both configured", async () => {
-		await expect(
-			defaultRuntimeReadinessProbe({
-				...env,
-				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.internal",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			}),
 		).resolves.toMatchObject({
 			dependencies: {

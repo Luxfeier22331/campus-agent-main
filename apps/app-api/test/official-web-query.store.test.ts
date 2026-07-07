@@ -10,7 +10,7 @@ describe("official web query store", () => {
 		const rows = [
 			{
 				artifactsJson: [],
-				collectorVersion: "official-web-collector@0.1.0",
+				collectorVersion: "source-collector@0.1.0",
 				configVersion: "git:abc1234",
 				failureCount: 0,
 				finishedAt: new Date("2026-04-01T10:30:00.000Z"),
@@ -32,7 +32,7 @@ describe("official web query store", () => {
 			},
 			{
 				artifactsJson: [],
-				collectorVersion: "official-web-collector@0.1.0",
+				collectorVersion: "source-collector@0.1.0",
 				configVersion: "git:abc1234",
 				failureCount: 0,
 				finishedAt: new Date("2026-04-01T09:30:00.000Z"),

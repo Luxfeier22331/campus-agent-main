@@ -11,9 +11,8 @@ FIXTURE_ROOTS = (
     "packages/contracts/fixtures/",
     "packages/eval-langfuse/assets/",
     "packages/eval-langfuse/fixtures/",
-    "packages/ingestion-core/testdata/",
-    "apps/official-web-collector/test/",
-    "apps/official-web-collector/test/fixtures/pages/",
+    "apps/source-collector/adapters/official-web/test/",
+    "apps/source-collector/adapters/official-web/test/assertions/pages/",
     "apps/campus-web/test/fixtures/",
 )
 PUBLIC_WEB_SEARCH_AGENT_ASSET_PREFIX = (
@@ -59,9 +58,8 @@ def public_fixture_text_files(*, root: Path | None = None) -> tuple[Path, ...]:
             "packages/contracts/fixtures/**",
             "packages/eval-langfuse/assets/**",
             "packages/eval-langfuse/fixtures/**",
-            "packages/ingestion-core/testdata/**",
-            "apps/official-web-collector/test/**",
-            "apps/official-web-collector/test/fixtures/pages/**",
+            "apps/source-collector/adapters/official-web/test/**",
+            "apps/source-collector/adapters/official-web/test/assertions/pages/**",
             "apps/campus-web/test/fixtures/**",
             root=base,
         )

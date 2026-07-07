@@ -5,230 +5,131 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.ingestion.clean_target_boundary_support import (
+    REMOVED_TEST_ONLY_INGESTION_CORE_PYTHON_TESTS,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKER_MODULE_ROOT = REPO_ROOT / "apps/ingestion-worker/src/campus_ingestion_worker"
-INGESTION_CORE_ROOT = REPO_ROOT / "packages/ingestion-core/src/campus_ingestion_core"
-
-ALLOWED_WORKER_MODULES = {
-    "__init__.py",
-    "env_bootstrap.py",
-    "normalize_authenticated_notice_legacy_office_attachment.py",
-}
-
-ALLOWED_ACTIVE_MODULE_REFS = {
-    "campus_ingestion_worker.env_bootstrap",
-    "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment",
-}
-
-REMOVED_INGESTION_CORE_RUNTIME_FILES = {
-    "authenticated_notice_run_queue_consumer.py",
-    "authenticated_notice_run_queue_consumer_models.py",
-    "authenticated_notice_run_queue_consumer_projection.py",
-    "authenticated_notice_run_queue_consumer_support.py",
-    "collected_notice_queue_consumer.py",
-    "collected_notice_classification.py",
-    "collected_notice_downstream_pilot.py",
-    "collected_notice_fact_readiness.py",
-    "collected_notice_fact_state_contract.py",
-    "collected_notice_regulation_historical_offline_admission.py",
-    "collected_notice_historical_enqueue.py",
-    "collected_notice_ingest_queue.py",
-    "collected_notice_ingest_queue_memory.py",
-    "collected_notice_ingest_queue_postgres.py",
-    "collected_notice_ingest_queue_store.py",
-    "collected_notice_media_closeout_state_machine_audit.py",
-    "collected_notice_media_closeout_state_machine_audit_support.py",
-    "collected_notice_media_extraction_attempt_ledger.py",
-    "collected_notice_media_extraction_closeout.py",
-    "collected_notice_media_lifecycle.py",
-    "collected_notice_media_role_classifier.py",
-    "collected_notice_media_source_object_verification.py",
-    "collected_notice_multimodal_readiness.py",
-    "collected_notice_multimodal_readiness_candidates.py",
-    "collected_notice_multimodal_readiness_reports.py",
-    "collected_notice_multimodal_readiness_shared.py",
-    "collected_notice_regulation_admission.py",
-    "collected_notice_regulation_admission_reports.py",
-    "collected_notice_regulation_admission_support.py",
-    "collected_notice_regulation_batch_admission_audit.py",
-    "collected_notice_regulation_canonical_backfill.py",
-    "collected_notice_regulation_document_units.py",
-    "collected_notice_regulation_first_batch_documents.py",
-    "collected_notice_regulation_first_batch_evidence.py",
-    "collected_notice_regulation_first_batch_helpers.py",
-    "collected_notice_regulation_first_batch_promotion.py",
-    "collected_notice_regulation_first_batch_provenance.py",
-    "collected_notice_regulation_manual_review_admission.py",
-    "collected_notice_regulation_materialization_preview.py",
-    "collected_notice_regulation_owner_text_execution.py",
-    "collected_notice_regulation_owner_text_recovery.py",
-    "collected_notice_regulation_owner_text_recovery_constants.py",
-    "collected_notice_regulation_owner_text_recovery_models.py",
-    "collected_notice_regulation_text_normalization.py",
-    "collected_notice_reimport_preview.py",
-    "collected_notice_reimport_preview_models.py",
-    "collected_notice_reimport_preview_outputs.py",
-    "collected_notice_reimport_preview_source_refs.py",
-    "collected_notice_replay_closeout_acceptance.py",
-    "collected_notice_schedule_image_ocr_mini_batch.py",
-    "collected_notice_service_status_downstream_replay.py",
-    "collected_notice_transport_baseline_policy.py",
-    "historical_regulation_chunk_backfill.py",
-    "historical_regulation_denominator_body_text_admission.py",
-    "historical_regulation_denominator_expansion.py",
-    "historical_regulation_school_level_inventory.py",
-    "historical_regulation_school_level_owner_recovery.py",
-    "index_release.py",
-    "index_release_acceptance.py",
-    "index_release_chunk_quality.py",
-    "index_release_hashing.py",
-    "index_release_models.py",
-    "index_release_registry_restore.py",
-    "index_release_validation.py",
-    "local_rebuild.py",
-    "local_rebuild_documents.py",
-    "local_rebuild_indexing.py",
-    "local_rebuild_replay.py",
-    "local_rebuild_runtime.py",
-    "local_rebuild_support.py",
-    "official_web_release_task.py",
-    "official_web_release_task_admission.py",
-    "official_web_release_task_projection.py",
-    "official_web_release_task_store.py",
-    "official_web_release_task_store_models.py",
-    "official_web_release_task_store_rows.py",
-    "academic_calendar_projection.py",
-    "contact_directory_projection.py",
-    "service_catalog_projection.py",
-    "service_guide_projection.py",
-    "service_guide_projection_constants.py",
-    "service_guide_projection_curated.py",
-    "service_guide_projection_flow_graph.py",
-    "service_guide_projection_models.py",
-    "service_guide_projection_release.py",
-    "service_guide_projection_support.py",
-    "service_guide_projection_validation.py",
-    "service_status_projection.py",
-    "transport_schedule_projection.py",
-    "transport_schedule_projection_routes.py",
-    "transport_schedule_projection_validation.py",
-    "official_web_chunking_audit.py",
-    "official_web_regulation_materialization.py",
-    "qdrant_backup.py",
-    "qdrant_backup_cleanup.py",
-    "qdrant_backup_io.py",
-    "qdrant_backup_manifest_helpers.py",
-    "qdrant_backup_models.py",
-    "qdrant_backup_retention_audit.py",
-    "qdrant_filesystem_backup.py",
-    "registry_scope_chunk_preparation.py",
-    "registry_scope_chunk_preparation_helpers.py",
-    "registry_scope_chunk_preparation_models.py",
-    "registry_scope_chunk_provenance.py",
-    "registry_scope_release.py",
-    "registry_scope_release_audit.py",
-    "registry_scope_release_support.py",
-    "regulation_rag_release_admission.py",
-    "regulation_rag_release_candidate_helpers.py",
-    "regulation_rag_release_lane.py",
-    "regulation_rag_release_manifest_audit.py",
-    "regulation_rag_release_models.py",
-    "raw_ingestion.py",
-    "raw_ingestion_source_truth_execution.py",
-    "scope_alias.py",
-    "serving_seed_package.py",
-    "source_handoff_execution.py",
-    "source_handoff_no_serving_gate.py",
-    "source_handoff_operator_projection.py",
-    "source_handoff_postgres.py",
-    "source_handoff_projection.py",
-    "source_handoff_state_machine.py",
-    "source_handoff_store.py",
-    "source_handoff_validation.py",
-    "authenticated_notice_processing_projection.py",
-    "authenticated_notice_processing_projection_backfill.py",
-    "authenticated_notice_run_enqueue.py",
-    "authenticated_notice_run_processing_projection.py",
-    "authenticated_notice_run_processing_projection_backfill.py",
-    "verified_authenticated_notice_run_enqueue_scan.py",
-    "authenticated_notice_closeout_store_postgres.py",
-    "authenticated_notice_closeout_store_postgres_helpers.py",
-    "authenticated_notice_source_truth_inventory_postgres.py",
-    "internal_notice_read_model_postgres.py",
-    "internal_notice_schedule_image_ocr_db.py",
-    "notice_consumption_projection_postgres.py",
-    "postgres_runtime.py",
-    "registry_document_postgres.py",
-    "registry_raw_asset_postgres.py",
-    "structured_projection_postgres.py",
-    "structured_projection_postgres_models.py",
-    "structured_projection_postgres_records.py",
-    "wechat_public_notice_multimodal_db.py",
-}
+INGESTION_CORE_PACKAGE_ROOT = REPO_ROOT / "packages/ingestion-core"
 
 REMOVED_PYTHON_ONLINE_RAG_PACKAGE_ROOTS = {
     Path("packages") / "knowledge-tool" / "src" / "campus_knowledge_tool",
     Path("packages/retrieval-core/src/campus_retrieval_core"),
 }
 
-REMOVED_PUBLIC_INGESTION_CORE_EXPORTS = {
-    "AuthenticatedNoticeCloseoutService",
-    "CloseoutBatch",
-    "CloseoutBatchState",
-    "CloseoutPlanner",
-    "CloseoutRun",
-    "CloseoutRunState",
-    "CloseoutShard",
-    "CloseoutShardState",
-    "CloseoutVerifier",
-    "CloseoutWorker",
-    "CloseoutWorkerState",
-    "EmbeddingSettings",
-    "InMemoryCloseoutStore",
-    "MockEmbeddingSettings",
-    "OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION",
-    "OfficialWebProjectionChunkingAuditDocumentReport",
-    "OfficialWebProjectionChunkingAuditReport",
-    "OfficialWebRegulationMaterializationReport",
-    "OnlineOcrClient",
-    "OnlineOcrProviderResult",
-    "PostgresAuthenticatedNoticeCloseoutStore",
-    "PostgresDocumentRegistry",
-    "PostgresRawAssetRegistry",
-    "QdrantIndexBinding",
-    "RawIngestionRequest",
-    "SparseEmbeddingSettings",
-    "audit_official_web_projection_chunking",
-    "build_authenticated_notice_closeout_store_from_env",
-    "build_document_registry_from_env",
-    "build_embedding_model",
-    "build_mock_embedding_model",
-    "build_mock_sparse_embedding_model",
-    "build_official_web_regulation_candidate_documents",
-    "build_raw_asset_registry_from_env",
-    "build_sparse_embedding_model",
-    "index_chunks_to_qdrant",
-    "materialize_official_web_regulation_candidates",
-    "process_raw_ingestion_job",
+REMOVED_INTERNAL_NOTICE_PYTHON_PROCESSOR_TERMS = {
+    "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
+    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
+    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
+    "INTERNAL_NOTICE_MULTIMODAL_MODEL",
+    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY",
+    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_DATABASE_URL",
+    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_DATABASE_URL",
+    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL",
+    "InternalNoticeMultimodalAttempt",
+    "InternalNoticeMultimodalProcessor",
+    "PostgresInternalNoticeMultimodalAttemptStore",
+    "PostgresScheduleImageOcrAttemptStore",
+    "ScheduleImageOcrAttempt",
+    "ScheduleImageOcrProvider",
+    "build_internal_notice_multimodal_attempt_store_from_env",
+    "build_internal_notice_multimodal_processor_from_env",
+    "build_schedule_image_ocr_attempt_store_from_env",
+    "evaluate_internal_notice_multimodal_decisions_jsonl",
+    "evaluate_internal_notice_multimodal_visual_jsonl",
+    "ingestion_projection.internal_notice_multimodal_attempt",
+    "ingestion_projection.internal_notice_schedule_image_ocr_attempt",
+    "internal_notice_consumption_runtime_smoke",
+    "internal_notice_multimodal_attempt",
+    "internal_notice_multimodal_processing",
+    "internal_notice_schedule_image_ocr",
+    "internal_notice_schedule_image_ocr_attempt",
+    "multimodal-decision-eval.v1.jsonl",
+    "multimodal-visual-eval.v1.jsonl",
 }
 
-REMOVED_ACTIVE_INGESTION_TASK_KINDS = {
-    "alias_publish",
-    "canonical_document_materialize",
-    "embedding_index_build",
-    "operator_projection_snapshot",
-    "raw_asset_ingest",
-    "structured_projection_publish",
+REMOVED_INGESTION_CORE_PROVIDER_CLIENT_TERMS = {
+    "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY",
+    "HANDBOOK_SERVICE_NAVIGATION_API_KEY",
+    "LegacyOfficeConversionClientProtocol",
+    "SourceOcrClient",
+    "conversion_client",
+    "httpx.AsyncClient",
+    "httpx.Client",
+    "import httpx",
+    "ocr_client",
+    "ocr_clients",
 }
 
-REMOVED_OFFICIAL_WEB_HANDOFF_TERMS = {
-    "APP_API_OFFICIAL_WEB_HANDOFF",
-    "OfficialWebHandoff",
-    "OfficialWebIngestionHandoff",
-    "apps/app-api/src/modules/integration/official-web-handoff",
-    "createOfficialWebHandoffPublisher",
-    "official_web_fresh_news_handoff.v1",
-    "official_web_stable_reference_handoff.v1",
+REMOVED_INGESTION_CORE_FILE_RELEASE_PYTHON_MATERIALIZATION_TERMS = {
+    "AuthenticatedDocumentHoldingStatus",
+    "AuthenticatedNoticeFileReleaseInventory",
+    "build_authenticated_document_holding_status_report",
+    "file_release_inventory_store",
+    "load_authenticated_notice_file_release_export",
+    "resolve_file_release_owner_recovery_readiness",
+}
+
+REMOVED_INGESTION_CORE_LOCAL_REPORT_OUTPUT_TERMS = {
+    "CurriculumCourseMapProbeReport",
+    "HANDBOOK_VALIDATION_CACHE_DIR",
+    "budget-eval-matrix.json",
+    "budget-eval-report.md",
+    "map-{detected_region.map_index:02d}.png",
+    "map-{detected_region.map_index:02d}-tile-{tile_index:02d}.png",
+    "output_path",
+    "_resolve_validation_cache_dir",
+    "_validation_cache_file_path",
+    "_write_json",
+}
+
+REMOVED_INGESTION_CORE_OFFICIAL_WEB_LOCAL_OUTPUT_TERMS = {
+    "canonical_markdown_path",
+    "document_units_path",
+    "projection-report.json",
+    "projection_output_dir",
+    "_build_document_output_dir",
+    "_load_local_page_source_truth",
+}
+
+REMOVED_INGESTION_CORE_RUNTIME_NAMING_TERMS = {
+    "AuthenticatedNoticeOcrProviderRuntime",
+    "AuthenticatedNoticeOcrRuntime",
+    "CollectionSourceOcrRuntime",
+    "RawAssetTypeRefinement",
+    "RawAssetTypedMetadata",
+    "DerivedStructuredUnit",
+    "HandbookCleanupResult",
+    "_parse_attachment_with_ocr_runtimes",
+    "build_curriculum_structured_units",
+    "cleanup_handbook_document",
+    "serialize_handbook_document_units",
+    "_resolve_authenticated_notice_ocr_runtime",
+    "infer_raw_asset_typed_metadata",
+    "persist_raw_provider_artifact",
+    "refine_raw_asset_typed_metadata_with_ocr_evidence",
+    "resolve_collection_source_ocr_runtime",
+    "resolve_object_store_bucket_names",
+    "source_truth_common",
+}
+
+REMOVED_INGESTION_CONFIG_COLLECTIONS = {
+    Path("configs/ingestion/authenticated_documents/common_download_source"),
+    Path("configs/ingestion/calendar/academic_calendar"),
+    Path("configs/ingestion/campus_navigation/place_catalog"),
+    Path("configs/ingestion/campus_notices/file_release_capture"),
+    Path("configs/ingestion/curriculum/curriculum_plan/course-map-probe-gold.v1.json"),
+    Path("configs/ingestion/curriculum/curriculum_plan/course-map-probe-gold.v2.json"),
+    Path("configs/ingestion/curriculum/curriculum_plan/course-map-probe-samples.v1.json"),
+    Path("configs/ingestion/official_web/muc_public_pages"),
+    Path("configs/ingestion/official_web/news_archive"),
+    Path("configs/ingestion/public_docs/reader_assets"),
+}
+
+REMOVED_INGESTION_CONFIG_SCOPE_TOKENS = {
+    "common_download_source",
+    "file_release_capture",
+    "muc_public_pages",
 }
 
 ACTIVE_REFERENCE_ROOTS = (
@@ -246,6 +147,8 @@ REFERENCE_ALLOWLIST = {
     Path("tests/ingestion/test_ingestion_clean_target_boundary.py"),
 }
 
+REFERENCE_ALLOWLIST_PREFIXES = (("docs", "decisions"),)
+
 TEXT_SUFFIXES = {
     ".json",
     ".md",
@@ -260,42 +163,25 @@ TEXT_SUFFIXES = {
 
 
 class IngestionCleanTargetBoundaryTest(unittest.TestCase):
-    def test_ingestion_worker_contains_only_python_adapter_island_modules(self) -> None:
-        modules = {path.name for path in WORKER_MODULE_ROOT.glob("*.py")}
+    def test_ingestion_worker_app_is_removed_from_active_workspace(self) -> None:
+        self.assertFalse((REPO_ROOT / "apps/ingestion-worker").exists())
 
-        self.assertEqual(modules, ALLOWED_WORKER_MODULES)
+    def test_legacy_python_ingestion_core_package_is_removed(self) -> None:
+        self.assertFalse(INGESTION_CORE_PACKAGE_ROOT.exists())
 
-    def test_ingestion_worker_package_exports_only_adapter_island_symbols(self) -> None:
-        package_init = (WORKER_MODULE_ROOT / "__init__.py").read_text(encoding="utf-8")
-
-        self.assertNotIn("_EXPORTS", package_init)
-        self.assertNotIn("__getattr__", package_init)
-        self.assertNotIn("_main", package_init)
-        self.assertNotIn(
-            "normalize_authenticated_notice_legacy_office_attachment import", package_init
+    def test_legacy_office_conversion_service_is_removed(self) -> None:
+        self.assertFalse((REPO_ROOT / "apps/legacy-office-conversion-service").exists())
+        self.assertFalse(
+            (REPO_ROOT / "infra/local/docker-compose.legacy-office-conversion.yml").exists()
         )
 
-    def test_ingestion_worker_package_and_image_do_not_carry_old_runtime_dependencies(
-        self,
-    ) -> None:
-        pyproject = (REPO_ROOT / "apps/ingestion-worker/pyproject.toml").read_text(encoding="utf-8")
-        dockerfile = (REPO_ROOT / "apps/ingestion-worker/Dockerfile").read_text(encoding="utf-8")
+    def test_app_api_is_not_a_python_workspace_package(self) -> None:
+        app_api_root = REPO_ROOT / "apps/app-api"
+        workspace_config = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-        for text in (pyproject, dockerfile):
-            self.assertNotIn("campus-ingestion-contracts", text)
-            self.assertNotIn("packages/ingestion-contracts", text)
-            self.assertNotIn("packages/retrieval-core", text)
-            self.assertNotIn("configs/ingestion", text)
-            self.assertNotIn("COPY scripts", text)
-
-    def test_ingestion_core_no_longer_contains_python_release_index_or_ops_runtime(self) -> None:
-        offenders = sorted(
-            file_name
-            for file_name in REMOVED_INGESTION_CORE_RUNTIME_FILES
-            if (INGESTION_CORE_ROOT / file_name).exists()
-        )
-
-        self.assertEqual(offenders, [])
+        self.assertFalse((app_api_root / "pyproject.toml").exists())
+        self.assertFalse((app_api_root / "src/campus_app_api").exists())
+        self.assertNotIn('"apps/app-api"', workspace_config)
 
     def test_python_online_rag_packages_are_removed_from_active_source(self) -> None:
         offenders = [
@@ -306,23 +192,64 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-    def test_ingestion_core_package_root_does_not_export_legacy_lifecycle_facades(self) -> None:
-        package_init = (INGESTION_CORE_ROOT / "__init__.py").read_text(encoding="utf-8")
+    def test_ingestion_configs_do_not_keep_deleted_non_executable_collections(self) -> None:
+        path_offenders = [
+            str(path)
+            for path in sorted(REMOVED_INGESTION_CONFIG_COLLECTIONS)
+            if (REPO_ROOT / path).exists()
+        ]
+
+        text_offenders: list[str] = []
+        for root in (REPO_ROOT / "configs/ingestion", REPO_ROOT / "configs/sources"):
+            if not root.exists():
+                continue
+            for path in sorted(root.rglob("*")):
+                if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for term in sorted(REMOVED_INGESTION_CONFIG_SCOPE_TOKENS):
+                    if term in text:
+                        text_offenders.append(f"{path.relative_to(REPO_ROOT)}: {term}")
+
+        self.assertEqual(path_offenders, [])
+        self.assertEqual(text_offenders, [])
+
+    def test_ingestion_does_not_keep_test_only_python_residue(self) -> None:
+        removed_files = (
+            (REPO_ROOT / "tests/ingestion", REMOVED_TEST_ONLY_INGESTION_CORE_PYTHON_TESTS),
+        )
         offenders = [
-            exported_name
-            for exported_name in sorted(REMOVED_PUBLIC_INGESTION_CORE_EXPORTS)
-            if f'"{exported_name}"' in package_init
-            or f" {exported_name}," in package_init
-            or f"    {exported_name}," in package_init
+            str((root / file_name).relative_to(REPO_ROOT))
+            for root, file_names in removed_files
+            for file_name in sorted(file_names)
+            if (root / file_name).exists()
         ]
 
         self.assertEqual(offenders, [])
 
-    def test_active_tree_does_not_reference_removed_ingestion_core_runtime_modules(self) -> None:
-        removed_modules = {
-            f"campus_ingestion_core.{Path(file_name).stem}"
-            for file_name in REMOVED_INGESTION_CORE_RUNTIME_FILES
-        }
+    def test_python_test_support_does_not_keep_retired_attachment_fetch_status_store(
+        self,
+    ) -> None:
+        notice_stores = (REPO_ROOT / "tests/support/notice_stores.py").read_text(encoding="utf-8")
+
+        self.assertNotIn(
+            "InMemoryAuthenticatedNoticeAttachmentFetchStatusStore",
+            notice_stores,
+        )
+        self.assertNotIn(
+            "AuthenticatedNoticeAttachmentFetchStatusRecord",
+            notice_stores,
+        )
+        self.assertNotIn(
+            "InMemoryAuthenticatedNoticeSourceTruthInventoryStore",
+            notice_stores,
+        )
+        self.assertNotIn(
+            "InMemoryInternalNoticeReadModelStore",
+            notice_stores,
+        )
+
+    def test_active_tree_does_not_reference_removed_ingestion_core_package(self) -> None:
         pattern = re.compile(r"campus_ingestion_core\.[a-zA-Z0-9_]+")
         offenders: list[str] = []
         for root in ACTIVE_REFERENCE_ROOTS:
@@ -332,17 +259,25 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
                 if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
                     continue
                 relative_path = path.relative_to(REPO_ROOT)
-                if relative_path in REFERENCE_ALLOWLIST or "archive" in relative_path.parts:
+                if (
+                    relative_path in REFERENCE_ALLOWLIST
+                    or "archive" in relative_path.parts
+                    or any(
+                        relative_path.parts[: len(prefix)] == prefix
+                        for prefix in REFERENCE_ALLOWLIST_PREFIXES
+                    )
+                ):
                     continue
                 text = path.read_text(encoding="utf-8")
                 for match in sorted(set(pattern.findall(text))):
-                    if match in removed_modules:
-                        offenders.append(f"{relative_path}: {match}")
+                    offenders.append(f"{relative_path}: {match}")
+                if "packages/ingestion-core" in text:
+                    offenders.append(f"{relative_path}: packages/ingestion-core")
 
         self.assertEqual(offenders, [])
 
     def test_default_task_registries_do_not_use_python_adapters(self) -> None:
-        registry_paths = sorted((REPO_ROOT / "configs/ingestion").glob("**/task-registry.v1.json"))
+        registry_paths = sorted((REPO_ROOT / "configs/ingestion").glob("**/task-registry.v2.json"))
         self.assertTrue(registry_paths, "expected default task registries to exist")
 
         offenders: list[str] = []
@@ -359,122 +294,36 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
     def test_wechat_public_notice_registry_declares_real_source_truth_materializer(self) -> None:
         registry_path = (
             REPO_ROOT
-            / "configs/ingestion/campus_notices/wechat_public_notice/task-registry.v1.json"
+            / "configs/ingestion/campus_notices/wechat_public_notice/task-registry.v2.json"
         )
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
         self.assertEqual(registry["source_family"], "wechat_public_notice")
         self.assertEqual(registry["corpus"], "campus_notices")
         self.assertEqual(registry["collection"], "wechat_public_notice")
-        self.assertIn(
-            {
-                "task_kind": "source_truth_materialize",
-                "executor_kind": "ts_control",
-                "input_contract": "wechat_official_account_capture_release.v1",
-                "output_contract": "wechat_official_account_source_truth.v1",
-                "can_publish_alias": False,
-            },
+        expected = {
+            "task_kind": "source_truth_materialize",
+            "executor_kind": "ts_control",
+            "input_contract": "wechat_official_account_capture_release.v1",
+            "output_contract": "wechat_official_account_source_truth.v1",
+            "registry_task_id": "source_truth_materialize",
+        }
+        self.assertTrue(
+            any(
+                all(task.get(key) == value for key, value in expected.items())
+                for task in registry["tasks"]
+            ),
             registry["tasks"],
         )
 
-    def test_ingestion_control_runtime_wires_wechat_public_notice_materializer(self) -> None:
-        runtime_text = (REPO_ROOT / "apps/ingestion-control/src/runtime.ts").read_text(
+    def test_ingestion_control_temporal_worker_wires_wechat_public_notice_materializer(
+        self,
+    ) -> None:
+        runtime_text = (REPO_ROOT / "apps/ingestion-control/src/temporal-worker.ts").read_text(
             encoding="utf-8"
         )
 
         self.assertIn("wechatOfficialAccountObjectStore: objectStore", runtime_text)
-
-    def test_app_api_uses_shared_ingestion_task_contracts_without_handwritten_dto(
-        self,
-    ) -> None:
-        text = (REPO_ROOT / "apps/app-api/src/modules/integration/ingestion-control.ts").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertIn('from "ingestion-contracts"', text)
-        self.assertNotIn("interface IngestionArtifactRef", text)
-        self.assertNotIn("interface IngestionTaskEnvelope", text)
-
-    def test_wechat_collector_no_longer_documents_app_api_as_ingestion_handoff(
-        self,
-    ) -> None:
-        text = (REPO_ROOT / "apps/wechat-official-account-collector/README.md").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertNotIn("Optional app-api handoff", text)
-        self.assertIn("Optional ingestion-control admission", text)
-
-    def test_authenticated_notice_auth_bootstrap_uses_crawlee_runner_boundary(self) -> None:
-        for relative_path in (
-            Path("apps/authenticated-notice-collector/src/auth-save.ts"),
-            Path("apps/authenticated-notice-collector/src/portal.ts"),
-        ):
-            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
-            self.assertNotIn("chromium", text, str(relative_path))
-            self.assertNotIn("launch(", text, str(relative_path))
-
-        runner_text = (
-            REPO_ROOT / "apps/authenticated-notice-collector/src/auth-crawlee-runner.ts"
-        ).read_text(encoding="utf-8")
-        self.assertIn("PlaywrightCrawler", runner_text)
-
-    def test_active_task_contracts_do_not_admit_unwired_task_kinds(self) -> None:
-        contract_files = [
-            REPO_ROOT / "packages/ingestion-contracts/src/index.ts",
-            REPO_ROOT / "packages/ingestion-contracts/src/campus_ingestion_contracts/__init__.py",
-            REPO_ROOT
-            / "packages/ingestion-contracts/schemas/ingestion-task-envelope.v1.schema.json",
-            REPO_ROOT
-            / "packages/ingestion-contracts/schemas/ingestion-task-registry.v1.schema.json",
-            REPO_ROOT / "apps/ingestion-control/src/types.ts",
-            REPO_ROOT / "apps/ingestion-control/src/postgres-store.ts",
-        ]
-        offenders: list[str] = []
-        for path in contract_files:
-            text = path.read_text(encoding="utf-8")
-            for task_kind in sorted(REMOVED_ACTIVE_INGESTION_TASK_KINDS):
-                if f'"{task_kind}"' in text:
-                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{task_kind}")
-
-        self.assertEqual(offenders, [])
-
-    def test_active_tree_does_not_reference_official_web_handoff_receiver(self) -> None:
-        offenders: list[str] = []
-        for root in ACTIVE_REFERENCE_ROOTS:
-            if not root.exists():
-                continue
-            for path in root.rglob("*"):
-                if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
-                    continue
-                relative_path = path.relative_to(REPO_ROOT)
-                if relative_path in REFERENCE_ALLOWLIST or "archive" in relative_path.parts:
-                    continue
-                text = path.read_text(encoding="utf-8")
-                for term in sorted(REMOVED_OFFICIAL_WEB_HANDOFF_TERMS):
-                    if term in text:
-                        offenders.append(f"{relative_path}: {term}")
-
-        self.assertEqual(offenders, [])
-
-    def test_active_tree_does_not_reference_legacy_worker_modules(self) -> None:
-        offenders: list[str] = []
-        pattern = re.compile(r"campus_ingestion_worker\.[a-zA-Z0-9_]+")
-        for root in ACTIVE_REFERENCE_ROOTS:
-            if not root.exists():
-                continue
-            for path in root.rglob("*"):
-                if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
-                    continue
-                relative_path = path.relative_to(REPO_ROOT)
-                if relative_path in REFERENCE_ALLOWLIST or "archive" in relative_path.parts:
-                    continue
-                text = path.read_text(encoding="utf-8")
-                for match in sorted(set(pattern.findall(text))):
-                    if match not in ALLOWED_ACTIVE_MODULE_REFS:
-                        offenders.append(f"{relative_path}: {match}")
-
-        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":

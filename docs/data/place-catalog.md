@@ -28,10 +28,8 @@ updated: 2026-04-14
 
 ## 当前 Artifact 位置
 
-- seed：`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`
-- runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-pro
-  file.json`
-- current consumption owner：未开放；旧 Python `packages/navigation-tool` 已退役
+- seed：`configs/reference-data/campus_navigation/place_catalog/seed.v1.json`
+- consumption owner：`packages/navigation-tool`
 - authoritative source inventory：private source/data boundary；公开 repo 只保留
   admission rule 与 synthetic fixture
 
@@ -170,15 +168,10 @@ updated: 2026-04-14
 - route polyline / route segment
 - browser geolocation raw track
 
-## Runtime Profile Posture
+## Runtime Posture
 
-当前 `runtime-profile.json` 固定为：
-
-- `corpus = campus_navigation`
-- `collection = place_catalog`
-- `serving_mode = offline_preparation`
-- `retrieval_enabled = false`
-- `query_enabled_by_default = false`
+当前 `place_catalog` 是 reference-data seed，不是 `configs/ingestion`
+collection，也没有 `runtime-profile.json`。
 
 直接含义：
 

@@ -453,4 +453,4 @@ Requirements:
 - `docs/architecture/system/langfuse.md`
 - `docs/architecture/system/learning-loop.md`
 - `docs/architecture/system/prompt.md`
-- `docs/decisions/adr-0068-raw-replay-capture.md`
+- `docs/decisions/adr-0069-raw-replay-capture.md`

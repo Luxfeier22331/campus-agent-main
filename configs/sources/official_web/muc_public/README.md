@@ -3,8 +3,8 @@
 This directory freezes the public-web source config for the `muc_public` site.
 
 It defines source reachability, scheduler lanes, QC policy and target-first
-consumer admission inputs. It does not open `fresh_news`, `news_archive`, or any
-college-specific query-serving surface.
+consumer admission inputs. It does not open `fresh_news`, a future
+historical-news/archive surface, or any college-specific query-serving surface.
 
 ## Config Files
 

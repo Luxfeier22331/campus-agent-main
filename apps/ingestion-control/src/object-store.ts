@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
-
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { type ObjectStore, sha256Hex } from "ingest-core";
 
-import type { IngestionObjectStore } from "./authenticated-notice-materialize";
+export type IngestionObjectStore = ObjectStore;
 
 export interface IngestionObjectStoreEnvironment {
 	OBJECT_STORE_BUCKET_SOURCE?: string;
@@ -84,7 +83,7 @@ class S3IngestionObjectStore implements IngestionObjectStore {
 		contentType: string;
 	}): Promise<{ byteSize: number; contentSha256: string }> {
 		this.requireBucket(input.bucket);
-		const contentSha256 = createHash("sha256").update(input.body).digest("hex");
+		const contentSha256 = sha256Hex(input.body);
 		await this.client.send(
 			new PutObjectCommand({
 				Bucket: input.bucket,

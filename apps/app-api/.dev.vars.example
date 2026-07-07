@@ -33,18 +33,12 @@ APP_API_OPERATOR_SERVICE_ID_ALLOWLIST=
 # access. The repo no longer generates local runtime secrets.
 APP_API_INTERNAL_SHARED_SECRET=
 APP_API_DATABASE_SSLMODE=prefer
-# Required for live `official_web` control-plane smoke. This must match
-# `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.
-APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
 # Required for live `wechat_official_account` capture control-plane smoke. This
-# must match `apps/wechat-official-account-collector/.env`
+# must match `apps/source-collector/adapters/wechat-official-account/.env`
 # `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.
 APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN=
-# Optional. Enables official_web terminal projection to admit tasks into
-# ingestion-control. Set OBJECT_STORE_BUCKET_SOURCE to the same source bucket
-# used by the collector when this is enabled.
+# Optional. Enables operator task projection reads from ingestion-control.
 INGESTION_CONTROL_BASE_URL=
-OBJECT_STORE_BUCKET_SOURCE=campus-agent-source
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local

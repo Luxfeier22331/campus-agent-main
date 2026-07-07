@@ -28,13 +28,12 @@ This inventory is a working-tree fact report. The governing policy is
 | Area | Files | Size | Risk |
 | --- | ---: | ---: | --- |
 | `apps/campus-web/public` | 10 | 48 KB | low |
-| `apps/official-web-collector/test/fixtures/pages` | 20 | 32 KB | low |
+| `apps/source-collector/adapters/official-web/test/assertions/pages` | 20 | 32 KB | low |
 | `apps/campus-web/test/fixtures` | 3 | 20 KB | low |
 | `configs/ingestion` | 111 | 1.1 MB | medium |
 | `configs/sources` | 19 | 116 KB | low |
 | `tests/fixtures` | 1 | 635 B | low |
 | `packages/contracts/fixtures` | 31 | 27 KB | low |
-| `packages/ingestion-core/testdata` | 4 | 40 KB | low |
 | `packages/eval-langfuse/fixtures` | 4 | 9 KB | low |
 | `docs/reference/eval` | 2 | 7 KB | low |
 
@@ -76,7 +75,7 @@ Action:
 
 Paths:
 
-- `apps/official-web-collector/test/fixtures/pages/*.html`
+- `apps/source-collector/adapters/official-web/test/assertions/pages/*.html`
 
 Assessment:
 
@@ -181,15 +180,14 @@ Paths:
 
 - `tests/fixtures/**`
 - `packages/contracts/fixtures/**`
-- `packages/ingestion-core/testdata/**`
 - `packages/eval-langfuse/fixtures/**`
 - `docs/reference/eval/*.json`
 
 Assessment:
 
 - Repo-tracked public fixtures under `tests/fixtures/**`,
-  `packages/contracts/fixtures/**`, `packages/ingestion-core/testdata/**`,
-  `apps/campus-web/test/fixtures/**` and `packages/eval-langfuse/fixtures/**`
+  `packages/contracts/fixtures/**`, `apps/campus-web/test/fixtures/**` and
+  `packages/eval-langfuse/fixtures/**`
   now use synthetic examples for schema, parser, projection, qrels and
   dataset-manifest smoke coverage.
 - Real curriculum, handbook, institutional-rules and official-web qrels /

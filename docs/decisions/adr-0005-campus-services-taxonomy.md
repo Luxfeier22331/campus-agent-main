@@ -71,7 +71,9 @@ new serving design and owner contract instead of reopening this ADR directly.
 
 - `configs/ingestion/regulations/student_rules/split-manifest.v1.json` 移除
   `示例大学校内常用电话`
-- handbook cleanup 中的电话表结构化逻辑保留，作为未来 `contact_directory` 派生处理的实现基础
+- 旧 Python handbook cleanup 电话表结构化逻辑不保留；未来
+  `contact_directory` 派生处理必须作为 TS handler / Rust kernel 或明确 source
+  adapter 重新设计，不从 Python cleanup 旧链路恢复
 - `student_rules` 继续表示规章导向的 handbook 逻辑文档集合，而不是整本手册中所有页面的无差别投影
 - handbook 到 `campus_services` 的 projection 选择器不再要求保留旧 `regulations`
   document_id； 对已从 split manifest 移出的页段，应由 source-truth selector `source_title +

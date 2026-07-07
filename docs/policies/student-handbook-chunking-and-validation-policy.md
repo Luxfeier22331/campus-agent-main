@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: domains/regulations
 status: active
 created: 2026-03-25
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 # `student_rules` Chunking 与 Validation 规则
 
@@ -50,9 +50,12 @@ status。
 - tokenizer repo: `Qwen/Qwen3-Embedding-4B`
 - 运行时只允许使用本地已预取 tokenizer
 - 主链路默认离线，不允许在 chunking 或 validation 过程中隐式联网下载 tokenizer
-- 当前实现读取本地 snapshot 中的 `tokenizer.json`，通过 Hugging Face `tokenizers`
-  执行 `add_special_tokens=false` 的计数；不得重新引入 Python `transformers`
-  runtime 或 regex fallback 作为 handbook v3 预算真相。
+- 当前执行 owner 不在 Python。collection profile 由 TS
+  `packages/ingest-core` 解析，`document_units_validate` / `chunk_prepare` 由
+  `apps/ingestion-control` 调用 Rust kernel 执行。若 kernel 使用
+  `tokenizer.json`，只能通过本地 Hugging Face `tokenizers` 执行离线计数；不得重新引入
+  Python `transformers` runtime、Python tokenizer cache、semantic chunker 或 regex
+  fallback 作为 handbook v3 预算真相。
 
 额外约束：
 
@@ -90,19 +93,26 @@ status。
 
 ## 当前运行真相
 
-当前稳定输入链路：
+当前稳定输入链路语义：
 
-`provider-response.jsonl -> layout-elements.jsonl -> split-manifest ->
+`source truth / layout-elements -> handbook cleanup manifest ->
 canonical.md / document-units.jsonl -> chunks`
 
 chunking 只消费单篇逻辑文档的 `document-units.jsonl`，不直接消费 provider payload、raw PDF 或整本
 handbook markdown。
 
+当前 active workspace 不保留 Python handbook cleanup materializer。`handbook cleanup
+manifest` 只表示逻辑文档边界与授权投影的窄 helper；canonical.md /
+document-units.jsonl 的生成重新进入运行时前，必须作为 TS handler 或 Rust kernel bridge
+落地到 `apps/ingestion-control`，不能恢复 Python `handbook_cleanup*` 物化模块。
+
 Source-level normalization 固定为：
 
 - raw PDF / provider response 只作为 upstream replay/provenance 输入
 - `layout-elements.jsonl` 是 provider-agnostic layout truth
-- `split-manifest` 冻结从同一 source asset 到多篇逻辑 handbook document 的边界
+- handbook cleanup manifest 冻结从同一 source asset 到多篇逻辑 handbook document 的边界；
+  Python 侧只保留 `handbook_cleanup_manifest` 窄 helper，不拥有通用
+  split-manifest runtime、canonical markdown 生成或 document-units 生成
 - `document_id`、`version_id` 与 canonical metadata 在逻辑文档层生成
 - downstream rebuild 默认从 source truth、canonical document artifact 或
   `document-units` 继续，不把 provider payload 重新提升为 canonical rebuild owner
@@ -480,12 +490,14 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - 本文
 - `configs/ingestion/regulations/student_rules/chunk-profile.json`
-- 对应 validation / processing tests
+- 对应 Rust kernel、TS parser / bridge 和 retrieval quality gate 测试
 
 ## 相关真相源
 
 - [configs/ingestion/regulations/student_rules/runtime-profile.json](../../configs/ingestion/regulations/student_rules/runtime-profile.json)
 - [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
-- [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages/ingestion-core/src/campus_ingestion_core/chunking.py)
-- [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/ingestion-core/src/campus_ingestion_core/process.py)
-- [packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py](../../packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py)
+- [configs/ingestion/regulations/student_rules/task-registry.v2.json](../../configs/ingestion/regulations/student_rules/task-registry.v2.json)
+- [packages/ingest-core/src/collection-profiles.ts](../../packages/ingest-core/src/collection-profiles.ts)
+- [packages/ingest-core/src/kernel-artifacts.ts](../../packages/ingest-core/src/kernel-artifacts.ts)
+- [packages/ingestion-kernels-rs/src/lib.rs](../../packages/ingestion-kernels-rs/src/lib.rs)
+- [apps/ingestion-control/src/rust-kernel-runner.ts](../../apps/ingestion-control/src/rust-kernel-runner.ts)

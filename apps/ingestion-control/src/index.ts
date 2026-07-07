@@ -1,25 +1,16 @@
 export {
-	createAuthenticatedNoticeTsTaskHandlerRegistry,
-	type IngestionObjectStore,
-} from "./authenticated-notice-materialize";
-export { createDefaultTsTaskHandlerRegistry } from "./default-handlers";
-export {
-	buildIngestionExecutorRuntimeConfig,
-	type IngestionExecutorIterationInput,
-	type IngestionExecutorIterationResult,
-	type IngestionExecutorLoopInput,
-	type IngestionExecutorRuntimeConfig,
-	runIngestionExecutorIteration,
-	runIngestionExecutorLoop,
-} from "./executor-runtime";
+	createIngestionTaskActivities,
+	type ExecuteIngestionTaskResult,
+	type IngestionTaskActivities,
+} from "./activities";
 export { createIngestionControlHandler, type IngestionControlHandler } from "./http";
 export { InMemoryIngestionTaskStore } from "./in-memory-store";
 export {
 	createS3IngestionObjectStore,
 	createS3IngestionObjectStoreFromEnv,
+	type IngestionObjectStore,
 	type IngestionObjectStoreEnvironment,
 } from "./object-store";
-export { createOfficialWebSourceTruthMaterializeHandler } from "./official-web-materialize";
 export {
 	createPostgresIngestionTaskStore,
 	ensureIngestionControlPostgresSchema,
@@ -35,15 +26,18 @@ export {
 	type RustKernelCommandRunner,
 } from "./rust-kernel-runner";
 export {
-	type ClaimedTaskRunResult,
+	ingestionTaskExecutionErrorCode,
+	ingestionTaskExecutionErrorMessage,
+	RegistryTaskContractMismatchError,
 	RegistryTaskNotDeclaredError,
 	type RustKernelHandler,
 	RustKernelIdMissingError,
 	RustKernelNotRegisteredError,
 	RustKernelRegistry,
-	runClaimedRegistryTask,
-	runRegistryTaskOnce,
+	runDeclaredIngestionTask,
+	TaskInputRefNotObjectStoreError,
 	type TsTaskHandler,
+	type TsTaskHandlerIdentity,
 	TsTaskHandlerNotRegisteredError,
 	TsTaskHandlerRegistry,
 	type TsTaskHandlerResult,
@@ -51,13 +45,29 @@ export {
 export {
 	createIngestionTaskRegistryCatalog,
 	IngestionTaskRegistryCatalog,
+	listCollectionChunkProfileFiles,
 	listIngestionTaskRegistryFiles,
+	loadCollectionChunkProfilesFromRoot,
 	loadIngestionTaskRegistryCatalogFromRoot,
 	loadIngestionTaskRegistryFromFile,
 	RegistryAdmissionError,
 } from "./task-registry";
+export {
+	type ClosableIngestionWorkflowStarter,
+	createTemporalIngestionWorkflowStarter,
+	type IngestionWorkflowStarter,
+	type IngestionWorkflowStartResult,
+} from "./temporal-client";
+export {
+	buildIngestionTemporalConfig,
+	DEFAULT_INGESTION_CONTROL_ACTIVITY_TASK_QUEUE,
+	DEFAULT_INGESTION_WORKFLOW_TASK_QUEUE,
+	type IngestionTemporalConfig,
+} from "./temporal-config";
 export type {
 	IngestionArtifactRef,
+	IngestionExecutorKind,
+	IngestionTaskAdmissionResult,
 	IngestionTaskCloseout,
 	IngestionTaskEnvelope,
 	IngestionTaskOperatorProjection,
@@ -66,7 +76,6 @@ export type {
 	IngestionTaskRecord,
 	IngestionTaskRegistry,
 	IngestionTaskRegistryTask,
-	IngestionTaskStatus,
 	IngestionTaskStore,
+	IngestionWorkflowStatus,
 } from "./types";
-export { createWeChatOfficialAccountSourceTruthMaterializeHandler } from "./wechat-official-account-materialize";

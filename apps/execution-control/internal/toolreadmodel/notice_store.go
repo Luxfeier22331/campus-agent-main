@@ -87,7 +87,7 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 		params = append(params, normalizedTargetSurfaces)
 		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
 	}
-	filters = append(filters, noticeTemporalSQLFilters(&params, criteria.TemporalQuery, criteria.DateRange)...)
+	filters = append(filters, noticeTemporalSQLFilters(&params, criteria.TemporalQuery)...)
 	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	if normalizedQuery != "" {
 		params = append(
@@ -113,34 +113,6 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 		strings.Join(filters, " and "),
 		noticeReadModelOrderSQL(true),
 		len(params),
-	)
-	return s.fetchRecords(ctx, query, params...)
-}
-
-func (s *PostgresNoticeReadModelStore) GetNoticesByIDs(
-	ctx context.Context,
-	criteria noticeIDsCriteria,
-) ([]noticeReadModelRecord, error) {
-	if s == nil || s.pool == nil {
-		return nil, errors.New("notice read model store is not configured")
-	}
-	noticeIDs := normalizeTransportScopeStrings(criteria.NoticeIDs)
-	if len(noticeIDs) == 0 {
-		return nil, nil
-	}
-	params := []any{noticeIDs, criteria.SourceFamilies}
-	filters := []string{"queryable = true", "source_notice_id = any($1)", "source_family = any($2)"}
-	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(criteria.TargetSurfaces)
-	if len(normalizedTargetSurfaces) > 0 {
-		params = append(params, normalizedTargetSurfaces)
-		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
-	}
-	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
-	query := fmt.Sprintf(
-		"select record from %s where %s order by %s",
-		s.tableSQL,
-		strings.Join(filters, " and "),
-		noticeReadModelOrderSQL(true),
 	)
 	return s.fetchRecords(ctx, query, params...)
 }
@@ -190,26 +162,8 @@ func noticeReadModelOrderSQL(includeSourceNoticeID bool) string {
 func noticeTemporalSQLFilters(
 	params *[]any,
 	temporalQuery temporalQuery,
-	dateRange noticeDateRange,
 ) []string {
 	filters := []string{}
-	if strings.TrimSpace(dateRange.StartDate) != "" || strings.TrimSpace(dateRange.EndDate) != "" {
-		if strings.TrimSpace(dateRange.StartDate) == "" || strings.TrimSpace(dateRange.EndDate) == "" {
-			return append(filters, "false")
-		}
-		*params = append(*params, strings.TrimSpace(dateRange.StartDate))
-		startParam := len(*params)
-		*params = append(*params, strings.TrimSpace(dateRange.EndDate))
-		endParam := len(*params)
-		filters = append(
-			filters,
-			fmt.Sprintf(
-				"published_at_ts::date >= $%d::date and published_at_ts::date <= $%d::date",
-				startParam,
-				endParam,
-			),
-		)
-	}
 	if strings.TrimSpace(temporalQuery.YearHint) != "" {
 		*params = append(*params, strings.TrimSpace(temporalQuery.YearHint))
 		yearParam := len(*params)

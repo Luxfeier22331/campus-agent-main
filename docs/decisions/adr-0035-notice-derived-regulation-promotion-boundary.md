@@ -5,13 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0035
 status: accepted
 created: 2026-04-10
-updated: 2026-05-01
+updated: 2026-07-04
 ---
 # ADR-0035 Notice-Derived Regulation Promotion Boundary
 
 ## 状态
 
 Accepted on 2026-04-10.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 internal notice 到 regulation
+semantic-owner collection 的 promotion boundary。
 
 ## 背景
 

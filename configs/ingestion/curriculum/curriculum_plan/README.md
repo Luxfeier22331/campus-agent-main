@@ -76,10 +76,16 @@ Notes:
   `document-units.jsonl`, dropping those structural fields in split projection
   is a contract violation, not an acceptable simplification.
 - accepted curriculum runtime chunking is loaded from `runtime-profile.json`
-  plus `build_curriculum_chunk_profile(...)`, not from handbook defaults; the
-  current frozen runtime is `curriculum_plan_semantic_v2` /
-  `curriculum_plan_structure_v2`, keeping `360/540/72/50` for `section_text` and
-  applying `420/640/72/64` to `table_unit`.
+  plus this `chunk-profile.json` through TS
+  `parseCollectionChunkProfile(...)`, not from handbook defaults or Python
+  profile helpers; the current frozen runtime is `curriculum_plan_semantic_v2`
+  / `curriculum_plan_structure_v2`, keeping `360/540/72/50` for `section_text`
+  and applying `420/640/72/64` to `table_unit`.
+- curriculum document-units generation, validation and chunk preparation are
+  not owned by Python `curriculum_chunk_units*` or
+  `curriculum_document_units*` modules. Runtime execution must enter through
+  `apps/ingestion-control` with TS profile parsing and Rust kernel validation /
+  chunk preparation.
 - current accepted runtime covers section/table reconstruction, caption/note
   grouping, source-truth-derived anchors, and profile-driven serving for
   `curriculum_plan`. Broader `campus_services` taxonomy questions still stay

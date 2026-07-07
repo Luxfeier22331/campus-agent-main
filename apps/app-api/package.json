@@ -21,7 +21,6 @@
 		"test:node": "vitest run -c vitest.node.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.shared-db.config.mts",
-		"test:official-web-shared-db-integration": "RUN_APP_API_OFFICIAL_WEB_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.official-web-shared-db.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -35,7 +34,6 @@
 		"fast-xml-parser": "^5.9.3",
 		"hono": "^4.12.27",
 		"ingestion-contracts": "file:../../packages/ingestion-contracts",
-		"official-web-core": "file:../../packages/official-web-core",
 		"pg": "^8.22.0",
 		"zod": "^4.4.3"
 	},

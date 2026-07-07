@@ -36,7 +36,7 @@ owner-boundary 映射。
 - `adr-0003-golden-dataset-governance.md`
 - `adr-0004-evaluation-metrics.md`
 - `adr-0010-observability-and-telemetry-stack.md`
-- `adr-0063-ops-index-external-sinks.md`
+- `adr-0067-ops-index-external-sinks.md`
   - Operator Console 在线值班观测收口为 app-api 最小 Ops Index + Sentry /
     Axiom / Langfuse 外部 sink；supersedes `adr-0023` 的 broad
     audit/quality/safety/cost read-model 方向。
@@ -46,7 +46,7 @@ owner-boundary 映射。
 - `adr-0062-ragas-langfuse.md`
   - Ragas 与 Langfuse 按官方协作形态收口：Langfuse traces / datasets 经
     repo-owned safe projection 进入 Ragas，再将 scores 写回 Langfuse。
-- `adr-0068-raw-replay-capture.md`
+- `adr-0069-raw-replay-capture.md`
   - 安全投影继续 raw-free；诊断与 eval 所需 raw / near-raw LLM I/O 只能进入
     `raw_capture_policy.v1` 准入的受控 replay / debug 数据面。
 
@@ -59,12 +59,6 @@ owner-boundary 映射。
 - `adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
-- `adr-0043-docker-runtime.md`
-  - superseded by `adr-0056-k8s-keda.md` for production
-    execution-control deployment substrate; still useful as current Docker Compose
-    / local / transitional staging history
-- `adr-0047-run-centric-durable-agent-runtime.md`
-  - superseded by `adr-0048-temporal.md` for target execution substrate
 - `adr-0048-temporal.md`
 - `adr-0056-k8s-keda.md`
 - `adr-0064-runtime-config-governance.md`
@@ -97,24 +91,59 @@ owner-boundary 映射。
 
 - `adr-0015-user-identity-memory-and-personalization-boundaries.md`
   - memory ownership / online recall 部分由
-    `adr-0053-qdrant-native-personal-memory-index.md` supersede；account / session、
+    `adr-0058-hindsight-self-hosted-personal-memory-plane.md` supersede；account / session、
     raw state 与 memory boundary 继续生效。
 - `adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
-  - superseded by `adr-0063-ops-index-external-sinks.md` for operator
+  - superseded by `adr-0067-ops-index-external-sinks.md` for operator
     observability shape; preserved as historical context.
 - `adr-0055-unified-operator-console-surface.md`
 
-Historical / superseded：
+## Historical / superseded chains
+
+### Restricted Authz Historical Chain
 
 - `adr-0022-campus-identity-and-restricted-document-authorization.md`
   - superseded；restricted documents 与身份差异化 tool 权限不是当前主问答目标。
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
   - superseded；受限文档 authorization projection 不是当前主问答 retrieval 目标。
+- `adr-0041-authenticated-document-center-and-regulation-layer-split.md`
+  - superseded；authenticated document center / restricted attachment library
+    不是当前产品面，仅保留 semantic collection 与 source/original artifact 分层历史。
+
+### Operator / Ops Historical Chain
+
 - `adr-0049-campus-ops-control-plane.md`
   - partially superseded by `adr-0055-unified-operator-console-surface.md` for the
     separate long-term `operator-console-web` product surface; dining release lifecycle
     and domain boundary clauses continue to apply.
+
+### Authenticated Notice Closeout Historical Chain
+
+- `adr-0025-authenticated-notice-async-staged-closeout.md`
+  - superseded；historical authenticated notice closeout runner / operations prefix
+    design，不再定义当前 notice ingestion mainline。
+- `adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+  - superseded；historical batch-leased closeout executor design，不再定义当前
+    ingestion-control task lifecycle。
+
+### Execution Runtime Historical Chain
+
+- `adr-0043-docker-runtime.md`
+  - superseded by `adr-0056-k8s-keda.md` for production execution-control
+    deployment substrate; retained only as Docker Compose / local / transitional
+    staging history.
+- `adr-0047-run-centric-durable-agent-runtime.md`
+  - superseded by `adr-0048-temporal.md` for target execution substrate; retained
+    for PG-backed run / step / event projection history.
+
+### Memory Substrate Historical Chain
+
+- `adr-0053-qdrant-native-personal-memory-index.md`
+  - superseded by `adr-0057-zep-native-personal-memory-plane.md`, then by
+    `adr-0058-hindsight-self-hosted-personal-memory-plane.md`。
+- `adr-0057-zep-native-personal-memory-plane.md`
+  - superseded by `adr-0058-hindsight-self-hosted-personal-memory-plane.md`。
 
 ## Retrieval、data plane 与基础设施
 
@@ -123,7 +152,6 @@ Historical / superseded：
 - `adr-0014-versioned-document-serving-and-history-query.md`
 - `adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
-- `adr-0053-qdrant-native-personal-memory-index.md`
 - `adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `adr-0044-structured-projection-release-catalog-and-read-model.md`
 
@@ -141,16 +169,27 @@ Historical / superseded：
 
 ## Official Web 决策
 
-- `adr-0018-app-api-official-web-control-plane-ownership.md`
-- `adr-0067-public-web-search-provider-boundary.md`
+- `adr-0018-app-api-official-web-control-plane-ownership.md` 已被 official-web
+  ingestion-control collector control-plane clean target supersede。
+- `adr-0068-public-web-search-provider-boundary.md`
   - 公开官网搜索是 `public_web_search` typed tool 内部 provider adapter，不新增
     provider-specific model-visible tool，也不把搜索结果写回 official-web source truth。
 
 ## Authenticated Notice / Source Channel 决策
 
 - `adr-0024-authenticated-notice-source-channel.md`
-- `adr-0025-authenticated-notice-async-staged-closeout.md`
-- `adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+  - 继续保留一级 source channel、稳定 `notice` source unit 与 collector /
+    data-plane 分层决策；旧 source channel 名称已由 `adr-0063` 替代。
+- `adr-0063-internal-portal-source-channel-name.md`
+  - canonical source channel 名称从历史 `authenticated_notice_portal` 改为
+    `internal_portal`；旧名只保留在历史 ADR / migration note。
+
+## Ingestion 决策
+
+- `adr-0054-ingestion-control-plane-and-kernel-boundary.md`
+  - ingestion control-plane、task registry、TS handler / Rust kernel / Python
+    adapter 边界继续生效；自研 claim / lease / retry / dead-letter executor 部分已由
+    Temporal workflow / activity execution 替代。
 
 ## Internal Notice / Promotion 决策
 
@@ -161,8 +200,6 @@ Historical / superseded：
 - `adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `adr-0037-unified-scoped-rules-holding-collection.md`
 - `adr-0040-regulation-work-title-and-edition-separation.md`
-- `adr-0041-authenticated-document-center-and-regulation-layer-split.md`
-  - superseded；仅保留 regulation semantic-owner 与 original artifact 分层历史。
 
 ## 维护规则
 

@@ -12,7 +12,7 @@ import {
 const collectorPrincipal: WeChatOfficialAccountCollectorPrincipal = {
 	kind: "service",
 	serviceClass: "wechat_official_account_collector",
-	serviceId: "wechat-official-account-collector",
+	serviceId: "source-collector/wechat-official-account",
 };
 
 function createStoredRun(
@@ -21,7 +21,7 @@ function createStoredRun(
 	return {
 		accountName: "示例大学学生会",
 		accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
-		collectorVersion: "wechat-official-account-collector@0.1.0",
+		collectorVersion: "source-collector@0.1.0",
 		finishedAt: null,
 		lastHeartbeatAt: null,
 		latestHeartbeatSequence: 0,
@@ -68,7 +68,7 @@ describe("wechat official-account command service", () => {
 			payload: {
 				accountName: "示例大学学生会",
 				accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
-				collectorVersion: "wechat-official-account-collector@0.1.0",
+				collectorVersion: "source-collector@0.1.0",
 				provider: "feedwe",
 				providerBaseUrl: "https://feedwe.cloud",
 				requestSummary: {

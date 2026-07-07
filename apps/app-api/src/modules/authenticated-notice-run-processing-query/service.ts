@@ -24,7 +24,7 @@ export interface AuthenticatedNoticeRunProcessingJobSummary {
 export interface AuthenticatedNoticeRunProcessingRecord {
 	attemptCount: number;
 	childTaskSummary: Record<string, unknown>;
-	collectorRunToken: string;
+	sourceRunToken: string;
 	downstream: Record<string, unknown>;
 	enqueueSource: string | null;
 	firstObservedAt: string;
@@ -56,7 +56,7 @@ export interface AuthenticatedNoticeRunProcessingRecord {
 }
 
 export interface AuthenticatedNoticeRunProcessingListFilters {
-	collectorRunToken?: string | null;
+	sourceRunToken?: string | null;
 	cursor?: string | null;
 	limit?: number | null;
 	q?: string | null;
@@ -71,7 +71,7 @@ export interface AuthenticatedNoticeRunProcessingListFilters {
 }
 
 export interface NormalizedAuthenticatedNoticeRunProcessingListFilters {
-	collectorRunToken: string | null;
+	sourceRunToken: string | null;
 	cursor: string | null;
 	limit: number;
 	q: string | null;
@@ -166,7 +166,7 @@ function normalizeFilters(
 	filters: AuthenticatedNoticeRunProcessingListFilters,
 ): NormalizedAuthenticatedNoticeRunProcessingListFilters {
 	return {
-		collectorRunToken: normalizeOptionalString(filters.collectorRunToken),
+		sourceRunToken: normalizeOptionalString(filters.sourceRunToken),
 		cursor: normalizeOptionalString(filters.cursor),
 		limit: normalizeLimit(filters.limit),
 		q: normalizeOptionalString(filters.q),

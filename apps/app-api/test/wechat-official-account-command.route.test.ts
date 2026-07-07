@@ -45,7 +45,7 @@ describe("wechat official-account collector routes", () => {
 				body: JSON.stringify({
 					accountName: "示例大学学生会",
 					accountSlug: "zhong_yang_min_zu_da_xue_xue_sheng_hui",
-					collectorVersion: "wechat-official-account-collector@0.1.0",
+					collectorVersion: "source-collector@0.1.0",
 					provider: "feedwe",
 					providerBaseUrl: "https://feedwe.cloud",
 					requestSummary: {
@@ -74,7 +74,7 @@ describe("wechat official-account collector routes", () => {
 			principal: {
 				kind: "service",
 				serviceClass: "wechat_official_account_collector",
-				serviceId: "wechat-official-account-collector",
+				serviceId: "source-collector/wechat-official-account",
 			},
 		});
 		await expect(response.json()).resolves.toEqual({
@@ -204,7 +204,7 @@ describe("wechat official-account collector routes", () => {
 						recordCount: 1,
 					},
 				],
-				collectorVersion: "wechat-official-account-collector@0.1.0",
+				collectorVersion: "source-collector@0.1.0",
 				finishedAt: "2026-04-27T08:01:00.000Z",
 				lastHeartbeatAt: null,
 				latestHeartbeatSequence: 0,

@@ -82,7 +82,7 @@ describe("official web operator query routes", () => {
 						id: "www_muc_edu_cn",
 						lastFailureAt: null,
 						lastSuccessAt: "2026-03-29T08:17:32.000Z",
-						latestCollectorVersion: "official-web-collector@0.1.0",
+						latestCollectorVersion: "source-collector@0.1.0",
 						latestConfigVersion: "git:abc1234",
 						latestIngestionDispatchStatus: "queued",
 						latestRunId: "owrun_01HQ",
@@ -111,7 +111,7 @@ describe("official web operator query routes", () => {
 					id: "www_muc_edu_cn",
 					lastFailureAt: null,
 					lastSuccessAt: "2026-03-29T08:17:32.000Z",
-					latestCollectorVersion: "official-web-collector@0.1.0",
+					latestCollectorVersion: "source-collector@0.1.0",
 					latestConfigVersion: "git:abc1234",
 					latestIngestionDispatchStatus: "queued",
 					latestRunId: "owrun_01HQ",
@@ -230,7 +230,7 @@ describe("official web operator query routes", () => {
 				recentRuns: [
 					{
 						artifacts: [],
-						collectorVersion: "official-web-collector@0.1.0",
+						collectorVersion: "source-collector@0.1.0",
 						configVersion: "git:abc1234",
 						failureCount: 0,
 						finishedAt: "2026-03-29T08:17:32.000Z",
@@ -255,7 +255,7 @@ describe("official web operator query routes", () => {
 					id: "www_muc_edu_cn",
 					lastFailureAt: null,
 					lastSuccessAt: "2026-03-29T08:17:32.000Z",
-					latestCollectorVersion: "official-web-collector@0.1.0",
+					latestCollectorVersion: "source-collector@0.1.0",
 					latestConfigVersion: "git:abc1234",
 					latestIngestionDispatchStatus: "queued",
 					latestRunId: "owrun_01HQ",
@@ -339,7 +339,7 @@ describe("official web operator query routes", () => {
 				runs: [
 					{
 						artifacts: [],
-						collectorVersion: "official-web-collector@0.1.0",
+						collectorVersion: "source-collector@0.1.0",
 						configVersion: "git:abc1234",
 						failureCount: 0,
 						finishedAt: "2026-03-29T08:17:32.000Z",
@@ -437,7 +437,7 @@ describe("official web operator query routes", () => {
 							recordCount: 1,
 						},
 					],
-					collectorVersion: "official-web-collector@0.1.0",
+					collectorVersion: "source-collector@0.1.0",
 					configVersion: "git:abc1234",
 					failureCount: 0,
 					finishedAt: "2026-03-29T08:17:32.000Z",

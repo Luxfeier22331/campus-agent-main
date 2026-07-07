@@ -94,39 +94,9 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
 		path: "/api/internal/staging-smoke/auth/session",
 		callerClass: "machine-internal",
 		admission: "staging environment plus x-app-staging-smoke-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/official-web/plans:resolve",
-		callerClass: "collector-machine",
-		admission: "official-web collector bearer token",
-	},
-	{
-		method: "POST",
-		path: "/api/official-web/runs",
-		callerClass: "collector-machine",
-		admission: "official-web collector bearer token",
-	},
-	{
-		method: "POST",
-		path: "/api/official-web/runs/:runId/finalize",
-		callerClass: "collector-machine",
-		admission: "official-web collector bearer token",
-	},
-	{
-		method: "POST",
-		path: "/api/official-web/runs/:runId/heartbeats",
-		callerClass: "collector-machine",
-		admission: "official-web collector bearer token",
 	},
 	{
 		method: "POST",

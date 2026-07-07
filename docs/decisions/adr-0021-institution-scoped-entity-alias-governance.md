@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: accepted
 created: 2026-04-02
-updated: 2026-06-15
+updated: 2026-07-05
 decision_id: ADR-0021
 ---
 # ADR-0021：Institution-Scoped Entity Alias Governance
@@ -151,8 +151,10 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 - knowledge tool seam 拥有 alias/entity resolution、ambiguity policy、clarification
   policy 与 answer shaping contract；当前实现不得恢复旧 Python knowledge package
 - retrieval runtime 只消费 canonical entity/filter truth，不拥有 alias 治理语义
-- `packages/ingestion-core` 负责构建离线派生的 canonical entity facts，例如 course facts /
-  family facts / audience facts
+- TS `packages/ingest-core` 保留离线派生 canonical entity facts 的纯
+  projection/materialization helper，例如 course facts / family facts / audience
+  facts；实际 task lifecycle 与 handler registration 属于
+  `apps/ingestion-control`
 - `packages/eval-langfuse` / repo-owned eval truth 负责验证 alias resolution 的
   deterministic truth 与 fail-close truth；旧 `packages/evals` package 已由
   ADR-0061 退役

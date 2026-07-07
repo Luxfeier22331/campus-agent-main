@@ -39,7 +39,9 @@ class LinkWorktreeAppLocalEnvTest(unittest.TestCase):
             source_operator_console_dev_vars = (
                 root_worktree / "apps" / "operator-console-web" / ".dev.vars"
             )
-            source_collector_env = root_worktree / "apps" / "official-web-collector" / ".env"
+            source_collector_env = (
+                root_worktree / "apps" / "source-collector" / "adapters" / "official-web" / ".env"
+            )
             source_docs_reader_env = (
                 root_worktree / "env" / "commands" / "campus-docs-reader-build.env"
             )
@@ -91,7 +93,14 @@ class LinkWorktreeAppLocalEnvTest(unittest.TestCase):
             target_operator_console_dev_vars = (
                 feature_worktree / "apps" / "operator-console-web" / ".dev.vars"
             )
-            target_collector_env = feature_worktree / "apps" / "official-web-collector" / ".env"
+            target_collector_env = (
+                feature_worktree
+                / "apps"
+                / "source-collector"
+                / "adapters"
+                / "official-web"
+                / ".env"
+            )
             target_docs_reader_env = (
                 feature_worktree / "env" / "commands" / "campus-docs-reader-build.env"
             )

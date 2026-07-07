@@ -6,7 +6,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.check_java_tracked import affected_java_lint_required
 from scripts.worktree_file_discovery import changed_worktree_paths
 
 
@@ -31,7 +30,6 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         ),
         StaticCheck("lint coverage", (py, "-m", "scripts.check_lint_coverage_tracked")),
         StaticCheck("decomposition", (py, "-m", "scripts.check_decomposition_tracked")),
-        StaticCheck("java tracked files", (py, "-m", "scripts.check_java_tracked")),
         StaticCheck("editorconfig", (py, "-m", "scripts.check_editorconfig_tracked")),
         StaticCheck("env examples", (py, "-m", "scripts.check_env_example_tracked")),
         StaticCheck("env surface policy", (py, "-m", "scripts.check_env_surface_policy")),
@@ -91,6 +89,10 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("pnpm lock", (py, "-m", "scripts.check_pnpm_lock_tracked")),
         StaticCheck("uv lock", (py, "-m", "scripts.check_uv_lock")),
         StaticCheck(
+            "ingestion assertion naming",
+            (py, "-m", "scripts.check_ingestion_assertion_naming"),
+        ),
+        StaticCheck(
             "ingestion task executability",
             (py, "-m", "scripts.check_ingestion_task_executability"),
         ),
@@ -136,10 +138,6 @@ def affected_repo_static_checks(
     if any(_is_decomposition_path(path) for path in paths):
         checks.append(
             StaticCheck("decomposition", (python, "-m", "scripts.check_decomposition_tracked"))
-        )
-    if affected_java_lint_required(paths):
-        checks.append(
-            StaticCheck("java tracked files", (python, "-m", "scripts.check_java_tracked"))
         )
     if any(_is_editorconfig_path(path) for path in paths):
         checks.append(
@@ -266,6 +264,13 @@ def affected_repo_static_checks(
         checks.append(StaticCheck("pnpm lock", (python, "-m", "scripts.check_pnpm_lock_tracked")))
     if "uv.lock" in paths:
         checks.append(StaticCheck("uv lock", (python, "-m", "scripts.check_uv_lock")))
+    if any(_is_ingestion_assertion_naming_path(path) for path in paths):
+        checks.append(
+            StaticCheck(
+                "ingestion assertion naming",
+                (python, "-m", "scripts.check_ingestion_assertion_naming"),
+            )
+        )
     python_paths = tuple(path for path in paths if path.endswith(".py"))
     if python_paths:
         checks.extend(
@@ -394,6 +399,22 @@ def _is_sql_path(path: str) -> bool:
 def _is_docker_path(path: str) -> bool:
     name = Path(path).name
     return name.startswith("Dockerfile") or path.endswith(".dockerfile") or path == ".hadolint.yaml"
+
+
+def _is_ingestion_assertion_naming_path(path: str) -> bool:
+    return path.startswith(
+        (
+            "apps/ingestion-control/",
+            "apps/source-collector/",
+            "packages/ingestion-contracts/",
+            "tests/ingestion/",
+            "configs/ingestion/",
+        )
+    ) or path in {
+        "docs/architecture/system/data-plane.md",
+        "docs/runbooks/ingestion-control-clean-target.md",
+        "scripts/check_ingestion_assertion_naming.py",
+    }
 
 
 if __name__ == "__main__":

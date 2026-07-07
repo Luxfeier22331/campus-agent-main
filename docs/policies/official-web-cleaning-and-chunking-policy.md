@@ -16,8 +16,9 @@ status。
 
 ## 目标
 
-把当前 `official_web/muc_public_pages` 在当前 scope 下的清洗、structured-unit 产出、chunking 与
-promote/release 约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
+把当前 `official_web/stable_reference` 与 `official_web/fresh_news`
+在当前 scope 下的清洗、structured-unit 产出、chunking 与 promote/release
+约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
 
 本文覆盖：
 
@@ -46,10 +47,11 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 ## 适用范围
 
 - corpus: `official_web`
-- collection: `muc_public_pages`
-- current serving stage: `offline_preparation`
-- current work focus: improve current scope quality before any retrieval-opening
-  discussion
+- collections: `stable_reference`, `fresh_news`
+- current serving stages: `stable_reference=query_serving`,
+  `fresh_news=offline_preparation`
+- current work focus: keep stable reference answer-bearing and keep fresh news
+  fail-closed until freshness gate is proven
 
 当前 policy 的适用前提固定为：
 
@@ -253,7 +255,7 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 
 - `semantic_content_hash` 用于同一 scope 内跨 host 等价正文的逻辑归并
 - 它必须只表达正文语义，不得把 host、canonical URL、`raw_version_id` 编进 hash
-- 当前 `official_web/muc_public_pages` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份
+- 当前 `official_web/stable_reference` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份
   current document
 - support-only role 可以保留在 structured-unit truth 中做审计与来源追溯，但：
   - 不进入 canonical markdown
@@ -339,12 +341,13 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `retain_inventory_only`
   - 保留在 current truth / audit truth 中，但当前 scope 下不再尝试升格 release gate
 - `current_scope_follow_up_candidate`
-  - 仍留在 `inventory_only`，但允许在当前 `muc_public_pages` scope 内继续做 cleaning /
-    chunking / answer-compression 治理
+  - 仍留在 `inventory_only`，但允许在当前 explicit active collection scope 内继续做
+    cleaning / chunking / answer-compression 治理
 - `future_fresh_news_surface`
   - 当前保留在 current truth 仅用于 regression / audit / local validation，不进入当前
     stable-reference gate
-  - 后续如要开放 query-serving，应转到 `fresh_news` / `news_archive` 语义下处理，而不是继续塞回当前 gate
+  - 后续如要开放 query-serving，应转到 `fresh_news` 语义下处理，而不是继续塞回
+    `stable_reference` gate
 
 当前 repo-tracked triage 固定为：
 
@@ -366,7 +369,7 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 
 ## Promote / Release Truth
 
-`muc_public_pages` 当前 promote / release 的最低真相要求固定为：
+`stable_reference` 当前 promote / release 的最低真相要求固定为：
 
 - document set 主要由高信号正文页组成
 - `listing_page` 与 staged-only generic 不进入 current truth
@@ -389,7 +392,7 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 本文不把以下事项假装成已完成：
 
 - `official_web` 已开放 retrieval
-- `fresh_news` / `news_archive` 已独立落 collection
+- fresh-news freshness gate 已证明可以开放默认 query-serving
 - collector 已稳定抽出所有 `published_at`
 - 所有 `directory_page` 都已按实体切分完成
 - repo 当前并未承诺本文目标已一次性全部完成

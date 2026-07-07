@@ -9,20 +9,16 @@ import (
 
 const MaxNoticeContextProjectionBodyChars = 1600
 const MaxScheduleBaselineProjectionSummaryChars = 1600
-const MaxNoticeChangeSetProjectionSummaryChars = 1600
-const MaxNoticePeriodSummaryProjectionSummaryChars = 1600
 const MaxEvidenceBundleProjectionQueryChars = 1600
 const MaxGroundingVerdictProjectionSummaryChars = 1600
 
 type ProjectionKind string
 
 const (
-	ProjectionKindNoticeContext       ProjectionKind = "notice_context"
-	ProjectionKindNoticeChangeSet     ProjectionKind = "notice_change_set"
-	ProjectionKindNoticePeriodSummary ProjectionKind = "notice_period_summary"
-	ProjectionKindScheduleBaseline    ProjectionKind = "schedule_baseline"
-	ProjectionKindEvidenceBundle      ProjectionKind = "evidence_bundle"
-	ProjectionKindGroundingVerdict    ProjectionKind = "grounding_verdict"
+	ProjectionKindNoticeContext    ProjectionKind = "notice_context"
+	ProjectionKindScheduleBaseline ProjectionKind = "schedule_baseline"
+	ProjectionKindEvidenceBundle   ProjectionKind = "evidence_bundle"
+	ProjectionKindGroundingVerdict ProjectionKind = "grounding_verdict"
 )
 
 type ProjectionSafetySummary struct {
@@ -109,92 +105,6 @@ func NewScheduleBaselineProjection(
 			Truncated:     truncated,
 			Redacted:      false,
 			MaxChars:      MaxScheduleBaselineProjectionSummaryChars,
-			FieldsPresent: fieldsPresent,
-		},
-	}, true
-}
-
-func NewNoticeChangeSetProjection(
-	sourceStepID string,
-	changeSetID string,
-	targetFamily string,
-	changeKind string,
-	serviceDate string,
-	routeLabels []string,
-	factSummaries []string,
-	sourceRefs []string,
-) (StepOutputProjection, bool) {
-	payload := map[string]any{
-		"change_set_id":  strings.TrimSpace(changeSetID),
-		"target_family":  strings.TrimSpace(targetFamily),
-		"change_kind":    strings.TrimSpace(changeKind),
-		"service_date":   strings.TrimSpace(serviceDate),
-		"route_labels":   normalizedProjectionStringSlice(routeLabels),
-		"fact_summaries": normalizedProjectionStringSlice(factSummaries),
-		"source_refs":    normalizedProjectionStringSlice(sourceRefs),
-		"summary":        "",
-	}
-	summaryText := strings.Join(payload["fact_summaries"].([]string), "；")
-	summaryExcerpt, truncated := truncateRunes(
-		strings.TrimSpace(summaryText),
-		MaxNoticeChangeSetProjectionSummaryChars,
-	)
-	payload["summary"] = summaryExcerpt
-	fieldsPresent := projectionFieldsPresentForPayload(payload)
-	if len(fieldsPresent) == 0 {
-		return StepOutputProjection{}, false
-	}
-	contentHash := projectionContentHash(payload)
-	return StepOutputProjection{
-		ProjectionID:   "projection:notice_change_set:" + strings.TrimPrefix(contentHash, "sha256:")[:16],
-		SourceStepID:   sourceStepID,
-		ProjectionKind: ProjectionKindNoticeChangeSet,
-		ContentHash:    contentHash,
-		Payload:        payload,
-		Safety: ProjectionSafetySummary{
-			Truncated:     truncated,
-			Redacted:      false,
-			MaxChars:      MaxNoticeChangeSetProjectionSummaryChars,
-			FieldsPresent: fieldsPresent,
-		},
-	}, true
-}
-
-func NewNoticePeriodSummaryProjection(
-	sourceStepID string,
-	startDate string,
-	endDate string,
-	summary string,
-	groupSummaries []string,
-	sourceRefs []string,
-) (StepOutputProjection, bool) {
-	payload := map[string]any{
-		"start_date":      strings.TrimSpace(startDate),
-		"end_date":        strings.TrimSpace(endDate),
-		"summary":         "",
-		"group_summaries": normalizedProjectionStringSlice(groupSummaries),
-		"source_refs":     normalizedProjectionStringSlice(sourceRefs),
-	}
-	summaryExcerpt, truncated := truncateRunes(
-		strings.TrimSpace(summary),
-		MaxNoticePeriodSummaryProjectionSummaryChars,
-	)
-	payload["summary"] = summaryExcerpt
-	fieldsPresent := projectionFieldsPresentForPayload(payload)
-	if len(fieldsPresent) == 0 {
-		return StepOutputProjection{}, false
-	}
-	contentHash := projectionContentHash(payload)
-	return StepOutputProjection{
-		ProjectionID:   "projection:notice_period_summary:" + strings.TrimPrefix(contentHash, "sha256:")[:16],
-		SourceStepID:   sourceStepID,
-		ProjectionKind: ProjectionKindNoticePeriodSummary,
-		ContentHash:    contentHash,
-		Payload:        payload,
-		Safety: ProjectionSafetySummary{
-			Truncated:     truncated,
-			Redacted:      false,
-			MaxChars:      MaxNoticePeriodSummaryProjectionSummaryChars,
 			FieldsPresent: fieldsPresent,
 		},
 	}, true
@@ -328,10 +238,6 @@ func (projection StepOutputProjection) ScheduleSummary() string {
 	return stringFromProjectionPayload(projection.Payload, "summary")
 }
 
-func (projection StepOutputProjection) NoticeChangeSetSummary() string {
-	return stringFromProjectionPayload(projection.Payload, "summary")
-}
-
 func CloneStepOutputProjection(projection StepOutputProjection) StepOutputProjection {
 	clone := projection
 	clone.Payload = cloneAnyMap(projection.Payload)
@@ -369,10 +275,6 @@ func projectionFieldsPresentForPayload(payload map[string]any) []string {
 		"title",
 		"body_excerpt",
 		"source_url",
-		"change_set_id",
-		"target_family",
-		"change_kind",
-		"service_date",
 		"route_id",
 		"route_display_name",
 		"service_family",

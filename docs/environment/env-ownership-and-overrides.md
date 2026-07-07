@@ -6,6 +6,8 @@ status: active
 created: 2026-04-20
 updated: 2026-06-28
 ---
+<!-- markdownlint-disable MD013 -->
+
 # Environment Ownership And Overrides
 
 ## 文档边界
@@ -77,14 +79,14 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   - `app-api` Wrangler / Drizzle process env
 - [`apps/campus-web/.dev.vars.example`](../../apps/campus-web/.dev.vars.example)
   - `campus-web` Worker runtime string env
-- [`apps/authenticated-notice-collector/.env.example`](../../apps/authenticated-notice-collector/.env.example)
-  - `authenticated-notice-collector` portal auth、collector ledger/lease、source-bucket
-    runtime env
-- [`apps/official-web-collector/.env.example`](../../apps/official-web-collector/.env.example)
-  - `official-web-collector` control-plane 与 source-bucket runtime env
-- [`apps/wechat-official-account-collector/.env.example`](../../apps/wechat-official-account-collector/.env.example)
-  - `wechat-official-account-collector` FeedWe credentials、control-plane 与 source-bucket
-    runtime env
+- [`apps/source-collector/adapters/internal-portal/.env.example`][source-collector-internal-portal-env]
+  - `source-collector` internal-portal adapter portal auth、internal-portal run ledger/lease、
+    source-bucket runtime env
+- [`apps/source-collector/adapters/official-web/.env.example`][source-collector-official-web-env]
+  - `source-collector` official-web adapter control-plane 与 source-bucket runtime env
+- [`apps/source-collector/adapters/wechat-official-account/.env.example`][source-collector-wechat-env]
+  - `source-collector` wechat-official-account adapter FeedWe credentials、control-plane
+    与 source-bucket runtime env
 - [`apps/operator-console-web/.dev.vars.example`](../../apps/operator-console-web/.dev.vars.example)
   - `operator-console-web` Worker string env
 - [`infra/otel/collector.env.example`](../../infra/otel/collector.env.example)
@@ -94,7 +96,6 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 
 - [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
 - [`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)
-- [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
 
 ## Override Rules
 
@@ -122,8 +123,8 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 - `apps/app-api` 本地 `pnpm dev` 固定走 `wrangler dev -e local`
 - `apps/app-api/.env` 负责 Wrangler / Drizzle process env
 - `apps/app-api/.dev.vars` 负责 Worker runtime string env
-- `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane
-  seam
+- `apps/source-collector/adapters/official-web/.env` 负责 official-web adapter 到
+  `app-api` 的 control-plane seam
 
 ## Feature Worktree Local Env
 
@@ -145,9 +146,12 @@ not copy secrets between worktrees.
   --json`
 - `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 
+[source-collector-internal-portal-env]: ../../apps/source-collector/adapters/internal-portal/.env.example
+[source-collector-official-web-env]: ../../apps/source-collector/adapters/official-web/.env.example
+[source-collector-wechat-env]: ../../apps/source-collector/adapters/wechat-official-account/.env.example
+
 对应 runbook：
 
 - `docs/runbooks/provider-secret-governance.md`
 - `docs/runbooks/local-runtime-smoke.md`
-- `docs/runbooks/legacy-office-conversion-runtime.md`
 - `docs/runbooks/worker-observability-smoke.md`

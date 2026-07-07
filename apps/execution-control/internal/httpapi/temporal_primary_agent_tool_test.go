@@ -2,10 +2,10 @@ package httpapi
 
 import "testing"
 
-func TestPrimaryAgentSelectedToolClassifiesNoticePeriodSummary(t *testing.T) {
-	selected := primaryAgentSelectedTool([]string{"campus_notice_period_summary"})
+func TestPrimaryAgentSelectedToolClassifiesNoticeDiscover(t *testing.T) {
+	selected := primaryAgentSelectedTool([]string{"campus_notice_discover"})
 
-	if selected != "campus_notice_period_summary" {
-		t.Fatalf("selected tool = %q, want campus_notice_period_summary", selected)
+	if selected != "campus_notice_discover" {
+		t.Fatalf("selected tool = %q, want campus_notice_discover", selected)
 	}
 }

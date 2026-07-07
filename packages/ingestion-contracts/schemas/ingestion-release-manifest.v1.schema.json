@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.local/schemas/ingestion-release-manifest.v1.schema.json",
+	"title": "IngestionReleaseManifest",
+	"type": "object",
+	"required": ["schema_version", "release_id", "corpus", "collection", "artifacts"],
+	"properties": {
+		"schema_version": { "const": "ingestion_release_manifest.v1" },
+		"release_id": { "type": "string", "minLength": 1 },
+		"corpus": { "type": "string", "minLength": 1 },
+		"collection": { "type": "string", "minLength": 1 },
+		"artifacts": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "object",
+				"required": ["kind", "uri", "digest"],
+				"properties": {
+					"kind": { "type": "string", "minLength": 1 },
+					"uri": { "type": "string", "minLength": 1 },
+					"digest": { "type": "string", "minLength": 1 }
+				},
+				"additionalProperties": true
+			}
+		}
+	},
+	"additionalProperties": true
+}

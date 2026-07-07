@@ -51,9 +51,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["test:shared-db-integration"]).toContain(
 			"vitest.shared-db.config.mts",
 		);
-		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toContain(
-			"vitest.official-web-shared-db.config.mts",
-		);
+		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toBeUndefined();
 	});
 
 	it("checks in explicit shared product bootstrap artifacts under app-api", () => {
@@ -72,16 +70,13 @@ describe("app-api shared product bootstrap contracts", () => {
 			"scripts/ensure-app-auth-role-search-path.mjs",
 			"scripts/print-shared-product-auth-migration.mjs",
 			"scripts/reconcile-shared-db-drift.mjs",
-			"scripts/drain-official-web-projection.ts",
 			"scripts/run-with-staging-proof-env.mjs",
 			"scripts/staging-runtime-db-proof.ts",
 			"scripts/shared-product-database-bootstrap.mjs",
 			"scripts/shared-product-database-bootstrap.d.mts",
 			"vitest.worker.config.mts",
 			"vitest.shared-db.config.mts",
-			"vitest.official-web-shared-db.config.mts",
 			"test/shared-product-db.integration.test.ts",
-			"test/official-web-shared-db.integration.test.ts",
 		];
 
 		for (const relativePath of requiredFiles) {
@@ -114,21 +109,21 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(readme).toContain("bootstrap-shared-product-with-seeds.mjs");
 		expect(readme).toContain("ensure-app-auth-role-search-path.mjs");
 		expect(readme).toContain("reconcile-shared-db-drift.mjs");
-		expect(readme).toContain("drain-official-web-projection.ts");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
-		expect(readme).toContain("test:official-web-shared-db-integration");
 		expect(readme).toContain("app_auth.*");
 		expect(readme).toContain("chat.*");
 	});
 
-	it("keeps official-web collector lifecycle outside the default shared DB lane", () => {
+	it("keeps official-web collector lifecycle outside app-api shared DB lanes", () => {
 		const sharedDbConfig = readAppFile("vitest.shared-db.config.mts");
-		const officialWebSharedDbConfig = readAppFile("vitest.official-web-shared-db.config.mts");
 
 		expect(sharedDbConfig).not.toContain("test/official-web-shared-db.integration.test.ts");
-		expect(officialWebSharedDbConfig).toContain("test/official-web-shared-db.integration.test.ts");
+		expect(existsSync(join(appRoot, "vitest.official-web-shared-db.config.mts"))).toBe(false);
+		expect(existsSync(join(appRoot, "test/official-web-shared-db.integration.test.ts"))).toBe(
+			false,
+		);
 	});
 
 	it("wires identity preference reads and writes through the default cached lane", () => {
@@ -158,7 +153,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			"resolveAuthenticatedNoticeRunProcessingCommandService",
 			"resolveCampusServicesOpsService",
 			"resolveIdentityPlatformService",
-			"resolveOfficialWebCommandService",
 			"resolveOfficialWebReleaseTaskProcessingCommandService",
 			"resolveOfficialWebTargetReleaseGateService",
 			"resolveOperatorObservabilityCommandService",
@@ -210,7 +204,7 @@ describe("app-api shared product bootstrap contracts", () => {
 			"diningOperationsService = buildDiningOperationsService({",
 		);
 		const diningServiceEnd = requestScopeSource.indexOf(
-			"function resolveOfficialWebCommandService()",
+			"function resolveOfficialWebTargetJobService()",
 			diningServiceStart,
 		);
 

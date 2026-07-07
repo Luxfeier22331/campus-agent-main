@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-30
-updated: 2026-04-12
+updated: 2026-07-05
 ---
 # Shared Postgres Ownership
 
@@ -16,7 +16,7 @@ ownership、逻辑 schema 划分与迁移接管规则。
 它补充但不替代以下文档：
 
 - `app-api` 逻辑 schema：`docs/data/app-api/README.md`
-- `official_web` control-plane schema：`docs/data/app-api/official-web.md`
+- `official_web` shared data schema：`docs/data/app-api/official-web.md`
 - `app-api`
   runtime/ownership：`docs/architecture/system/product-runtime.md`
 - env ownership：`docs/environment/README.md`
@@ -88,9 +88,13 @@ repo root `.env` 的 canonical runtime key 固定为：
   bootstrap owner 都是 `apps/app-api`
 - `runtime.*` request command-side ledger / outbox；owner 是 `apps/app-api`
 - `operator.*` panel/read-model projections；owner 是 `apps/app-api`
-- `official_web.*` crawl-run control-plane durable truth；owner 是 `apps/app-api`
-- `ingestion_registry.*` 或其他 registry tables offline document/raw asset registry
-  truth；owner 是 `packages/ingestion-core` / `apps/ingestion-control`
+- `official_web.*` crawl-run ledger、page observation、freshness 与 target workset
+  durable truth；runtime writer owner 是 `apps/ingestion-control`。`apps/app-api`
+  只消费 operator projection/read surface 与 operator release-gate command ledger。
+- `ingestion_registry.*` 或其他 ingestion task / document / raw asset registry
+  truth；runtime owner 是 `apps/ingestion-control`。Runtime-neutral DTO /
+  parser / canonical artifact helper 归 `packages/ingest-core`；旧 Python ingestion
+  package 已删除，不拥有 registry connection 或 migration truth。
 
 ## Env Ownership Rules
 
@@ -123,12 +127,18 @@ repo root `.env` 的 canonical runtime key 固定为：
   Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中
   stale negative cache。它不是第二个数据库，也不是默认 command lane。
 - `apps/app-api` 负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有
-  `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration
-  ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`
-- `packages/ingestion-core` 不接管 `app-api` 的 Drizzle migration journal；registry
-  table 仍由自身代码路径负责 schema ensure。需要 full current-scope replay / chunk-prep /
-  release 这类 offline operator 操作时，显式消费
-  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+  `runtime.*` / `operator.*` / `docs.*` / `profile.*` / `identity.*` / `dining.*`
+  的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管
+  `app_auth.*` / `chat.*`
+- `official_web.*` 仍可能存在于历史 app-api Drizzle migration 与 schema type
+  export 中，作为共享库历史 baseline 和 app-api 只读/query 类型来源；forward
+  collector control-plane writer owner 是 `apps/ingestion-control`，不得新增
+  app-api collector write route 或 app-api-owned run admission ledger。
+- `apps/ingestion-control` 不接管 `app-api` 的 Drizzle migration journal；
+  ingestion task / registry / closeout tables 由 ingestion-control 代码路径负责
+  schema ensure。需要 full current-scope replay / chunk-prep / release 这类
+  offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
+  Python 不创建 ingestion Postgres client，也不拥有 registry table migration。
 
 ## Journal Ownership
 

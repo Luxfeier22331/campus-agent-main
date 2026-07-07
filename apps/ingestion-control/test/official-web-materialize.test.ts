@@ -1,61 +1,56 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-	createDefaultTsTaskHandlerRegistry,
 	type IngestionTaskEnvelope,
 	type IngestionTaskRegistry,
 	InMemoryIngestionTaskStore,
-	RustKernelRegistry,
-	runRegistryTaskOnce,
 } from "../src/index.ts";
+import { RustKernelRegistry } from "../src/task-executor";
+import { createDefaultTsTaskHandlerRegistry } from "../src/ts-task-handlers";
+import { runDeclaredTaskForTest } from "./test-support.ts";
 
 const sourceTruthBundleKey = "official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json";
 const pageManifestKey =
 	"official_web/www_muc_edu_cn/source-assets/owasset_01/owver_01/source-truth/page-manifest.json";
 const contentBlocksKey =
 	"official_web/www_muc_edu_cn/source-assets/owasset_01/owver_01/source-truth/content-blocks.jsonl";
-const sourceTruthBundleBody = `${JSON.stringify(sourceTruthBundleFixture(), null, 2)}\n`;
+const sourceTruthBundleBody = `${JSON.stringify(sourceTruthBundleAssertion(), null, 2)}\n`;
 const sourceTruthBundleDigest = sha256(Buffer.from(sourceTruthBundleBody, "utf8"));
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_official_web_stable_reference_source_truth_001",
 	run_id: "owrun_01HQ",
 	source_family: "official_web",
 	source_channel: "official_web",
 	corpus: "official_web",
 	collection: "stable_reference",
+	registry_task_id: "source_truth_materialize",
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
 		uri: `s3://campus-agent-source/${sourceTruthBundleKey}`,
 		digest: `sha256:${sourceTruthBundleDigest}`,
 	},
+	input_contract: "official_web_source_truth_bundle.v1",
 	output_contract: "official_web_stable_reference_source_truth.v1",
 	idempotency_key: "official_web/stable_reference/source_truth_materialize/owrun_01HQ",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 1,
-	},
 	created_by: "operator",
 	created_at: "2026-03-29T08:17:33.000Z",
 };
 
 const registry: IngestionTaskRegistry = {
-	schema_version: "ingestion_task_registry.v1",
+	schema_version: "ingestion_task_registry.v2",
 	source_family: "official_web",
 	corpus: "official_web",
 	collection: "stable_reference",
 	tasks: [
 		{
+			registry_task_id: "source_truth_materialize",
 			task_kind: "source_truth_materialize",
 			executor_kind: "ts_control",
 			input_contract: "official_web_source_truth_bundle.v1",
 			output_contract: "official_web_stable_reference_source_truth.v1",
-			can_publish_alias: false,
 		},
 	],
 };
@@ -74,14 +69,14 @@ describe("official web source truth materialization", () => {
 		objectStore.putText(contentBlocksKey, '{"schemaVersion":"official_web_content_block.v1"}\n');
 		objectStore.putText(sourceTruthBundleKey, sourceTruthBundleBody);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				officialWebObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "official-web-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("completed");
@@ -116,18 +111,18 @@ describe("official web source truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, sourceTruthBundleBody);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				officialWebObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "official-web-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"official web source truth bundle input_ref digest is required",
 		);
@@ -147,18 +142,18 @@ describe("official web source truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, sourceTruthBundleBody);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				officialWebObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "official-web-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"official web source truth bundle input_ref digest mismatch",
 		);
@@ -169,7 +164,7 @@ describe("official web source truth materialization", () => {
 			now: () => new Date("2026-03-29T08:17:33.000Z"),
 		});
 		const mismatchedBundle = {
-			...sourceTruthBundleFixture(),
+			...sourceTruthBundleAssertion(),
 			crawlRunId: "owrun_other",
 		};
 		const mismatchedBundleBody = `${JSON.stringify(mismatchedBundle, null, 2)}\n`;
@@ -183,18 +178,18 @@ describe("official web source truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(sourceTruthBundleKey, mismatchedBundleBody);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				officialWebObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "official-web-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"official web source truth bundle crawlRunId must match task run_id",
 		);
@@ -206,12 +201,12 @@ describe("official web source truth materialization", () => {
 		});
 		store.admitTask(task);
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry(),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "official-web-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
@@ -274,7 +269,7 @@ function sha256(value: Uint8Array): string {
 	return createHash("sha256").update(value).digest("hex");
 }
 
-function sourceTruthBundleFixture(): Record<string, unknown> {
+function sourceTruthBundleAssertion(): Record<string, unknown> {
 	return {
 		schemaVersion: "official_web_source_truth_bundle.v1",
 		sourceChannel: "official_web",

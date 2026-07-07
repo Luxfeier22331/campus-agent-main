@@ -190,7 +190,7 @@ own narrower contract and never allow secrets or auth material.
 - [ADR-0059 Langfuse Observability And Eval Platform](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
 - [ADR-0061 Eval Runtime](../decisions/adr-0061-eval-runtime.md)
 - [ADR-0062 Ragas And Langfuse Collaboration](../decisions/adr-0062-ragas-langfuse.md)
-- [ADR-0068 Raw Replay Capture](../decisions/adr-0068-raw-replay-capture.md)
+- [ADR-0069 Raw Replay Capture](../decisions/adr-0069-raw-replay-capture.md)
 - [Langfuse Architecture](../architecture/system/langfuse.md)
 - [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
 - [Replay Capture Contract](../contracts/replay-capture.md)

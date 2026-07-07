@@ -518,10 +518,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleTransportStatusProjection(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeDiscover)
-	case request.Method == http.MethodPost && path == "/internal/query/notices/period-summary":
-		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticePeriodSummary)
-	case request.Method == http.MethodPost && path == "/internal/query/notices/change-set":
-		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeChangeSet)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeGet)
 	default:

@@ -1,0 +1,15 @@
+{
+	"schema_version": "ingestion_task_registry.v2",
+	"source_family": "authenticated_notice",
+	"corpus": "authenticated_documents",
+	"collection": "file_release_source",
+	"tasks": [
+		{
+			"task_kind": "source_truth_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "internal_portal_file_release_export_v1",
+			"output_contract": "authenticated_document_file_release_source_truth.v1",
+			"registry_task_id": "source_truth_materialize"
+		}
+	]
+}

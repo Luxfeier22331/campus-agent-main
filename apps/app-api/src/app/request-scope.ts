@@ -46,16 +46,6 @@ import {
 	createPgObservabilityConfigStore,
 } from "../modules/observability-config";
 import {
-	buildOfficialWebCommandService,
-	createPgOfficialWebCommandStore,
-} from "../modules/official-web-command";
-import { buildOfficialWebExecutionStatusService } from "../modules/official-web-execution";
-import {
-	buildOfficialWebPlannerService,
-	createPgOfficialWebPlannerStore,
-} from "../modules/official-web-planner";
-import { createPgOfficialWebProjectionStore } from "../modules/official-web-projection";
-import {
 	buildOfficialWebQueryService,
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
@@ -111,17 +101,6 @@ export function createRequestScopeFactory(input: {
 	const executionRuntime = executionRuntimeConfigured
 		? createExecutionControlRuntimeClient(input.env)
 		: undefined;
-	const officialWebExecutionStatusService =
-		input.dependencies.officialWebExecutionStatusService ??
-		buildOfficialWebExecutionStatusService({
-			store: createPgOfficialWebProjectionStore(input.env),
-		});
-	const officialWebPlannerService =
-		input.dependencies.officialWebPlannerService ??
-		buildOfficialWebPlannerService({
-			store: createPgOfficialWebPlannerStore(input.env),
-		});
-
 	return {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
@@ -143,7 +122,6 @@ export function createRequestScopeFactory(input: {
 			let docsService = input.dependencies.docsService ?? null;
 			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
-			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let officialWebReleaseTaskProcessingCommandService =
 				input.dependencies.officialWebReleaseTaskProcessingCommandService ?? null;
@@ -297,17 +275,6 @@ export function createRequestScopeFactory(input: {
 					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return diningOperationsService;
-			}
-
-			function resolveOfficialWebCommandService() {
-				if (officialWebCommandService) {
-					return officialWebCommandService;
-				}
-
-				officialWebCommandService = buildOfficialWebCommandService({
-					store: createPgOfficialWebCommandStore(input.env, { getDb: runtime.getDb }),
-				});
-				return officialWebCommandService;
 			}
 
 			function resolveOfficialWebTargetJobService() {
@@ -554,7 +521,6 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService,
 				resolveIdentityPlatformService,
 				resolveIngestionTaskProjectionClient,
-				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
 				resolveOfficialWebReleaseTaskProcessingCommandService,
 				resolveOfficialWebReleaseTaskProcessingQueryService,
@@ -572,7 +538,5 @@ export function createRequestScopeFactory(input: {
 				telemetry: input.telemetry,
 			};
 		},
-		officialWebExecutionStatusService,
-		officialWebPlannerService,
 	};
 }

@@ -9,13 +9,13 @@ import {
 } from "../src/modules/authenticated-notice-processing-command";
 
 const regulationCleanupSnapshot = {
-	id: "authenticated_notice_portal:notice:example_internal_portal:186977:run-004:job-004",
-	noticeKey: "authenticated_notice_portal:notice:example_internal_portal:186977",
-	sourceChannel: "authenticated_notice_portal",
+	id: "internal_portal:notice:synthetic_internal_portal:186977:run-004:job-004",
+	noticeKey: "internal_portal:notice:synthetic_internal_portal:186977",
+	sourceChannel: "internal_portal",
 	sourceSurface: "notice",
-	siteId: "example_internal_portal",
+	siteId: "synthetic_internal_portal",
 	noticeId: "186977",
-	title: "甲学院2021年硕博连读博士研究生招生实施细则",
+	title: "示例学院2021年研究生招生实施细则",
 	runId: "run-004",
 	jobId: "job-004",
 	replayBatchId: "run14-policy-regulation",

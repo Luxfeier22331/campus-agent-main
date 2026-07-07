@@ -4,15 +4,15 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-29
-updated: 2026-06-29
+updated: 2026-07-05
 ---
 # App API Official Web Contract
 
 ## Boundary
 
-This document freezes the `apps/app-api` HTTP seam for the `official_web`
-control plane. It is the single owner contract for collector commands, crawl
-run lifecycle, internal operator projection ingest and operator query APIs.
+This document freezes the `apps/app-api` HTTP seam for `official_web` operator
+and projection surfaces. Collector run lifecycle commands are owned by
+`apps/ingestion-control`; app-api must not expose collector write endpoints.
 
 Related owner docs:
 
@@ -22,7 +22,7 @@ Related owner docs:
 
 This document does not freeze object storage upload signing, collector image /
 deploy YAML, Operator Console route mounting, ingestion execution internals or
-the rollout posture of `fresh_news` / `news_archive`.
+the rollout posture of `fresh_news` and historical-news/archive surfaces.
 
 ## Shared Rules
 
@@ -37,14 +37,6 @@ the rollout posture of `fresh_news` / `news_archive`.
 
 ## Authentication
 
-Collector command endpoints:
-
-- Require machine-to-machine service credentials.
-- Accept `Authorization: Bearer <service-token-or-equivalent>`.
-- May additionally carry `x-trace-id`.
-- Machine ingress protection such as Cloudflare Access, Tunnel or private
-  network policy does not replace the app-level bearer credential.
-
 Operator query endpoints:
 
 - Reuse shared `app-api` operator principal admission.
@@ -56,13 +48,6 @@ Internal projection ingest:
 - Is producer-facing, not browser-facing.
 
 ## Endpoint Summary
-
-Collector command endpoints:
-
-- `POST /api/official-web/runs`
-- `POST /api/official-web/plans:resolve`
-- `POST /api/official-web/runs/:runId/heartbeats`
-- `POST /api/official-web/runs/:runId/finalize`
 
 Internal projection ingest endpoint:
 
@@ -90,35 +75,40 @@ Removed ingestion executor surfaces must return `404`:
 - `POST /api/operator/official-web/target-selected-write-admissions/:selectedWriteId/interventions`
 - `GET /api/internal/official-web/target-selected-write-tasks/:selectedWriteId`
 - `POST /api/internal/official-web/target-selected-write-tasks/:selectedWriteId/execution-status`
+- `POST /api/official-web/runs`
+- `POST /api/official-web/plans:resolve`
+- `POST /api/official-web/runs/:runId/heartbeats`
+- `POST /api/official-web/runs/:runId/finalize`
 
 Release task claim / retry / executor progress / publish status belongs to
-`apps/ingestion-control` plus `packages/ingestion-core`. App-api only exposes
+`apps/ingestion-control` plus TS `packages/ingest-core`. App-api only exposes
 already-ingested official-web projections and the operator command ledger needed
 to record stable-reference approve/reject decisions.
 
-## Crawl Run Lifecycle
+## Crawl Run Lifecycle Boundary
 
 The long-term lifecycle is:
 
 1. Collector start admission.
-1. `app-api` writes the durable crawl-run accepted fact.
+1. `ingestion-control` writes the durable crawl-run accepted fact.
 1. Collector uploads object-storage artifacts and sends heartbeats.
-1. Collector finalizes; `app-api` writes terminal state and artifact refs.
-1. `app-api` admits an ingestion-control `source_truth_materialize` task from
-   the run-level `source_truth_bundle` artifact ref.
+1. Collector finalizes; `ingestion-control` writes terminal state and artifact
+   refs.
+1. `ingestion-control` admits `source_truth_materialize` from the run-level
+   `source_truth_bundle` artifact ref.
 1. `apps/ingestion-control` claims the admitted task and starts offline
    execution.
 1. Operator reads site/run/detail state through app-owned projections.
 
 Fixed lifecycle rules:
 
-- Crawl run truth enters the `app-api` durable ledger before ingestion task
-  admission.
+- Crawl run truth enters the ingestion-control official-web ledger before
+  ingestion task admission.
 - Object storage artifacts and the app-owned run ledger jointly form
   control-plane truth.
 - Ingestion task admission can happen only after terminal finalize.
-- Operator surfaces must not recover run status by scanning object storage,
-  logs or ingestion-control internals.
+- Operator surfaces must not recover run status by scanning object storage or
+  logs.
 - Crawl status and ingestion status are separate facts.
 - `completed` / `completed_with_errors` only describe crawl finalize, not
   chunking, indexing or publish completion.
@@ -163,116 +153,21 @@ Failure boundary:
   admission.
 
 `accepted` or `running` runs can be marked `abandoned` after the declared
-heartbeat threshold. `abandoned` is app-owned control-plane state, does not
-require artifact deletion and must not be silently overwritten by a late
+heartbeat threshold. `abandoned` is ingestion-control control-plane state, does
+not require artifact deletion and must not be silently overwritten by a late
 finalize.
 
-## Collector Commands
+Collector commands live under:
 
-### `POST /api/official-web/runs`
+- `POST /internal/ingestion/official-web/runs`
+- `POST /internal/ingestion/official-web/plans:resolve`
+- `POST /internal/ingestion/official-web/runs/:runId/heartbeats`
+- `POST /internal/ingestion/official-web/runs/:runId/finalize`
 
-Creates a canonical `runId` and writes the first durable run fact.
-
-Minimum request fields:
-
-- `siteId`
-- `schedulerRunKey`
-- `runIntent`
-- `triggerType`
-- `collectorVersion`
-- `configVersion`
-- `crawlPolicyVersion`
-- `hostSet`
-- `seedSet`
-- `startedAt`
-
-Success response returns `run.runId`, `siteId`, `status=accepted`,
-`startedAt` and `heartbeatIntervalSeconds`.
-
-Rules:
-
-- `app-api` performs service principal admission, `siteId` validation,
-  idempotency check and canonical `runId` allocation.
-- On failure, app-api returns an HTTP error and does not create crawl-run truth.
-- The first commit writes at least `official_web.crawl_runs` and a lifecycle
-  outbox/event row.
-
-### `POST /api/official-web/plans:resolve`
-
-Resolves the lane-aware dynamic workset from `official_web.page_freshness`.
-Collectors call this after start admission and before materializing a frontier.
-
-Minimum request fields:
-
-- `siteId`
-- `runIntent`
-- optional `hostFilter`
-- optional `maxPagesPerHost`
-- optional `maxTotalPages`
-- `now`
-
-Rules:
-
-- `baseline` primarily returns due `baseline_static` pages.
-- `hot` primarily returns due `listing_hot` and `detail_recent` pages.
-- `repair` primarily returns pages whose last fetch disposition was
-  `fetch_failed`.
-- Deleted pages do not re-enter planner worksets unless rediscovered and
-  written back to freshness truth.
-- Budget hints do not change `page_freshness` ownership.
-
-### `POST /api/official-web/runs/:runId/heartbeats`
-
-Updates run liveness and process summary.
-
-Minimum request fields:
-
-- `sequence`
-- `observedAt`
-- `counts.urlsDiscovered`
-- `counts.urlsFetched`
-- `counts.pagesNormalized`
-- `counts.artifactUploads`
-- `counts.failures`
-
-Rules:
-
-- Updates `lastHeartbeatAt`.
-- May advance `accepted -> running`.
-- May write process counters.
-- Does not replace terminal finalize.
-
-### `POST /api/official-web/runs/:runId/finalize`
-
-Submits terminal summary, page observations and artifact refs. Ingestion-control
-task admission is derived by app-api from terminal outbox processing and the
-registered `source_truth_bundle` artifact.
-
-Minimum request fields:
-
-- `terminalStatus`: `completed`, `completed_with_errors` or `failed`
-- `finishedAt`
-- `pageObservations[]`
-- `summary`
-- `artifacts[]`
-
-Rules:
-
-- Finalize is terminal. A different terminal payload for the same `runId` is a
-  conflict.
-- `completed` is allowed only when run-level summary has no failures.
-- `completed_with_errors` is allowed when artifacts exist and URL / host /
-  parser failures occurred.
-- `pageObservations` are part of the finalize commit. App-api advances
-  `page_freshness` and `page_observations` truth from them.
-- App-api computes `new / changed / deleted / not_modified / fetch_failed`.
-- Ingestion task admission uses the run-level `source_truth_bundle`; page
-  change status remains app-api freshness/operator truth and does not create a
-  separate official-web handoff payload.
-- `not_modified` and `fetch_failed` update freshness truth, operator summary and
-  repair cadence but do not produce ingestion page-change work.
-- `artifacts` register object-storage refs only; they do not inline artifact
-  contents.
+Those endpoints require `Authorization: Bearer
+<INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN>` and are documented in
+`docs/architecture/domains/official-web/architecture.md` and
+`docs/runbooks/ingestion-control-clean-target.md`.
 
 ## Internal Projection Ingest
 
@@ -342,7 +237,7 @@ Each site summary includes:
 - `lastSuccessAt`
 - `lastFailureAt`
 - `latestConfigVersion`
-- `latestCollectorVersion`
+- `latestSourceAdapterVersion`
 - `latestIngestionDispatchStatus`
 
 ### `GET /api/operator/official-web/sites/:siteId`

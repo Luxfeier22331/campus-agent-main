@@ -5,7 +5,9 @@ owner_boundary: docs/decisions
 decision_id: ADR-0049
 status: accepted
 created: 2026-06-08
-updated: 2026-06-14
+updated: 2026-07-04
+partially_superseded_by:
+  - adr-0055-unified-operator-console-surface.md
 ---
 # ADR-0049 Campus Ops Control Plane
 

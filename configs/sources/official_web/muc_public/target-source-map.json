@@ -9,15 +9,15 @@
 			"owner_surface": "calendar/academic_calendar",
 			"selected_write_target": "calendar/academic_calendar",
 			"source_hosts": ["www.example.edu"],
-			"url_hints": ["calendar"],
-			"title_hints": ["calendar"],
+			"url_hints": ["mdxl", "calendar", "xiaoli"],
+			"title_hints": ["民大校历", "校历", "教学周", "放假安排", "补课安排"],
 			"required_evidence": ["calendar_arrangement"],
 			"optional_evidence": [],
 			"retention_policy": "retain_source_truth",
 			"review_policy": "selected_write_requires_review",
 			"materialization_policy": "candidate_only",
 			"inventory_only": false,
-			"notes": "Synthetic academic calendar target."
+			"notes": "Targeted public-web academic calendar facts. Release-blocking evidence is source-backed calendar arrangement, not service-guide procedure text."
 		},
 		{
 			"target_id": "official-web-stable-reference",
@@ -25,15 +25,15 @@
 			"owner_surface": "official_web/stable_reference",
 			"selected_write_target": "official_web/stable_reference",
 			"source_hosts": ["www.example.edu"],
-			"url_hints": ["about", "contact"],
-			"title_hints": ["overview", "contact"],
+			"url_hints": ["about", "intro", "leader", "gk", "jj", "jgsz"],
+			"title_hints": ["学校简介", "学校概况", "现任领导", "机构设置", "学院简介", "部门简介"],
 			"required_evidence": ["stable_reference"],
 			"optional_evidence": [],
 			"retention_policy": "retain_source_truth",
 			"review_policy": "release_gate_required",
 			"materialization_policy": "release_gate_required",
 			"inventory_only": false,
-			"notes": "Synthetic stable reference target."
+			"notes": "Long-lived institutional reference candidates; release-gated before serving alias changes."
 		},
 		{
 			"target_id": "official-web-institutional-rules",
@@ -41,15 +41,15 @@
 			"owner_surface": "regulations/institutional_rules",
 			"selected_write_target": "regulations/institutional_rules",
 			"source_hosts": ["www.example.edu"],
-			"url_hints": ["rules", "policy"],
-			"title_hints": ["policy"],
+			"url_hints": ["gzzd", "rule", "policy", "zhidu"],
+			"title_hints": ["办法", "规定", "细则", "制度", "实施细则"],
 			"required_evidence": ["regulation_text"],
 			"optional_evidence": [],
 			"retention_policy": "retain_source_truth",
 			"review_policy": "release_gate_required",
 			"materialization_policy": "release_gate_required",
 			"inventory_only": false,
-			"notes": "Synthetic institutional rules target."
+			"notes": "School-level institutional regulation candidates admitted from targeted public-web pages; release-gated before entering regulations/institutional_rules."
 		},
 		{
 			"target_id": "official-web-student-rules",
@@ -57,15 +57,15 @@
 			"owner_surface": "regulations/student_rules",
 			"selected_write_target": "regulations/student_rules",
 			"source_hosts": ["www.example.edu"],
-			"url_hints": ["students", "student-rules"],
-			"title_hints": ["student rule"],
+			"url_hints": ["xsgz", "jwgl", "xszz", "xwsy", "jlycf", "xsgl"],
+			"title_hints": ["办法", "规定", "细则", "制度", "章程", "实施细则"],
 			"required_evidence": ["regulation_text"],
 			"optional_evidence": [],
 			"retention_policy": "retain_source_truth",
 			"review_policy": "release_gate_required",
 			"materialization_policy": "release_gate_required",
 			"inventory_only": false,
-			"notes": "Synthetic student rules target."
+			"notes": "Student-facing public regulations admitted from the information-disclosure student-work sections; release-gated before entering regulations/student_rules."
 		},
 		{
 			"target_id": "official-web-notice-news-inventory",
@@ -73,15 +73,15 @@
 			"owner_surface": "future_notice_runtime",
 			"selected_write_target": "",
 			"source_hosts": ["www.example.edu"],
-			"url_hints": ["news"],
-			"title_hints": ["notice"],
+			"url_hints": ["news", "info", "tzgg", "xwdt"],
+			"title_hints": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"required_evidence": ["notice_news"],
 			"optional_evidence": [],
 			"retention_policy": "inventory_only",
 			"review_policy": "inventory_only",
 			"materialization_policy": "inventory_only",
 			"inventory_only": true,
-			"notes": "Synthetic notice inventory target."
+			"notes": "Inventory-only evidence; this does not open fresh_news or a historical-news/archive runtime."
 		}
 	]
 }

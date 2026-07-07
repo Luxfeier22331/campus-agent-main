@@ -4,12 +4,12 @@ truth_scope: ops
 owner_boundary: apps/ingestion-control
 status: active
 created: 2026-06-12
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 
 # Ingestion Control Clean-Target Runbook
 
-## Scope
+## Document Boundary
 
 This is the active ingestion/data-plane operational entrypoint after retiring
 legacy Python collection CLIs.
@@ -20,13 +20,17 @@ CLIs and serving seed CLIs are not active operation surfaces.
 
 ## Active Runtime Boundary
 
-- `apps/ingestion-control` owns task admission, idempotency, claim / lease,
-  retry, dead-letter, terminal closeout and operator-safe projection snapshots.
-- `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` declares
-  executable task entries with `ts_control` or `rust_kernel` executors only.
+- `apps/ingestion-control` owns task admission, idempotency, Temporal workflow
+  start, terminal closeout and operator-safe projection snapshots.
+- `configs/ingestion/<corpus>/<collection>/task-registry.v2.json` declares
+  active task entries only when the default runtime has a real handler / kernel
+  bridge. The active registry contract currently recognizes only `ts_control`
+  and `rust_kernel`.
 - `packages/ingestion-kernels-rs` owns deterministic file kernels.
-- `apps/ingestion-worker` is a Python adapter island for extraction work that
-  genuinely needs Python, currently legacy Office normalization.
+- `apps/ingestion-worker` is removed from the active workspace. Python code can
+  only remain as pure contracts, deterministic helpers / normalizers, or private
+  extraction service dependencies invoked by explicit TS handlers. It must not
+  construct provider HTTP clients from environment or own lifecycle execution.
 - Eval-owned Python verification must not live under `packages/evals`; it is not
   an ingestion fallback or collection operation surface.
 
@@ -37,23 +41,26 @@ not a Cloudflare Worker.
 
 - `ingestion-control-api`: internal HTTP service for task admission, readiness,
   metrics and operator-safe projections.
-- `ingestion-control-executor`: background executor worker process for claim /
-  lease / registry-aware handler or kernel execution / terminal closeout.
+- `ingestion-control-temporal-worker`: Temporal workflow / activity worker
+  process for run-level orchestration, registry-aware handler or kernel
+  execution, and terminal closeout.
 - collector jobs or services: source-channel adapters that write source-bucket
   artifacts, run ledgers and source-channel task input refs, then admit
   ingestion tasks through the control plane.
-- Python adapter process or service: private extraction island invoked only
-  behind explicit TS-controlled handlers.
+- Python library or private service: extraction capability invoked only behind
+  explicit TS-controlled handlers.
 
-The API and executor roles may share the same package or container image, but
-they must be deployed as different runtime processes. Collector processes and
-`apps/app-api` must not own claim / lease / closeout truth.
+The API and Temporal worker roles may share the same package or container
+image, but they must be deployed as different runtime processes. Collector
+processes and `apps/app-api` must not own workflow / activity / closeout truth.
 
 ## Local Control Plane
 
 ```bash
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
+export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
+export INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN=local-official-web-token
 pnpm --filter ingestion-control start:api
 ```
 
@@ -65,17 +72,21 @@ curl -fsS http://127.0.0.1:8000/readyz
 
 The local command starts only the HTTP control-plane surface.
 
-## Local Executor
+## Local Temporal Worker
 
 ```bash
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
-pnpm --filter ingestion-control start:executor
+export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
+pnpm --filter ingestion-control start:temporal-worker
 ```
 
-The executor command runs claim / lease / registry-aware execution / closeout in
-a separate process. It must not be embedded in `apps/app-api` or collector
+The Temporal worker command runs workflow / activity execution / closeout in a
+separate process. It must not be embedded in `apps/app-api` or collector
 processes.
+The shared container image uses
+`node --experimental-strip-types apps/ingestion-control/src/temporal-worker.ts`
+as the worker process command.
 
 ## Registry Validation
 
@@ -86,23 +97,58 @@ uv run --all-packages python -m scripts.check_ingestion_task_executability
 ```
 
 The registry contract rejects Python adapter executors. If a task requires
-Python extraction, model that as a TS-controlled task that invokes a private
-adapter process behind an explicit task handler. Do not add a registry fallback
+Python extraction, model that as a TS-controlled handler that invokes a private
+adapter process behind an explicit handler. Do not add a registry fallback
 executor.
 
 `scripts.check_ingestion_task_executability` is the current static gate for
-registry executability. It classifies every registry-declared task as one of:
+registry executability. It reads the default executable inventory from
+`packages/ingest-core/src/default-executor-inventory.v1.json`; the Python
+script must not maintain a second TS handler / Rust kernel allowlist. It
+classifies every registry-declared task and its declared input/output contract
+as one of:
 
 - `executable`: default ingestion-control runtime has a real handler / kernel
-  bridge for the task.
+  bridge for the task and the registry input/output contracts match the default
+  executable inventory.
 - `invalid_registry`: the registry declares a task without a real default
-  handler / kernel bridge.
+  handler / kernel bridge, or it points a real handler / kernel at the wrong
+  input/output contract.
 
 Task registries must only contain tasks that are executable in the default
 runtime. Do not keep placeholder task declarations in branch tip; when a new
 lifecycle step is genuinely needed, redesign the handler/kernel and add the
 registry entry in the same change. Do not rely on the presence of
-`task-registry.v1.json` alone as execution evidence.
+`task-registry.v2.json` alone as execution evidence.
+
+The shared task contract names the lifecycle steps that the active runtime can
+execute:
+
+- `source_truth_materialize`: TS control handler.
+- `document_units_validate`, `chunk_prepare` and
+  `release_manifest_validate`: Rust kernel bridge.
+
+Only the first-class name is shared here. Active registries may declare one of
+these task kinds only when the corresponding default handler or kernel bridge
+is registered and the executability audit returns `executable`.
+Collection runtime / chunk profile payload validation belongs to TS
+`packages/ingest-core`; Python `chunking*`, `process*`,
+`regulation_chunking*`, tokenizer cache and corpus profile modules are retired
+and must not be reintroduced as alternate execution paths.
+
+Generic ingestion artifact/model helpers also belong to TS `packages/ingest-core`
+or explicit handlers. Do not restore Python `artifact_keys.py`, `artifacts.py`,
+`models.py`, `document_import_models.py`,
+`campus_agent_ingestion_artifacts.py`, generic `split_manifest.py` or
+`raw_ingestion_split_manifest*.py`. A narrow adapter helper such as
+`handbook_cleanup_manifest.py` is allowed only for logical document-boundary
+validation. It must not grow into canonical markdown generation,
+document-units generation or collection split-manifest runtime.
+
+Capture and provider extraction task entries have been removed from the active
+task contract. Crawlee collection and provider extraction remain source-channel
+/ adapter concerns outside branch-tip task registries until a concrete Temporal
+handler contract is redesigned and implemented in the same change.
 
 Task admission is registry-aware before storage. `POST
 /internal/ingestion/tasks` must reject undeclared collection/task pairs and
@@ -110,11 +156,26 @@ output-contract mismatches with HTTP 400 before inserting task rows. A missing
 `INGESTION_TASK_REGISTRY_ROOT` is a startup configuration error, not a runtime
 fallback to shape-only task validation.
 
+Official-web collector lifecycle writes also enter this service, not `app-api`:
+
+- `POST /internal/ingestion/official-web/runs`
+- `POST /internal/ingestion/official-web/plans:resolve`
+- `POST /internal/ingestion/official-web/runs/:runId/heartbeats`
+- `POST /internal/ingestion/official-web/runs/:runId/finalize`
+
+These endpoints require `Authorization: Bearer
+<INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN>`. Missing service wiring or
+missing/invalid credentials must fail closed. Do not add an app-api proxy or
+compatibility route for the removed `/api/official-web/*` collector POST
+surface.
+
 Authenticated internal notice materialization uses
 `authenticated_notice_capture_release.v1` as the `source_truth_materialize`
 input contract. Admit the task with an `input_ref.kind=object_store` `s3://...`
 URI pointing at `capture-release.json`; do not admit collector-run tokens,
 Postgres ledger rows or local bundle paths as the mainline task input.
+The registry-aware executor rejects non-`object_store` input refs before handler
+dispatch, so this is enforced at runtime rather than left as documentation only.
 
 `campus_notices/internal_notice` now has a real TS
 `source_truth_materialize` handler in `apps/ingestion-control`. The handler
@@ -144,39 +205,51 @@ input contract. The WeChat collector writes article-level source-truth
 artifacts during capture; after an app-api run id exists, it writes run-level
 `capture-release.json` under
 `wechat_official_account/{account_slug}/runs/{run_id}/capture-release.json`.
-When `INGESTION_CONTROL_BASE_URL` is configured, the collector admits
-`wechat_public_notice/campus_notices/wechat_public_notice/
-source_truth_materialize` directly to ingestion-control with that
-object-store ref. The ingestion-control handler verifies the release run id,
-same-bucket article source-truth refs and SHA-256 values, then closes out with
-object-store refs. It does not call FeedWe, crawl WeChat, parse article HTML,
-or mutate app-api run ledger rows.
+The collector does not admit ingestion-control tasks. The app-api/control-plane
+owner admits `wechat_public_notice/campus_notices/wechat_public_notice/
+source_truth_materialize` only after the source-channel run has a finalized
+projection and capture-release object-store ref. The ingestion-control handler
+verifies the release run id, same-bucket article source-truth refs and SHA-256
+values, then closes out with object-store refs. It does not call FeedWe, crawl
+WeChat, parse article HTML, or mutate app-api run ledger rows.
 
 The default TS handler registry only registers collection-specific real
 handlers. A registry-declared `ts_control` task without a registered handler
 must fail closed with `ts_handler_not_registered`; it must not complete through
 a generic contract skeleton. `canonical_document_materialize`,
 `structured_projection_publish`, `operator_projection_snapshot` and
-`alias_publish` must not be reintroduced into task registries until they have
-explicit collection-specific handlers.
+`alias_publish`, `document_projection_materialize`, `read_model_materialize`
+and `derived_scope_materialize` must not be reintroduced into task registries
+as placeholders. Newly designed downstream materialization must arrive in the
+same change that wires an explicit collection-specific handler and contract.
 
-The current default executable TS tasks are:
+The current default executable TS task inventory lives in
+`packages/ingest-core/src/default-executor-inventory.v1.json`. Add a task to
+that inventory only in the same change that wires the real default handler,
+records the exact input/output contract pair and updates registry executability
+tests.
 
-- `authenticated_notice/campus_notices/internal_notice/source_truth_materialize`
-- `official_web/official_web/fresh_news/source_truth_materialize`
-- `official_web/official_web/stable_reference/source_truth_materialize`
-- `wechat_public_notice/campus_notices/wechat_public_notice/source_truth_materialize`
+Post-source-truth materialization must not keep generic report-only handlers or
+registry entries that merely echo the input object into a materialization
+report.
 
-The current Rust kernel ids in task registries
-(`validate-document-units`, `chunk-document-units`,
-`validate-release-manifest`) are executable through the ingestion-control Rust
-kernel bridge when source-bucket access and `ingestion-kernel-runner` are
-configured. The bridge reads the task `input_ref` object, invokes the Rust
-binary, verifies stdout JSON `schema_version` against the task
-`output_contract`, writes the kernel report/chunk artifact back to the source
-bucket and returns an object-store closeout ref. It must fail closed on missing
-object-store access, missing binary, non-zero runner exit, unsupported kernel id
-or invalid stdout schema; do not add inline JS or Python stand-ins.
+Do not add active capture or provider-extract task entries until the
+corresponding Temporal handler contract is redesigned, implemented and covered
+by the executability gate.
+
+The current Rust kernel id inventory also lives in
+`packages/ingest-core/src/default-executor-inventory.v1.json`. These ids are
+executable through the ingestion-control Rust kernel bridge only with the
+inventory-declared input/output contract pair, and only when source-bucket
+access and `ingestion-kernel-runner` are configured. The bridge reads the task
+`input_ref` object, invokes the Rust binary, verifies stdout JSON
+`schema_version` against the task `output_contract`, then parses the stdout
+through the `packages/ingest-core` Zod-backed parser for that contract. The
+bridge writes the validated kernel artifact back to the source bucket and
+returns an object-store closeout ref. It must fail closed on missing
+object-store access, missing binary, non-zero runner exit, unsupported kernel
+id, contract mismatch, unknown output contract, invalid stdout JSON or invalid
+stdout contract shape; do not add inline JS or Python stand-ins.
 
 Source-bucket task handlers use SDK-backed S3-compatible object-store access
 configured by:
@@ -186,11 +259,10 @@ configured by:
 - `OBJECT_STORE_SOURCE_SECRET_KEY`
 - `OBJECT_STORE_BUCKET_SOURCE` (optional, defaults to `campus-agent-source`)
 
-`app-api` official-web projection is stricter: when
-`INGESTION_CONTROL_BASE_URL` is configured and terminal runs can admit
-ingestion-control tasks, `OBJECT_STORE_BUCKET_SOURCE` must also be configured.
-The projector must fail closed rather than constructing task `input_ref` values
-from an implicit bucket default.
+`ingestion-control` official-web projection is stricter: terminal runs may
+admit ingestion-control tasks only when the projection projector has an explicit
+source bucket. The projector must fail closed rather than constructing task
+`input_ref` values from an implicit bucket default.
 
 Rust kernel execution additionally uses:
 
@@ -208,8 +280,9 @@ workspace packages.
 
 Crawlee is the collector execution library for TS-owned web collection
 surfaces. It owns crawler-local scheduling, request retry, concurrency, queue
-identity, browser navigation and failed-request callbacks inside collector
-runners. Official-web sitemap expansion is also delegated to Crawlee
+identity, `uniqueKey` de-duplication, browser navigation and failed-request
+callbacks inside collector runners. Official-web sitemap expansion is also
+delegated to Crawlee
 `RobotsTxtFile.parseUrlsFromSitemaps()` and `Sitemap.load()`; the collector only
 applies domain admission and failure projection after Crawlee returns URLs.
 
@@ -219,15 +292,17 @@ The repo still owns the domain boundary around those runners:
   artifacts
 - authenticated bootstrap windows, cookies, allowlists and provider adapters
 - fail-closed policy, failure record shape and operator-safe projections
-- ingestion-control task admission, claim / lease, retry, dead-letter and
-  closeout
+- ingestion-control task admission, Temporal workflow start, registry-aware
+  activity dispatch and closeout
 - object-store uploads, SDK client configuration and source-bucket references
 - Python extraction adapter islands that are explicitly modeled behind
   TS-controlled tasks
 
 Collector code should not wrap Crawlee in a repo-wide crawler framework. Keep
 only app-local helpers for repeated ephemeral Crawlee configuration, and keep
-Crawlee request `userData` internal to the collector runtime.
+Crawlee request `userData` internal to the collector runtime. Crawlee storage
+and request identity must not replace source-bucket `capture-release.json` /
+bundle object refs as the ingestion-control handoff.
 
 ## Collector Maintenance Rules
 
@@ -237,8 +312,24 @@ Crawlee request `userData` internal to the collector runtime.
   custom backoff code.
 - Do not move object-store writes, source-truth parsing, provider/OCR/model
   polling, or ingestion-control task lifecycle into Crawlee.
-- Do not reintroduce Python crawler runtime or expand `apps/ingestion-worker`
-  beyond explicit extraction adapters.
+- Do not construct OCR / multimodal provider HTTP clients inside a default
+  Python ingestion package; provider execution must enter through an explicit
+  TS-controlled handler or injected private adapter boundary.
+- Do not restore handbook / curriculum provider-response normalization or
+  source-truth validation as Python default modules. If provider extraction is
+  needed again, expose it through an admitted adapter contract that returns
+  canonical artifacts or document units.
+- Do not restore Python semantic chunking, runtime profile parsing, tokenizer
+  cache, process/indexable chunk generation, curriculum document-units
+  generation, handbook cleanup materialization or regulation chunking modules.
+  Default document-units validation and chunk preparation must stay in the Rust
+  kernel bridge with TS contract/profile parsing; do not restore
+  `curriculum_chunk_units*`, `curriculum_document_units*` or Python
+  `handbook_cleanup*` materialization modules.
+- Do not reintroduce Python crawler runtime or `apps/ingestion-worker`.
+- Do not reintroduce source-truth replay CLIs, local attachment `blob_root`
+  backfills, provider comparison CLIs, runtime smoke CLIs, or document canonical
+  markdown backfills as active ingestion operation surfaces.
 - Preserve fail-closed behavior for auth, object-store configuration, invalid
   contracts and crawler failures; do not add fallback paths that hide missing
   config or failed collection.
@@ -248,12 +339,8 @@ Crawlee request `userData` internal to the collector runtime.
 Verification for collector runtime changes:
 
 ```bash
-pnpm --filter authenticated-notice-collector test
-pnpm --filter authenticated-notice-collector typecheck
-pnpm --filter official-web-collector test
-pnpm --filter official-web-collector typecheck
-pnpm --filter wechat-official-account-collector test
-pnpm --filter wechat-official-account-collector typecheck
+pnpm --filter source-collector test
+pnpm --filter source-collector typecheck
 pnpm repo:static
 pnpm web:typecheck
 ```
@@ -264,7 +351,7 @@ Task terminal state is recorded through ingestion-control:
 
 - `completed`
 - `failed`
-- `dead_lettered`
+- `canceled`
 
 Operator views must consume redacted task projections from ingestion-control.
 They must not call object store, Qdrant, registry release logic or Python

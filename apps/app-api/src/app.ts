@@ -46,8 +46,6 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		env,
 		getPrincipal,
 		docsReadinessProbe,
-		officialWebExecutionStatusService: scopedServices.officialWebExecutionStatusService,
-		officialWebPlannerService: scopedServices.officialWebPlannerService,
 		runtimeReadinessProbe,
 		scheduleRequestProjectionDrain: dependencies.scheduleRequestProjectionDrain,
 	});

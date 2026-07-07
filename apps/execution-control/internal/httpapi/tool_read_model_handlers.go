@@ -36,10 +36,6 @@ func (s *Server) handleToolReadModel(
 		result = s.toolReadModel.LookupTransportSchedule(ctx, body)
 	case toolreadmodel.ToolCampusNoticeDiscover:
 		result = s.toolReadModel.LookupCampusNoticeDiscover(ctx, body)
-	case toolreadmodel.ToolCampusNoticePeriodSummary:
-		result = s.toolReadModel.LookupCampusNoticePeriodSummary(ctx, body)
-	case toolreadmodel.ToolCampusNoticeChangeSet:
-		result = s.toolReadModel.LookupCampusNoticeChangeSet(ctx, body)
 	case toolreadmodel.ToolCampusNoticeGet:
 		result = s.toolReadModel.LookupCampusNoticeGet(ctx, body)
 	default:

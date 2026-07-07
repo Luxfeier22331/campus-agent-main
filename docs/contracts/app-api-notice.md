@@ -73,9 +73,9 @@ raw logs。
 {
   "snapshots": [
     {
-      "id": "authenticated_notice_portal:notice:example_internal_portal:355867:run-001:job-001",
-      "noticeKey": "authenticated_notice_portal:notice:example_internal_portal:355867",
-      "sourceChannel": "authenticated_notice_portal",
+      "id": "internal_portal:notice:synthetic_internal_portal:355867:run-001:job-001",
+      "noticeKey": "internal_portal:notice:synthetic_internal_portal:355867",
+      "sourceChannel": "internal_portal",
       "sourceSurface": "notice",
       "siteId": "example_internal_portal",
       "noticeId": "355867",
@@ -249,14 +249,14 @@ query filters：
 {
   "snapshots": [
     {
-      "id": "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
-      "runKey": "authenticated_notice_portal:notice:example_internal_portal:20260428T181953007Z",
-      "sourceChannel": "authenticated_notice_portal",
+      "id": "internal_portal:run:synthetic_internal_portal:20260428T181953007Z",
+      "runKey": "internal_portal:notice:synthetic_internal_portal:20260428T181953007Z",
+      "sourceChannel": "internal_portal",
       "sourceSurface": "notice",
-      "siteId": "example_internal_portal",
-      "collectorRunToken": "20260428T181953007Z",
-      "runId": "example_internal_portal:notice:20260428T181953007Z",
-      "replayBatchId": "authenticated-notice-smoke:example_internal_portal:notice:20260428T181953007Z",
+      "siteId": "synthetic_internal_portal",
+      "sourceRunToken": "20260428T181953007Z",
+      "runId": "synthetic_internal_portal:notice:20260428T181953007Z",
+      "replayBatchId": "authenticated-notice-smoke:synthetic_internal_portal:notice:20260428T181953007Z",
       "enqueueSource": "manual_replay",
       "lifecycleStatus": "succeeded",
       "latestStage": "succeeded",
@@ -301,7 +301,7 @@ query filters：
 Run-level snapshot 规则：
 
 - `id` 是 run processing snapshot 幂等键
-- run-level projection 解释 collector run / replay batch / queue run 的整体状态，不替代
+- run-level projection 解释 source run / replay batch / queue run 的整体状态，不替代
   notice-level processing record
 - `sourceTruth` 只保存 aggregate counts 和最多少量 title/id samples；source-truth-only run
   必须用 `import_result.notice_count` 表示导入规模
@@ -318,7 +318,7 @@ Run-level snapshot 规则：
 
 query filters：
 
-- `collectorRunToken`
+- `sourceRunToken`
 - `q`
 - `status`
 - `queueStatus`
@@ -351,8 +351,8 @@ query filters：
 ```json
 {
   "run": {
-    "id": "authenticated_notice_portal:run:example_internal_portal:20260428T181953007Z",
-    "collectorRunToken": "20260428T181953007Z",
+    "id": "internal_portal:run:synthetic_internal_portal:20260428T181953007Z",
+    "sourceRunToken": "20260428T181953007Z",
     "lifecycleStatus": "succeeded",
     "latestQueueStatus": "succeeded",
     "queueJobCount": 1,

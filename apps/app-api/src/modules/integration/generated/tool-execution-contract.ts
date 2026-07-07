@@ -13,8 +13,6 @@ export const TOOL_IDS = [
 	"place_lookup",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
-	"campus_notice_change_set_lookup",
-	"campus_notice_period_summary",
 	"campus_notice_get",
 ] as const;
 export const MODEL_VISIBLE_TOOL_NAMES = [
@@ -47,8 +45,6 @@ export const EXECUTION_STATUSES = [
 export const WORKFLOW_MODES = ["terminal", "single_step", "multi_step"] as const;
 export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"notice_context",
-	"notice_change_set",
-	"notice_period_summary",
 	"schedule_baseline",
 	"place_context",
 	"evidence_bundle",

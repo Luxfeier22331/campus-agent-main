@@ -25,9 +25,6 @@ function buildScheduledRuntime(input: { envOverrides?: Record<string, string> })
 		drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 		drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 	};
-	const officialWebProjector = {
-		drain: vi.fn().mockResolvedValue({ abandoned: 0, failed: 0, processed: 0, skipped: 0 }),
-	};
 	const chatCommandService = {
 		reconcileDurableCloseouts: vi.fn().mockResolvedValue({
 			failed: 0,
@@ -43,13 +40,11 @@ function buildScheduledRuntime(input: { envOverrides?: Record<string, string> })
 		},
 		{
 			chatCommandService,
-			officialWebProjector,
 			requestProjector,
 		},
 	);
 	return {
 		chatCommandService,
-		officialWebProjector,
 		requestProjector,
 		runtime,
 	};
@@ -57,28 +52,24 @@ function buildScheduledRuntime(input: { envOverrides?: Record<string, string> })
 
 describe("app-api worker scheduled sweepers", () => {
 	it("does not run scheduled DB sweepers unless explicitly enabled", async () => {
-		const { chatCommandService, officialWebProjector, requestProjector, runtime } =
-			buildScheduledRuntime({});
+		const { chatCommandService, requestProjector, runtime } = buildScheduledRuntime({});
 
 		await runtime.scheduled();
 
 		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
 		expect(requestProjector.drain).not.toHaveBeenCalled();
-		expect(officialWebProjector.drain).not.toHaveBeenCalled();
 	});
 
 	it("runs only explicitly enabled scheduled DB sweepers", async () => {
-		const { chatCommandService, officialWebProjector, requestProjector, runtime } =
-			buildScheduledRuntime({
-				envOverrides: {
-					APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED: "true",
-				},
-			});
+		const { chatCommandService, requestProjector, runtime } = buildScheduledRuntime({
+			envOverrides: {
+				APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED: "true",
+			},
+		});
 
 		await runtime.scheduled();
 
 		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
 		expect(requestProjector.drain).toHaveBeenCalledTimes(1);
-		expect(officialWebProjector.drain).not.toHaveBeenCalled();
 	});
 });

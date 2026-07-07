@@ -51,8 +51,8 @@ upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或�
   rows。
 - `official_web` source-truth 允许服务多个下游 collection / corpus，但不得提前携带
   document、chunk、retrieval 或 serving 语义。
-- 这些下游 collection / corpus 可以是 `official_web/stable_reference`、`official_web/fre
-  sh_news`、`official_web/news_archive`，也可以是与 `official_web` 并列的
+- 这些下游 collection / corpus 当前可以是 `official_web/stable_reference`、
+  `official_web/fresh_news`，也可以是与 `official_web` 并列的
   `regulations/*`、`curriculum/*`；具体归属由 projection / document truth 决定，而不是由
   source-truth 预写死。
 - page-level family classification 与 provider-level page signals 可以作为

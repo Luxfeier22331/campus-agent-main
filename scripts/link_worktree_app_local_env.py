@@ -11,9 +11,9 @@ APP_LOCAL_ENV_PATHS = (
     "apps/campus-web/.env",
     "apps/campus-web/.dev.vars",
     "apps/operator-console-web/.dev.vars",
-    "apps/official-web-collector/.env",
-    "apps/authenticated-notice-collector/.env",
-    "apps/wechat-official-account-collector/.env",
+    "apps/source-collector/adapters/internal-portal/.env",
+    "apps/source-collector/adapters/official-web/.env",
+    "apps/source-collector/adapters/wechat-official-account/.env",
     "env/commands/campus-docs-reader-build.env",
 )
 

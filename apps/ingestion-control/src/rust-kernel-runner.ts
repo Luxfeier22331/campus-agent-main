@@ -1,22 +1,27 @@
 import { spawn } from "node:child_process";
 
-import type { IngestionObjectStore } from "./authenticated-notice-materialize";
+import {
+	buildIngestionKernelArtifactKey,
+	buildObjectStoreArtifactRef,
+	type CollectionChunkProfile,
+	DEFAULT_EXECUTABLE_RUST_KERNEL_IDS,
+	type DefaultExecutableRustKernelId,
+	INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE,
+	parseIngestionKernelJsonOutput,
+	parseS3Uri,
+} from "ingest-core";
+
+import type { IngestionObjectStore } from "./object-store";
 import {
 	type RustKernelHandler,
 	RustKernelRegistry,
 	type TsTaskHandlerResult,
 } from "./task-executor";
-import type { IngestionArtifactRef, IngestionTaskRecord } from "./types";
 
 const DEFAULT_RUNNER_PATH = "ingestion-kernel-runner";
-const DEFAULT_CHUNK_MAX_CHARS = 4000;
-const EXECUTABLE_KERNEL_IDS = [
-	"validate-document-units",
-	"chunk-document-units",
-	"validate-release-manifest",
-] as const;
-
-type ExecutableKernelId = (typeof EXECUTABLE_KERNEL_IDS)[number];
+const DEFAULT_CHUNK_SIZE = 384;
+const DEFAULT_MAX_TOKENS = 512;
+const DEFAULT_OVERLAP = 64;
 
 export interface RustKernelCommandInput {
 	executable: string;
@@ -36,10 +41,15 @@ export type RustKernelCommandRunner = (
 ) => Promise<RustKernelCommandOutput>;
 
 export interface DefaultRustKernelRegistryOptions {
-	chunkMaxChars?: number;
+	chunkProfiles?: ReadonlyMap<string, CollectionChunkProfile>;
+	chunkSize?: number;
 	commandRunner?: RustKernelCommandRunner;
+	minTokens?: number;
+	maxTokens?: number;
 	objectStore?: IngestionObjectStore;
+	overlap?: number;
 	runnerPath?: string;
+	tokenizerJsonPath?: string;
 }
 
 export function createDefaultRustKernelRegistry(
@@ -54,16 +64,17 @@ export function createDefaultRustKernelRegistry(
 		process.env.INGESTION_KERNEL_RUNNER_PATH?.trim() ||
 		DEFAULT_RUNNER_PATH;
 	const commandRunner = options.commandRunner ?? runRustKernelCommand;
-	const chunkMaxChars = requiredPositiveInteger(
-		options.chunkMaxChars ?? DEFAULT_CHUNK_MAX_CHARS,
-		"chunkMaxChars",
-	);
-	for (const kernelId of EXECUTABLE_KERNEL_IDS) {
+	const defaultChunkOptions = resolveChunkOptions(options);
+	for (const kernelId of DEFAULT_EXECUTABLE_RUST_KERNEL_IDS) {
+		if (kernelId === "chunk-document-units" && !defaultChunkOptions) {
+			continue;
+		}
 		registry.register(
 			kernelId,
 			createRustKernelHandler({
-				chunkMaxChars,
+				chunkProfiles: options.chunkProfiles ?? new Map(),
 				commandRunner,
+				defaultChunkOptions,
 				kernelId,
 				objectStore: options.objectStore,
 				runnerPath,
@@ -74,9 +85,10 @@ export function createDefaultRustKernelRegistry(
 }
 
 function createRustKernelHandler(input: {
-	chunkMaxChars: number;
+	chunkProfiles: ReadonlyMap<string, CollectionChunkProfile>;
 	commandRunner: RustKernelCommandRunner;
-	kernelId: ExecutableKernelId;
+	defaultChunkOptions: RustChunkKernelOptions | null;
+	kernelId: DefaultExecutableRustKernelId;
 	objectStore: IngestionObjectStore;
 	runnerPath: string;
 }): RustKernelHandler {
@@ -85,7 +97,10 @@ function createRustKernelHandler(input: {
 		const stdin = await input.objectStore.getObject(source);
 		const result = await input.commandRunner({
 			executable: input.runnerPath,
-			args: kernelArgs(input.kernelId, input.chunkMaxChars),
+			args: kernelArgs({
+				chunkOptions: resolveTaskChunkOptions(input, task),
+				kernelId: input.kernelId,
+			}),
 			stdin,
 		});
 		if (result.exitCode !== 0) {
@@ -95,12 +110,12 @@ function createRustKernelHandler(input: {
 				)}${kernelFailureDetails(result)}`,
 			);
 		}
-		const output = requireKernelOutputJson({
+		const output = parseIngestionKernelJsonOutput({
 			expectedSchemaVersion: task.output_contract,
 			kernelId: input.kernelId,
 			stdout: result.stdout,
 		});
-		const artifactKey = rustKernelArtifactKey({
+		const artifactKey = buildIngestionKernelArtifactKey({
 			kernelId: input.kernelId,
 			task,
 		});
@@ -108,18 +123,42 @@ function createRustKernelHandler(input: {
 			bucket: source.bucket,
 			key: artifactKey,
 			body: output.bytes,
-			contentType: "application/json",
+			contentType: INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE,
 		});
 		return {
 			artifactRefs: [
-				{
-					kind: "object_store",
-					uri: `s3://${source.bucket}/${artifactKey}`,
-					digest: `sha256:${write.contentSha256}`,
-				},
+				buildObjectStoreArtifactRef({
+					bucket: source.bucket,
+					key: artifactKey,
+					contentSha256: write.contentSha256,
+				}),
 			],
 		};
 	};
+}
+
+function resolveTaskChunkOptions(
+	input: {
+		chunkProfiles: ReadonlyMap<string, CollectionChunkProfile>;
+		defaultChunkOptions: RustChunkKernelOptions | null;
+	},
+	task: { corpus: string; collection: string },
+): RustChunkKernelOptions | null {
+	const profile = input.chunkProfiles.get(collectionProfileKey(task));
+	if (!(profile && input.defaultChunkOptions)) {
+		return input.defaultChunkOptions;
+	}
+	return {
+		...input.defaultChunkOptions,
+		chunkSize: profile.runtimeDefaults.chunkSize,
+		maxTokens: profile.runtimeDefaults.maxChunkSize,
+		minTokens: profile.runtimeDefaults.minChunkSize,
+		overlap: profile.runtimeDefaults.chunkOverlap,
+	};
+}
+
+function collectionProfileKey(input: { corpus: string; collection: string }): string {
+	return `${input.corpus}/${input.collection}`;
 }
 
 async function runRustKernelCommand(
@@ -146,80 +185,79 @@ async function runRustKernelCommand(
 	});
 }
 
-function kernelArgs(kernelId: ExecutableKernelId, chunkMaxChars: number): string[] {
-	if (kernelId === "chunk-document-units") {
-		return [kernelId, "--max-chars", String(chunkMaxChars)];
-	}
-	return [kernelId];
+interface RustChunkKernelOptions {
+	chunkSize: number;
+	maxTokens: number;
+	minTokens: number;
+	overlap: number;
+	tokenizerJsonPath: string;
 }
 
-function requireKernelOutputJson(input: {
-	expectedSchemaVersion: string;
-	kernelId: string;
-	stdout: Uint8Array;
-}): { bytes: Uint8Array; value: Record<string, unknown> } {
-	const text = Buffer.from(input.stdout).toString("utf8");
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(text);
-	} catch (error) {
-		throw new Error(
-			`ingestion kernel ${input.kernelId} stdout must be JSON: ${errorMessage(error)}`,
-		);
+function kernelArgs(input: {
+	chunkOptions: RustChunkKernelOptions | null;
+	kernelId: DefaultExecutableRustKernelId;
+}): string[] {
+	if (input.kernelId === "chunk-document-units") {
+		if (!input.chunkOptions) {
+			throw new Error("chunk-document-units requires tokenizer options");
+		}
+		return [
+			input.kernelId,
+			"--tokenizer-json",
+			input.chunkOptions.tokenizerJsonPath,
+			"--chunk-size",
+			String(input.chunkOptions.chunkSize),
+			"--max-tokens",
+			String(input.chunkOptions.maxTokens),
+			"--overlap",
+			String(input.chunkOptions.overlap),
+			"--min-tokens",
+			String(input.chunkOptions.minTokens),
+		];
 	}
-	if (!isRecord(parsed)) {
-		throw new Error(`ingestion kernel ${input.kernelId} stdout must be a JSON object`);
+	return [input.kernelId];
+}
+
+function resolveChunkOptions(
+	options: DefaultRustKernelRegistryOptions,
+): RustChunkKernelOptions | null {
+	const tokenizerJsonPath =
+		options.tokenizerJsonPath?.trim() || process.env.INGESTION_KERNEL_TOKENIZER_JSON_PATH?.trim();
+	if (!tokenizerJsonPath) {
+		return null;
 	}
-	if (parsed.schema_version !== input.expectedSchemaVersion) {
-		throw new Error(
-			`ingestion kernel ${input.kernelId} stdout expected schema_version ${input.expectedSchemaVersion}`,
-		);
+	const chunkSize = requiredPositiveInteger(options.chunkSize ?? DEFAULT_CHUNK_SIZE, "chunkSize");
+	const maxTokens = requiredPositiveInteger(options.maxTokens ?? DEFAULT_MAX_TOKENS, "maxTokens");
+	const minTokens = requiredPositiveInteger(options.minTokens ?? 1, "minTokens");
+	const overlap = requiredNonnegativeInteger(options.overlap ?? DEFAULT_OVERLAP, "overlap");
+	if (chunkSize > maxTokens) {
+		throw new Error("chunkSize must be less than or equal to maxTokens");
+	}
+	if (minTokens > maxTokens) {
+		throw new Error("minTokens must be less than or equal to maxTokens");
+	}
+	if (overlap >= chunkSize) {
+		throw new Error("overlap must be less than chunkSize");
 	}
 	return {
-		bytes: input.stdout,
-		value: parsed,
+		chunkSize,
+		maxTokens,
+		minTokens,
+		overlap,
+		tokenizerJsonPath,
 	};
-}
-
-function rustKernelArtifactKey(input: { kernelId: string; task: IngestionTaskRecord }): string {
-	return [
-		"ingestion-kernels",
-		safeKeySegment(input.task.corpus, "corpus"),
-		safeKeySegment(input.task.collection, "collection"),
-		safeKeySegment(input.task.run_id, "run_id"),
-		safeKeySegment(input.task.task_id, "task_id"),
-		`${safeKeySegment(input.kernelId, "kernel_id")}.json`,
-	].join("/");
-}
-
-function parseS3Uri(ref: IngestionArtifactRef): { bucket: string; key: string } {
-	if (ref.kind !== "object_store") {
-		throw new Error(`input_ref must be object_store, got ${ref.kind}`);
-	}
-	if (!ref.uri.startsWith("s3://")) {
-		throw new Error(`input_ref object_store uri must use s3://, got ${ref.uri}`);
-	}
-	const rest = ref.uri.slice("s3://".length);
-	const slash = rest.indexOf("/");
-	if (slash <= 0 || slash === rest.length - 1) {
-		throw new Error(`invalid s3 uri: ${ref.uri}`);
-	}
-	return {
-		bucket: rest.slice(0, slash),
-		key: rest.slice(slash + 1),
-	};
-}
-
-function safeKeySegment(value: string, label: string): string {
-	if (!/^[A-Za-z0-9_.:-]+$/u.test(value)) {
-		throw new Error(`${label} is not safe for ingestion kernel artifact key`);
-	}
-	return value;
 }
 
 function requiredPositiveInteger(value: number, label: string): number {
 	if (!Number.isInteger(value) || value <= 0) {
 		throw new Error(`${label} must be a positive integer`);
+	}
+	return value;
+}
+
+function requiredNonnegativeInteger(value: number, label: string): number {
+	if (!Number.isInteger(value) || value < 0) {
+		throw new Error(`${label} must be a nonnegative integer`);
 	}
 	return value;
 }
@@ -233,12 +271,4 @@ function kernelFailureDetails(result: RustKernelCommandOutput): string {
 		return `, signal ${result.signal}`;
 	}
 	return "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }

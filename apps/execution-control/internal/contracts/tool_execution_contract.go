@@ -21,13 +21,11 @@ const (
 type ToolID string
 
 const (
-	ToolIDKnowledgeQuery              ToolID = "knowledge_query"
-	ToolIDPlaceLookup                 ToolID = "place_lookup"
-	ToolIDTransportScheduleLookup     ToolID = "transport_schedule_lookup"
-	ToolIDCampusNoticeDiscover        ToolID = "campus_notice_discover"
-	ToolIDCampusNoticeChangeSetLookup ToolID = "campus_notice_change_set_lookup"
-	ToolIDCampusNoticePeriodSummary   ToolID = "campus_notice_period_summary"
-	ToolIDCampusNoticeGet             ToolID = "campus_notice_get"
+	ToolIDKnowledgeQuery          ToolID = "knowledge_query"
+	ToolIDPlaceLookup             ToolID = "place_lookup"
+	ToolIDTransportScheduleLookup ToolID = "transport_schedule_lookup"
+	ToolIDCampusNoticeDiscover    ToolID = "campus_notice_discover"
+	ToolIDCampusNoticeGet         ToolID = "campus_notice_get"
 )
 
 type ModelVisibleToolName string
@@ -87,13 +85,11 @@ const (
 type StepOutputProjectionKind string
 
 const (
-	StepOutputProjectionKindNoticeContext       StepOutputProjectionKind = "notice_context"
-	StepOutputProjectionKindNoticeChangeSet     StepOutputProjectionKind = "notice_change_set"
-	StepOutputProjectionKindNoticePeriodSummary StepOutputProjectionKind = "notice_period_summary"
-	StepOutputProjectionKindScheduleBaseline    StepOutputProjectionKind = "schedule_baseline"
-	StepOutputProjectionKindPlaceContext        StepOutputProjectionKind = "place_context"
-	StepOutputProjectionKindEvidenceBundle      StepOutputProjectionKind = "evidence_bundle"
-	StepOutputProjectionKindGroundingVerdict    StepOutputProjectionKind = "grounding_verdict"
+	StepOutputProjectionKindNoticeContext    StepOutputProjectionKind = "notice_context"
+	StepOutputProjectionKindScheduleBaseline StepOutputProjectionKind = "schedule_baseline"
+	StepOutputProjectionKindPlaceContext     StepOutputProjectionKind = "place_context"
+	StepOutputProjectionKindEvidenceBundle   StepOutputProjectionKind = "evidence_bundle"
+	StepOutputProjectionKindGroundingVerdict StepOutputProjectionKind = "grounding_verdict"
 )
 
 type StageTimingField string
@@ -626,7 +622,7 @@ func (wire DebugTraceRefWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDKnowledgeQuery, ToolIDPlaceLookup, ToolIDTransportScheduleLookup, ToolIDCampusNoticeDiscover, ToolIDCampusNoticeChangeSetLookup, ToolIDCampusNoticePeriodSummary, ToolIDCampusNoticeGet:
+	case ToolIDKnowledgeQuery, ToolIDPlaceLookup, ToolIDTransportScheduleLookup, ToolIDCampusNoticeDiscover, ToolIDCampusNoticeGet:
 		return true
 	default:
 		return false
@@ -681,8 +677,6 @@ func (value WorkflowMode) Valid() bool {
 func (value StepOutputProjectionKind) Valid() bool {
 	switch value {
 	case StepOutputProjectionKindNoticeContext,
-		StepOutputProjectionKindNoticeChangeSet,
-		StepOutputProjectionKindNoticePeriodSummary,
 		StepOutputProjectionKindScheduleBaseline,
 		StepOutputProjectionKindPlaceContext,
 		StepOutputProjectionKindEvidenceBundle,

@@ -75,36 +75,6 @@
 			},
 			"timeout_ms": 1000,
 			"result_projection_policy": "bounded_json"
-		},
-		{
-			"name": "campus_notice_period_summary",
-			"description": "Summarize governed campus notices over a bounded date range from the notice read model.",
-			"exposure": "closed",
-			"read_only": true,
-			"requires_approval": false,
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticePeriodSummaryPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticePeriodSummaryResult",
-			"handler": {
-				"type": "execution_control_internal_query",
-				"endpoint": "/internal/query/notices/period-summary"
-			},
-			"timeout_ms": 1000,
-			"result_projection_policy": "bounded_json"
-		},
-		{
-			"name": "campus_notice_change_set_lookup",
-			"description": "Lookup admitted transport notice change-set overrides from bounded notice/runtime truth.",
-			"exposure": "closed",
-			"read_only": true,
-			"requires_approval": false,
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupResult",
-			"handler": {
-				"type": "execution_control_internal_query",
-				"endpoint": "/internal/query/notices/change-set"
-			},
-			"timeout_ms": 1000,
-			"result_projection_policy": "bounded_json"
 		}
 	]
 }

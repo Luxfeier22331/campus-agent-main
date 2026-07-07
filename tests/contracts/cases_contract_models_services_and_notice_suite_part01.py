@@ -28,56 +28,6 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             "regulations/student_rules",
         )
 
-    def test_notice_period_summary_payload_and_result_serialize(self) -> None:
-        payload = CampusNoticePeriodSummaryPayload(
-            query_text="4月上旬奖学金通知总结",
-            date_range=NoticeDateRange(
-                start_date="2026-04-01",
-                end_date="2026-04-10",
-                timezone="Asia/Shanghai",
-            ),
-            source_families=("internal_notice_restricted",),
-            target_surfaces=("notice_level_query",),
-            group_by="topic",
-            max_items=10,
-        )
-        result = CampusNoticePeriodSummaryResult(
-            query_text="4月上旬奖学金通知总结",
-            outcome="resolved_current",
-            date_range=payload.date_range,
-            groups=(
-                NoticePeriodSummaryGroup(
-                    group_key="奖学金",
-                    title="奖学金",
-                    notice_count=2,
-                    summary="4月上旬有奖学金申请和答辩安排两类通知。",
-                    notice_ids=("notice-001", "notice-002"),
-                ),
-            ),
-            notice_cards=(
-                NoticeCard(
-                    notice_id="notice-001",
-                    title="关于开展奖学金申请工作的通知",
-                    source_family="internal_notice_restricted",
-                    source_url="https://portal.example.edu/notices/notice-001",
-                    target_surface="notice_level_query",
-                    published_at="2026-04-02T09:00:00+08:00",
-                    summary="奖学金申请材料提交安排。",
-                ),
-            ),
-            bounded_summary="4月上旬有奖学金申请和答辩安排两类通知。",
-            source_ref_count=2,
-        )
-
-        self.assertEqual(asdict(payload)["date_range"]["start_date"], "2026-04-01")
-        self.assertEqual(asdict(payload)["group_by"], "topic")
-        self.assertEqual(asdict(result)["source_ref_count"], 2)
-        self.assertEqual(asdict(result)["groups"][0]["group_key"], "奖学金")
-
-    def test_notice_period_summary_rejects_invalid_range(self) -> None:
-        with self.assertRaisesRegex(ValueError, "start_date must be <= end_date"):
-            NoticeDateRange(start_date="2026-04-10", end_date="2026-04-01")
-
     def test_tool_request_serializes_forward_allowed_tools(self) -> None:
         request = ToolRequest(
             tool="transport_schedule_lookup",

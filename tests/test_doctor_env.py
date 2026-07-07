@@ -101,17 +101,32 @@ class DoctorEnvTest(unittest.TestCase):
         for key in retired_doctor_keys:
             self.assertNotIn(key, rendered, key)
 
-    def test_internal_notice_doctor_contract_only_keeps_required_multimodal_env(self) -> None:
+    def test_internal_notice_doctor_contract_does_not_require_python_multimodal_env(
+        self,
+    ) -> None:
         spec = SURFACE_SPECS["internal-notice-consumption"]
         rendered_required = json.dumps(spec["required_settings"], default=str, ensure_ascii=False)
         rendered_optional = json.dumps(spec["optional_settings"], default=str, ensure_ascii=False)
 
-        self.assertIn("INTERNAL_NOTICE_MULTIMODAL_API_KEY", rendered_required)
-        self.assertIn("INTERNAL_NOTICE_MULTIMODAL_MODEL", rendered_required)
+        self.assertIn("NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL", rendered_required)
+        self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", rendered_required)
+        self.assertIn("INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL", rendered_required)
         self.assertNotIn("LLM_API_KEY", rendered_required)
-        self.assertNotIn("INTERNAL_NOTICE_MULTIMODAL_BASE_URL", rendered_optional)
         self.assertNotIn("LLM_BASE_URL", rendered_optional)
-        self.assertNotIn("INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS", rendered_optional)
+        self.assertFalse(
+            any(
+                key.startswith("INTERNAL_NOTICE_MULTIMODAL_")
+                for keys in spec["required_settings"].values()
+                for key in keys
+            )
+        )
+        self.assertFalse(
+            any(
+                key.startswith("INTERNAL_NOTICE_MULTIMODAL_")
+                for keys in spec["optional_settings"].values()
+                for key in keys
+            )
+        )
 
     def test_collect_env_doctor_status_reports_current_execution_control_runtime_keys(
         self,
@@ -579,8 +594,6 @@ class DoctorEnvTest(unittest.TestCase):
                         "OCR_API_KEY=ocr-secret",
                         "OCR_PROVIDER_MODE=paddleocr_async_jobs",
                         "DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
-                        "LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091",
-                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=test-secret",
                     ]
                 )
                 + "\n",
@@ -596,13 +609,10 @@ class DoctorEnvTest(unittest.TestCase):
                 status["settings"]["required"]["object_store_credentials"]["resolved_key"],
                 "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
             )
-            self.assertTrue(
-                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
-            )
-            self.assertTrue(
-                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
-                    "present"
-                ]
+            self.assertNotIn("legacy_office_conversion_base_url", status["settings"]["optional"])
+            self.assertNotIn(
+                "legacy_office_conversion_internal_shared_secret",
+                status["settings"]["optional"],
             )
 
     def test_collect_env_doctor_status_reports_internal_notice_consumption_runtime(self) -> None:
@@ -612,12 +622,9 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "INTERNAL_NOTICE_MULTIMODAL_API_KEY=notice-multimodal-secret",
-                        "INTERNAL_NOTICE_MULTIMODAL_MODEL=gpt-5.4-mini",
                         "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL=postgresql://projection/postgres",
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=postgresql://read-model/postgres",
                         "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL=postgresql://admission/postgres",
-                        "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL=postgresql://attempt/postgres",
                     ]
                 )
                 + "\n",
@@ -630,20 +637,14 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             self.assertTrue(status["overall_ready"])
-            self.assertEqual(
-                status["settings"]["required"]["multimodal_api_key"]["resolved_key"],
-                "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
-            )
-            self.assertEqual(
-                status["settings"]["required"]["multimodal_model"]["resolved_key"],
-                "INTERNAL_NOTICE_MULTIMODAL_MODEL",
-            )
+            self.assertTrue(status["settings"]["required"]["projection_database_url"]["present"])
+            self.assertTrue(status["settings"]["required"]["read_model_database_url"]["present"])
             self.assertTrue(status["settings"]["required"]["admission_database_url"]["present"])
-            self.assertTrue(status["settings"]["required"]["attempt_database_url"]["present"])
+            self.assertNotIn("multimodal_api_key", status["settings"]["required"])
+            self.assertNotIn("multimodal_model", status["settings"]["required"])
+            self.assertNotIn("attempt_database_url", status["settings"]["required"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_without_legacy_office_service_contract(
-        self,
-    ) -> None:
+    def test_collect_env_doctor_status_does_not_expose_legacy_office_service_contract(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -668,13 +669,10 @@ class DoctorEnvTest(unittest.TestCase):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
 
             self.assertTrue(status["overall_ready"])
-            self.assertFalse(
-                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
-            )
-            self.assertFalse(
-                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
-                    "present"
-                ]
+            self.assertNotIn("legacy_office_conversion_base_url", status["settings"]["optional"])
+            self.assertNotIn(
+                "legacy_office_conversion_internal_shared_secret",
+                status["settings"]["optional"],
             )
 
     def test_collect_env_doctor_status_accepts_bucket_scoped_object_store_credentials(self) -> None:
@@ -695,8 +693,6 @@ class DoctorEnvTest(unittest.TestCase):
                         "OCR_API_KEY=ocr-secret",
                         "OCR_PROVIDER_MODE=paddleocr_async_jobs",
                         "DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
-                        "LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091",
-                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=test-secret",
                     ]
                 )
                 + "\n",

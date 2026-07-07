@@ -365,7 +365,7 @@ opening truth。
 
 ## Merged Truth Vs Target Boundary
 
-当前已经具备：
+Merged truth 固定包含：
 
 - 默认只服务当前有效版本；`current` 仍通过 query-time `is_current=true` 与 runtime
   profile filter 执行，不把整条 collection 误收敛为单个 current version id

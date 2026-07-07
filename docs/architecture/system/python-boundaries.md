@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: python-boundaries
 status: active
 created: 2026-04-26
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 # Python Boundary
 
@@ -62,9 +62,10 @@ LlamaIndex 不是架构层，也不得进入 contracts、execution-control、pan
 truth。长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter +
 sanitized query activity projection。
 
-当前 active workspace 中，`packages/ingestion-core` 不再通过 LlamaIndex 表达 embedding
-model、mock embedding 或 chunk node payload。ingestion chunk / embedding seam 使用
-repo-owned protocol / DTO；后续不得为了便利重新引入 LlamaIndex runtime coupling。
+当前 active workspace 中，旧 Python ingestion package 已删除，不再通过 LlamaIndex
+表达 embedding model、mock embedding 或 chunk node payload。ingestion chunk /
+embedding seam 使用 repo-owned protocol / DTO；后续不得为了便利重新引入
+LlamaIndex runtime coupling。
 
 当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与 profile-gated rerank
 interface；未发现线上 cross-encoder、torch、ONNX 或 sentence-transformers rerank 作为 current
@@ -80,7 +81,15 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 
 ## Data-Plane Boundary
 
-`packages/ingestion-core` 继续拥有 ingestion / projection / materialization data plane。
+旧 Python ingestion package 已删除。Python 不再作为 default data-plane package、
+worker runtime 或 fallback executor 存在；仍需 Python 生态的 extraction 能力必须重新
+admission 为 explicit TS handler 调用的 private adapter service 或窄 package，并返回
+canonical artifacts / document units。Python 不拥有默认 materialization runtime、
+source-truth / projection / registry ownership、task lifecycle、object-store /
+Postgres / Qdrant client lifecycle 或 alias publish。Regulation semantic、
+answer-role 与 answer-ready contract helper 不再保留独立 Python package；如未来需要，
+必须按 collection-local TS handler、Rust kernel 或显式 adapter contract 重新
+admission。
 
 Python data-plane code no longer owns default relational database
 connectivity. It may keep pure URL validation / normalization helpers and
@@ -89,19 +98,46 @@ TS/Go database owner surfaces. Python registry / projection connection
 entrypoints must fail closed unless they are rebuilt as an explicitly admitted
 adapter boundary.
 
-Python data-plane code is also being removed from default provider and tokenizer
-runtime ownership. Qwen3 chunk budgeting now uses the local `tokenizer.json`
-through Hugging Face `tokenizers`; it must not import `transformers` or perform
-runtime network download. Online OCR / MinerU adapter calls use the existing
-`httpx` dependency and remain adapter-island behavior, not a general provider
-runtime.
+Python data-plane code no longer owns default provider, tokenizer, chunk profile
+or chunk preparation runtime. Collection runtime / chunk profile payloads are
+parsed in TS `packages/ingest-core`; default `document_units_validate`,
+`chunk_prepare` and `release_manifest_validate` execution enters
+`apps/ingestion-control` and the Rust kernel bridge. The kernel may use a local
+`tokenizer.json` / Hugging Face `tokenizers` only inside the deterministic
+kernel boundary; Python must not reintroduce `transformers`, tokenizer cache,
+semantic chunker, process pipeline or runtime network download. Online OCR /
+MinerU adapter calls remain explicit adapter-island behavior, not a general
+provider runtime.
+Curriculum document-units generation, validation and chunk preparation are not
+Python adapter-island work; do not restore `curriculum_chunk_units*` or
+`curriculum_document_units*` modules.
+Historical handbook / curriculum provider-response normalization and
+source-truth validation modules have left the active workspace. Future
+provider extraction must enter through an explicit adapter contract and return
+canonical artifacts or document units; do not rebuild default provider-response
+materialization inside the Python package.
 
-Python Qdrant and S3-compatible object-store clients remain temporary data-plane
-migration residues where active ingestion tests still cover legacy index /
-artifact operations. They are not target ownership. New collection lifecycle,
-Qdrant alias publish, index mutation, object-store runtime client creation and
-audit closeout must move to admitted TS/Go owners or an explicit Python adapter
-boundary before those Python dependencies can be removed.
+Python no longer keeps concrete Qdrant or S3-compatible object-store client
+lifecycle. Remaining Python references to Qdrant are profile DTO /
+config-validation terms, not client ownership. New collection
+lifecycle, Qdrant alias publish, index mutation, object-store runtime client
+creation and audit closeout must stay in admitted TS/Go owners or an explicit
+Python adapter boundary.
+
+Python no longer owns generic ingestion artifact/model DTOs. The removed
+surface includes artifact key builders, artifact filename constants, raw asset
+records, document registry records, `DocumentImportInput`, generic
+split-manifest loading and raw split-manifest materialization helpers. These
+belong to TS `packages/ingest-core`, `apps/ingestion-control` handlers, Rust
+kernels or a named source adapter. The remaining student-handbook manifest
+helper is deliberately named `handbook_cleanup_manifest` and is scoped to
+logical document-boundary validation, not reusable collection split-manifest
+runtime, canonical markdown generation or document-units generation.
+The remaining shared layout helper is deliberately named
+`layout_cleanup_common`; it serves OCR / OOXML cleanup adapters only and must
+not be rebuilt as `source_truth_common` or any source-truth owner.
+File asset adapter metadata must use `FileAsset*` names; Python must not
+reintroduce `RawAsset*` registry terminology.
 
 PDF page counting / splitting may use a permissive lightweight parser for
 local file kernel work. PDF page rendering probes are retired from the default

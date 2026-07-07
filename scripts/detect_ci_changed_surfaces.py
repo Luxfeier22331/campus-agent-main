@@ -138,11 +138,7 @@ def _is_ingestion_path(path: str) -> bool:
     return path.startswith(
         (
             "apps/ingestion-control/",
-            "apps/ingestion-worker/",
-            "apps/authenticated-notice-collector/",
-            "apps/official-web-collector/",
-            "apps/wechat-official-account-collector/",
-            "packages/ingestion-core/",
+            "apps/source-collector/",
             "packages/ingestion-contracts/",
             "packages/ingestion-kernels-rs/",
             "tests/ingestion/",

@@ -234,7 +234,7 @@ truth or release closeout.
 用途：
 
 - Operator Console `通知 run 处理` 的 canonical read model
-- authenticated notice collector run / replay batch / queue run 的 operator-safe
+- internal portal source source run / replay batch / queue run 的 operator-safe
   status projection
 
 最小列：
@@ -244,7 +244,7 @@ truth or release closeout.
 - `source_channel`
 - `source_surface`
 - `site_id`
-- `collector_run_token`
+- `source_run_token`
 - `run_id`
 - `replay_batch_id` nullable
 - `enqueue_source` nullable
@@ -269,7 +269,7 @@ truth or release closeout.
 
 最小索引：
 
-- `(collector_run_token, projected_at)`
+- `(source_run_token, projected_at)`
 - `(run_id, projected_at)`
 - `(site_id, lifecycle_status, projected_at)`
 - `(latest_queue_status, projected_at)`
@@ -279,7 +279,7 @@ truth or release closeout.
 - `run_processing_id` 是 run snapshot 幂等键，不是 queue row 的替代主键
 - 这张表只服务 app-api operator list/detail；不改变 source-truth、queue、release 或
   downstream read-model truth
-- run-level projection 只回答 collector run / replay batch / queue run 的整体状态，不承载
+- run-level projection 只回答 source run / replay batch / queue run 的整体状态，不承载
   单个 notice 的 effective processing 详情
 - `source_truth_json` 可保存 `selectedNoticeCount`、`importedNoticeCount`、
   `attachmentFetchStatusRecordCount`、`rawUploadedCount`、`rawReusedCount` 与少量 title/id
@@ -303,7 +303,7 @@ truth or release closeout.
 - `event_id`
 - `run_processing_id`
 - `run_key`
-- `collector_run_token`
+- `source_run_token`
 - `run_id`
 - `job_id` nullable
 - `stage`
@@ -316,7 +316,7 @@ truth or release closeout.
 最小索引：
 
 - `(run_processing_id, occurred_at)`
-- `(collector_run_token, occurred_at)`
+- `(source_run_token, occurred_at)`
 
 规则：
 

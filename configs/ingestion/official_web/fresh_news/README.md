@@ -26,8 +26,8 @@ Current runtime truth:
 - collection prefix: `official_web_fresh_news`
 - repo-tracked split manifest:
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
-- repo-tracked retrieval qrels:
-  `packages/eval-langfuse/assets/qrels/rag/official_web_fresh_news/retrieval_qrels.json`
+- repo-tracked retrieval qrels: the eval-langfuse-owned
+  `official_web_fresh_news` retrieval dataset
 
 Boundary notes:
 
@@ -35,10 +35,9 @@ Boundary notes:
   media-style public-web content
 - even after import/release exists, this surface is not allowed to answer `今天 /
   最新 / 最近` style asks until a separate freshness gate is proven
-- the current handoff input remains the `future_fresh_news_surface` subset in
-  `official_web/muc_public_pages`; admitting it into `official_web/fresh_news`
-  requires an explicit source-pack / release-gate path and is not driven by
-  broad projection routing
+- the current handoff input is explicit source-truth / source-pack evidence;
+  admitting it into `official_web/fresh_news` requires a release-gate path and
+  is not driven by broad projection routing
 - declaring this profile and baseline does not mean the collection is already
   query-ready
 - listing pages remain discovery/freshness-trigger/navigation-only hints; they

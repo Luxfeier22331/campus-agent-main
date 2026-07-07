@@ -42,7 +42,7 @@ This taxonomy follows the OpenTelemetry direction that:
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
 | Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
 | Knowledge / RAG runtime | runtime adapter only | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency in contracts |
-| `packages/ingestion-core` | no by default | Business/data-plane logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
+| `packages/ingest-core` | no by default | Runtime-neutral ingestion helper logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |

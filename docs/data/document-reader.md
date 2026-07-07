@@ -1,10 +1,10 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: packages/ingestion-core
+owner_boundary: data-plane canonical artifacts / document reader projection
 status: active
 created: 2026-04-21
-updated: 2026-06-12
+updated: 2026-07-05
 ---
 # Canonical Document Reader Model
 
@@ -55,6 +55,9 @@ document-units -> chunks -> index`
 - chunk/index 只是检索派生物，不是 reader truth owner
 - reader projection 可以复用 `document-units` 的稳定字段，但不等于原始 `document-units.jsonl`
   文件逐行直出
+- document reader artifact key、canonical JSON / JSONL writer 与 source-channel
+  handoff DTO 由 TS `packages/ingest-core` 和 ingestion-control handlers 维护；Python
+  不再拥有通用 document import / registry / artifact key DTO。
 
 ## Core Conclusion
 

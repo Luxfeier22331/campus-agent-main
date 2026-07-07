@@ -261,7 +261,7 @@ Overview 可以展示最小运行趋势，例如首字 P95、模型运行 P95、
 - `docs/architecture/system/langfuse.md`
 - `docs/reference/runtime-otel-telemetry-taxonomy.md`
 - `docs/runbooks/worker-observability-smoke.md`
-- `docs/decisions/adr-0063-ops-index-external-sinks.md`
+- `docs/decisions/adr-0067-ops-index-external-sinks.md`
 
 ## 外部参考
 

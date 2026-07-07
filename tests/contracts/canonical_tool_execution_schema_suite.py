@@ -97,8 +97,6 @@ class CanonicalToolExecutionSchemaTest(unittest.TestCase):
             _schema("StepOutputProjectionKind")["enum"],
             [
                 "notice_context",
-                "notice_change_set",
-                "notice_period_summary",
                 "schedule_baseline",
                 "place_context",
                 "evidence_bundle",

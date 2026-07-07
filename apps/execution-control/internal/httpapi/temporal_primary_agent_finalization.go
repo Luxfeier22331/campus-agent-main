@@ -335,7 +335,7 @@ func primaryAgentSelectedTool(selectedTools []string) string {
 		switch tool {
 		case "transport_schedule_lookup":
 			return "transport_schedule_lookup"
-		case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
+		case "campus_notice_discover":
 			return tool
 		case "knowledge_query":
 			return "knowledge_query"

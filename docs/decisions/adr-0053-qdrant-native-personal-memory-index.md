@@ -5,12 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0053
 status: superseded
 created: 2026-06-10
-updated: 2026-06-17
+updated: 2026-07-04
 supersedes:
   - ADR-0015 memory ownership / confirmation / non-authz clauses
 superseded_by:
-  - ADR-0057 Zep CE Self-Hosted Personal Memory Plane
-  - ADR-0058 Hindsight Self-Hosted Personal Memory Plane
+  - adr-0057-zep-native-personal-memory-plane.md
+  - adr-0058-hindsight-self-hosted-personal-memory-plane.md
 ---
 # ADR-0053 Qdrant-Native Personal Memory Index
 
@@ -22,8 +22,9 @@ Personal Memory Plane.
 
 本 ADR 只保留为 historical background。不得把本文中的 Qdrant collection、
 `personal_memory_v1`、repo-owned extraction prompt / embedding 或 inferred memory
-update 路径作为当前实现、目标架构或新代码引用。当前 personal memory truth 以 ADR-0058
-与 `docs/architecture/system/memory-plane.md` 为准。
+update 路径作为当前实现、目标架构或新代码引用。当前 personal memory truth 以
+`docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md` 与
+`docs/architecture/system/memory-plane.md` 为准。
 
 ## 背景
 

@@ -25,12 +25,6 @@ const DURABLE_TOOL_DEFAULTS = {
 	campus_notice_discover: {
 		taskQueue: "campus-agent.workflow",
 	},
-	campus_notice_change_set_lookup: {
-		taskQueue: "campus-agent.workflow",
-	},
-	campus_notice_period_summary: {
-		taskQueue: "campus-agent.workflow",
-	},
 } as const;
 
 type DurableTool = keyof typeof DURABLE_TOOL_DEFAULTS;
@@ -85,9 +79,7 @@ function durableTool(requestedTool: string | null | undefined): DurableTool {
 		normalized === "knowledge_query" ||
 		normalized === "place_lookup" ||
 		normalized === "transport_schedule_lookup" ||
-		normalized === "campus_notice_discover" ||
-		normalized === "campus_notice_change_set_lookup" ||
-		normalized === "campus_notice_period_summary"
+		normalized === "campus_notice_discover"
 	) {
 		return normalized;
 	}

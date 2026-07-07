@@ -21,10 +21,6 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
         relative_paths = {path.relative_to(repo_root).as_posix() for path in files}
 
         self.assertIn(
-            "packages/ingestion-core/testdata/student_handbook/provider-result-stable.synthetic.jsonl",
-            relative_paths,
-        )
-        self.assertIn(
             "packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json",
             relative_paths,
         )
@@ -33,11 +29,11 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
             relative_paths,
         )
         self.assertIn(
-            "apps/official-web-collector/test/fixtures/pages/sample-news-home-page.html",
+            "apps/source-collector/adapters/official-web/test/assertions/pages/sample-news-home-page.html",
             relative_paths,
         )
         self.assertIn(
-            "apps/official-web-collector/test/page-artifacts-test-support.ts",
+            "apps/source-collector/adapters/official-web/test/page-artifacts-test-support.ts",
             relative_paths,
         )
         self.assertIn(
@@ -52,9 +48,8 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                         "packages/contracts/fixtures/",
                         "packages/eval-langfuse/assets/",
                         "packages/eval-langfuse/fixtures/",
-                        "packages/ingestion-core/testdata/",
-                        "apps/official-web-collector/test/",
-                        "apps/official-web-collector/test/fixtures/pages/",
+                        "apps/source-collector/adapters/official-web/test/",
+                        "apps/source-collector/adapters/official-web/test/assertions/pages/",
                         "apps/campus-web/test/fixtures/",
                     )
                 )
@@ -110,9 +105,8 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                 "packages/contracts/fixtures/**",
                 "packages/eval-langfuse/assets/**",
                 "packages/eval-langfuse/fixtures/**",
-                "packages/ingestion-core/testdata/**",
-                "apps/official-web-collector/test/**",
-                "apps/official-web-collector/test/fixtures/pages/**",
+                "apps/source-collector/adapters/official-web/test/**",
+                "apps/source-collector/adapters/official-web/test/assertions/pages/**",
                 "apps/campus-web/test/fixtures/**",
             ],
             check=True,
@@ -129,9 +123,8 @@ class CheckPublicFixtureSourceCleanTest(unittest.TestCase):
                     "packages/contracts/fixtures/",
                     "packages/eval-langfuse/assets/",
                     "packages/eval-langfuse/fixtures/",
-                    "packages/ingestion-core/testdata/",
-                    "apps/official-web-collector/test/",
-                    "apps/official-web-collector/test/fixtures/pages/",
+                    "apps/source-collector/adapters/official-web/test/",
+                    "apps/source-collector/adapters/official-web/test/assertions/pages/",
                     "apps/campus-web/test/fixtures/",
                 )
             )

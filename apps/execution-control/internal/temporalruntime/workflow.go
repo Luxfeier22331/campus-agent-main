@@ -577,7 +577,7 @@ func ActivityTaskQueueForToolTarget(toolTarget string) string {
 	switch toolTarget {
 	case "transport_schedule_lookup":
 		return ActivityTaskQueueCore
-	case "campus_notice_discover", "campus_notice_change_set_lookup", "campus_notice_period_summary", "campus_notice_get":
+	case "campus_notice_discover", "campus_notice_get":
 		return ActivityTaskQueueCore
 	case "place_lookup":
 		return ActivityTaskQueueCore

@@ -3,9 +3,13 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0025
-status: accepted
+status: superseded
 created: 2026-04-04
-updated: 2026-06-28
+updated: 2026-07-04
+superseded_by:
+  - adr-0054-ingestion-control-plane-and-kernel-boundary.md
+  - adr-0063-internal-portal-source-channel-name.md
+  - docs/architecture/domains/authenticated-notice/architecture.md
 ---
 # ADR-0025 Authenticated Notice Async Staged Closeout
 
@@ -14,11 +18,14 @@ prefix、staging tables、single-promoter commit、deterministic verification
 
 ## 当前状态说明
 
+Superseded on 2026-07-04.
+
 本文记录 historical authenticated notice closeout 的 staged-pipeline rationale。当前
 notice mainline handoff 已收口为 ingestion-control task lifecycle 读取
 `authenticated_notice_capture_release.v1` object-store refs；本文中的 historical operations
 prefix、staging 表、single-promoter 与旧 closeout runner 不拥有当前 source-truth
-materialization contract。
+materialization contract，不再作为当前 notice ingestion mainline 的 accepted
+runtime 决策。
 
 需要恢复 closeout 历史细节时，应从本文或 git history 提取具体事实，再提升到当前
 domain architecture、data doc 或 runbook。

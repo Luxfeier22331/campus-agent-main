@@ -47,7 +47,7 @@ func domainCandidatesForToolTarget(target string, request Request) []string {
 		return []string{"place_lookup"}
 	case "transport_schedule_lookup":
 		return []string{"transport_schedule_lookup"}
-	case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary", "campus_notice_get":
+	case "campus_notice_discover", "campus_notice_get":
 		return []string{target}
 	default:
 		return knowledgeDomains(request)
@@ -60,7 +60,7 @@ func taskKindForToolTarget(target string) string {
 		return "place_lookup"
 	case "transport_schedule_lookup":
 		return "transport_schedule_lookup"
-	case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary", "campus_notice_get":
+	case "campus_notice_discover", "campus_notice_get":
 		return "notice_lookup"
 	default:
 		return "knowledge_lookup"

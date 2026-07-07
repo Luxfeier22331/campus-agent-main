@@ -33,13 +33,6 @@ SURFACE_SPECS = {
         "optional_settings": {
             "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
             "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
-            "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
-            "legacy_office_conversion_internal_shared_secret": (
-                "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
-            ),
-            "legacy_office_conversion_timeout_seconds": (
-                "LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS",
-            ),
         },
         "files": {},
     },
@@ -61,14 +54,6 @@ SURFACE_SPECS = {
                 "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
-            "attempt_database_url": (
-                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-                "CAMPUS_SHARED_POSTGRES_URL",
-            ),
-            "multimodal_api_key": ("INTERNAL_NOTICE_MULTIMODAL_API_KEY",),
-            "multimodal_model": ("INTERNAL_NOTICE_MULTIMODAL_MODEL",),
         },
         "optional_settings": {
             "projection_operator_database_url": (
@@ -78,10 +63,6 @@ SURFACE_SPECS = {
             "admission_operator_database_url": (
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
                 "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-            ),
-            "attempt_operator_database_url": (
-                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
             ),
         },
         "files": {},
@@ -127,7 +108,6 @@ SURFACE_SPECS = {
                     "APP_API_INTERNAL_SHARED_SECRET",
                 ),
                 "optional_keys": (
-                    "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
                     "SENTRY_DSN",
                     "APP_API_OTEL_INGEST_ENDPOINT",
                     "APP_API_OTEL_INGEST_SHARED_SECRET",

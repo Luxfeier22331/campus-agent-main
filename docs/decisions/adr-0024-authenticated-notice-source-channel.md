@@ -5,12 +5,22 @@ owner_boundary: docs/decisions
 decision_id: ADR-0024
 status: accepted
 created: 2026-04-03
-updated: 2026-06-28
+updated: 2026-07-05
+partially_superseded_by:
+  - adr-0063-internal-portal-source-channel-name.md
 ---
 # ADR-0024 Authenticated Notice Source Channel
 
 适用范围：登录态、机构内部通知采集器的 source-channel 建模、bootstrap 接入、runtime ownership 与
 restricted rollout 边界
+
+## 命名替代说明
+
+ADR-0063 已将 canonical source channel 名称从 `authenticated_notice_portal`
+替换为 `internal_portal`。本文保留旧名以说明历史 rationale；当前 active
+code、config、contract、architecture 与 runbook 应使用 `internal_portal`。
+ADR-0063 只替代 source channel 名称，不废弃本文关于一级 source channel、稳定
+`notice` source unit、collector / data-plane 分层与 restricted rollout 的核心决策。
 
 ## 当前状态说明
 
@@ -19,8 +29,12 @@ truth 已经从 bootstrap import seam 收口为 `apps/ingestion-control` 读取 
 中的 `authenticated_notice_capture_release.v1` object-store handoff；`run_id` /
 run ledger 只作 audit、idempotency、operator projection 与 correlation metadata。
 
-因此，下文关于 bootstrap importer、`apps/ingestion-worker` 或 collector export JSON 的第一阶段
-接入描述，不得被解释为当前 executor input contract 或当前 data-plane owner。
+因此，下文关于 bootstrap importer、`packages/ingestion-core`、
+`apps/ingestion-worker` 或 collector export JSON 的第一阶段接入描述，不得被解释为当前
+executor input contract 或当前 data-plane owner。当前实现由
+`apps/ingestion-control` 执行 task lifecycle，TS `packages/ingest-core` 提供
+runtime-neutral parser/helper；Python `packages/ingestion-core` 只保留
+file/OCR/Office adapter island。
 
 ## 背景
 
@@ -103,6 +117,10 @@ run ledger 只作 audit、idempotency、operator projection 与 correlation meta
 - 登录态 notice collector 的长期 owner 固定为 repo 内独立 `apps/*` runtime shell
 - 推荐落点固定为：
   - `apps/authenticated-notice-collector`
+- Superseded implementation note, 2026-07-01: active implementation has moved
+  to `apps/source-collector/adapters/internal-portal`; the decision that
+  remains active is the independent source-channel runtime boundary, not the
+  retired app directory name.
 
 它负责：
 
@@ -179,7 +197,9 @@ run ledger 只作 audit、idempotency、operator projection 与 correlation meta
 
 - 需要新增一份 authenticated notice source architecture 文档
 - 需要新增一份 notice source-truth contract
-- 需要在 `packages/ingestion-core` 实现 bootstrap importer 与 source-truth builder
+- 历史第一阶段需要在 `packages/ingestion-core` 实现 bootstrap importer 与
+  source-truth builder；当前已由 `apps/ingestion-control` +
+  `packages/ingest-core` 的 object-store task input / TS handler 形态替代
 - 需要在 `configs/ingestion/` 下为 `campus_notices/internal_notice` 新增
   runtime/canonical/chunk config
 - 需要在 collector 迁入 repo 时把 SQLite 降级为 app 内 runtime state，而不是系统间 truth

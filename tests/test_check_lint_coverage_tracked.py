@@ -20,23 +20,13 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
         self.assertIn("package.json", candidates)
         self.assertIn("apps/campus-web/index.html", candidates)
+        self.assertIn("apps/source-collector/README.md", candidates)
         self.assertIn("apps/app-api/README.md", candidates)
-        self.assertIn("apps/official-web-collector/README.md", candidates)
         self.assertIn("jobs/dining-sync/src/config.ts", candidates)
-        self.assertIn(
-            "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
-            candidates,
-        )
         self.assertIn("apps/execution-control/internal/execution/request.go", candidates)
 
     def test_lint_families_map_known_paths_to_expected_lanes(self) -> None:
         self.assertEqual(lint_families_for_path("package.json"), ("web:lint",))
-        self.assertEqual(
-            lint_families_for_path(
-                "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java"
-            ),
-            ("repo:static",),
-        )
         self.assertEqual(
             lint_families_for_path("apps/campus-web/index.html"),
             ("repo:static",),
@@ -49,13 +39,10 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("web:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("apps/app-api/README.md"),
+            lint_families_for_path("apps/source-collector/README.md"),
             ("repo:static",),
         )
-        self.assertEqual(
-            lint_families_for_path("apps/official-web-collector/README.md"),
-            ("repo:static",),
-        )
+        self.assertEqual(lint_families_for_path("apps/app-api/README.md"), ("repo:static",))
         self.assertEqual(lint_families_for_path("SECURITY.md"), ("repo:static",))
         self.assertEqual(lint_families_for_path("SUPPORT.md"), ("repo:static",))
         self.assertEqual(lint_families_for_path("CODE_OF_CONDUCT.md"), ("repo:static",))
@@ -109,13 +96,8 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
     def test_lint_exclusion_reason_covers_known_deferred_surfaces(self) -> None:
         self.assertEqual(lint_exclusion_reason(".planning/PROJECT.md"), "planning_artifact")
+        self.assertIsNone(lint_exclusion_reason("apps/source-collector/README.md"))
         self.assertIsNone(lint_exclusion_reason("apps/app-api/README.md"))
-        self.assertIsNone(lint_exclusion_reason("apps/official-web-collector/README.md"))
-        self.assertIsNone(
-            lint_exclusion_reason(
-                "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java"
-            )
-        )
         self.assertEqual(
             lint_exclusion_reason(
                 "apps/campus-web/docs/public/course-maps/law-ethnic-experimental-program/map-01.png"

@@ -49,7 +49,6 @@ export {
 } from "./execution-control";
 export {
 	createIngestionTaskProjectionClient,
-	type IngestionTaskAdmissionResult,
 	type IngestionTaskEnvelope,
 	type IngestionTaskProjectionClient,
 	type IngestionTaskProjectionFetch,

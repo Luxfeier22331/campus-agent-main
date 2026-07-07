@@ -212,10 +212,8 @@ func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 		temporalruntime.ActivityTaskQueueKnowledge,
 	}
 	toolQueues := map[string]string{
-		"transport_schedule_lookup":       temporalruntime.ActivityTaskQueueCore,
-		"campus_notice_change_set_lookup": temporalruntime.ActivityTaskQueueCore,
-		"campus_notice_discover":          temporalruntime.ActivityTaskQueueCore,
-		"campus_notice_period_summary":    temporalruntime.ActivityTaskQueueCore,
+		"transport_schedule_lookup": temporalruntime.ActivityTaskQueueCore,
+		"campus_notice_discover":    temporalruntime.ActivityTaskQueueCore,
 	}
 	for _, toolName := range cfg.OpenTools {
 		queue := toolQueues[strings.TrimSpace(toolName)]
@@ -331,16 +329,8 @@ func (s *Server) toolGateStatus() map[string]any {
 			"open": s.config.ToolOpen("transport_schedule_lookup"),
 			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
-		"campus_notice_change_set_lookup": map[string]any{
-			"open": s.config.ToolOpen("campus_notice_change_set_lookup"),
-			"gate": "tool_read_model_runtime_and_activity_worker",
-		},
 		"campus_notice_discover": map[string]any{
 			"open": s.config.ToolOpen("campus_notice_discover"),
-			"gate": "tool_read_model_runtime_and_activity_worker",
-		},
-		"campus_notice_period_summary": map[string]any{
-			"open": s.config.ToolOpen("campus_notice_period_summary"),
 			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
 	}
@@ -354,9 +344,7 @@ func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bo
 			!status.TransportScheduleImplemented) {
 		return false
 	}
-	if (s.config.ToolOpen("campus_notice_change_set_lookup") ||
-		s.config.ToolOpen("campus_notice_discover") ||
-		s.config.ToolOpen("campus_notice_period_summary")) &&
+	if s.config.ToolOpen("campus_notice_discover") &&
 		(!status.NoticeReadModelConfigured || !status.NoticeReadModelHealthy) {
 		return false
 	}

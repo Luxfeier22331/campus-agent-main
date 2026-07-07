@@ -98,7 +98,7 @@ def _prepare_process_smoke_runtime(
     return _RuntimePreparation(
         process_env_overlay=env_overlay,
         artifact={
-            "kind": "temporary_postgres_runtime",
+            "kind": "temporary_postgres_database",
             "database_name": database_name,
             "seed_artifacts": artifacts,
         },

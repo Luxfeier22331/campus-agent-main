@@ -2,7 +2,7 @@
 	"corpus": "campus_notices",
 	"collection": "internal_notice",
 	"canonical_profile_version": "authenticated_notice_projection_v1",
-	"source_channel": "authenticated_notice_portal",
+	"source_channel": "internal_portal",
 	"primary_source_unit": "notice",
 	"raw_asset_id_strategy": "site_id_notice_id",
 	"raw_version_id_strategy": "title_body_categories_attachments_hash",

@@ -1,17 +1,17 @@
 import { createHash } from "node:crypto";
-
 import { describe, expect, it } from "vitest";
-
 import {
-	createDefaultTsTaskHandlerRegistry,
-	createWeChatOfficialAccountSourceTruthMaterializeHandler,
-	type IngestionObjectStore,
 	type IngestionTaskEnvelope,
 	type IngestionTaskRegistry,
 	InMemoryIngestionTaskStore,
-	RustKernelRegistry,
-	runRegistryTaskOnce,
 } from "../src/index.ts";
+import {
+	createWeChatOfficialAccountSourceTruthMaterializeHandler,
+	type IngestionObjectStore,
+} from "../src/source-truth-handlers";
+import { RustKernelRegistry } from "../src/task-executor";
+import { createDefaultTsTaskHandlerRegistry } from "../src/ts-task-handlers";
+import { runDeclaredTaskForTest } from "./test-support.ts";
 
 const captureReleaseKey =
 	"wechat_official_account/muc_tuanwei/runs/wcrun_20260404T012345Z/capture-release.json";
@@ -23,44 +23,39 @@ const mediaRefsKey =
 	"wechat_official_account/muc_tuanwei/2026/raw_01/source-truth/media-refs.jsonl";
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_wechat_public_notice_source_truth_materialize_001",
 	run_id: "wcrun_20260404T012345Z",
 	source_family: "wechat_public_notice",
 	source_channel: "wechat_official_account",
 	corpus: "campus_notices",
 	collection: "wechat_public_notice",
+	registry_task_id: "source_truth_materialize",
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
 		uri: `s3://campus-agent-source/${captureReleaseKey}`,
 	},
+	input_contract: "wechat_official_account_capture_release.v1",
 	output_contract: "wechat_official_account_source_truth.v1",
 	idempotency_key:
 		"campus_notices/wechat_public_notice/source_truth_materialize/wcrun_20260404T012345Z",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 1,
-	},
 	created_by: "operator",
 	created_at: "2026-04-04T01:25:00.000Z",
 };
 
 const registry: IngestionTaskRegistry = {
-	schema_version: "ingestion_task_registry.v1",
+	schema_version: "ingestion_task_registry.v2",
 	source_family: "wechat_public_notice",
 	corpus: "campus_notices",
 	collection: "wechat_public_notice",
 	tasks: [
 		{
+			registry_task_id: "source_truth_materialize",
 			task_kind: "source_truth_materialize",
 			executor_kind: "ts_control",
 			input_contract: "wechat_official_account_capture_release.v1",
 			output_contract: "wechat_official_account_source_truth.v1",
-			can_publish_alias: false,
 		},
 	],
 };
@@ -102,14 +97,14 @@ describe("WeChat official account source truth materialization", () => {
 			],
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				wechatOfficialAccountObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "wechat-official-account-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("completed");
@@ -191,14 +186,14 @@ describe("WeChat official account source truth materialization", () => {
 			article_source_truth_refs: [],
 		});
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: createDefaultTsTaskHandlerRegistry({
 				wechatOfficialAccountObjectStore: objectStore,
 			}),
 			rustKernels: new RustKernelRegistry(),
-			workerId: "wechat-official-account-materializer-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
@@ -242,7 +237,7 @@ class InMemoryObjectStore implements IngestionObjectStore {
 	refFor(key: string): Record<string, unknown> {
 		const body = this.objects.get(key);
 		if (!body) {
-			throw new Error(`missing fixture object: ${key}`);
+			throw new Error(`missing assertion object: ${key}`);
 		}
 		return {
 			bucket: this.bucket,
@@ -255,7 +250,7 @@ class InMemoryObjectStore implements IngestionObjectStore {
 	sha256For(key: string): string {
 		const body = this.objects.get(key);
 		if (!body) {
-			throw new Error(`missing fixture object: ${key}`);
+			throw new Error(`missing assertion object: ${key}`);
 		}
 		return sha256(body);
 	}
@@ -264,12 +259,11 @@ class InMemoryObjectStore implements IngestionObjectStore {
 function taskRecordFromEnvelope(taskEnvelope: IngestionTaskEnvelope) {
 	return {
 		...taskEnvelope,
-		attempt_count: 1,
 		closeout: null,
-		lease_expires_at: "2026-04-04T01:30:00.000Z",
-		leased_by: "wechat-official-account-materializer-a",
 		status: "running" as const,
 		updated_at: "2026-04-04T01:25:00.000Z",
+		workflow_id: taskEnvelope.task_id,
+		workflow_run_id: "temporal-run-001",
 	};
 }
 

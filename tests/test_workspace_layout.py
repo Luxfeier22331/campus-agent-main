@@ -7,18 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_WORKSPACES = {
     "apps/app-api",
-    "apps/authenticated-notice-collector",
     "apps/campus-web",
-    "apps/ingestion-worker",
-    "apps/official-web-collector",
     "apps/operator-console-web",
     "apps/execution-control",
+    "apps/source-collector",
     "jobs/dining-sync",
     "packages/domains/dining",
     "packages/contracts",
     "packages/eval-langfuse",
-    "packages/ingestion-core",
-    "packages/official-web-core",
+    "packages/navigation-tool",
     "packages/ragas-runner",
     "packages/shared",
 }
@@ -39,6 +36,31 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
     def test_chatkit_adapter_app_is_retired(self) -> None:
         self.assertFalse((ROOT / "apps/chatkit-adapter").exists())
+
+    def test_python_ingestion_worker_app_is_retired(self) -> None:
+        self.assertFalse((ROOT / "apps/ingestion-worker").exists())
+
+    def test_legacy_python_ingestion_core_package_is_retired(self) -> None:
+        self.assertFalse((ROOT / "packages" / "ingestion-core").exists())
+
+    def test_source_collector_core_packages_are_retired(self) -> None:
+        self.assertFalse((ROOT / "packages" / "official-web-core").exists())
+        self.assertFalse((ROOT / "packages" / "wechat-official-account-core").exists())
+
+    def test_regulation_semantics_package_is_retired(self) -> None:
+        self.assertFalse((ROOT / "packages" / "regulation-semantics").exists())
+
+    def test_legacy_office_conversion_service_is_retired(self) -> None:
+        self.assertFalse((ROOT / "apps" / "legacy-office-conversion-service").exists())
+
+    def test_split_source_collector_apps_are_retired_as_workspaces(self) -> None:
+        for app_name in (
+            "authenticated-notice-collector",
+            "official-web-collector",
+            "wechat-official-account-collector",
+        ):
+            with self.subTest(app_name=app_name):
+                self.assertFalse((ROOT / "apps" / app_name / "package.json").exists())
 
     def test_legacy_evals_package_is_retired(self) -> None:
         self.assertFalse((ROOT / "packages/evals").exists())

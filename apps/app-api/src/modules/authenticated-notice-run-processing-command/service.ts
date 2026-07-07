@@ -31,7 +31,7 @@ export interface AuthenticatedNoticeRunProcessingSnapshot {
 	sourceChannel: string;
 	sourceSurface: string;
 	siteId: string;
-	collectorRunToken: string;
+	sourceRunToken: string;
 	runId: string;
 	replayBatchId: string | null;
 	enqueueSource: string | null;
@@ -267,7 +267,7 @@ export function normalizeAuthenticatedNoticeRunProcessingSnapshot(
 		sourceChannel: normalizeRequiredString(record.sourceChannel, "sourceChannel"),
 		sourceSurface: normalizeRequiredString(record.sourceSurface, "sourceSurface"),
 		siteId: normalizeRequiredString(record.siteId, "siteId"),
-		collectorRunToken: normalizeRequiredString(record.collectorRunToken, "collectorRunToken"),
+		sourceRunToken: normalizeRequiredString(record.sourceRunToken, "sourceRunToken"),
 		runId: normalizeRequiredString(record.runId, "runId"),
 		replayBatchId: normalizeNullableString(record.replayBatchId),
 		enqueueSource: normalizeNullableString(record.enqueueSource),
@@ -298,7 +298,7 @@ function toEventWrites(
 	snapshot: AuthenticatedNoticeRunProcessingSnapshot,
 ): AuthenticatedNoticeRunProcessingEventWrite[] {
 	return snapshot.timeline.map((event, index) => ({
-		collectorRunToken: snapshot.collectorRunToken,
+		sourceRunToken: snapshot.sourceRunToken,
 		eventId:
 			event.eventId ?? `${snapshot.id}:${event.stage}:${event.status}:${event.occurredAt}:${index}`,
 		jobId: null,

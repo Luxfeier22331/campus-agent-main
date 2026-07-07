@@ -1,0 +1,23 @@
+{
+	"schema_version": "ingestion_task_registry.v2",
+	"source_family": "authenticated_notice",
+	"corpus": "campus_notices",
+	"collection": "internal_notice",
+	"tasks": [
+		{
+			"task_kind": "source_truth_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "authenticated_notice_capture_release.v1",
+			"output_contract": "authenticated_notice_source_truth.v1",
+			"registry_task_id": "source_truth_materialize"
+		},
+		{
+			"task_kind": "document_units_validate",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "validate-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "document_units_validation_report.v1",
+			"registry_task_id": "document_units_validate"
+		}
+	]
+}

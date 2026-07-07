@@ -1,7 +1,42 @@
+import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
+import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.schema.json" with {
+	type: "json",
+};
+import releaseManifestSchema from "../schemas/ingestion-release-manifest.v1.schema.json" with {
+	type: "json",
+};
+import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v2.schema.json" with {
+	type: "json",
+};
+import taskRegistrySchema from "../schemas/ingestion-task-registry.v2.schema.json" with {
+	type: "json",
+};
+
+export type {
+	OfficialWebFetchDisposition,
+	OfficialWebIngestionDispatchStatus,
+	OfficialWebIngestionExecutionStatus,
+	OfficialWebPageChangeStatus,
+	OfficialWebRunIntent,
+	OfficialWebRunStatus,
+	OfficialWebTerminalRunStatus,
+} from "./official-web-lifecycle.ts";
+
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
 
-const TASK_ENVELOPE_VERSION = "ingestion_task_envelope.v1";
-const TASK_REGISTRY_VERSION = "ingestion_task_registry.v1";
+export interface CanonicalDocumentUnit {
+	doc_id: string;
+	version_id: string;
+	chunk_id: string;
+	root_unit_id: string;
+	text: string;
+	clean_text: string;
+	unit_type?: string;
+	metadata: Record<string, unknown>;
+	anchor: Record<string, unknown>;
+	[key: string]: unknown;
+}
 
 export type IngestionArtifactRefKind = "object_store" | "local_file" | "postgres_row" | "inline";
 
@@ -11,6 +46,22 @@ export interface IngestionArtifactRef {
 	digest?: string;
 }
 
+export interface IngestionReleaseManifestArtifact {
+	kind: string;
+	uri: string;
+	digest: string;
+	[key: string]: unknown;
+}
+
+export interface IngestionReleaseManifest {
+	schema_version: "ingestion_release_manifest.v1";
+	release_id: string;
+	corpus: string;
+	collection: string;
+	artifacts: IngestionReleaseManifestArtifact[];
+	[key: string]: unknown;
+}
+
 export type IngestionTaskKind =
 	| "source_truth_materialize"
 	| "document_units_validate"
@@ -18,24 +69,19 @@ export type IngestionTaskKind =
 	| "release_manifest_validate";
 
 export interface IngestionTaskEnvelope {
-	schema_version: "ingestion_task_envelope.v1";
+	schema_version: "ingestion_task_envelope.v2";
 	task_id: string;
 	run_id: string;
 	source_family: string;
 	source_channel: string;
 	corpus: string;
 	collection: string;
+	registry_task_id: string;
 	task_kind: IngestionTaskKind;
 	input_ref: IngestionArtifactRef;
+	input_contract: string;
 	output_contract: string;
 	idempotency_key: string;
-	lease_policy: {
-		lease_seconds: number;
-		heartbeat_seconds: number;
-	};
-	retry_policy: {
-		max_attempts: number;
-	};
 	created_by: string;
 	created_at: string;
 }
@@ -43,155 +89,142 @@ export interface IngestionTaskEnvelope {
 export type IngestionTaskExecutorKind = "rust_kernel" | "ts_control";
 
 export interface IngestionTaskRegistryTask {
+	registry_task_id: string;
 	task_kind: IngestionTaskKind;
 	executor_kind: IngestionTaskExecutorKind;
 	kernel_id?: string;
 	input_contract: string;
 	output_contract: string;
-	can_publish_alias: boolean;
 }
 
 export interface IngestionTaskRegistry {
-	schema_version: "ingestion_task_registry.v1";
+	schema_version: "ingestion_task_registry.v2";
 	source_family: string;
 	corpus: string;
 	collection: string;
 	tasks: IngestionTaskRegistryTask[];
 }
 
-const taskKinds = new Set([
-	"source_truth_materialize",
-	"document_units_validate",
-	"chunk_prepare",
-	"release_manifest_validate",
-]);
+const ajv = new Ajv2020({
+	allErrors: true,
+	messages: true,
+	strict: true,
+	strictRequired: false,
+	verbose: true,
+});
+addFormats(ajv);
 
-const executorKinds = new Set(["rust_kernel", "ts_control"]);
+const taskEnvelopeValidator = ajv.compile(
+	taskEnvelopeSchema,
+) as ValidateFunction<IngestionTaskEnvelope>;
+const taskRegistryValidator = ajv.compile(
+	taskRegistrySchema,
+) as ValidateFunction<IngestionTaskRegistry>;
+const canonicalDocumentUnitValidator = ajv.compile(
+	canonicalDocumentUnitSchema,
+) as ValidateFunction<CanonicalDocumentUnit>;
+const releaseManifestValidator = ajv.compile(
+	releaseManifestSchema,
+) as ValidateFunction<IngestionReleaseManifest>;
 
 export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
-	const errors: string[] = [];
-	if (!isRecord(value)) {
-		return { ok: false, errors: ["payload must be an object"] };
-	}
-
-	requireString(value, "schema_version", errors);
-	requireString(value, "task_id", errors);
-	requireString(value, "run_id", errors);
-	requireString(value, "source_family", errors);
-	requireString(value, "source_channel", errors);
-	requireString(value, "corpus", errors);
-	requireString(value, "collection", errors);
-	requireString(value, "task_kind", errors);
-	requireString(value, "output_contract", errors);
-	requireString(value, "idempotency_key", errors);
-	requireString(value, "created_by", errors);
-	requireString(value, "created_at", errors);
-
-	if (value.schema_version !== undefined && value.schema_version !== TASK_ENVELOPE_VERSION) {
-		errors.push("schema_version must be ingestion_task_envelope.v1");
-	}
-	if (typeof value.task_kind === "string" && !taskKinds.has(value.task_kind)) {
-		errors.push(`task_kind is not supported: ${value.task_kind}`);
-	}
-	validateArtifactRef(value.input_ref, "input_ref", errors);
-	validateLeasePolicy(value.lease_policy, errors);
-	validateRetryPolicy(value.retry_policy, errors);
-
-	return errors.length === 0 ? { ok: true } : { ok: false, errors };
+	return validateWith(taskEnvelopeValidator, value);
 }
 
 export function validateIngestionTaskRegistry(value: unknown): ValidationResult {
+	return validateWith(taskRegistryValidator, value);
+}
+
+export function validateCanonicalDocumentUnit(value: unknown): ValidationResult {
+	return validateWith(canonicalDocumentUnitValidator, value);
+}
+
+export function validateIngestionReleaseManifest(value: unknown): ValidationResult {
+	return validateWith(releaseManifestValidator, value);
+}
+
+export function validateCanonicalDocumentUnitsJsonl(input: string): ValidationResult {
 	const errors: string[] = [];
-	if (!isRecord(value)) {
-		return { ok: false, errors: ["payload must be an object"] };
+	for (const [index, line] of input.split(/\r?\n/u).entries()) {
+		const trimmed = line.trim();
+		if (!trimmed) {
+			continue;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch (error) {
+			errors.push(
+				`line ${index + 1} invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			continue;
+		}
+		const result = validateCanonicalDocumentUnit(parsed);
+		if (!result.ok) {
+			errors.push(...result.errors.map((message) => `line ${index + 1} ${message}`));
+		}
 	}
-
-	requireString(value, "schema_version", errors);
-	requireString(value, "source_family", errors);
-	requireString(value, "corpus", errors);
-	requireString(value, "collection", errors);
-	if (value.schema_version !== undefined && value.schema_version !== TASK_REGISTRY_VERSION) {
-		errors.push("schema_version must be ingestion_task_registry.v1");
-	}
-	if (!Array.isArray(value.tasks) || value.tasks.length === 0) {
-		errors.push("tasks must contain at least one task");
-		return errors.length === 0 ? { ok: true } : { ok: false, errors };
-	}
-
-	value.tasks.forEach((task, index) => {
-		if (!isRecord(task)) {
-			errors.push(`tasks[${index}] must be an object`);
-			return;
-		}
-		requireString(task, `tasks[${index}].task_kind`, errors, "task_kind");
-		requireString(task, `tasks[${index}].executor_kind`, errors, "executor_kind");
-		requireString(task, `tasks[${index}].input_contract`, errors, "input_contract");
-		requireString(task, `tasks[${index}].output_contract`, errors, "output_contract");
-		if (typeof task.task_kind === "string" && !taskKinds.has(task.task_kind)) {
-			errors.push(`tasks[${index}].task_kind is not supported: ${task.task_kind}`);
-		}
-		if (typeof task.executor_kind === "string" && !executorKinds.has(task.executor_kind)) {
-			errors.push(`tasks[${index}].executor_kind is not supported: ${task.executor_kind}`);
-		}
-		if (typeof task.can_publish_alias !== "boolean") {
-			errors.push(`tasks[${index}].can_publish_alias is required`);
-		}
-		if (task.executor_kind === "rust_kernel") {
-			requireString(task, `tasks[${index}].kernel_id`, errors, "kernel_id");
-		}
-	});
-
 	return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 
-function validateArtifactRef(value: unknown, path: string, errors: string[]): void {
-	if (!isRecord(value)) {
-		errors.push(`${path} is required`);
-		return;
+function validateWith(validator: ValidateFunction, value: unknown): ValidationResult {
+	if (validator(value)) {
+		return { ok: true };
 	}
-	requireString(value, `${path}.kind`, errors, "kind");
-	requireString(value, `${path}.uri`, errors, "uri");
+	return {
+		ok: false,
+		errors: formatAjvErrors(validator.errors ?? []),
+	};
 }
 
-function validateLeasePolicy(value: unknown, errors: string[]): void {
-	if (!isRecord(value)) {
-		errors.push("lease_policy is required");
-		return;
-	}
-	requirePositiveInteger(value, "lease_policy.lease_seconds", errors, "lease_seconds");
-	requirePositiveInteger(value, "lease_policy.heartbeat_seconds", errors, "heartbeat_seconds");
+function formatAjvErrors(errors: ErrorObject[]): string[] {
+	return errors.map(formatAjvError);
 }
 
-function validateRetryPolicy(value: unknown, errors: string[]): void {
-	if (!isRecord(value)) {
-		errors.push("retry_policy is required");
-		return;
+function formatAjvError(error: ErrorObject): string {
+	const path = error.instancePath ? jsonPointerToPath(error.instancePath) : "payload";
+	if (error.keyword === "required") {
+		const missingProperty = String(error.params.missingProperty ?? "");
+		return `${joinPath(path, missingProperty)} is required`;
 	}
-	requirePositiveInteger(value, "retry_policy.max_attempts", errors, "max_attempts");
+	if (error.keyword === "additionalProperties") {
+		const additionalProperty = String(error.params.additionalProperty ?? "");
+		return `${joinPath(path, additionalProperty)} is not allowed`;
+	}
+	if (error.keyword === "enum") {
+		return `${path} is not supported: ${String(error.data)}`;
+	}
+	if (error.keyword === "const") {
+		return `${path} must be ${String(error.params.allowedValue)}`;
+	}
+	if (error.keyword === "format") {
+		return `${path} must match ${String(error.params.format)} format`;
+	}
+	if (error.keyword === "minLength") {
+		return `${path} must be non-empty`;
+	}
+	if (error.keyword === "minItems") {
+		return `${path} must contain at least ${String(error.params.limit)} item`;
+	}
+	return `${path} ${error.message ?? "is invalid"}`;
 }
 
-function requireString(
-	value: Record<string, unknown>,
-	path: string,
-	errors: string[],
-	field = path,
-): void {
-	if (typeof value[field] !== "string" || value[field].trim() === "") {
-		errors.push(`${path} is required`);
+function jsonPointerToPath(pointer: string): string {
+	const segments = pointer
+		.split("/")
+		.slice(1)
+		.map((segment) => segment.replace(/~1/gu, "/").replace(/~0/gu, "~"));
+	if (segments.length === 0) {
+		return "payload";
 	}
+	return segments.reduce((path, segment) => {
+		if (/^\d+$/u.test(segment)) {
+			return `${path}[${segment}]`;
+		}
+		return path === "payload" ? segment : `${path}.${segment}`;
+	}, "payload");
 }
 
-function requirePositiveInteger(
-	value: Record<string, unknown>,
-	path: string,
-	errors: string[],
-	field: string,
-): void {
-	if (!Number.isInteger(value[field]) || Number(value[field]) < 1) {
-		errors.push(`${path} must be a positive integer`);
-	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+function joinPath(path: string, field: string): string {
+	return path === "payload" ? field : `${path}.${field}`;
 }

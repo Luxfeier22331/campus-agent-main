@@ -110,7 +110,7 @@ surface。
   same-origin browser seams，但不改变 query-serving truth 或 tool opening truth
 - 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；campus-web 可以提供外部链接入口，
   不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
-- `authenticated_notice_portal`、`wechat_official_account` 与 tool read model source/data
+- `internal_portal`、`wechat_official_account` 与 tool read model source/data
   stream 是长期输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺
 - 单个 surface 的内部信息架构不自动上升为整个产品的顶层入口架构
 - source/data stream 只有在显式开放后才上升为公开产品承诺

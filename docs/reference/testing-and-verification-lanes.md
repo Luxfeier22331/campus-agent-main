@@ -149,8 +149,8 @@ GitHub security features are confirmed for this repository.
   - Not a typecheck, unit test, integration test or E2E validation.
 - `pnpm repo:static:affected`
   - Local changed-file static lane against `origin/develop`.
-  - Skips unrelated heavy checks such as Java legacy office conversion and
-    Dockerfile lint when the affected file set does not touch those surfaces.
+  - Skips unrelated heavy checks such as Dockerfile lint when the affected file
+    set does not touch those surfaces.
   - Not a replacement for CI / release full `pnpm repo:static`.
 - `pnpm ci:repo-static:affected`
   - CI wrapper for PR affected static checks.

@@ -12,7 +12,6 @@ import {
 	mapOperatorHeadersToPrincipal,
 	mapSessionToAppPrincipal,
 	mapSessionToCampusMemberPrincipal,
-	resolveOfficialWebCollectorPrincipal,
 	resolveRequestPrincipal,
 } from "../src/modules/auth/principal";
 
@@ -440,47 +439,6 @@ describe("request principal resolution", () => {
 				chat: true,
 				operator: false,
 			},
-		});
-	});
-});
-
-describe("official web collector principal resolution", () => {
-	it("does not trust missing or invalid bearer tokens", async () => {
-		const missing = await resolveOfficialWebCollectorPrincipal(
-			new Request("https://app-api.internal/api/official-web/runs"),
-			{},
-		);
-		const invalid = await resolveOfficialWebCollectorPrincipal(
-			new Request("https://app-api.internal/api/official-web/runs", {
-				headers: {
-					authorization: "Bearer invalid-token",
-				},
-			}),
-			{
-				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "trusted-collector-token",
-			},
-		);
-
-		expect(missing).toBeNull();
-		expect(invalid).toBeNull();
-	});
-
-	it("resolves the collector service principal only when the configured bearer token matches", async () => {
-		const principal = await resolveOfficialWebCollectorPrincipal(
-			new Request("https://app-api.internal/api/official-web/runs", {
-				headers: {
-					authorization: "Bearer trusted-collector-token",
-				},
-			}),
-			{
-				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "trusted-collector-token",
-			},
-		);
-
-		expect(principal).toEqual({
-			kind: "service",
-			serviceClass: "official_web_collector",
-			serviceId: "official-web-collector",
 		});
 	});
 });

@@ -30,10 +30,6 @@ export function registerAppRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 	getPrincipal: NonNullable<AppDependencies["getPrincipal"]>;
-	officialWebExecutionStatusService: NonNullable<
-		AppDependencies["officialWebExecutionStatusService"]
-	>;
-	officialWebPlannerService: NonNullable<AppDependencies["officialWebPlannerService"]>;
 	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
@@ -98,7 +94,6 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
-		officialWebPlannerService: input.officialWebPlannerService,
 	});
 	registerWeChatOfficialAccountRoutes({
 		app: input.app,
@@ -110,7 +105,6 @@ export function registerAppRoutes(input: {
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
-		officialWebExecutionStatusService: input.officialWebExecutionStatusService,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({

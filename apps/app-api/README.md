@@ -52,7 +52,6 @@ scripts:
 - `scripts/bootstrap-shared-product-database.mjs`
 - `scripts/ensure-app-auth-role-search-path.mjs`
 - `scripts/reconcile-shared-db-drift.mjs`
-- `scripts/drain-official-web-projection.ts`
 
 The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 `profile.*`, `runtime.*`, `operator.*`, `official_web.*`, `dining.*`,
@@ -80,7 +79,6 @@ pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:node
 pnpm --dir apps/app-api test:worker
 pnpm --dir apps/app-api test:shared-db-integration
-pnpm --dir apps/app-api test:official-web-shared-db-integration
 pnpm --dir apps/app-api typecheck
 ```
 
@@ -91,7 +89,6 @@ Shared product database bootstrap and reconciliation entry points live under
   delegates dining catalog fixture import to `jobs/dining-sync`
 - `ensure-app-auth-role-search-path.mjs`
 - `reconcile-shared-db-drift.mjs`
-- `drain-official-web-projection.ts`
 
 The fixed shared product schemas include `app_auth.*` and `chat.*`.
 

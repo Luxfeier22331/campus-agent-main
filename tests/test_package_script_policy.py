@@ -172,7 +172,7 @@ class PackageScriptPolicyTest(unittest.TestCase):
             root = Path(tmp_dir)
             _write_package(root / "package.json", {"repo:guard": "true"})
             _write_package(
-                root / "apps/official-web-collector/package.json",
+                root / "apps/source-collector/package.json",
                 {
                     "crawl": "node src/crawl.ts",
                     "plan": "node src/plan.ts",
@@ -188,7 +188,7 @@ class PackageScriptPolicyTest(unittest.TestCase):
 
         self.assertIn(
             PackageScriptPolicyIssue(
-                path="apps/official-web-collector/package.json",
+                path="apps/source-collector/package.json",
                 script="crawl",
                 message=(
                     "collector package scripts may only expose build/test/typecheck "
@@ -204,7 +204,7 @@ class PackageScriptPolicyTest(unittest.TestCase):
             root = Path(tmp_dir)
             _write_package(root / "package.json", {"repo:guard": "true"})
             _write_package(
-                root / "apps/official-web-collector/package.json",
+                root / "apps/source-collector/package.json",
                 {
                     "test": "vitest run",
                     "typecheck": "tsc --noEmit",
@@ -215,12 +215,12 @@ class PackageScriptPolicyTest(unittest.TestCase):
 
         self.assertEqual(issues, ())
 
-    def test_audit_allows_authenticated_notice_collector_build_script(self) -> None:
+    def test_audit_rejects_source_collector_build_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             _write_package(root / "package.json", {"repo:guard": "true"})
             _write_package(
-                root / "apps/authenticated-notice-collector/package.json",
+                root / "apps/source-collector/package.json",
                 {
                     "build": "tsc -p tsconfig.build.json",
                     "test": "vitest run",
@@ -230,14 +230,25 @@ class PackageScriptPolicyTest(unittest.TestCase):
 
             issues = audit_package_script_policy(root=root)
 
-        self.assertEqual(issues, ())
+        self.assertIn(
+            PackageScriptPolicyIssue(
+                path="apps/source-collector/package.json",
+                script="build",
+                message=(
+                    "collector package scripts may only expose build/test/typecheck "
+                    "verification lanes; runtime entrypoints must be invoked directly "
+                    "or through ingestion-control jobs"
+                ),
+            ),
+            issues,
+        )
 
     def test_audit_rejects_new_collector_runtime_aliases_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             _write_package(root / "package.json", {"repo:guard": "true"})
             _write_package(
-                root / "apps/wechat-official-account-collector/package.json",
+                root / "apps/source-collector/package.json",
                 {
                     "capture:debug": "node src/capture-cli.ts",
                     "test": "vitest run",
@@ -249,7 +260,7 @@ class PackageScriptPolicyTest(unittest.TestCase):
 
         self.assertIn(
             PackageScriptPolicyIssue(
-                path="apps/wechat-official-account-collector/package.json",
+                path="apps/source-collector/package.json",
                 script="capture:debug",
                 message=(
                     "collector package scripts may only expose build/test/typecheck "

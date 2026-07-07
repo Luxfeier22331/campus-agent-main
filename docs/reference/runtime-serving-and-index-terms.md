@@ -100,8 +100,9 @@ schedule tool/status surface.
   prework，不承担 model-visible structured product serving
 - `calendar/academic_calendar` 当前是 offline data asset / preparation scope，不属于
   campus-services model-visible runtime tool
-- 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
-  bridge，不应误读成长期最终 serving scope
+- 历史 `official_web/muc_public_pages` mixed bridge 已退出 active ingestion
+  configs；当前 official-web active collection 只承认 `stable_reference` 与
+  `fresh_news`
 
 ### Retrieval Qrels Asset
 

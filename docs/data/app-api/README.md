@@ -66,8 +66,10 @@ details live in split data documents.
 - `campus_services_ops.*` 是 `campus_services` 人工校对、override draft、release
   snapshot 与 audit event 的 app-api owned ops schema；它不保存 raw notice/chat evidence，也不
   替代 execution-control typed runtime read model。
-- `official_web` control-plane 引入的额外逻辑分域单独冻结在
-  `docs/data/app-api/official-web.md`
+- `official_web` shared data schema 单独冻结在
+  `docs/data/app-api/official-web.md`；当前 collector control-plane writer owner
+  是 `apps/ingestion-control`，`apps/app-api` 只拥有 operator read/projection 与
+  release-gate operator ledger。
 - 本文继续只覆盖当前 browser-facing app surfaces、request projection 基线与 app-api
   owned operator projections；source-channel 专用 schema 另见各 domain data contract
 
@@ -90,14 +92,14 @@ details live in split data documents.
 - `chat.*`
 - `runtime.*`
 - `operator.*`
-- `official_web.*`
 - `docs.*`
 - `profile.*`
 - `identity.*`
 - `dining.*`
 
-`official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增
-`official_web.*`；具体规则另见 `docs/data/app-api/official-web.md`。
+历史 app-api Drizzle baseline 中包含 `official_web.*`，但它不再表示 app-api 是
+collector control-plane writer owner；具体规则另见
+`docs/data/app-api/official-web.md`。
 
 `campus_services_ops.*` 的表级 shape 另见
 `docs/data/campus-services-ops.md`。
@@ -116,7 +118,10 @@ details live in split data documents.
 但 migration ownership 已显式拆分为：
 
 - `apps/app-api` 的 `drizzle.app_api_migrations` 拥有 `runtime.*` / `operator.*` /
-  `official_web.*` / `docs.*` / `profile.*` / `identity.*` / `dining.*`
+  `docs.*` / `profile.*` / `identity.*` / `dining.*`
+- `official_web.*` 的 collector control-plane durable writes 由
+  `apps/ingestion-control` 执行；app-api schema export 只服务历史 migration
+  baseline、operator projection 和 query/type safety，不得恢复 collector write path
 - `apps/app-api` shared-product bootstrap 负责 `app_auth.*` / `chat.*` 的 bootstrap
   / adoption，不与 `drizzle.app_api_migrations` 混用同一 ownership 语义
 

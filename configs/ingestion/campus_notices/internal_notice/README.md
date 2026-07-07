@@ -23,21 +23,17 @@ handler.
 - `notice-family-classification.v1.json`
   - read-only family admission, route policy and attachment-processing policy
 - `routing-taxonomy-eval.v1.jsonl`
-  - deterministic synthetic taxonomy fixture
+  - deterministic taxonomy assertion
 - `promotion-routing.v1.json`
   - downstream regulation promotion scaffold
 - `consumption-layer-schema.sql`
   - PG schema artifact/operator runbook for consumption projection stores
-- `multimodal-decision-eval.v1.jsonl`
-  - fixed multimodal action/classification fixture
-- `multimodal-visual-eval.v1.jsonl`
-  - fixed visual-groundedness fixture
 
 ## Runtime Posture
 
 Current defaults:
 
-- `source_channel=authenticated_notice_portal`
+- `source_channel=internal_portal`
 - `primary_source_unit=notice`
 - `serving_stage=offline_preparation`
 - `retrieval_enabled=false`
@@ -45,9 +41,10 @@ Current defaults:
 - `collection_visibility=restricted`
 - `default_entitlement=campus_members`
 
-OCR/multimodal source processing uses MinerU according to the authenticated
-notice owner docs. Provider failures fail closed and require explicit review or
-adjudication paths.
+Media and attachment extraction is admitted through ingestion-control and the
+typed `collected_notice_*_text_extraction_attempt` tables in
+`consumption-layer-schema.sql`. This config does not define a Python-owned
+internal notice OCR or multimodal processor runtime.
 
 ## Non-Default Supporting Inputs
 
@@ -55,9 +52,8 @@ adjudication paths.
 - `historical-batches/run14-policy-regulation-expanded.v1.json`
 - `historical-batches/run14-attachment-routing-probe.v1.json`
 
-These files are public repo synthetic replay/promotion probe inputs. Real
-authenticated-notice replay batches, source ids and portal-derived titles live
-outside the repository boundary and are not default live operator paths.
+These files are bounded replay/promotion probe inputs. They are not default live
+operator paths.
 
 ## References
 

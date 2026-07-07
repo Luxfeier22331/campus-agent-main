@@ -27,7 +27,7 @@ updated: 2026-04-18
 
 当前 runbook 只适用于：
 
-- `authenticated_notice_portal/file_release`
+- `internal_portal/file_release`
 - collector side capture / export
 - next auth window 的 bounded capture，以及必要时的 full export
 
@@ -43,32 +43,31 @@ updated: 2026-04-18
 ## 前置条件
 
 - 已有新的 authenticated portal operator cookies：
-  - `AUTHENTICATED_NOTICE_SSO_TGC`
-  - `AUTHENTICATED_NOTICE_JSESSIONID`
-  - `AUTHENTICATED_NOTICE_NGINX`
+  - `INTERNAL_PORTAL_SSO_TGC`
+  - `INTERNAL_PORTAL_JSESSIONID`
+  - `INTERNAL_PORTAL_NGINX`
 - root `.env` 或 collector 环境中已配置必要对象存储凭据时，允许源文件 materialization
 - 当前从 repo root 执行命令
 
 建议先确认 collector 环境已落盘：
 
-- `AUTHENTICATED_NOTICE_RUNTIME_DIR`
-- `AUTHENTICATED_NOTICE_SOURCE_HOME_URL`
+- `INTERNAL_PORTAL_RUNTIME_DIR`
+- `INTERNAL_PORTAL_SOURCE_HOME_URL`
 - `OBJECT_STORE_ENDPOINT`
 - `OBJECT_STORE_ACCESS_KEY`
 - `OBJECT_STORE_SECRET_KEY`
 - `OBJECT_STORE_BUCKET_SOURCE`
-- `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL`
-- `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL`
+- `INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL`
 
 说明：
 
 - 当前 collector 的推荐 operator 输入是显式三 cookie：
-  - `AUTHENTICATED_NOTICE_SSO_TGC`
-  - `AUTHENTICATED_NOTICE_JSESSIONID`
-  - `AUTHENTICATED_NOTICE_NGINX`
-- 生产 job 应配置 collector lease URL；本地 smoke 可不配置 lease
-- collector capture/debug 入口直接执行源码或 Docker mode，不再通过 package script
-  暴露；这条 runbook 不定义 production ingestion lifecycle。
+  - `INTERNAL_PORTAL_SSO_TGC`
+  - `INTERNAL_PORTAL_JSESSIONID`
+  - `INTERNAL_PORTAL_NGINX`
+- internal-portal capture/debug 通过 Temporal activity worker 或显式 operator
+  harness 调用 source-collector library function；这条 runbook 不定义 production
+  ingestion lifecycle。
 
 ## 执行顺序
 
@@ -77,7 +76,7 @@ updated: 2026-04-18
 先把新的登录态写入 collector runtime：
 
 ```bash
-pnpm --dir apps/authenticated-notice-collector exec tsx src/auth-save.ts
+pnpm --dir apps/source-collector exec tsx adapters/internal-portal/src/auth-save.ts
 ```
 
 目标：
@@ -90,14 +89,7 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/auth-save.ts
 认证窗口内，先跑：
 
 ```bash
-pnpm --dir apps/authenticated-notice-collector exec tsx src/auth-check.ts
-```
-
-容器入口等价命令：
-
-```bash
-AUTHENTICATED_NOTICE_COLLECTOR_MODE=auth-check \
-docker run --rm --env-file .env campus-authenticated-notice-collector:local
+pnpm --dir apps/source-collector exec tsx adapters/internal-portal/src/auth-check.ts
 ```
 
 通过标准：
@@ -128,22 +120,14 @@ export，不再用“随便抓 1 条”的数量 smoke 代替。
 - 该 target 不在当前排除名单中
 - 如果还没有这个 id，本 runbook 不授权直接回退到 full export 代替 targeted capture
 
-执行命令：
+执行方式：
 
-```bash
-AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
-pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
-```
+通过 source-collector internal-portal adapter 或显式 operator harness 调用
+`collectFileReleaseBundle` / `runFileReleaseExport`，并传入
+`targetFileReleaseId=<target_file_release_id>`。
 
-容器入口等价命令：
-
-```bash
-AUTHENTICATED_NOTICE_COLLECTOR_MODE=file-release-export \
-AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
-docker run --rm --env-file .env campus-authenticated-notice-collector:local
-```
-
-如需同时验证源文件 materialization，可在对象存储凭据已配置的前提下直接复用同一条命令；不需要额外放大抓取范围。
+如需同时验证源文件 materialization，可在对象存储凭据已配置的前提下复用同一
+harness；不需要额外放大抓取范围。
 
 目标：
 
@@ -162,21 +146,15 @@ docker run --rm --env-file .env campus-authenticated-notice-collector:local
 
 ### 4. 可选的通用 bounded smoke
 
-如果这次 auth window 只是验证 collector 链路，或者当前还没有 admission 具体 target，可继续使用最小数量 smoke：
+如果这次 auth window 只是验证 collector 链路，或者当前还没有 admission 具体
+target，可继续使用最小数量 smoke：
 
-```bash
-AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
-pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
-```
+通过 source-collector internal-portal adapter 或显式 operator harness 调用
+`collectFileReleaseBundle` / `runFileReleaseExport`，并传入 `maxFileReleases=1`。
 
 可选再加 page 限制：
 
-```bash
-AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE=20 \
-AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES=1 \
-AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
-pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
-```
+同一 harness 可同时传入 `pageSize=20`、`maxPages=1` 与 `maxFileReleases=1`。
 
 目标：
 
@@ -186,18 +164,17 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
 
 ### 5. 再做 full export
 
-只有在明确需要 broader file-release inventory 时，才在 targeted export / bounded smoke
-通过后继续 full export：
+只有在明确需要 broader file-release source capture 时，才在 targeted export / bounded
+smoke 通过后继续 full export：
 
-```bash
-pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
-```
+通过 source-collector internal-portal adapter 或显式 operator harness 调用
+`collectFileReleaseBundle` / `runFileReleaseExport`，不传 `targetFileReleaseId` 和数量上限。
 
 如需受控放量，可只设置以下 filter：
 
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE`
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES`
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS`
+- `INTERNAL_PORTAL_FILE_RELEASE_PAGE_SIZE`
+- `INTERNAL_PORTAL_FILE_RELEASE_MAX_PAGES`
+- `INTERNAL_PORTAL_FILE_RELEASE_MAX_ITEMS`
 
 固定规则：
 
@@ -210,7 +187,7 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
 
 默认输出目录：
 
-- `apps/authenticated-notice-collector/runtime/exports/`
+- `apps/source-collector/adapters/internal-portal/runtime/exports/`
 
 最少应看到：
 
@@ -232,13 +209,13 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
 
 如果对象存储凭据齐全且源文件 materialization 成功，还应看到 manifest / bundle 中：
 
-- `collector.file_storage_mode=object_store_write`
+- `capture_runtime.file_storage_mode=object_store_write`
 - `released_file.storage_provider=object_store`
 - `released_file.object_key` 非空
 
 如果对象存储未配置或当前只做引用捕获，则固定接受：
 
-- `collector.file_storage_mode=reference_only`
+- `capture_runtime.file_storage_mode=reference_only`
 - `released_file.storage_provider=reference_only`
 
 ## 建议保留 closeout artifacts
@@ -266,7 +243,7 @@ pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.
    - 看 `run.items_seen`
    - 看 `run.items_inserted`
    - 看 `run.file_urls_resolved`
-   - 看 `collector.file_storage_mode`
+   - 看 `capture_runtime.file_storage_mode`
    - targeted export 时再看 `filters.target_file_release_id`
 1. bundle 首行
    - 确认 `source_surface=file_release`

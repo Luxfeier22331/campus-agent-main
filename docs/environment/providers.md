@@ -253,8 +253,8 @@ Reading model:
 ### FeedWe
 
 - Owner: WeChat official account public source-channel acquisition.
-- Env owner: `apps/wechat-official-account-collector/.env` or deploy-side
-  secret store.
+- Env owner: `apps/source-collector/adapters/wechat-official-account/.env` or
+  deploy-side secret store.
 - Keys: `FEEDWE_EMAIL`, `FEEDWE_PASSWORD`, `FEEDWE_BASE_URL`,
   `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`,
   `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.

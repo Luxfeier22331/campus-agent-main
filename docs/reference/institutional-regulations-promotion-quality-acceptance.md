@@ -152,8 +152,9 @@ local-only closeout artifact 时通过 git history 恢复具体片段，再提�
 
 当前这条线的 repo verification 至少应持续覆盖：
 
-- promotion manifest build
-- target materialization worker
+- source / target promotion scaffold 不回流旧 Python manifest / export / scan
+  runtime
+- projection DTO、title/version/provenance metadata 与 document-units shape
 - duplicate provenance aggregation
 - wrapper stripping
 - title/version metadata retention

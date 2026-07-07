@@ -10,7 +10,7 @@ updated: 2026-04-28
 
 ## 文档边界
 
-本文冻结 `authenticated_notice_portal/file_release` 当前 repo-tracked export contract。
+本文冻结 `internal_portal/file_release` 当前 repo-tracked export contract。
 
 它回答的是：
 
@@ -19,7 +19,7 @@ updated: 2026-04-28
 - collector 会额外快照哪些 portal selector / taxonomy truth
 - `reference_only` 与 `object_store_write` 各自代表什么
 - released file 的对象存储 key 如何编排
-- collector -> ingestion-control / import consumer handoff 中 `file_release`
+- collector -> ingestion-control materialization handoff 中 `file_release`
   必须提供哪些 object refs 和 verification fields
 
 它不负责：
@@ -42,7 +42,7 @@ updated: 2026-04-28
 
 `file_release` 当前是：
 
-- `authenticated_notice_portal` 下的 sibling authenticated surface
+- `internal_portal` 下的 sibling authenticated surface
 - collector-owned capture / export slice
 - object-backed `authenticated_documents/file_release_source` 的 source input
 
@@ -64,13 +64,13 @@ updated: 2026-04-28
 - `file_release_source` 不自动进入 `regulations/*`、service-status、chatbot、panel 或
   query-serving
 
-holding status 的 operator posture 固定为：
+ingestion-control / operator projection 的 posture 固定为：
 
-- `captured_only`：只保留 capture evidence，不能作为 import source
+- `captured_only`：只保留 capture evidence，不能作为 materialization source
 - `object_backed_source_ready`：released original 已在 source bucket 中验证，可进入
-  ingestion-control / import consumer
-- `imported_holding`：holding inventory、raw asset、document rows 与 source
-  objects 已对齐
+  ingestion-control 的 `source_truth_materialize` task
+- `imported_holding`：source-truth / document holding artifacts 已由 ingestion-control
+  materialize，document registry 可作为下游 owner recovery 的唯一 repo-local 查询入口
 - `downstream_admitted`：已有后续 owner 显式 admission / read model 证据；
   本 contract 不默认打开该状态
 
@@ -91,8 +91,9 @@ collector 可以在本地 operator work dir 下保留两类 export 文件副本�
 - targeted export：`file-release-target-<file_release_id>-<timestamp>`
 
 跨 Docker runtime handoff 不能依赖上述本地路径。主链路 handoff 必须由
-source bucket object refs 与 run ledger 表达；当前 mainline consumer input 必须是
-explicit object refs，不能要求 consumer 通过 run ledger 隐式猜测 bundle / manifest。
+source bucket object refs 与 run ledger 表达；当前 mainline task input 必须是
+explicit object refs，不能要求 ingestion-control executor 通过 run ledger 隐式猜测
+bundle / manifest。
 
 ## Portal Selector Snapshot
 
@@ -117,12 +118,12 @@ truth：
 
 当前 export contract version 固定为：
 
-- `authenticated_notice_file_release_export_v1`
+- `internal_portal_file_release_export_v1`
 
 它同时出现在：
 
 - manifest `schema_version`
-- collector metadata `export_contract_version`
+- capture runtime metadata `export_contract_version`
 
 ## Bundle Shape
 
@@ -196,17 +197,17 @@ manifest 顶层固定为 `FileReleaseExportManifest`。
 关键字段包括：
 
 - `schema_version`
-  - 固定为 `authenticated_notice_file_release_export_v1`
+  - 固定为 `internal_portal_file_release_export_v1`
 - `exported_at`
 - `export_date`
 - `export_scope`
 - `source_channel`
-  - 固定为 `authenticated_notice_portal`
+  - 固定为 `internal_portal`
 - `source_surface`
   - 固定为 `file_release`
 - `site_id`
 - `source_home_url`
-- `collector`
+- `capture_runtime`
 - `filters`
 - `observed_file_types`
 - `observed_departments`
@@ -214,14 +215,14 @@ manifest 顶层固定为 `FileReleaseExportManifest`。
 - `observed_explain_departments`
 - `run`
 
-### `collector`
+### `capture_runtime`
 
-collector metadata 固定包括：
+capture runtime metadata 固定包括：
 
 - `runtime_shell`
-  - 固定为 `repo_local_node`
+  - 固定为 `source_collector_node`
 - `export_contract_version`
-  - 固定为 `authenticated_notice_file_release_export_v1`
+  - 固定为 `internal_portal_file_release_export_v1`
 - `file_release_collection_mode`
   - `prompt_portlet_reference_only`
   - `prompt_portlet_materialized`
@@ -240,10 +241,10 @@ collector metadata 固定包括：
 
 它们分别对应以下 env：
 
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE`
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES`
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS`
-- `AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID`
+- `INTERNAL_PORTAL_FILE_RELEASE_PAGE_SIZE`
+- `INTERNAL_PORTAL_FILE_RELEASE_MAX_PAGES`
+- `INTERNAL_PORTAL_FILE_RELEASE_MAX_ITEMS`
+- `INTERNAL_PORTAL_FILE_RELEASE_TARGET_ID`
 
 其中 `target_file_release_id` 固定代表：
 
@@ -312,7 +313,7 @@ released file 的 capture 结果只允许两种解释：
 
 固定表现：
 
-- `collector.file_storage_mode=reference_only`
+- `capture_runtime.file_storage_mode=reference_only`
 - `released_file.storage_provider=reference_only`
 - `released_file.provenance_status=reference_only`
 - `released_file.ingest_status=reference_only`
@@ -320,9 +321,9 @@ released file 的 capture 结果只允许两种解释：
 
 这不是失败态，而是“只捕获引用、不捕获字节”的显式 contract。
 
-在 `file_release_source` import 中，`reference_only` 是 fail-closed input：import
-consumer 可以报告它，但不能把它导入 document holding，也不能伪造 raw/source object
-locator。
+在 `file_release_source` materialization 中，`reference_only` 是 fail-closed input：
+ingestion-control 可以报告它，但不能把它导入 document holding，也不能伪造 raw/source
+object locator。
 
 ### `object_store_write`
 
@@ -333,8 +334,8 @@ locator。
 
 固定表现：
 
-- `collector.file_storage_mode=object_store_write`
-- `collector.file_release_collection_mode=prompt_portlet_materialized`
+- `capture_runtime.file_storage_mode=object_store_write`
+- `capture_runtime.file_release_collection_mode=prompt_portlet_materialized`
 - `released_file.storage_provider=object_store`
 - `released_file.provenance_status=collected_internal`
 - `released_file.ingest_status=uploaded`
@@ -352,7 +353,7 @@ locator。
 `file_release` collector success handoff 必须提供：
 
 - `run_id`
-- `source_channel=authenticated_notice_portal`
+- `source_channel=internal_portal`
 - `source_surface=file_release`
 - `site_id`
 - `source_bucket`
@@ -374,18 +375,18 @@ locator。
 
 `run_id` consumer 只能消费这份 read contract。`bundle_path` / `manifest_path`
 local fields 可以保留在 dev/debug report 中，但不能作为 Docker collector 与
-downstream consumer 之间的 handoff truth。
+ingestion-control 之间的 handoff truth。
 
 ## Object Key Contract
 
 当 released file 被写入 source bucket 时，object key 固定采用：
 
-`authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/{f
+`internal_portal/file-release-{id}/{year}/sha256-{digest}/capture/{f
 ilename}`
 
 示例：
 
-`authenticated_notice_portal/file-release-646/2026/sha256-<digest>/capture/中央民族大
+`internal_portal/file-release-646/2026/sha256-<digest>/capture/中央民族大
 学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf`
 
 约束：
@@ -412,8 +413,12 @@ ilename}`
 
 当前 contract 的实现锚点在：
 
-- `apps/authenticated-notice-collector/src/file-release-export.ts`
-- `apps/authenticated-notice-collector/src/types.ts`
-- `apps/authenticated-notice-collector/test/file-release-export.test.ts`
+- `apps/source-collector/adapters/internal-portal/src/file-release-export-core.ts`
+- `apps/source-collector/adapters/internal-portal/src/file-release-crawlee-runner.ts`
+- `apps/source-collector/adapters/internal-portal/src/types.ts`
+- `apps/source-collector/adapters/internal-portal/test/file-release-export.test.ts`
+- `configs/ingestion/authenticated_documents/file_release_source/task-registry.v2.json`
+- `apps/ingestion-control/src/authenticated-file-release-materialize.ts`
+- `apps/ingestion-control/test/authenticated-file-release-materialize.test.ts`
 
 如果代码与本文冲突，以实现和测试修正本文，或在同一提交中同步升级 version；不得静默漂移。

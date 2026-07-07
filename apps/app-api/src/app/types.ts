@@ -21,9 +21,6 @@ import type {
 	IngestionTaskProjectionFetch,
 } from "../modules/integration";
 import type { ObservabilityConfigService } from "../modules/observability-config";
-import type { OfficialWebCommandService } from "../modules/official-web-command";
-import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
-import type { OfficialWebPlannerService } from "../modules/official-web-planner";
 import type { OfficialWebQueryService } from "../modules/official-web-query";
 import type { OfficialWebReleaseTaskProcessingCommandService } from "../modules/official-web-release-task-processing-command";
 import type { OfficialWebReleaseTaskProcessingQueryService } from "../modules/official-web-release-task-processing-query";
@@ -68,9 +65,6 @@ export interface AppDependencies {
 	identityPlatformService?: IdentityPlatformService;
 	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
 	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
-	officialWebCommandService?: OfficialWebCommandService;
-	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
-	officialWebPlannerService?: OfficialWebPlannerService;
 	officialWebQueryService?: OfficialWebQueryService;
 	officialWebReleaseTaskProcessingCommandService?: OfficialWebReleaseTaskProcessingCommandService;
 	officialWebReleaseTaskProcessingQueryService?: OfficialWebReleaseTaskProcessingQueryService;
@@ -138,7 +132,6 @@ export interface AppRequestScope {
 	resolveDocsService(): DocsService;
 	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
-	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;
 	resolveOfficialWebReleaseTaskProcessingQueryService(): OfficialWebReleaseTaskProcessingQueryService;

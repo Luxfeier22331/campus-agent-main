@@ -59,7 +59,7 @@ ACTIVE_RETIRED_OWNER_FORBIDDEN_SNIPPETS = {
     "- `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排",
     "- `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径",
     "它顺序启动 `supervisor-agent-worker`、`execution-control`",
-    "packages/ingestion-core packages/retrieval-core packages/contracts",
+    "packages/" + "ingestion-core packages/retrieval-core packages/contracts",
     "返回 ingestion-worker 可消费的 deterministic `releaseId`",
     "Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /",
     "`apps/supervisor-agent-worker` 是 private semantic worker",

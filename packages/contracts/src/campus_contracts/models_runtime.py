@@ -35,14 +35,10 @@ from campus_contracts.models_shared import (
     ToolID,
 )
 from campus_contracts.models_tools import (
-    CampusNoticeChangeSetLookupPayload,
-    CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
-    CampusNoticePeriodSummaryPayload,
-    CampusNoticePeriodSummaryResult,
     PlaceLookupPayload,
     PlaceLookupResult,
     TransportScheduleLookupPayload,
@@ -373,9 +369,7 @@ class ToolRequest:
         RagRequestPayload
         | PlaceLookupPayload
         | TransportScheduleLookupPayload
-        | CampusNoticeChangeSetLookupPayload
         | CampusNoticeDiscoverPayload
-        | CampusNoticePeriodSummaryPayload
         | CampusNoticeGetPayload
     )
     allowed_tools: tuple[ModelVisibleToolName, ...] = field(default_factory=tuple)
@@ -412,9 +406,7 @@ class ToolResponse:
         RagResultPayload
         | PlaceLookupResult
         | TransportScheduleLookupResult
-        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
-        | CampusNoticePeriodSummaryResult
         | CampusNoticeGetResult
         | None
     ) = None
@@ -441,9 +433,7 @@ class ExecutionResponse:
         RagResultPayload
         | PlaceLookupResult
         | TransportScheduleLookupResult
-        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
-        | CampusNoticePeriodSummaryResult
         | CampusNoticeGetResult
         | None
     ) = None

@@ -1,10 +1,10 @@
 ---
 doc_type: architecture
 truth_scope: data
-owner_boundary: ingestion-core
+owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-02
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 # Data Plane Architecture
 
@@ -47,7 +47,8 @@ source-channel collector
    + source-channel task input refs
 -> app-api product/operator admission when a product control plane is required
 -> ingestion-control-api task admission with object-store input refs
--> ingestion-control-executor claim / lease / registry-aware execute / closeout
+-> ingestion-control Temporal workflow/activity worker
+   registry-aware execute / closeout
 -> source truth / projection / document / release artifacts
 -> app-api / execution-control / operator-safe projection consumers
 ```
@@ -60,15 +61,48 @@ typed object-store task input；不需要 handoff object 的来源（例如
 publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此成为
 ingestion executor。
 
-`ingestion-control-api` 与 `ingestion-control-executor` 是自部署
+`ingestion-control-api` 与 `ingestion-control-temporal-worker` 是自部署
 `apps/ingestion-control` 的两个 runtime role。前者是 HTTP control-plane service；
-后者是后台 executor worker process。这里的 worker 不表示 Cloudflare Worker，也不得
+后者是 Temporal workflow/activity worker process。这里的 worker 不表示 Cloudflare Worker，也不得
 把 ingestion lifecycle 藏进 `apps/app-api` 或 collector 进程。
 
 学校或来源差异必须停在 source adapter 层。repo 当前目标是 fork-friendly source adapter
 boundary，而不是 plugin 平台：自部署 fork 可以替换自己的 collector adapter，但应保持
 source bucket artifact pack、source-channel typed task input object、
 ingestion-control task envelope 与 canonical source-truth contract 不变。
+
+## Target Deployment Shape
+
+ingestion / collector 的最终部署形态由 runtime ownership 决定，不由 package
+layout 决定。下表定义目标拓扑；它不宣称当前 K8s / GitOps manifest 已覆盖所有单元。
+
+| Unit | Deployed | Runtime shape | Scheduling / scaling owner | Owns | Must not own |
+| --- | --- | --- | --- | --- | --- |
+| `apps/source-collector` | Yes | Crawlee-capable source adapter runtime image | Kubernetes Job / CronJob, Temporal activity-invoked process, or explicit operator harness | source auth, crawl / capture, source-bucket artifact pack, run ledger, task input refs | source-truth mutation, task admission, terminal closeout, Qdrant alias publish |
+| `ingestion-control-api` | Yes | self-hosted internal HTTP service process from `apps/ingestion-control` | service Deployment or equivalent request-driven scaling | task admission, registry validation, idempotency, Temporal workflow start, ready / metrics, operator-safe projection | crawl / capture, workflow / activity execution, source adapter auth |
+| `ingestion-control-temporal-worker` | Yes | Temporal workflow / activity worker process from `apps/ingestion-control` | Temporal task queue backlog / worker saturation; KEDA Temporal scaler when deployed on Kubernetes | registry-aware workflow / activity execution, `ts_control` dispatch, Rust kernel bridge, explicit adapter calls, terminal closeout | HTTP admission, product ingress, collector run lifecycle |
+| `packages/ingest-core` | No | runtime-neutral TS ingestion helper package | package import only | artifact refs, object-store interfaces, `s3://` URI helpers, source-channel handoff DTOs, canonical JSON / JSONL writers, pure validation / parser / materialization helpers, default executor inventory audit | Temporal, Crawlee, concrete S3 / Postgres / Qdrant clients, provider transport, env bootstrap |
+| `packages/ingestion-contracts` | No | runtime-neutral contract package | package import only | task envelope, task registry, closeout DTOs and validators | task lifecycle, storage clients, workflow / activity execution |
+| `packages/ingestion-kernels-rs` | No standalone service | deterministic kernel binary / library called by ingestion-control worker | called from registered worker activity | file-level validation, chunk preparation, release manifest checks | source-channel semantics, Postgres / S3 / Qdrant clients, operator workflow |
+| Python adapters | Optional | package library or private adapter service dependency behind explicit TS handler | called only by admitted TS handler | MinerU / OCR / ML / legacy Office / domain extraction adapters | default worker runtime, task workflow, closeout, registry fallback executor |
+
+The production service chain therefore stays:
+
+```text
+scheduled or workflow-invoked source-collector
+-> source bucket artifact pack + run ledger + task input refs
+-> optional app-api product/operator control-plane seam
+-> ingestion-control-api admission
+-> Temporal workflow
+-> ingestion-control-temporal-worker registry-aware execution
+-> source truth / projection / document / release artifacts
+-> app-api / execution-control / operator-safe projection consumers
+```
+
+`apps/source-collector` can be run as one-shot or scheduled work because capture
+has an external source lifecycle. `apps/ingestion-control` remains a self-hosted
+control-plane service because task admission, workflow start and terminal
+closeout need stable internal state, diagnostics and failure semantics.
 
 ## Qdrant Private Data-Plane Posture
 
@@ -151,7 +185,7 @@ unit，只要不破坏这条 shared chain。
 
 - `official_web` page-level source truth，详见
   `docs/data/official-web.md`
-- `authenticated_notice_portal` notice-level source truth，详见
+- `internal_portal` notice-level source truth，详见
   `docs/data/authenticated-notice.md`
 
 这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
@@ -166,12 +200,12 @@ domain adapter 分层，而不是把当前 Python ingestion scripts 扩成目标
 ```text
 admit
 -> register
--> claim / lease
--> execute
+-> start Temporal workflow
+-> execute registry-aware activity
 -> materialize
 -> validate
 -> publish
--> closeout or dead-letter
+-> terminal closeout
 ```
 
 固定 owner：
@@ -179,47 +213,105 @@ admit
 - `apps/app-api` 只拥有 product/operator ingress、operator-safe projection read model
   与 release gate command；不拥有 ingestion task admission、executor state mutation、
   executor callback、source truth write、document/index materialization 或 Qdrant alias
-  publish。
+  publish。`apps/app-api` 也不是 Python workspace package；需要 Python mirror /
+  projection helper 时应进入 `packages/contracts` 等稳定 package，而不是回到 Worker app
+  下新增 Python 包。
 - ingestion control plane 以自部署服务运行，不是 Cloudflare Worker。它可以由同一
-  package / image 提供 `ingestion-control-api` 与 `ingestion-control-executor` 两个
-  runtime role，但 API surface 与后台 executor worker process 必须作为不同进程部署和扩缩。
+  package / image 提供 `ingestion-control-api` 与 `ingestion-control-temporal-worker`
+  两个 runtime role，但 API surface 与 Temporal workflow/activity worker process
+  必须作为不同进程部署和扩缩。
 - `ingestion-control-api` 拥有 task admission、task registry validation、
   idempotency、operator-safe projection read model 与 ready / metrics surface。
-- `ingestion-control-executor` 拥有 claim / lease、retry / dead-letter、
-  registry-aware executor dispatch、run shard batch state、telemetry closeout 与
-  redacted operator projection snapshot。
-- `apps/ingestion-control` 的 executor role 是 durable dispatch shell；它消费
-  已 admission 的 task，按 registry 中的 `ts_control` / `rust_kernel` executor kind
-  调用 TS handlers 或 deterministic kernels，并把 terminal outcome 暴露为可诊断
-  closeout。缺失 handler / kernel 必须 fail closed。
-- `ts_control` handler 是默认 materialization owner；source-specific artifact resolver、
-  source-truth materialization、canonical document materialization、structured projection
-  publish、operator projection snapshot 与 alias publish 只有在真实 handler 已存在时才进入
-  registry。未被 handler/registry 显式声明的生命周期步骤不属于当前 runtime
-  truth；默认 closeout skeleton 不代表 collection migration complete。
-- `apps/ingestion-worker` 只保留 Python adapter island；它不拥有 collection lifecycle、
-  release / alias publish、Qdrant ops 或 source-channel queue consumer。
-- `packages/ingestion-core` 继续拥有 canonical source-truth、materialization strategy、
-  shared file asset loader 与 collection strategy；task lifecycle 不再由 Python collection
-  CLI 或 worker facade 定义。
+- `apps/ingestion-control` 拥有 task admission、Temporal workflow start、
+  registry-aware activity dispatch、telemetry closeout 与 redacted operator
+  projection snapshot。
+- `apps/ingestion-control` 的 Temporal workflow / activity worker 是 durable
+  run-level orchestration shell；它消费已 admission 的 task，按 registry 中的
+  `ts_control` / `rust_kernel` executor kind 调用 TS handlers 或 deterministic
+  kernels，并把 terminal outcome 暴露为可诊断 closeout。缺失 handler / kernel 必须
+  fail closed。
+- `ts_control` handler 是默认 source-truth materialization owner；source-specific
+  artifact resolver 与 source-truth materialization 只有在真实 handler 已存在时才进入
+  registry。缺少真实 handler / kernel 的生命周期步骤不得进入 active registry；默认
+  closeout skeleton 不代表 collection migration complete。
+- task kind contract 只保留当前 active runtime 能执行或能 fail-closed 诊断的
+  data-plane lifecycle 语义。当前 active task kind 分层为：
+  `source_truth_materialize` 交给 TS control handler；
+  `document_units_validate` / `chunk_prepare` / `release_manifest_validate` 交给
+  deterministic Rust kernel bridge。post-source projection、read-model 与 derived-scope
+  materialization 不再作为 active task kind 保留；需要时必须在同一变更中重新设计
+  collection-specific handler、contract artifact、registry entry 与 executability gate。
+  active registry 只能声明 executability audit 已确认存在 handler / kernel 的 task；
+  新增枚举不能作为 registry 占位。
+- `apps/ingestion-worker` 与旧 Python ingestion package 已移除；Python 不再作为
+  app-level worker runtime、default package library 或 fallback executor 存在。
+  需要 Python 生态的 MinerU / OCR / ML / domain extraction 能力时，必须重新建模为
+  explicit TS handler 调用的 private adapter service 或明确 admission 的窄 package，
+  并返回 canonical artifacts / document units；不能恢复旧 Python package 作为
+  source-truth / projection / registry owner。
+- Regulation semantic、answer-role 与 answer-ready contract helper 不再由独立
+  Python package 承接；若未来重新需要，必须按 collection-local TS handler、
+  deterministic Rust kernel 或显式 adapter contract 重新 admission。通用 artifact key
+  builder、artifact filename contract、raw asset / document registry DTO、
+  `DocumentImportInput`、通用 split-manifest loader 或 raw split materialization helper
+  由 TS / Rust owner 承接；不再存在 Python 默认 owner。
+- student handbook cleanup、layout cleanup、file asset routing 或 extraction metadata
+  若未来重新需要，必须按 TS handler、Rust kernel 或显式 adapter contract 重新 admission；
+  不得恢复 `source_truth_common.py`、`RawAsset*` registry 术语或旧 package facade。
+- `packages/ingest-core` 是已存在的 runtime-neutral TypeScript ingestion helper
+  package。它只能承载 artifact refs、object-store interface、`s3://` URI helper、
+  source-channel handoff DTO、Zod-backed TS boundary parsers、canonical JSON /
+  JSONL artifact writer、纯 validation / parser / materialization helper、default
+  executor inventory audit 与 collection-local domain helpers；不能承载 Temporal、
+  Crawlee、S3 / Postgres / Qdrant concrete client、provider HTTP client 或 executor
+  fallback。active task execution 必须拒绝非 `object_store` input ref；`inline` /
+  `local_file` / `postgres_row` 只允许留在 contract / test / explicit dev assertion
+  语境，不得作为 source-truth materialization 主链路。
+- `packages/ingestion-contracts` 继续拥有 ingestion task envelope、task registry 与
+  closeout DTO，以及 `canonical_document_units.v1` schema。TS ingest core helper
+  可以消费这些 contracts，但不得替代 `apps/ingestion-control` 的 admission /
+  workflow / closeout ownership。TypeScript validator 使用 Ajv，Python boundary test
+  package 只能通过 `jsonschema` 消费同一份 JSON Schema；不得再维护手写字段 validator。
+  canonical document units 固定使用 `doc_id` / `version_id` / `chunk_id` /
+  `root_unit_id` / `text` / `clean_text` / `metadata` / `anchor`，Rust kernel
+  `chunk-document-units` 输出 chunk 也使用 `doc_id`。旧 `document_id` / `unit_id`
+  输入形状不得作为 `canonical_document_units.v1` 兼容路径保留。
 - Rust 只承接 profiling 已证明值得下沉的 deterministic batch kernels，例如 JSONL
   streaming、document-units validation、chunk packing、hash / dedup / diff、release
   manifest validation 与 embedding batch input preparation；Rust kernel 不拥有
   source-channel semantics、operator workflow 或 provider adapter contract。
-- Python 只承接 MinerU / OCR / ML / domain extraction adapters、offline eval 与
-  historical tooling；Python adapter 产物必须回到 canonical source truth /
-  document artifact / projection contract 后才能被下游消费。
+- Python 只允许作为重新 admission 的 MinerU / OCR / ML / domain extraction
+  adapter、offline eval 或 historical tooling。Python adapter 产物必须回到 canonical
+  source truth / document artifact / projection contract 后才能被下游消费。Python
+  adapter code 不得从 env 构造 provider HTTP client、拥有 provider polling lifecycle
+  或作为 ingestion executor；provider execution 必须通过显式 TS handler、注入的
+  private adapter 或外部服务边界进入。legacy Office conversion 当前已退出 active
+  workspace；未来若需要必须基于新 adapter contract 重新设计。旧 handbook /
+  curriculum provider-response normalization、source-truth validation、course-map
+  multimodal probe 与 Python docs-surface 生成器已退役；
+  reader-facing course-map supplement 的 schema validation、asset packaging 与发布 helper
+  由 TS `packages/ingest-core` 承接。
 - Python 不拥有默认 Postgres connection runtime。Python data-plane code 只能保留连接
   URL validation / normalization、SQL shape test 与显式隔离 adapter；registry /
   projection 的实际数据库 mutation owner 必须回到 TS/Go runtime 或重新 admission 的
   adapter boundary。
-- Python 不拥有默认 tokenizer / LlamaIndex runtime。Qwen3 chunk budgeting 使用本地
-  `tokenizer.json` + Hugging Face `tokenizers`，不得回退到 Python `transformers`
-  runtime 或联网下载；embedding / chunk node seam 使用 repo-owned protocol / DTO。
-- Python Qdrant client、S3-compatible object-store client 与 index / audit mutation
-  仍是待迁移残留，只能维持已有 ingestion data-plane 测试覆盖的 legacy 路径；新工作不得继续把
-  collection lifecycle、alias publish、object-store runtime client creation 或 audit
-  closeout 扩建在 Python 默认路径上。
+- Python 不拥有默认 tokenizer、chunk profile、chunk preparation 或 LlamaIndex
+  runtime。collection runtime / chunk profile payload 由 TS `packages/ingest-core`
+  解析；默认 `document_units_validate`、`chunk_prepare` 与
+  `release_manifest_validate` 由 `apps/ingestion-control` 调用 Rust kernel 执行。
+  Curriculum document-units generation / validation / chunk preparation 也不得
+  留在或恢复为 Python `curriculum_chunk_units*` /
+  `curriculum_document_units*` 模块；缺失能力必须作为 TS handler 或 Rust kernel
+  补齐。
+  如需 Qwen3 budgeting，只能在 deterministic kernel boundary 内使用本地
+  `tokenizer.json` + Hugging Face `tokenizers`；不得回退到 Python
+  `transformers` runtime、Python tokenizer cache、semantic chunker、process
+  pipeline 或联网下载。embedding / chunk node seam 使用 repo-owned protocol /
+  DTO。
+- Python 不再保留 concrete Qdrant 或 S3-compatible object-store client
+  lifecycle；现存 Qdrant 字样仅允许作为 profile DTO / config-validation 语义，不得代表
+  client ownership。新工作不得继续把 collection lifecycle、alias publish、
+  object-store runtime client creation 或 audit closeout 扩建在 Python 默认路径上。
 - 学校特定 collector adapter 可以使用 TS、Python 或其他 repo-approved runtime
   实现采集，但它的唯一 data-plane handoff 是 source bucket artifact pack 和
   capture-release object；不能因语言或部署便利绕过 ingestion-control。
@@ -240,7 +332,8 @@ repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapp
    default runtime 已能执行的 handler / kernel。
 2. **Build real execution entries**：每个迁移 collection 至少落地一个真实
    `ts_control` handler 或 Rust kernel bridge，读取 object-store input，产出 contract
-   artifact，并由 ingestion-control 完成 claim / lease / closeout。
+   artifact，并由 ingestion-control Temporal workflow/activity worker 完成 terminal
+   closeout。
 3. **Prove Rust kernels**：只把 output equivalence 与 profiling 都证明成立的
    deterministic file-level work 下沉到 Rust。
 4. **Shrink Python to adapters**：Python 仅作为 MinerU / OCR / ML / legacy Office /
@@ -253,12 +346,22 @@ repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapp
 
 - collection task registry 必须对应 default runtime 已实现的 handler / kernel bridge；
   registry 存在本身不能证明 collection migration complete。
+- capture / provider-extract task contract 已从 active registry contract 中移除；
+  重新接入时必须和 collection-specific Temporal handler 同步设计、同步落地，不得先以
+  enum 或 registry 占位。
+- post-source projection / read-model / derived-scope materialization 不得以 generic
+  task kind、Python import/replay/publish CLI 或 report-only handler 形式保留；需要时
+  必须作为 collection-specific TS handler 或明确 adapter contract 重新 admission。
 - 旧 Python CLI 不迁入 registry/executor seam；仍需要的 tool 必须按 TS/Rust target
   runtime 或 Python adapter 重新建模。
 - `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth
   materialization 的主输入；mainline handoff 必须是 source bucket `object_store` refs。
 - 双路径只允许在有明确外部迁移约束时短期存在；默认不新增 fallback、兼容 shim 或
   silent replay path。
+- source-truth replay、local attachment blob-root backfill、provider comparison、
+  runtime smoke 与 document canonical markdown backfill 已退出 active ingestion
+  operation surface；需要同等能力时必须重新设计为 Temporal activity、Crawlee
+  collector 或显式 provider activity，而不是恢复 Python CLI。
 
 ## Shared File-Asset Loader Boundary
 
@@ -273,8 +376,11 @@ artifacts`
 - 这条 subchain 不改变 repo 的 canonical chain，只是把 file-like asset handling 从
   source-specific path 收口成 shared contract
 - source unit 继续由 source channel 定义；`official_web` 仍是 page-level
-  source-truth，`authenticated_notice_portal` 仍是 notice-level source-truth
-- shared file asset loader 的 canonical owner 固定为 `packages/ingestion-core`
+  source-truth，`internal_portal` 仍是 notice-level source-truth
+- shared file asset loader 当前只保留 architecture boundary；旧 Python implementation
+  已移除。后续若在 TS ingest core 或 adapter service 中重新落地，仍必须保持
+  runtime-neutral contract，不得携带 concrete storage / database / Temporal /
+  Crawlee runtime。
 - legacy binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment
   posture 固定看 `docs/architecture/system/file-asset-loader.md`
 - remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的
@@ -338,15 +444,16 @@ release task state machine 固定属于 ingestion data plane。
 
 固定规则：
 
-- `apps/ingestion-control` 定义并执行 release task lifecycle：claim / lease /
-  retry / dead-letter / publish 状态语义，以及 operator-safe projection snapshot closeout
-- registry-aware executor 读取对象存储 source-truth bundle，产出 canonical projection 或
-  document/index release，并在状态变化后上报 redacted projection snapshot
+- `apps/ingestion-control` 定义并执行 release task lifecycle：Temporal workflow start、
+  registry-aware activity dispatch、publish 状态语义，以及 operator-safe projection
+  snapshot closeout
+- registry-aware activity worker 读取对象存储 source-truth bundle，产出 canonical projection
+  或 document/index release，并在状态变化后上报 redacted projection snapshot
 - `apps/app-api` 不拥有 release task admission、executor read、executor callback
   或 selected-write task 状态；它只暴露已经入库的 operator projections、
-  collector command ingress，以及 stable-reference operator approve/reject command
-  ledger；它可以接收 ingestion-control 的 operator-safe release task projection
-  snapshot，用于 panel 只读展示
+  stable-reference operator approve/reject command ledger；它可以接收
+  ingestion-control 的 operator-safe release task projection snapshot，用于 panel
+  只读展示
 - Panel 只能消费 app-api/operator projection 或未来 ingestion 投影，不直接调用
   release task mutation route
 
@@ -406,7 +513,7 @@ retrieval acceptance -> serving alias publish`
   query-serving alias，也不表示 runtime 已可检索
 - `rag_release_candidate` 持久 store 是 ingestion data-plane owned operator store；
   production materialization 只有在显式注入 store 或配置 candidate store Postgres URL 时
-  才入队，避免无 operator store 的本地/fixture replay 被隐式升级为发布流程
+  才入队，避免无 operator store 的本地/assertion replay 被隐式升级为发布流程
 - reader publish lane 与 RAG release lane 可以共享 canonical document provenance，但必须保留
   独立 status、artifact、manifest 与 verification truth
 - periodic worker 可以批量处理 pending candidates；worker 只能读取 canonical document
@@ -543,7 +650,7 @@ registry / control-plane database 与对象存储长期分层。
 
 ## Accepted Data-Plane Scope
 
-当前 data plane 已支撑以下 canonical scope：
+当前 data plane 已接受以下 canonical scope 语义：
 
 - `regulations/student_rules`
 - `regulations/institutional_rules`
@@ -555,37 +662,29 @@ registry / control-plane database 与对象存储长期分层。
 - `campus_services/transport_schedule`
 - `official_web` source channel 的 control-plane / source-truth path
 
-这表示 repo 已为这些 scope 建立了 canonical data-plane 语义，并不表示它们都已开放 query-serving 或已完成当前
-rollout。
+这表示 repo 已为这些 scope 建立或接受 canonical data-plane 语义，并不表示它们都已开放 query-serving、
+已完成 rollout，或已经拥有 active `task-registry.v2.json` executable entry。
+当前 active registry 只能声明默认 runtime 已有真实 handler / kernel bridge
+的任务；derived/read-model scope 如果只有 generic report-only handler，必须退出
+active registry，直到 collection-specific handler 与 contract artifact 同步落地。
 
-## Authenticated Notice Async Staged Closeout
+## Authenticated Notice Historical Closeout
 
-Authenticated-notice staged closeout 不改变 data-plane canonical chain，只改变
-historical closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
-pipeline。
+旧 authenticated notice async staged closeout / batch-leased closeout 只保留为历史
+ADR 事实。它曾使用 `ingestion_closeout.closeout_*` 表、
+`campus_notices/operations/authenticated-notice-closeout/{run_id}/` operations
+prefix、Python planner / worker / promoter 与 staging rows 承接批处理吞吐。
+ADR-0026 曾进一步把 executor 升级为 batch-leased pipeline；这些历史 closeout
+模型不改变 data-plane canonical chain。
 
-固定规则：
+当前 active workspace 已删除这条 Python closeout 生命周期和旧 Python ingestion
+package。当前 notice source-truth materialization 只能通过 `apps/ingestion-control`
+的 registry-aware Temporal workflow/activity worker 执行；Python 不再提供
+closeout store、worker、lease、repair、operations retention runtime、
+source-truth mutation 或 projection materialization owner。
 
-- run metadata、workers、milestones、batch manifests、batch input slices 与 staged
-  document objects 落在
-  `campus_notices/operations/authenticated-notice-closeout/{run_id}/`
-- `packages/ingestion-core` 通过 `ingestion_closeout.closeout_*` 表记录 run / shard /
-  batch / worker / notice / raw asset / document / promotion staging truth
-- planner 只负责冻结输入与计划，不得在 planning 阶段执行整份 bundle 的 source-truth prepare
-- worker 只围绕 claimed batch 准备 source-truth 与 staged document artifacts；吞吐由
-  worker 数量扩展，而不是由单进程全局 bundle prepare 扩展
-- notice/raw/document staging rows 与 run/shard/batch/worker counters 必须作为 batch
-  级单事务提交
-- batch 围绕 canonical source-truth 与 declared document artifacts 工作，但 canonical
-  final document scope 只允许 promoter 单写
-- promoter 在 verification 通过后，才把 staged document artifacts 复制到
-  `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`
-- 若 collection 额外启用了 registry-scope chunk preparation，则 preparation artifacts
-  固定落在
-  `campus_notices/operations/registry-scope-chunk-preparation/{run_id}/...`，它们属于
-  operations truth，不属于 release truth
-
-因此被并行化的是 staging，而不是 canonical document scope mutation。
+历史 closeout 细节只可通过 ADR 或 git history 追溯，不能作为当前 executor contract、
+测试 assertion 或运维入口。
 
 ## Forbidden Shapes
 
@@ -603,10 +702,13 @@ pipeline。
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
-- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
-- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
-  .md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/data/authenticated-notice.md`
 - `docs/architecture/system/file-asset-loader.md`
 - `docs/reference/internal-notice-pdf-chunks.md`
+
+Closeout references retained only as historical / superseded background:
+
+- historical / superseded: `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- historical / superseded: `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
+  .md`

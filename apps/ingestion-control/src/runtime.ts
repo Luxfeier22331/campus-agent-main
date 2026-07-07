@@ -1,29 +1,55 @@
 import { createServer } from "node:http";
 import { Pool } from "pg";
 
-import { createDefaultTsTaskHandlerRegistry } from "./default-handlers";
-import { type IngestionExecutorRuntimeConfig, runIngestionExecutorLoop } from "./executor-runtime";
 import { createIngestionControlHandler } from "./http";
-import { createS3IngestionObjectStoreFromEnv } from "./object-store";
+import {
+	createOfficialWebControlPlaneService,
+	type OfficialWebControlPlaneService,
+} from "./official-web-control-plane-service";
+import { createPgOfficialWebControlPlaneStore } from "./official-web-control-plane-store";
+import {
+	buildOfficialWebExecutionStatusService,
+	type OfficialWebExecutionStatusService,
+} from "./official-web-execution-status-service";
+import {
+	buildOfficialWebProjectionProjector,
+	type OfficialWebProjectionProjector,
+} from "./official-web-projection-service";
+import {
+	createPgOfficialWebProjectionStore,
+	ensureOfficialWebPostgresSchema,
+} from "./official-web-projection-store";
 import {
 	createPostgresIngestionTaskStore,
 	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
-import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { loadIngestionTaskRegistryCatalogFromRoot } from "./task-registry";
+import {
+	type ClosableIngestionWorkflowStarter,
+	createTemporalIngestionWorkflowStarter,
+	type IngestionWorkflowStarter,
+} from "./temporal-client";
+import { buildIngestionTemporalConfig, type IngestionTemporalConfig } from "./temporal-config";
 import type { IngestionTaskStore } from "./types";
 
 export interface IngestionControlRuntimeConfig {
 	databaseUrl: string;
 	registryRoot: string;
 	host: string;
+	officialWebCollectorToken: string | null;
 	port: number;
+	sourceBucket: string;
+	temporal: IngestionTemporalConfig;
 }
 
 export interface IngestionControlRuntime {
 	close(): Promise<void>;
+	officialWebControlPlaneService: OfficialWebControlPlaneService;
+	officialWebExecutionStatusService: OfficialWebExecutionStatusService;
+	officialWebProjectionProjector: OfficialWebProjectionProjector;
 	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
 	store: IngestionTaskStore;
+	workflowStarter: IngestionWorkflowStarter;
 }
 
 export function buildIngestionControlRuntimeConfig(
@@ -34,7 +60,10 @@ export function buildIngestionControlRuntimeConfig(
 		databaseUrl,
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
+		officialWebCollectorToken: env.INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN?.trim() || null,
 		port: readPort(env.INGESTION_CONTROL_PORT),
+		sourceBucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
+		temporal: buildIngestionTemporalConfig(env),
 	};
 }
 
@@ -44,8 +73,13 @@ export async function startIngestionControlServer(
 ): Promise<{ close(): Promise<void> }> {
 	const runtime = input.runtime ?? (await createIngestionControlRuntime(config));
 	const handler = createIngestionControlHandler({
+		officialWebCollectorToken: config.officialWebCollectorToken,
+		officialWebControlPlaneService: runtime.officialWebControlPlaneService,
+		officialWebExecutionStatusService: runtime.officialWebExecutionStatusService,
+		officialWebProjectionProjector: runtime.officialWebProjectionProjector,
 		registryCatalog: runtime.registryCatalog,
 		store: runtime.store,
+		workflowStarter: runtime.workflowStarter,
 	});
 
 	const server = createServer(async (request, response) => {
@@ -86,46 +120,41 @@ export async function startIngestionControlServer(
 	};
 }
 
-export async function startIngestionControlExecutor(
-	config: IngestionExecutorRuntimeConfig,
-	input: { stopSignal?: AbortSignal } = {},
-): Promise<void> {
-	const runtime = await createIngestionControlRuntime(config);
-	const objectStore = createS3IngestionObjectStoreFromEnv(process.env);
-	try {
-		await runIngestionExecutorLoop({
-			pollIntervalMs: config.pollIntervalMs,
-			registryCatalog: runtime.registryCatalog,
-			rustKernels: createDefaultRustKernelRegistry({
-				objectStore,
-			}),
-			stopSignal: input.stopSignal,
-			store: runtime.store,
-			tsHandlers: createDefaultTsTaskHandlerRegistry({
-				authenticatedNoticeObjectStore: objectStore,
-				officialWebObjectStore: objectStore,
-				wechatOfficialAccountObjectStore: objectStore,
-			}),
-			workerId: config.workerId,
-		});
-	} finally {
-		await runtime.close();
-	}
-}
-
-export { buildIngestionExecutorRuntimeConfig } from "./executor-runtime";
-
 async function createIngestionControlRuntime(
-	config: Pick<IngestionControlRuntimeConfig, "databaseUrl" | "registryRoot">,
+	config: Pick<
+		IngestionControlRuntimeConfig,
+		"databaseUrl" | "registryRoot" | "sourceBucket" | "temporal"
+	>,
 ): Promise<IngestionControlRuntime> {
 	const pool = new Pool({ connectionString: config.databaseUrl });
+	let workflowStarter: ClosableIngestionWorkflowStarter | null = null;
 	await ensureIngestionControlPostgresSchema(pool);
+	await ensureOfficialWebPostgresSchema(pool);
+	workflowStarter = await createTemporalIngestionWorkflowStarter(config.temporal);
+	const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot);
+	const store = createPostgresIngestionTaskStore({ pool });
+	const officialWebProjectionStore = createPgOfficialWebProjectionStore({ pool });
 	return {
 		async close(): Promise<void> {
+			await workflowStarter?.close();
 			await pool.end();
 		},
-		registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
-		store: createPostgresIngestionTaskStore({ pool }),
+		officialWebControlPlaneService: createOfficialWebControlPlaneService({
+			store: createPgOfficialWebControlPlaneStore({ pool }),
+		}),
+		officialWebExecutionStatusService: buildOfficialWebExecutionStatusService({
+			store: officialWebProjectionStore,
+		}),
+		officialWebProjectionProjector: buildOfficialWebProjectionProjector({
+			registryCatalog,
+			sourceBucket: config.sourceBucket,
+			store: officialWebProjectionStore,
+			taskStore: store,
+			workflowStarter,
+		}),
+		registryCatalog,
+		store,
+		workflowStarter,
 	};
 }
 

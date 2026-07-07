@@ -327,14 +327,22 @@
 			"notes": "Repo-wide environment surface policy consumed by static checks."
 		},
 		{
-			"id": "ingestion-task-envelope.v1",
+			"id": "canonical-document-units.v1",
 			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v1.schema.json",
+			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"notes": "Canonical document-unit JSONL row contract for Rust kernels and ingestion task inputs."
+		},
+		{
+			"id": "ingestion-task-envelope.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v2.schema.json",
 			"owner": "packages/ingestion-contracts",
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "packages/ingestion-contracts/fixtures",
+					"path": "packages/ingestion-contracts/assertions",
 					"valid_glob": "task-envelope.valid.json",
 					"invalid_glob": "task-envelope.invalid-*.json"
 				}
@@ -342,14 +350,14 @@
 			"notes": "Offline ingestion task envelope contract."
 		},
 		{
-			"id": "ingestion-task-registry.v1",
+			"id": "ingestion-task-registry.v2",
 			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v1.schema.json",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v2.schema.json",
 			"owner": "packages/ingestion-contracts",
 			"status": "active",
 			"fixture_groups": [
 				{
-					"path": "packages/ingestion-contracts/fixtures",
+					"path": "packages/ingestion-contracts/assertions",
 					"valid_glob": "task-registry.valid.json",
 					"invalid_glob": "task-registry.invalid-*.json"
 				}

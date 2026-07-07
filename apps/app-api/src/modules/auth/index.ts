@@ -26,7 +26,6 @@ export type {
 	ExecutionAuthorizationContext,
 	ExecutionAuthorizationRetrievalFilter,
 	InternalEvalPrincipalInput,
-	OfficialWebCollectorPrincipal,
 	ResolvedAppPrincipal,
 	WeChatOfficialAccountCollectorPrincipal,
 } from "./principal";
@@ -38,7 +37,6 @@ export {
 	mapOperatorHeadersToPrincipal,
 	mapSessionToAppPrincipal,
 	mapSessionToCampusMemberPrincipal,
-	resolveOfficialWebCollectorPrincipal,
 	resolveRequestPrincipal,
 	resolveWeChatOfficialAccountCollectorPrincipal,
 } from "./principal";

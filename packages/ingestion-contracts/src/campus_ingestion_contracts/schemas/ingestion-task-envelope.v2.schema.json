@@ -1,0 +1,57 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.local/schemas/ingestion-task-envelope.v2.schema.json",
+	"title": "IngestionTaskEnvelope",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"task_id",
+		"run_id",
+		"source_family",
+		"source_channel",
+		"corpus",
+		"collection",
+		"registry_task_id",
+		"task_kind",
+		"input_ref",
+		"input_contract",
+		"output_contract",
+		"idempotency_key",
+		"created_by",
+		"created_at"
+	],
+	"properties": {
+		"schema_version": { "const": "ingestion_task_envelope.v2" },
+		"task_id": { "type": "string", "minLength": 1 },
+		"run_id": { "type": "string", "minLength": 1 },
+		"source_family": { "type": "string", "minLength": 1 },
+		"source_channel": { "type": "string", "minLength": 1 },
+		"corpus": { "type": "string", "minLength": 1 },
+		"collection": { "type": "string", "minLength": 1 },
+		"registry_task_id": { "type": "string", "minLength": 1 },
+		"task_kind": {
+			"enum": [
+				"source_truth_materialize",
+				"document_units_validate",
+				"chunk_prepare",
+				"release_manifest_validate"
+			]
+		},
+		"input_ref": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "uri"],
+			"properties": {
+				"kind": { "enum": ["object_store"] },
+				"uri": { "type": "string", "minLength": 1 },
+				"digest": { "type": "string", "minLength": 1 }
+			}
+		},
+		"input_contract": { "type": "string", "minLength": 1 },
+		"output_contract": { "type": "string", "minLength": 1 },
+		"idempotency_key": { "type": "string", "minLength": 1 },
+		"created_by": { "type": "string", "minLength": 1 },
+		"created_at": { "type": "string", "format": "date-time" }
+	}
+}

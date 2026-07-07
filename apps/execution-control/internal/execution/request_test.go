@@ -545,39 +545,6 @@ func TestParseAnswerRequestRejectsRetiredAcademicCalendarTool(t *testing.T) {
 	}
 }
 
-func TestParseAnswerRequestRejectsClosedNoticeToolsAsCallerHints(t *testing.T) {
-	for _, toolName := range []string{
-		"campus_notice_change_set_lookup",
-		"campus_notice_period_summary",
-	} {
-		t.Run(toolName, func(t *testing.T) {
-			_, httpErr := ParseAnswerRequest(
-				json.RawMessage(`{
-					"user_goal":"最近校车通知有哪些变化",
-					"request_id":"req-closed-notice-tool",
-					"requested_tool":"`+toolName+`"
-				}`),
-				map[string]string{
-					"authorization": "Bearer secret-token",
-				},
-				config.Config{
-					AuthMode:       "bearer",
-					BearerToken:    "secret-token",
-					DefaultActorID: "api-bearer-user",
-				},
-			)
-
-			if httpErr == nil {
-				t.Fatal("expected closed notice tool caller hint to fail closed")
-				return
-			}
-			if httpErr.Code != "invalid_request" {
-				t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
-			}
-		})
-	}
-}
-
 func TestParseAnswerRequestKeepsOrdinaryChatToolNeutralBeforePrimaryAgent(t *testing.T) {
 	tests := []struct {
 		name     string

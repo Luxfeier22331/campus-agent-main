@@ -17,17 +17,15 @@ import {
 	buildExecutionAuthorizationContext,
 	hashAppPassword,
 	hasMatchingInternalSecret,
-	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
 	mapOperatorHeadersToPrincipal,
 	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
-import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
 import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
-import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
+import { serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
 function normalizeHeaderValue(value: string | null | undefined): string | null {
@@ -267,7 +265,6 @@ export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
-	officialWebExecutionStatusService: OfficialWebExecutionStatusService;
 	scheduleRequestProjectionDrain?: (value: {
 		requestId: string;
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
@@ -639,19 +636,6 @@ export function registerInternalRoutes(input: {
 				},
 				headers: signInRequest.headers,
 				request: signInRequest,
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/official-web/runs/:runId/ingestion-execution", async (c) => {
-		if (!hasTrustedInternalRequest(c.req.raw, input.env)) {
-			return internalAuthRequiredResponse();
-		}
-
-		return jsonResponse(
-			await input.officialWebExecutionStatusService.updateRunExecutionStatus({
-				payload: await readJsonRequestBody(c.req.raw),
-				runId: c.req.param("runId"),
 			}),
 		);
 	});

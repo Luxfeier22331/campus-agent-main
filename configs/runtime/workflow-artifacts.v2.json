@@ -41,40 +41,6 @@
 			"notes": "Internal selected notice context; campus_notice_get remains tool-internal."
 		},
 		{
-			"kind": "notice_period_summary",
-			"display_name": "NoticePeriodSummary",
-			"owner_tool_boundary": "campus_notice_period_summary",
-			"producer_tools": ["campus_notice_period_summary"],
-			"source_truth_owner": "internal_notice_read_model",
-			"visibility": "tool_private",
-			"current_projection_support": "planned_contract_gap",
-			"answer_eligible": true,
-			"requires_grounding": true,
-			"freshness_policy": "bounded_date_range",
-			"allowed_consumers": ["knowledge_query", "execution-control-finalizer"],
-			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
-			"notes": "Closed contract residue. Model-facing notice runtime only exposes campus_notice_discover."
-		},
-		{
-			"kind": "notice_change_set",
-			"display_name": "NoticeChangeSet",
-			"owner_tool_boundary": "campus_notice_change_set_lookup",
-			"producer_tools": ["campus_notice_change_set_lookup"],
-			"source_truth_owner": "notice_consumption_projection",
-			"visibility": "tool_private",
-			"current_projection_support": "planned_contract_gap",
-			"answer_eligible": true,
-			"requires_grounding": true,
-			"freshness_policy": "effective_notice_window",
-			"allowed_consumers": [
-				"transport_schedule_lookup",
-				"knowledge_query",
-				"execution-control-finalizer"
-			],
-			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
-			"notes": "Closed contract residue. Transport schedule lookup must own notice-derived operational facts before reopening."
-		},
-		{
 			"kind": "schedule_baseline",
 			"display_name": "ScheduleBaseline",
 			"owner_tool_boundary": "transport_schedule_lookup",
@@ -87,7 +53,7 @@
 			"freshness_policy": "current_release",
 			"allowed_consumers": ["knowledge_query", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
-			"notes": "Stable route/schedule baseline; temporary changes must come from NoticeChangeSet."
+			"notes": "Stable route/schedule baseline; operational notice references are represented by the transport schedule read model."
 		},
 		{
 			"kind": "place_context",
@@ -165,32 +131,6 @@
 			"notes": "Internal selected notice resolution stays tool-internal and read-only."
 		},
 		{
-			"binding_id": "campus_notice_period_summary.notice_period_summary.date_range_lookup",
-			"owner_tool_boundary": "campus_notice_period_summary",
-			"tool_name": "campus_notice_period_summary",
-			"produces": ["notice_period_summary"],
-			"consumes": [],
-			"required_inputs": ["request:user_query", "request:date_range"],
-			"state_changing": false,
-			"opening_gate": "closed",
-			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
-			"priority": 1,
-			"notes": "Closed until a product surface needs period summaries as a distinct notice runtime tool."
-		},
-		{
-			"binding_id": "campus_notice_change_set_lookup.notice_change_set.transport_override_lookup",
-			"owner_tool_boundary": "campus_notice_change_set_lookup",
-			"tool_name": "campus_notice_change_set_lookup",
-			"produces": ["notice_change_set"],
-			"consumes": ["schedule_baseline"],
-			"required_inputs": ["request:user_query", "artifact:schedule_baseline"],
-			"state_changing": false,
-			"opening_gate": "closed",
-			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
-			"priority": 1,
-			"notes": "Closed as a standalone notice tool; transport_schedule_lookup owns transport operational lookup."
-		},
-		{
 			"binding_id": "transport_schedule_lookup.schedule_baseline.lookup",
 			"owner_tool_boundary": "transport_schedule_lookup",
 			"tool_name": "transport_schedule_lookup",
@@ -208,7 +148,7 @@
 			"owner_tool_boundary": "knowledge_query",
 			"tool_name": "knowledge_query",
 			"produces": ["evidence_bundle"],
-			"consumes": ["notice_context", "schedule_baseline"],
+			"consumes": [],
 			"required_inputs": ["request:user_query"],
 			"state_changing": false,
 			"opening_gate": "open",

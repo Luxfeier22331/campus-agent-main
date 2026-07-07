@@ -97,13 +97,12 @@ See:
 - [`apps/`](./apps/)
   - 长驻 runtime shell 与 transport boundary，例如 `campus-web`、
     `operator-console-web`、`app-api`、`execution-control`、
-    `ingestion-worker`
+    `ingestion-control`、`source-collector`
 - [`jobs/`](./jobs/)
   - 一次性或定时 deployable runtime，例如 `dining-sync`
 - [`packages/`](./packages/)
   - 稳定边界，例如
-    `ingestion-core`、`contracts`、`regulation-semantics`、`notice-tool`、
-    `navigation-tool`
+    `ingest-core`、`ingestion-contracts`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -120,8 +119,12 @@ See:
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
+- [`apps/ingestion-control`](./apps/ingestion-control/)
+- [`apps/source-collector`](./apps/source-collector/)
 - [`jobs/dining-sync`](./jobs/dining-sync/)
-- [`packages/ingestion-core`](./packages/ingestion-core/)
+- [`packages/ingest-core`](./packages/ingest-core/)
+- [`packages/ingestion-core`](./packages/ingestion-core/)：Python file / OCR / legacy Office
+  adapter support，不是 ingestion lifecycle owner
 
 ## Documentation
 

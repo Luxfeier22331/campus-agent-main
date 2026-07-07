@@ -101,8 +101,6 @@ func TestDecodeToolExecutionLegacyRuntimeDecisionsWireStillValidatesWhenPresent(
 func TestStepOutputProjectionKindValidAcceptsAllSchemaProjectionKinds(t *testing.T) {
 	for _, kind := range []StepOutputProjectionKind{
 		StepOutputProjectionKindNoticeContext,
-		StepOutputProjectionKindNoticeChangeSet,
-		StepOutputProjectionKindNoticePeriodSummary,
 		StepOutputProjectionKindScheduleBaseline,
 		StepOutputProjectionKindPlaceContext,
 		StepOutputProjectionKindEvidenceBundle,

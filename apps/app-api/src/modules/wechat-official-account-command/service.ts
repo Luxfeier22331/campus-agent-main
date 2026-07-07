@@ -12,7 +12,7 @@ import type {
 export interface WeChatOfficialAccountCollectorPrincipal {
 	kind: "service";
 	serviceClass: "wechat_official_account_collector";
-	serviceId: "wechat-official-account-collector";
+	serviceId: "source-collector/wechat-official-account";
 }
 
 export interface WeChatOfficialAccountStartPayload {

@@ -1,7 +1,6 @@
 {
 	"artifact": "split-manifest.v1.json",
 	"raw_asset_id": "asset:synthetic-curriculum-plan",
-	"layout_elements_path": "packages/ingestion-core/testdata/curriculum_plan/layout-elements.synthetic.jsonl",
 	"matched_document_count": 2,
 	"missing_document_count": 0,
 	"missing_documents": [],

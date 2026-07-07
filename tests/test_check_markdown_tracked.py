@@ -84,7 +84,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         relative_paths = {str(path.relative_to(repo_root)) for path in files}
 
         self.assertIn("apps/app-api/README.md", relative_paths)
-        self.assertIn("apps/official-web-collector/README.md", relative_paths)
+        self.assertIn("apps/source-collector/README.md", relative_paths)
         self.assertIn("jobs/dining-sync/README.md", relative_paths)
         self.assertIn("infra/otel/README.md", relative_paths)
         self.assertIn("SECURITY.md", relative_paths)
@@ -111,8 +111,8 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / "README.md",
                 repo_root / "docs/reference/testing-and-verification-lanes.md",
+                repo_root / "apps/source-collector/README.md",
                 repo_root / "apps/app-api/README.md",
-                repo_root / "apps/official-web-collector/README.md",
                 repo_root / "jobs/dining-sync/README.md",
             ),
         ):
@@ -134,8 +134,8 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 ".markdownlint-cli2.jsonc",
                 "README.md",
                 "docs/reference/testing-and-verification-lanes.md",
+                "apps/source-collector/README.md",
                 "apps/app-api/README.md",
-                "apps/official-web-collector/README.md",
                 "jobs/dining-sync/README.md",
             ],
         )

@@ -309,7 +309,7 @@ browser-facing execution response，也不是 Operator Console query backend。
 
 - `POST /api/internal/execution/audit-events`
 
-This section describes the existing execution event ingest seam. ADR-0063
+This section describes the existing execution event ingest seam. ADR-0064
 supersedes the older broad operator audit model: execution events may only feed
 minimal request status / reason-code projection and must not recreate a
 standalone audit workspace or sink mirror.
@@ -566,10 +566,8 @@ approval / HITL 或 state-changing tool 作为产品目标。
 - `selected_tool` 始终表示 execution path 实际选择的 tool id。当前只允许 shared
   contract 中已 admitted 的 tool label，例如
   `knowledge_query`、`place_lookup`、`transport_schedule_lookup`、
-  `campus_notice_discover`、`campus_notice_period_summary` 或
-  `campus_notice_change_set_lookup`。它不是 tool domain label，也不是
-  operator-facing display label；serialized contract 直接承载这个 admitted
-  tool id。
+  `campus_notice_discover`。它不是 tool domain label，也不是 operator-facing
+  display label；serialized contract 直接承载这个 admitted tool id。
 - `result` 仍由 agent / shared contract 拥有，不在这里完整重定义
 - 当 `selected_tool = place_lookup` 时，`result` 使用 `PlaceLookupResult` 的
   Python-side `snake_case` 形态：

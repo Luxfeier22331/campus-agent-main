@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
 import { createIngestionTaskRegistryCatalog, InMemoryIngestionTaskStore } from "../src/index.ts";
@@ -14,11 +15,22 @@ describe("ingestion-control runtime", () => {
 		);
 	});
 
+	it("requires Temporal for task admission instead of defaulting to an in-process executor", () => {
+		expect(() =>
+			buildIngestionControlRuntimeConfig({
+				INGESTION_CONTROL_DATABASE_URL: "postgresql://postgres:postgres@localhost/campus_agent",
+				INGESTION_TASK_REGISTRY_ROOT: "configs/ingestion",
+			}),
+		).toThrow("INGESTION_TEMPORAL_ADDRESS is required");
+	});
+
 	it("normalizes host and port without defaulting to an in-memory store", () => {
 		expect(
 			buildIngestionControlRuntimeConfig({
 				INGESTION_CONTROL_DATABASE_URL: "postgresql://postgres:postgres@localhost/campus_agent",
 				INGESTION_TASK_REGISTRY_ROOT: "configs/ingestion",
+				INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN: " official-web-token ",
+				INGESTION_TEMPORAL_ADDRESS: "localhost:7233",
 				INGESTION_CONTROL_HOST: "127.0.0.1",
 				INGESTION_CONTROL_PORT: "27061",
 			}),
@@ -26,8 +38,29 @@ describe("ingestion-control runtime", () => {
 			databaseUrl: "postgresql://postgres:postgres@localhost/campus_agent",
 			registryRoot: "configs/ingestion",
 			host: "127.0.0.1",
+			officialWebCollectorToken: "official-web-token",
 			port: 27061,
+			sourceBucket: "campus-agent-source",
+			temporal: {
+				address: "localhost:7233",
+				namespace: "default",
+				workflowTaskQueue: "campus-agent.ingestion.workflow",
+				controlActivityTaskQueue: "campus-agent.ingestion.activity.control",
+			},
 		});
+	});
+
+	it("starts a single Temporal activity worker for declared ingestion tasks", () => {
+		const workerSource = readFileSync(
+			new URL("../src/temporal-worker.ts", import.meta.url),
+			"utf-8",
+		);
+
+		expect(workerSource).toContain("taskQueue: temporalConfig.controlActivityTaskQueue");
+		expect(workerSource).toContain("loadAuthenticatedNoticeFamilyConfigFromRegistryRoot");
+		expect(workerSource).toContain("authenticatedNoticeFamilyConfig");
+		expect(workerSource).not.toContain(["collector", "ActivityTaskQueue"].join(""));
+		expect(workerSource).not.toContain(["provider", "ActivityTaskQueue"].join(""));
 	});
 
 	it("closes the shared runtime when HTTP listen fails", async () => {
@@ -45,8 +78,16 @@ describe("ingestion-control runtime", () => {
 					{
 						databaseUrl: "postgresql://postgres:postgres@localhost/campus_agent",
 						host: "127.0.0.1",
+						officialWebCollectorToken: null,
 						port: address.port,
 						registryRoot: "configs/ingestion",
+						sourceBucket: "campus-agent-source",
+						temporal: {
+							address: "localhost:7233",
+							namespace: "default",
+							workflowTaskQueue: "campus-agent.ingestion.workflow",
+							controlActivityTaskQueue: "campus-agent.ingestion.activity.control",
+						},
 					},
 					{ runtime },
 				),
@@ -77,8 +118,42 @@ function closeServer(server: ReturnType<typeof createServer>): Promise<void> {
 
 class StubIngestionControlRuntime implements IngestionControlRuntime {
 	closeCalls = 0;
+	officialWebControlPlaneService = {
+		async finalize(): Promise<never> {
+			throw new Error("not implemented");
+		},
+		async heartbeat(): Promise<never> {
+			throw new Error("not implemented");
+		},
+		async resolvePlan(): Promise<never> {
+			throw new Error("not implemented");
+		},
+		async start(): Promise<never> {
+			throw new Error("not implemented");
+		},
+	};
+	officialWebExecutionStatusService = {
+		async updateRunExecutionStatus(): Promise<never> {
+			throw new Error("not implemented");
+		},
+	};
+	officialWebProjectionProjector = {
+		async drain(): Promise<never> {
+			throw new Error("not implemented");
+		},
+	};
 	registryCatalog = createIngestionTaskRegistryCatalog([]);
 	store = new InMemoryIngestionTaskStore();
+	workflowStarter = {
+		async startTask(task: {
+			task_id: string;
+		}): Promise<{ workflowId: string; workflowRunId: string }> {
+			return {
+				workflowId: task.task_id,
+				workflowRunId: "temporal-run-001",
+			};
+		},
+	};
 
 	async close(): Promise<void> {
 		this.closeCalls += 1;

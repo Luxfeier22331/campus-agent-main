@@ -66,7 +66,7 @@ class CheckPublicSourceTokensTest(unittest.TestCase):
 
         self.assertIn("apps/app-api/wrangler.toml", paths)
         self.assertIn("docs/reference/open-source-data.md", paths)
-        self.assertIn("tests/ingestion/test_object_store_config.py", paths)
+        self.assertIn("tests/ingestion/test_ingestion_clean_target_boundary.py", paths)
 
 
 if __name__ == "__main__":

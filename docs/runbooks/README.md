@@ -52,7 +52,6 @@ updated: 2026-07-04
 
 - `local-runtime-smoke.md`
 - `provider-secret-governance.md`
-- `legacy-office-conversion-runtime.md`
 - `mucwiki-federation.md`
   - `muc-wiki` federation client provision and staging verification entry.
 - `dining-sync.md`

@@ -4,22 +4,23 @@
 		".env.example",
 		"apps/app-api/.dev.vars.example",
 		"apps/app-api/.env.example",
-		"apps/authenticated-notice-collector/.env.example",
 		"apps/campus-web/.dev.vars.example",
-		"apps/official-web-collector/.env.example",
 		"apps/operator-console-web/.dev.vars.example",
-		"apps/wechat-official-account-collector/.env.example",
+		"apps/source-collector/adapters/internal-portal/.env.example",
+		"apps/source-collector/adapters/official-web/.env.example",
+		"apps/source-collector/adapters/wechat-official-account/.env.example",
 		"env/commands/campus-docs-reader-build.env.example",
 		"env/commands/execution-control-runtime.env.example",
+		"env/commands/ingestion-control-runtime.env.example",
 		"env/commands/provider-config-seed.env.example",
-		"env/commands/legacy-office-conversion-service.env.example",
 		"infra/otel/collector.env.example"
 	],
 	"template_key_limits": {
 		".env.example": 2,
-		"apps/authenticated-notice-collector/.env.example": 44,
+		"apps/source-collector/adapters/internal-portal/.env.example": 45,
 		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39,
+		"env/commands/ingestion-control-runtime.env.example": 13,
 		"env/commands/provider-config-seed.env.example": 18
 	},
 	"keys": {
@@ -308,6 +309,46 @@
 			"scopes": ["app-api"],
 			"secret": false
 		},
+		"INGESTION_CONTROL_DATABASE_URL": {
+			"owner": "ingestion-control-runtime-secret",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"INGESTION_TASK_REGISTRY_ROOT": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_CONTROL_HOST": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_CONTROL_PORT": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_ADDRESS": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_NAMESPACE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command"],
+			"secret": false
+		},
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS": {
 			"owner": "runtime-observability",
 			"scopes": ["infra"],
@@ -428,11 +469,6 @@
 			"scopes": ["app-api"],
 			"secret": true
 		},
-		"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN": {
-			"owner": "worker-secret",
-			"scopes": ["app-api"],
-			"secret": true
-		},
 		"APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN": {
 			"owner": "worker-secret",
 			"scopes": ["app-api"],
@@ -453,37 +489,44 @@
 			"scopes": ["app-api"],
 			"secret": true
 		},
-		"AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL": {
-			"owner": "authenticated-notice-collector-secret",
-			"scopes": ["authenticated-notice-collector"],
+		"INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DATABASE_URL": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
 			"secret": true
 		},
-		"AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL": {
-			"owner": "authenticated-notice-collector-secret",
-			"scopes": ["authenticated-notice-collector"],
+		"INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL": {
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
 			"secret": true
 		},
-		"AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL": {
-			"owner": "authenticated-notice-collector-secret",
-			"scopes": ["authenticated-notice-collector"],
-			"secret": true
+		"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN": {
+			"owner": "source-collector-runtime",
+			"scopes": ["source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_ENDPOINT": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "campus-web", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_REGION": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "campus-web", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_BUCKET_SOURCE": {
+			"owner": "object-store-source-runtime",
+			"scopes": ["app-api", "command", "ingestion-control", "source-collector"],
+			"secret": false
 		},
 		"OBJECT_STORE_SOURCE_ACCESS_KEY": {
 			"owner": "object-store-source-secret",
-			"scopes": [
-				"authenticated-notice-collector",
-				"official-web-collector",
-				"wechat-official-account-collector"
-			],
+			"scopes": ["command", "ingestion-control", "source-collector"],
 			"secret": true
 		},
 		"OBJECT_STORE_SOURCE_SECRET_KEY": {
 			"owner": "object-store-source-secret",
-			"scopes": [
-				"authenticated-notice-collector",
-				"official-web-collector",
-				"wechat-official-account-collector"
-			],
+			"scopes": ["command", "ingestion-control", "source-collector"],
 			"secret": true
 		},
 		"OBJECT_STORE_ACCESS_KEY": {
@@ -507,8 +550,8 @@
 			"secret": true
 		},
 		"OFFICIAL_WEB_SERVICE_TOKEN": {
-			"owner": "official-web-collector-secret",
-			"scopes": ["official-web-collector"],
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
 			"secret": true
 		},
 		"OPERATOR_CONSOLE_APP_API_SHARED_SECRET": {
@@ -522,13 +565,13 @@
 			"secret": false
 		},
 		"FEEDWE_PASSWORD": {
-			"owner": "wechat-official-account-collector-secret",
-			"scopes": ["wechat-official-account-collector"],
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
 			"secret": true
 		},
 		"WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN": {
-			"owner": "wechat-official-account-collector-secret",
-			"scopes": ["wechat-official-account-collector"],
+			"owner": "source-collector-secret",
+			"scopes": ["source-collector"],
 			"secret": true
 		},
 		"API_WORKER_SHARED_SECRET": {
@@ -571,11 +614,6 @@
 			"scopes": ["command"],
 			"secret": true
 		},
-		"LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET": {
-			"owner": "legacy-office-conversion-secret",
-			"scopes": ["command"],
-			"secret": true
-		},
 		"OTEL_COLLECTOR_SENTRY_AUTH_VALUE": {
 			"owner": "runtime-observability",
 			"scopes": ["infra"],
@@ -598,7 +636,6 @@
 		"API_": ["command"],
 		"APP_API_": ["app-api", "campus-web", "command", "staging-local"],
 		"AUTH_": ["app-api", "campus-web"],
-		"AUTHENTICATED_NOTICE_": ["authenticated-notice-collector"],
 		"BETTER_AUTH_": ["app-api"],
 		"CAMPUS_AGENT_": [],
 		"CAMPUS_SHARED_": ["root", "command"],
@@ -607,24 +644,18 @@
 		"DEPLOYMENT_": ["infra"],
 		"DINING_": ["command", "infra", "staging-local"],
 		"DOCUMENT_REGISTRY_": [],
+		"EMBEDDING_": ["command"],
 		"EVAL_": [],
 		"EXECUTION_CONTROL_": ["app-api", "command", "staging-local"],
 		"EXECUTION_PROMPT_": ["command"],
-		"FEEDWE_": ["wechat-official-account-collector"],
+		"FEEDWE_": ["source-collector"],
 		"INGESTION_QDRANT_": [],
+		"INTERNAL_PORTAL_": ["source-collector"],
 		"INTERNAL_NOTICE_": ["command"],
-		"LEGACY_OFFICE_CONVERSION_": ["command"],
-		"LIBREOFFICE_": ["command"],
-		"OBJECT_STORE_": [
-			"app-api",
-			"authenticated-notice-collector",
-			"campus-web",
-			"command",
-			"official-web-collector",
-			"wechat-official-account-collector"
-		],
+		"LLM_": ["command"],
+		"OBJECT_STORE_": ["app-api", "campus-web", "command", "source-collector"],
 		"OCR_": [],
-		"OFFICIAL_WEB_": ["official-web-collector"],
+		"OFFICIAL_WEB_": ["source-collector"],
 		"OPERATOR_CONSOLE_": ["operator-console-web"],
 		"OTEL_": ["infra"],
 		"PROMPT_": ["command"],
@@ -637,7 +668,7 @@
 		"SPARSE_": [],
 		"STAGING_": ["staging-local"],
 		"TEMPORAL_": ["staging-local"],
-		"WECHAT_OFFICIAL_ACCOUNT_": ["wechat-official-account-collector"]
+		"WECHAT_OFFICIAL_ACCOUNT_": ["source-collector"]
 	},
 	"retired_scan_paths": [
 		".env.example",

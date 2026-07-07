@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 # 当前架构
 
@@ -48,11 +48,11 @@ models -> sanitized projection`
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
 
-`collector -> app-api product/operator control-plane seam when required ->
+`collector -> ingestion-control official-web/source-channel control-plane ->
 ingestion-control-api task admission`
 
-`ingestion-control-executor registry-aware execution -> source truth /
-projection / document/index release`
+`ingestion-control Temporal workflow/activity worker registry-aware execution
+-> source truth / projection / document/index release`
 
 `Feishu/Lark Base catalog tables -> jobs/dining-sync catalog-observations ->
 dining.source_observations(source_type=feishu_catalog) ->
@@ -144,13 +144,13 @@ dining.review_projections -> app-api /api/dining/* reader`
   fail closed，不走 Python serving shortcut。
 - online query path 与 offline data plane 持续分层
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
-  claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
-  `apps/ingestion-control` 的 task lifecycle 与 registry-aware executor
+  Temporal workflow start、registry-aware activity dispatch、materialize、publish、
+  terminal closeout 与失败状态属于 `apps/ingestion-control`
 - `jobs/*` 只承载一次性或定时 deployable runtime；不得把长驻 product backend、
   browser surface、shared package 逻辑或 online request handler 塞进 job
 - `apps/ingestion-control` 是 self-hosted internal ingestion control-plane package，不是
-  Cloudflare Worker。HTTP control-plane surface 与后台 executor worker process 是不同
-  runtime role，不得藏进 `apps/app-api` 或 collector 进程。
+  Cloudflare Worker。HTTP control-plane surface 与 Temporal workflow/activity
+  worker 是不同 runtime role，不得藏进 `apps/app-api` 或 collector 进程。
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
   source-truth schema、collector principal、run ledger 与 offline projection handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
@@ -190,9 +190,10 @@ dining.review_projections -> app-api /api/dining/* reader`
 
 当前非 serving capture-only scope：
 
-- `campus_notices/file_release_capture` authenticated notice `file_release`
-  local-PG-only inventory / raw-asset ledger；用于 owner-recovery readiness 与
-  operator 排障，`query_enabled=false`，不生成 document / chunk / index / release
+- `authenticated_documents/file_release_source` authenticated notice
+  `file_release` object-backed source holding；由 ingestion-control materialize 后供
+  owner-specific downstream admission / operator 排障消费，`query_enabled=false`，不生成默认
+  query-serving release
 
 ## 当前 App 边界
 
@@ -249,9 +250,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   preferences / federation policy boundary；当前 `/api/me/overview`、
   `/api/me/identity`、`/api/me/access`、`/api/me/preferences` 与
   `PATCH /api/me/preferences` 是 account center product projection surface
-- 承接 `official_web` control plane
-- 对 `official_web`，只拥有 collector command ingress、crawl-run ledger、operator
-  projection/query 与 stable-reference release gate approve/reject ledger；不拥有
+- 对 `official_web`，只拥有 operator projection/query 与 stable-reference release gate
+  approve/reject ledger；不拥有 collector command ingress、crawl-run ledger、
   selected-write admission/task truth 或 release executor callback surface
 - 承接 authenticated notice processing 的 operator-safe projection ingest 与
   list/detail
@@ -345,28 +345,31 @@ dining.review_projections -> app-api /api/dining/* reader`
 ### `apps/ingestion-control`
 
 - internal ingestion/data-plane task control plane
-- 拥有 task admission、registry validation、claim / lease、retry、dead-letter、
+- 拥有 task admission、registry validation、Temporal workflow start、terminal
   closeout 与 operator-safe projection snapshot
-- HTTP server 是 control-plane surface；one-shot execution 通过
-  `runRegistryTaskOnce` library seam 暴露。long-running executor worker process 是独立
-  runtime concern，不是 Cloudflare Worker。
-- registry-aware executor 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
+- 拥有 `official_web` collector command ingress、crawl-run ledger、target workset
+  resolution 与 source-truth materialization task admission
+- HTTP server 是 control-plane surface；Temporal workflow / activity workers 是
+  独立 self-hosted runtime processes，不是 Cloudflare Worker。
+- registry-aware activity 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
   kernel 时 fail closed，不回退 Python collection CLI
-- Python 只允许作为 explicit TS handler 内部调用的 MinerU / OCR / legacy Office /
-  ML extraction adapter island
+- Python app-level worker 已移除；Python 只允许作为 explicit library / service
+  dependency 由 TS handler 调用，例如 MinerU / OCR / legacy Office / ML extraction
+  adapter
 
-### `apps/ingestion-worker`
+### `apps/source-collector`
 
-- Python adapter island
-- 当前只保留 env bootstrap 与 legacy Office normalization adapter
-- 不拥有 collection lifecycle、release / alias publish、Qdrant ops、source-channel
-  queue consumer 或 on-demand batch runner
-
-### `apps/official-web-collector`
-
-- official web collector runtime
-- 上报 crawl run lifecycle 与 artifact refs
-- 不拥有 operator ledger、request projection 或 ingestion truth
+- TS-owned source-channel collector runtime
+- 当前承载 `internal-portal`、`official-web` 与 `wechat-official-account` adapters
+- 各 adapter 负责 source-channel capture、source-bucket artifact 写入与对应
+  control-plane run lifecycle 上报；`official-web` 上报 `apps/ingestion-control`，
+  `wechat-official-account` 仍上报 `apps/app-api`
+- 不拥有 operator ledger、request projection、ingestion-control task lifecycle 或
+  source-truth materialization truth
+- adapter 内部可使用 Crawlee 承接 crawl queue / retry / concurrency；Crawlee request
+  identity 不替代 source-bucket handoff contract
+- 具备独立 Docker image entrypoint；不得作为 execution-runtime K8s workload 混入
+  execution-control / Temporal worker plane
 
 ## 当前 Job 边界
 
@@ -405,7 +408,10 @@ dining.review_projections -> app-api /api/dining/* reader`
 - repo-owned internal retrieval seam / Go RAG runtime 负责 retrieval abstraction、
   metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
   active workspace
-- `packages/ingestion-core` ingestion/data-plane consumption logic
+- `apps/ingestion-control` ingestion task control plane and Temporal worker
+  runtime；TS `packages/ingest-core` 提供 runtime-neutral ingestion helpers；
+  旧 Python ingestion package 已删除，未来 OCR / file extraction 需重新 admission 为
+  explicit adapter boundary
 - `packages/contracts` tool handoff 与 shared typed seam
 
 ## 当前术语真相

@@ -24,8 +24,8 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
 - Sentry, Axiom and Langfuse are sinks. They do not define repo telemetry semantics.
 - Core packages must not import OTel, Sentry, Axiom or Collector-specific types.
 - In this runbook, `Collector` means the OpenTelemetry Collector under
-  `infra/otel`; it does not refer to business ingestion collectors such as
-  `official-web-collector` or `authenticated-notice-collector`.
+  `infra/otel`; it does not refer to business source collection adapters under
+  `apps/source-collector`.
 
 ## Config Files
 
@@ -286,7 +286,7 @@ Boundary guard:
 
 ```bash
 rg -n "opentelemetry|go\\.opentelemetry|@opentelemetry|OTel|Sentry|Axiom" \
-  packages/ingestion-core packages/contracts \
+  packages/ingest-core packages/contracts \
   -g '!**/__pycache__/**' \
   -g '!**/*.md'
 ```

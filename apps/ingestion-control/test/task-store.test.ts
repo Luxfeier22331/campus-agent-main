@@ -2,141 +2,247 @@ import { describe, expect, it } from "vitest";
 import { type IngestionTaskEnvelope, InMemoryIngestionTaskStore } from "../src/index.ts";
 
 const baseTask: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_curriculum_chunk_001",
 	run_id: "run_curriculum_20260611",
 	source_family: "curriculum",
 	source_channel: "curriculum_plan",
 	corpus: "curriculum",
 	collection: "curriculum_plan",
+	registry_task_id: "chunk_prepare",
 	task_kind: "chunk_prepare",
 	input_ref: {
 		kind: "object_store",
 		uri: "s3://campus-agent-derived/curriculum/curriculum_plan/document-units.jsonl",
 	},
+	input_contract: "canonical_document_units.v1",
 	output_contract: "ingestion_chunk_set.v1",
 	idempotency_key: "curriculum/curriculum_plan/chunk_prepare/document-units-v1",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 3,
-	},
 	created_by: "operator",
 	created_at: "2026-06-11T00:00:00Z",
 };
 
 describe("InMemoryIngestionTaskStore", () => {
-	it("admits a task once per idempotency key and exposes it for claim", () => {
+	it("admits a task once per idempotency key and keeps workflow identity stable", () => {
 		const store = new InMemoryIngestionTaskStore({ now: () => new Date("2026-06-11T00:00:00Z") });
 
 		const admitted = store.admitTask(baseTask);
-		const duplicate = store.admitTask({ ...baseTask, task_id: "task_duplicate_id" });
+		const duplicate = store.admitTask(baseTask);
 
-		expect(admitted.status).toBe("queued");
-		expect(duplicate.task_id).toBe(baseTask.task_id);
-		expect(store.nextTask()?.task_id).toBe(baseTask.task_id);
+		expect(admitted.created).toBe(true);
+		expect(admitted.record).toMatchObject({
+			status: "accepted",
+			task_id: baseTask.task_id,
+			workflow_id: baseTask.task_id,
+			workflow_run_id: null,
+		});
+		expect(duplicate.created).toBe(false);
+		expect(duplicate.record.task_id).toBe(baseTask.task_id);
 	});
 
-	it("claims, completes, and records terminal closeout", () => {
+	it("rejects idempotency key reuse for a different task id", () => {
+		const store = new InMemoryIngestionTaskStore();
+		store.admitTask(baseTask);
+
+		expect(() =>
+			store.admitTask({
+				...baseTask,
+				task_id: "task_other",
+				idempotency_key: baseTask.idempotency_key,
+			}),
+		).toThrow(`ingestion task idempotency key already belongs to ${baseTask.task_id}`);
+	});
+
+	it("marks running, completes, and records terminal closeout", () => {
 		const store = new InMemoryIngestionTaskStore({ now: () => new Date("2026-06-11T00:00:00Z") });
 		store.admitTask(baseTask);
 
-		const claimed = store.claimNextTask({ workerId: "worker-a" });
-		expect(claimed?.status).toBe("running");
-		expect(claimed?.leased_by).toBe("worker-a");
+		const running = store.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-001",
+		});
+		expect(running.status).toBe("running");
+		expect(running.workflow_run_id).toBe("run-temporal-001");
 
 		const completed = store.completeTask({
 			taskId: baseTask.task_id,
-			workerId: "worker-a",
 			artifactRefs: [{ kind: "object_store", uri: "s3://bucket/chunks.jsonl" }],
 		});
 
 		expect(completed.status).toBe("completed");
 		expect(completed.closeout?.terminal_status).toBe("completed");
 		expect(completed.closeout?.artifact_refs).toHaveLength(1);
-		expect(store.nextTask()).toBeNull();
 	});
 
-	it("dead-letters a task when retry attempts are exhausted", () => {
+	it("treats same-target Temporal activity retries as idempotent", () => {
 		const store = new InMemoryIngestionTaskStore({ now: () => new Date("2026-06-11T00:00:00Z") });
-		store.admitTask({ ...baseTask, retry_policy: { max_attempts: 1 } });
+		store.admitTask(baseTask);
 
-		const claimed = store.claimNextTask({ workerId: "worker-a" });
-		expect(claimed?.attempt_count).toBe(1);
-
-		const failed = store.failTask({
+		const running = store.markTaskRunning({
 			taskId: baseTask.task_id,
-			workerId: "worker-a",
+			workflowRunId: "run-temporal-001",
+		});
+		expect(
+			store.markTaskRunning({
+				taskId: baseTask.task_id,
+				workflowRunId: "run-temporal-001",
+			}),
+		).toEqual(running);
+
+		const completed = store.completeTask({
+			taskId: baseTask.task_id,
+			artifactRefs: [{ kind: "object_store", uri: "s3://bucket/chunks.jsonl" }],
+		});
+		expect(
+			store.completeTask({
+				taskId: baseTask.task_id,
+				artifactRefs: [{ kind: "object_store", uri: "s3://bucket/chunks.jsonl" }],
+			}),
+		).toEqual(completed);
+
+		const failedStore = new InMemoryIngestionTaskStore();
+		failedStore.admitTask(baseTask);
+		failedStore.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-failed-001",
+		});
+		const failed = failedStore.failTask({
+			taskId: baseTask.task_id,
+			errorCode: "kernel_failed",
+			errorMessage: "chunking failed",
+		});
+		expect(
+			failedStore.failTask({
+				taskId: baseTask.task_id,
+				errorCode: "kernel_failed",
+				errorMessage: "chunking failed",
+			}),
+		).toEqual(failed);
+		expect(() =>
+			failedStore.failTask({
+				taskId: baseTask.task_id,
+				errorCode: "different_failure",
+				errorMessage: "different failure",
+			}),
+		).toThrow("terminal ingestion task cannot transition");
+	});
+
+	it("rejects running replays that target a different workflow run id", () => {
+		const store = new InMemoryIngestionTaskStore();
+		store.admitTask(baseTask);
+		store.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-001",
+		});
+
+		expect(() =>
+			store.markTaskRunning({
+				taskId: baseTask.task_id,
+				workflowRunId: "run-temporal-002",
+			}),
+		).toThrow("ingestion task workflow run id mismatch");
+	});
+
+	it("fails and cancels tasks without retry or lease bookkeeping", () => {
+		const failedStore = new InMemoryIngestionTaskStore();
+		failedStore.admitTask(baseTask);
+		failedStore.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-failed-001",
+		});
+
+		const failed = failedStore.failTask({
+			taskId: baseTask.task_id,
 			errorCode: "kernel_failed",
 			errorMessage: "chunking failed",
 		});
 
-		expect(failed.status).toBe("dead_lettered");
-		expect(failed.closeout?.terminal_status).toBe("dead_lettered");
-		expect(store.nextTask()).toBeNull();
-	});
-
-	it("rejects heartbeat and terminal closeout after the lease expires", () => {
-		let now = new Date("2026-06-11T00:00:00Z");
-		const store = new InMemoryIngestionTaskStore({ now: () => now });
-		store.admitTask({
-			...baseTask,
-			lease_policy: {
-				heartbeat_seconds: 1,
-				lease_seconds: 1,
+		expect(failed.status).toBe("failed");
+		expect(failed.closeout).toMatchObject({
+			terminal_status: "failed",
+			outcome_kind: "error",
+			error: {
+				code: "kernel_failed",
+				message: "chunking failed",
 			},
 		});
-		store.claimNextTask({ workerId: "worker-a" });
-		now = new Date("2026-06-11T00:00:02Z");
 
-		expect(() => store.heartbeatTask({ taskId: baseTask.task_id, workerId: "worker-a" })).toThrow(
-			"ingestion task lease expired",
-		);
+		const canceledStore = new InMemoryIngestionTaskStore();
+		canceledStore.admitTask(baseTask);
+		canceledStore.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-canceled-001",
+		});
+		const canceled = canceledStore.cancelTask({
+			taskId: baseTask.task_id,
+			reason: "operator requested cancellation",
+		});
+
+		expect(canceled.status).toBe("canceled");
+		expect(canceled.closeout).toMatchObject({
+			terminal_status: "canceled",
+			outcome_kind: "error",
+			error: {
+				code: "workflow_canceled",
+				message: "operator requested cancellation",
+			},
+		});
+	});
+
+	it("rejects invalid workflow state transitions and terminal overwrites", () => {
+		const store = new InMemoryIngestionTaskStore();
+		store.admitTask(baseTask);
+
 		expect(() =>
 			store.completeTask({
 				taskId: baseTask.task_id,
-				workerId: "worker-a",
+				artifactRefs: [],
 			}),
-		).toThrow("ingestion task lease expired");
+		).toThrow("invalid ingestion task state transition");
+
+		store.markTaskRunning({
+			taskId: baseTask.task_id,
+			workflowRunId: "run-temporal-001",
+		});
+		store.completeTask({ taskId: baseTask.task_id, artifactRefs: [] });
+
 		expect(() =>
 			store.failTask({
 				taskId: baseTask.task_id,
-				workerId: "worker-a",
-				errorCode: "failed",
-				errorMessage: "failed",
+				errorCode: "late_failure",
+				errorMessage: "late failure",
 			}),
-		).toThrow("ingestion task lease expired");
+		).toThrow("terminal ingestion task cannot transition");
 	});
 
-	it("sweeps expired running tasks back to queued until retry attempts are exhausted", () => {
-		let now = new Date("2026-06-11T00:00:00Z");
-		const store = new InMemoryIngestionTaskStore({ now: () => now });
-		store.admitTask({
-			...baseTask,
-			lease_policy: {
-				heartbeat_seconds: 1,
-				lease_seconds: 1,
-			},
-			retry_policy: {
-				max_attempts: 2,
-			},
+	it("allows accepted tasks to fail only when workflow start fails", () => {
+		const store = new InMemoryIngestionTaskStore();
+		store.admitTask(baseTask);
+
+		expect(() =>
+			store.failTask({
+				taskId: baseTask.task_id,
+				errorCode: "runtime_failed",
+				errorMessage: "runtime failed",
+			}),
+		).toThrow("invalid ingestion task state transition");
+
+		const failed = store.failTask({
+			taskId: baseTask.task_id,
+			errorCode: "workflow_start_failed",
+			errorMessage: "temporal unavailable",
 		});
-		store.claimNextTask({ workerId: "worker-a" });
-		now = new Date("2026-06-11T00:00:02Z");
 
-		const firstSweep = store.sweepExpiredLeases();
-		expect(firstSweep).toEqual({ deadLettered: 0, requeued: 1 });
-		expect(store.getTask(baseTask.task_id)?.status).toBe("queued");
+		expect(failed.status).toBe("failed");
+		expect(failed.closeout?.error?.code).toBe("workflow_start_failed");
+	});
 
-		store.claimNextTask({ workerId: "worker-b" });
-		now = new Date("2026-06-11T00:00:04Z");
+	it("requires workflow run id for new running transitions", () => {
+		const store = new InMemoryIngestionTaskStore();
+		store.admitTask(baseTask);
 
-		const secondSweep = store.sweepExpiredLeases();
-		expect(secondSweep).toEqual({ deadLettered: 1, requeued: 0 });
-		const deadLettered = store.getTask(baseTask.task_id);
-		expect(deadLettered?.status).toBe("dead_lettered");
-		expect(deadLettered?.closeout?.error?.code).toBe("lease_expired");
+		expect(() => store.markTaskRunning({ taskId: baseTask.task_id })).toThrow(
+			"workflow run id is required",
+		);
 	});
 });

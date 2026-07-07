@@ -3,11 +3,9 @@ package toolreadmodel
 import "time"
 
 const (
-	ToolTransportScheduleLookup   = "transport_schedule_lookup"
-	ToolCampusNoticeDiscover      = "campus_notice_discover"
-	ToolCampusNoticePeriodSummary = "campus_notice_period_summary"
-	ToolCampusNoticeChangeSet     = "campus_notice_change_set_lookup"
-	ToolCampusNoticeGet           = "campus_notice_get"
+	ToolTransportScheduleLookup = "transport_schedule_lookup"
+	ToolCampusNoticeDiscover    = "campus_notice_discover"
+	ToolCampusNoticeGet         = "campus_notice_get"
 
 	defaultToolReadModelHealthTimeout = 250 * time.Millisecond
 )

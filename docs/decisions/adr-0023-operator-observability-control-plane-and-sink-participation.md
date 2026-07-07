@@ -9,7 +9,7 @@ updated: 2026-06-30
 ---
 # ADR-0023 Operator Observability Control Plane And Sink Participation
 
-> Superseded by ADR-0063. The accepted target is now Ops Index + External
+> Superseded by ADR-0067. The accepted target is now Ops Index + External
 > Sinks. Broad app-api-owned audit / quality / safety / cost read models remain
 > historical context only.
 

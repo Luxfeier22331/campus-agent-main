@@ -75,7 +75,7 @@ function toRecord(
 	return {
 		attemptCount: row.attemptCount,
 		childTaskSummary: row.childTaskSummaryJson ?? {},
-		collectorRunToken: row.collectorRunToken,
+		sourceRunToken: row.sourceRunToken,
 		downstream: row.downstreamJson ?? {},
 		enqueueSource: row.enqueueSource ?? null,
 		firstObservedAt: row.firstObservedAt.toISOString(),
@@ -158,9 +158,9 @@ function buildWhere(
 	filters: NormalizedAuthenticatedNoticeRunProcessingListFilters,
 ): SQL | undefined {
 	const clauses: SQL[] = [];
-	if (filters.collectorRunToken) {
+	if (filters.sourceRunToken) {
 		clauses.push(
-			eq(authenticatedNoticeRunProcessingProjection.collectorRunToken, filters.collectorRunToken),
+			eq(authenticatedNoticeRunProcessingProjection.sourceRunToken, filters.sourceRunToken),
 		);
 	}
 	if (filters.status) {
@@ -190,7 +190,7 @@ function buildWhere(
 	if (filters.q) {
 		clauses.push(
 			or(
-				ilike(authenticatedNoticeRunProcessingProjection.collectorRunToken, `%${filters.q}%`),
+				ilike(authenticatedNoticeRunProcessingProjection.sourceRunToken, `%${filters.q}%`),
 				ilike(authenticatedNoticeRunProcessingProjection.runId, `%${filters.q}%`),
 				ilike(authenticatedNoticeRunProcessingProjection.runKey, `%${filters.q}%`),
 			) as SQL,

@@ -51,7 +51,7 @@ fact or which document wins a conflict.
   - [contracts/stage-timing.md](./contracts/stage-timing.md)
   - [contracts/replay-capture.md](./contracts/replay-capture.md)
   - [reference/observability-ledger.md](./reference/observability-ledger.md)
-  - [decisions/adr-0068-raw-replay-capture.md](./decisions/adr-0068-raw-replay-capture.md)
+  - [decisions/adr-0069-raw-replay-capture.md](./decisions/adr-0069-raw-replay-capture.md)
   - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
   - [decisions/adr-0062-ragas-langfuse.md](./decisions/adr-0062-ragas-langfuse.md)
   - [reference/eval.md](./reference/eval.md)
@@ -77,6 +77,7 @@ fact or which document wins a conflict.
   - [architecture/domains/authenticated-notice/architecture.md](./architecture/domains/authenticated-notice/architecture.md)
   - [data/authenticated-notice.md](./data/authenticated-notice.md)
   - [contracts/campus-notice-runtime-contract.md](./contracts/campus-notice-runtime-contract.md)
+  - [decisions/adr-0063-internal-portal-source-channel-name.md](./decisions/adr-0063-internal-portal-source-channel-name.md)
 - Data source truth, source-channel schema and read-model ownership:
   - [data/README.md](./data/README.md)
 - Ingestion / collector / source-channel runtime shape:

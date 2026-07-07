@@ -13,11 +13,14 @@ FORBIDDEN_APP_API_COLLECTOR_EXECUTION_REFERENCES = (
     "authenticated-notice-collector/src",
     "official-web-collector/src",
     "wechat-official-account-collector/src",
+    "apps/source-collector/adapters",
+    "source-collector/adapters",
     "pnpm --filter authenticated-notice-collector",
     "pnpm --filter official-web-collector",
     "pnpm --filter wechat-official-account-collector",
     "pnpm --dir apps/authenticated-notice-collector",
     "pnpm --dir apps/official-web-collector",
+    "pnpm --dir apps/source-collector",
     "pnpm --dir apps/wechat-official-account-collector",
 )
 

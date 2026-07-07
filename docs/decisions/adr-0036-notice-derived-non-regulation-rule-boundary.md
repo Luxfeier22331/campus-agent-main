@@ -5,13 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0036
 status: accepted
 created: 2026-04-11
-updated: 2026-04-28
+updated: 2026-07-04
 ---
 # ADR-0036 Notice-Derived Non-Regulation Rule Boundary
 
 ## 状态
 
 Accepted on 2026-04-11.
+
+## 命名说明
+
+本文中的 `authenticated_notice_portal` 是历史 source channel 名称。当前 active source
+channel 名称是 `internal_portal`；本文继续冻结 notice-derived non-regulation rule
+的 holding 与 future surface admission 边界。
 
 ## 背景
 

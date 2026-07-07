@@ -5,7 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0034
 status: superseded
 created: 2026-03-29
-updated: 2026-06-15
+updated: 2026-07-04
+superseded_by:
+  - docs/architecture/product.md
+  - docs/architecture/system/identity-authz.md
+  - docs/architecture/system/tool-routing.md
+  - docs/architecture/system/memory-plane.md
 ---
 # ADR-0034 授权模型与检索过滤投影
 

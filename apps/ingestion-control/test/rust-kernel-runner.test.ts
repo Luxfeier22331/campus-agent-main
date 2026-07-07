@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { type CollectionChunkProfile, DEFAULT_EXECUTABLE_RUST_KERNEL_IDS } from "ingest-core";
 import { describe, expect, it } from "vitest";
 import {
 	createDefaultRustKernelRegistry,
@@ -6,66 +7,75 @@ import {
 	type IngestionTaskRegistry,
 	InMemoryIngestionTaskStore,
 	type RustKernelCommandRunner,
-	runRegistryTaskOnce,
-	TsTaskHandlerRegistry,
 } from "../src/index.ts";
+import { TsTaskHandlerRegistry } from "../src/task-executor";
+import { runDeclaredTaskForTest } from "./test-support.ts";
 
 const inputKey = "canonical-document-units/student-rules.jsonl";
+const validDocumentUnitsJsonl =
+	'{"doc_id":"doc1","version_id":"v1","chunk_id":"u1","root_unit_id":"u1","text":"hello","clean_text":"hello","metadata":{},"anchor":{}}\n';
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v1",
+	schema_version: "ingestion_task_envelope.v2",
 	task_id: "task_student_rules_document_units_validate_001",
 	run_id: "run_student_rules_20260630",
 	source_family: "regulations",
 	source_channel: "student_rules",
 	corpus: "regulations",
 	collection: "student_rules",
+	registry_task_id: "document_units_validate",
 	task_kind: "document_units_validate",
 	input_ref: {
 		kind: "object_store",
 		uri: `s3://campus-agent-source/${inputKey}`,
 	},
+	input_contract: "canonical_document_units.v1",
 	output_contract: "document_units_validation_report.v1",
 	idempotency_key: "regulations/student_rules/document_units_validate/release-001",
-	lease_policy: {
-		lease_seconds: 300,
-		heartbeat_seconds: 30,
-	},
-	retry_policy: {
-		max_attempts: 1,
-	},
 	created_by: "operator",
 	created_at: "2026-06-30T00:00:00Z",
 };
 
 const registry: IngestionTaskRegistry = {
-	schema_version: "ingestion_task_registry.v1",
+	schema_version: "ingestion_task_registry.v2",
 	source_family: "regulations",
 	corpus: "regulations",
 	collection: "student_rules",
 	tasks: [
 		{
+			registry_task_id: "document_units_validate",
 			task_kind: "document_units_validate",
 			executor_kind: "rust_kernel",
 			kernel_id: "validate-document-units",
 			input_contract: "canonical_document_units.v1",
 			output_contract: "document_units_validation_report.v1",
-			can_publish_alias: false,
 		},
 	],
 };
 
 describe("Rust ingestion kernel runner bridge", () => {
+	it("registers every default executable Rust kernel when object-store access is configured", () => {
+		const rustKernels = createDefaultRustKernelRegistry({
+			commandRunner: async () => ({
+				exitCode: 0,
+				signal: null,
+				stdout: Buffer.from("{}", "utf8"),
+				stderr: "",
+			}),
+			objectStore: new InMemoryObjectStore("campus-agent-source"),
+			tokenizerJsonPath: "/models/qwen3/tokenizer.json",
+		});
+
+		expect(rustKernels.registeredKernelIds()).toEqual(DEFAULT_EXECUTABLE_RUST_KERNEL_IDS);
+	});
+
 	it("runs the declared Rust kernel binary bridge and stores its JSON artifact", async () => {
 		const store = new InMemoryIngestionTaskStore({
 			now: () => new Date("2026-06-30T00:00:00Z"),
 		});
 		store.admitTask(task);
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
-		objectStore.putText(
-			inputKey,
-			'{"unit_id":"u1","document_id":"doc1","text":"hello","metadata":{}}\n',
-		);
+		objectStore.putText(inputKey, validDocumentUnitsJsonl);
 		const runnerCalls: Parameters<RustKernelCommandRunner>[0][] = [];
 		const commandRunner: RustKernelCommandRunner = async (input) => {
 			runnerCalls.push(input);
@@ -85,7 +95,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			};
 		};
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: new TsTaskHandlerRegistry(),
@@ -94,7 +104,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 				objectStore,
 				runnerPath: "/usr/local/bin/ingestion-kernel-runner",
 			}),
-			workerId: "rust-kernel-worker-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("completed");
@@ -103,9 +113,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 			executable: "/usr/local/bin/ingestion-kernel-runner",
 			args: ["validate-document-units"],
 		});
-		expect(Buffer.from(runnerCalls[0].stdin).toString("utf8")).toBe(
-			'{"unit_id":"u1","document_id":"doc1","text":"hello","metadata":{}}\n',
-		);
+		expect(Buffer.from(runnerCalls[0].stdin).toString("utf8")).toBe(validDocumentUnitsJsonl);
 		const artifact = result.task?.closeout?.artifact_refs[0];
 		expect(artifact).toEqual({
 			kind: "object_store",
@@ -128,11 +136,13 @@ describe("Rust ingestion kernel runner bridge", () => {
 		);
 	});
 
-	it("passes chunk sizing to the chunk-document-units kernel", async () => {
+	it("passes tokenizer and token budget arguments to the chunk-document-units kernel", async () => {
 		const chunkTask: IngestionTaskEnvelope = {
 			...task,
 			task_id: "task_student_rules_chunk_prepare_001",
+			registry_task_id: "chunk_prepare",
 			task_kind: "chunk_prepare",
+			input_contract: "canonical_document_units.v1",
 			output_contract: "ingestion_chunk_set.v1",
 			idempotency_key: "regulations/student_rules/chunk_prepare/release-001",
 		};
@@ -140,12 +150,12 @@ describe("Rust ingestion kernel runner bridge", () => {
 			...registry,
 			tasks: [
 				{
+					registry_task_id: "chunk_prepare",
 					task_kind: "chunk_prepare",
 					executor_kind: "rust_kernel",
 					kernel_id: "chunk-document-units",
 					input_contract: "canonical_document_units.v1",
 					output_contract: "ingestion_chunk_set.v1",
-					can_publish_alias: false,
 				},
 			],
 		};
@@ -154,18 +164,35 @@ describe("Rust ingestion kernel runner bridge", () => {
 		});
 		store.admitTask(chunkTask);
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
-		objectStore.putText(
-			inputKey,
-			'{"unit_id":"u1","document_id":"doc1","text":"hello","metadata":{}}\n',
-		);
+		objectStore.putText(inputKey, validDocumentUnitsJsonl);
 		const runnerCalls: Parameters<RustKernelCommandRunner>[0][] = [];
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry: chunkRegistry,
 			tsHandlers: new TsTaskHandlerRegistry(),
 			rustKernels: createDefaultRustKernelRegistry({
-				chunkMaxChars: 128,
+				chunkProfiles: new Map<string, CollectionChunkProfile>([
+					[
+						"regulations/student_rules",
+						{
+							collection: "student_rules",
+							corpus: "regulations",
+							chunkProfileVersion: "student_rules_semantic_v3",
+							cleaningPolicyVersion: "student_rules_cleaning_v1",
+							laneDefaults: {},
+							runtimeDefaults: {
+								chunkOverlap: 12,
+								chunkSize: 72,
+								maxChunkSize: 160,
+								minChunkSize: 24,
+								strategyName: "student_rules_test_profile",
+							},
+							structuredInput: "document_units_jsonl",
+						},
+					],
+				]),
+				chunkSize: 64,
 				commandRunner: async (input) => {
 					runnerCalls.push(input);
 					return {
@@ -175,7 +202,14 @@ describe("Rust ingestion kernel runner bridge", () => {
 							`${JSON.stringify({
 								schema_version: "ingestion_chunk_set.v1",
 								chunk_count: 1,
-								chunks: [],
+								chunks: [
+									{
+										chunk_id: "doc1::chunk::000001",
+										doc_id: "doc1",
+										unit_ids: ["u1"],
+										text: "hello",
+									},
+								],
 								error_count: 0,
 								errors: [],
 							})}\n`,
@@ -184,13 +218,49 @@ describe("Rust ingestion kernel runner bridge", () => {
 						stderr: "",
 					};
 				},
+				maxTokens: 128,
+				minTokens: 16,
 				objectStore,
+				overlap: 8,
+				tokenizerJsonPath: "/models/qwen3/tokenizer.json",
 			}),
-			workerId: "rust-kernel-worker-a",
+			taskId: chunkTask.task_id,
 		});
 
 		expect(result.status).toBe("completed");
-		expect(runnerCalls[0].args).toEqual(["chunk-document-units", "--max-chars", "128"]);
+		expect(runnerCalls[0].args).toEqual([
+			"chunk-document-units",
+			"--tokenizer-json",
+			"/models/qwen3/tokenizer.json",
+			"--chunk-size",
+			"72",
+			"--max-tokens",
+			"160",
+			"--overlap",
+			"12",
+			"--min-tokens",
+			"24",
+		]);
+	});
+
+	it("does not register chunk-document-units when tokenizer path is missing", () => {
+		const rustKernels = createDefaultRustKernelRegistry({
+			commandRunner: async () => ({
+				exitCode: 0,
+				signal: null,
+				stdout: Buffer.from("{}", "utf8"),
+				stderr: "",
+			}),
+			objectStore: new InMemoryObjectStore("campus-agent-source"),
+		});
+
+		expect(rustKernels.registeredKernelIds()).toEqual([
+			"validate-document-units",
+			"validate-release-manifest",
+		]);
+		expect(() => rustKernels.require("chunk-document-units")).toThrow(
+			"Rust kernel not registered: chunk-document-units",
+		);
 	});
 
 	it("fails closed when the runner exits non-zero", async () => {
@@ -201,7 +271,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(inputKey, '{"bad":true}\n');
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: new TsTaskHandlerRegistry(),
@@ -214,11 +284,11 @@ describe("Rust ingestion kernel runner bridge", () => {
 				}),
 				objectStore,
 			}),
-			workerId: "rust-kernel-worker-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"ingestion kernel validate-document-units failed with exit code 2",
 		);
@@ -235,7 +305,7 @@ describe("Rust ingestion kernel runner bridge", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putText(inputKey, '{"bad":true}\n');
 
-		const result = await runRegistryTaskOnce({
+		const result = await runDeclaredTaskForTest({
 			store,
 			registry,
 			tsHandlers: new TsTaskHandlerRegistry(),
@@ -248,11 +318,11 @@ describe("Rust ingestion kernel runner bridge", () => {
 				}),
 				objectStore,
 			}),
-			workerId: "rust-kernel-worker-a",
+			taskId: task.task_id,
 		});
 
 		expect(result.status).toBe("failed");
-		expect(result.task?.closeout?.error?.code).toBe("task_executor_failed");
+		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"expected schema_version document_units_validation_report.v1",
 		);

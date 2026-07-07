@@ -4,14 +4,14 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-06-26
+updated: 2026-07-05
 ---
 # Authenticated Notice Source Architecture
 
 ## 文档边界
 
 本文冻结 notice-oriented authenticated source channel 的 repo-level supporting
-architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补充记录同族的
+architecture。当前主语义 owner 是 `internal_portal`，并补充记录同族的
 `wechat_official_account` source-channel truth 应如何进入整体叙事。
 
 它回答的是：
@@ -20,7 +20,7 @@ architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补�
   ingestion/data plane 如何分层
 - `apps/app-api` 在 authenticated notice processing 中已经拥有哪一层
   control-plane / operator-safe projection truth
-- `authenticated_notice_portal`、`internal_notice`、`file_release_source` 与
+- `internal_portal`、`internal_notice`、`file_release_source` 与
   regulation downstream 分别是什么关系
 - `wechat_official_account` 应以什么力度进入当前架构叙事
 
@@ -41,7 +41,7 @@ architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补�
 `collector -> source bucket + run ledger -> ingestion-control -> source-truth /
 document holding -> explicit downstream admission`
 
-对 `authenticated_notice_portal`，当前 merged truth 已额外具备一条 app-owned operator-safe
+对 `internal_portal`，当前 merged truth 已额外具备一条 app-owned operator-safe
 projection path：
 
 `collector / ingestion outputs -> app-api authenticated_notice_processing
@@ -52,8 +52,9 @@ projection ingest -> Operator Console list/detail query`
 - `source channel`
   - collector runtime、capture boundary、source artifact、run ledger
 - `data plane`
-  - ingestion-control、ingestion-core、source-truth、document holding、projection /
-    release / downstream admission；Python worker 仅作为 extraction adapter island
+  - ingestion-control、TS ingest-core helpers、source-truth、document holding、
+    projection / release / downstream admission；Python 仅作为 extraction
+    adapter island
 - `operator projection`
   - `app-api` 拥有的 authenticated notice processing operator-safe ingest 与
     list/detail query
@@ -67,17 +68,17 @@ projection ingest -> Operator Console list/detail query`
 
 当前 notice-oriented source-channel family 至少包含两条语义不同的来源：
 
-- `authenticated_notice_portal`
+- `internal_portal`
   - 登录态内部通知源
   - 主要承接内部 notice 与 file-release family 的 source capture /
     source-truth / downstream admission
-  - 当前 `apps/authenticated-notice-collector` 是 MUC first-party adapter 的现有
-    实现形态，不是其他学校必须复用的通用 collector
+  - 当前 `apps/source-collector/adapters/internal-portal` 是 MUC first-party adapter
+    的现有实现形态，不是其他学校必须复用的通用 collector
   - 当前 `notice` surface 的 MUC adapter 内部使用 Crawlee 承接 list/select/detail
-    task queue、retry 与并发调度；Playwright 只保留在登录态 bootstrap /
-    storageState refresh 边界。Crawlee request、queue、storage 等概念不得泄漏到
-    source-truth schema、capture-release handoff 或 ingestion-control task
-    contract。
+    task queue、retry、并发调度与 crawler-local `uniqueKey` 去重；Playwright
+    只保留在登录态 bootstrap / storageState refresh 边界。Crawlee request、
+    queue、storage 等概念不得泄漏到 source-truth schema、capture-release
+    handoff 或 ingestion-control task contract。
 - `wechat_official_account`
   - 公开公众号通知源
   - source-channel boundary includes real WeChat page capture, article body +
@@ -99,7 +100,7 @@ projection ingest -> Operator Console list/detail query`
 
 ## Authenticated Notice Portal Boundary
 
-`authenticated_notice_portal` 是一级 `source_channel`，不是 `official_web`
+`internal_portal` 是一级 `source_channel`，不是 `official_web`
 的特殊站点，也不是 Operator Console runtime 或 notice tool runtime 的别名。
 
 它当前承接两个 source surface：
@@ -111,17 +112,24 @@ projection ingest -> Operator Console list/detail query`
 
 - collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传、
   run ledger 写入与 typed handoff artifact 输出；其内部可使用 Crawlee 等成熟
-  collector execution library 来管理 queue / retry / concurrency，但这些只属于
-  adapter implementation detail
+  collector execution library 来管理 queue / retry / concurrency / crawler-local
+  de-duplication，但这些只属于 adapter implementation detail
 - `apps/ingestion-control` 负责按 admitted task 读取 source bucket 中的
   `authenticated_notice_capture_release.v1` object ref，解析其 bundle /
   manifest refs，重建 source-truth / holding，并在显式 downstream admission
   后进入后续 projection 或 release；`run_id` 只能作为可审计 metadata / ledger
   correlation key，不能替代 object-store input contract
-- `packages/ingestion-core` 负责 source-truth contract、projection、registry 与
-  release semantics
-- `apps/app-api` 不拥有 source-truth、对象存储、queue mutation、lease/retry/
-  dead-letter 或 data-plane executor truth
+- `packages/ingest-core` 负责 source-truth DTO / parser、canonical artifact helper、
+  registry-aware dispatch helper 与纯 projection/materialization helper；
+  `apps/ingestion-control` 负责 registry validation、Temporal task execution、
+  source-truth materialization handler registration、closeout 与 operator-safe
+  execution projection。旧 Python ingestion package 已删除；OCR / file extraction
+  后续只能作为 explicit TS handler 调用的 private adapter service 或重新 admission 的
+  窄 adapter boundary 接入，不拥有 source-truth replay CLI、local attachment
+  blob-root backfill、provider HTTP client construction、registry connection 或
+  runtime smoke entrypoint。
+- `apps/app-api` 不拥有 source-truth、对象存储、queue mutation、Temporal workflow、
+  activity dispatch 或 data-plane execution truth
 - `apps/app-api` 已拥有 authenticated notice processing 的 operator-safe
   projection ingest 与 list/detail query
 
@@ -198,15 +206,43 @@ operator projection 与 ledger correlation，不能作为 ingestion executor 的
 input。
 
 历史代码中曾存在的 `inline` collector-run task envelope 已作为 staged migration
-residue 移除。剩余迁移完成判据是 verified collector capture release 通过
+residue 移除。剩余迁移完成判据是 verified internal-portal capture release 通过
 object-store refs 被 `apps/ingestion-control` admit / claim / execute / complete，并产出
 `authenticated_notice_source_truth.v1` artifact closeout。
 
-local bundle / manifest path 只允许作为显式 fixture/dev 输入，不是 Docker mainline 的成功形态。
+local bundle / manifest path 只允许作为显式 dev/assertion 输入，不是 Docker mainline 的成功形态。
 
 这条 handoff 是 fork boundary。MUC portal 登录态、selector、cookie 与 portal API
 细节只能停在 MUC collector adapter 内；ingestion-control 只消费 verified
 `authenticated_notice_capture_release.v1` object-store ref。
+
+## Provider And Backfill Boundary
+
+登录态 notice 的 OCR / multimodal / provider 处理不再由 Python ingestion-core 从
+环境变量构造 provider client，也不再通过 Python replay/backfill CLI 直接推动 active
+链路。
+
+固定规则：
+
+- provider execution 必须进入 `apps/ingestion-control` 的显式 TS handler，或通过被
+  handler 注入的 private adapter service 完成；TS `packages/ingest-core`
+  保留 DTO、parser、protocol 与 deterministic helper。旧 Python ingestion package
+  已删除；Python OCR / file adapter 需要时必须重新 admission
+- Python-side OCR、legacy Office 与 service-navigation extraction helper 只允许接受显式
+  adapter protocol；不得读取 provider API key、provider base URL 或构造 `httpx` /
+  provider SDK client。旧 course-map multimodal probe 已退出 active workspace；现存
+  课程地图 reader supplement 只消费显式抽取结果和 rendered sample，不拥有 provider /
+  admission / reporting 链路
+- capture 由 `apps/source-collector` 的 Crawlee adapter 承担；active registry 不得声明
+  未接线的 capture task kind / executor kind
+- source-truth replay、browser-url backfill、attachment object backfill、
+  document canonical markdown backfill、provider comparison 与 smoke / audit Python
+  CLI 均已退出 active workspace
+- local `attachment_blob_root` import/backfill path 已退役；authenticated notice 与
+  common-download import 必须使用 object-store refs，缺失 object-store bytes 时 fail
+  closed
+- 仍保留的 Python code 只能作为纯 contract / parser / normalizer / explicit adapter
+  protocol；不得拥有 task lifecycle、lease、publish、index 或 alias truth
 
 ## App-API Operator Projection Boundary
 
@@ -227,7 +263,7 @@ projection domain。
 - source bucket 浏览器
 - collector scheduler
 - queue mutation API
-- ingestion executor callback / retry / lease / dead-letter truth
+- ingestion workflow / activity callback truth
 
 因此，Operator Console query/operator projection 只能被描述成 app-owned
 read/control-plane seam，不能被描述成 source-truth owner、对象存储
@@ -235,7 +271,7 @@ owner 或 ingestion runtime owner。
 
 ## Internal Notice And Regulation Split
 
-`authenticated_notice_portal` source channel 与下游 collection 之间继续保持
+`internal_portal` source channel 与下游 collection 之间继续保持
 显式 admission split。
 
 ### `campus_notices/internal_notice`
@@ -256,9 +292,11 @@ notice-consumption projection family。
 
 ### `authenticated_documents/file_release_source`
 
-它承接 object-backed released original、inventory / raw-asset truth 与
-document holding rows，用于 owner-specific downstream admission。Authenticated
-document center 旧设想已退役，不属于当前主问答产品目标。
+它承接 object-backed released original 与由 `apps/ingestion-control`
+`source_truth_materialize` 产出的 source-truth / document holding artifacts，用于
+owner-specific downstream admission。下游 owner recovery 只能消费已 materialized 的
+canonical document registry，不再通过 Python file-release inventory / export replay
+判断 readiness。Authenticated document center 旧设想已退役，不属于当前主问答产品目标。
 
 ### regulation downstream
 
@@ -317,7 +355,7 @@ document center 旧设想已退役，不属于当前主问答产品目标。
 后续文档引用这一领域时，默认遵守以下口径：
 
 - 区分 source channel、data plane、operator projection、runtime / serving seam
-- `authenticated_notice_portal` 与 `wechat_official_account`
+- `internal_portal` 与 `wechat_official_account`
   都可被记录为 notice-oriented source family，但当前开放 posture 不同
 - app-api operator projection 不等于 source/data-plane owner
 - capture path 已验证不等于 product serving 已开放

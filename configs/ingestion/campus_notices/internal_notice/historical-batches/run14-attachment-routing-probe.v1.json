@@ -2,65 +2,76 @@
 	"schema_version": "authenticated_notice_selected_notice_batch_v1",
 	"corpus": "campus_notices",
 	"collection": "internal_notice",
-	"source_channel": "authenticated_notice_portal",
-	"batch_id": "synthetic-attachment-routing-probe-v1",
+	"source_channel": "internal_portal",
+	"batch_id": "run14-attachment-routing-probe-v1",
 	"selection_basis": {
 		"families": ["operational_procedure", "other"],
-		"strategy": "synthetic_public_repo_attachment_routing_probe",
+		"strategy": "manual_curated_attachment_routing_probe_for_second_historical_intake",
+		"bundle_path": "/home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json",
+		"family_report_path": ".tmp/reports/run14-notice-family-report-tightened.json",
+		"attachment_analysis_path": ".tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json",
 		"selection_notes": [
-			"covers text_extractable, reference_only and multimodal_processing_required attachment routes without publishing source-derived notice data"
+			"covers stable text_extractable and reference_only routes, plus operational schedule/guide images that now route to multimodal_processing_required after context-aware inline-image classification",
+			"keeps the second intake batch small enough for local-only normalization and bootstrap smoke acceptance",
+			"does not claim stable ocr_required coverage because the current donor snapshot's candidate images in this batch are low-value operational guide images and should stay out of OCR"
 		]
 	},
 	"expected_attachment_route_totals": {
-		"attachment_ref_total": 4,
+		"attachment_ref_total": 7,
 		"text_extractable": 1,
 		"ocr_required": 0,
 		"reference_only": 1,
-		"multimodal_processing_required": 2
+		"multimodal_processing_required": 5
 	},
-	"selected_notice_ids": [
-		"synthetic-attachment-001",
-		"synthetic-attachment-002",
-		"synthetic-attachment-003"
-	],
+	"selected_notice_ids": ["355119", "354862", "354192", "351118"],
 	"notices": [
 		{
-			"notice_id": "synthetic-attachment-001",
-			"notice_title": "关于开放综合服务项目报名的通知",
+			"notice_id": "355119",
+			"notice_title": "关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知",
 			"family": "other",
 			"decision": "include",
 			"expected_attachment_routes": {
 				"text_extractable": 1
 			},
-			"reason": "synthetic native office attachment sample"
+			"reason": "docx form attachment provides a clean native text-extraction sample"
 		},
 		{
-			"notice_id": "synthetic-attachment-002",
-			"notice_title": "关于组织开展毕业资格审核工作的通知",
+			"notice_id": "354862",
+			"notice_title": "关于组织开展2026年春季学期研究生毕业资格审核工作的通知",
 			"family": "other",
 			"decision": "include",
 			"expected_attachment_routes": {
 				"reference_only": 1
 			},
-			"reason": "synthetic low-value decorative image attachment sample"
+			"reason": "editor spacer gif should remain reference_only instead of consuming OCR budget"
 		},
 		{
-			"notice_id": "synthetic-attachment-003",
-			"notice_title": "关于2026年春季学期本科生网上选课的通知",
+			"notice_id": "354192",
+			"notice_title": "关于2025-2026学年第二学期本科生网上选课的通知",
 			"family": "operational_procedure",
 			"decision": "include",
 			"expected_attachment_routes": {
 				"multimodal_processing_required": 2
 			},
-			"reason": "synthetic schedule/process guide image sample"
+			"reason": "two inline schedule/process guide images are low-value operational guide images and should remain multimodal_processing_required instead of consuming OCR budget"
+		},
+		{
+			"notice_id": "351118",
+			"notice_title": "关于2025-2026学年第一学期本科生网上选课的通知",
+			"family": "operational_procedure",
+			"decision": "include",
+			"expected_attachment_routes": {
+				"multimodal_processing_required": 3
+			},
+			"reason": "three inline schedule/operation guide images should stay in multimodal_processing_required rather than being treated as OCR candidates"
 		}
 	],
 	"excluded_examples": [
 		{
-			"notice_id": "synthetic-attachment-qr",
-			"notice_title": "关于假期期间办理就业相关事务的通知",
+			"notice_id": "351111",
+			"notice_title": "关于暑假期间办理就业相关事务的通知",
 			"family": "operational_procedure",
-			"reason": "QR-code-only image remains outside this local smoke acceptance batch"
+			"reason": "the only attachment is a QR code image that becomes reference_only only with donor-byte-aware inline-image classification; keep it out of this local-smoke acceptance batch"
 		}
 	]
 }

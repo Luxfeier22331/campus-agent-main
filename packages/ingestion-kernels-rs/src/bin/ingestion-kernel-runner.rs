@@ -1,7 +1,9 @@
 use std::io::{self, Read};
+use std::path::PathBuf;
 
 use ingestion_kernels_rs::{
-    chunk_document_units_jsonl, validate_document_units_jsonl, validate_release_manifest_json,
+    ChunkDocumentUnitsOptions, chunk_document_units_jsonl, validate_document_units_jsonl,
+    validate_release_manifest_json,
 };
 
 fn main() {
@@ -23,8 +25,10 @@ fn run() -> Result<(), String> {
     let output = match kernel_id.as_str() {
         "validate-document-units" => serde_json::to_string(&validate_document_units_jsonl(&input)),
         "chunk-document-units" => {
-            let max_chars = parse_chunk_max_chars(args)?;
-            serde_json::to_string(&chunk_document_units_jsonl(&input, max_chars))
+            let options = parse_chunk_options(args)?;
+            let chunk_set = chunk_document_units_jsonl(&input, options)
+                .map_err(|error| format!("failed to chunk document units: {error}"))?;
+            serde_json::to_string(&chunk_set)
         }
         "validate-release-manifest" => {
             serde_json::to_string(&validate_release_manifest_json(&input))
@@ -36,21 +40,76 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn parse_chunk_max_chars(mut args: impl Iterator<Item = String>) -> Result<usize, String> {
-    let mut max_chars = 4000;
+fn parse_chunk_options(
+    mut args: impl Iterator<Item = String>,
+) -> Result<ChunkDocumentUnitsOptions, String> {
+    let mut tokenizer_json_path: Option<PathBuf> = None;
+    let mut chunk_size: Option<usize> = None;
+    let mut max_tokens: Option<usize> = None;
+    let mut min_tokens: Option<usize> = None;
+    let mut overlap: Option<usize> = None;
     while let Some(arg) = args.next() {
-        if arg != "--max-chars" {
-            return Err(format!("unsupported chunk-document-units argument: {arg}"));
-        }
-        let Some(value) = args.next() else {
-            return Err("--max-chars requires a value".to_string());
-        };
-        max_chars = value
-            .parse::<usize>()
-            .map_err(|error| format!("--max-chars must be a positive integer: {error}"))?;
-        if max_chars == 0 {
-            return Err("--max-chars must be greater than zero".to_string());
+        match arg.as_str() {
+            "--tokenizer-json" => {
+                tokenizer_json_path = Some(PathBuf::from(required_arg_value(args.next(), &arg)?));
+            }
+            "--chunk-size" => {
+                chunk_size = Some(parse_positive_usize(
+                    required_arg_value(args.next(), &arg)?,
+                    &arg,
+                )?);
+            }
+            "--max-tokens" => {
+                max_tokens = Some(parse_positive_usize(
+                    required_arg_value(args.next(), &arg)?,
+                    &arg,
+                )?);
+            }
+            "--overlap" => {
+                overlap = Some(parse_usize(required_arg_value(args.next(), &arg)?, &arg)?);
+            }
+            "--min-tokens" => {
+                min_tokens = Some(parse_positive_usize(
+                    required_arg_value(args.next(), &arg)?,
+                    &arg,
+                )?);
+            }
+            "--max-chars" => {
+                return Err("--max-chars is retired; --tokenizer-json is required".to_string());
+            }
+            _ => return Err(format!("unsupported chunk-document-units argument: {arg}")),
         }
     }
-    Ok(max_chars)
+    let tokenizer_json_path = tokenizer_json_path.ok_or("--tokenizer-json is required")?;
+    if !tokenizer_json_path.is_file() {
+        return Err(format!(
+            "failed to load tokenizer: {} does not exist",
+            tokenizer_json_path.display()
+        ));
+    }
+    Ok(ChunkDocumentUnitsOptions {
+        chunk_size: chunk_size.ok_or("--chunk-size is required")?,
+        max_tokens: max_tokens.ok_or("--max-tokens is required")?,
+        min_tokens: min_tokens.ok_or("--min-tokens is required")?,
+        overlap: overlap.ok_or("--overlap is required")?,
+        tokenizer_json_path,
+    })
+}
+
+fn required_arg_value(value: Option<String>, flag: &str) -> Result<String, String> {
+    value.ok_or_else(|| format!("{flag} requires a value"))
+}
+
+fn parse_positive_usize(value: String, flag: &str) -> Result<usize, String> {
+    let parsed = parse_usize(value, flag)?;
+    if parsed == 0 {
+        return Err(format!("{flag} must be greater than zero"));
+    }
+    Ok(parsed)
+}
+
+fn parse_usize(value: String, flag: &str) -> Result<usize, String> {
+    value
+        .parse::<usize>()
+        .map_err(|error| format!("{flag} must be an integer: {error}"))
 }

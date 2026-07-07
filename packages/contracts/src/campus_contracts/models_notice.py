@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_context import SelectedNoticeRef
-from campus_contracts.models_notice_change_set import NoticeChangeSet
 from campus_contracts.models_shared import (
     HistoricalDowngradeReason,
     NoticeBodyAccessPolicy,
@@ -61,51 +60,6 @@ class NoticeCard:
             raise ValueError("source_url must not be empty")
         if self.target_surface:
             _validate_notice_target_surface(self.target_surface)
-
-
-@dataclass(frozen=True, slots=True)
-class NoticeDateRange:
-    start_date: str
-    end_date: str
-    timezone: str = "Asia/Shanghai"
-
-    def __post_init__(self) -> None:
-        start_date = self.start_date.strip()
-        end_date = self.end_date.strip()
-        timezone = self.timezone.strip()
-        if not start_date:
-            raise ValueError("start_date must not be empty")
-        if not end_date:
-            raise ValueError("end_date must not be empty")
-        if start_date > end_date:
-            raise ValueError("start_date must be <= end_date")
-        if not timezone:
-            raise ValueError("timezone must not be empty")
-        if start_date != self.start_date:
-            object.__setattr__(self, "start_date", start_date)
-        if end_date != self.end_date:
-            object.__setattr__(self, "end_date", end_date)
-        if timezone != self.timezone:
-            object.__setattr__(self, "timezone", timezone)
-
-
-@dataclass(frozen=True, slots=True)
-class NoticePeriodSummaryGroup:
-    group_key: str
-    title: str
-    notice_count: int
-    summary: str
-    notice_ids: tuple[str, ...] = field(default_factory=tuple)
-
-    def __post_init__(self) -> None:
-        if not self.group_key.strip():
-            raise ValueError("group_key must not be empty")
-        if not self.title.strip():
-            raise ValueError("title must not be empty")
-        if self.notice_count <= 0:
-            raise ValueError("notice_count must be positive")
-        if not self.summary.strip():
-            raise ValueError("summary must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,71 +156,6 @@ class CampusNoticeDiscoverResult:
 
 
 @dataclass(frozen=True, slots=True)
-class CampusNoticePeriodSummaryPayload:
-    query_text: str
-    date_range: NoticeDateRange
-    source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple)
-    target_surfaces: tuple[NoticeTargetSurface | str, ...] = field(default_factory=tuple)
-    group_by: str = "topic"
-    max_items: int = 10
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        if self.group_by not in {"topic", "day", "source_family"}:
-            raise ValueError(f"unsupported notice period summary group_by: {self.group_by}")
-        for source_family in self.source_families:
-            _validate_notice_source_family(source_family)
-        for target_surface in self.target_surfaces:
-            _validate_notice_target_surface(target_surface)
-        if self.max_items <= 0:
-            raise ValueError("max_items must be positive")
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticePeriodSummaryResult:
-    query_text: str
-    outcome: ToolBusinessOutcome
-    date_range: NoticeDateRange
-    groups: tuple[NoticePeriodSummaryGroup, ...] = field(default_factory=tuple)
-    notice_cards: tuple[NoticeCard, ...] = field(default_factory=tuple)
-    bounded_summary: str = ""
-    source_ref_count: int = 0
-    display_policy: NoticeDisplayPolicy = field(
-        default_factory=lambda: NoticeDisplayPolicy(public_surface="bounded_summary")
-    )
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_tool_business_outcome(self.outcome)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome in {"resolved_current", "resolved_historical_reference"}:
-            if not self.notice_cards:
-                raise ValueError(
-                    "notice_cards must not be empty for resolved period summary results"
-                )
-            if not self.groups:
-                raise ValueError("groups must not be empty for resolved period summary results")
-            if not self.bounded_summary.strip():
-                raise ValueError(
-                    "bounded_summary must not be empty for resolved period summary results"
-                )
-            if self.source_ref_count <= 0:
-                raise ValueError(
-                    "source_ref_count must be positive for resolved period summary results"
-                )
-        if not self.display_policy.full_body_forbidden:
-            raise ValueError("notice period summary display policy must forbid full body exposure")
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed notice period summary results"
-            )
-
-
-@dataclass(frozen=True, slots=True)
 class CampusNoticeGetPayload:
     notice_id: str
     source_family: NoticeSourceFamily | str = field(default="", compare=False)
@@ -327,70 +216,12 @@ class CampusNoticeGetResult:
             )
 
 
-@dataclass(frozen=True, slots=True)
-class CampusNoticeChangeSetLookupPayload:
-    query_text: str = field(
-        metadata=schema_metadata(description="Original transport notice override question.")
-    )
-    route_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted route labels."),
-    )
-    direction_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted direction labels."),
-    )
-    stop_labels: tuple[str, ...] = field(
-        default_factory=tuple,
-        metadata=schema_metadata(description="Optional admitted stop labels."),
-    )
-    service_date: str = field(
-        default="",
-        metadata=schema_metadata(description="Optional ISO local service date."),
-    )
-    query_time_anchor: str = field(
-        default="",
-        metadata=schema_metadata(description="Optional RFC3339 query time anchor."),
-    )
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeChangeSetLookupResult:
-    query_text: str
-    outcome: ToolBusinessOutcome
-    change_set: NoticeChangeSet | None = None
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_tool_business_outcome(self.outcome)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome == "resolved_current" and self.change_set is None:
-            raise ValueError("change_set must not be empty for resolved notice change-set results")
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed notice change-set results"
-            )
-
-
 __all__ = [
-    "CampusNoticeChangeSetLookupPayload",
-    "CampusNoticeChangeSetLookupResult",
     "CampusNoticeDiscoverPayload",
     "CampusNoticeDiscoverResult",
     "CampusNoticeGetPayload",
     "CampusNoticeGetResult",
-    "CampusNoticePeriodSummaryPayload",
-    "CampusNoticePeriodSummaryResult",
     "NoticeCard",
     "NoticeContextProjection",
-    "NoticeDateRange",
     "NoticeDisplayPolicy",
-    "NoticePeriodSummaryGroup",
 ]
