@@ -32,9 +32,9 @@ Retired paths must not be used for new automation:
 - `sync-annotation-queue`
 - `export-review-results`
 - `build-online-answer-results`
-- `build-runtime-profile-results`
+- `build-runtime-config-results`
 - `build-score-report-from-online-answer`
-- `build-score-report-from-runtime-profile`
+- `build-score-report-from-runtime-config`
 - `publish-score-report`
 - `run-ragas-scoring`
 - `build-ragas-sample-batch`

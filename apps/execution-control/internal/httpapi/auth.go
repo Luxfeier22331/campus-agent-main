@@ -33,21 +33,21 @@ func (s *Server) toolReadModelAuthorized(request *http.Request) bool {
 func (s *Server) metricsAuthorized(request *http.Request) bool {
 	token := strings.TrimSpace(s.config.MetricsBearerToken)
 	if token == "" {
-		return s.localRuntimeProfile()
+		return s.localRuntimeMode()
 	}
 	presented := extractBearerToken(request.Header.Get("authorization"))
 	return presented != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1
 }
 
 func (s *Server) readinessAuthorized(request *http.Request) bool {
-	if s.localRuntimeProfile() {
+	if s.localRuntimeMode() {
 		return true
 	}
 	return s.internalWorkerAuthorized(request)
 }
 
-func (s *Server) localRuntimeProfile() bool {
-	return strings.TrimSpace(s.config.RuntimeProfile) == "" || strings.TrimSpace(s.config.RuntimeProfile) == "local"
+func (s *Server) localRuntimeMode() bool {
+	return strings.TrimSpace(s.config.RuntimeMode) == "" || strings.TrimSpace(s.config.RuntimeMode) == "local"
 }
 
 func extractBearerToken(headerValue string) string {

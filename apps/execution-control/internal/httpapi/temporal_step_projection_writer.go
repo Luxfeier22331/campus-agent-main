@@ -440,8 +440,6 @@ func temporalActivityTypeForStep(stepID string) string {
 		return temporalruntime.PlanRAGActivityName
 	case "retrieval.indexed_lookup":
 		return temporalruntime.RetrieveIndexedLookupActivityName
-	case "retrieval.expand_or_rescue":
-		return temporalruntime.ExpandOrRescueRetrievalActivityName
 	case "evidence.selection":
 		return temporalruntime.SelectEvidenceActivityName
 	case "synthesis":

@@ -227,6 +227,12 @@ func SelectSupportingEvidence(request EvidenceSelectionRequest) (EvidenceSelecti
 	if request.Lookup.CandidateCount <= 0 || len(request.Lookup.Candidates) == 0 {
 		return EvidenceSelectionResult{}, errors.New("candidate evidence is required")
 	}
+	minimumTrustTier := strings.TrimSpace(request.Plan.SourceTrustPolicy.MinimumTier)
+	if minimumTrustTier != "" {
+		if _, ok := sourceTrustTierRank(minimumTrustTier); !ok {
+			return EvidenceSelectionResult{}, fmt.Errorf("unsupported source trust policy minimum_tier %q", minimumTrustTier)
+		}
+	}
 	selected := make([]EvidenceRef, 0, len(request.Lookup.Candidates))
 	rejectionReasons := make([]string, 0)
 	seen := map[string]struct{}{}
@@ -239,6 +245,10 @@ func SelectSupportingEvidence(request EvidenceSelectionRequest) (EvidenceSelecti
 			rejectionReasons = append(rejectionReasons, "missing_canonical_reference:"+candidate.ChunkID)
 			continue
 		}
+		if reason := sourceTrustRejectionReason(minimumTrustTier, candidate); reason != "" {
+			rejectionReasons = append(rejectionReasons, reason)
+			continue
+		}
 		key := candidate.DocumentID + "|" + candidate.VersionID + "|" + canonicalRootUnit(candidate)
 		if _, exists := seen[key]; exists {
 			rejectionReasons = append(rejectionReasons, "duplicate_canonical_unit:"+candidate.ChunkID)
@@ -248,7 +258,7 @@ func SelectSupportingEvidence(request EvidenceSelectionRequest) (EvidenceSelecti
 		selected = append(selected, candidate)
 	}
 	if len(selected) == 0 {
-		return EvidenceSelectionResult{}, errors.New("answer-bearing supporting evidence with canonical reference is required")
+		return EvidenceSelectionResult{}, errors.New("answer-bearing supporting evidence with canonical reference and source trust is required")
 	}
 	coverageStatus, err := coverageStatusForPlan(request.Plan, selected)
 	if err != nil {
@@ -274,6 +284,41 @@ func SelectSupportingEvidence(request EvidenceSelectionRequest) (EvidenceSelecti
 	}
 	result.PayloadSHA256 = hash
 	return result, nil
+}
+
+func sourceTrustRejectionReason(minimumTier string, evidence EvidenceRef) string {
+	minimum := strings.TrimSpace(minimumTier)
+	if minimum == "" {
+		return ""
+	}
+	requiredRank, _ := sourceTrustTierRank(minimum)
+	actual := strings.TrimSpace(evidence.SourceTrustTier)
+	if actual == "" {
+		return "missing_source_trust_tier:" + evidence.ChunkID
+	}
+	actualRank, ok := sourceTrustTierRank(actual)
+	if !ok {
+		return "unsupported_source_trust_tier:" + evidence.ChunkID
+	}
+	if actualRank > requiredRank {
+		return "source_trust_below_minimum:" + evidence.ChunkID
+	}
+	return ""
+}
+
+func sourceTrustTierRank(tier string) (int, bool) {
+	switch strings.TrimSpace(tier) {
+	case "T0":
+		return 0, true
+	case "T1":
+		return 1, true
+	case "T2":
+		return 2, true
+	case "T3":
+		return 3, true
+	default:
+		return 0, false
+	}
 }
 
 func hasCanonicalReference(evidence EvidenceRef) bool {

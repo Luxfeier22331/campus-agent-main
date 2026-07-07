@@ -165,7 +165,7 @@ describe("collection ingestion profiles", () => {
 	it("parses every tracked collection runtime profile and available chunk profile", () => {
 		for (const { collection, corpus } of listConfiguredCollectionScopes()) {
 			const runtimeProfile = parseCollectionRuntimeProfile(
-				readConfigJson(corpus, collection, "runtime-profile.json"),
+				readConfigJson(corpus, collection, "serving-config.json"),
 			);
 			expect(runtimeProfile.corpus).toBe(corpus);
 			expect(runtimeProfile.collection).toBe(collection);
@@ -194,7 +194,7 @@ function listConfiguredCollectionScopes(): Array<{ corpus: string; collection: s
 			return readdirSync(corpusPath, { withFileTypes: true })
 				.filter((entry) => entry.isDirectory())
 				.filter((collectionEntry) =>
-					existsSync(join(corpusPath, collectionEntry.name, "runtime-profile.json")),
+					existsSync(join(corpusPath, collectionEntry.name, "serving-config.json")),
 				)
 				.map((collectionEntry) => ({
 					collection: collectionEntry.name,

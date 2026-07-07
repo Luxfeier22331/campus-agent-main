@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from scripts.execution_control_process_smoke import build_process_smoke_plan
 
-_PROFILE_OWNED_ENV_KEYS = {
+_RUNTIME_CONFIG_OWNED_ENV_KEYS = {
     "EXECUTION_CONTROL_OPEN_TOOLS",
     "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED",
     "EXECUTION_CONTROL_OTEL_ENABLED",
@@ -25,7 +25,9 @@ _RETIRED_PROMPT_ENV_KEYS = {
 
 
 class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
-    def test_notice_profile_writes_runtime_config_instead_of_profile_owned_env(self) -> None:
+    def test_notice_scenario_writes_runtime_config_instead_of_runtime_config_owned_env(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / ".tmp" / "process-smoke"
@@ -33,16 +35,16 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
                 plan = build_process_smoke_plan(
                     repo_root=root,
                     output_dir=output_dir,
-                    profile="notice_discover_sdk_opened",
+                    scenario="notice_discover_sdk_opened",
                 )
             env = _execution_control_env(plan)
-            self.assertTrue(_PROFILE_OWNED_ENV_KEYS.isdisjoint(env))
+            self.assertTrue(_RUNTIME_CONFIG_OWNED_ENV_KEYS.isdisjoint(env))
             self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
-            profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
-            runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
-            self.assertEqual(runtime_profile["open_tools"], ["campus_notice_discover"])
-            self.assertFalse(runtime_profile["otel"]["enabled"])
-            self.assertFalse(runtime_profile["execution_audit"]["enabled"])
+            runtime_config_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
+            runtime_config = json.loads(runtime_config_path.read_text(encoding="utf-8"))
+            self.assertEqual(runtime_config["open_tools"], ["campus_notice_discover"])
+            self.assertFalse(runtime_config["otel"]["enabled"])
+            self.assertFalse(runtime_config["execution_audit"]["enabled"])
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", env)
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", env)
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", env)
@@ -52,7 +54,9 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
                 {process.label for process in plan.processes},
             )
 
-    def test_multi_step_profile_writes_runtime_config_instead_of_profile_owned_env(self) -> None:
+    def test_multi_step_scenario_writes_runtime_config_instead_of_runtime_config_owned_env(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / ".tmp" / "process-smoke"
@@ -60,15 +64,15 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
                 plan = build_process_smoke_plan(
                     repo_root=root,
                     output_dir=output_dir,
-                    profile="transport_notice_override_multistep",
+                    scenario="transport_notice_override_multistep",
                 )
             env = _execution_control_env(plan)
-            self.assertTrue(_PROFILE_OWNED_ENV_KEYS.isdisjoint(env))
+            self.assertTrue(_RUNTIME_CONFIG_OWNED_ENV_KEYS.isdisjoint(env))
             self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
-            profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
-            runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
-            self.assertEqual(runtime_profile["open_tools"], ["transport_schedule_lookup"])
-            self.assertTrue(runtime_profile["multi_step_workflow_enabled"])
+            runtime_config_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
+            runtime_config = json.loads(runtime_config_path.read_text(encoding="utf-8"))
+            self.assertEqual(runtime_config["open_tools"], ["transport_schedule_lookup"])
+            self.assertTrue(runtime_config["multi_step_workflow_enabled"])
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", env)
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", env)
             self.assertNotIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", env)

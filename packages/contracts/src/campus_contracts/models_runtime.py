@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -44,31 +43,17 @@ from campus_contracts.models_tools import (
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
 )
+from campus_contracts.raw_payload_guardrails import (
+    COMMON_RAW_KEY_TOKENS,
+    COMMON_RAW_VALUE_TOKENS,
+    reject_raw_mapping_payload,
+)
 
-_FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = (
-    "raw_prompt",
-    "raw_transcript",
-    "provider_raw_response",
-    "raw_response",
-    "jwt",
-    "cookie",
-    "auth_envelope",
-    "retrieval_backend_dump",
-)
+_FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = COMMON_RAW_KEY_TOKENS
 _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
-    "authorization:",
-    "bearer ",
-    "cookie:",
-    "set-cookie:",
+    *COMMON_RAW_VALUE_TOKENS,
     "x-app-internal-auth:",
-    "access_token=",
-    "refresh_token=",
-    "sessionid=",
-    "session_id=",
-    "sso_tgc=",
-    "token=",
 )
-_JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
 _REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS = (
     "projection_id",
     "source_step_id",
@@ -78,37 +63,13 @@ _REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS = (
 )
 
 
-def _normalize_workflow_trace_key_token(value: str) -> str:
-    return "".join(char for char in value.strip().lower() if char.isalnum())
-
-
 def _reject_raw_workflow_trace_keys(value: object, field_name: str) -> None:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            normalized_key = _normalize_workflow_trace_key_token(str(key))
-            if any(
-                _normalize_workflow_trace_key_token(token) in normalized_key
-                for token in _FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS
-            ):
-                raise ValueError(f"{field_name} contains forbidden raw workflow trace key: {key}")
-            _reject_raw_workflow_trace_keys(item, field_name)
-        return
-    if isinstance(value, (list, tuple)):
-        for item in value:
-            _reject_raw_workflow_trace_keys(item, field_name)
-        return
-    if isinstance(value, str):
-        _reject_raw_workflow_trace_value(value, field_name)
-
-
-def _reject_raw_workflow_trace_value(value: str, field_name: str) -> None:
-    normalized = value.strip().lower()
-    if not normalized:
-        return
-    if any(token in normalized for token in _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS):
-        raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
-    if _JWT_VALUE_RE.search(value):
-        raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
+    reject_raw_mapping_payload(
+        value,
+        field_name,
+        forbidden_key_tokens=_FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS,
+        forbidden_value_tokens=_FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS,
+    )
 
 
 def _validate_workflow_projection_refs(projection_refs: tuple[dict[str, Any], ...]) -> None:

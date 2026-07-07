@@ -12,6 +12,7 @@ import (
 const (
 	ToolRegistrySchemaVersion = "tool-registry-v4"
 	defaultToolRegistryPath   = "configs/runtime/tools.v4.json"
+	packagedToolRegistryPath  = "/etc/campus-agent/tools.v4.json"
 )
 
 var toolSchemaRefPattern = regexp.MustCompile(
@@ -182,9 +183,6 @@ func resolveToolSpecPath(registryPath string) string {
 	if registryPath != "" {
 		return registryPath
 	}
-	if envRegistryPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH")); envRegistryPath != "" {
-		return envRegistryPath
-	}
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return ""
@@ -196,6 +194,9 @@ func resolveToolSpecPath(registryPath string) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if _, err := os.Stat(packagedToolRegistryPath); err == nil {
+				return packagedToolRegistryPath
+			}
 			return ""
 		}
 	}

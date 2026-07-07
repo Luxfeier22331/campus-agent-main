@@ -1,29 +1,29 @@
 {
-	"schema_version": "campus_execution_control_runtime_profile.v1",
+	"schema_version": "campus_execution_control_runtime_config.v1",
 	"max_concurrent_answers": 8,
 	"queue_capacity": 24,
 	"queue_timeout_ms": 3000,
-	"request_timeout_ms": 180000,
+	"request_timeout_ms": 45000,
 	"request_body_limit_bytes": 1048576,
-	"shutdown_grace_ms": 180000,
-	"intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
-	"observability_config_projection_path": "/run/campus-agent/observability-config-projection.json",
-	"provider_pricing_path": "/etc/campus-agent/provider-pricing.v1.json",
-	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v1.json",
+	"shutdown_grace_ms": 45000,
+	"intent_policy_path": "../../configs/runtime/intent-policy.v1.json",
+	"observability_config_projection_path": "../../configs/runtime/observability-config-projection.local.json",
+	"provider_pricing_path": "../../configs/runtime/provider-pricing.v1.json",
+	"query_serving_scopes_path": "../../configs/runtime/query-serving-scopes.v2.json",
 	"tool_read_model_timeout_ms": 1000,
-	"open_tools": ["public_web_search"],
+	"open_tools": [],
 	"multi_step_workflow_enabled": false,
 	"otel": {
-		"enabled": true,
+		"enabled": false,
 		"endpoint": "http://otel-collector:4318/v1/traces",
-		"metrics_enabled": true,
+		"metrics_enabled": false,
 		"metrics_endpoint": "http://otel-collector:4318/v1/metrics",
 		"service_name": "campus-execution-control",
 		"export_timeout_ms": 1000,
 		"export_interval_ms": 15000,
 		"sample_ratio": 1,
 		"allowed_attributes_version": "execution-control-otel-attrs-v1",
-		"temporal_tracing_enabled": true
+		"temporal_tracing_enabled": false
 	},
 	"execution_audit": {
 		"enabled": false,
@@ -35,7 +35,7 @@
 		"retrieval_max_concurrent": 4,
 		"synthesis_max_concurrent": 2,
 		"embedding_timeout_ms": 10000,
-		"qdrant_timeout_ms": 60000,
+		"qdrant_timeout_ms": 10000,
 		"provider_timeout_ms": 60000,
 		"synthesis_generation": {
 			"max_output_tokens": 900,
@@ -46,7 +46,7 @@
 	},
 	"personal_memory": {
 		"runtime": "hindsight",
-		"timeout_seconds": 90,
+		"timeout_seconds": 10,
 		"recall_limit": 8,
 		"recall_max_tokens": 2500,
 		"context_char_budget": 2500

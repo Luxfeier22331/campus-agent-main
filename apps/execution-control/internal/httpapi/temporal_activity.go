@@ -211,6 +211,7 @@ func (s *Server) PlanRAGActivity(
 		return temporalruntime.PlanRAGActivityOutput{
 			PlanRef: existingPlan.PlanRef,
 			RunID:   run.RunID,
+			Steps:   temporalRAGPlanSteps(existingPlan.Plan),
 			Status:  "completed",
 		}, nil
 	}
@@ -311,8 +312,20 @@ func (s *Server) PlanRAGActivity(
 	return temporalruntime.PlanRAGActivityOutput{
 		PlanRef: planRef,
 		RunID:   run.RunID,
+		Steps:   temporalRAGPlanSteps(plan),
 		Status:  "completed",
 	}, nil
+}
+
+func temporalRAGPlanSteps(plan ragruntime.PlanProjection) []temporalruntime.RAGPlanStep {
+	steps := make([]temporalruntime.RAGPlanStep, 0, len(plan.Steps))
+	for _, step := range plan.Steps {
+		steps = append(steps, temporalruntime.RAGPlanStep{
+			StepID:   strings.TrimSpace(step.StepID),
+			StepType: strings.TrimSpace(step.StepType),
+		})
+	}
+	return steps
 }
 
 func (s *Server) temporalRoutePlanForRun(
@@ -528,80 +541,6 @@ func (s *Server) RetrieveIndexedLookupActivity(
 	}
 	return temporalruntime.RetrieveIndexedLookupActivityOutput{
 		LookupRef: lookupRef,
-		RunID:     run.RunID,
-		Status:    "completed",
-	}, nil
-}
-
-func (s *Server) ExpandOrRescueRetrievalActivity(
-	ctx context.Context,
-	input temporalruntime.ExpandOrRescueRetrievalActivityInput,
-) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
-	if strings.TrimSpace(input.LookupRef) == "" {
-		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, fmt.Errorf("lookup_ref is required")
-	}
-	if strings.TrimSpace(input.RAGPlanRef) == "" {
-		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, fmt.Errorf("rag_plan_ref is required")
-	}
-	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
-	if err != nil {
-		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
-	}
-	plan, err := temporalRAGPlanProjectionFromRun(run, input.RAGPlanRef)
-	if err != nil {
-		return s.failExpandOrRescueRetrievalActivity(ctx, run, "rag_plan_projection_missing", err)
-	}
-	lookup, err := temporalRAGLookupResultFromRun(run, input.LookupRef)
-	if err != nil {
-		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_lookup_projection_missing", err)
-	}
-	startedAt := time.Now().UTC()
-	rescueRef := temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue")
-	rescueApplied, rescueReason, err := retrievalRescueDecision(plan, lookup)
-	if err != nil {
-		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_rescue_failed", err)
-	}
-	result := ragruntime.RetrievalRescueResult{
-		LookupRef:     input.LookupRef,
-		RescueApplied: rescueApplied,
-		RescueReason:  rescueReason,
-		RescueRef:     rescueRef,
-		RunID:         run.RunID,
-		SchemaVersion: "retrieval_rescue_result_v1",
-	}
-	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
-		metadata["rescue_ref"] = rescueRef
-		metadata["rescue_result"] = result
-	}); err != nil {
-		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
-	}
-	completedAt := time.Now().UTC()
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
-		Tool:          "knowledge_query",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "retrieval.expand_or_rescue",
-		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.ExpandOrRescueRetrievalActivityName),
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     startedAt,
-		CompletedAt:   completedAt,
-		UpdatedAt:     completedAt,
-		ResultKind:    "retrieval_rescue_projection",
-		ProjectionRef: rescueRef,
-		Payload: map[string]any{
-			"lookup_ref":     input.LookupRef,
-			"rescue_applied": result.RescueApplied,
-			"rescue_reason":  result.RescueReason,
-			"rescue_ref":     rescueRef,
-		},
-	}); err != nil {
-		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
-	}
-	return temporalruntime.ExpandOrRescueRetrievalActivityOutput{
-		LookupRef: input.LookupRef,
-		RescueRef: rescueRef,
 		RunID:     run.RunID,
 		Status:    "completed",
 	}, nil

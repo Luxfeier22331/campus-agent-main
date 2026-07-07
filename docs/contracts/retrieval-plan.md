@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-21
-updated: 2026-06-05
+updated: 2026-07-07
 ---
 # Knowledge Retrieval Plan Contract
 
@@ -33,8 +33,8 @@ seam。
 - 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared package
   placement
 - 当前 merged truth 仍以 `docs/architecture/current.md` 与
-  `docs/architecture/system/retrieval-serving.md` 的 single-shot baseline
-  为准； 本文冻结的是 target-state 进入实现前必须先明确的 seam truth
+  `docs/architecture/system/retrieval-serving.md` 为准；本文冻结的是
+  Go RAG 内部 planner / executor seam truth
 
 ## Core Conclusion
 
@@ -92,27 +92,26 @@ RetrievalPlan
 - version_query: existing typed version query | null
 - source_trust_policy:
   - minimum_tier
-  - allow_live_source_lookup
 - budget:
   - max_steps
   - max_replans
-  - max_live_lookups
 - steps[]: RetrievalStep
 - fail_close:
   - on_budget_exhausted
-  - on_unresolved_freshness
   - on_empty_supporting_evidence
 ```
 
 固定语义：
 
-- `query_mode` 复用现有 `current / historical / as_of / compare /
-  freshness_sensitive / live_assisted` vocabulary，不再另造第二套 mode 名称
+- active Go RAG `query_mode` 接受 `current / historical / as_of / compare /
+  freshness_sensitive / live_assisted`。`freshness_sensitive` 与 `live_assisted`
+  只在 query-serving scope policy admitted 后生成 live branch；indexed lookup
+  不消费这两类 plan。
 - `admitted_scopes` 由 tool / serving-surface / authz gate 先决决定，planner 只能在
   这个闭集内排布 steps
 - `version_query` 复用已冻结的 versioned-history truth；plan 不重写版本解析语义
-- `source_trust_policy` 只表达 answer-bearing evidence 的最低可信门槛，不等于 remote tool
-  router
+- `source_trust_policy.minimum_tier` 是 answer-bearing evidence 的硬门槛；
+  missing、unknown 或低于最低 tier 的 candidate 不得进入 supporting evidence。
 - `budget.max_steps` 计入 replan 后插入的新增 steps；预算耗尽固定 fail-close
 - `run_id` 是 run projection correlation，不由 retrieval runtime 生成
 
@@ -170,36 +169,26 @@ RetrievalStep
 
 `step_type` 固定是 closed vocabulary。
 
-当前 admitted execution values：
+当前 executable plan values：
 
 - `hybrid_search`
   - 单一 admitted collection 的索引检索
-- `document_section_read`
-  - 读取 canonical document section / root unit
-- `parent_context_expand`
-  - 在 admitted document 内做 parent / child context expansion
-- `rerank`
-  - 执行 admitted rerank profile
-- `evidence_coverage_verify`
-  - 验证 candidate / supporting evidence 是否覆盖 query 要求
-- `supporting_evidence_select`
-  - 选择 answer-bearing supporting evidence
-- `entity_resolution`
-  - 实体分辨、别名定位、canonical identity 收敛
 - `historical_version_lookup`
   - historical / `as_of` 版本定位
 - `compare_pair_lookup`
   - compare 问题的双侧 grounding 准备
 - `freshness_gate`
-  - 判断 local freshness 是否足以继续回答
+  - `freshness_sensitive` live branch 的显式 source-policy gate
 - `live_source_lookup`
-  - 只允许命中 repo-admitted live source channel
+  - bounded official-web live lookup；必须由 query-serving scope policy admission 打开
+- `evidence_coverage_verify`
+  - 验证 candidate / supporting evidence 是否覆盖 query 要求
+- `supporting_evidence_select`
+  - 选择 answer-bearing supporting evidence
 
-当前 reserved value：
-
-- `scope_follow_up`
-  - 只保留给“同一 admitted tool 内切换 internal retrieval surface”的显式扩展；
-    未 admission 时 executor 必须拒绝它
+当前明确不 admission 的历史/迁移词汇包括 `document_section_read`、
+`parent_context_expand` 与 `scope_follow_up`。它们不得出现在 executable plan 中；
+workflow / activity 遇到这类 step type 必须 fail closed。
 
 固定排除：
 
@@ -214,25 +203,23 @@ RetrievalStep
 
 固定规则：
 
-- `historical / as_of / compare / freshness_sensitive / live_assisted` 是
-  plan-level query mode，不是 step type
+- `historical / as_of / compare` 是 active plan-level query mode，不是 step type
 - `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
 - `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
 - `version_query` 是用户请求形态；执行前必须产生 internal
-  `resolved_version_query` projection。`retrieval-core` executor 不得从 raw
+  `resolved_version_query` projection。Go indexed executor 不得从 raw
   `version_query` 猜测 `as_of` 或 compare target。
 - `resolved_version_query` 当前只作为 execution-control internal projection 保存到
   sanitized run metadata，不进入 `packages/contracts`。它至少表达：
   `mode`、`version_id`、`compare_to_version_id`、`as_of` 与
   `target_version_ids[]`。
 - `current` 的 `resolved_version_query` 不绑定单个 collection-level version id；
-  current-only 语义由 runtime profile 与 `is_current=true` filter 强制执行。
-- `freshness_sensitive` 先走 `freshness_gate`，不能跳过 freshness admission
-- `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `knowledge`
-  可以自动挑选 live target
-- `allow_live_source_lookup=true` 只表示 branch admission；具体 live target selection
-  仍由上层 admitted runtime / tool path 冻结，不属于 `knowledge` collection runtime
-  profile truth
+  current-only 语义由 serving config 与 `is_current=true` filter 强制执行。
+- `freshness_sensitive / live_assisted` 通过 `freshness_gate` /
+  `live_source_lookup` 与 `retrieval.live_source_lookup` 执行 bounded official-web
+  live lookup；不得落入 Qdrant indexed lookup，也不得使用 general web browse。
+- retrieval plan 不允许混合 indexed lookup step 与 live-source-lookup retrieval
+  step；混合时 workflow 必须 fail closed。
 
 ## StepResult
 
@@ -277,7 +264,7 @@ StepResult
 ### Retrieval Runtime Executor 固定负责
 
 - step 到 executor kernel request 的映射
-- authz / visibility / version / runtime-profile enforcement
+- authz / visibility / version / serving-config enforcement
 - step execution
 - rerank / threshold / merge / dedupe
 - `StepResult.activity` 与 candidate shaping
@@ -303,7 +290,6 @@ StepResult
 - plan budget
   - `max_steps`
   - `max_replans`
-  - `max_live_lookups`
 - step budget
   - `top_k`
   - `timeout_ms`
@@ -329,7 +315,7 @@ StepResult
 - no answer-bearing supporting evidence
 - evidence coverage failed
 - grounding failed
-- unauthorized or runtime-profile-blocked scope
+- unauthorized or serving-config-blocked scope
 
 ## Browser / Execution Safe Boundary
 

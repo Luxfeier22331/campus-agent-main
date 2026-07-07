@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
     "campus-docs-reader-build.env.example",
     "execution-control-runtime.env.example",
+    "provider-config-seed.env.example",
 }
 HISTORICAL_COMMAND_ENV_EXAMPLES: set[str] = set()
 

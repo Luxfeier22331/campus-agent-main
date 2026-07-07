@@ -11,6 +11,7 @@ import (
 const (
 	WorkflowArtifactRegistrySchemaVersion = "workflow-artifact-registry-v2"
 	defaultWorkflowArtifactRegistryPath   = "configs/runtime/workflow-artifacts.v2.json"
+	packagedWorkflowArtifactRegistryPath  = "/etc/campus-agent/workflow-artifacts.v2.json"
 )
 
 var supportedArtifactProjectionStatuses = map[string]struct{}{
@@ -379,9 +380,6 @@ func resolveWorkflowArtifactRegistryPath(registryPath string) string {
 	if registryPath != "" {
 		return registryPath
 	}
-	if envRegistryPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH")); envRegistryPath != "" {
-		return envRegistryPath
-	}
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return ""
@@ -393,6 +391,9 @@ func resolveWorkflowArtifactRegistryPath(registryPath string) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if _, err := os.Stat(packagedWorkflowArtifactRegistryPath); err == nil {
+				return packagedWorkflowArtifactRegistryPath
+			}
 			return ""
 		}
 	}

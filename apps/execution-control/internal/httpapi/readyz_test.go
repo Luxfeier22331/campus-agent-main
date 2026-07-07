@@ -41,7 +41,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:              "campus-agent",
 		MaxConcurrentAnswers: 8,
-		RuntimeProfile:       "staging",
+		RuntimeMode:          "staging",
 		WorkerSharedSecret:   "worker-secret",
 	})
 

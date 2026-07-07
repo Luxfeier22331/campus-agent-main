@@ -2,7 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,24 +111,11 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("retrieve indexed lookup: %v", err)
 	}
-	rescue, err := server.ExpandOrRescueRetrievalActivity(
-		context.Background(),
-		temporalruntime.ExpandOrRescueRetrievalActivityInput{
-			LookupRef:  lookupOutput.LookupRef,
-			RAGPlanRef: ragPlan.PlanRef,
-			RunID:      "run-rag-graph",
-			TraceID:    "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("expand or rescue: %v", err)
-	}
 	evidence, err := server.SelectEvidenceActivity(
 		context.Background(),
 		temporalruntime.SelectEvidenceActivityInput{
 			LookupRef:  lookupOutput.LookupRef,
 			RAGPlanRef: ragPlan.PlanRef,
-			RescueRef:  rescue.RescueRef,
 			RunID:      "run-rag-graph",
 			TraceID:    "trace-executor-001",
 		},
@@ -285,7 +276,6 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		"plan.route",
 		"rag.plan",
 		"retrieval.indexed_lookup",
-		"retrieval.expand_or_rescue",
 		"evidence.selection",
 		"synthesis",
 		"grounding.verify",
@@ -295,8 +285,8 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
-	if len(attempts) != 9 {
-		t.Fatalf("attempt count = %d, want 9: %#v", len(attempts), attempts)
+	if len(attempts) != 8 {
+		t.Fatalf("attempt count = %d, want 8: %#v", len(attempts), attempts)
 	}
 	var synthesisAttempt *execution.StepAttemptProjection
 	for index := range attempts {
@@ -329,6 +319,208 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	}
 	if groundingResult.SanitizedPayload["verification_kind"] != "evidence_integrity" {
 		t.Fatalf("grounding result verification kind = %v, want evidence_integrity: %#v", groundingResult.SanitizedPayload["verification_kind"], groundingResult.SanitizedPayload)
+	}
+}
+
+func TestLiveSourceLookupActivityProjectsLiveOfficialWebLookup(t *testing.T) {
+	var providerRequest map[string]any
+	providerServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/search" {
+			t.Fatalf("provider path = %s, want /search", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&providerRequest); err != nil {
+			t.Fatalf("decode provider request: %v", err)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"results": []map[string]any{{
+				"title":   "中央民族大学校园网通知",
+				"url":     "https://it.example.edu/info/1001/1234.htm?utm_source=test#notice",
+				"snippet": "校园网认证系统将于今晚维护，请提前保存工作。",
+			}},
+		})
+	}))
+	defer providerServer.Close()
+
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTestWithPublicWebSearchDomains("example.edu")
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"public_web_search": {
+			APIKey:    "search-key",
+			BaseURL:   providerServer.URL,
+			Kind:      "search",
+			Model:     "sonar",
+			ProfileID: "provider_profile_public_web_search",
+			Provider:  "perplexity",
+			Revision:  1,
+			Role:      "public_web_search",
+			TimeoutMS: 12000,
+			Transport: "perplexity_search",
+		},
+	}
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-live-lookup",
+		"conv-rag-live-lookup",
+		now,
+		ragHandoffForDurableWorkerTest("中央民族大学今天校园网维护通知"),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-live-lookup", "official_web", "fresh_news")
+	setVersionQueryForRunTest(t, store, "run-rag-live-lookup", map[string]any{"mode": "freshness_sensitive"})
+	setFreshnessIntentForRunTest(t, store, "run-rag-live-lookup", "latest")
+
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-live-lookup",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-live-lookup",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-live-lookup",
+			WorkflowID:     "campus-agent.chat.run-rag-live-lookup",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+	ragPlan, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-live-lookup",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	runAfterPlan, err := store.GetRun(context.Background(), "run-rag-live-lookup")
+	if err != nil {
+		t.Fatalf("get run after rag plan: %v", err)
+	}
+	planProjection, err := temporalRAGPlanProjectionFromRun(runAfterPlan, ragPlan.PlanRef)
+	if err != nil {
+		t.Fatalf("rag plan projection: %v", err)
+	}
+	if planProjection.ResolvedVersionQuery != nil {
+		t.Fatalf("fresh/live plan must not resolve indexed version query: %#v", planProjection.ResolvedVersionQuery)
+	}
+	lookupOutput, err := server.LiveSourceLookupActivity(
+		context.Background(),
+		temporalruntime.LiveSourceLookupActivityInput{
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      "run-rag-live-lookup",
+			StepTypes:  []string{"freshness_gate", "live_source_lookup"},
+			TraceID:    "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("live source lookup: %v", err)
+	}
+	if lookupOutput.LookupRef != temporalProjectionRef("run-rag-live-lookup", "retrieval/live-source-lookup") {
+		t.Fatalf("lookup ref = %q", lookupOutput.LookupRef)
+	}
+	if providerRequest == nil {
+		t.Fatal("public web search provider was not called")
+	}
+	run, err := store.GetRun(context.Background(), "run-rag-live-lookup")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	lookup, err := temporalRAGLookupResultFromRun(run, lookupOutput.LookupRef)
+	if err != nil {
+		t.Fatalf("lookup projection: %v", err)
+	}
+	if lookup.Request.QueryMode != "freshness_sensitive" || lookup.Request.CollectionAlias != "official_web/fresh_news" {
+		t.Fatalf("lookup request = %#v", lookup.Request)
+	}
+	if lookup.FreshnessGate == nil ||
+		lookup.FreshnessGate.Decision != "allowed" ||
+		lookup.FreshnessGate.SourcePolicy != "official_web_public_only" ||
+		lookup.FreshnessGate.VerifiedAt == "" {
+		t.Fatalf("freshness gate verdict = %#v, want allowed official-web verdict", lookup.FreshnessGate)
+	}
+	if lookup.CandidateCount != 1 {
+		t.Fatalf("candidate count = %d, want 1", lookup.CandidateCount)
+	}
+	candidate := lookup.Candidates[0]
+	if candidate.RetrievalMode != "live_assisted" ||
+		candidate.CanonicalIndexTruth ||
+		candidate.AsOf == "" ||
+		candidate.SourcePolicyVerdict != "allowed" ||
+		candidate.SourceTrustTier != "T2" {
+		t.Fatalf("live evidence metadata = %#v", candidate)
+	}
+	if candidate.CanonicalURL != "https://it.example.edu/info/1001/1234.htm" ||
+		candidate.SourceChannel != "official_web" ||
+		!candidate.IsAnswerBearing {
+		t.Fatalf("live evidence source = %#v", candidate)
+	}
+}
+
+func TestLiveSourceLookupActivityRejectsLiveBranchWithoutExecutableStep(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-live-invalid-step",
+		"conv-rag-live-invalid-step",
+		now,
+		ragHandoffForDurableWorkerTest("中央民族大学今天校园网维护通知"),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-live-invalid-step", "official_web", "fresh_news")
+	setVersionQueryForRunTest(t, store, "run-rag-live-invalid-step", map[string]any{"mode": "freshness_sensitive"})
+	setFreshnessIntentForRunTest(t, store, "run-rag-live-invalid-step", "latest")
+
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-live-invalid-step",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-invalid-step",
+			RunID:          "run-rag-live-invalid-step",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-live-invalid-step",
+			WorkflowID:     "campus-agent.chat.run-rag-live-invalid-step",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+	ragPlan, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-live-invalid-step",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+
+	_, err = server.LiveSourceLookupActivity(
+		context.Background(),
+		temporalruntime.LiveSourceLookupActivityInput{
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      "run-rag-live-invalid-step",
+			StepTypes:  []string{"parent_context_expand"},
+			TraceID:    "trace-executor-001",
+		},
+	)
+	if err == nil {
+		t.Fatal("live source lookup accepted non-executable step")
+	}
+	if !strings.Contains(err.Error(), "unsupported live_source_lookup step_type") {
+		t.Fatalf("error = %v, want unsupported step_type", err)
 	}
 }
 
@@ -413,24 +605,11 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 	if err != nil {
 		t.Fatalf("retrieve indexed lookup: %v", err)
 	}
-	rescue, err := server.ExpandOrRescueRetrievalActivity(
-		context.Background(),
-		temporalruntime.ExpandOrRescueRetrievalActivityInput{
-			LookupRef:  lookupOutput.LookupRef,
-			RAGPlanRef: ragPlan.PlanRef,
-			RunID:      "run-rag-late-cancel",
-			TraceID:    "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("expand or rescue: %v", err)
-	}
 	evidence, err := server.SelectEvidenceActivity(
 		context.Background(),
 		temporalruntime.SelectEvidenceActivityInput{
 			LookupRef:  lookupOutput.LookupRef,
 			RAGPlanRef: ragPlan.PlanRef,
-			RescueRef:  rescue.RescueRef,
 			RunID:      "run-rag-late-cancel",
 			TraceID:    "trace-executor-001",
 		},

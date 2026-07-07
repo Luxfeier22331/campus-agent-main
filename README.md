@@ -104,7 +104,7 @@ See:
   - 稳定边界，例如
     `ingest-core`、`ingestion-contracts`、`contracts`
 - [`configs/`](./configs/)
-  - collection/runtime profile、ingestion 配置与 source config
+  - collection serving config、ingestion 配置与 source config
 - [`docs/`](./docs/)
   - 长期可引用的 architecture、decision、contract、data、runbook 与 policy truth
 - [`.planning/`](./.planning/)

@@ -33,7 +33,7 @@ type PlanProjection struct {
 	PreviousEvidenceReuse    *PreviousEvidenceReuseProjection `json:"previous_evidence_reuse,omitempty"`
 	PlanID                   string                           `json:"plan_id"`
 	PayloadSHA256            string                           `json:"payload_sha256"`
-	RuntimeProfileID         string                           `json:"runtime_profile_id,omitempty"`
+	ServingConfigID          string                           `json:"serving_config_id,omitempty"`
 	QdrantAliasName          string                           `json:"qdrant_alias_name,omitempty"`
 	RetrievalAccess          RetrievalAccessProjection        `json:"retrieval_access"`
 	AdmittedScopes           []ScopeProjection                `json:"admitted_scopes,omitempty"`
@@ -129,6 +129,7 @@ type RetrievalLookupRequest struct {
 type RetrievalLookupResult struct {
 	CandidateCount int                    `json:"candidate_count"`
 	Candidates     []EvidenceRef          `json:"candidates"`
+	FreshnessGate  *FreshnessGateVerdict  `json:"freshness_gate,omitempty"`
 	LookupRef      string                 `json:"lookup_ref"`
 	PayloadSHA256  string                 `json:"payload_sha256"`
 	QueryLatencyMS int64                  `json:"query_latency_ms"`
@@ -136,13 +137,12 @@ type RetrievalLookupResult struct {
 	SchemaVersion  string                 `json:"schema_version"`
 }
 
-type RetrievalRescueResult struct {
-	LookupRef     string `json:"lookup_ref"`
-	RescueApplied bool   `json:"rescue_applied"`
-	RescueReason  string `json:"rescue_reason"`
-	RescueRef     string `json:"rescue_ref"`
-	RunID         string `json:"run_id"`
-	SchemaVersion string `json:"schema_version"`
+type FreshnessGateVerdict struct {
+	Decision     string `json:"decision"`
+	Mode         string `json:"mode"`
+	Required     bool   `json:"required"`
+	SourcePolicy string `json:"source_policy"`
+	VerifiedAt   string `json:"verified_at"`
 }
 
 type EvidenceSelectionResult struct {
@@ -200,6 +200,7 @@ type GroundingVerificationResult struct {
 	GroundingRef      string   `json:"grounding_ref"`
 	RunID             string   `json:"run_id"`
 	SchemaVersion     string   `json:"schema_version"`
+	SourceRefCount    int      `json:"source_ref_count"`
 	SourceRefs        []string `json:"source_refs"`
 	UnsupportedFields []string `json:"unsupported_fields"`
 	Verdict           string   `json:"verdict"`
@@ -216,25 +217,30 @@ type FinalizationPacket struct {
 }
 
 type EvidenceRef struct {
-	Anchor          string  `json:"anchor,omitempty"`
-	CanonicalURL    string  `json:"canonical_url,omitempty"`
-	ChunkID         string  `json:"chunk_id"`
-	DocumentID      string  `json:"document_id,omitempty"`
-	Excerpt         string  `json:"excerpt"`
-	IsAnswerBearing bool    `json:"is_answer_bearing,omitempty"`
-	IsCurrent       bool    `json:"is_current,omitempty"`
-	LatestURL       string  `json:"latest_url,omitempty"`
-	RevisionTrack   string  `json:"revision_track,omitempty"`
-	RootUnitID      string  `json:"root_unit_id,omitempty"`
-	Score           float64 `json:"score"`
-	SourceChannel   string  `json:"source_channel,omitempty"`
-	SourceID        string  `json:"source_id"`
-	SourceRef       string  `json:"source_ref"`
-	SourceUnitKey   string  `json:"source_unit_key,omitempty"`
-	SourceUnitKind  string  `json:"source_unit_kind,omitempty"`
-	SpanRef         string  `json:"span_ref"`
-	Title           string  `json:"title"`
-	VersionID       string  `json:"version_id,omitempty"`
+	Anchor              string  `json:"anchor,omitempty"`
+	AsOf                string  `json:"as_of,omitempty"`
+	CanonicalURL        string  `json:"canonical_url,omitempty"`
+	CanonicalIndexTruth bool    `json:"canonical_index_truth"`
+	ChunkID             string  `json:"chunk_id"`
+	DocumentID          string  `json:"document_id,omitempty"`
+	Excerpt             string  `json:"excerpt"`
+	IsAnswerBearing     bool    `json:"is_answer_bearing,omitempty"`
+	IsCurrent           bool    `json:"is_current,omitempty"`
+	LatestURL           string  `json:"latest_url,omitempty"`
+	RevisionTrack       string  `json:"revision_track,omitempty"`
+	RetrievalMode       string  `json:"retrieval_mode,omitempty"`
+	RootUnitID          string  `json:"root_unit_id,omitempty"`
+	Score               float64 `json:"score"`
+	SourceChannel       string  `json:"source_channel,omitempty"`
+	SourceID            string  `json:"source_id"`
+	SourcePolicyVerdict string  `json:"source_policy_verdict,omitempty"`
+	SourceRef           string  `json:"source_ref"`
+	SourceTrustTier     string  `json:"source_trust_tier,omitempty"`
+	SourceUnitKey       string  `json:"source_unit_key,omitempty"`
+	SourceUnitKind      string  `json:"source_unit_kind,omitempty"`
+	SpanRef             string  `json:"span_ref"`
+	Title               string  `json:"title"`
+	VersionID           string  `json:"version_id,omitempty"`
 }
 
 func ValidatePlanProjection(plan PlanProjection) error {
@@ -363,7 +369,7 @@ func validateQueryMode(queryMode string, versionQuery *VersionQueryProjection) e
 		return fmt.Errorf("%w: unsupported query_mode %q", ErrInvalidProjection, queryMode)
 	}
 	if versionQuery == nil {
-		if queryMode == "historical" || queryMode == "as_of" || queryMode == "compare" {
+		if queryMode == "historical" || queryMode == "as_of" || queryMode == "compare" || queryMode == "freshness_sensitive" || queryMode == "live_assisted" {
 			return fmt.Errorf("%w: version_query is required for %s query_mode", ErrInvalidProjection, queryMode)
 		}
 		return nil
@@ -376,7 +382,7 @@ func validateQueryMode(queryMode string, versionQuery *VersionQueryProjection) e
 		return fmt.Errorf("%w: version_query.mode must match query_mode", ErrInvalidProjection)
 	}
 	switch mode {
-	case "current", "freshness_sensitive", "live_assisted":
+	case "current":
 		if versionQuery.AsOf != "" || versionQuery.VersionID != "" || versionQuery.CompareToVersionID != "" {
 			return fmt.Errorf("%w: version_query fields are not allowed for %s query_mode", ErrInvalidProjection, mode)
 		}
@@ -400,6 +406,10 @@ func validateQueryMode(queryMode string, versionQuery *VersionQueryProjection) e
 		}
 		if versionQuery.AsOf != "" {
 			return fmt.Errorf("%w: version_query.as_of is not allowed for compare query_mode", ErrInvalidProjection)
+		}
+	case "freshness_sensitive", "live_assisted":
+		if versionQuery.AsOf != "" || versionQuery.VersionID != "" || versionQuery.CompareToVersionID != "" {
+			return fmt.Errorf("%w: version_query fields are not allowed for %s query_mode", ErrInvalidProjection, mode)
 		}
 	default:
 		return fmt.Errorf("%w: unsupported version_query.mode %q", ErrInvalidProjection, mode)

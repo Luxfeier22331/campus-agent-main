@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-07-07
 ---
 
 # App API Auth Chat Docs Profile Schema
@@ -397,5 +397,8 @@ browser UX, execution runtime contracts or runbook procedures.
 - `key` 必须是安全 typed key，不能表达 authorization / permission / ACL / visibility
   语义
 - `value` 只作为 personalization weak truth，不得写入 retrieval source truth 或 authz truth
-- projection path 只读取当前 owner 的 enabled + user-visible items
-- 删除 item 后，不得再进入后续 `ContextProjection.profile_memory.items`
+- projection path 只读取当前 owner 的 enabled + user-visible items，用于用户可见的
+  profile-memory 管理与迁移来源
+- 删除 item 后，不得再进入后续 Hindsight retain / recall 同步、sanitized memory
+  projection 或 active execution request context；active `ContextProjection`
+  contract model 不再定义 `profile_memory`

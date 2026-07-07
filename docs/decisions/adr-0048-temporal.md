@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0048
 status: accepted
 created: 2026-06-06
-updated: 2026-06-08
+updated: 2026-07-07
 supersedes:
   - adr-0047-run-centric-durable-agent-runtime.md
 ---
@@ -18,6 +18,13 @@ Accepted on 2026-06-06.
 本 ADR supersedes `adr-0047-run-centric-durable-agent-runtime.md` 对长期 execution
 substrate 的 PG scheduler / lease queue 决策。ADR-0047 仍保留为当前 PG run-level durable
 baseline 与历史设计依据。
+
+2026-07-07 update: 本 ADR 关于“不允许空 activity / fallback step 占位”的原则仍然
+有效；freshness / live branch 的当前实现状态以后续 canonical 文档为准：
+`docs/architecture/system/retrieval-serving.md` 与
+`docs/contracts/retrieval-plan.md`。`retrieval.live_source_lookup` 已作为显式
+admission 的 bounded official-web live branch 落地，不再属于空占位或 deferred
+vocabulary。
 
 ## Terminology Superseded
 
@@ -238,9 +245,8 @@ agent-as-tool。
 - 当前主问答 trajectory 已接入 Temporal-visible primary agent graph：
   `context.memory_recall -> agent.primary -> finalization.write`，或由
   `agent.primary` 选择 `knowledge_query` workflow signal 后进入 Go-owned RAG
-  graph：`rag.plan -> retrieval.indexed_lookup ->
-  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify -> finalization.write`。
+  graph：`rag.plan -> retrieval.indexed_lookup -> evidence.selection ->
+  synthesis -> grounding.verify -> finalization.write`。
 - `plan.route` 只保留为 retained deterministic support path / historical
   planning artifact；它不再是 ordinary chat 的第一模型决策入口。
 - Go `activity-worker-knowledge` 拥有 RAG planning / evidence selection /
@@ -259,19 +265,22 @@ agent-as-tool。
    repo-owned DTO input / output、Temporal Activity boundary、sanitized
    `RunStep -> StepAttempt -> StepResult` projection、明确 failure / cancel /
    timeout ownership。
-1. RAG target graph 固定为：
+1. RAG active graph 固定为：
 
    ```text
    memory.recall
    -> planning
    -> rag.plan
    -> retrieval.indexed_lookup
-   -> retrieval.expand_or_rescue
    -> evidence.selection
    -> synthesis
    -> grounding.verify
    -> finalization.write
    ```
+
+   当时 Parent expansion、freshness gate 与 live source lookup 尚未进入 active
+   indexed Go RAG graph；在进入当前 serving 之前，不得以空 activity 或 fallback
+   step 占位。后续如果显式 admission 后落地，必须具备真实 activity、DTO 与投影。
 
 1. `synthesis` 只能消费 bounded supporting evidence projection，不得消费 raw prompt、
    raw provider response、raw source body 或 SDK-native trace。
@@ -319,9 +328,9 @@ integration。
 - `RetrievalLookupRequest` / `RetrievalLookupResult`：authorized filter refs、
   retrieval profile refs、query activity summary、candidate summary、Qdrant /
   retrieval latency、timeout outcome。
-- `RetrievalRescueRequest` / `RetrievalRescueResult`：只表达已 admission 的 parent
-  context expansion、freshness branch、same-document support 或 rescue branch，不扩大
-  query-enabled surface。
+- Parent expansion、freshness branch、same-document support 或 rescue branch 如进入
+  serving opening，必须先定义独立 repo-owned DTO/activity；active indexed Go RAG
+  不保留空 `RetrievalRescue*` DTO 占位。
 - `EvidenceSelectionResult`：answer-bearing evidence refs、span refs、bounded excerpts、
   rejection reasons、coverage status、payload hash。
 - `RagSynthesisPacketProjection`：由 Go `EvidenceSelectionResult` assembly 得到；

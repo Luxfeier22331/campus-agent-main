@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://muc.wiki/campus-agent/schemas/execution-control-runtime-profile.v1.schema.json",
-	"title": "campus-agent execution-control runtime profile",
+	"$id": "https://muc.wiki/campus-agent/schemas/execution-control-runtime-config.v1.schema.json",
+	"title": "campus-agent execution-control runtime config",
 	"type": "object",
 	"additionalProperties": false,
 	"required": [
@@ -26,7 +26,7 @@
 	],
 	"properties": {
 		"schema_version": {
-			"const": "campus_execution_control_runtime_profile.v1"
+			"const": "campus_execution_control_runtime_config.v1"
 		},
 		"max_concurrent_answers": {
 			"type": "integer",
@@ -214,7 +214,8 @@
 				"synthesis_max_concurrent",
 				"embedding_timeout_ms",
 				"qdrant_timeout_ms",
-				"provider_timeout_ms"
+				"provider_timeout_ms",
+				"synthesis_generation"
 			],
 			"properties": {
 				"top_k_max": {
@@ -265,7 +266,7 @@
 					"minimum": 1
 				},
 				"reasoning_effort": {
-					"enum": ["minimal", "low", "medium", "high"]
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
 				},
 				"store_provider_output": {
 					"type": "boolean"

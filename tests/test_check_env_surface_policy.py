@@ -122,7 +122,10 @@ class CheckEnvSurfacePolicyTest(unittest.TestCase):
             failures = audit_env_surface_policy(root=root, policy_path=policy_path)
 
         self.assertEqual(len(failures), 1)
-        self.assertIn("unregistered env key 'UNKNOWN_ENV_KEY'", failures[0])
+        self.assertIn(
+            "unregistered env key 'UNKNOWN_ENV_KEY' for scope 'example-app'",
+            failures[0],
+        )
 
 
 if __name__ == "__main__":

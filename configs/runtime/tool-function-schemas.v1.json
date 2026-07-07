@@ -18,9 +18,101 @@
 						"type": ["string", "null"],
 						"description": "Knowledge workflow intent.",
 						"enum": ["answer_question", "compare_rules", "clarify_scope", null]
+					},
+					"requested_scope": {
+						"type": ["object", "null"],
+						"additionalProperties": false,
+						"properties": {
+							"corpus": {
+								"type": "string",
+								"description": "Knowledge corpus such as regulations, curriculum, or official_web."
+							},
+							"collection": {
+								"type": "string",
+								"description": "Knowledge collection within the corpus."
+							}
+						},
+						"required": ["corpus", "collection"],
+						"description": "Optional explicit knowledge retrieval scope when the user intent clearly identifies it."
+					},
+					"query_mode": {
+						"type": ["string", "null"],
+						"description": "Knowledge retrieval query mode.",
+						"enum": [
+							"current",
+							"historical",
+							"as_of",
+							"compare",
+							"freshness_sensitive",
+							"live_assisted",
+							null
+						]
+					},
+					"version_query": {
+						"type": ["object", "null"],
+						"additionalProperties": false,
+						"properties": {
+							"mode": {
+								"type": ["string", "null"],
+								"description": "Version query mode.",
+								"enum": [
+									"current",
+									"historical",
+									"as_of",
+									"compare",
+									"freshness_sensitive",
+									"live_assisted",
+									null
+								]
+							},
+							"as_of": {
+								"type": ["string", "null"],
+								"description": "ISO timestamp/date for as_of lookup."
+							},
+							"version_id": {
+								"type": ["string", "null"],
+								"description": "Version id for historical or compare lookup."
+							},
+							"compare_to_version_id": {
+								"type": ["string", "null"],
+								"description": "Second version id for compare lookup."
+							}
+						},
+						"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
+						"description": "Optional version or freshness query constraints."
+					},
+					"freshness_intent": {
+						"type": ["string", "null"],
+						"description": "Explicit freshness intent; required for fresh_news/latest style lookups.",
+						"enum": ["latest", "recent", "fresh", null]
+					},
+					"constraints": {
+						"type": ["object", "null"],
+						"additionalProperties": false,
+						"properties": {
+							"max_age_hours": {
+								"type": ["integer", "null"],
+								"description": "Optional freshness age bound.",
+								"minimum": 1
+							},
+							"official_sources_only": {
+								"type": ["boolean", "null"],
+								"description": "Whether evidence must remain inside governed official sources."
+							}
+						},
+						"required": ["max_age_hours", "official_sources_only"],
+						"description": "Optional structured retrieval constraints."
 					}
 				},
-				"required": ["query_text", "intent"]
+				"required": [
+					"query_text",
+					"intent",
+					"requested_scope",
+					"query_mode",
+					"version_query",
+					"freshness_intent",
+					"constraints"
+				]
 			}
 		},
 		{

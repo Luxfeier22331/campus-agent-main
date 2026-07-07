@@ -276,7 +276,7 @@ Rules:
 
 - app-api owns this online config surface.
 - execution-control consumes an app-api-produced projection path from its
-  runtime profile.
+  runtime config.
 - agent-runtime receives only request-scoped `debug_trace_config`.
 - Do not add agent-runtime environment variables for this config.
 - `include_model_io=true` requires request-scoped admission by

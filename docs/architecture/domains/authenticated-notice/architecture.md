@@ -92,7 +92,7 @@ projection ingest -> Operator Console list/detail query`
 - `wechat_official_account` 当前只按“已验证 source/data/control-plane path”
   进入架构叙事；它不是近期已开放的 product runtime 承诺
 - notice-oriented source channel 的 downstream serving 是否打开，始终由各自
-  collection/runtime profile 与 product opening gate 决定，而不是由 collector
+  collection serving config 与 product opening gate 决定，而不是由 collector
   成功与否决定
 - 其他学校 fork 时应替换自己的 source adapter，并保持 capture-release object
   handoff、ingestion-control task envelope 与 source-truth contract 稳定；不需要

@@ -66,7 +66,7 @@ Rules:
   retired or implementation-scoped. They may appear only in historical or
   migration context.
 - Internal query functions and tool-internal functions are not model-visible
-  unless admitted by the tool registry and opened by the runtime profile.
+  unless admitted by the tool registry and opened by the runtime config.
 - Worker command names, Temporal task queues and deployment roles do not create
   product-facing tool taxonomy.
 - Tool names must follow the repo-owned registry and concrete tool id, not a
@@ -133,7 +133,7 @@ knowledge answers.
 - Do not wrap deterministic data reads in agent names without semantic
   responsibility.
 - Do not let provider parallel tool calls decide cross-tool fanout unless
-  ToolSpec, runtime profile, eval denominator and merge policy explicitly allow
+  ToolSpec, runtime config, eval denominator and merge policy explicitly allow
   it.
 - Do not expose raw SQL, object-store bytes, OCR dumps, collector runtime or
   ingestion build paths as query-time tools.

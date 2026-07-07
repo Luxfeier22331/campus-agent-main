@@ -291,9 +291,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 ) error {
 	visible := stringSet(visibleToolNames)
 	for index, result := range output.ToolResults {
-		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
-			continue
-		}
 		toolName := strings.TrimSpace(result.ToolName)
 		if toolName == "" {
 			return fmt.Errorf("agent runtime tool result tool_name is required")
@@ -356,6 +353,12 @@ func (s *Server) projectPrimaryAgentToolResults(
 				return err
 			}
 			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
+		}
+		if toolName == "knowledge_query" {
+			if err := s.projectKnowledgeQueryArguments(ctx, run, result.ArgumentsJSON); err != nil {
+				return err
+			}
+			continue
 		}
 		resultPayload := cloneAnyMapFromMetadata(result.Result)
 		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
@@ -440,6 +443,60 @@ func (s *Server) projectPrimaryAgentToolResults(
 		}
 	}
 	return nil
+}
+
+func (s *Server) projectKnowledgeQueryArguments(
+	ctx context.Context,
+	run execution.DurableRun,
+	arguments map[string]any,
+) error {
+	if len(arguments) == 0 {
+		return nil
+	}
+	queryText := strings.TrimSpace(stringValue(arguments["query_text"]))
+	intent := strings.TrimSpace(stringValue(arguments["intent"]))
+	requestedScope := cloneAnyMapFromMetadata(arguments["requested_scope"])
+	queryMode := strings.TrimSpace(stringValue(arguments["query_mode"]))
+	versionQuery := cloneAnyMapFromMetadata(arguments["version_query"])
+	freshnessIntent := strings.TrimSpace(stringValue(arguments["freshness_intent"]))
+	constraints := cloneAnyMapFromMetadata(arguments["constraints"])
+	if queryMode != "" {
+		if len(versionQuery) == 0 {
+			versionQuery = map[string]any{}
+		}
+		versionQuery["mode"] = queryMode
+	}
+	if len(requestedScope) > 0 {
+		corpus := strings.TrimSpace(stringValue(requestedScope["corpus"]))
+		collection := strings.TrimSpace(stringValue(requestedScope["collection"]))
+		if corpus == "" || collection == "" {
+			return fmt.Errorf("knowledge_query requested_scope corpus and collection are required")
+		}
+	}
+	return s.replaceExecutionPayloadMetadata(ctx, run, func(payload map[string]any) {
+		if queryText != "" {
+			payload["user_goal"] = queryText
+		}
+		if intent != "" {
+			payload["intent"] = intent
+		}
+		if len(requestedScope) > 0 {
+			payload["requested_scope"] = requestedScope
+		}
+		if queryMode != "" {
+			payload["query_mode"] = queryMode
+		}
+		if len(versionQuery) > 0 {
+			payload["version_query"] = versionQuery
+		}
+		if freshnessIntent != "" {
+			payload["freshness_intent"] = freshnessIntent
+		}
+		if len(constraints) > 0 {
+			payload["constraints"] = constraints
+		}
+		payload["knowledge_query_args"] = cloneAnyMapFromMetadata(arguments)
+	})
 }
 
 func stringSet(values []string) map[string]struct{} {
@@ -651,6 +708,22 @@ func (s *Server) replaceTemporalAgentMetadata(
 	agentMetadata := cloneAnyMapFromMetadata(metadata["temporal_agent"])
 	mutate(agentMetadata)
 	metadata["temporal_agent"] = agentMetadata
+	return s.runProjectionStore.ReplaceRunMetadata(ctx, run.RunID, metadata)
+}
+
+func (s *Server) replaceExecutionPayloadMetadata(
+	ctx context.Context,
+	run execution.DurableRun,
+	mutate func(map[string]any),
+) error {
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	metadata := cloneTemporalMetadata(latest.Metadata)
+	payload := cloneAnyMapFromMetadata(metadata["execution_payload"])
+	mutate(payload)
+	metadata["execution_payload"] = payload
 	return s.runProjectionStore.ReplaceRunMetadata(ctx, run.RunID, metadata)
 }
 

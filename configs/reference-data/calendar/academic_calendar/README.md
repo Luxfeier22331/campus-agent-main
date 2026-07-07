@@ -4,7 +4,7 @@
 campus-services runtime tool.
 
 This directory is reference data, not an ingestion-control collection. It does
-not declare a task registry, runtime profile, retrieval alias, or model-visible
+not declare a task registry, serving config, retrieval alias, or model-visible
 structured tool.
 
 ## Source Truth

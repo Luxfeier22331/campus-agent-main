@@ -15,6 +15,7 @@ import (
 )
 
 func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) {
+	var synthesisPayload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/responses" {
 			t.Fatalf("provider path = %q, want /responses", request.URL.Path)
@@ -43,6 +44,17 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		input, ok := body["input"].([]any)
 		if !ok || len(input) != 2 {
 			t.Fatalf("input = %#v, want two messages", body["input"])
+		}
+		userMessage, ok := input[1].(map[string]any)
+		if !ok {
+			t.Fatalf("user message = %#v, want object", input[1])
+		}
+		content, ok := userMessage["content"].(string)
+		if !ok {
+			t.Fatalf("user content = %#v, want string", userMessage["content"])
+		}
+		if err := json.Unmarshal([]byte(content), &synthesisPayload); err != nil {
+			t.Fatalf("decode synthesis payload: %v", err)
 		}
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{
@@ -112,12 +124,20 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		PromptRefs:     []string{"prompt://rag/rag_answer_v2"},
 		SelectedEvidence: []ragruntime.EvidenceRef{{
-			SourceID:  "student_rules",
-			ChunkID:   "chunk-1",
-			SpanRef:   "span://student_rules/chunk-1#0-24",
-			Excerpt:   "学生应当按照学校规定办理请假手续。",
-			SourceRef: "source://student_rules",
-			Title:     "学生手册",
+			ChunkID:         "chunk-1",
+			DocumentID:      "student_rules",
+			Excerpt:         "学生应当按照学校规定办理请假手续。",
+			IsCurrent:       true,
+			RootUnitID:      "student_rules:root:leave",
+			SourceChannel:   "official_web",
+			SourceID:        "student_rules",
+			SourceRef:       "source://student_rules",
+			SourceTrustTier: "T1",
+			SourceUnitKind:  "clause",
+			SourceUnitKey:   "leave",
+			SpanRef:         "span://student_rules/chunk-1#0-24",
+			Title:           "学生手册",
+			VersionID:       "student_rules:v-current",
 		}},
 	})
 	if err != nil {
@@ -134,6 +154,28 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 	}
 	if result.Confidence != "high" || result.SemanticOutcome != "answer_from_selected_evidence" {
 		t.Fatalf("structured synthesis result = %#v", result)
+	}
+	selected, ok := synthesisPayload["selected_evidence"].([]any)
+	if !ok || len(selected) != 1 {
+		t.Fatalf("selected evidence payload = %#v", synthesisPayload["selected_evidence"])
+	}
+	evidence, ok := selected[0].(map[string]any)
+	if !ok {
+		t.Fatalf("evidence payload = %#v", selected[0])
+	}
+	for field, want := range map[string]any{
+		"document_id":       "student_rules",
+		"version_id":        "student_rules:v-current",
+		"root_unit_id":      "student_rules:root:leave",
+		"source_channel":    "official_web",
+		"source_trust_tier": "T1",
+		"source_unit_kind":  "clause",
+		"source_unit_key":   "leave",
+		"is_current":        true,
+	} {
+		if evidence[field] != want {
+			t.Fatalf("evidence[%s] = %#v, want %#v in provider payload: %#v", field, evidence[field], want, evidence)
+		}
 	}
 	if result.PromptTrace["prompt_id"] != ragSynthesisPromptID ||
 		result.PromptTrace["prompt_version"] != ragSynthesisPromptVersion {

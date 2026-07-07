@@ -160,7 +160,7 @@ Rules:
 ## Provider Configuration Workspace
 
 Provider configuration manages provider connections plus prompt, embedding,
-rerank and search runtime profiles for the online answer path. It is not a
+rerank and search runtime configs for the online answer path. It is not a
 generic secrets vault or provider marketplace.
 
 The browser UI must describe profile `role` as operator-facing `使用位置`.

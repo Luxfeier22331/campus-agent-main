@@ -48,7 +48,7 @@ updated: 2026-06-15
 - metadata pre-filter（`corpus`、`collection`、serving metadata，以及 `visibility_*` /
   `entitlement_*` projection carrier）仍为必做前置条件
 - retrieval 输出仍然必须通过 `DocumentRegistry` 回链形成 `EvidenceBundle`
-- `student_rules` 当前 runtime profile 默认返回 `8` 个 retrieval candidates；最终回答最多引用
+- `student_rules` 当前 serving config 默认返回 `8` 个 retrieval candidates；最终回答最多引用
   `3` 条证据
 
 ## 不作为当前默认主路径的能力

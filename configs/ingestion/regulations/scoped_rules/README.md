@@ -3,7 +3,7 @@
 This directory holds the repo-tracked config scaffold for the `scoped_rules`
 collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime gate for the unified scoped-rule
+- `serving-config.json`: canonical serving gate for the unified scoped-rule
   holding collection
 - `canonical-profile.json`: canonical identity and provenance truth for imported
   scoped-rule documents
@@ -13,7 +13,7 @@ collection within the `regulations` corpus.
   that adjudicated scoped rules should import first into one unified holding
   collection instead of waiting for full query semantics
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - retrieval enabled: `true`

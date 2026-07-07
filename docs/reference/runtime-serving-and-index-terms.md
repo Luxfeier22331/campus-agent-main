@@ -75,7 +75,7 @@ Examples include `regulations/*` and `curriculum/*`.
 A `corpus/collection` that current serving policy allows into the query-serving
 main path.
 
-The active allowlist is owned by runtime profiles and current architecture docs,
+The active allowlist is owned by serving configs and current architecture docs,
 not this glossary.
 
 ### Tool Read Model Scope
@@ -151,9 +151,9 @@ schedule tool/status surface.
 - 输入是 qrels asset 与一个或多个 candidate run-results
 - candidate profile 可覆盖 dense / sparse prefetch、RRF 参数与 no-hit threshold
 - 输出包含 positive hit / recall / MRR、forbidden hit rate、no-hit success、version-locked
-  recall 与 `recommended_profile_patch`
+  recall 与 `recommended_serving_config_patch`
 - 只有 candidate 通过 deterministic gate 时才允许产生 recommendation
-- tuning report 不自动改写 `runtime-profile.json`，也不自动扩大 query-enabled scope
+- tuning report 不自动改写 `serving-config.json`，也不自动扩大 query-enabled scope
 
 ## Routing Terms
 

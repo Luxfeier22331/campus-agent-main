@@ -46,6 +46,7 @@ type Server struct {
 	providerConfigErr           error
 	observabilityConfigResolver observabilityConfigResolver
 	observabilityConfigErr      error
+	publicWebSearchDomains      []string
 	temporalStarter             temporalruntime.ChatWorkflowStarter
 	temporalStarterErr          error
 	temporalWorkersStarted      bool
@@ -144,11 +145,11 @@ func (a TemporalKnowledgeActivities) RetrieveIndexedLookupActivity(
 	return a.server.RetrieveIndexedLookupActivity(ctx, input)
 }
 
-func (a TemporalKnowledgeActivities) ExpandOrRescueRetrievalActivity(
+func (a TemporalKnowledgeActivities) LiveSourceLookupActivity(
 	ctx context.Context,
-	input temporalruntime.ExpandOrRescueRetrievalActivityInput,
-) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
-	return a.server.ExpandOrRescueRetrievalActivity(ctx, input)
+	input temporalruntime.LiveSourceLookupActivityInput,
+) (temporalruntime.LiveSourceLookupActivityOutput, error) {
+	return a.server.LiveSourceLookupActivity(ctx, input)
 }
 
 func (a TemporalKnowledgeActivities) SelectEvidenceActivity(

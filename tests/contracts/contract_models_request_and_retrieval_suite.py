@@ -56,7 +56,6 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
-                profile_memory=ProfileMemorySummary(items=()),
                 session=SessionSummary(confirmed_slots=(), turn_count=0),
             ),
         )
@@ -103,19 +102,6 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
-                profile_memory=ProfileMemorySummary(
-                    items=(
-                        ProfileMemoryItem(
-                            item_id="memory-001",
-                            key="recent_goal",
-                            value="咨询保研",
-                            source_type="user_declared",
-                            confidence="high",
-                            visibility="user_visible",
-                            last_verified_at="2026-03-28",
-                        ),
-                    ),
-                ),
                 session=SessionSummary(
                     confirmed_slots=(
                         SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
@@ -137,7 +123,6 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             ("students",),
         )
         self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
-        self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
     def test_tool_request_rejects_non_hex_safety_identifier(self) -> None:

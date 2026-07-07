@@ -337,6 +337,31 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(query.version_id, "v1:student-handbook")
         self.assertEqual(query.compare_to_version_id, "v2:student-handbook")
 
+    def test_version_query_accepts_freshness_and_live_modes_without_indexed_anchors(
+        self,
+    ) -> None:
+        for mode in ("freshness_sensitive", "live_assisted"):
+            with self.subTest(mode=mode):
+                query = VersionQuery(mode=mode)
+
+                self.assertEqual(query.mode, mode)
+                self.assertEqual(query.as_of, "")
+                self.assertEqual(query.version_id, "")
+                self.assertEqual(query.compare_to_version_id, "")
+
+    def test_version_query_rejects_indexed_anchors_for_freshness_and_live_modes(
+        self,
+    ) -> None:
+        for mode in ("freshness_sensitive", "live_assisted"):
+            with (
+                self.subTest(mode=mode),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "version_id is only allowed when version mode is historical or compare",
+                ),
+            ):
+                VersionQuery(mode=mode, version_id="v1:student-handbook")
+
     def test_version_query_rejects_compare_secondary_anchor_without_primary_version_id(
         self,
     ) -> None:

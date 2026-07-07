@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-02
-updated: 2026-07-05
+updated: 2026-07-07
 ---
 # Data Plane Architecture
 
@@ -122,7 +122,7 @@ production posture 固定为 `self-hosted authenticated private data-plane`：
   `QDRANT_TLS_CA_CERT_PATH`；外部 `api_key + http://` warning 代表不合格 data-plane
   transport。
 - Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
-  只消费已发布 alias / runtime profile，不直接把 Qdrant physical collection 名提升为
+  只消费已发布 alias / serving config，不直接把 Qdrant physical collection 名提升为
   product truth
 
 ## Personal Memory Data Plane
@@ -522,7 +522,7 @@ retrieval acceptance -> serving alias publish`
   `normalizer_version`、runtime `cleaning_policy_version` 或 `normalization_quality=passed`
   时 fail closed，不进入 index / alias publish
 - incremental update 必须基于 document identity、version/hash、source/version
-  carrier 与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
+  carrier 与 serving config identity 判定 unchanged / changed / withdrawn / deleted
 - changed candidate 生成新 release 或新 point set；withdrawn / deleted candidate 必须产生
   cleanup tombstone 或 explicit delete plan，不允许让 stale chunks 继续被 current alias 命中
 - no-longer-current historical / search-only candidate 如果不是 withdrawn / deleted，不得
@@ -580,14 +580,14 @@ retrieval acceptance -> serving alias publish`
 - raw asset registry 持有原始来源身份、版本与存储定位
 - document registry 持有逻辑文档版本、hash、status 与 serving关联
 - RAG release candidate 记录 document identity/version/hash、target collection、
-  runtime profile、candidate reason 与 required cleanup disposition
+  serving config、candidate reason 与 required cleanup disposition
 - serving alias 指向当前 query-serving physical collection
 - index release 通过 versioned physical collection + release manifest 追溯
 - query-enabled alias publish 必须先通过 deterministic retrieval acceptance；release
   manifest / point payload 继续承载 embedding、dense/sparse/hybrid、
   chunker/tokenizer 与 cleaning provenance
 - embedding cache 只能作为 rebuild cost-control adjunct；cache key 必须包含文本 hash、
-  provider/model/dimensions 与 runtime profile identity，不得替代 release manifest truth
+  provider/model/dimensions 与 serving config identity，不得替代 release manifest truth
 
 对部分 `offline_preparation` collection，index release 之前允许插入一个 preparation gate。
 

@@ -3,7 +3,7 @@
 当前 place-finding canonical place seed。
 
 This directory is reference data, not an ingestion-control collection. It does
-not declare a task registry, runtime profile, retrieval alias, or query-serving
+not declare a task registry, serving config, retrieval alias, or query-serving
 surface.
 
 Source inventory / admission posture:

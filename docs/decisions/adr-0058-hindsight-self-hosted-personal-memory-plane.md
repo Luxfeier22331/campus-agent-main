@@ -162,7 +162,7 @@ PERSONAL_MEMORY_OWNER_SALT
 
 `personal_memory.runtime`、`personal_memory.timeout_seconds`、
 `personal_memory.recall_limit`、`personal_memory.recall_max_tokens` 与
-`personal_memory.context_char_budget` 由 execution-control runtime profile 管理。
+`personal_memory.context_char_budget` 由 execution-control runtime config 管理。
 `recall_max_tokens` is the Hindsight recall token budget; `context_char_budget`
 is the local bounded context block budget.
 

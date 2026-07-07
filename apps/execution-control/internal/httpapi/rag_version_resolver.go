@@ -46,7 +46,7 @@ func newQdrantMetadataVersionResolver(cfg config.Config) ragVersionResolver {
 	if parsedQdrantURL.Scheme != "http" && parsedQdrantURL.Scheme != "https" {
 		return qdrantMetadataVersionResolver{initErr: errors.New("QDRANT_URL must use http or https")}
 	}
-	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeProfile) != "local" {
+	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeMode) != "local" {
 		return qdrantMetadataVersionResolver{initErr: errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")}
 	}
 	httpClient, err := qdrantHTTPClient(parsedQdrantURL.Scheme, timeout, cfg.QdrantTLSCACertPath)
@@ -265,6 +265,18 @@ func resolvePlanVersionQuery(
 	resolver ragVersionResolver,
 	plan ragruntime.PlanProjection,
 ) (ragruntime.PlanProjection, error) {
+	switch strings.TrimSpace(plan.QueryMode) {
+	case "freshness_sensitive", "live_assisted":
+		hash, err := ragruntime.HashProjection(plan)
+		if err != nil {
+			return ragruntime.PlanProjection{}, err
+		}
+		plan.PayloadSHA256 = hash
+		if err := ragruntime.ValidatePlanProjection(plan); err != nil {
+			return ragruntime.PlanProjection{}, err
+		}
+		return plan, nil
+	}
 	if resolver == nil {
 		resolver = qdrantMetadataVersionResolver{}
 	}

@@ -71,10 +71,10 @@ A campus-services tool is open only when all registries agree:
 
 - `configs/runtime/tools.v4.json` has `exposure: "model_visible"`
 - `configs/runtime/tool-function-schemas.v1.json` has an available strict schema
-- execution-control runtime profile `open_tools` includes the tool
+- execution-control runtime config `open_tools` includes the tool
 - Go readyz/runtime tests and product-path gates pass
 
 As of this document, only `transport_schedule_lookup` satisfies this rule.
 Generic campus service status remains closed. It can reopen only as a newly
-designed surface with its own contract, read model, runtime profile opening and
+designed surface with its own contract, read model, runtime config opening and
 eval denominator; it must not inherit the removed generic status lookup path.

@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-03-28
-updated: 2026-06-11
+updated: 2026-07-07
 ---
 # App API Tool Execution Contract
 
@@ -405,6 +405,9 @@ payload 或 provider raw response。
   memory projection refs。retired `profile_memory` 字段如仍出现在 generated DTO 或历史
   fixture 中，只能解释为 ignored historical residue，不得作为 active
   online recall truth 或目标 contract 扩展点。
+- Python `ContextProjection` contract model 不再定义 `profile_memory` 字段。active
+  tool-execution request context 禁止重新引入该字段；用户可见的 memory 管理入口仍是
+  `app-api` 的 profile-memory product API，不是 execution request context。
 - `requested_tool` 当前 wire 只允许 external caller hint 可表达的具体 tool id：
   `knowledge_query`、`place_lookup`、`transport_schedule_lookup` 或
   `campus_notice_discover`。它不是 closed/internal tool admission，也不等于对应

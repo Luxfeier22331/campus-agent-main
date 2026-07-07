@@ -64,8 +64,12 @@ func ragasEvalProjectionEvent(
 		return telemetry.Event{}, fmt.Errorf("retrieved contexts are required for ragas eval projection")
 	}
 	caseID := firstNonEmptyText(run.RequestID, run.RunID)
+	retrievalMode := firstNonEmptyText(
+		retrievalModeForEvidence(selection.SelectedEvidence),
+		retrievalModeForRAGPlan(plan),
+	)
 	return telemetry.Event{
-		CanonicalIndexTruth:     "true",
+		CanonicalIndexTruth:     canonicalIndexTruthForEvidence(selection.SelectedEvidence),
 		CandidateCount:          selection.CandidateCount,
 		Collection:              plan.Collection,
 		ConversationID:          run.ConversationID,
@@ -85,7 +89,7 @@ func ragasEvalProjectionEvent(
 		ReferenceCount:          len(selection.SelectedEvidence),
 		RequestID:               run.RequestID,
 		RequestedTool:           "knowledge_query",
-		RetrievalMode:           retrievalModeForRAGPlan(plan),
+		RetrievalMode:           retrievalMode,
 		RunID:                   run.RunID,
 		SelectedTool:            firstNonEmptyText(run.SelectedTool, "knowledge_query"),
 		Status:                  "completed",
@@ -97,6 +101,28 @@ func ragasEvalProjectionEvent(
 	}, nil
 }
 
+func canonicalIndexTruthForEvidence(evidence []ragruntime.EvidenceRef) string {
+	if len(evidence) == 0 {
+		return "true"
+	}
+	for _, item := range evidence {
+		mode := strings.TrimSpace(item.RetrievalMode)
+		if mode != "" && mode != "indexed" && !item.CanonicalIndexTruth {
+			return "false"
+		}
+	}
+	return "true"
+}
+
+func retrievalModeForEvidence(evidence []ragruntime.EvidenceRef) string {
+	for _, item := range evidence {
+		if mode := strings.TrimSpace(item.RetrievalMode); mode != "" {
+			return mode
+		}
+	}
+	return ""
+}
+
 func ragasRetrievedContextProjection(
 	evidence []ragruntime.EvidenceRef,
 ) ([]string, []string) {
@@ -105,6 +131,7 @@ func ragasRetrievedContextProjection(
 	for _, item := range evidence {
 		excerpt := strings.TrimSpace(item.Excerpt)
 		contextID := firstNonEmptyText(
+			stableRetrievedContextID(item),
 			item.SourceRef,
 			item.SpanRef,
 			strings.TrimSpace(item.SourceID)+":"+strings.TrimSpace(item.ChunkID),
@@ -116,4 +143,19 @@ func ragasRetrievedContextProjection(
 		contextIDs = append(contextIDs, contextID)
 	}
 	return contexts, contextIDs
+}
+
+func stableRetrievedContextID(item ragruntime.EvidenceRef) string {
+	parts := []string{
+		strings.TrimSpace(item.DocumentID),
+		strings.TrimSpace(item.VersionID),
+		strings.TrimSpace(item.RootUnitID),
+		strings.TrimSpace(item.ChunkID),
+	}
+	for _, part := range parts {
+		if part == "" {
+			return ""
+		}
+	}
+	return strings.Join(parts, "|")
 }

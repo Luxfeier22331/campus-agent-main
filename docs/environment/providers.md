@@ -72,7 +72,7 @@ Reading model:
   `chat_completions` prompt profile.
 - Provider adoption is an eval decision. Candidate search providers must be
   configured as explicit provider/transport pairs and scored through the same
-  public-web-search eval pipeline before becoming a default runtime profile.
+  public-web-search eval pipeline before becoming a default provider profile.
 - Local seed keys: `PUBLIC_WEB_SEARCH_BASE_URL`,
   `PUBLIC_WEB_SEARCH_API_KEY`, `PUBLIC_WEB_SEARCH_MODEL`,
   `PUBLIC_WEB_SEARCH_PROVIDER`, `PUBLIC_WEB_SEARCH_TRANSPORT`.
@@ -93,7 +93,7 @@ Reading model:
 - Local seed keys: `EMBEDDING_BASE_URL`, `EMBEDDING_API_KEY`,
   `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`.
 - Local seed template: `env/commands/provider-config-seed.env.example`.
-- Runtime truth: provider projection artifact plus collection runtime profile.
+- Runtime truth: provider projection artifact plus collection serving config.
 - References:
   - `../decisions/adr-0007-phase1-retrieval-baseline-update.md`
   - `../policies/student-handbook-chunking-and-validation-policy.md`
@@ -106,7 +106,7 @@ Reading model:
   `RERANK_MODEL`.
 - Local seed template: `env/commands/provider-config-seed.env.example`.
 - Runtime truth: local provider projection artifact.
-- Rule: runtime profile must explicitly enable rerank; missing profile, path,
+- Rule: serving config must explicitly enable rerank; missing config, path,
   score or provider response fails closed.
 
 ### Qdrant
@@ -354,7 +354,7 @@ Add only what the selected task registry/command requires:
 
 - collector app-local or command-scoped object-store env
 - OCR provider env for extraction lanes
-- domain runtime profile inputs
+- domain serving config inputs
 
 Do not revive old Python ingestion command env as fallback truth.
 

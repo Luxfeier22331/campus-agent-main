@@ -8,10 +8,6 @@ from campus_contracts.models_context import (
     AuthorizationProjection,
     AuthorizedRetrievalFilter,
     ContextProjection,
-    MemorySourceType,
-    MemoryVisibility,
-    ProfileMemoryItem,
-    ProfileMemorySummary,
     SessionSlot,
     SessionSummary,
 )
@@ -27,17 +23,6 @@ class VerifiedIdentityInput:
     cohort: str | None = None
     major: str | None = None
     program: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ProfileMemoryRecord:
-    item_id: str
-    key: str
-    value: str
-    source_type: MemorySourceType = "user_declared"
-    confidence: str = "low"
-    visibility: MemoryVisibility = "user_visible"
-    last_verified_at: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,23 +68,9 @@ def build_context_projection(
     *,
     identity: VerifiedIdentityInput,
     authorization: AuthorizationInput | None = None,
-    profile_records: tuple[ProfileMemoryRecord, ...] = (),
     session_slots: tuple[SessionSlotRecord, ...] = (),
     turn_count: int = 0,
 ) -> ContextProjection:
-    profile_items = tuple(
-        ProfileMemoryItem(
-            item_id=record.item_id,
-            key=record.key,
-            value=record.value,
-            source_type=record.source_type,
-            confidence=record.confidence,
-            visibility=record.visibility,
-            last_verified_at=record.last_verified_at,
-        )
-        for record in profile_records
-        if record.value.strip()
-    )
     confirmed_slots = tuple(
         SessionSlot(name=slot.name, value=slot.value, confirmed=True)
         for slot in session_slots
@@ -117,7 +88,6 @@ def build_context_projection(
             program=identity.program,
         ),
         authorization=_build_authorization_projection(identity, authorization),
-        profile_memory=ProfileMemorySummary(items=profile_items),
         session=SessionSummary(
             confirmed_slots=confirmed_slots,
             turn_count=turn_count,

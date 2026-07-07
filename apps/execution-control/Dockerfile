@@ -14,7 +14,7 @@ RUN go mod download
 COPY apps/execution-control ./
 COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
 COPY configs/runtime/provider-pricing.v1.json /src/configs/runtime/provider-pricing.v1.json
-COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-serving-scopes.v1.json
+COPY configs/runtime/query-serving-scopes.v2.json /src/configs/runtime/query-serving-scopes.v2.json
 COPY configs/runtime/tool-function-schemas.v1.json /src/configs/runtime/tool-function-schemas.v1.json
 COPY configs/runtime/tools.v4.json /src/configs/runtime/tools.v4.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
@@ -49,11 +49,11 @@ COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json
-COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json
+COPY configs/runtime/query-serving-scopes.v2.json /etc/campus-agent/query-serving-scopes.v2.json
 COPY configs/runtime/tool-function-schemas.v1.json /etc/campus-agent/tool-function-schemas.v1.json
-COPY configs/runtime/execution-control/runtime-profile.local.json /etc/campus-agent/runtime-profile.local.json
-COPY configs/runtime/execution-control/runtime-profile.local-real-provider.json /etc/campus-agent/runtime-profile.local-real-provider.json
-COPY configs/runtime/execution-control/runtime-profile.staging.json /etc/campus-agent/runtime-profile.staging.json
+COPY configs/runtime/execution-control/runtime-config.local.json /etc/campus-agent/runtime-config.local.json
+COPY configs/runtime/execution-control/runtime-config.local-real-provider.json /etc/campus-agent/runtime-config.local-real-provider.json
+COPY configs/runtime/execution-control/runtime-config.staging.json /etc/campus-agent/runtime-config.staging.json
 COPY configs/runtime/tools.v4.json /etc/campus-agent/tools.v4.json
 COPY configs/runtime/workflow-artifacts.v2.json /etc/campus-agent/workflow-artifacts.v2.json
 COPY configs/ingestion /configs/ingestion
@@ -61,9 +61,6 @@ COPY configs/ingestion /configs/ingestion
 USER appuser
 EXPOSE 8000
 ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0 \
-  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.local.json \
-  EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH=/etc/campus-agent/tool-function-schemas.v1.json \
-  EXECUTION_CONTROL_TOOL_REGISTRY_PATH=/etc/campus-agent/tools.v4.json \
-  EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH=/etc/campus-agent/workflow-artifacts.v2.json
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-config.local.json
 
 ENTRYPOINT ["/usr/local/bin/execution-control"]

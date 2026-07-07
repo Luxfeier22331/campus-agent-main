@@ -322,7 +322,7 @@ func (s *Server) VerifyGroundingActivity(
 		Payload: map[string]any{
 			"claim_support_count": result.ClaimSupportCount,
 			"grounding_ref":       groundingRef,
-			"source_ref_count":    len(result.SourceRefs),
+			"source_ref_count":    result.SourceRefCount,
 			"verdict":             result.Verdict,
 			"verification_kind":   result.VerificationKind,
 		},

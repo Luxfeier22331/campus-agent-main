@@ -215,26 +215,26 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 	return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
 }
 
-func (s *Server) failExpandOrRescueRetrievalActivity(
+func (s *Server) failLiveSourceLookupActivity(
 	ctx context.Context,
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
-) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
+) (temporalruntime.LiveSourceLookupActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue"),
+		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/live-source-lookup"),
 		ResultKind:    "activity_failure",
-		StepID:        "retrieval.expand_or_rescue",
+		StepID:        "retrieval.live_source_lookup",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.ExpandOrRescueRetrievalActivityName),
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.LiveSourceLookupActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
 		},
 	}, cause)
-	return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
+	return temporalruntime.LiveSourceLookupActivityOutput{}, err
 }
 
 func (s *Server) failSelectEvidenceActivity(

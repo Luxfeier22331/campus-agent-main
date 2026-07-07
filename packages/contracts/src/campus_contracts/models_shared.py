@@ -56,7 +56,9 @@ MemoryVisibility = Literal["user_visible", "internal_only"]
 PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
-VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
+VersionQueryMode = Literal[
+    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
+]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -193,7 +195,14 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
-ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
+ALLOWED_VERSION_QUERY_MODES = (
+    "current",
+    "historical",
+    "as_of",
+    "compare",
+    "freshness_sensitive",
+    "live_assisted",
+)
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",

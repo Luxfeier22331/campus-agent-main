@@ -61,10 +61,6 @@ func projectedPlanningDecomposition(collection string, queryMode string, payload
 		}
 	case "compare":
 		decomposition = append(decomposition, "compare")
-	case "freshness_sensitive":
-		decomposition = append(decomposition, "freshness_sensitive")
-	case "live_assisted":
-		decomposition = append(decomposition, "live_assisted")
 	}
 	return decomposition
 }

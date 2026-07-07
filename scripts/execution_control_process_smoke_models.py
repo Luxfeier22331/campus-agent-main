@@ -17,7 +17,7 @@ class ProcessCommandSpec:
 class ProcessSmokePlan:
     repo_root: Path
     output_dir: Path
-    profile: str
+    scenario: str
     api_base_url: str
     execution_run_path: str
     execution_run_payload: dict[str, object]

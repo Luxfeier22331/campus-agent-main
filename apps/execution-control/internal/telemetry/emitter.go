@@ -148,7 +148,7 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	}
 	endpoint := strings.TrimSpace(cfg.OTelEndpoint)
 	if endpoint == "" {
-		emitter.setLastError("OTel endpoint is required when runtime profile otel.enabled=true.")
+		emitter.setLastError("OTel endpoint is required when runtime config otel.enabled=true.")
 		return emitter
 	}
 	timeout := time.Duration(cfg.OTelExportTimeoutMS) * time.Millisecond
@@ -185,7 +185,7 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	if emitter.metricsEnabled {
 		metricsEndpoint := strings.TrimSpace(cfg.OTelMetricsEndpoint)
 		if metricsEndpoint == "" {
-			emitter.setLastError("OTel metrics endpoint is required when runtime profile otel.metrics_enabled=true.")
+			emitter.setLastError("OTel metrics endpoint is required when runtime config otel.metrics_enabled=true.")
 			return emitter
 		}
 		metricOptions := []otlpmetrichttp.Option{

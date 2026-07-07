@@ -46,7 +46,7 @@ The runtime integration is enabled through explicit configuration:
 
 - Collector config declares `otlphttp/langfuse`, with secret-bearing values
   supplied by deployment secret management.
-- execution-control runtime profile owns whether Temporal tracing is enabled.
+- execution-control runtime config owns whether Temporal tracing is enabled.
 - app-api propagates W3C `traceparent` in addition to current Sentry trace
   headers.
 - execution-control attaches the Temporal Go SDK OpenTelemetry interceptor to

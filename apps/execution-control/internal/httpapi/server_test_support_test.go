@@ -53,6 +53,12 @@ func newServerForTest() *Server {
 	return server
 }
 
+func newServerForTestWithPublicWebSearchDomains(domains ...string) *Server {
+	server := newServerForTest()
+	server.publicWebSearchDomains = domains
+	return server
+}
+
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
 	server.config.WorkerSharedSecret = "secret"

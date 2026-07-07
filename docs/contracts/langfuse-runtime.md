@@ -155,7 +155,7 @@ The online implementation is policy-gated:
 
 - `apps/app-api` owns the operator-managed `llm_debug_trace_config.v1`.
 - `apps/execution-control` reads the app-api-produced
-  `observability_config_projection.v1` path from its runtime profile and passes
+  `observability_config_projection.v1` path from its runtime config and passes
   `debug_trace_config` request-scoped to `apps/agent-runtime`.
 - `apps/agent-runtime` has no `AGENT_RUNTIME_LLM_DEBUG_*` environment config and
   must not infer debug tracing from process env.

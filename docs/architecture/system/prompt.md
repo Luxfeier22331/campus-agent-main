@@ -44,7 +44,7 @@ explanation inside code-owned truth.
 Prompt must not replace:
 
 - current query-enabled scope
-- runtime profile / serving alias / release manifest
+- serving config / serving alias / release manifest
 - fail-close deny path
 - tool readiness / opening gate
 - source-trust / freshness gate

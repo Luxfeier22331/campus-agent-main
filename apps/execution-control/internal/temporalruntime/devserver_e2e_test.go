@@ -168,7 +168,6 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 		ExecutePrimaryAgentActivityName,
 		PlanRAGActivityName,
 		RetrieveIndexedLookupActivityName,
-		ExpandOrRescueRetrievalActivityName,
 		SelectEvidenceActivityName,
 		SynthesizeRAGAnswerActivityName,
 		VerifyGroundingActivityName,

@@ -494,7 +494,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 ## 相关真相源
 
-- [configs/ingestion/regulations/student_rules/runtime-profile.json](../../configs/ingestion/regulations/student_rules/runtime-profile.json)
+- [configs/ingestion/regulations/student_rules/serving-config.json](../../configs/ingestion/regulations/student_rules/serving-config.json)
 - [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
 - [configs/ingestion/regulations/student_rules/task-registry.v2.json](../../configs/ingestion/regulations/student_rules/task-registry.v2.json)
 - [packages/ingest-core/src/collection-profiles.ts](../../packages/ingest-core/src/collection-profiles.ts)

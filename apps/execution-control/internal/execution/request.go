@@ -265,6 +265,10 @@ func ParseAnswerRequestWithIntentPolicy(
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
+	freshnessIntent, err := parseOptionalString(payload["freshness_intent"])
+	if err != nil {
+		return AnswerExecutionRequest{}, invalidRequest(err.Error())
+	}
 	if err := validateToolEnvelope(
 		requestedTool,
 		hasRequestedScope,
@@ -273,11 +277,12 @@ func ParseAnswerRequestWithIntentPolicy(
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
 	if hasRequestedScope {
-		scopeAllowed, err := runtimepolicy.QueryScopeAllowed(
-			requestedScope.Corpus,
-			requestedScope.Collection,
-			cfg.QueryServingScopesPath,
-		)
+		admission, err := runtimepolicy.AdmitQueryScope(runtimepolicy.QueryScopeAdmissionRequest{
+			Collection:      requestedScope.Collection,
+			Corpus:          requestedScope.Corpus,
+			FreshnessIntent: freshnessIntent,
+			QueryMode:       versionQuery.Mode,
+		}, cfg.QueryServingScopesPath)
 		if err != nil {
 			return AnswerExecutionRequest{}, &HTTPError{
 				Status:    500,
@@ -286,12 +291,12 @@ func ParseAnswerRequestWithIntentPolicy(
 				Retryable: false,
 			}
 		}
-		if !scopeAllowed {
+		if !admission.Allowed {
 			return AnswerExecutionRequest{}, &HTTPError{
 				Status: 403,
 				Code:   "disallowed_knowledge_scope",
 				Message: fmt.Sprintf(
-					"knowledge scope %s/%s is not query-enabled",
+					"knowledge scope %s/%s is not admitted for this query",
 					requestedScope.Corpus,
 					requestedScope.Collection,
 				),
@@ -337,8 +342,9 @@ func ParseAnswerRequestWithIntentPolicy(
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},
-		"actor":   actor.toMap(),
-		"context": context.toMap(),
+		"actor":      actor.toMap(),
+		"context":    context.toMap(),
+		"query_mode": versionQuery.Mode,
 		"version_query": map[string]any{
 			"mode":                  versionQuery.Mode,
 			"as_of":                 versionQuery.AsOf,
@@ -358,6 +364,9 @@ func ParseAnswerRequestWithIntentPolicy(
 			"corpus":     requestedScope.Corpus,
 			"collection": requestedScope.Collection,
 		}
+	}
+	if freshnessIntent != "" {
+		executionPayload["freshness_intent"] = freshnessIntent
 	}
 
 	payloadJSON, marshalErr := json.Marshal(executionPayload)

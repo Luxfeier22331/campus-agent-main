@@ -112,7 +112,7 @@ Guardrails:
 - Product self-introduction, greetings, product boundary explanation,
   clarification and rejection are terminal intents, not synthetic tools.
 - Model-visible tool choice must be constrained by deterministic surface
-  admission, runtime profile opening and the repo tool registry.
+  admission, runtime config opening and the repo tool registry.
 - Routing decisions must be projected into operator/eval-safe facts; a hidden
   prompt-only route is not sufficient for durable execution.
 - Tool-use observation and eval consume the sanitized `tool_trajectory.v1`
@@ -200,7 +200,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
     repo-owned budget policy 承接；判断 execution group、worker、provider、Qdrant、
     Postgres 等 execution budget
 
-当前 runtime profile 中的 admission budget 只属于 current process-local
+当前 runtime config 中的 admission budget 只属于 current process-local
 execution protection。它不得替代 durable run admission 或 lease coordination。
 
 ### 3. First Execution Agent Decision

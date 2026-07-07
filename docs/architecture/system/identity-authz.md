@@ -49,7 +49,7 @@ account / operator / memory supporting architecture 当前已经明确：
 - `apps/campus-web` 只拥有 account browser shell；它不拥有 auth database、session
   storage、principal mapping 或 authorization truth
 - execution path 只消费 typed actor/context projection
-- retrieval path 只消费 admitted source / runtime profile / evidence policy，不拥有
+- retrieval path 只消费 admitted source / serving config / evidence policy，不拥有
   account、operator access 或 memory binding truth
 - personal memory 存在，但只是 per-user advisory context；它不是 account、operator
   access、source truth、tool opening 或 fail-close truth
@@ -71,7 +71,7 @@ account / operator / memory supporting architecture 当前已经明确：
 
 ### retrieval path
 
-- 只执行 admitted retrieval / source-trust / runtime profile constraints
+- 只执行 admitted retrieval / source-trust / serving config constraints
 - 不拥有 account / operator / memory binding resolution
 - 不把 memory 当成授权来源
 

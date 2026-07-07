@@ -33,7 +33,7 @@ const child = spawn("pnpm", args, {
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderTimeoutMs,
 		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:
 			process.env.EXECUTION_CONTROL_RUNTIME_CONFIG_PATH ||
-			"/etc/campus-agent/runtime-profile.local-real-provider.json",
+			"/etc/campus-agent/runtime-config.local-real-provider.json",
 	},
 	stdio: "inherit",
 });

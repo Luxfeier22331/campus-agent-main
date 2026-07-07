@@ -206,6 +206,70 @@ func TestRAGSynthesisFinalizedResponseProjectsModelExecutionState(t *testing.T) 
 	}
 }
 
+func TestRAGSynthesisFinalizedResponseProjectsLiveRetrievalStageRef(t *testing.T) {
+	run := execution.DurableRun{
+		RequestID: "req-rag-live-finalization",
+		RunID:     "run-rag-live-finalization",
+		TraceID:   "trace-rag-live-finalization",
+	}
+	packet := ragSynthesisPacket{
+		OutputSchemaID: "rag_answer_v2",
+		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		QueryIntent:    "最新校园通知",
+		RequestID:      run.RequestID,
+		RunID:          run.RunID,
+		SelectedEvidence: []ragruntime.EvidenceRef{
+			{
+				CanonicalIndexTruth: false,
+				ChunkID:             "live-chunk-1",
+				Excerpt:             "学校官网发布了最新通知。",
+				RetrievalMode:       "live_assisted",
+				SourceID:            "official_web",
+				SourceRef:           "source://official-web/news/live-chunk-1",
+				SpanRef:             "span://official-web/news/live-chunk-1",
+				Title:               "官网通知",
+			},
+		},
+		StepID: "synthesis",
+	}
+	llmIOFingerprint := mustRAGSynthesisFingerprintForTest(t, run, packet)
+
+	response, err := ragSynthesisFinalizedResponse(
+		run,
+		packet,
+		ragSynthesisResult{
+			AnswerText: "学校官网发布了最新通知。",
+			Confidence: "high",
+			ProviderSummary: provider.ExecutionSummary{
+				ProviderRequestRef: "provider://requests/run-rag-live-finalization/synthesis",
+				ModelName:          "gpt-5-mini",
+				ModelProvider:      "openai",
+				SchemaVersion:      "provider_execution_summary_v1",
+			},
+			LLMIOFingerprint: llmIOFingerprint,
+			PromptTrace:      ragSynthesisPromptTrace("openai", "gpt-5-mini"),
+			SemanticOutcome:  "answer_from_selected_evidence",
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("finalize live rag synthesis response: %v", err)
+	}
+
+	diagnostics, ok := nestedMapValue(response, "result", "diagnostics")
+	if !ok {
+		t.Fatalf("finalized response missing diagnostics: %#v", response)
+	}
+	diagnosticRecord, ok := diagnostics.(map[string]any)
+	if !ok {
+		t.Fatalf("diagnostics = %#v", diagnostics)
+	}
+	want := "projection://runs/run-rag-live-finalization/retrieval/live-source-lookup"
+	if diagnosticRecord["retrieval_stage_ref"] != want {
+		t.Fatalf("retrieval_stage_ref = %v, want %s", diagnosticRecord["retrieval_stage_ref"], want)
+	}
+}
+
 func TestRAGSynthesisFinalizedResponseFailsClosedWithoutPromptTrace(t *testing.T) {
 	run := execution.DurableRun{
 		RequestID: "req-rag-finalization",

@@ -114,9 +114,9 @@ dining.review_projections -> app-api /api/dining/* reader`
 - `plan.route -> tool branch` 不再是主问答链路的第一模型决策。它仍作为
   Go-owned deterministic structured planner / typed activity / historical RAG graph
   support path 保留，服务显式 typed branch、测试与内部 policy 约束；知识分支
-  RAG graph 仍为 `rag.plan -> retrieval.indexed_lookup ->
-  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify`。
+  RAG graph 为 `rag.plan -> retrieval.indexed_lookup|retrieval.live_source_lookup ->
+  evidence.selection -> synthesis -> grounding.verify`。fresh/live 只在 query-serving
+  scope policy admit 后进入 `retrieval.live_source_lookup`，不是普通查询默认路径。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Hindsight self-host runtime；
   app-api chat submit 不再读取 PG `profile.memory_items` 并全量注入
   `context.profile_memory`。Qdrant 只承载 institutional RAG。
@@ -167,6 +167,9 @@ dining.review_projections -> app-api /api/dining/* reader`
 - `official_web/stable_reference`
 
 当前非默认公开查询面：
+
+- `official_web/fresh_news` 仅面向 freshness intent / `freshness_sensitive` /
+  `live_assisted` admission，不是默认 query-enabled surface。
 
 - `campus_notices/internal_notice` authenticated notice source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
@@ -291,7 +294,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   Schema `$id#/$defs/...`；Python `campus_contracts.*` dataclass 只是
   language-local helper，不是 active runtime schema truth。
   当前 projection-backed 且 runtime-supported 的 campus-services / notice read-only
-  tools 通过 `tools.v4` 与 runtime profile `open_tools` 暴露给
+  tools 通过 `tools.v4` 与 runtime config `open_tools` 暴露给
   `agent.primary`，并由 execution-control internal query endpoint 执行；Go runtime
   通过 tool registry / function schema / endpoint drift test 约束可调用性。存在
   ToolSpec 或 contract 不等于 model-visible，未被 profile 打开的工具必须保持
@@ -303,7 +306,7 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 当前 public durable chat path 已具备 primary-agent-first metadata、primary agent
   direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
   与 `notice` 已有 typed tool/internal-query 基底；只有 `tools.v4`
-  中 model-visible 且被 runtime profile 打开的工具会进入 primary agent 可见工具集。
+  中 model-visible 且被 runtime config 打开的工具会进入 primary agent 可见工具集。
   `navigation` 仍默认 closed，必须 fail closed。`campus_services` 当前 model-visible 范围只包含
   `transport_schedule_lookup`；generic service status、service guide、contact
   directory 与 academic calendar 不属于当前打开工具面。
@@ -428,7 +431,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   New active runtime descriptions should say tool handoff, tool dispatch and
   selected tool unless referring to the exact field or file name.
 - Serving expansion is opened only by adding concrete ToolSpec entries,
-  runtime profile `open_tools`, contracts, workers/read models and eval
+  runtime config `open_tools`, contracts, workers/read models and eval
   denominators. Product routing vocabulary remains concrete tool id only.
 
 ## 当前文档地图

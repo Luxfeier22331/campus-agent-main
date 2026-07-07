@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: python-boundaries
 status: active
 created: 2026-04-26
-updated: 2026-07-05
+updated: 2026-07-07
 ---
 # Python Boundary
 
@@ -42,7 +42,7 @@ graph 承接：
 
 这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
 不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、
-`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
+`retrieval.indexed_lookup`、`evidence.selection`、
 `synthesis`、`grounding.verify` 与 `finalization.write`。
 其中 online `grounding.verify` 当前语义是 evidence-integrity verification，不消费
 Python claim-level validator。
@@ -67,8 +67,9 @@ sanitized query activity projection。
 embedding seam 使用 repo-owned protocol / DTO；后续不得为了便利重新引入
 LlamaIndex runtime coupling。
 
-当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与 profile-gated rerank
-interface；未发现线上 cross-encoder、torch、ONNX 或 sentence-transformers rerank 作为 current
+当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与
+serving-config-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
+sentence-transformers rerank 作为 current
 serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 CPU hotspot 为前提。
 
 内部拆分规则：
@@ -92,11 +93,14 @@ answer-role 与 answer-ready contract helper 不再保留独立 Python package�
 admission。
 
 Python data-plane code no longer owns default relational database
-connectivity. It may keep pure URL validation / normalization helpers and
-SQL-shape unit tests, but active Postgres connection ownership belongs to the
-TS/Go database owner surfaces. Python registry / projection connection
-entrypoints must fail closed unless they are rebuilt as an explicitly admitted
-adapter boundary.
+connectivity. The retired `python_db_runtime` module and public
+`build_*_from_env` registry / projection store builders are removed from the
+active workspace. Python callers that still participate in migration tests must
+receive stores, registries and ledgers through explicit dependency injection.
+Pure URL validation / normalization helpers and SQL-shape unit tests may remain,
+but active Postgres connection ownership belongs to the TS/Go database owner
+surfaces. Python registry / projection connection entrypoints must fail closed
+unless they are rebuilt as an explicitly admitted adapter boundary.
 
 Python data-plane code no longer owns default provider, tokenizer, chunk profile
 or chunk preparation runtime. Collection runtime / chunk profile payloads are
@@ -141,8 +145,10 @@ reintroduce `RawAsset*` registry terminology.
 
 PDF page counting / splitting may use a permissive lightweight parser for
 local file kernel work. PDF page rendering probes are retired from the default
-workspace; later rendering must be admitted as an explicit adapter runtime
-instead of reintroducing a default native rendering dependency.
+workspace. Curriculum course-map probe and docs-surface materialization consume
+captured `CurriculumCourseMapRenderedSample` inputs only; later rendering must
+be admitted as an explicit adapter runtime instead of reintroducing a default
+native rendering dependency.
 
 内部拆分规则：
 

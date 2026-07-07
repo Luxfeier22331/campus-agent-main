@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
 const toolFunctionSchemaVersion = "tool-function-schemas-v1"
+
+const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v1.json"
 
 type toolFunctionSchemaFile struct {
 	SchemaVersion string               `json:"schema_version"`
@@ -366,21 +367,13 @@ func numericValue(value any) (float64, bool) {
 }
 
 func resolveToolFunctionSchemaPath() string {
-	if envPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH")); envPath != "" {
-		return envPath
-	}
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for dir := workingDir; ; dir = filepath.Dir(dir) {
-		candidate := filepath.Join(dir, "configs", "runtime", "tool-function-schemas.v1.json")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-	}
+	return resolveToolFunctionSchemaPathFrom("")
+}
+
+func resolveToolFunctionSchemaPathFrom(schemaPath string) string {
+	return resolveRuntimeConfigPath(
+		schemaPath,
+		defaultToolFunctionSchemaRelativePath,
+		packagedToolFunctionSchemaPath,
+	)
 }

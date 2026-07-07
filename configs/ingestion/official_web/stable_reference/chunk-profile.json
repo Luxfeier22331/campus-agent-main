@@ -14,6 +14,6 @@
 	"notes": [
 		"Chunk stable official-web reference pages from source-truth-preserving document_units.jsonl.",
 		"Keep institutional overview, organization, and long-lived explanatory pages compact enough for citation-grounded RAG answers.",
-		"This profile backs the query-serving official_web/stable_reference scope and must stay aligned with runtime-profile.json."
+		"This profile backs the query-serving official_web/stable_reference scope and must stay aligned with serving-config.json."
 	]
 }

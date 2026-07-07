@@ -2,63 +2,59 @@ from __future__ import annotations
 
 TOOL_READ_MODEL_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME = "2026-05-07T08:00:00+08:00"
-SDK_TOOL_READ_MODEL_OPENED_PROFILES = {
+SDK_TOOL_READ_MODEL_OPENED_SCENARIOS = {
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
     "notice_discover_sdk_opened",
 }
-MULTI_STEP_WORKFLOW_PROFILES = {
+MULTI_STEP_WORKFLOW_SCENARIOS = {
     "multi_step_notice_knowledge_followthrough",
     "transport_notice_override_multistep",
 }
-SELECTED_NOTICE_GUARDRAIL_PROFILES = {
+SELECTED_NOTICE_GUARDRAIL_SCENARIOS = {
     "selected_notice_knowledge_followthrough_ineligible",
 }
-AGENTS_SDK_NOTICE_PROFILES = {
+AGENTS_SDK_NOTICE_SCENARIOS = {
     "agents_sdk_notice_discover_e2e",
 }
-RAG_RETRIEVAL_PROFILES = {
+RAG_RETRIEVAL_SCENARIOS = {
     "rag_delegate",
-    "rag_delegate_sdk_candidate",
     "rag_delegate_institutional_rules",
-    *MULTI_STEP_WORKFLOW_PROFILES,
-}
-RAG_SDK_PROFILES = {
-    "rag_delegate_sdk_candidate",
+    *MULTI_STEP_WORKFLOW_SCENARIOS,
 }
 
 
-def campus_services_sdk_profiles() -> set[str]:
+def campus_services_sdk_scenarios() -> set[str]:
     return {
         "transport_schedule_sdk_opened",
         "transport_schedule_sdk_opened_stream",
     }
 
 
-def profile_requires_tool_read_model_projection(profile: str) -> bool:
-    return profile in campus_services_sdk_profiles() or profile == (
+def scenario_requires_tool_read_model_projection(scenario: str) -> bool:
+    return scenario in campus_services_sdk_scenarios() or scenario == (
         "transport_notice_override_multistep"
     )
 
 
-def profile_requires_notice_read_model(profile: str) -> bool:
+def scenario_requires_notice_read_model(scenario: str) -> bool:
     return (
-        profile == "notice_discover_sdk_opened"
-        or profile in MULTI_STEP_WORKFLOW_PROFILES
-        or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES
-        or profile in AGENTS_SDK_NOTICE_PROFILES
+        scenario == "notice_discover_sdk_opened"
+        or scenario in MULTI_STEP_WORKFLOW_SCENARIOS
+        or scenario in SELECTED_NOTICE_GUARDRAIL_SCENARIOS
+        or scenario in AGENTS_SDK_NOTICE_SCENARIOS
     )
 
 
-def profile_requires_temporary_postgres(profile: str) -> bool:
+def scenario_requires_temporary_postgres(scenario: str) -> bool:
     return True
 
 
-def profile_execution_run_expectation(
-    profile: str,
+def scenario_execution_run_expectation(
+    scenario: str,
 ) -> tuple[dict[str, object], int, tuple[str, ...], str, tuple[int, ...]]:
-    request, expected_readyz_statuses = _profile_request(profile)
-    payload = _execution_run_payload(profile, request)
+    request, expected_readyz_statuses = _scenario_request(scenario)
+    payload = _execution_run_payload(scenario, request)
     return (
         payload,
         202,
@@ -90,9 +86,9 @@ def _base_context() -> dict[str, object]:
     }
 
 
-def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
+def _scenario_request(scenario: str) -> tuple[dict[str, object], tuple[int, ...]]:
     context = _base_context()
-    if profile == "closed_gate":
+    if scenario == "closed_gate":
         return (
             {
                 "user_goal": "campus shuttle schedule",
@@ -102,7 +98,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "terminal_fail_close":
+    if scenario == "terminal_fail_close":
         return (
             {
                 "user_goal": "解释一下 AI",
@@ -112,7 +108,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "rag_delegate":
+    if scenario == "rag_delegate":
         return (
             {
                 "user_goal": "公费医疗报销",
@@ -126,21 +122,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "rag_delegate_sdk_candidate":
-        return (
-            {
-                "user_goal": "公费医疗报销",
-                "request_id": "process-smoke-rag-delegate-sdk-candidate",
-                "requested_tool": "knowledge_query",
-                "requested_scope": {
-                    "corpus": "regulations",
-                    "collection": "student_rules",
-                },
-                "context": context,
-            },
-            (200,),
-        )
-    if profile == "rag_delegate_institutional_rules":
+    if scenario == "rag_delegate_institutional_rules":
         institutional_rules_context = {
             **context,
             "authorization": {
@@ -165,7 +147,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "transport_schedule_sdk_opened":
+    if scenario == "transport_schedule_sdk_opened":
         return (
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
@@ -175,7 +157,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "transport_schedule_sdk_opened_stream":
+    if scenario == "transport_schedule_sdk_opened_stream":
         return (
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
@@ -185,7 +167,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "notice_discover_sdk_opened":
+    if scenario == "notice_discover_sdk_opened":
         return (
             {
                 "user_goal": "烟雾测试通知",
@@ -195,7 +177,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "multi_step_notice_knowledge_followthrough":
+    if scenario == "multi_step_notice_knowledge_followthrough":
         notice_context = {
             **context,
             "session": {
@@ -221,7 +203,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "selected_notice_knowledge_followthrough_ineligible":
+    if scenario == "selected_notice_knowledge_followthrough_ineligible":
         notice_context = {
             **context,
             "authorization": {
@@ -255,7 +237,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "transport_notice_override_multistep":
+    if scenario == "transport_notice_override_multistep":
         notice_context = {
             **context,
             "authorization": {
@@ -285,7 +267,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200, 503),
         )
-    if profile == "transactional_approval_required":
+    if scenario == "transactional_approval_required":
         return (
             {
                 "user_goal": "帮我提交公费医疗报销申请",
@@ -295,14 +277,14 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    raise ValueError(f"unsupported process smoke profile: {profile}")
+    raise ValueError(f"unsupported process smoke scenario: {scenario}")
 
 
-def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str, object]:
+def _execution_run_payload(scenario: str, request: dict[str, object]) -> dict[str, object]:
     request_id = str(request["request_id"])
     tool_target = str(request.get("requested_tool") or "knowledge_query")
     run_id = request_id
-    conversation_id = f"conversation-{profile.replace('_', '-')}"
+    conversation_id = f"conversation-{scenario.replace('_', '-')}"
     trace_id = f"trace-{request_id}"
     context = request.get("context", {})
     execution_payload = {
@@ -320,7 +302,7 @@ def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str
         **request,
         "run_id": run_id,
         "conversation_id": conversation_id,
-        "turn_id": f"turn-{profile.replace('_', '-')}",
+        "turn_id": f"turn-{scenario.replace('_', '-')}",
         "trace_id": trace_id,
         "owner_user_id": _owner_user_id(context),
         "surface": "local-process-smoke",
@@ -391,17 +373,16 @@ def _handoff_for_tool_request(tool_target: str, request: dict[str, object]) -> d
 
 
 __all__ = [
-    "AGENTS_SDK_NOTICE_PROFILES",
-    "MULTI_STEP_WORKFLOW_PROFILES",
-    "RAG_RETRIEVAL_PROFILES",
-    "RAG_SDK_PROFILES",
-    "SDK_TOOL_READ_MODEL_OPENED_PROFILES",
-    "SELECTED_NOTICE_GUARDRAIL_PROFILES",
+    "AGENTS_SDK_NOTICE_SCENARIOS",
+    "MULTI_STEP_WORKFLOW_SCENARIOS",
+    "RAG_RETRIEVAL_SCENARIOS",
+    "SDK_TOOL_READ_MODEL_OPENED_SCENARIOS",
+    "SELECTED_NOTICE_GUARDRAIL_SCENARIOS",
     "TOOL_READ_MODEL_OPENED_TRUSTED_TIME",
     "TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME",
-    "campus_services_sdk_profiles",
-    "profile_execution_run_expectation",
-    "profile_requires_notice_read_model",
-    "profile_requires_temporary_postgres",
-    "profile_requires_tool_read_model_projection",
+    "campus_services_sdk_scenarios",
+    "scenario_execution_run_expectation",
+    "scenario_requires_notice_read_model",
+    "scenario_requires_temporary_postgres",
+    "scenario_requires_tool_read_model_projection",
 ]

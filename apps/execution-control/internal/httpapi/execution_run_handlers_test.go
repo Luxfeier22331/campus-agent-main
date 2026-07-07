@@ -149,7 +149,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 		t.Fatal("workflow input payload hash is required")
 	}
 	if starter.input.PersonalMemoryTimeoutSeconds != 10 {
-		t.Fatalf("personal memory timeout = %v, want 10s from runtime profile config", starter.input.PersonalMemoryTimeoutSeconds)
+		t.Fatalf("personal memory timeout = %v, want 10s from runtime config", starter.input.PersonalMemoryTimeoutSeconds)
 	}
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)

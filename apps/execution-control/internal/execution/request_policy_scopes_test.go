@@ -60,6 +60,63 @@ func TestParseAnswerRequestRejectsScopedRulesQueryScopeByDefault(t *testing.T) {
 	}
 }
 
+func TestParseAnswerRequestAdmitsFreshNewsOnlyForExplicitFreshnessIntent(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"最近学校官网有什么招生新闻？",
+			"request_id":"req-fresh-news-no-intent",
+			"requested_scope":{"corpus":"official_web","collection":"fresh_news"},
+			"version_query":{"mode":"freshness_sensitive"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+	if httpErr == nil {
+		t.Fatal("fresh_news without explicit freshness_intent must fail closed")
+	}
+	if httpErr.Code != "disallowed_knowledge_scope" {
+		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
+	}
+
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"最近学校官网有什么招生新闻？",
+			"request_id":"req-fresh-news-latest",
+			"requested_scope":{"corpus":"official_web","collection":"fresh_news"},
+			"version_query":{"mode":"freshness_sensitive"},
+			"freshness_intent":"latest"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	if payload["freshness_intent"] != "latest" {
+		t.Fatalf("freshness_intent = %v, want latest", payload["freshness_intent"])
+	}
+	versionQuery := expectExecutionRecord(t, payload["version_query"], "version_query")
+	if versionQuery["mode"] != "freshness_sensitive" {
+		t.Fatalf("version_query.mode = %v, want freshness_sensitive", versionQuery["mode"])
+	}
+	if payload["query_mode"] != "freshness_sensitive" {
+		t.Fatalf("query_mode = %v, want freshness_sensitive", payload["query_mode"])
+	}
+}
+
 func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{

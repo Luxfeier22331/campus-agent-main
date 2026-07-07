@@ -280,6 +280,30 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_requires_repo_checks_go_tooling_before_conftest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps({"packageManager": "pnpm@10.26.1", "scripts": required_scripts()}),
+                encoding="utf-8",
+            )
+            write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                setup_repo_static_go=False,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/pr-checks.yml",
+                message="repo-checks must setup Go before installing conftest",
+            ),
+            issues,
+        )
+
     def test_audit_requires_secret_scan_lane_tooling(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -403,6 +427,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 install_golangci_lint=False,
                 install_langfuse_dependencies=False,
                 setup_repo_static_uv=False,
+                install_repo_static_conftest=False,
             )
 
             issues = audit_ci_workflow_contracts(root=root)
@@ -418,6 +443,20 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             CiWorkflowContractIssue(
                 path=".github/workflows/pr-checks.yml",
                 message="repo-checks must setup uv before uv sync",
+            ),
+            issues,
+        )
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/pr-checks.yml",
+                message="repo-checks must install conftest v0.65.0 before pnpm ci:repo-static",
+            ),
+            issues,
+        )
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/pr-checks.yml",
+                message="repo-checks must add Go bin to PATH before pnpm ci:repo-static",
             ),
             issues,
         )

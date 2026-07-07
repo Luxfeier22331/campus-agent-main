@@ -1,6 +1,6 @@
 # stable_reference collection config
 
-This directory holds the repo-tracked runtime profile for the `stable_reference`
+This directory holds the repo-tracked serving config for the `stable_reference`
 collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
@@ -8,7 +8,7 @@ collection within the `official_web` corpus.
 - this collection is the future stable-reference serving scope for public-web
   content derived from `official_web` source truth
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - serving surface: `stable_reference`

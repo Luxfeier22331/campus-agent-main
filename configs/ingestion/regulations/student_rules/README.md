@@ -3,15 +3,15 @@
 This directory holds the repo-tracked config scaffolding for the `student_rules`
 collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime truth for ingestion/query gating
+- `serving-config.json`: canonical serving truth for ingestion/query gating
 - `split-manifest.v1.json`: repo-tracked scaffold for handbook logical document
   boundaries
 - `canonical-profile.json`: canonical identity and metadata truth for handbook
   documents
-- `chunk-profile.json`: chunking/runtime profile record for handbook
+- `chunk-profile.json`: chunking config record for handbook
   document-level `document-units.jsonl`
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - query enabled: `true`

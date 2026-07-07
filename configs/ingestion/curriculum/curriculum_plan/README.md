@@ -3,19 +3,19 @@
 This directory holds the repo-tracked config scaffolding for the
 `curriculum_plan` collection within the `curriculum` corpus.
 
-- `runtime-profile.json`: canonical runtime truth for ingestion/query gating
+- `serving-config.json`: canonical serving truth for ingestion/query gating
 - `split-manifest.v1.json`: public repo synthetic page-range truth for
   splitting a master PDF into logical documents
 - `split-manifest.candidate.v1.json`: review companion manifest with the same
   synthetic document inventory
 - `split-manifest.candidate.gaps.json`: audit summary for unmatched or retired
   legacy canonical documents
-- `chunk-profile.json`: chunking/runtime profile record for this collection
-- `retrieval-profile.json`: retrieval/runtime profile record for this collection
+- `chunk-profile.json`: chunking config record for this collection
+- `retrieval-profile.json`: retrieval config record for this collection
 - `samples/`: synthetic document-level sample outputs for chunking and manual
   review
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - query enabled: `true`
@@ -40,7 +40,7 @@ those lifecycle steps need to re-enter ingestion-control, add the real TS handle
 or Rust kernel bridge and the matching registry entry in the same change.
 
 - For `curriculum_plan`, the provider lane is collection-owned by
-  `runtime-profile.json`; root `OCR_*` defaults do not redefine the canonical
+  `serving-config.json`; root `OCR_*` defaults do not redefine the canonical
   source OCR truth.
 - Historical `REBUILD_IMPORT_MODE=provider_response_replay` Python rebuild is
   retired. Rebuild work must enter through the ingestion-control task registry
@@ -75,7 +75,7 @@ Notes:
 - because curriculum chunking reconstructs section/table units from
   `document-units.jsonl`, dropping those structural fields in split projection
   is a contract violation, not an acceptable simplification.
-- accepted curriculum runtime chunking is loaded from `runtime-profile.json`
+- accepted curriculum runtime chunking is loaded from `serving-config.json`
   plus this `chunk-profile.json` through TS
   `parseCollectionChunkProfile(...)`, not from handbook defaults or Python
   profile helpers; the current frozen runtime is `curriculum_plan_semantic_v2`

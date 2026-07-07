@@ -196,7 +196,17 @@ func TestToolExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKnowledge
 	).Return(PlanRAGActivityOutput{
 		PlanRef: ragPlanRef,
 		RunID:   runID,
-		Status:  "completed",
+		Steps: []RAGPlanStep{{
+			StepID:   "hybrid-search",
+			StepType: "hybrid_search",
+		}, {
+			StepID:   "evidence-coverage-verify",
+			StepType: "evidence_coverage_verify",
+		}, {
+			StepID:   "supporting-evidence-select",
+			StepType: "supporting_evidence_select",
+		}},
+		Status: "completed",
 	}, nil)
 	env.OnActivity(
 		RetrieveIndexedLookupActivityName,
@@ -208,16 +218,6 @@ func TestToolExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKnowledge
 		}),
 	).Return(RetrieveIndexedLookupActivityOutput{
 		LookupRef: "projection://runs/" + runID + "/retrieval/lookup",
-		RunID:     runID,
-		Status:    "completed",
-	}, nil)
-	env.OnActivity(
-		ExpandOrRescueRetrievalActivityName,
-		mock.Anything,
-		mock.Anything,
-	).Return(ExpandOrRescueRetrievalActivityOutput{
-		LookupRef: "projection://runs/" + runID + "/retrieval/lookup",
-		RescueRef: "projection://runs/" + runID + "/retrieval/rescue",
 		RunID:     runID,
 		Status:    "completed",
 	}, nil)

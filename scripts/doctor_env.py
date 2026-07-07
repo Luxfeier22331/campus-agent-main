@@ -77,7 +77,7 @@ def _collect_env_doctor_status(
                 check_connectivity=check_postgres_connectivity,
             ),
         }
-        runtime_profile = _collect_execution_control_runtime_profile_status(
+        runtime_config = _collect_execution_control_runtime_config_status(
             repo_root=repo_root,
             env=current_env,
             surface=normalized_surface,
@@ -90,7 +90,7 @@ def _collect_env_doctor_status(
                 "optional": optional_settings,
             },
             postgres=postgres,
-            runtime_profile=runtime_profile,
+            runtime_config=runtime_config,
         )
 
         postgres_ready = _postgres_diagnostics_ready(
@@ -138,7 +138,7 @@ def _collect_env_doctor_status(
                 "optional": optional_settings,
             },
             "conditions": conditions,
-            "runtime_profile": runtime_profile,
+            "runtime_config": runtime_config,
             "postgres": postgres,
             "files": files,
         }
@@ -233,7 +233,7 @@ def _collect_surface_conditions(
     env: dict[str, str],
     settings: dict[str, dict[str, dict[str, object]]],
     postgres: dict[str, object],
-    runtime_profile: dict[str, object],
+    runtime_config: dict[str, object],
 ) -> dict[str, dict[str, object]]:
     if surface != "execution-control":
         return {}
@@ -245,15 +245,15 @@ def _collect_surface_conditions(
         isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
     )
 
-    conditions["runtime_profile_contract"] = {
+    conditions["runtime_config_contract"] = {
         "required": True,
-        "ready": bool(runtime_profile.get("ready")),
-        "error": runtime_profile.get("error"),
+        "ready": bool(runtime_config.get("ready")),
+        "error": runtime_config.get("error"),
     }
 
-    profile = runtime_profile.get("profile")
-    profile_payload = profile if isinstance(profile, dict) else {}
-    execution_audit = profile_payload.get("execution_audit")
+    config = runtime_config.get("config")
+    config_payload = config if isinstance(config, dict) else {}
+    execution_audit = config_payload.get("execution_audit")
     execution_audit_enabled = bool(
         isinstance(execution_audit, dict) and execution_audit.get("enabled") is True
     )
@@ -273,7 +273,7 @@ def _collect_surface_conditions(
         ),
     }
 
-    opened_tools = _runtime_profile_open_tools(profile_payload)
+    opened_tools = _runtime_config_open_tools(config_payload)
     tool_read_model_required = bool(_tool_read_model_tools(opened_tools))
     tool_read_model_missing: list[str] = []
     if tool_read_model_required:
@@ -334,7 +334,7 @@ def _collect_surface_conditions(
     return conditions
 
 
-def _collect_execution_control_runtime_profile_status(
+def _collect_execution_control_runtime_config_status(
     *,
     repo_root: Path,
     env: dict[str, str],
@@ -349,44 +349,44 @@ def _collect_execution_control_runtime_profile_status(
             "present": False,
             "ready": False,
             "path": None,
-            "profile": None,
+            "config": None,
             "error": "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH is required",
         }
     path = Path(raw_path)
     if not path.is_absolute():
         path = repo_root / path
     try:
-        profile = json.loads(path.read_text(encoding="utf-8"))
+        config = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return {
             "required": True,
             "present": True,
             "ready": False,
             "path": str(path),
-            "profile": None,
-            "error": f"runtime profile is not readable: {exc}",
+            "config": None,
+            "error": f"runtime config is not readable: {exc}",
         }
-    if profile.get("schema_version") != "campus_execution_control_runtime_profile.v1":
+    if config.get("schema_version") != "campus_execution_control_runtime_config.v1":
         return {
             "required": True,
             "present": True,
             "ready": False,
             "path": str(path),
-            "profile": None,
-            "error": "runtime profile schema_version must be campus_execution_control_runtime_profile.v1",
+            "config": None,
+            "error": "runtime config schema_version must be campus_execution_control_runtime_config.v1",
         }
     return {
         "required": True,
         "present": True,
         "ready": True,
         "path": str(path),
-        "profile": profile,
+        "config": config,
         "error": None,
     }
 
 
-def _runtime_profile_open_tools(profile: dict[str, object]) -> set[str]:
-    raw_value = profile.get("open_tools")
+def _runtime_config_open_tools(config: dict[str, object]) -> set[str]:
+    raw_value = config.get("open_tools")
     if not isinstance(raw_value, list):
         return set()
     return {item.strip() for item in raw_value if isinstance(item, str) and item.strip()}

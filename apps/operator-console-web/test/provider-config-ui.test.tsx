@@ -115,7 +115,7 @@ describe("provider config UI", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("presents provider connections and runtime profiles as operator-facing settings", async () => {
+	it("presents provider connections and runtime configs as operator-facing settings", async () => {
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (request) => {
 			const url = String(request);
 			if (url === "/api/operator/provider-config/connections") {

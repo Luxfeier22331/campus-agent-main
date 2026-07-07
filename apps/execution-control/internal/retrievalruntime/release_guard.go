@@ -36,7 +36,7 @@ var requiredReleaseMetadataFields = []string{
 	"rrf_dense_weight",
 	"rrf_sparse_weight",
 	"embedding_query_instruction_hash",
-	"profile_identity_hash",
+	"serving_config_identity_hash",
 	"quality_gate_status",
 	"chunk_quality_status",
 	"qrels_coverage_status",
@@ -53,7 +53,7 @@ type ReleaseGuardRequest struct {
 	EmbeddingModel      string
 	EmbeddingProvider   string
 	Metadata            map[string]any
-	Profile             RuntimeProfile
+	ServingConfig       ServingConfig
 }
 
 type ReleaseGuardSamplesRequest struct {
@@ -61,15 +61,15 @@ type ReleaseGuardSamplesRequest struct {
 	EmbeddingModel      string
 	EmbeddingProvider   string
 	MetadataSamples     []map[string]any
-	Profile             RuntimeProfile
+	ServingConfig       ServingConfig
 }
 
 func ValidateReleaseMetadata(request ReleaseGuardRequest) error {
-	if !requiresReleaseMetadata(request.Profile) {
+	if !requiresReleaseMetadata(request.ServingConfig) {
 		return nil
 	}
 	if len(request.Metadata) == 0 {
-		return fmt.Errorf("missing release metadata for query-serving alias %s", request.Profile.QdrantAliasName)
+		return fmt.Errorf("missing release metadata for query-serving alias %s", request.ServingConfig.QdrantAliasName)
 	}
 	missing := missingReleaseMetadataFields(request)
 	if len(missing) > 0 {
@@ -79,7 +79,7 @@ func ValidateReleaseMetadata(request ReleaseGuardRequest) error {
 	if len(mismatches) > 0 {
 		return fmt.Errorf(
 			"release metadata drift for %s/%s: %s",
-			request.Profile.QdrantAliasName,
+			request.ServingConfig.QdrantAliasName,
 			textFromMetadata(request.Metadata["index_release_id"]),
 			strings.Join(mismatches, "; "),
 		)
@@ -88,11 +88,11 @@ func ValidateReleaseMetadata(request ReleaseGuardRequest) error {
 }
 
 func ValidateReleaseMetadataSamples(request ReleaseGuardSamplesRequest) error {
-	if !requiresReleaseMetadata(request.Profile) {
+	if !requiresReleaseMetadata(request.ServingConfig) {
 		return nil
 	}
 	if len(request.MetadataSamples) == 0 {
-		return fmt.Errorf("missing release metadata for query-serving alias %s", request.Profile.QdrantAliasName)
+		return fmt.Errorf("missing release metadata for query-serving alias %s", request.ServingConfig.QdrantAliasName)
 	}
 	for index, sample := range request.MetadataSamples {
 		err := ValidateReleaseMetadata(ReleaseGuardRequest{
@@ -100,7 +100,7 @@ func ValidateReleaseMetadataSamples(request ReleaseGuardSamplesRequest) error {
 			EmbeddingModel:      request.EmbeddingModel,
 			EmbeddingProvider:   request.EmbeddingProvider,
 			Metadata:            sample,
-			Profile:             request.Profile,
+			ServingConfig:       request.ServingConfig,
 		})
 		if err != nil {
 			return fmt.Errorf("sample %d: %w", index+1, err)
@@ -112,38 +112,38 @@ func ValidateReleaseMetadataSamples(request ReleaseGuardSamplesRequest) error {
 	return nil
 }
 
-func ProfileIdentityHash(
-	profile RuntimeProfile,
+func ServingConfigIdentityHash(
+	config ServingConfig,
 	embeddingProvider string,
 	embeddingModel string,
 	embeddingDimensions int,
 ) string {
 	entries := []pythonReprEntry{
-		{key: "chunk_policy_version", value: profile.ChunkPolicyVersion},
-		{key: "cleaning_policy_version", value: profile.CleaningPolicyVersion},
-		{key: "collection", value: profile.Collection},
-		{key: "corpus", value: profile.Corpus},
-		{key: "dense_prefetch_limit", value: profile.DensePrefetchLimit},
-		{key: "dense_vector_name", value: profile.DenseVectorName},
+		{key: "chunk_policy_version", value: config.ChunkPolicyVersion},
+		{key: "cleaning_policy_version", value: config.CleaningPolicyVersion},
+		{key: "collection", value: config.Collection},
+		{key: "corpus", value: config.Corpus},
+		{key: "dense_prefetch_limit", value: config.DensePrefetchLimit},
+		{key: "dense_vector_name", value: config.DenseVectorName},
 		{key: "embedding_dimensions", value: embeddingDimensions},
 		{key: "embedding_model", value: strings.TrimSpace(embeddingModel)},
 		{key: "embedding_provider", value: strings.TrimSpace(embeddingProvider)},
-		{key: "embedding_query_instruction_hash", value: HashText(profile.EmbeddingQueryInstruction)},
-		{key: "query_enabled_by_default", value: profile.QueryEnabledByDefault},
+		{key: "embedding_query_instruction_hash", value: HashText(config.EmbeddingQueryInstruction)},
+		{key: "query_enabled_by_default", value: config.QueryEnabledByDefault},
 		{key: "reranker_adoption_evidence_id", value: ""},
-		{key: "reranker_enabled_by_default", value: profile.RerankerEnabledByDefault},
+		{key: "reranker_enabled_by_default", value: config.RerankerEnabledByDefault},
 		{key: "reranker_profile_version", value: ""},
 		{key: "reranker_top_n", value: 0},
-		{key: "rrf_dense_weight", value: profile.RRFDenseWeight},
-		{key: "rrf_k", value: profile.RRFK},
-		{key: "rrf_sparse_weight", value: profile.RRFSparseWeight},
-		{key: "serving_stage", value: profile.ServingStage},
+		{key: "rrf_dense_weight", value: config.RRFDenseWeight},
+		{key: "rrf_k", value: config.RRFK},
+		{key: "rrf_sparse_weight", value: config.RRFSparseWeight},
+		{key: "serving_stage", value: config.ServingStage},
 		{key: "sparse_language", value: DefaultSparseLanguage},
 		{key: "sparse_model", value: DefaultSparseModel},
-		{key: "sparse_prefetch_limit", value: profile.SparsePrefetchLimit},
+		{key: "sparse_prefetch_limit", value: config.SparsePrefetchLimit},
 		{key: "sparse_provider", value: DefaultSparseProvider},
 		{key: "sparse_tokenizer", value: DefaultSparseTokenizer},
-		{key: "sparse_vector_name", value: profile.SparseVectorName},
+		{key: "sparse_vector_name", value: config.SparseVectorName},
 	}
 	sort.Slice(entries, func(left int, right int) bool {
 		return entries[left].key < entries[right].key
@@ -158,7 +158,7 @@ func HashText(value string) string {
 
 func missingReleaseMetadataFields(request ReleaseGuardRequest) []string {
 	fields := append([]string{}, requiredReleaseMetadataFields...)
-	if requiresRegulationTargetReleaseProof(request.Profile) {
+	if requiresRegulationTargetReleaseProof(request.ServingConfig) {
 		fields = append(fields, requiredRegulationReleaseMetadataFields...)
 	}
 	missing := make([]string, 0)
@@ -191,30 +191,30 @@ func releaseMetadataConsistencyError(samples []map[string]any) string {
 func releaseMetadataMismatches(request ReleaseGuardRequest) []string {
 	expected := map[string]any{
 		"chunk_quality_status":                "passed",
-		"chunk_policy_version":                request.Profile.ChunkPolicyVersion,
-		"cleaning_policy_version":             request.Profile.CleaningPolicyVersion,
-		"dense_prefetch_limit":                request.Profile.DensePrefetchLimit,
-		"dense_vector_name":                   request.Profile.DenseVectorName,
+		"chunk_policy_version":                request.ServingConfig.ChunkPolicyVersion,
+		"cleaning_policy_version":             request.ServingConfig.CleaningPolicyVersion,
+		"dense_prefetch_limit":                request.ServingConfig.DensePrefetchLimit,
+		"dense_vector_name":                   request.ServingConfig.DenseVectorName,
 		"embedding_dimensions":                request.EmbeddingDimensions,
 		"embedding_model":                     strings.TrimSpace(request.EmbeddingModel),
 		"embedding_provider":                  strings.TrimSpace(request.EmbeddingProvider),
-		"embedding_query_instruction_hash":    HashText(request.Profile.EmbeddingQueryInstruction),
+		"embedding_query_instruction_hash":    HashText(request.ServingConfig.EmbeddingQueryInstruction),
 		"index_validation_status":             "passed",
-		"profile_identity_hash":               ProfileIdentityHash(request.Profile, request.EmbeddingProvider, request.EmbeddingModel, request.EmbeddingDimensions),
+		"serving_config_identity_hash":        ServingConfigIdentityHash(request.ServingConfig, request.EmbeddingProvider, request.EmbeddingModel, request.EmbeddingDimensions),
 		"qrels_coverage_status":               "passed",
 		"quality_gate_status":                 "passed",
 		"release_metadata_consistency_status": "passed",
-		"rrf_dense_weight":                    request.Profile.RRFDenseWeight,
-		"rrf_k":                               request.Profile.RRFK,
-		"rrf_sparse_weight":                   request.Profile.RRFSparseWeight,
+		"rrf_dense_weight":                    request.ServingConfig.RRFDenseWeight,
+		"rrf_k":                               request.ServingConfig.RRFK,
+		"rrf_sparse_weight":                   request.ServingConfig.RRFSparseWeight,
 		"sparse_language":                     DefaultSparseLanguage,
 		"sparse_model":                        DefaultSparseModel,
-		"sparse_prefetch_limit":               request.Profile.SparsePrefetchLimit,
+		"sparse_prefetch_limit":               request.ServingConfig.SparsePrefetchLimit,
 		"sparse_provider":                     DefaultSparseProvider,
 		"sparse_tokenizer":                    DefaultSparseTokenizer,
-		"sparse_vector_name":                  request.Profile.SparseVectorName,
+		"sparse_vector_name":                  request.ServingConfig.SparseVectorName,
 	}
-	if requiresRegulationTargetReleaseProof(request.Profile) {
+	if requiresRegulationTargetReleaseProof(request.ServingConfig) {
 		expected["release_admission_status"] = "passed"
 		expected["component_eval_status"] = "passed"
 	}
@@ -234,11 +234,11 @@ func releaseMetadataMismatches(request ReleaseGuardRequest) []string {
 	return mismatches
 }
 
-func requiresReleaseMetadata(profile RuntimeProfile) bool {
+func requiresReleaseMetadata(profile ServingConfig) bool {
 	return strings.TrimSpace(profile.ServingStage) == "query_serving" || profile.QueryEnabledByDefault
 }
 
-func requiresRegulationTargetReleaseProof(profile RuntimeProfile) bool {
+func requiresRegulationTargetReleaseProof(profile ServingConfig) bool {
 	return profile.Corpus == "regulations" &&
 		(profile.Collection == "student_rules" || profile.Collection == "institutional_rules") &&
 		requiresReleaseMetadata(profile)

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
 
-LLM_API_KEY_PRECEDENCE = ("EVAL_LLM_API_KEY", "LLM_API_KEY")
-EMBEDDING_API_KEY_PRECEDENCE = ("EVAL_EMBEDDING_API_KEY", "EMBEDDING_API_KEY")
+INGESTION_EMBEDDING_API_KEY_PRECEDENCE = ("INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY")
 
 SURFACE_SPECS = {
     "evals": {
@@ -15,7 +14,7 @@ SURFACE_SPECS = {
     "ingestion": {
         "providers": {
             "embedding": {
-                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
+                "checked_keys": INGESTION_EMBEDDING_API_KEY_PRECEDENCE,
                 "surface_name": "ingestion.worker",
             },
         },
@@ -68,16 +67,7 @@ SURFACE_SPECS = {
         "files": {},
     },
     "query": {
-        "providers": {
-            "llm": {
-                "checked_keys": LLM_API_KEY_PRECEDENCE,
-                "surface_name": "query.runtime",
-            },
-            "embedding": {
-                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
-                "surface_name": "query.runtime",
-            },
-        },
+        "providers": {},
         "required_settings": {
             "shared_postgres_url": ("CAMPUS_SHARED_POSTGRES_URL",),
         },
@@ -122,6 +112,10 @@ SURFACE_SPECS = {
             "execution_control_shared_secret": ("EXECUTION_CONTROL_SHARED_SECRET",),
             "metrics_bearer_token": ("EXECUTION_CONTROL_METRICS_BEARER_TOKEN",),
             "run_projection_database_url": ("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",),
+            "provider_config_projection_path": ("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",),
+            "observability_config_projection_path": ("CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH",),
+            "qdrant_url": ("QDRANT_URL",),
+            "qdrant_query_api_key": ("QDRANT_QUERY_API_KEY",),
             "temporal_address": ("EXECUTION_CONTROL_TEMPORAL_ADDRESS",),
             "temporal_namespace": ("EXECUTION_CONTROL_TEMPORAL_NAMESPACE",),
             "temporal_task_queue": ("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",),

@@ -81,24 +81,11 @@ func TestSynthesisProviderFailureProjectsPacketSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("retrieve indexed lookup: %v", err)
 	}
-	rescue, err := server.ExpandOrRescueRetrievalActivity(
-		context.Background(),
-		temporalruntime.ExpandOrRescueRetrievalActivityInput{
-			LookupRef:  lookupOutput.LookupRef,
-			RAGPlanRef: ragPlan.PlanRef,
-			RunID:      "run-rag-provider-failure",
-			TraceID:    "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("expand or rescue: %v", err)
-	}
 	evidence, err := server.SelectEvidenceActivity(
 		context.Background(),
 		temporalruntime.SelectEvidenceActivityInput{
 			LookupRef:  lookupOutput.LookupRef,
 			RAGPlanRef: ragPlan.PlanRef,
-			RescueRef:  rescue.RescueRef,
 			RunID:      "run-rag-provider-failure",
 			TraceID:    "trace-executor-001",
 		},

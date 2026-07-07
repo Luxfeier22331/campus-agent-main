@@ -26,73 +26,142 @@ func TestToolRegistryKeepsInternalAndClosedToolsOutOfModelVisibleSet(t *testing.
 	}
 }
 
-func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
+func TestQueryServingScopePolicyMatchesDefaultServingConfig(t *testing.T) {
 	tests := []struct {
-		name       string
-		corpus     string
-		collection string
-		want       bool
+		name      string
+		request   QueryScopeAdmissionRequest
+		want      bool
+		wantClass string
 	}{
 		{
-			name:       "student rules allowed",
-			corpus:     "regulations",
-			collection: "student_rules",
-			want:       true,
+			name: "student rules default open",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "regulations",
+				Collection: "student_rules",
+				QueryMode:  "current",
+			},
+			want:      true,
+			wantClass: "default_open",
 		},
 		{
-			name:       "institutional rules allowed after serving admission",
-			corpus:     "regulations",
-			collection: "institutional_rules",
-			want:       true,
+			name: "institutional rules default open",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "regulations",
+				Collection: "institutional_rules",
+				QueryMode:  "current",
+			},
+			want:      true,
+			wantClass: "default_open",
 		},
 		{
-			name:       "scoped rules rejected by default",
-			corpus:     "regulations",
-			collection: "scoped_rules",
-			want:       false,
+			name: "scoped rules not admitted",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "regulations",
+				Collection: "scoped_rules",
+				QueryMode:  "current",
+			},
+			want: false,
 		},
 		{
-			name:       "curriculum plan allowed",
-			corpus:     "curriculum",
-			collection: "curriculum_plan",
-			want:       true,
+			name: "curriculum plan default open",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "curriculum",
+				Collection: "curriculum_plan",
+				QueryMode:  "current",
+			},
+			want:      true,
+			wantClass: "default_open",
 		},
 		{
-			name:       "official web stable reference allowed",
-			corpus:     "official_web",
-			collection: "stable_reference",
-			want:       true,
+			name: "official web stable reference default open",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "official_web",
+				Collection: "stable_reference",
+				QueryMode:  "current",
+			},
+			want:      true,
+			wantClass: "default_open",
 		},
 		{
-			name:       "official web fresh news rejected",
-			corpus:     "official_web",
-			collection: "fresh_news",
-			want:       false,
+			name: "official web fresh news requires explicit freshness intent",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "official_web",
+				Collection: "fresh_news",
+				QueryMode:  "freshness_sensitive",
+			},
+			want: false,
 		},
 		{
-			name:       "official web news archive rejected",
-			corpus:     "official_web",
-			collection: "news_archive",
-			want:       false,
+			name: "official web fresh news admitted for latest intent",
+			request: QueryScopeAdmissionRequest{
+				Corpus:          "official_web",
+				Collection:      "fresh_news",
+				FreshnessIntent: "latest",
+				QueryMode:       "freshness_sensitive",
+			},
+			want:      true,
+			wantClass: "intent_scoped",
 		},
 		{
-			name:       "campus service catalog rejected",
-			corpus:     "campus_services",
-			collection: "service_catalog",
-			want:       false,
+			name: "official web news archive admitted for historical query mode",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "official_web",
+				Collection: "news_archive",
+				QueryMode:  "as_of",
+			},
+			want:      true,
+			wantClass: "intent_scoped",
+		},
+		{
+			name: "campus service catalog rejected",
+			request: QueryScopeAdmissionRequest{
+				Corpus:     "campus_services",
+				Collection: "service_catalog",
+				QueryMode:  "current",
+			},
+			want: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			allowed, err := QueryScopeAllowed(tt.corpus, tt.collection, "")
+			admission, err := AdmitQueryScope(tt.request, "")
 			if err != nil {
-				t.Fatalf("query scope allowed: %v", err)
+				t.Fatalf("admit query scope: %v", err)
 			}
-			if allowed != tt.want {
-				t.Fatalf("allowed = %v, want %v", allowed, tt.want)
+			if admission.Allowed != tt.want {
+				t.Fatalf("allowed = %v, want %v; reason=%s", admission.Allowed, tt.want, admission.Reason)
+			}
+			if tt.wantClass != "" && admission.ScopeClass != tt.wantClass {
+				t.Fatalf("scope class = %q, want %q", admission.ScopeClass, tt.wantClass)
 			}
 		})
+	}
+}
+
+func TestQueryServingPolicyScopesListsDefaultAndIntentScopedAdmissions(t *testing.T) {
+	scopes, err := QueryServingPolicyScopes("")
+	if err != nil {
+		t.Fatalf("query serving policy scopes: %v", err)
+	}
+	got := map[string]bool{}
+	for _, scope := range scopes {
+		got[scope.Corpus+"/"+scope.Collection] = true
+	}
+	for _, scope := range []string{
+		"regulations/student_rules",
+		"regulations/institutional_rules",
+		"curriculum/curriculum_plan",
+		"official_web/stable_reference",
+		"official_web/fresh_news",
+		"official_web/news_archive",
+	} {
+		if !got[scope] {
+			t.Fatalf("query-serving policy scope %s missing: %#v", scope, got)
+		}
+	}
+	if got["regulations/scoped_rules"] {
+		t.Fatal("policy-closed scoped_rules must not be returned as query-serving policy scope")
 	}
 }
 
@@ -120,10 +189,10 @@ func TestQueryServingScopePolicyFailsClosedWhenDefaultPolicyIsMissing(t *testing
 }
 
 func TestQueryServingScopePolicyReadsExplicitPolicyFile(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v2.json")
 	if err := os.WriteFile(
 		policyPath,
-		[]byte(`{"policy_version":"query-serving-scopes-v1","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		[]byte(`{"policy_version":"query-serving-scopes-v2","default_open":[{"corpus":"regulations","collection":"student_rules","allowed_query_modes":["current"]}],"intent_scoped":[]}`),
 		0o600,
 	); err != nil {
 		t.Fatalf("write policy fixture: %v", err)
@@ -139,10 +208,10 @@ func TestQueryServingScopePolicyReadsExplicitPolicyFile(t *testing.T) {
 }
 
 func TestQueryServingScopePolicyRejectsMissingPolicyVersion(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v2.json")
 	if err := os.WriteFile(
 		policyPath,
-		[]byte(`{"scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		[]byte(`{"default_open":[{"corpus":"regulations","collection":"student_rules","allowed_query_modes":["current"]}],"intent_scoped":[]}`),
 		0o600,
 	); err != nil {
 		t.Fatalf("write policy fixture: %v", err)
@@ -161,7 +230,7 @@ func TestQueryServingScopePolicyRejectsMissingPolicyVersion(t *testing.T) {
 }
 
 func TestQueryServingScopePolicyRejectsMismatchedPolicyVersion(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v2.json")
 	if err := os.WriteFile(
 		policyPath,
 		[]byte(`{"policy_version":"query-serving-scopes-v999","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),

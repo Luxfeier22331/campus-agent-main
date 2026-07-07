@@ -32,8 +32,8 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activity.RegisterOptions{Name: RetrieveIndexedLookupActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.ExpandOrRescueRetrievalActivity,
-		activity.RegisterOptions{Name: ExpandOrRescueRetrievalActivityName},
+		activities.LiveSourceLookupActivity,
+		activity.RegisterOptions{Name: LiveSourceLookupActivityName},
 	)
 	env.RegisterActivityWithOptions(activities.SelectEvidenceActivity, activity.RegisterOptions{Name: SelectEvidenceActivityName})
 	env.RegisterActivityWithOptions(
@@ -237,7 +237,17 @@ func (Activities) PlanRAGActivity(
 	return PlanRAGActivityOutput{
 		PlanRef: "projection://runs/" + input.RunID + "/rag/plan",
 		RunID:   input.RunID,
-		Status:  "completed",
+		Steps: []RAGPlanStep{{
+			StepID:   "hybrid-search",
+			StepType: "hybrid_search",
+		}, {
+			StepID:   "evidence-coverage-verify",
+			StepType: "evidence_coverage_verify",
+		}, {
+			StepID:   "supporting-evidence-select",
+			StepType: "supporting_evidence_select",
+		}},
+		Status: "completed",
 	}, nil
 }
 
@@ -252,13 +262,12 @@ func (Activities) RetrieveIndexedLookupActivity(
 	}, nil
 }
 
-func (Activities) ExpandOrRescueRetrievalActivity(
+func (Activities) LiveSourceLookupActivity(
 	_ context.Context,
-	input ExpandOrRescueRetrievalActivityInput,
-) (ExpandOrRescueRetrievalActivityOutput, error) {
-	return ExpandOrRescueRetrievalActivityOutput{
-		LookupRef: input.LookupRef,
-		RescueRef: "projection://runs/" + input.RunID + "/retrieval/expand-or-rescue",
+	input LiveSourceLookupActivityInput,
+) (LiveSourceLookupActivityOutput, error) {
+	return LiveSourceLookupActivityOutput{
+		LookupRef: "projection://runs/" + input.RunID + "/retrieval/live-source-lookup",
 		RunID:     input.RunID,
 		Status:    "completed",
 	}, nil
@@ -343,22 +352,12 @@ func retrievalLookupInputMatcher(runID string) func(RetrieveIndexedLookupActivit
 	}
 }
 
-func retrievalRescueInputMatcher(runID string) func(ExpandOrRescueRetrievalActivityInput) bool {
-	return func(input ExpandOrRescueRetrievalActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
-			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup"
-	}
-}
-
 func evidenceSelectionInputMatcher(runID string) func(SelectEvidenceActivityInput) bool {
 	return func(input SelectEvidenceActivityInput) bool {
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
 			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
-			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup" &&
-			input.RescueRef == "projection://runs/run-workflow-001/retrieval/expand-or-rescue"
+			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup"
 	}
 }
 

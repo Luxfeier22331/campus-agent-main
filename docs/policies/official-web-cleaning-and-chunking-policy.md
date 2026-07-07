@@ -32,7 +32,7 @@ status。
 
 - collector 的 host allowlist、crawl frontier、robots 与 parser 细节
 - `official_web` source-truth 字段级 schema
-- `fresh_news` / `news_archive` collection 的 runtime profile 具体 JSON 形状；
+- `fresh_news` / `news_archive` collection 的 serving config 具体 JSON 形状；
   该范围需要单独治理决策
 - query-serving 是否开放
 

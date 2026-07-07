@@ -270,9 +270,15 @@ type PlanRAGActivityInput struct {
 }
 
 type PlanRAGActivityOutput struct {
-	PlanRef string `json:"plan_ref"`
-	RunID   string `json:"run_id"`
-	Status  string `json:"status"`
+	PlanRef string        `json:"plan_ref"`
+	RunID   string        `json:"run_id"`
+	Status  string        `json:"status"`
+	Steps   []RAGPlanStep `json:"steps,omitempty"`
+}
+
+type RAGPlanStep struct {
+	StepID   string `json:"step_id"`
+	StepType string `json:"step_type"`
 }
 
 type RetrieveIndexedLookupActivityInput struct {
@@ -287,16 +293,15 @@ type RetrieveIndexedLookupActivityOutput struct {
 	Status    string `json:"status"`
 }
 
-type ExpandOrRescueRetrievalActivityInput struct {
-	LookupRef  string `json:"lookup_ref"`
-	RAGPlanRef string `json:"rag_plan_ref"`
-	RunID      string `json:"run_id"`
-	TraceID    string `json:"trace_id"`
+type LiveSourceLookupActivityInput struct {
+	RAGPlanRef string   `json:"rag_plan_ref"`
+	RunID      string   `json:"run_id"`
+	StepTypes  []string `json:"step_types"`
+	TraceID    string   `json:"trace_id"`
 }
 
-type ExpandOrRescueRetrievalActivityOutput struct {
+type LiveSourceLookupActivityOutput struct {
 	LookupRef string `json:"lookup_ref"`
-	RescueRef string `json:"rescue_ref"`
 	RunID     string `json:"run_id"`
 	Status    string `json:"status"`
 }
@@ -304,7 +309,6 @@ type ExpandOrRescueRetrievalActivityOutput struct {
 type SelectEvidenceActivityInput struct {
 	LookupRef  string `json:"lookup_ref"`
 	RAGPlanRef string `json:"rag_plan_ref"`
-	RescueRef  string `json:"rescue_ref"`
 	RunID      string `json:"run_id"`
 	TraceID    string `json:"trace_id"`
 }

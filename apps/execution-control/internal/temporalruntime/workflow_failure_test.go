@@ -37,21 +37,11 @@ func TestToolExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(t *tes
 			},
 		},
 		{
-			name:     "expand or rescue retrieval",
-			failStep: ExpandOrRescueRetrievalActivityName,
-			configure: func(flow *mockedKnowledgeWorkflow) {
-				flow.planRAG()
-				flow.retrieve()
-				flow.failExpand()
-			},
-		},
-		{
 			name:     "select evidence",
 			failStep: SelectEvidenceActivityName,
 			configure: func(flow *mockedKnowledgeWorkflow) {
 				flow.planRAG()
 				flow.retrieve()
-				flow.expand()
 				flow.failSelectEvidence()
 			},
 		},
@@ -61,7 +51,6 @@ func TestToolExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(t *tes
 			configure: func(flow *mockedKnowledgeWorkflow) {
 				flow.planRAG()
 				flow.retrieve()
-				flow.expand()
 				flow.selectEvidence()
 				flow.failSynthesis()
 			},
@@ -72,7 +61,6 @@ func TestToolExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(t *tes
 			configure: func(flow *mockedKnowledgeWorkflow) {
 				flow.planRAG()
 				flow.retrieve()
-				flow.expand()
 				flow.selectEvidence()
 				flow.synthesize()
 				flow.failGrounding()
@@ -327,7 +315,6 @@ type mockedKnowledgeWorkflow struct {
 	agentResultRef  string
 	ragPlanRef      string
 	lookupRef       string
-	rescueRef       string
 	evidenceRef     string
 	synthesisRef    string
 	groundingRef    string
@@ -346,7 +333,6 @@ func newMockedKnowledgeWorkflow(
 		agentResultRef: "projection://runs/" + runID + "/agent/primary/result",
 		ragPlanRef:     "projection://runs/" + runID + "/rag/plan",
 		lookupRef:      "projection://runs/" + runID + "/retrieval/lookup",
-		rescueRef:      "projection://runs/" + runID + "/retrieval/rescue",
 		evidenceRef:    "projection://runs/" + runID + "/evidence/select",
 		synthesisRef:   "projection://runs/" + runID + "/synthesis/provider",
 		groundingRef:   "projection://runs/" + runID + "/grounding/verify",
@@ -378,7 +364,17 @@ func (m *mockedKnowledgeWorkflow) planRAG() {
 	m.env.OnActivity(PlanRAGActivityName, mock.Anything, mock.Anything).Return(PlanRAGActivityOutput{
 		PlanRef: m.ragPlanRef,
 		RunID:   m.runID,
-		Status:  "completed",
+		Steps: []RAGPlanStep{{
+			StepID:   "hybrid-search",
+			StepType: "hybrid_search",
+		}, {
+			StepID:   "evidence-coverage-verify",
+			StepType: "evidence_coverage_verify",
+		}, {
+			StepID:   "supporting-evidence-select",
+			StepType: "supporting_evidence_select",
+		}},
+		Status: "completed",
 	}, nil)
 }
 
@@ -404,25 +400,6 @@ func (m *mockedKnowledgeWorkflow) failRetrieve() {
 	m.env.OnActivity(RetrieveIndexedLookupActivityName, mock.Anything, mock.Anything).Return(
 		RetrieveIndexedLookupActivityOutput{},
 		errors.New("forced "+RetrieveIndexedLookupActivityName+" failure"),
-	)
-}
-
-func (m *mockedKnowledgeWorkflow) expand() {
-	m.env.OnActivity(ExpandOrRescueRetrievalActivityName, mock.Anything, mock.Anything).Return(
-		ExpandOrRescueRetrievalActivityOutput{
-			LookupRef: m.lookupRef,
-			RescueRef: m.rescueRef,
-			RunID:     m.runID,
-			Status:    "completed",
-		},
-		nil,
-	)
-}
-
-func (m *mockedKnowledgeWorkflow) failExpand() {
-	m.env.OnActivity(ExpandOrRescueRetrievalActivityName, mock.Anything, mock.Anything).Return(
-		ExpandOrRescueRetrievalActivityOutput{},
-		errors.New("forced "+ExpandOrRescueRetrievalActivityName+" failure"),
 	)
 }
 
@@ -482,7 +459,6 @@ func TestDefaultActivityTaskQueueRoutingForWorkflowActivities(t *testing.T) {
 	flow.primarySelectsKnowledge()
 	flow.planRAG()
 	flow.retrieve()
-	flow.expand()
 	flow.selectEvidence()
 	flow.synthesize()
 	env.OnActivity(VerifyGroundingActivityName, mock.Anything, mock.Anything).Return(
@@ -509,15 +485,14 @@ func TestDefaultActivityTaskQueueRoutingForWorkflowActivities(t *testing.T) {
 		t.Fatalf("workflow error: %v", err)
 	}
 	want := map[string]string{
-		MemoryRecallActivityName:            ActivityTaskQueueCore,
-		ExecutePrimaryAgentActivityName:     ActivityTaskQueueAgent,
-		PlanRAGActivityName:                 ActivityTaskQueueKnowledge,
-		RetrieveIndexedLookupActivityName:   ActivityTaskQueueKnowledge,
-		ExpandOrRescueRetrievalActivityName: ActivityTaskQueueKnowledge,
-		SelectEvidenceActivityName:          ActivityTaskQueueKnowledge,
-		SynthesizeRAGAnswerActivityName:     ActivityTaskQueueKnowledge,
-		VerifyGroundingActivityName:         ActivityTaskQueueKnowledge,
-		WriteFinalizationActivityName:       ActivityTaskQueueCore,
+		MemoryRecallActivityName:          ActivityTaskQueueCore,
+		ExecutePrimaryAgentActivityName:   ActivityTaskQueueAgent,
+		PlanRAGActivityName:               ActivityTaskQueueKnowledge,
+		RetrieveIndexedLookupActivityName: ActivityTaskQueueKnowledge,
+		SelectEvidenceActivityName:        ActivityTaskQueueKnowledge,
+		SynthesizeRAGAnswerActivityName:   ActivityTaskQueueKnowledge,
+		VerifyGroundingActivityName:       ActivityTaskQueueKnowledge,
+		WriteFinalizationActivityName:     ActivityTaskQueueCore,
 	}
 	for activityName, taskQueue := range want {
 		if seenQueues[activityName] != taskQueue {

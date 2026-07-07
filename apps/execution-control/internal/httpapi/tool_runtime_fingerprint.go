@@ -12,6 +12,14 @@ import (
 
 const toolRuntimeFingerprintSchemaVersion = "tool_runtime_fingerprint.v1"
 
+const (
+	defaultToolRegistryRelativePath             = "configs/runtime/tools.v4.json"
+	defaultToolFunctionSchemaRelativePath       = "configs/runtime/tool-function-schemas.v1.json"
+	defaultWorkflowArtifactRegistryRelativePath = "configs/runtime/workflow-artifacts.v2.json"
+	packagedToolRegistryPath                    = "/etc/campus-agent/tools.v4.json"
+	packagedWorkflowArtifactRegistryPath        = "/etc/campus-agent/workflow-artifacts.v2.json"
+)
+
 type toolRuntimeFingerprint struct {
 	SchemaVersion                   string `json:"schema_version"`
 	ToolsSchemaVersion              string `json:"tools_schema_version"`
@@ -26,7 +34,21 @@ type toolRuntimeFingerprint struct {
 }
 
 func buildToolRuntimeFingerprint(runtimeRelease string) (toolRuntimeFingerprint, error) {
-	toolsPath := resolveToolRegistryPath()
+	return buildToolRuntimeFingerprintWithPaths(
+		runtimeRelease,
+		"",
+		"",
+		"",
+	)
+}
+
+func buildToolRuntimeFingerprintWithPaths(
+	runtimeRelease string,
+	toolRegistryPath string,
+	toolFunctionSchemaPath string,
+	workflowArtifactRegistryPath string,
+) (toolRuntimeFingerprint, error) {
+	toolsPath := resolveToolRegistryPathFrom(toolRegistryPath)
 	if toolsPath == "" {
 		return toolRuntimeFingerprint{}, fmt.Errorf("tool registry path is not configured")
 	}
@@ -39,7 +61,7 @@ func buildToolRuntimeFingerprint(runtimeRelease string) (toolRuntimeFingerprint,
 		return toolRuntimeFingerprint{}, fmt.Errorf("hash tool registry for runtime fingerprint: %w", err)
 	}
 
-	functionPath := resolveToolFunctionSchemaPath()
+	functionPath := resolveToolFunctionSchemaPathFrom(toolFunctionSchemaPath)
 	if functionPath == "" {
 		return toolRuntimeFingerprint{}, fmt.Errorf("tool function schema path is not configured")
 	}
@@ -52,7 +74,7 @@ func buildToolRuntimeFingerprint(runtimeRelease string) (toolRuntimeFingerprint,
 		return toolRuntimeFingerprint{}, fmt.Errorf("hash tool function schemas for runtime fingerprint: %w", err)
 	}
 
-	workflowPath := resolveWorkflowArtifactRegistryPath()
+	workflowPath := resolveWorkflowArtifactRegistryPathFrom(workflowArtifactRegistryPath)
 	if workflowPath == "" {
 		return toolRuntimeFingerprint{}, fmt.Errorf("workflow artifact registry path is not configured")
 	}
@@ -118,20 +140,33 @@ func canonicalJSONFileSHA256Ref(path string) (string, error) {
 }
 
 func resolveToolRegistryPath() string {
-	if envPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH")); envPath != "" {
-		return envPath
-	}
-	return resolveRuntimeConfigPath(filepath.Join("configs", "runtime", "tools.v4.json"))
+	return resolveToolRegistryPathFrom("")
+}
+
+func resolveToolRegistryPathFrom(registryPath string) string {
+	return resolveRuntimeConfigPath(
+		registryPath,
+		defaultToolRegistryRelativePath,
+		packagedToolRegistryPath,
+	)
 }
 
 func resolveWorkflowArtifactRegistryPath() string {
-	if envPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH")); envPath != "" {
-		return envPath
-	}
-	return resolveRuntimeConfigPath(filepath.Join("configs", "runtime", "workflow-artifacts.v2.json"))
+	return resolveWorkflowArtifactRegistryPathFrom("")
 }
 
-func resolveRuntimeConfigPath(relativePath string) string {
+func resolveWorkflowArtifactRegistryPathFrom(registryPath string) string {
+	return resolveRuntimeConfigPath(
+		registryPath,
+		defaultWorkflowArtifactRegistryRelativePath,
+		packagedWorkflowArtifactRegistryPath,
+	)
+}
+
+func resolveRuntimeConfigPath(explicitPath string, relativePath string, packagedPath string) string {
+	if strings.TrimSpace(explicitPath) != "" {
+		return strings.TrimSpace(explicitPath)
+	}
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return ""
@@ -143,6 +178,9 @@ func resolveRuntimeConfigPath(relativePath string) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if _, err := os.Stat(packagedPath); err == nil {
+				return packagedPath
+			}
 			return ""
 		}
 	}

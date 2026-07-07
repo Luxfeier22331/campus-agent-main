@@ -37,229 +37,235 @@
 			"retired": true
 		},
 		"EXECUTION_CONTROL_INTENT_POLICY_PATH": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_QUEUE_CAPACITY": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OPEN_TOOLS": {
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_ENABLED": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_METRICS_ENABLED": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_SERVICE_NAME": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_SAMPLE_RATIO": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_PROVIDER_PRICING_PATH": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_TOP_K_MAX": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_SELECTED_EVIDENCE_MAX": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_RETRIEVAL_MAX_CONCURRENT": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_SYNTHESIS_MAX_CONCURRENT": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_EMBEDDING_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_QDRANT_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"EXECUTION_CONTROL_RAG_PROVIDER_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_COLLECTION": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_TOP_K": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_MAX_CHARS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_SCORE_THRESHOLD": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_RUNTIME": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_TIMEOUT_SECONDS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_RECALL_LIMIT": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_RECALL_MAX_CHARS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_RECALL_MAX_TOKENS": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
 		},
 		"PERSONAL_MEMORY_CONTEXT_CHAR_BUDGET": {
-			"owner": "execution-control-runtime-profile",
+			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true

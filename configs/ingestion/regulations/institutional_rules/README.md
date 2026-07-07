@@ -3,7 +3,7 @@
 This directory holds the repo-tracked config scaffold for the
 `institutional_rules` collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime gate for the regulation target
+- `serving-config.json`: canonical serving gate for the regulation target
   collection
 - `canonical-profile.json`: canonical identity and provenance truth for promoted
   regulation documents
@@ -22,7 +22,7 @@ This directory holds the repo-tracked config scaffold for the
 - `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
   `: local-only target acceptance operator path
 
-Current runtime truth:
+Current serving truth:
 
 - serving stage: `query_serving`
 - retrieval enabled: `true`

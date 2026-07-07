@@ -12,11 +12,11 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	profile, err := readDefaultRuntimeConfigProfileFile()
+	profile, err := readDefaultRuntimeConfigFile()
 	if err != nil {
 		panic(err)
 	}
-	profilePath := filepath.Join(dir, "runtime-profile.json")
+	profilePath := filepath.Join(dir, "runtime-config.json")
 	if err := os.WriteFile(profilePath, profile, 0o600); err != nil {
 		panic(err)
 	}
@@ -44,7 +44,7 @@ func setStagingTemporalWorkflowIDSalt(t *testing.T) {
 
 func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
@@ -105,8 +105,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.AuthMode != "bearer" {
 		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
 	}
-	if cfg.RuntimeProfile != "local" {
-		t.Fatalf("runtime profile = %q, want local", cfg.RuntimeProfile)
+	if cfg.RuntimeMode != "local" {
+		t.Fatalf("runtime mode = %q, want local", cfg.RuntimeMode)
 	}
 	if cfg.DefaultActorID != "" {
 		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
@@ -196,8 +196,7 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.PersonalMemoryTimeoutSeconds != 10 ||
 		cfg.PersonalMemoryRecallLimit != 8 ||
 		cfg.PersonalMemoryRecallMaxTokens != 2500 ||
-		cfg.PersonalMemoryContextCharBudget != 2500 ||
-		cfg.EmbeddingDimensions != 0 {
+		cfg.PersonalMemoryContextCharBudget != 2500 {
 		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
 	}
 	if cfg.RAGTopKMax != 8 ||
@@ -265,7 +264,7 @@ func TestLoadFromEnvDoesNotReuseNoticeObjectStoreForReplayPackets(t *testing.T) 
 }
 
 func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
@@ -279,7 +278,7 @@ func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
 }
 
 func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
@@ -304,7 +303,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 }
 
 func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
@@ -318,7 +317,7 @@ func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 }
 
 func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
@@ -494,17 +493,17 @@ func TestLoadFromEnvReportsRetiredDurableLoopBeforeParsingOldValues(t *testing.T
 	}
 }
 
-func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+func TestFromEnvRejectsNonLocalRuntimeModeWithoutMetricsToken(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected staging runtime profile without metrics token to fail")
+		t.Fatal("expected staging runtime config without metrics token to fail")
 	}
 }
 
 func TestLoadFromEnvForRoleDoesNotRequireServerMetricsToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@worker-test")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
@@ -517,8 +516,8 @@ func TestLoadFromEnvForRoleDoesNotRequireServerMetricsToken(t *testing.T) {
 	}
 }
 
-func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+func TestFromEnvAcceptsStagingRuntimeModeWithMetricsToken(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@staging-test")
@@ -533,8 +532,8 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
-	if cfg.RuntimeProfile != "staging" {
-		t.Fatalf("runtime profile = %q, want staging", cfg.RuntimeProfile)
+	if cfg.RuntimeMode != "staging" {
+		t.Fatalf("runtime mode = %q, want staging", cfg.RuntimeMode)
 	}
 	if cfg.RuntimeRelease != "execution-control@staging-test" {
 		t.Fatalf("runtime release = %q, want execution-control@staging-test", cfg.RuntimeRelease)
@@ -568,8 +567,8 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 }
 
 func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
-	setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+	setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "max_concurrent_answers": 4,
   "queue_capacity": 12,
   "queue_timeout_ms": 2500,

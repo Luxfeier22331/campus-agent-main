@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-20
-updated: 2026-06-14
+updated: 2026-07-07
 ---
 # Agentic Retrieval Architecture
 
@@ -106,8 +106,8 @@ Execution Agent Layer typed step admission
   repo-owned projection 负责 step attempt、result、event 与 eval / Operator Console truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
 - 当前实现中的 Temporal-visible RAG 已拆成
-  `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
-  `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
+  `rag.plan`、`retrieval.indexed_lookup`、`evidence.selection`、`synthesis`、
+  `grounding.verify`、`finalization.write` 等
   durable steps；后续优化重点是让每个 step 的 evidence、latency、token/cost、
   cancel/timeout 与 evidence-integrity verdict 更可证明，而不是恢复 coarse activity
 
@@ -138,7 +138,7 @@ query-enabled surface、freshness gate 或 source-trust gate。
 不负责：
 
 - product account / session truth
-- runtime profile 的最终 owner 决策
+- serving config 的最终 owner 决策
 - retrieval backend vendor freeze
 
 ### repo-owned retrieval runtime seam
@@ -161,7 +161,7 @@ query-enabled surface、freshness gate 或 source-trust gate。
 
 - `apps/app-api`
   - account / session projection、operator-facing read model
-- runtime profile / registry / release truth
+- serving config / registry / release truth
   - collection posture、visibility、serving alias、version mode
 - `execution-control` / current `apps/execution-control`
   - policy / tool admission
@@ -183,6 +183,7 @@ query-enabled surface、freshness gate 或 source-trust gate。
   - `historical`
   - `as_of`
   - `compare`
+- explicit live query mode
   - `freshness_sensitive`
   - `live_assisted`
 - ordered retrieval steps
@@ -195,7 +196,7 @@ query-enabled surface、freshness gate 或 source-trust gate。
 
 - plan 只能引用 admitted step types
 - plan 不能扩大 query-enabled surface
-- plan 不能绕过 query-enabled surface、source gate 或 runtime profile
+- plan 不能绕过 query-enabled surface、source gate 或 serving config
 
 ## RetrievalStep
 
@@ -229,29 +230,22 @@ admitted retrieval/domain tool step types 固定优先包括：
 
 - `hybrid_search`
   - 面向单一 admitted collection 的普通索引检索
-- `document_section_read`
-  - 读取 canonical document section / root unit
-- `parent_context_expand`
-  - 在 admitted document 内扩展 parent/child context
-- `rerank`
-  - 对候选集合执行 admitted rerank profile
-- `evidence_coverage_verify`
-  - 检查 supporting evidence 是否覆盖问题要求
-- `supporting_evidence_select`
-  - 从 candidate set 中选择 answer-bearing evidence
-- `entity_resolution`
-  - 面向课程、方案家族、制度对象、地点等实体分辨
-- `scope_follow_up`
-  - 在已 admitted 的 tool 内切换到 internal retrieval surface
-  - 只保留给显式 admission 的扩展；未 admission 时 executor 必须拒绝它
 - `historical_version_lookup`
   - 显式 historical / `as_of` 版本定位
 - `compare_pair_lookup`
   - 为 compare 查询准备双侧 evidence
 - `freshness_gate`
-  - 判断近期/最新语义是否允许继续回答
+  - `freshness_sensitive` live branch 的显式 source-policy gate
 - `live_source_lookup`
-  - 只允许命中 repo admitted 的 live source channel
+  - bounded official-web live lookup；不能扩展成 general web browse
+- `evidence_coverage_verify`
+  - 检查 supporting evidence 是否覆盖问题要求
+- `supporting_evidence_select`
+  - 从 candidate set 中选择 answer-bearing evidence
+
+`document_section_read`、`parent_context_expand` 与 `scope_follow_up` 是历史迁移期词汇，
+当前不属于 executable plan vocabulary。planner 不得生成它们；executor 发现后必须
+fail closed。
 
 禁止新增：
 
@@ -336,7 +330,7 @@ Retrieval runtime seam 可以执行：
 - title / entity / version-aware dedupe
 
 当前代码事实是：online rerank 主要依赖 Qdrant hybrid / RRF、heuristic ranking 与
-profile-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
+serving-config-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
 sentence-transformers rerank 已接入为 current serving truth。后续是否引入
 cross-encoder / complex scoring 必须先由 step-level latency、CPU profile、
 quality eval 与 cost evidence 证明，不能作为默认假设。
@@ -355,8 +349,6 @@ query mode 固定显式化：
 - `historical`
 - `as_of`
 - `compare`
-- `freshness_sensitive`
-- `live_assisted`
 
 固定规则：
 
@@ -367,7 +359,7 @@ query mode 固定显式化：
   `resolved_version_query`，lookup executor 只消费 resolved projection；缺 version
   registry、缺 explicit version id、`as_of` 多义或 `compare` 两侧缺失均 fail closed
 - `current` 不绑定单个 collection-level version id；它由 query-serving alias、
-  runtime profile 与 `is_current=true` filter 承接
+  serving config 与 `is_current=true` filter 承接
 - `historical` / `as_of` supporting evidence 必须覆盖解析出的版本；
   `compare` supporting evidence 必须覆盖比较两侧版本
 - recent / latest / today 一类问法不得在 freshness gate 缺失时继续假装可答

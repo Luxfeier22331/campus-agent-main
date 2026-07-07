@@ -14,15 +14,18 @@ import (
 )
 
 type retrievalRuntimeObservationInput struct {
-	CandidateCount int
-	FailureKind    string
-	Plan           ragruntime.PlanProjection
-	ReferenceCount int
-	Run            execution.DurableRun
-	StartedAt      time.Time
-	TerminalState  string
-	TraceID        string
-	QueryLatencyMS int64
+	CanonicalIndexTruth string
+	CandidateCount      int
+	FailureKind         string
+	Plan                ragruntime.PlanProjection
+	ReferenceCount      int
+	RetrievalMode       string
+	Run                 execution.DurableRun
+	StartedAt           time.Time
+	StepID              string
+	TerminalState       string
+	TraceID             string
+	QueryLatencyMS      int64
 }
 
 func (s *Server) emitRetrievalRuntimeObservation(
@@ -48,7 +51,7 @@ func retrievalRuntimeObservationEvent(
 	latency time.Duration,
 ) telemetry.Event {
 	return telemetry.Event{
-		CanonicalIndexTruth:   "true",
+		CanonicalIndexTruth:   firstNonEmptyText(input.CanonicalIndexTruth, "true"),
 		CandidateCount:        input.CandidateCount,
 		Collection:            input.Plan.Collection,
 		ConversationID:        input.Run.ConversationID,
@@ -64,10 +67,10 @@ func retrievalRuntimeObservationEvent(
 		ReferenceCount:        input.ReferenceCount,
 		RequestID:             input.Run.RequestID,
 		RequestedTool:         "knowledge_query",
-		RetrievalMode:         retrievalModeForRAGPlan(input.Plan),
+		RetrievalMode:         firstNonEmptyText(input.RetrievalMode, retrievalModeForRAGPlan(input.Plan)),
 		RunID:                 input.Run.RunID,
 		SelectedTool:          firstNonEmptyText(input.Run.SelectedTool, "knowledge_query"),
-		StepID:                "retrieval.indexed_lookup",
+		StepID:                firstNonEmptyText(input.StepID, "retrieval.indexed_lookup"),
 		TerminalState:         input.TerminalState,
 		TargetVersionIDsCount: versionIDCountForRAGPlan(input.Plan),
 		TraceID:               firstNonEmptyText(input.TraceID, input.Run.TraceID),
@@ -81,9 +84,6 @@ func sha256Hex(value string) string {
 }
 
 func retrievalModeForRAGPlan(plan ragruntime.PlanProjection) string {
-	if plan.QueryMode == "live_assisted" {
-		return "live_assisted"
-	}
 	return "indexed"
 }
 

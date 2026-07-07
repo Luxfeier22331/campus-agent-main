@@ -150,7 +150,7 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 1. 如果启用 LLM debug trace，先在 Operator Console 的 `观测配置` 页面确认
    Langfuse OTLP 配置，再运行 `scripts/sync-observability-config-projection.mjs`，
    确认目标 runtime 的 `CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH` 指向
-   0600 projection artifact，并被挂载到 runtime profile 声明的
+   0600 projection artifact，并被挂载到 runtime config 声明的
    `observability_config_projection_path`
 1. 对 execution-control 确认它只读取本地 projection artifact；
    provider-config projection sync 使用 `APP_API_INTERNAL_BASE_URL` /

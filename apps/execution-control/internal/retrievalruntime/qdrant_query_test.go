@@ -3,7 +3,7 @@ package retrievalruntime
 import "testing"
 
 func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
-	profile := RuntimeProfile{
+	profile := ServingConfig{
 		Collection:              "student_rules",
 		Corpus:                  "regulations",
 		DensePrefetchLimit:      20,
@@ -22,7 +22,7 @@ func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
 	body, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
 		Mode:           "current",
-		Profile:        profile,
+		ServingConfig:  profile,
 		QueryText:      "学生请假手续",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -53,8 +53,8 @@ func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
 	}
 }
 
-func TestBuildHybridQueryBodyAllowsProfileGatedRerankerCandidateQuery(t *testing.T) {
-	profile := RuntimeProfile{
+func TestBuildHybridQueryBodyAllowsServingConfigGatedRerankerCandidateQuery(t *testing.T) {
+	profile := ServingConfig{
 		Collection:               "student_rules",
 		Corpus:                   "regulations",
 		DensePrefetchLimit:       20,
@@ -72,7 +72,7 @@ func TestBuildHybridQueryBodyAllowsProfileGatedRerankerCandidateQuery(t *testing
 	body, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
 		Mode:           "current",
-		Profile:        profile,
+		ServingConfig:  profile,
 		QueryText:      "学生请假手续",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -81,7 +81,7 @@ func TestBuildHybridQueryBodyAllowsProfileGatedRerankerCandidateQuery(t *testing
 		TopK: 8,
 	})
 	if err != nil {
-		t.Fatalf("profile-gated reranker candidate query must still build: %v", err)
+		t.Fatalf("serving-config-gated reranker candidate query must still build: %v", err)
 	}
 	if body["prefetch"] == nil {
 		t.Fatalf("query body = %#v, want candidate prefetch before executor rerank", body)
@@ -89,7 +89,7 @@ func TestBuildHybridQueryBodyAllowsProfileGatedRerankerCandidateQuery(t *testing
 }
 
 func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
-	profile := RuntimeProfile{
+	profile := ServingConfig{
 		Collection:              "institutional_rules",
 		Corpus:                  "regulations",
 		CurrentOnly:             true,
@@ -99,8 +99,8 @@ func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
 	}
 
 	filter, err := BuildQdrantFilter(QueryRequest{
-		Mode:    "current",
-		Profile: profile,
+		Mode:          "current",
+		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			EntitlementGroups:       []string{"campus_members"},
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -118,8 +118,8 @@ func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
 	assertQdrantMatchAnyForQueryTest(t, must, "entitlement_groups", []string{"campus_members"})
 }
 
-func TestBuildQdrantFilterUsesVisibilityBranchesForMixedProfile(t *testing.T) {
-	profile := RuntimeProfile{
+func TestBuildQdrantFilterUsesVisibilityBranchesForMixedServingConfig(t *testing.T) {
+	profile := ServingConfig{
 		Collection:              "mixed_rules",
 		Corpus:                  "regulations",
 		ServingVisibilityLevels: []string{"public", "restricted"},
@@ -127,8 +127,8 @@ func TestBuildQdrantFilterUsesVisibilityBranchesForMixedProfile(t *testing.T) {
 	}
 
 	filter, err := BuildQdrantFilter(QueryRequest{
-		Mode:    "current",
-		Profile: profile,
+		Mode:          "current",
+		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			EntitlementGroups:       []string{"campus_members"},
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -166,8 +166,8 @@ func TestBuildQdrantFilterUsesVisibilityBranchesForMixedProfile(t *testing.T) {
 	assertQdrantMatchAnyForQueryTest(t, restrictedBranch, "entitlement_groups", []string{"campus_members"})
 }
 
-func TestBuildQdrantFilterFailsClosedWhenAccessNotAdmittedByProfile(t *testing.T) {
-	profile := RuntimeProfile{
+func TestBuildQdrantFilterFailsClosedWhenAccessNotAdmittedByServingConfig(t *testing.T) {
+	profile := ServingConfig{
 		Collection:              "institutional_rules",
 		Corpus:                  "regulations",
 		ServingVisibilityLevels: []string{"restricted"},
@@ -175,15 +175,15 @@ func TestBuildQdrantFilterFailsClosedWhenAccessNotAdmittedByProfile(t *testing.T
 	}
 
 	_, err := BuildQdrantFilter(QueryRequest{
-		Mode:    "current",
-		Profile: profile,
+		Mode:          "current",
+		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
 			VisibilityLevel:         "public",
 		},
 	})
 	if err == nil {
-		t.Fatal("public access against restricted-only profile must fail closed")
+		t.Fatal("public access against restricted-only serving config must fail closed")
 	}
 }
 
@@ -191,7 +191,7 @@ func TestBuildHybridQueryBodyAsOfRequiresResolvedVersionID(t *testing.T) {
 	body, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
 		Mode:           "as_of",
-		Profile:        validRuntimeProfileForQueryTest(),
+		ServingConfig:  validServingConfigForQueryTest(),
 		QueryText:      "2025年请假规则",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -218,7 +218,7 @@ func TestBuildHybridQueryBodyAsOfWithoutResolvedVersionIDFailsClosed(t *testing.
 	_, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
 		Mode:           "as_of",
-		Profile:        validRuntimeProfileForQueryTest(),
+		ServingConfig:  validServingConfigForQueryTest(),
 		QueryText:      "2025年请假规则",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -231,8 +231,29 @@ func TestBuildHybridQueryBodyAsOfWithoutResolvedVersionIDFailsClosed(t *testing.
 	}
 }
 
-func validRuntimeProfileForQueryTest() RuntimeProfile {
-	return RuntimeProfile{
+func TestBuildHybridQueryBodyRejectsDeferredServingModes(t *testing.T) {
+	for _, mode := range []string{"freshness_sensitive", "live_assisted"} {
+		t.Run(mode, func(t *testing.T) {
+			_, err := BuildHybridQueryBody(QueryRequest{
+				DenseEmbedding: []float64{0.1, 0.2, 0.3},
+				Mode:           mode,
+				ServingConfig:  validServingConfigForQueryTest(),
+				QueryText:      "学生请假手续",
+				RetrievalAccess: RetrievalAccess{
+					PolicyProjectionVersion: "phase1-authorization-projection-v1",
+					VisibilityLevel:         "public",
+				},
+				TopK: 3,
+			})
+			if err == nil {
+				t.Fatalf("%s must not build an indexed Qdrant query", mode)
+			}
+		})
+	}
+}
+
+func validServingConfigForQueryTest() ServingConfig {
+	return ServingConfig{
 		Collection:              "student_rules",
 		Corpus:                  "regulations",
 		DensePrefetchLimit:      20,

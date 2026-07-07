@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-28
+updated: 2026-07-07
 ---
 # Memory Plane Architecture
 
@@ -38,8 +38,10 @@ requirement，也不能授予 operator surface 权限。
 
 - online chat hot path 不再执行 `app-api -> PG profile.memory_items ->
   context.profile_memory` full injection。
+- active Python `ContextProjection` contract model 不再定义 `profile_memory`；该字段只作为
+  historical residue / schema negative guard 出现，不是后续扩展点。
 - personal memory 与 institutional RAG 完全分离：personal memory 走 Hindsight runtime，
-  institutional RAG 走 Qdrant / retrieval-core。
+  institutional RAG 走 Go-owned Qdrant retrieval runtime。
 - execution-control 不维护个人记忆向量 schema、collection alias、embedding compatibility
   check、repo-owned extraction prompt 或 extraction threshold。
 - Temporal 不是 memory database；Temporal 只编排 activity / workflow lifecycle。
@@ -68,7 +70,7 @@ PERSONAL_MEMORY_OWNER_SALT
 
 `personal_memory.runtime`、`personal_memory.timeout_seconds`、
 `personal_memory.recall_limit`、`personal_memory.recall_max_tokens` 与
-`personal_memory.context_char_budget` 由 execution-control runtime profile 管理，不再通过
+`personal_memory.context_char_budget` 由 execution-control runtime config 管理，不再通过
 env 配置。`recall_max_tokens` 只传给 Hindsight recall `max_tokens`；
 `context_char_budget` 只限制本仓库投给 agent / RAG 的本地 context block。
 
@@ -303,7 +305,8 @@ admitted internal memory-reflect request
    migration source。
 3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
    `context.profile_memory`。
-4. planning / RAG / deterministic tools 只消费 bounded Hindsight personal
+4. active execution request context 不携带 `profile_memory` 字段；planning / RAG /
+   deterministic tools 只消费 bounded Hindsight personal
    memory recall packet；不得读取 raw memory、raw transcript、raw auth material
    或产品层数据库对象。
 5. personalization 可以影响 follow-up、applicability、retrieval planning、ranking /
@@ -471,7 +474,7 @@ Hindsight posture：
 - `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
   `PERSONAL_MEMORY_OWNER_SALT` 是 deployment projection，不是开发者手工配置项；
   `runtime`、timeout、recall token budget 与 context char budget 由
-  execution-control runtime profile 管理。
+  execution-control runtime config 管理。
 - Hindsight LLM / embedding provider env 来自本地 provider projection artifact 中的
   `hindsight_llm` 与 `hindsight_embedding`；不得从 root `LLM_*` / `EMBEDDING_*`
   serving fallback 隐式继承，也不得在热路径回读 app-api。

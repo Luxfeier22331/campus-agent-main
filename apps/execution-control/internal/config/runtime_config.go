@@ -7,31 +7,31 @@ import (
 	"strings"
 )
 
-const runtimeConfigProfileSchemaVersion = "campus_execution_control_runtime_profile.v1"
+const runtimeConfigFileSchemaVersion = "campus_execution_control_runtime_config.v1"
 
-type runtimeConfigProfile struct {
-	SchemaVersion            string                          `json:"schema_version"`
-	MaxConcurrentAnswers     *int                            `json:"max_concurrent_answers,omitempty"`
-	QueueCapacity            *int                            `json:"queue_capacity,omitempty"`
-	QueueTimeoutMS           *int                            `json:"queue_timeout_ms,omitempty"`
-	RequestTimeoutMS         *int                            `json:"request_timeout_ms,omitempty"`
-	RequestBodyLimitBytes    *int64                          `json:"request_body_limit_bytes,omitempty"`
-	ShutdownGraceMS          *int                            `json:"shutdown_grace_ms,omitempty"`
-	IntentPolicyPath         *string                         `json:"intent_policy_path,omitempty"`
-	ProviderPricingPath      *string                         `json:"provider_pricing_path,omitempty"`
-	ObservabilityConfigPath  *string                         `json:"observability_config_projection_path,omitempty"`
-	QueryServingScopesPath   *string                         `json:"query_serving_scopes_path,omitempty"`
-	ToolReadModelTimeoutMS   *int                            `json:"tool_read_model_timeout_ms,omitempty"`
-	OpenTools                []string                        `json:"open_tools,omitempty"`
-	MultiStepWorkflowEnabled *bool                           `json:"multi_step_workflow_enabled,omitempty"`
-	OTel                     *runtimeConfigProfileOTel       `json:"otel,omitempty"`
-	ExecutionAudit           *runtimeConfigProfileAudit      `json:"execution_audit,omitempty"`
-	RAG                      *runtimeConfigProfileRAG        `json:"rag,omitempty"`
-	PersonalMemory           *runtimeConfigProfileMemory     `json:"personal_memory,omitempty"`
-	WorkerProfiles           map[string]runtimeProfileWorker `json:"worker_profiles,omitempty"`
+type runtimeConfigFile struct {
+	SchemaVersion            string                       `json:"schema_version"`
+	MaxConcurrentAnswers     *int                         `json:"max_concurrent_answers,omitempty"`
+	QueueCapacity            *int                         `json:"queue_capacity,omitempty"`
+	QueueTimeoutMS           *int                         `json:"queue_timeout_ms,omitempty"`
+	RequestTimeoutMS         *int                         `json:"request_timeout_ms,omitempty"`
+	RequestBodyLimitBytes    *int64                       `json:"request_body_limit_bytes,omitempty"`
+	ShutdownGraceMS          *int                         `json:"shutdown_grace_ms,omitempty"`
+	IntentPolicyPath         *string                      `json:"intent_policy_path,omitempty"`
+	ProviderPricingPath      *string                      `json:"provider_pricing_path,omitempty"`
+	ObservabilityConfigPath  *string                      `json:"observability_config_projection_path,omitempty"`
+	QueryServingScopesPath   *string                      `json:"query_serving_scopes_path,omitempty"`
+	ToolReadModelTimeoutMS   *int                         `json:"tool_read_model_timeout_ms,omitempty"`
+	OpenTools                []string                     `json:"open_tools,omitempty"`
+	MultiStepWorkflowEnabled *bool                        `json:"multi_step_workflow_enabled,omitempty"`
+	OTel                     *runtimeConfigFileOTel       `json:"otel,omitempty"`
+	ExecutionAudit           *runtimeConfigFileAudit      `json:"execution_audit,omitempty"`
+	RAG                      *runtimeConfigFileRAG        `json:"rag,omitempty"`
+	PersonalMemory           *runtimeConfigFileMemory     `json:"personal_memory,omitempty"`
+	WorkerProfiles           map[string]runtimeModeWorker `json:"worker_profiles,omitempty"`
 }
 
-type runtimeConfigProfileOTel struct {
+type runtimeConfigFileOTel struct {
 	Enabled                  *bool    `json:"enabled,omitempty"`
 	Endpoint                 *string  `json:"endpoint,omitempty"`
 	MetricsEnabled           *bool    `json:"metrics_enabled,omitempty"`
@@ -45,32 +45,32 @@ type runtimeConfigProfileOTel struct {
 	TemporalTracingEnabled   *bool    `json:"temporal_tracing_enabled,omitempty"`
 }
 
-type runtimeConfigProfileAudit struct {
+type runtimeConfigFileAudit struct {
 	Enabled      *bool   `json:"enabled,omitempty"`
 	URL          *string `json:"url,omitempty"`
 	SharedSecret *string `json:"shared_secret,omitempty"`
 	TimeoutMS    *int    `json:"timeout_ms,omitempty"`
 }
 
-type runtimeConfigProfileRAG struct {
-	TopKMax                *int                                        `json:"top_k_max,omitempty"`
-	SelectedEvidenceMax    *int                                        `json:"selected_evidence_max,omitempty"`
-	RetrievalMaxConcurrent *int                                        `json:"retrieval_max_concurrent,omitempty"`
-	SynthesisMaxConcurrent *int                                        `json:"synthesis_max_concurrent,omitempty"`
-	EmbeddingTimeoutMS     *int                                        `json:"embedding_timeout_ms,omitempty"`
-	QdrantTimeoutMS        *int                                        `json:"qdrant_timeout_ms,omitempty"`
-	ProviderTimeoutMS      *int                                        `json:"provider_timeout_ms,omitempty"`
-	SynthesisGeneration    *runtimeConfigProfileRAGSynthesisGeneration `json:"synthesis_generation,omitempty"`
+type runtimeConfigFileRAG struct {
+	TopKMax                *int                                     `json:"top_k_max,omitempty"`
+	SelectedEvidenceMax    *int                                     `json:"selected_evidence_max,omitempty"`
+	RetrievalMaxConcurrent *int                                     `json:"retrieval_max_concurrent,omitempty"`
+	SynthesisMaxConcurrent *int                                     `json:"synthesis_max_concurrent,omitempty"`
+	EmbeddingTimeoutMS     *int                                     `json:"embedding_timeout_ms,omitempty"`
+	QdrantTimeoutMS        *int                                     `json:"qdrant_timeout_ms,omitempty"`
+	ProviderTimeoutMS      *int                                     `json:"provider_timeout_ms,omitempty"`
+	SynthesisGeneration    *runtimeConfigFileRAGSynthesisGeneration `json:"synthesis_generation,omitempty"`
 }
 
-type runtimeConfigProfileRAGSynthesisGeneration struct {
+type runtimeConfigFileRAGSynthesisGeneration struct {
 	MaxOutputTokens     *int    `json:"max_output_tokens,omitempty"`
 	ReasoningEffort     *string `json:"reasoning_effort,omitempty"`
 	StoreProviderOutput *bool   `json:"store_provider_output,omitempty"`
 	TextVerbosity       *string `json:"text_verbosity,omitempty"`
 }
 
-type runtimeConfigProfileMemory struct {
+type runtimeConfigFileMemory struct {
 	Runtime           *string  `json:"runtime,omitempty"`
 	TimeoutSeconds    *float64 `json:"timeout_seconds,omitempty"`
 	RecallLimit       *int     `json:"recall_limit,omitempty"`
@@ -78,7 +78,7 @@ type runtimeConfigProfileMemory struct {
 	ContextCharBudget *int     `json:"context_char_budget,omitempty"`
 }
 
-type runtimeProfileWorker struct {
+type runtimeModeWorker struct {
 	ActivitySlots                *int     `json:"activity_slots,omitempty"`
 	ActivityTaskPollers          *int     `json:"activity_task_pollers,omitempty"`
 	TaskQueueActivitiesPerSecond *float64 `json:"task_queue_activities_per_second,omitempty"`
@@ -87,35 +87,35 @@ type runtimeProfileWorker struct {
 	WorkflowTaskPollers          *int     `json:"workflow_task_pollers,omitempty"`
 }
 
-func loadRuntimeConfigProfileFromEnv() (runtimeConfigProfile, error) {
+func loadRuntimeConfigFromEnv() (runtimeConfigFile, error) {
 	path := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"))
 	if path == "" {
-		return runtimeConfigProfile{}, fmt.Errorf("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH is required")
+		return runtimeConfigFile{}, fmt.Errorf("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH is required")
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return runtimeConfigProfile{}, fmt.Errorf("open EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: %w", err)
+		return runtimeConfigFile{}, fmt.Errorf("open EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 	decoder := json.NewDecoder(file)
 	decoder.DisallowUnknownFields()
-	profile := runtimeConfigProfile{}
+	profile := runtimeConfigFile{}
 	if err := decoder.Decode(&profile); err != nil {
-		return runtimeConfigProfile{}, fmt.Errorf("decode execution-control runtime profile: %w", err)
+		return runtimeConfigFile{}, fmt.Errorf("decode execution-control runtime config: %w", err)
 	}
-	if strings.TrimSpace(profile.SchemaVersion) != runtimeConfigProfileSchemaVersion {
-		return runtimeConfigProfile{}, fmt.Errorf(
-			"execution-control runtime profile schema_version must be %s",
-			runtimeConfigProfileSchemaVersion,
+	if strings.TrimSpace(profile.SchemaVersion) != runtimeConfigFileSchemaVersion {
+		return runtimeConfigFile{}, fmt.Errorf(
+			"execution-control runtime config schema_version must be %s",
+			runtimeConfigFileSchemaVersion,
 		)
 	}
-	if err := validateRuntimeConfigProfileCompleteness(profile); err != nil {
-		return runtimeConfigProfile{}, err
+	if err := validateRuntimeConfigCompleteness(profile); err != nil {
+		return runtimeConfigFile{}, err
 	}
 	return profile, nil
 }
 
-func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) error {
+func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 	requiredInts := []struct {
 		name  string
 		value *int
@@ -129,11 +129,11 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 	}
 	for _, item := range requiredInts {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
 	if profile.RequestBodyLimitBytes == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field request_body_limit_bytes")
+		return fmt.Errorf("execution-control runtime config missing required field request_body_limit_bytes")
 	}
 	requiredStrings := []struct {
 		name  string
@@ -146,33 +146,33 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 	}
 	for _, item := range requiredStrings {
 		if item.value == nil || strings.TrimSpace(*item.value) == "" {
-			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
 	if profile.OpenTools == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field open_tools")
+		return fmt.Errorf("execution-control runtime config missing required field open_tools")
 	}
 	if profile.MultiStepWorkflowEnabled == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field multi_step_workflow_enabled")
+		return fmt.Errorf("execution-control runtime config missing required field multi_step_workflow_enabled")
 	}
-	if err := validateRuntimeConfigProfileOTelCompleteness(profile.OTel); err != nil {
+	if err := validateRuntimeConfigOTelCompleteness(profile.OTel); err != nil {
 		return err
 	}
-	if err := validateRuntimeConfigProfileAuditCompleteness(profile.ExecutionAudit); err != nil {
+	if err := validateRuntimeConfigAuditCompleteness(profile.ExecutionAudit); err != nil {
 		return err
 	}
-	if err := validateRuntimeConfigProfileRAGCompleteness(profile.RAG); err != nil {
+	if err := validateRuntimeConfigRAGCompleteness(profile.RAG); err != nil {
 		return err
 	}
-	if err := validateRuntimeConfigProfileMemoryCompleteness(profile.PersonalMemory); err != nil {
+	if err := validateRuntimeConfigMemoryCompleteness(profile.PersonalMemory); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateRuntimeConfigProfileOTelCompleteness(value *runtimeConfigProfileOTel) error {
+func validateRuntimeConfigOTelCompleteness(value *runtimeConfigFileOTel) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field otel")
+		return fmt.Errorf("execution-control runtime config missing required field otel")
 	}
 	requiredBools := []struct {
 		name  string
@@ -184,7 +184,7 @@ func validateRuntimeConfigProfileOTelCompleteness(value *runtimeConfigProfileOTe
 	}
 	for _, item := range requiredBools {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
 	requiredStrings := []struct {
@@ -198,7 +198,7 @@ func validateRuntimeConfigProfileOTelCompleteness(value *runtimeConfigProfileOTe
 	}
 	for _, item := range requiredStrings {
 		if item.value == nil || strings.TrimSpace(*item.value) == "" {
-			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
 	requiredInts := []struct {
@@ -210,31 +210,31 @@ func validateRuntimeConfigProfileOTelCompleteness(value *runtimeConfigProfileOTe
 	}
 	for _, item := range requiredInts {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
 	if value.SampleRatio == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field otel.sample_ratio")
+		return fmt.Errorf("execution-control runtime config missing required field otel.sample_ratio")
 	}
 	return nil
 }
 
-func validateRuntimeConfigProfileAuditCompleteness(value *runtimeConfigProfileAudit) error {
+func validateRuntimeConfigAuditCompleteness(value *runtimeConfigFileAudit) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field execution_audit")
+		return fmt.Errorf("execution-control runtime config missing required field execution_audit")
 	}
 	if value.Enabled == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field execution_audit.enabled")
+		return fmt.Errorf("execution-control runtime config missing required field execution_audit.enabled")
 	}
 	if value.TimeoutMS == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field execution_audit.timeout_ms")
+		return fmt.Errorf("execution-control runtime config missing required field execution_audit.timeout_ms")
 	}
 	return nil
 }
 
-func validateRuntimeConfigProfileRAGCompleteness(value *runtimeConfigProfileRAG) error {
+func validateRuntimeConfigRAGCompleteness(value *runtimeConfigFileRAG) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field rag")
+		return fmt.Errorf("execution-control runtime config missing required field rag")
 	}
 	required := []struct {
 		name  string
@@ -250,45 +250,45 @@ func validateRuntimeConfigProfileRAGCompleteness(value *runtimeConfigProfileRAG)
 	}
 	for _, item := range required {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime profile missing required rag.%s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required rag.%s", item.name)
 		}
 	}
-	if err := validateRuntimeConfigProfileRAGSynthesisGenerationCompleteness(value.SynthesisGeneration); err != nil {
+	if err := validateRuntimeConfigRAGSynthesisGenerationCompleteness(value.SynthesisGeneration); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateRuntimeConfigProfileRAGSynthesisGenerationCompleteness(
-	value *runtimeConfigProfileRAGSynthesisGeneration,
+func validateRuntimeConfigRAGSynthesisGenerationCompleteness(
+	value *runtimeConfigFileRAGSynthesisGeneration,
 ) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field rag.synthesis_generation")
+		return fmt.Errorf("execution-control runtime config missing required field rag.synthesis_generation")
 	}
 	if value.MaxOutputTokens == nil {
-		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.max_output_tokens")
+		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.max_output_tokens")
 	}
 	if value.ReasoningEffort == nil || strings.TrimSpace(*value.ReasoningEffort) == "" {
-		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.reasoning_effort")
+		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.reasoning_effort")
 	}
 	if value.StoreProviderOutput == nil {
-		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.store_provider_output")
+		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.store_provider_output")
 	}
 	if value.TextVerbosity == nil || strings.TrimSpace(*value.TextVerbosity) == "" {
-		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.text_verbosity")
+		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.text_verbosity")
 	}
 	return nil
 }
 
-func validateRuntimeConfigProfileMemoryCompleteness(value *runtimeConfigProfileMemory) error {
+func validateRuntimeConfigMemoryCompleteness(value *runtimeConfigFileMemory) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field personal_memory")
+		return fmt.Errorf("execution-control runtime config missing required field personal_memory")
 	}
 	if value.Runtime == nil || strings.TrimSpace(*value.Runtime) == "" {
-		return fmt.Errorf("execution-control runtime profile missing required personal_memory.runtime")
+		return fmt.Errorf("execution-control runtime config missing required personal_memory.runtime")
 	}
 	if strings.TrimSpace(*value.Runtime) != "hindsight" {
-		return fmt.Errorf("execution-control runtime profile personal_memory.runtime must be hindsight")
+		return fmt.Errorf("execution-control runtime config personal_memory.runtime must be hindsight")
 	}
 	requiredInts := []struct {
 		name  string
@@ -300,16 +300,16 @@ func validateRuntimeConfigProfileMemoryCompleteness(value *runtimeConfigProfileM
 	}
 	for _, item := range requiredInts {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime profile missing required personal_memory.%s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required personal_memory.%s", item.name)
 		}
 	}
 	if value.TimeoutSeconds == nil {
-		return fmt.Errorf("execution-control runtime profile missing required personal_memory.timeout_seconds")
+		return fmt.Errorf("execution-control runtime config missing required personal_memory.timeout_seconds")
 	}
 	return nil
 }
 
-func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProfile) envValues {
+func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envValues {
 	applyInt(&values.MaxConcurrentAnswers, profile.MaxConcurrentAnswers)
 	applyInt(&values.QueueCapacity, profile.QueueCapacity)
 	applyInt(&values.QueueTimeoutMS, profile.QueueTimeoutMS)
@@ -330,7 +330,7 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		applyInt(&values.OTelExportIntervalMS, profile.OTel.ExportIntervalMS)
 		applyFloat64(&values.OTelSampleRatio, profile.OTel.SampleRatio)
 		applyString(&values.OTelAllowedAttributesVersion, profile.OTel.AllowedAttributesVersion)
-		values.TemporalTracingEnabled = boolFromRuntimeProfile(
+		values.TemporalTracingEnabled = boolFromRuntimeConfig(
 			profile.OTel.TemporalTracingEnabled,
 			values.TemporalTracingEnabled,
 		)
@@ -351,7 +351,7 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		if profile.RAG.SynthesisGeneration != nil {
 			applyInt(&values.RAGSynthesisMaxOutputTokens, profile.RAG.SynthesisGeneration.MaxOutputTokens)
 			applyString(&values.RAGSynthesisReasoningEffort, profile.RAG.SynthesisGeneration.ReasoningEffort)
-			values.RAGSynthesisStoreProviderOutput = boolFromRuntimeProfile(
+			values.RAGSynthesisStoreProviderOutput = boolFromRuntimeConfig(
 				profile.RAG.SynthesisGeneration.StoreProviderOutput,
 				values.RAGSynthesisStoreProviderOutput,
 			)
@@ -368,14 +368,14 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 	return values
 }
 
-func applyRuntimeConfigProfileWorkerProfiles(
+func applyRuntimeConfigWorkerProfiles(
 	profiles map[string]WorkerProfile,
-	profile runtimeConfigProfile,
+	profile runtimeConfigFile,
 ) (map[string]WorkerProfile, error) {
 	for role, override := range profile.WorkerProfiles {
 		current, ok := profiles[role]
 		if !ok {
-			return nil, fmt.Errorf("runtime profile worker_profiles contains unsupported role %q", role)
+			return nil, fmt.Errorf("runtime config worker_profiles contains unsupported role %q", role)
 		}
 		applyInt(&current.ActivitySlots, override.ActivitySlots)
 		applyInt(&current.ActivityTaskPollers, override.ActivityTaskPollers)
@@ -384,10 +384,10 @@ func applyRuntimeConfigProfileWorkerProfiles(
 		applyInt(&current.WorkflowTaskSlots, override.WorkflowTaskSlots)
 		applyInt(&current.WorkflowTaskPollers, override.WorkflowTaskPollers)
 		if current.ActivityTaskPollers > 0 && current.ActivitySlots <= 0 {
-			return nil, fmt.Errorf("runtime profile worker %s activity_slots must be positive when pollers are configured", role)
+			return nil, fmt.Errorf("runtime config worker %s activity_slots must be positive when pollers are configured", role)
 		}
 		if current.WorkflowTaskPollers > 0 && current.WorkflowTaskSlots <= 0 {
-			return nil, fmt.Errorf("runtime profile worker %s workflow_task_slots must be positive when pollers are configured", role)
+			return nil, fmt.Errorf("runtime config worker %s workflow_task_slots must be positive when pollers are configured", role)
 		}
 		profiles[role] = current
 	}
@@ -418,14 +418,14 @@ func applyString(target *string, value *string) {
 	}
 }
 
-func boolFromRuntimeProfile(value *bool, defaultValue bool) bool {
+func boolFromRuntimeConfig(value *bool, defaultValue bool) bool {
 	if value != nil {
 		return *value
 	}
 	return defaultValue
 }
 
-func rejectRuntimeProfileOwnedEnvSettings() error {
+func rejectRuntimeConfigOwnedEnvSettings() error {
 	retired := []string{
 		"EXECUTION_CONTROL_INTENT_POLICY_PATH",
 		"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS",

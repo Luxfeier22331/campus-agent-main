@@ -80,7 +80,7 @@ Tool-gated activity task queues:
 
 - `campus-agent.activity.core`
 
-If runtime profile `open_tools` opens a concrete typed tool, the matching task
+If runtime config `open_tools` opens a concrete typed tool, the matching task
 queue must have a poller. Missing pollers are a readiness blocker.
 
 ## Worker Identity

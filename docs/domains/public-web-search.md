@@ -82,7 +82,7 @@ OpenAI Responses web search, Gemini Google Search grounding and Linux.do-hosted
 OpenAI-compatible Chat Completions web search are admitted as candidate provider
 transports under the same tool boundary. They must preserve the same
 model-visible tool and canonical output projection. Whether a candidate becomes
-the default serving profile is decided by the public-web-search eval pipeline,
+the default serving config is decided by the public-web-search eval pipeline,
 not by design-time preference.
 
 The tool must not rely on a generic prompt profile that asks a model to behave

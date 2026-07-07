@@ -51,11 +51,11 @@
   durable run create / read / events / steps / cancel 与 private tool execution
   wire shape
 - `packages/contracts/schemas/runtime-*.schema.json` 覆盖当前 execution
-  runtime 实际读取的 tool registry、tool function schemas、runtime profile
+  runtime 实际读取的 tool registry、tool function schemas、runtime config
   与 workflow artifact registry JSON artifact
 - `packages/contracts/schemas/runtime-tools.v4.schema.json`、
-  `execution-control-runtime-profile.v1.schema.json`、
-  `query-serving-scopes.v1.schema.json`、`intent-policy.v1.schema.json`、
+  `execution-control-runtime-config.v1.schema.json`、
+  `query-serving-scopes.v2.schema.json`、`intent-policy.v1.schema.json`、
   `intent-drift-thresholds.v1.schema.json`、`provider-pricing.v1.schema.json`、
   `runtime-latency-budgets.v1.schema.json` 与 `env-surface-policy.v1.schema.json`
   覆盖当前 execution runtime、ops summary、learning-loop 与 repo static checks

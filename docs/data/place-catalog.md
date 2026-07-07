@@ -17,7 +17,7 @@ updated: 2026-04-14
 - repo-owned seed 的字段形态
 - canonical place identity 与 alias 规则
 - geometry / provenance / verification 规则
-- 当前 runtime profile posture
+- 当前 serving config posture
 
 它不覆盖：
 
@@ -29,7 +29,8 @@ updated: 2026-04-14
 ## 当前 Artifact 位置
 
 - seed：`configs/reference-data/campus_navigation/place_catalog/seed.v1.json`
-- consumption owner：`packages/navigation-tool`
+- consumption owner：`packages/navigation-tool` internal semantic package；产品路径当前仍
+  fail-close，等待地图产品显式开放
 - authoritative source inventory：private source/data boundary；公开 repo 只保留
   admission rule 与 synthetic fixture
 
@@ -171,7 +172,7 @@ updated: 2026-04-14
 ## Runtime Posture
 
 当前 `place_catalog` 是 reference-data seed，不是 `configs/ingestion`
-collection，也没有 `runtime-profile.json`。
+collection，也没有 `serving-config.json`。
 
 直接含义：
 

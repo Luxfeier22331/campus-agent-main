@@ -341,7 +341,6 @@ context.memory_recall when needed
 1. `planning`
 1. `rag.plan`
 1. `retrieval.indexed_lookup`
-1. `retrieval.expand_or_rescue`
 1. `evidence.selection`
 1. `synthesis`
 1. `grounding.verify`
@@ -355,10 +354,8 @@ context.memory_recall when needed
   profile memory full dump。
 - `rag.plan` 输出 admitted query mode、scope、budget、required evidence
   contract 与 no-widening policy。
-- `retrieval.indexed_lookup` 承接 Qdrant / retrieval-core indexed retrieval，输出 bounded
+- `retrieval.indexed_lookup` 承接 Go Qdrant indexed retrieval，输出 bounded
   candidate summary 与 query activity projection。
-- `retrieval.expand_or_rescue` 只允许在 plan admission 的范围内执行 parent context expansion、
-  historical / freshness branch 或 rescue step；不得扩大 query-enabled surface。
 - `evidence.selection` 输出 answer-bearing supporting evidence，不得把 raw candidate
   trace 当作 supporting evidence。
 - `synthesis` 只能消费 supporting evidence projection，必须记录 provider request ref、
@@ -593,7 +590,7 @@ Owner：Temporal workflow policy + task queue worker matching。
 - worker 是否符合该 activity 的 tool target / version / readiness 条件
 - activity retry、timeout、heartbeat policy 是否满足
 
-当前 runtime profile 中的 admission budget 只表达 current process-local
+当前 runtime config 中的 admission budget 只表达 current process-local
 execution protection。它不得被解释为完整 production admission model。
 
 ## Conversation Concurrency Policy

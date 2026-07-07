@@ -54,6 +54,8 @@ def write_minimal_workflows(
     setup_secret_scan_uv: bool = True,
     install_langfuse_dependencies: bool = True,
     setup_repo_static_uv: bool = True,
+    setup_repo_static_go: bool = True,
+    install_repo_static_conftest: bool = True,
     setup_cache: bool = True,
     install_osv_scanner: bool = True,
     export_osv_go_bin: bool = True,
@@ -75,6 +77,8 @@ def write_minimal_workflows(
         setup_secret_scan_uv=setup_secret_scan_uv,
         install_langfuse_dependencies=install_langfuse_dependencies,
         setup_repo_static_uv=setup_repo_static_uv,
+        setup_repo_static_go=setup_repo_static_go,
+        install_repo_static_conftest=install_repo_static_conftest,
         setup_cache=setup_cache,
     )
     _write_dining_image_workflow(root, pnpm_version, dining_schedule, dining_unconditional_push)
@@ -102,6 +106,8 @@ def _write_pr_checks_workflow(
     setup_secret_scan_uv: bool,
     install_langfuse_dependencies: bool,
     setup_repo_static_uv: bool,
+    setup_repo_static_go: bool,
+    install_repo_static_conftest: bool,
     setup_cache: bool,
 ) -> None:
     pr_check_calls = tuple(
@@ -130,7 +136,14 @@ def _write_pr_checks_workflow(
                 *_concurrency_lines(include_concurrency),
                 "jobs:",
                 *_changes_job(include_path_filters),
-                *_repo_checks_job(pnpm_version, setup_repo_static_uv, setup_cache, pr_check_calls),
+                *_repo_checks_job(
+                    pnpm_version,
+                    setup_repo_static_uv,
+                    setup_repo_static_go,
+                    install_repo_static_conftest,
+                    setup_cache,
+                    pr_check_calls,
+                ),
                 *_path_filtered_jobs(
                     pnpm_version, install_golangci_lint, install_langfuse_dependencies
                 ),
@@ -148,12 +161,32 @@ def _write_pr_checks_workflow(
 def _repo_checks_job(
     pnpm_version: str,
     setup_repo_static_uv: bool,
+    setup_repo_static_go: bool,
+    install_repo_static_conftest: bool,
     setup_cache: bool,
     pr_check_calls: tuple[str, ...],
 ) -> tuple[str, ...]:
     repo_static_uv_steps = (
         ("      - uses: astral-sh/setup-uv@v8.3.0", *_uv_cache_lines(setup_cache))
         if setup_repo_static_uv
+        else ()
+    )
+    conftest_steps = (
+        (
+            *(
+                (
+                    "      - uses: actions/setup-go@v6",
+                    "        with:",
+                    '          go-version: "1.26.2"',
+                )
+                if setup_repo_static_go
+                else ()
+            ),
+            "      - run: |",
+            "          go install github.com/open-policy-agent/conftest@v0.65.0",
+            '          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"',
+        )
+        if install_repo_static_conftest
         else ()
     )
     return (
@@ -172,6 +205,7 @@ def _repo_checks_job(
         *_node_cache_lines(setup_cache),
         "      - run: pnpm install --frozen-lockfile",
         "      - run: uv sync --all-packages --dev",
+        *conftest_steps,
         *(f"      - run: {call}" for call in pr_check_calls),
     )
 

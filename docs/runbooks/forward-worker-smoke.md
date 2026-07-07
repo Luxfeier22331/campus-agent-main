@@ -185,16 +185,6 @@ node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-lo
 app-api provider-config active profiles。root env 不是 online runtime fallback；
 execution-control 仍通过 app-api internal provider-config snapshot 消费 active profile。
 
-retired / offline RAG SDK candidate 的定位层 smoke 可以不经过前端直接执行。它只用于
-offline / eval / historical bridge behavior 复核，不作为 online RAG serving acceptance：
-
-```bash
-uv run --all-packages python -m scripts.execution_control_process_smoke \
-  --profile rag_delegate_sdk_candidate \
-  --api-port 27151 \
-  --output-dir .tmp/rag-sdk-process-smoke
-```
-
 ## 这组 smoke 证明什么
 
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常

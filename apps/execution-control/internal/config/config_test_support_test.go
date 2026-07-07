@@ -6,15 +6,15 @@ import (
 	"testing"
 )
 
-func readDefaultRuntimeConfigProfileFile() ([]byte, error) {
-	return os.ReadFile(filepath.Join("testdata", "default-runtime-profile.json"))
+func readDefaultRuntimeConfigFile() ([]byte, error) {
+	return os.ReadFile(filepath.Join("testdata", "default-runtime-config.json"))
 }
 
-func readDefaultRuntimeConfigProfileForTest(t testing.TB) []byte {
+func readDefaultRuntimeConfigForTest(t testing.TB) []byte {
 	t.Helper()
-	profile, err := readDefaultRuntimeConfigProfileFile()
+	profile, err := readDefaultRuntimeConfigFile()
 	if err != nil {
-		t.Fatalf("read default runtime profile fixture: %v", err)
+		t.Fatalf("read default runtime config fixture: %v", err)
 	}
 	return profile
 }

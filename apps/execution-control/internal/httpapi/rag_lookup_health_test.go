@@ -21,10 +21,6 @@ func TestQdrantRAGLookupHealthCheckUsesCollectionsEndpoint(t *testing.T) {
 	caPath := writeTestCACert(t, qdrant)
 
 	executor, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
@@ -50,10 +46,6 @@ func TestQdrantRAGLookupHealthCheckReportsHTTPStatus(t *testing.T) {
 	caPath := writeTestCACert(t, qdrant)
 
 	executor, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,

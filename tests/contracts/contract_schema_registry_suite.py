@@ -31,12 +31,12 @@ class ContractSchemaRegistryTest(unittest.TestCase):
 
         expected_validates = {
             "runtime-tools.v4": ["configs/runtime/tools.v4.json"],
-            "execution-control-runtime-profile.v1": [
-                "configs/runtime/execution-control/runtime-profile.local.json",
-                "configs/runtime/execution-control/runtime-profile.local-real-provider.json",
-                "configs/runtime/execution-control/runtime-profile.staging.json",
+            "execution-control-runtime-config.v1": [
+                "configs/runtime/execution-control/runtime-config.local.json",
+                "configs/runtime/execution-control/runtime-config.local-real-provider.json",
+                "configs/runtime/execution-control/runtime-config.staging.json",
             ],
-            "query-serving-scopes.v1": ["configs/runtime/query-serving-scopes.v1.json"],
+            "query-serving-scopes.v2": ["configs/runtime/query-serving-scopes.v2.json"],
             "intent-policy.v1": ["configs/runtime/intent-policy.v1.json"],
             "intent-drift-thresholds.v1": ["configs/runtime/intent-drift-thresholds.v1.json"],
             "provider-pricing.v1": ["configs/runtime/provider-pricing.v1.json"],
@@ -170,7 +170,23 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                 "schema_version": "knowledge_tool_contracts.v1",
                 "tool_name": "knowledge_query",
                 "packet_kind": "payload",
-                "payload": {"query_text": "图书馆开放到几点？", "intent": "answer_question"},
+                "payload": {
+                    "query_text": "图书馆开放到几点？",
+                    "intent": "answer_question",
+                    "requested_scope": None,
+                    "query_mode": "current",
+                    "version_query": {
+                        "mode": "current",
+                        "as_of": None,
+                        "version_id": None,
+                        "compare_to_version_id": None,
+                    },
+                    "freshness_intent": None,
+                    "constraints": {
+                        "max_age_hours": None,
+                        "official_sources_only": True,
+                    },
+                },
             },
             {
                 "schema_version": "knowledge_tool_contracts.v1",
@@ -263,9 +279,9 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                 },
             ),
             (
-                "packages/contracts/schemas/execution-control-runtime-profile.v1.schema.json",
+                "packages/contracts/schemas/execution-control-runtime-config.v1.schema.json",
                 {
-                    "schema_version": "campus_execution_control_runtime_profile.v1",
+                    "schema_version": "campus_execution_control_runtime_config.v1",
                     "max_concurrent_answers": 1,
                 },
             ),

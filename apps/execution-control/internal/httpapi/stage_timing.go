@@ -43,7 +43,7 @@ func (s *Server) stageTimingForRun(
 			}
 		case "rag.plan":
 			addStageTimingDuration(timing, "rag.plan_ms", duration)
-		case "retrieval.indexed_lookup", "retrieval.expand_or_rescue", "evidence.selection":
+		case "retrieval.indexed_lookup", "retrieval.live_source_lookup", "evidence.selection":
 			addStageTimingDuration(timing, "rag.lookup_ms", duration)
 		case "rag.rerank":
 			addStageTimingDuration(timing, "rag.rerank_ms", duration)

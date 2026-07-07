@@ -20,6 +20,8 @@ const (
 	publicWebSearchMaxResults        = 5
 )
 
+var publicWebSearchDefaultDomains = []string{"muc.edu.cn"}
+
 type publicWebSearchPayload struct {
 	MaxResults *int   `json:"max_results"`
 	QueryText  string `json:"query_text"`
@@ -116,11 +118,12 @@ func (s *Server) executePublicWebSearch(
 	}
 	searchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	rawSources, err := s.executePublicWebSearchTransport(searchCtx, config, payload)
+	allowedDomains := s.publicWebSearchAllowedDomains()
+	rawSources, err := s.executePublicWebSearchTransport(searchCtx, config, payload, allowedDomains)
 	if err != nil {
 		return publicWebSearchFailure("public_web_search_provider_failed", err.Error()), http.StatusOK, "temporarily_unverifiable"
 	}
-	sources, err := sanitizePublicWebSearchProviderSources(rawSources, maxResults(payload))
+	sources, err := sanitizePublicWebSearchProviderSources(rawSources, maxResults(payload), allowedDomains)
 	if err != nil {
 		return publicWebSearchFailure("public_web_search_invalid_provider_output", err.Error()), http.StatusOK, "temporarily_unverifiable"
 	}
@@ -137,6 +140,7 @@ func (s *Server) executePublicWebSearchTransport(
 	ctx context.Context,
 	config providerConfigSnapshot,
 	payload publicWebSearchPayload,
+	allowedDomains []string,
 ) ([]publicWebSearchProviderSource, error) {
 	switch strings.TrimSpace(config.Transport) {
 	case "perplexity_search":
@@ -148,7 +152,7 @@ func (s *Server) executePublicWebSearchTransport(
 			ModelProvider: config.Provider,
 		})
 		result := client.Execute(ctx, provider.PerplexitySearchRequest{
-			DomainFilter:       []string{"muc.edu.cn"},
+			DomainFilter:       allowedDomains,
 			ProviderRequestRef: "provider://public-web-search",
 			Query:              payload.QueryText,
 		})
@@ -165,7 +169,7 @@ func (s *Server) executePublicWebSearchTransport(
 			ModelProvider: config.Provider,
 		})
 		result := client.Execute(ctx, provider.OpenAIWebSearchRequest{
-			DomainFilter:       []string{"muc.edu.cn"},
+			DomainFilter:       allowedDomains,
 			ProviderRequestRef: "provider://public-web-search",
 			Query:              payload.QueryText,
 		})
@@ -182,7 +186,7 @@ func (s *Server) executePublicWebSearchTransport(
 			ModelProvider: config.Provider,
 		})
 		result := client.Execute(ctx, provider.GeminiGoogleSearchRequest{
-			DomainFilter:       []string{"muc.edu.cn"},
+			DomainFilter:       allowedDomains,
 			ProviderRequestRef: "provider://public-web-search",
 			Query:              payload.QueryText,
 		})
@@ -199,7 +203,7 @@ func (s *Server) executePublicWebSearchTransport(
 			ModelProvider: config.Provider,
 		})
 		result := client.Execute(ctx, provider.OpenAIChatCompletionsWebSearchRequest{
-			DomainFilter:       []string{"muc.edu.cn"},
+			DomainFilter:       allowedDomains,
 			ProviderRequestRef: "provider://public-web-search",
 			Query:              payload.QueryText,
 		})
@@ -210,6 +214,29 @@ func (s *Server) executePublicWebSearchTransport(
 	default:
 		return nil, fmt.Errorf("public_web_search transport = %q is not admitted", config.Transport)
 	}
+}
+
+func (s *Server) publicWebSearchAllowedDomains() []string {
+	if len(s.publicWebSearchDomains) == 0 {
+		return publicWebSearchDefaultDomains
+	}
+	domains := make([]string, 0, len(s.publicWebSearchDomains))
+	seen := map[string]struct{}{}
+	for _, domain := range s.publicWebSearchDomains {
+		normalized := strings.ToLower(strings.TrimSpace(domain))
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		domains = append(domains, normalized)
+	}
+	if len(domains) == 0 {
+		return publicWebSearchDefaultDomains
+	}
+	return domains
 }
 
 func maxResults(payload publicWebSearchPayload) int {
@@ -320,6 +347,7 @@ func publicWebSearchProviderSourcesFromOpenAIChatCompletionsWebSearchTransport(
 func sanitizePublicWebSearchProviderSources(
 	rawSources []publicWebSearchProviderSource,
 	limit int,
+	allowedDomains []string,
 ) ([]publicWebSearchSource, error) {
 	if len(rawSources) == 0 {
 		return nil, errors.New("provider output contains no sources")
@@ -330,7 +358,7 @@ func sanitizePublicWebSearchProviderSources(
 	seen := map[string]struct{}{}
 	sources := make([]publicWebSearchSource, 0, min(limit, len(rawSources)))
 	for index, source := range rawSources {
-		normalizedURL, err := normalizePublicWebURL(source.URL)
+		normalizedURL, err := normalizePublicWebURLForDomains(source.URL, allowedDomains)
 		if err != nil {
 			return nil, fmt.Errorf("provider sources[%d].url is invalid: %w", index, err)
 		}
@@ -359,6 +387,10 @@ func sanitizePublicWebSearchProviderSources(
 }
 
 func normalizePublicWebURL(raw string) (string, error) {
+	return normalizePublicWebURLForDomains(raw, publicWebSearchDefaultDomains)
+}
+
+func normalizePublicWebURLForDomains(raw string, allowedDomains []string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return "", err
@@ -370,7 +402,7 @@ func normalizePublicWebURL(raw string) (string, error) {
 		return "", errors.New("source url must not include an explicit port")
 	}
 	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-	if host != "muc.edu.cn" && !strings.HasSuffix(host, ".muc.edu.cn") {
+	if !publicWebHostAllowed(host, allowedDomains) {
 		return "", fmt.Errorf("source url host is not allowed: %s", host)
 	}
 	if host == "my.muc.edu.cn" {
@@ -387,6 +419,19 @@ func normalizePublicWebURL(raw string) (string, error) {
 	parsed.RawQuery = query.Encode()
 	parsed.Fragment = ""
 	return parsed.String(), nil
+}
+
+func publicWebHostAllowed(host string, allowedDomains []string) bool {
+	for _, domain := range allowedDomains {
+		normalized := strings.ToLower(strings.TrimSpace(domain))
+		if normalized == "" {
+			continue
+		}
+		if host == normalized || strings.HasSuffix(host, "."+normalized) {
+			return true
+		}
+	}
+	return false
 }
 
 func publicWebContentHash(url string, snippet string) string {

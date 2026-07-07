@@ -11,7 +11,7 @@ handler.
 
 ## Active Config Files
 
-- `runtime-profile.json`
+- `serving-config.json`
   - import posture, serving stage and query/retrieval admission
 - `canonical-profile.json`
   - primary source unit, collection identity and source-truth projection notes

@@ -250,7 +250,7 @@ func hasArg(want string) bool {
 
 func ensureTemporalTracingExporter(cfg config.Config, status telemetry.Status) error {
 	if cfg.TemporalTracingEnabled && !cfg.OTelEnabled {
-		return fmt.Errorf("temporal tracing requires runtime profile otel.enabled=true")
+		return fmt.Errorf("temporal tracing requires runtime config otel.enabled=true")
 	}
 	if cfg.TemporalTracingEnabled && !status.ExporterConfigured {
 		return fmt.Errorf("temporal tracing requires configured OTel trace exporter")

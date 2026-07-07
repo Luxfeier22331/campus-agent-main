@@ -234,12 +234,20 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 	evidence := make([]map[string]any, 0, len(packet.SelectedEvidence))
 	for _, item := range packet.SelectedEvidence {
 		evidence = append(evidence, map[string]any{
-			"source_id":  item.SourceID,
-			"chunk_id":   item.ChunkID,
-			"span_ref":   item.SpanRef,
-			"title":      item.Title,
-			"excerpt":    item.Excerpt,
-			"source_ref": item.SourceRef,
+			"chunk_id":          item.ChunkID,
+			"document_id":       item.DocumentID,
+			"excerpt":           item.Excerpt,
+			"is_current":        item.IsCurrent,
+			"root_unit_id":      item.RootUnitID,
+			"source_channel":    item.SourceChannel,
+			"source_id":         item.SourceID,
+			"source_ref":        item.SourceRef,
+			"source_trust_tier": item.SourceTrustTier,
+			"source_unit_kind":  item.SourceUnitKind,
+			"source_unit_key":   item.SourceUnitKey,
+			"span_ref":          item.SpanRef,
+			"title":             item.Title,
+			"version_id":        item.VersionID,
 		})
 	}
 	memoryContext := make([]map[string]any, 0, len(packet.MemoryContext))
@@ -561,6 +569,7 @@ func ragSynthesisFinalizedResponse(
 	if replayPacketRefMap != nil {
 		observability["replay_packet_ref"] = replayPacketRefMap
 	}
+	retrievalStageRef := ragRetrievalStageRefForEvidence(run.RunID, packet.SelectedEvidence)
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedTool:     ptrString("knowledge_query"),
 		Status:           "completed",
@@ -586,7 +595,7 @@ func ragSynthesisFinalizedResponse(
 				"answer_artifact_ref":    providerRequestRefForPacket(packet),
 				"provider_response_ref":  result.ProviderSummary.ProviderResponseID,
 				"provider_pricing_ref":   result.ProviderSummary.PricingVersion,
-				"retrieval_stage_ref":    "projection://runs/" + run.RunID + "/retrieval/indexed-lookup",
+				"retrieval_stage_ref":    retrievalStageRef,
 				"evidence_selection_ref": "projection://runs/" + run.RunID + "/evidence/selection",
 				"synthesis_step_ref":     "projection://runs/" + run.RunID + "/synthesis",
 				"step_projection_schema": "step-result-projection-v1",
@@ -608,6 +617,14 @@ func ragSynthesisFinalizedResponse(
 	}), nil
 }
 
+func ragRetrievalStageRefForEvidence(runID string, evidence []ragruntime.EvidenceRef) string {
+	stage := "retrieval/indexed-lookup"
+	if retrievalModeForEvidence(evidence) == "live_assisted" {
+		stage = "retrieval/live-source-lookup"
+	}
+	return temporalProjectionRef(runID, stage)
+}
+
 func ragSynthesisAnswerEvalStageProfile(packet ragSynthesisPacket) map[string]any {
 	return map[string]any{
 		"rag.selected_evidence_count": float64(len(packet.SelectedEvidence)),
@@ -620,12 +637,18 @@ func ragEvidenceSourcesForFinalization(evidence []ragruntime.EvidenceRef) []map[
 	sources := make([]map[string]any, 0, len(evidence))
 	for _, item := range evidence {
 		sources = append(sources, map[string]any{
-			"doc_id":         item.SourceID,
-			"chunk_id":       item.ChunkID,
-			"source_title":   item.Title,
-			"snippet":        item.Excerpt,
-			"source_ref":     item.SourceRef,
-			"structural_ref": item.SpanRef,
+			"chunk_id":          item.ChunkID,
+			"doc_id":            item.SourceID,
+			"document_id":       item.DocumentID,
+			"is_current":        item.IsCurrent,
+			"root_unit_id":      item.RootUnitID,
+			"snippet":           item.Excerpt,
+			"source_channel":    item.SourceChannel,
+			"source_ref":        item.SourceRef,
+			"source_title":      item.Title,
+			"source_trust_tier": item.SourceTrustTier,
+			"structural_ref":    item.SpanRef,
+			"version_id":        item.VersionID,
 		})
 	}
 	return sources

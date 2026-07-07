@@ -115,7 +115,6 @@ func TestQdrantRAGLookupReleaseGuardUsesActiveProviderSnapshot(t *testing.T) {
 				Transport:  "embeddings",
 			},
 		},
-		embeddingProvider: "stale-env-provider",
 		httpClient:        server.Client(),
 		qdrantQueryAPIKey: "test-qdrant-key",
 		qdrantURL:         server.URL,
@@ -123,15 +122,15 @@ func TestQdrantRAGLookupReleaseGuardUsesActiveProviderSnapshot(t *testing.T) {
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
-		Collection:       "student_rules",
-		CollectionAlias:  "student_rules",
-		Corpus:           "regulations",
-		QueryMode:        "current",
-		QueryText:        "学生请假手续",
-		RetrievalAccess:  publicRetrievalAccessProjectionForTest(),
-		RunID:            "run-release-guard-provider-snapshot",
-		TopK:             3,
-		RuntimeProfileID: "regulations/student_rules",
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "current",
+		QueryText:       "学生请假手续",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
+		RunID:           "run-release-guard-provider-snapshot",
+		TopK:            3,
+		ServingConfigID: "regulations/student_rules",
 	}, []float64{0.1, 0.2, 0.3})
 	if err != nil {
 		t.Fatalf("query points: %v", err)
@@ -141,8 +140,8 @@ func TestQdrantRAGLookupReleaseGuardUsesActiveProviderSnapshot(t *testing.T) {
 	}
 }
 
-func TestQdrantRAGLookupReranksWhenRuntimeProfileOptsIn(t *testing.T) {
-	profile := mustRetrievalRuntimeProfileForTest(t, "regulations", "student_rules")
+func TestQdrantRAGLookupReranksWhenServingConfigOptsIn(t *testing.T) {
+	profile := mustRetrievalServingConfigForTest(t, "regulations", "student_rules")
 	profile.RerankerEnabledByDefault = true
 	embeddingSnapshot := providerConfigSnapshot{
 		Dimensions: 3,

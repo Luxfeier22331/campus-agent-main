@@ -27,7 +27,7 @@ Adopt five runtime config classes:
 1. `repo_static_config`: tracked source files such as tool schemas, Kustomize
    overlays, Wrangler config and policy JSON.
 2. `deploy_bootstrap_config`: non-secret runtime handles such as service URLs,
-   namespace names, runtime profile paths and feature posture required to start
+   namespace names, runtime config paths and feature posture required to start
    a deployed process.
 3. `secret_material`: credentials, tokens, DSNs and shared secrets delivered by
    the owning deploy secret store.

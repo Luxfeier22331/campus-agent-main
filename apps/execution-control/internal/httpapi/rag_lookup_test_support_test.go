@@ -131,9 +131,9 @@ func qdrantCollectionMetadataResponseForEmbeddingTest(
 	embedding providerConfigSnapshot,
 ) string {
 	t.Helper()
-	profile, err := retrievalRuntimeProfileForTest(corpus, collection)
+	profile, err := retrievalServingConfigForTest(corpus, collection)
 	if err != nil {
-		t.Fatalf("load runtime profile for metadata fixture: %v", err)
+		t.Fatalf("load serving config for metadata fixture: %v", err)
 	}
 	metadata := releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, embedding)
 	body, err := json.Marshal(map[string]any{
@@ -149,7 +149,7 @@ func qdrantCollectionMetadataResponseForEmbeddingTest(
 }
 
 func releaseMetadataFixtureForHTTPTest(
-	profile retrievalruntime.RuntimeProfile,
+	profile retrievalruntime.ServingConfig,
 	collection string,
 ) map[string]any {
 	return releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, providerConfigSnapshot{
@@ -160,7 +160,7 @@ func releaseMetadataFixtureForHTTPTest(
 }
 
 func releaseMetadataFixtureForEmbeddingHTTPTest(
-	profile retrievalruntime.RuntimeProfile,
+	profile retrievalruntime.ServingConfig,
 	collection string,
 	embedding providerConfigSnapshot,
 ) map[string]any {
@@ -180,7 +180,7 @@ func releaseMetadataFixtureForEmbeddingHTTPTest(
 		"embedding_query_instruction_hash":    retrievalruntime.HashText(profile.EmbeddingQueryInstruction),
 		"index_release_id":                    "r20260615_" + collection,
 		"index_validation_status":             "passed",
-		"profile_identity_hash":               retrievalruntime.ProfileIdentityHash(profile, embeddingProvider, embeddingModel, embeddingDimensions),
+		"serving_config_identity_hash":        retrievalruntime.ServingConfigIdentityHash(profile, embeddingProvider, embeddingModel, embeddingDimensions),
 		"qrels_coverage_status":               "passed",
 		"quality_gate_status":                 "passed",
 		"release_admission_status":            "passed",
@@ -199,9 +199,9 @@ func releaseMetadataFixtureForEmbeddingHTTPTest(
 
 func qdrantReleaseMetadataScrollResponseForTest(t *testing.T, corpus string, collection string) string {
 	t.Helper()
-	profile, err := retrievalRuntimeProfileForTest(corpus, collection)
+	profile, err := retrievalServingConfigForTest(corpus, collection)
 	if err != nil {
-		t.Fatalf("load runtime profile for metadata fixture: %v", err)
+		t.Fatalf("load serving config for metadata fixture: %v", err)
 	}
 	metadata := releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, providerConfigSnapshot{
 		Dimensions: 2560,
@@ -223,6 +223,6 @@ func qdrantReleaseMetadataScrollResponseForTest(t *testing.T, corpus string, col
 	return string(body)
 }
 
-func retrievalRuntimeProfileForTest(corpus string, collection string) (retrievalruntime.RuntimeProfile, error) {
-	return retrievalruntime.LoadRuntimeProfile("", corpus, collection)
+func retrievalServingConfigForTest(corpus string, collection string) (retrievalruntime.ServingConfig, error) {
+	return retrievalruntime.LoadServingConfig("", corpus, collection)
 }

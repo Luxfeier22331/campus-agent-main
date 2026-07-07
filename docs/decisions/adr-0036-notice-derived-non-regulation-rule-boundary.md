@@ -69,7 +69,7 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 
 ### 决策 3：没有明确产品 slice、query policy 与 owner 之前，不新增 repo-tracked collection scaffold
 
-当前不新增新的 `runtime-profile.json` / collection scaffold，只为这些 manual buckets 提前占位。
+当前不新增新的 `serving-config.json` / collection scaffold，只为这些 manual buckets 提前占位。
 
 原因：
 

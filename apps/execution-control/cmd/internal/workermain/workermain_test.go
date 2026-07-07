@@ -164,7 +164,7 @@ func mustTracingInterceptors(t *testing.T) temporalruntime.TracingInterceptors {
 func setWorkerRuntimeEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@test")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-secret")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "http://app-api.internal/audit")
@@ -179,7 +179,7 @@ func setWorkerRuntimeEnv(t *testing.T) {
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "memory-salt")
 	t.Setenv(
 		"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
-		filepath.Join(repoRoot(t), "configs/runtime/execution-control/runtime-profile.staging.json"),
+		filepath.Join(repoRoot(t), "configs/runtime/execution-control/runtime-config.staging.json"),
 	)
 }
 

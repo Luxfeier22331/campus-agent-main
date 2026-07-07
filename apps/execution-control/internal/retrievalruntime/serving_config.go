@@ -17,7 +17,7 @@ const (
 	DefaultSparseVectorName    = "sparse"
 )
 
-type RuntimeProfile struct {
+type ServingConfig struct {
 	ChunkPolicyVersion        string
 	CleaningPolicyVersion     string
 	Collection                string
@@ -44,7 +44,7 @@ type RuntimeProfile struct {
 	SparseVectorName          string
 }
 
-type runtimeProfilePayload struct {
+type servingConfigPayload struct {
 	ChunkPolicyVersion        string   `json:"chunk_profile_version"`
 	CleaningPolicyVersion     string   `json:"cleaning_policy_version"`
 	Collection                string   `json:"collection"`
@@ -71,21 +71,21 @@ type runtimeProfilePayload struct {
 	SparsePrefetchLimit       int      `json:"sparse_prefetch_limit"`
 }
 
-func LoadRuntimeProfile(configRoot string, corpus string, collection string) (RuntimeProfile, error) {
+func LoadServingConfig(configRoot string, corpus string, collection string) (ServingConfig, error) {
 	root := strings.TrimSpace(configRoot)
 	if root == "" {
-		root = defaultRuntimeProfileRoot()
+		root = defaultServingConfigRoot()
 	}
-	path := filepath.Join(root, strings.TrimSpace(corpus), strings.TrimSpace(collection), "runtime-profile.json")
+	path := filepath.Join(root, strings.TrimSpace(corpus), strings.TrimSpace(collection), "serving-config.json")
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return RuntimeProfile{}, fmt.Errorf("read runtime profile %s/%s: %w", corpus, collection, err)
+		return ServingConfig{}, fmt.Errorf("read serving config %s/%s: %w", corpus, collection, err)
 	}
-	var payload runtimeProfilePayload
+	var payload servingConfigPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return RuntimeProfile{}, fmt.Errorf("parse runtime profile %s/%s: %w", corpus, collection, err)
+		return ServingConfig{}, fmt.Errorf("parse serving config %s/%s: %w", corpus, collection, err)
 	}
-	profile := RuntimeProfile{
+	config := ServingConfig{
 		ChunkPolicyVersion:        strings.TrimSpace(payload.ChunkPolicyVersion),
 		CleaningPolicyVersion:     strings.TrimSpace(payload.CleaningPolicyVersion),
 		Collection:                strings.TrimSpace(payload.Collection),
@@ -111,10 +111,10 @@ func LoadRuntimeProfile(configRoot string, corpus string, collection string) (Ru
 		SparsePrefetchLimit:       defaultPositive(payload.SparsePrefetchLimit, DefaultSparsePrefetchLimit),
 		SparseVectorName:          defaultString(payload.QdrantSparseVectorName, DefaultSparseVectorName),
 	}
-	if err := validateRuntimeProfile(profile, corpus, collection); err != nil {
-		return RuntimeProfile{}, err
+	if err := validateServingConfig(config, corpus, collection); err != nil {
+		return ServingConfig{}, err
 	}
-	return profile, nil
+	return config, nil
 }
 
 func BuildDenseQueryText(queryText string, instruction string) string {
@@ -126,7 +126,7 @@ func BuildDenseQueryText(queryText string, instruction string) string {
 	return "Instruct: " + normalizedInstruction + "\nQuery: " + query
 }
 
-func defaultRuntimeProfileRoot() string {
+func defaultServingConfigRoot() string {
 	for _, candidate := range []string{
 		filepath.Join("configs", "ingestion"),
 		filepath.Join("..", "..", "configs", "ingestion"),
@@ -140,43 +140,40 @@ func defaultRuntimeProfileRoot() string {
 	return filepath.Join("configs", "ingestion")
 }
 
-func validateRuntimeProfile(profile RuntimeProfile, corpus string, collection string) error {
-	if profile.Corpus != strings.TrimSpace(corpus) || profile.Collection != strings.TrimSpace(collection) {
+func validateServingConfig(config ServingConfig, corpus string, collection string) error {
+	if config.Corpus != strings.TrimSpace(corpus) || config.Collection != strings.TrimSpace(collection) {
 		return fmt.Errorf(
-			"runtime profile scope mismatch: got %s/%s want %s/%s",
-			profile.Corpus,
-			profile.Collection,
+			"serving config scope mismatch: got %s/%s want %s/%s",
+			config.Corpus,
+			config.Collection,
 			corpus,
 			collection,
 		)
 	}
-	if profile.ServingStage != "query_serving" {
-		return fmt.Errorf("runtime profile %s/%s is not query_serving", corpus, collection)
+	if config.ServingStage != "query_serving" {
+		return fmt.Errorf("serving config %s/%s is not query_serving", corpus, collection)
 	}
-	if !profile.RetrievalEnabled {
-		return fmt.Errorf("runtime profile %s/%s retrieval is disabled", corpus, collection)
+	if !config.RetrievalEnabled {
+		return fmt.Errorf("serving config %s/%s retrieval is disabled", corpus, collection)
 	}
-	if !profile.QueryEnabledByDefault {
-		return fmt.Errorf("runtime profile %s/%s is not query enabled by default", corpus, collection)
+	if config.QdrantAliasName == "" {
+		return fmt.Errorf("serving config %s/%s qdrant_alias_name is required", corpus, collection)
 	}
-	if profile.QdrantAliasName == "" {
-		return fmt.Errorf("runtime profile %s/%s qdrant_alias_name is required", corpus, collection)
+	if config.DenseVectorName == "" || config.SparseVectorName == "" {
+		return fmt.Errorf("serving config %s/%s qdrant vector names are required", corpus, collection)
 	}
-	if profile.DenseVectorName == "" || profile.SparseVectorName == "" {
-		return fmt.Errorf("runtime profile %s/%s qdrant vector names are required", corpus, collection)
+	if len(config.ServingVisibilityLevels) == 0 {
+		return fmt.Errorf("serving config %s/%s serving_visibility_levels is required", corpus, collection)
 	}
-	if len(profile.ServingVisibilityLevels) == 0 {
-		return fmt.Errorf("runtime profile %s/%s serving_visibility_levels is required", corpus, collection)
-	}
-	for _, level := range profile.ServingVisibilityLevels {
+	for _, level := range config.ServingVisibilityLevels {
 		switch level {
 		case "public", "restricted":
 		default:
-			return fmt.Errorf("runtime profile %s/%s has unsupported serving visibility level %q", corpus, collection, level)
+			return fmt.Errorf("serving config %s/%s has unsupported serving visibility level %q", corpus, collection, level)
 		}
 	}
-	if containsString(profile.ServingVisibilityLevels, "restricted") && len(profile.ServingVisibilityScopes) == 0 {
-		return fmt.Errorf("runtime profile %s/%s serving_visibility_scopes is required for restricted visibility", corpus, collection)
+	if containsString(config.ServingVisibilityLevels, "restricted") && len(config.ServingVisibilityScopes) == 0 {
+		return fmt.Errorf("serving config %s/%s serving_visibility_scopes is required for restricted visibility", corpus, collection)
 	}
 	return nil
 }

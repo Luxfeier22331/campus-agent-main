@@ -104,7 +104,7 @@ decided by architecture preference, provider branding or a single smoke result.
 
 All candidates must be evaluated against the same repo-authored agent cases,
 the same source policy and the same score registry. A candidate can become the
-default serving profile only when it has:
+default serving config only when it has:
 
 - correct tool-selection behavior for `public_web_search`, `knowledge_query`
   and `direct_answer` cases

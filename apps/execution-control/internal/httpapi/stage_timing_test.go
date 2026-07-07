@@ -30,7 +30,7 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		{stepID: "typed_tool.execute", durationMS: 150, sanitizedPayload: map[string]any{"selected_tool": "campus_notice_discover"}},
 		{stepID: "rag.plan", durationMS: 160},
 		{stepID: "retrieval.indexed_lookup", durationMS: 170},
-		{stepID: "retrieval.expand_or_rescue", durationMS: 180},
+		{stepID: "retrieval.live_source_lookup", durationMS: 180},
 		{stepID: "evidence.selection", durationMS: 190},
 		{stepID: "rag.rerank", durationMS: 200},
 		{stepID: "synthesis", durationMS: 210},

@@ -13,7 +13,7 @@ updated: 2026-04-26
 本文记录 repo 内已定义但当前未开放为 model-visible tool 的
 `place_lookup` / `place_finding` contract。`packages/navigation-tool` 当前只作为
 navigation semantic specialist package 存在；产品主路径继续 fail closed，直到
-runtime profile、tool registry 与前端地图产品面同时打开。
+serving config、tool registry 与前端地图产品面同时打开。
 
 人类语义、产品 opening posture 与 place catalog 消费边界见
 `docs/domains/place.md`。

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
@@ -61,32 +60,6 @@ func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error
 	return fileProviderConfigResolver{path: path}, nil
 }
 
-func newStaticEmbeddingProviderConfigResolver(
-	cfg config.Config,
-	role providerConfigRole,
-) (providerConfigResolver, error) {
-	snapshot := providerConfigSnapshot{
-		APIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
-		BaseURL:    staticEmbeddingBaseURL(cfg),
-		Dimensions: cfg.EmbeddingDimensions,
-		Kind:       "embedding",
-		Model:      strings.TrimSpace(cfg.EmbeddingModel),
-		ProfileID:  "static_embedding_config",
-		Provider:   firstNonEmptyText(cfg.EmbeddingProvider, "openai-compatible"),
-		Revision:   1,
-		Role:       string(role),
-		TimeoutMS:  int(time.Duration(cfg.QdrantTimeoutSeconds*float64(time.Second)) / time.Millisecond),
-		Transport:  "embeddings",
-	}
-	if snapshot.TimeoutMS <= 0 {
-		snapshot.TimeoutMS = 10000
-	}
-	if err := validateProviderConfigSnapshot(snapshot, role); err != nil {
-		return nil, err
-	}
-	return staticProviderConfigResolverForRole{role: role, snapshot: snapshot}, nil
-}
-
 func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
 	_ context.Context,
 	role providerConfigRole,
@@ -98,14 +71,6 @@ func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
 		return providerConfigSnapshot{}, err
 	}
 	return resolver.snapshot, nil
-}
-
-func staticEmbeddingBaseURL(cfg config.Config) string {
-	embeddingBaseURL := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingBaseURL), "/")
-	if embeddingBaseURL != "" {
-		return embeddingBaseURL
-	}
-	return ""
 }
 
 func (resolver fileProviderConfigResolver) ResolveActiveProviderConfig(

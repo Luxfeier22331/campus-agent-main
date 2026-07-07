@@ -305,7 +305,7 @@ Rules:
 - raw API keys may appear only in create/update command bodies and app-api
   encrypted connection persistence; they must never appear in operator list
   responses
-- `rag_reranker` is consumed only when a collection runtime profile explicitly
+- `rag_reranker` is consumed only when a collection serving config explicitly
   opts in to reranking; missing provider config, missing configured rerank path,
   provider error or incomplete score response fails closed
 

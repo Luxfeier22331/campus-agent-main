@@ -93,11 +93,12 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		}]
 	}`)
 
-	t.Setenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH", filepath.Join(dir, "tools.v4.json"))
-	t.Setenv("EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH", filepath.Join(dir, "tool-function-schemas.v1.json"))
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH", filepath.Join(dir, "workflow-artifacts.v2.json"))
-
-	first, err := buildToolRuntimeFingerprint("")
+	first, err := buildToolRuntimeFingerprintWithPaths(
+		"",
+		filepath.Join(dir, "tools.v4.json"),
+		filepath.Join(dir, "tool-function-schemas.v1.json"),
+		filepath.Join(dir, "workflow-artifacts.v2.json"),
+	)
 	if err != nil {
 		t.Fatalf("build fixture fingerprint: %v", err)
 	}
@@ -111,7 +112,12 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"},"intent":{"type":["string","null"]}},"required":["query_text","intent"]}
 		}]
 	}`)
-	second, err := buildToolRuntimeFingerprint("")
+	second, err := buildToolRuntimeFingerprintWithPaths(
+		"",
+		filepath.Join(dir, "tools.v4.json"),
+		filepath.Join(dir, "tool-function-schemas.v1.json"),
+		filepath.Join(dir, "workflow-artifacts.v2.json"),
+	)
 	if err != nil {
 		t.Fatalf("build changed fixture fingerprint: %v", err)
 	}
@@ -194,17 +200,21 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		}`)
 	}
 
-	t.Setenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH", filepath.Join(prettyDir, "tools.v4.json"))
-	t.Setenv("EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH", filepath.Join(prettyDir, "tool-function-schemas.v1.json"))
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH", filepath.Join(prettyDir, "workflow-artifacts.v2.json"))
-	pretty, err := buildToolRuntimeFingerprint("execution-control@pretty")
+	pretty, err := buildToolRuntimeFingerprintWithPaths(
+		"execution-control@pretty",
+		filepath.Join(prettyDir, "tools.v4.json"),
+		filepath.Join(prettyDir, "tool-function-schemas.v1.json"),
+		filepath.Join(prettyDir, "workflow-artifacts.v2.json"),
+	)
 	if err != nil {
 		t.Fatalf("build pretty fingerprint: %v", err)
 	}
-	t.Setenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH", filepath.Join(compactDir, "tools.v4.json"))
-	t.Setenv("EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH", filepath.Join(compactDir, "tool-function-schemas.v1.json"))
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH", filepath.Join(compactDir, "workflow-artifacts.v2.json"))
-	compact, err := buildToolRuntimeFingerprint("execution-control@compact")
+	compact, err := buildToolRuntimeFingerprintWithPaths(
+		"execution-control@compact",
+		filepath.Join(compactDir, "tools.v4.json"),
+		filepath.Join(compactDir, "tool-function-schemas.v1.json"),
+		filepath.Join(compactDir, "workflow-artifacts.v2.json"),
+	)
 	if err != nil {
 		t.Fatalf("build compact fingerprint: %v", err)
 	}
@@ -219,11 +229,12 @@ func TestToolRuntimeFingerprintFailsClosedOnMalformedConfig(t *testing.T) {
 	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v1.json", `{"schema_version":"tool-function-schemas-v1","tools":[]}`)
 	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v2.json", `{"schema_version":"workflow-artifact-registry-v2","registry_version":"2026-01-01","artifacts":[],"bindings":[]}`)
 
-	t.Setenv("EXECUTION_CONTROL_TOOL_REGISTRY_PATH", filepath.Join(dir, "tools.v4.json"))
-	t.Setenv("EXECUTION_CONTROL_TOOL_FUNCTION_SCHEMA_PATH", filepath.Join(dir, "tool-function-schemas.v1.json"))
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH", filepath.Join(dir, "workflow-artifacts.v2.json"))
-
-	if _, err := buildToolRuntimeFingerprint(""); err == nil {
+	if _, err := buildToolRuntimeFingerprintWithPaths(
+		"",
+		filepath.Join(dir, "tools.v4.json"),
+		filepath.Join(dir, "tool-function-schemas.v1.json"),
+		filepath.Join(dir, "workflow-artifacts.v2.json"),
+	); err == nil {
 		t.Fatal("buildToolRuntimeFingerprint accepted malformed tool registry")
 	}
 }

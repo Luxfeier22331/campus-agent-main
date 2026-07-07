@@ -10,7 +10,7 @@ const (
 	PlanReplanActivityName               = "PlanReplanActivity"
 	PlanRAGActivityName                  = "KnowledgePlanRAGActivity"
 	RetrieveIndexedLookupActivityName    = "KnowledgeRetrieveIndexedLookupActivity"
-	ExpandOrRescueRetrievalActivityName  = "KnowledgeExpandOrRescueRetrievalActivity"
+	LiveSourceLookupActivityName         = "KnowledgeLiveSourceLookupActivity"
 	SelectEvidenceActivityName           = "KnowledgeSelectEvidenceActivity"
 	SynthesizeRAGAnswerActivityName      = "KnowledgeSynthesizeAnswerActivity"
 	VerifyGroundingActivityName          = "KnowledgeVerifyGroundingActivity"

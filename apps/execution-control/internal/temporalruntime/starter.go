@@ -282,10 +282,10 @@ type KnowledgeActivities interface {
 		context.Context,
 		RetrieveIndexedLookupActivityInput,
 	) (RetrieveIndexedLookupActivityOutput, error)
-	ExpandOrRescueRetrievalActivity(
+	LiveSourceLookupActivity(
 		context.Context,
-		ExpandOrRescueRetrievalActivityInput,
-	) (ExpandOrRescueRetrievalActivityOutput, error)
+		LiveSourceLookupActivityInput,
+	) (LiveSourceLookupActivityOutput, error)
 	SelectEvidenceActivity(
 		context.Context,
 		SelectEvidenceActivityInput,
@@ -564,8 +564,8 @@ func NewKnowledgeActivityWorkerWithOptions(
 		activityRegisterOptions(RetrieveIndexedLookupActivityName),
 	)
 	knowledgeWorker.RegisterActivityWithOptions(
-		activities.ExpandOrRescueRetrievalActivity,
-		activityRegisterOptions(ExpandOrRescueRetrievalActivityName),
+		activities.LiveSourceLookupActivity,
+		activityRegisterOptions(LiveSourceLookupActivityName),
 	)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.SelectEvidenceActivity,

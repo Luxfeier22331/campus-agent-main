@@ -477,7 +477,7 @@ func parseVersionQuery(raw json.RawMessage) (versionQuery, error) {
 
 func validateVersionQuery(query versionQuery) error {
 	switch query.Mode {
-	case "current", "historical", "as_of", "compare":
+	case "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted":
 	default:
 		return fmt.Errorf("unsupported version mode: %s", query.Mode)
 	}

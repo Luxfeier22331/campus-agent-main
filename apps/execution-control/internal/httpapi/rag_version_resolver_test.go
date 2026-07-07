@@ -19,7 +19,7 @@ func TestQdrantMetadataVersionResolverUsesCollectionMetadataRecords(t *testing.T
 			t.Fatalf("qdrant path = %q, want collection metadata", request.URL.Path)
 		}
 		metadata := releaseMetadataFixtureForHTTPTest(
-			mustRetrievalRuntimeProfileForTest(t, "regulations", "student_rules"),
+			mustRetrievalServingConfigForTest(t, "regulations", "student_rules"),
 			"student_rules",
 		)
 		metadata["version_records"] = []map[string]any{

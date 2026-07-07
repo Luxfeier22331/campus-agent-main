@@ -7,16 +7,16 @@ import (
 	"strings"
 )
 
-func normalizeRuntimeProfile(value string) (string, error) {
-	profile := strings.ToLower(strings.TrimSpace(value))
-	if profile == "" {
-		profile = "local"
+func normalizeRuntimeMode(value string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(value))
+	if mode == "" {
+		mode = "local"
 	}
-	switch profile {
+	switch mode {
 	case "local", "staging", "production":
-		return profile, nil
+		return mode, nil
 	default:
-		return "", fmt.Errorf("EXECUTION_CONTROL_RUNTIME_PROFILE contains unsupported profile %q", value)
+		return "", fmt.Errorf("EXECUTION_CONTROL_RUNTIME_MODE contains unsupported mode %q", value)
 	}
 }
 
@@ -164,9 +164,9 @@ func validateOpenTools(values []string) ([]string, error) {
 			"transport_schedule_lookup",
 			"campus_notice_discover":
 		case "*", "all":
-			return nil, fmt.Errorf("runtime profile open_tools does not support wildcard value %q", value)
+			return nil, fmt.Errorf("runtime config open_tools does not support wildcard value %q", value)
 		default:
-			return nil, fmt.Errorf("runtime profile open_tools contains unsupported tool %q", value)
+			return nil, fmt.Errorf("runtime config open_tools contains unsupported tool %q", value)
 		}
 	}
 	return values, nil

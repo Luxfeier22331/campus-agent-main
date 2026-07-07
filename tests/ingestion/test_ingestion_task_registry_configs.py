@@ -32,7 +32,7 @@ class IngestionTaskRegistryConfigsSuite(unittest.TestCase):
         offenders = [
             path.relative_to(REPO_ROOT).as_posix()
             for path in reference_root.rglob("*")
-            if path.name in {"task-registry.v2.json", "runtime-profile.json", "chunk-profile.json"}
+            if path.name in {"task-registry.v2.json", "serving-config.json", "chunk-profile.json"}
         ]
 
         self.assertEqual(offenders, [])

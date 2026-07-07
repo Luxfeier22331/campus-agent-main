@@ -6,15 +6,15 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 )
 
-func mustRetrievalRuntimeProfileForTest(
+func mustRetrievalServingConfigForTest(
 	t *testing.T,
 	corpus string,
 	collection string,
-) retrievalruntime.RuntimeProfile {
+) retrievalruntime.ServingConfig {
 	t.Helper()
-	profile, err := retrievalRuntimeProfileForTest(corpus, collection)
+	profile, err := retrievalServingConfigForTest(corpus, collection)
 	if err != nil {
-		t.Fatalf("load runtime profile for test: %v", err)
+		t.Fatalf("load serving config for test: %v", err)
 	}
 	return profile
 }

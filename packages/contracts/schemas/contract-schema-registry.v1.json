@@ -131,26 +131,26 @@
 			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
 		},
 		{
-			"id": "execution-control-runtime-profile.v1",
+			"id": "execution-control-runtime-config.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/execution-control-runtime-profile.v1.schema.json",
+			"path": "packages/contracts/schemas/execution-control-runtime-config.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"validates": [
-				"configs/runtime/execution-control/runtime-profile.local.json",
-				"configs/runtime/execution-control/runtime-profile.local-real-provider.json",
-				"configs/runtime/execution-control/runtime-profile.staging.json"
+				"configs/runtime/execution-control/runtime-config.local.json",
+				"configs/runtime/execution-control/runtime-config.local-real-provider.json",
+				"configs/runtime/execution-control/runtime-config.staging.json"
 			],
-			"notes": "Execution-control runtime profile artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
+			"notes": "Execution-control runtime config artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
 		},
 		{
-			"id": "query-serving-scopes.v1",
+			"id": "query-serving-scopes.v2",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/query-serving-scopes.v1.schema.json",
+			"path": "packages/contracts/schemas/query-serving-scopes.v2.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/query-serving-scopes.v1.json"],
-			"notes": "Default knowledge query-serving surface allowlist consumed by execution-control."
+			"validates": ["configs/runtime/query-serving-scopes.v2.json"],
+			"notes": "Knowledge query-serving scope admission policy consumed by execution-control."
 		},
 		{
 			"id": "intent-policy.v1",

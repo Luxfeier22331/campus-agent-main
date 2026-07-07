@@ -403,7 +403,7 @@ fields，但必须满足：
 - ACL metadata
 - query-serving gate metadata
 - registry-only metadata
-- collection runtime profile flags
+- collection serving config flags
 
 这些字段如果需要，必须在 projection、document-level cleaning、chunking 或 serving 阶段生成。
 

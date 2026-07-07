@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +15,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 )
 
-func TestQdrantRAGLookupQueryUsesHybridPrefetchFromRuntimeProfile(t *testing.T) {
+func TestQdrantRAGLookupQueryUsesHybridPrefetchFromServingConfig(t *testing.T) {
 	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("content-type", "application/json")
@@ -48,9 +50,9 @@ func TestQdrantRAGLookupQueryUsesHybridPrefetchFromRuntimeProfile(t *testing.T) 
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
 			VisibilityLevel:         "public",
 		},
-		RunID:            "run-qdrant-query",
-		TopK:             3,
-		RuntimeProfileID: "regulations/student_rules",
+		RunID:           "run-qdrant-query",
+		TopK:            3,
+		ServingConfigID: "regulations/student_rules",
 	}, []float64{0.1, 0.2, 0.3})
 	if err != nil {
 		t.Fatalf("query points: %v", err)
@@ -255,6 +257,7 @@ func TestEvidenceRefFromQdrantPointPreservesAnswerReadyMetadata(t *testing.T) {
 			"revision_track":    "current-effective",
 			"source_channel":    "official_web",
 			"source_title":      "学生手册",
+			"source_trust_tier": "T1",
 			"source_unit_key":   "leave",
 			"source_unit_kind":  "clause",
 			"text":              "学生应当按照学校规定办理请假手续。",
@@ -267,12 +270,16 @@ func TestEvidenceRefFromQdrantPointPreservesAnswerReadyMetadata(t *testing.T) {
 	if !ref.IsAnswerBearing || !ref.IsCurrent {
 		t.Fatalf("answer-ready flags = answer_bearing:%v current:%v, want true/true", ref.IsAnswerBearing, ref.IsCurrent)
 	}
+	if !ref.CanonicalIndexTruth || ref.RetrievalMode != "indexed" {
+		t.Fatalf("retrieval provenance = canonical_index_truth:%v mode:%q, want true/indexed", ref.CanonicalIndexTruth, ref.RetrievalMode)
+	}
 	if ref.DocumentID != "doc-student-rules" || ref.VersionID != "v3" ||
 		ref.RevisionTrack != "current-effective" {
 		t.Fatalf("version metadata drifted: %#v", ref)
 	}
 	if ref.CanonicalURL != "https://docs.example.edu/student-rules.html#leave" ||
 		ref.SourceChannel != "official_web" ||
+		ref.SourceTrustTier != "T1" ||
 		ref.SourceUnitKind != "clause" {
 		t.Fatalf("source metadata drifted: %#v", ref)
 	}
@@ -304,15 +311,15 @@ func TestQdrantRAGLookupFailsClosedBeforeQueryWhenReleaseMetadataMissing(t *test
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
-		Collection:       "student_rules",
-		CollectionAlias:  "student_rules",
-		Corpus:           "regulations",
-		QueryMode:        "current",
-		QueryText:        "学生请假手续",
-		RetrievalAccess:  publicRetrievalAccessProjectionForTest(),
-		RunID:            "run-release-metadata-missing",
-		TopK:             3,
-		RuntimeProfileID: "regulations/student_rules",
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "current",
+		QueryText:       "学生请假手续",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
+		RunID:           "run-release-metadata-missing",
+		TopK:            3,
+		ServingConfigID: "regulations/student_rules",
 	}, []float64{0.1, 0.2, 0.3})
 	if err == nil {
 		t.Fatal("missing release metadata must fail closed")
@@ -356,15 +363,15 @@ func TestQdrantRAGLookupUsesPointPayloadReleaseMetadataWhenCollectionMetadataMis
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
-		Collection:       "student_rules",
-		CollectionAlias:  "student_rules",
-		Corpus:           "regulations",
-		QueryMode:        "current",
-		QueryText:        "学生请假手续",
-		RetrievalAccess:  publicRetrievalAccessProjectionForTest(),
-		RunID:            "run-release-metadata-scroll",
-		TopK:             3,
-		RuntimeProfileID: "regulations/student_rules",
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "current",
+		QueryText:       "学生请假手续",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
+		RunID:           "run-release-metadata-scroll",
+		TopK:            3,
+		ServingConfigID: "regulations/student_rules",
 	}, []float64{0.1, 0.2, 0.3})
 	if err != nil {
 		t.Fatalf("query points with scroll release metadata: %v", err)
@@ -449,18 +456,88 @@ func TestQdrantRAGLookupEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
 	}
 }
 
+func TestQdrantRAGLookupCompatibilityProfilesFollowQueryServingPolicy(t *testing.T) {
+	profileRoot := t.TempDir()
+	for _, scope := range []struct {
+		corpus     string
+		collection string
+	}{
+		{corpus: "regulations", collection: "student_rules"},
+		{corpus: "regulations", collection: "institutional_rules"},
+		{corpus: "curriculum", collection: "curriculum_plan"},
+		{corpus: "official_web", collection: "stable_reference"},
+		{corpus: "official_web", collection: "fresh_news"},
+		{corpus: "official_web", collection: "news_archive"},
+		{corpus: "regulations", collection: "scoped_rules"},
+	} {
+		writeServingConfigForCompatibilityTest(t, profileRoot, scope.corpus, scope.collection)
+	}
+	executor := qdrantRAGLookupExecutor{servingConfigRoot: profileRoot}
+
+	profiles, err := executor.queryServingConfigs()
+	if err != nil {
+		t.Fatalf("query serving configs: %v", err)
+	}
+	got := map[string]bool{}
+	for _, profile := range profiles {
+		got[profile.Corpus+"/"+profile.Collection] = true
+	}
+	for _, scope := range []string{
+		"regulations/student_rules",
+		"regulations/institutional_rules",
+		"curriculum/curriculum_plan",
+		"official_web/stable_reference",
+		"official_web/fresh_news",
+		"official_web/news_archive",
+	} {
+		if !got[scope] {
+			t.Fatalf("admitted query-serving scope %s missing from compatibility profiles: %#v", scope, got)
+		}
+	}
+	if got["regulations/scoped_rules"] {
+		t.Fatal("policy-closed scoped_rules must not be checked as query-serving compatibility profile")
+	}
+}
+
+func writeServingConfigForCompatibilityTest(
+	t *testing.T,
+	root string,
+	corpus string,
+	collection string,
+) {
+	t.Helper()
+	dir := filepath.Join(root, corpus, collection)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir serving config fixture: %v", err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"chunk_profile_version":     collection + "_semantic_v1",
+		"cleaning_policy_version":   collection + "_cleaning_v1",
+		"collection":                collection,
+		"corpus":                    corpus,
+		"qdrant_alias_name":         strings.ReplaceAll(corpus+"_"+collection, "/", "_"),
+		"qdrant_dense_vector_name":  "dense",
+		"qdrant_sparse_vector_name": "sparse",
+		"retrieval_enabled":         true,
+		"serving_stage":             "query_serving",
+		"serving_visibility_levels": []string{"public"},
+	})
+	if err != nil {
+		t.Fatalf("marshal serving config fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "serving-config.json"), body, 0o600); err != nil {
+		t.Fatalf("write serving config fixture: %v", err)
+	}
+}
+
 func TestNewQdrantRAGLookupExecutorRejectsHTTPDataPlaneWithAPIKeyOutsideLocalProfile(t *testing.T) {
 	_, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "http://qdrant:6333",
-		RuntimeProfile:       "staging",
-	}, nil)
+		RuntimeMode:          "staging",
+	}, defaultRAGEmbeddingResolverForTest())
 	if err == nil {
 		t.Fatal("authenticated Qdrant data-plane must reject http:// URLs")
 	}
@@ -471,15 +548,11 @@ func TestNewQdrantRAGLookupExecutorRejectsHTTPDataPlaneWithAPIKeyOutsideLocalPro
 
 func TestNewQdrantRAGLookupExecutorAllowsLocalHTTPDataPlaneWithAPIKey(t *testing.T) {
 	executor, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "http://qdrant:6333",
-		RuntimeProfile:       "local",
-	}, nil)
+		RuntimeMode:          "local",
+	}, defaultRAGEmbeddingResolverForTest())
 	if err != nil {
 		t.Fatalf("local authenticated Qdrant http data-plane rejected: %v", err)
 	}
@@ -499,15 +572,11 @@ func TestNewQdrantRAGLookupExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	caPath := writeTestCACert(t, qdrant)
 
 	executor, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            qdrant.URL,
-	}, nil)
+	}, defaultRAGEmbeddingResolverForTest())
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
@@ -524,15 +593,11 @@ func TestNewQdrantRAGLookupExecutorSeparatesQdrantTLSClientFromEmbeddingClient(t
 	caPath := writeTestCACert(t, qdrant)
 
 	lookupExecutor, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            qdrant.URL,
-	}, nil)
+	}, defaultRAGEmbeddingResolverForTest())
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
@@ -587,14 +652,10 @@ func TestNewQdrantRAGLookupExecutorUsesSplitTimeouts(t *testing.T) {
 
 func TestNewQdrantRAGLookupExecutorFailsClosedWithoutTLSCA(t *testing.T) {
 	_, err := newQdrantRAGLookupExecutor(config.Config{
-		EmbeddingAPIKey:      "embedding-key",
-		EmbeddingBaseURL:     "https://provider.example/v1",
-		EmbeddingDimensions:  3,
-		EmbeddingModel:       "embedding-model",
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "https://qdrant:6333",
-	}, nil)
+	}, defaultRAGEmbeddingResolverForTest())
 	if err == nil {
 		t.Fatal("QDRANT_TLS_CA_CERT_PATH must be required for HTTPS Qdrant")
 	}

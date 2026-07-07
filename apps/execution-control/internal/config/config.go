@@ -13,7 +13,7 @@ type Config struct {
 	DeploymentEnvironment             string
 	Host                              string
 	Port                              int
-	RuntimeProfile                    string
+	RuntimeMode                       string
 	RuntimeRelease                    string
 	AuthMode                          string
 	BearerToken                       string
@@ -109,11 +109,6 @@ type Config struct {
 	PersonalMemoryRecallLimit         int
 	PersonalMemoryRecallMaxTokens     int
 	PersonalMemoryContextCharBudget   int
-	EmbeddingProvider                 string
-	EmbeddingBaseURL                  string
-	EmbeddingAPIKey                   string
-	EmbeddingModel                    string
-	EmbeddingDimensions               int
 }
 
 type WorkerProfile struct {
@@ -130,7 +125,7 @@ type envValues struct {
 	DeploymentEnvironment             string `env:"DEPLOYMENT_ENVIRONMENT"`
 	Host                              string `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
 	Port                              int    `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
-	RuntimeProfile                    string `env:"EXECUTION_CONTROL_RUNTIME_PROFILE" envDefault:"local"`
+	RuntimeMode                       string `env:"EXECUTION_CONTROL_RUNTIME_MODE" envDefault:"local"`
 	RuntimeRelease                    string `env:"EXECUTION_CONTROL_RUNTIME_RELEASE"`
 	AuthMode                          string `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                       string `env:"API_BEARER_TOKEN"`
@@ -208,11 +203,6 @@ type envValues struct {
 	PersonalMemoryRecallLimit         int
 	PersonalMemoryRecallMaxTokens     int
 	PersonalMemoryContextCharBudget   int
-	EmbeddingProvider                 string `env:"EMBEDDING_PROVIDER"`
-	EmbeddingBaseURL                  string `env:"EMBEDDING_BASE_URL"`
-	EmbeddingAPIKey                   string `env:"EMBEDDING_API_KEY"`
-	EmbeddingModel                    string `env:"EMBEDDING_MODEL"`
-	EmbeddingDimensions               int    `env:"EMBEDDING_DIMENSIONS"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -220,7 +210,7 @@ func LoadFromEnv() (Config, error) {
 }
 
 func LoadFromEnvForRole(runtimeRole string) (Config, error) {
-	if err := rejectRuntimeProfileOwnedEnvSettings(); err != nil {
+	if err := rejectRuntimeConfigOwnedEnvSettings(); err != nil {
 		return Config{}, err
 	}
 	if err := rejectRetiredPromptRuntimeSettings(); err != nil {
@@ -233,50 +223,50 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	runtimeConfigProfile, err := loadRuntimeConfigProfileFromEnv()
+	runtimeConfigFile, err := loadRuntimeConfigFromEnv()
 	if err != nil {
 		return Config{}, err
 	}
-	values = applyRuntimeConfigProfileValues(values, runtimeConfigProfile)
+	values = applyRuntimeConfigValues(values, runtimeConfigFile)
 	otelEnabled := false
-	if runtimeConfigProfile.OTel != nil {
-		otelEnabled = boolFromRuntimeProfile(runtimeConfigProfile.OTel.Enabled, otelEnabled)
+	if runtimeConfigFile.OTel != nil {
+		otelEnabled = boolFromRuntimeConfig(runtimeConfigFile.OTel.Enabled, otelEnabled)
 	}
 	otelMetricsEnabled := false
-	if runtimeConfigProfile.OTel != nil {
-		otelMetricsEnabled = boolFromRuntimeProfile(runtimeConfigProfile.OTel.MetricsEnabled, otelMetricsEnabled)
+	if runtimeConfigFile.OTel != nil {
+		otelMetricsEnabled = boolFromRuntimeConfig(runtimeConfigFile.OTel.MetricsEnabled, otelMetricsEnabled)
 	}
 	executionAuditEnabled := false
-	if runtimeConfigProfile.ExecutionAudit != nil {
-		executionAuditEnabled = boolFromRuntimeProfile(
-			runtimeConfigProfile.ExecutionAudit.Enabled,
+	if runtimeConfigFile.ExecutionAudit != nil {
+		executionAuditEnabled = boolFromRuntimeConfig(
+			runtimeConfigFile.ExecutionAudit.Enabled,
 			executionAuditEnabled,
 		)
 	}
-	runtimeProfile, err := normalizeRuntimeProfile(values.RuntimeProfile)
+	runtimeMode, err := normalizeRuntimeMode(values.RuntimeMode)
 	if err != nil {
 		return Config{}, err
 	}
-	if err := validateEnvValues(values, runtimeProfile, runtimeRole, otelEnabled); err != nil {
+	if err := validateEnvValues(values, runtimeMode, runtimeRole, otelEnabled); err != nil {
 		return Config{}, err
 	}
 	workerProfiles, err := readWorkerProfilesStrict(values)
 	if err != nil {
 		return Config{}, err
 	}
-	workerProfiles, err = applyRuntimeConfigProfileWorkerProfiles(workerProfiles, runtimeConfigProfile)
+	workerProfiles, err = applyRuntimeConfigWorkerProfiles(workerProfiles, runtimeConfigFile)
 	if err != nil {
 		return Config{}, err
 	}
 	var openTools []string
-	if runtimeConfigProfile.OpenTools != nil {
-		openTools, err = validateOpenTools(runtimeConfigProfile.OpenTools)
+	if runtimeConfigFile.OpenTools != nil {
+		openTools, err = validateOpenTools(runtimeConfigFile.OpenTools)
 		if err != nil {
 			return Config{}, err
 		}
 	}
-	multiStepWorkflowEnabled := boolFromRuntimeProfile(
-		runtimeConfigProfile.MultiStepWorkflowEnabled,
+	multiStepWorkflowEnabled := boolFromRuntimeConfig(
+		runtimeConfigFile.MultiStepWorkflowEnabled,
 		false,
 	)
 	workflowRunAutoMigrate, err := readBoolStrict("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", false)
@@ -293,10 +283,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	embeddingDimensions, err := readNonNegativeIntStrict("EMBEDDING_DIMENSIONS", values.EmbeddingDimensions)
-	if err != nil {
-		return Config{}, err
-	}
 	if err := rejectRetiredDurableWorkerLoopSettings(); err != nil {
 		return Config{}, err
 	}
@@ -309,19 +295,19 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRetiredPredecessorMemorySettings(); err != nil {
 		return Config{}, err
 	}
-	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
+	if err := validateTemporalSettings(values, runtimeMode); err != nil {
 		return Config{}, err
 	}
-	if err := validatePersonalMemorySettings(values, runtimeProfile, runtimeRole); err != nil {
+	if err := validatePersonalMemorySettings(values, runtimeMode, runtimeRole); err != nil {
 		return Config{}, err
 	}
 
 	return Config{
 		AppName:                           defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
-		DeploymentEnvironment:             defaultString(strings.TrimSpace(values.DeploymentEnvironment), runtimeProfile),
+		DeploymentEnvironment:             defaultString(strings.TrimSpace(values.DeploymentEnvironment), runtimeMode),
 		Host:                              defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
 		Port:                              values.Port,
-		RuntimeProfile:                    runtimeProfile,
+		RuntimeMode:                       runtimeMode,
 		RuntimeRelease:                    strings.TrimSpace(values.RuntimeRelease),
 		AuthMode:                          defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
 		BearerToken:                       strings.TrimSpace(values.BearerToken),
@@ -410,11 +396,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		PersonalMemoryRecallLimit:         values.PersonalMemoryRecallLimit,
 		PersonalMemoryRecallMaxTokens:     values.PersonalMemoryRecallMaxTokens,
 		PersonalMemoryContextCharBudget:   values.PersonalMemoryContextCharBudget,
-		EmbeddingProvider:                 strings.TrimSpace(values.EmbeddingProvider),
-		EmbeddingBaseURL:                  strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
-		EmbeddingAPIKey:                   strings.TrimSpace(values.EmbeddingAPIKey),
-		EmbeddingModel:                    strings.TrimSpace(values.EmbeddingModel),
-		EmbeddingDimensions:               embeddingDimensions,
 	}, nil
 }
 
@@ -426,30 +407,30 @@ func parseEnvValues() (envValues, error) {
 	return values, nil
 }
 
-func validateEnvValues(values envValues, runtimeProfile string, runtimeRole string, otelEnabled bool) error {
+func validateEnvValues(values envValues, runtimeMode string, runtimeRole string, otelEnabled bool) error {
 	checks := []struct {
 		name  string
 		value int
 	}{
 		{"CAMPUS_AGENT_HTTP_PORT", values.Port},
-		{"runtime profile max_concurrent_answers", values.MaxConcurrentAnswers},
-		{"runtime profile queue_timeout_ms", values.QueueTimeoutMS},
-		{"runtime profile request_timeout_ms", values.RequestTimeoutMS},
-		{"runtime profile shutdown_grace_ms", values.ShutdownGraceMS},
-		{"runtime profile otel.export_timeout_ms", values.OTelExportTimeoutMS},
-		{"runtime profile otel.export_interval_ms", values.OTelExportIntervalMS},
-		{"runtime profile execution_audit.timeout_ms", values.ExecutionAuditTimeoutMS},
-		{"runtime profile tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
+		{"runtime config max_concurrent_answers", values.MaxConcurrentAnswers},
+		{"runtime config queue_timeout_ms", values.QueueTimeoutMS},
+		{"runtime config request_timeout_ms", values.RequestTimeoutMS},
+		{"runtime config shutdown_grace_ms", values.ShutdownGraceMS},
+		{"runtime config otel.export_timeout_ms", values.OTelExportTimeoutMS},
+		{"runtime config otel.export_interval_ms", values.OTelExportIntervalMS},
+		{"runtime config execution_audit.timeout_ms", values.ExecutionAuditTimeoutMS},
+		{"runtime config tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},
-		{"runtime profile rag.top_k_max", values.RAGTopKMax},
-		{"runtime profile rag.selected_evidence_max", values.RAGSelectedEvidenceMax},
-		{"runtime profile rag.retrieval_max_concurrent", values.RAGRetrievalMaxConcurrent},
-		{"runtime profile rag.synthesis_max_concurrent", values.RAGSynthesisMaxConcurrent},
-		{"runtime profile rag.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
-		{"runtime profile rag.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
-		{"runtime profile rag.provider_timeout_ms", values.RAGProviderTimeoutMS},
-		{"runtime profile rag.synthesis_generation.max_output_tokens", values.RAGSynthesisMaxOutputTokens},
+		{"runtime config rag.top_k_max", values.RAGTopKMax},
+		{"runtime config rag.selected_evidence_max", values.RAGSelectedEvidenceMax},
+		{"runtime config rag.retrieval_max_concurrent", values.RAGRetrievalMaxConcurrent},
+		{"runtime config rag.synthesis_max_concurrent", values.RAGSynthesisMaxConcurrent},
+		{"runtime config rag.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
+		{"runtime config rag.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
+		{"runtime config rag.provider_timeout_ms", values.RAGProviderTimeoutMS},
+		{"runtime config rag.synthesis_generation.max_output_tokens", values.RAGSynthesisMaxOutputTokens},
 		{"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", values.AppAPIInternalTimeoutMS},
 	}
 	for _, check := range checks {
@@ -458,68 +439,68 @@ func validateEnvValues(values envValues, runtimeProfile string, runtimeRole stri
 		}
 	}
 	if values.QueueCapacity < 0 {
-		return fmt.Errorf("runtime profile queue_capacity must be a non-negative integer")
+		return fmt.Errorf("runtime config queue_capacity must be a non-negative integer")
 	}
 	if values.RequestBodyLimitBytes <= 0 {
-		return fmt.Errorf("runtime profile request_body_limit_bytes must be a positive integer")
+		return fmt.Errorf("runtime config request_body_limit_bytes must be a positive integer")
 	}
 	if values.QdrantTimeoutSeconds <= 0 {
 		return fmt.Errorf("QDRANT_TIMEOUT_SECONDS must be greater than zero")
 	}
 	if values.PersonalMemoryTimeoutSeconds <= 0 {
-		return fmt.Errorf("runtime profile personal_memory.timeout_seconds must be greater than zero")
+		return fmt.Errorf("runtime config personal_memory.timeout_seconds must be greater than zero")
 	}
 	if values.PersonalMemoryRecallLimit <= 0 {
-		return fmt.Errorf("runtime profile personal_memory.recall_limit must be a positive integer")
+		return fmt.Errorf("runtime config personal_memory.recall_limit must be a positive integer")
 	}
 	if values.PersonalMemoryRecallMaxTokens <= 0 {
-		return fmt.Errorf("runtime profile personal_memory.recall_max_tokens must be a positive integer")
+		return fmt.Errorf("runtime config personal_memory.recall_max_tokens must be a positive integer")
 	}
 	if values.PersonalMemoryContextCharBudget <= 0 {
-		return fmt.Errorf("runtime profile personal_memory.context_char_budget must be a positive integer")
+		return fmt.Errorf("runtime config personal_memory.context_char_budget must be a positive integer")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
-		return fmt.Errorf("runtime profile otel.sample_ratio must be a number between 0 and 1")
+		return fmt.Errorf("runtime config otel.sample_ratio must be a number between 0 and 1")
 	}
 	switch strings.TrimSpace(values.RAGSynthesisReasoningEffort) {
 	case "none", "minimal", "low", "medium", "high", "xhigh":
 	default:
-		return fmt.Errorf("runtime profile rag.synthesis_generation.reasoning_effort is unsupported")
+		return fmt.Errorf("runtime config rag.synthesis_generation.reasoning_effort is unsupported")
 	}
 	switch strings.TrimSpace(values.RAGSynthesisTextVerbosity) {
 	case "low", "medium", "high":
 	default:
-		return fmt.Errorf("runtime profile rag.synthesis_generation.text_verbosity is unsupported")
+		return fmt.Errorf("runtime config rag.synthesis_generation.text_verbosity is unsupported")
 	}
 	if values.TemporalTracingEnabled && !otelEnabled {
-		return fmt.Errorf("runtime profile otel.enabled=true is required when otel.temporal_tracing_enabled=true")
+		return fmt.Errorf("runtime config otel.enabled=true is required when otel.temporal_tracing_enabled=true")
 	}
 	if otelEnabled && strings.TrimSpace(values.RuntimeRelease) == "" {
-		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime profile otel.enabled=true")
+		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime config otel.enabled=true")
 	}
-	if runtimeProfile != "local" &&
+	if runtimeMode != "local" &&
 		roleRequiresMetricsBearerToken(runtimeRole) &&
 		strings.TrimSpace(values.MetricsBearerToken) == "" {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
-			runtimeProfile,
+			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
+			runtimeMode,
 		)
 	}
-	if runtimeProfile != "local" &&
+	if runtimeMode != "local" &&
 		roleRequiresRunProjectionDatabaseURL(runtimeRole) &&
 		strings.TrimSpace(values.RunProjectionDatabaseURL) == "" {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL is required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
-			runtimeProfile,
+			"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL is required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
+			runtimeMode,
 		)
 	}
-	if runtimeProfile != "local" &&
+	if runtimeMode != "local" &&
 		roleRequiresAgentRuntimeClient(runtimeRole) &&
 		(strings.TrimSpace(values.AgentRuntimeBaseURL) == "" ||
 			strings.TrimSpace(values.AgentRuntimeSharedSecret) == "") {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL and EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET are required when EXECUTION_CONTROL_RUNTIME_PROFILE=%s",
-			runtimeProfile,
+			"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL and EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET are required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
+			runtimeMode,
 		)
 	}
 	return nil
@@ -552,8 +533,8 @@ func roleRequiresAgentRuntimeClient(runtimeRole string) bool {
 	}
 }
 
-func validateTemporalSettings(values envValues, runtimeProfile string) error {
-	if runtimeProfile == "local" &&
+func validateTemporalSettings(values envValues, runtimeMode string) error {
+	if runtimeMode == "local" &&
 		strings.TrimSpace(values.TemporalAddress) == "" &&
 		strings.TrimSpace(values.TemporalNamespace) == "" {
 		return nil
@@ -580,11 +561,11 @@ func validateTemporalSettings(values envValues, runtimeProfile string) error {
 
 func validatePersonalMemorySettings(
 	values envValues,
-	runtimeProfile string,
+	runtimeMode string,
 	runtimeRole string,
 ) error {
 	role := normalizeRuntimeRole(runtimeRole)
-	if runtimeProfile == "local" {
+	if runtimeMode == "local" {
 		return nil
 	}
 	switch role {

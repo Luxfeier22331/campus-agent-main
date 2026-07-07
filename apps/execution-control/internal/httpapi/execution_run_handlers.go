@@ -198,17 +198,17 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 		return []string{"knowledge_query"}, nil
 	case "public_web_search":
 		if !s.config.ToolOpen("public_web_search") {
-			return nil, fmt.Errorf("tool public_web_search is not open in runtime profile")
+			return nil, fmt.Errorf("tool public_web_search is not open in runtime config")
 		}
 		return []string{"public_web_search"}, nil
 	case "transport_schedule_lookup":
 		if !s.config.ToolOpen("transport_schedule_lookup") {
-			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime profile")
+			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime config")
 		}
 		return []string{"transport_schedule_lookup"}, nil
 	case "campus_notice_discover":
 		if !s.config.ToolOpen("campus_notice_discover") {
-			return nil, fmt.Errorf("tool campus_notice_discover is not open in runtime profile")
+			return nil, fmt.Errorf("tool campus_notice_discover is not open in runtime config")
 		}
 		return []string{"campus_notice_discover"}, nil
 	case "place_lookup":

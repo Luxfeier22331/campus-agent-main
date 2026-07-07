@@ -227,7 +227,7 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 - Execution Agent Layer 负责 top-level intent framing 时可以参考 typed personal context，但不能把
   personal context 当作能力开放或 source truth
 - `knowledge` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过
-  admitted source / runtime profile / evidence constraints
+  admitted source / serving config / evidence constraints
 - retrieval 与 workflow path 消费的 source / tool posture 必须来自 app-layer /
   execution-control projection，而不是 raw token claims 或 memory 推断
 - memory 系统与 RAG 系统的 join 点必须数据最小化；online path 消费 bounded

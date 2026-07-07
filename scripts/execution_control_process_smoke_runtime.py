@@ -12,12 +12,12 @@ from scripts.execution_control_process_smoke_models import (
     ProcessCommandSpec,
     ProcessSmokePlan,
 )
-from scripts.execution_control_process_smoke_profiles import (
+from scripts.execution_control_process_smoke_scenarios import (
     TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
-    profile_requires_notice_read_model,
-    profile_requires_temporary_postgres,
-    profile_requires_tool_read_model_projection,
+    scenario_requires_notice_read_model,
+    scenario_requires_temporary_postgres,
+    scenario_requires_tool_read_model_projection,
 )
 
 
@@ -33,12 +33,12 @@ def _prepare_process_smoke_runtime(
     *,
     timeout_seconds: float,
 ) -> _RuntimePreparation | None:
-    if not profile_requires_temporary_postgres(plan.profile):
+    if not scenario_requires_temporary_postgres(plan.scenario):
         return None
     base_database_url = _process_smoke_base_postgres_url(plan.repo_root)
     if not base_database_url:
         raise RuntimeError(
-            f"{plan.profile} process smoke requires CAMPUS_SHARED_POSTGRES_URL "
+            f"{plan.scenario} process smoke requires CAMPUS_SHARED_POSTGRES_URL "
             "in the shell environment or repo root .env"
         )
     database_name = _temporary_process_smoke_database_name()
@@ -49,9 +49,9 @@ def _prepare_process_smoke_runtime(
     env_overlay: dict[str, str] = {}
     artifacts: list[dict[str, object]] = []
     try:
-        if profile_requires_tool_read_model_projection(plan.profile):
-            selected_collections = _tool_read_model_projection_seed_collections(plan.profile)
-            trusted_time = _profile_trusted_time(plan.profile)
+        if scenario_requires_tool_read_model_projection(plan.scenario):
+            selected_collections = _tool_read_model_projection_seed_collections(plan.scenario)
+            trusted_time = _scenario_trusted_time(plan.scenario)
             _seed_tool_read_model_projection_smoke(
                 repo_root=plan.repo_root,
                 runtime_database_url=runtime_database_url,
@@ -70,7 +70,7 @@ def _prepare_process_smoke_runtime(
                     "collections": list(selected_collections),
                 }
             )
-        if profile_requires_notice_read_model(plan.profile):
+        if scenario_requires_notice_read_model(plan.scenario):
             notice_seed_log_path = plan.output_dir / "notice-read-model-seed.log"
             _seed_notice_read_model_smoke(
                 runtime_database_url=runtime_database_url,
@@ -174,19 +174,19 @@ def _seed_tool_read_model_projection_smoke(
     )
 
 
-def _tool_read_model_projection_seed_collections(profile: str) -> tuple[str, ...]:
-    if profile == "transport_notice_override_multistep":
+def _tool_read_model_projection_seed_collections(scenario: str) -> tuple[str, ...]:
+    if scenario == "transport_notice_override_multistep":
         return ("transport_schedule",)
     if (
-        profile == "transport_schedule_sdk_opened"
-        or profile == "transport_schedule_sdk_opened_stream"
+        scenario == "transport_schedule_sdk_opened"
+        or scenario == "transport_schedule_sdk_opened_stream"
     ):
         return ("transport_schedule",)
     return ("transport_schedule",)
 
 
-def _profile_trusted_time(profile: str) -> str:
-    if profile == "transport_notice_override_multistep":
+def _scenario_trusted_time(scenario: str) -> str:
+    if scenario == "transport_notice_override_multistep":
         return TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
     return TOOL_READ_MODEL_OPENED_TRUSTED_TIME
 

@@ -8,39 +8,39 @@ import (
 	"testing"
 )
 
-func setRuntimeConfigProfile(t *testing.T, content string) {
+func setRuntimeConfig(t *testing.T, content string) {
 	t.Helper()
-	content = mergeRuntimeConfigProfileForTest(t, content)
-	profilePath := filepath.Join(t.TempDir(), "runtime-profile.json")
+	content = mergeRuntimeConfigForTest(t, content)
+	profilePath := filepath.Join(t.TempDir(), "runtime-config.json")
 	if err := os.WriteFile(profilePath, []byte(content), 0o600); err != nil {
-		t.Fatalf("write runtime profile: %v", err)
+		t.Fatalf("write runtime config: %v", err)
 	}
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", profilePath)
 }
 
-func setRawRuntimeConfigProfile(t *testing.T, content string) {
+func setRawRuntimeConfig(t *testing.T, content string) {
 	t.Helper()
-	profilePath := filepath.Join(t.TempDir(), "runtime-profile.json")
+	profilePath := filepath.Join(t.TempDir(), "runtime-config.json")
 	if err := os.WriteFile(profilePath, []byte(content), 0o600); err != nil {
-		t.Fatalf("write runtime profile: %v", err)
+		t.Fatalf("write runtime config: %v", err)
 	}
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", profilePath)
 }
 
-func mergeRuntimeConfigProfileForTest(t *testing.T, override string) string {
+func mergeRuntimeConfigForTest(t *testing.T, override string) string {
 	t.Helper()
 	base := map[string]any{}
-	if err := json.Unmarshal(readDefaultRuntimeConfigProfileForTest(t), &base); err != nil {
-		t.Fatalf("decode base runtime profile: %v", err)
+	if err := json.Unmarshal(readDefaultRuntimeConfigForTest(t), &base); err != nil {
+		t.Fatalf("decode base runtime config: %v", err)
 	}
 	overlay := map[string]any{}
 	if err := json.Unmarshal([]byte(override), &overlay); err != nil {
-		t.Fatalf("decode runtime profile override: %v", err)
+		t.Fatalf("decode runtime config override: %v", err)
 	}
 	mergeJSONObjects(base, overlay)
 	merged, err := json.MarshalIndent(base, "", "  ")
 	if err != nil {
-		t.Fatalf("encode merged runtime profile: %v", err)
+		t.Fatalf("encode merged runtime config: %v", err)
 	}
 	return string(merged)
 }
@@ -58,8 +58,8 @@ func mergeJSONObjects(base map[string]any, overlay map[string]any) {
 }
 
 func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
-	setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+	setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "rag": {
     "top_k_max": 6,
     "selected_evidence_max": 5,
@@ -103,9 +103,9 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
-	setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
+	setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "max_concurrent_answers": 5,
   "queue_capacity": 13,
   "queue_timeout_ms": 2600,
@@ -163,7 +163,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     }
   }
 }`)
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@runtime-profile-test")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@runtime-config-test")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -213,23 +213,23 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.PersonalMemoryRecallMaxTokens != 900 ||
 		cfg.PersonalMemoryContextCharBudget != 900 ||
 		cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 {
-		t.Fatalf("unexpected config from runtime profile: %#v", cfg)
+		t.Fatalf("unexpected config from runtime config: %#v", cfg)
 	}
 }
 
-func TestLoadFromEnvRejectsRuntimeProfileOwnedEnvOverrides(t *testing.T) {
+func TestLoadFromEnvRejectsRuntimeModeOwnedEnvOverrides(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RAG_TOP_K_MAX", "6")
 
 	_, err := LoadFromEnv()
 	if err == nil {
-		t.Fatal("expected runtime profile owned env override to fail")
+		t.Fatal("expected runtime config owned env override to fail")
 	}
 	if !strings.Contains(err.Error(), "EXECUTION_CONTROL_RAG_TOP_K_MAX is retired") {
-		t.Fatalf("error = %q, want retired runtime profile env diagnostic", err.Error())
+		t.Fatalf("error = %q, want retired runtime config env diagnostic", err.Error())
 	}
 }
 
-func TestLoadFromEnvRejectsRuntimeProfileOwnedPersonalMemoryEnv(t *testing.T) {
+func TestLoadFromEnvRejectsRuntimeModeOwnedPersonalMemoryEnv(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		value string
@@ -246,16 +246,16 @@ func TestLoadFromEnvRejectsRuntimeProfileOwnedPersonalMemoryEnv(t *testing.T) {
 
 			_, err := LoadFromEnv()
 			if err == nil {
-				t.Fatal("expected runtime profile owned personal memory env override to fail")
+				t.Fatal("expected runtime config owned personal memory env override to fail")
 			}
 			if !strings.Contains(err.Error(), tc.name+" is retired") {
-				t.Fatalf("error = %q, want retired runtime profile env diagnostic", err.Error())
+				t.Fatalf("error = %q, want retired runtime config env diagnostic", err.Error())
 			}
 		})
 	}
 }
 
-func TestLoadFromEnvRequiresRuntimeConfigProfilePath(t *testing.T) {
+func TestLoadFromEnvRequiresRuntimeConfigPath(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", " ")
 
 	_, err := LoadFromEnv()
@@ -267,17 +267,17 @@ func TestLoadFromEnvRequiresRuntimeConfigProfilePath(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvRejectsIncompleteRuntimeConfigProfile(t *testing.T) {
-	setRawRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+func TestLoadFromEnvRejectsIncompleteRuntimeConfig(t *testing.T) {
+	setRawRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "queue_capacity": 24
 }`)
 
 	_, err := LoadFromEnv()
 	if err == nil {
-		t.Fatal("expected incomplete runtime profile to fail")
+		t.Fatal("expected incomplete runtime config to fail")
 	}
 	if !strings.Contains(err.Error(), "missing required field max_concurrent_answers") {
-		t.Fatalf("error = %q, want missing profile field diagnostic", err.Error())
+		t.Fatalf("error = %q, want missing config field diagnostic", err.Error())
 	}
 }

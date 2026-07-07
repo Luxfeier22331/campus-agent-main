@@ -59,14 +59,15 @@ func ragPlanProjectionForRun(
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
-	scope, err := ragScopeForRun(run, payload, rewrite.QueryText, queryServingScopesPath)
+	queryMode, versionQuery := ragVersionQueryForRun(payload)
+	scope, err := ragScopeForRun(run, payload, rewrite.QueryText, queryMode, queryServingScopesPath)
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
 	if err := validateRAGPreviousEvidenceScope(rewrite, scope); err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
-	profile, err := retrievalruntime.LoadRuntimeProfile("", scope.Corpus, scope.Collection)
+	profile, err := retrievalruntime.LoadServingConfig("", scope.Corpus, scope.Collection)
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
@@ -80,7 +81,6 @@ func ragPlanProjectionForRun(
 	if topK > topKMax {
 		return ragruntime.PlanProjection{}, fmt.Errorf("rag top_k %d exceeds configured max %d", topK, topKMax)
 	}
-	queryMode, versionQuery := ragVersionQueryForRun(payload)
 	retrievalAccess := ragRetrievalAccessForRun(payload)
 	plan := ragruntime.PlanProjection{
 		Collection:               scope.Collection,
@@ -96,7 +96,7 @@ func ragPlanProjectionForRun(
 		RequestID:                run.RequestID,
 		RequiredEvidenceContract: "answer_bearing_evidence",
 		RetrievalAccess:          retrievalAccess,
-		RuntimeProfileID:         scope.Corpus + "/" + scope.Collection + ":" + profile.ServingStage,
+		ServingConfigID:          scope.Corpus + "/" + scope.Collection + ":" + profile.ServingStage,
 		RunID:                    run.RunID,
 		SchemaVersion:            "rag_plan_projection_v1",
 		SourceTrustPolicy: ragruntime.SourceTrustPolicy{
@@ -111,10 +111,7 @@ func ragPlanProjectionForRun(
 		Collection: scope.Collection,
 	}}
 	plan.Steps = retrievalPlanStepsForProjection(plan)
-	plan.Budget = ragruntime.PlanBudgetProjection{
-		MaxReplans: 0,
-		MaxSteps:   len(plan.Steps),
-	}
+	plan.Budget = ragPlanBudgetForMode(plan.QueryMode)
 	if _, memoryRef := memoryContextForRAG(run); memoryRef != "" {
 		plan.MemoryRef = memoryRef
 	}
@@ -146,8 +143,9 @@ func ragPlanID(scope runtimepolicy.Scope, queryMode string) string {
 }
 
 func defaultSourceTrustTier(collection string, queryMode string) string {
-	if queryMode == "freshness_sensitive" {
-		return "T3"
+	switch strings.TrimSpace(queryMode) {
+	case "freshness_sensitive", "live_assisted":
+		return "T2"
 	}
 	switch strings.TrimSpace(collection) {
 	case "curriculum_plan":
@@ -198,15 +196,21 @@ func retrievalPlanStepsForProjection(plan ragruntime.PlanProjection) []ragruntim
 		}
 		return []ragruntime.RetrievalStepProjection{step}
 	case "freshness_sensitive":
-		freshness := base("freshness-gate", "freshness_gate", "retrieval", "freshness_decision")
-		hybrid := base("hybrid-search", "hybrid_search", "retrieval", "candidate_set")
-		hybrid.DependsOnStepIDs = []string{"freshness-gate"}
-		return []ragruntime.RetrievalStepProjection{freshness, hybrid}
+		freshnessGate := base("freshness-gate", "freshness_gate", "retrieval", "freshness_verdict")
+		liveLookup := base("live-source-lookup", "live_source_lookup", "retrieval", "candidate_set")
+		liveLookup.DependsOnStepIDs = []string{freshnessGate.StepID}
+		coverage := base("evidence-coverage-verify", "evidence_coverage_verify", "selection", "coverage_verdict")
+		coverage.DependsOnStepIDs = []string{liveLookup.StepID}
+		selectStep := base("supporting-evidence-select", "supporting_evidence_select", "selection", "supporting_evidence")
+		selectStep.DependsOnStepIDs = []string{coverage.StepID}
+		return []ragruntime.RetrievalStepProjection{freshnessGate, liveLookup, coverage, selectStep}
 	case "live_assisted":
-		return []ragruntime.RetrievalStepProjection{
-			base("freshness-gate", "freshness_gate", "retrieval", "freshness_decision"),
-			base("live-source-lookup", "live_source_lookup", "tool", "live_candidates"),
-		}
+		liveLookup := base("live-source-lookup", "live_source_lookup", "retrieval", "candidate_set")
+		coverage := base("evidence-coverage-verify", "evidence_coverage_verify", "selection", "coverage_verdict")
+		coverage.DependsOnStepIDs = []string{liveLookup.StepID}
+		selectStep := base("supporting-evidence-select", "supporting_evidence_select", "selection", "supporting_evidence")
+		selectStep.DependsOnStepIDs = []string{coverage.StepID}
+		return []ragruntime.RetrievalStepProjection{liveLookup, coverage, selectStep}
 	default:
 		return []ragruntime.RetrievalStepProjection{
 			base("hybrid-search", "hybrid_search", "retrieval", "candidate_set"),
@@ -216,14 +220,21 @@ func retrievalPlanStepsForProjection(plan ragruntime.PlanProjection) []ragruntim
 	}
 }
 
+func ragPlanBudgetForMode(queryMode string) ragruntime.PlanBudgetProjection {
+	switch strings.TrimSpace(queryMode) {
+	case "freshness_sensitive", "live_assisted":
+		return ragruntime.PlanBudgetProjection{MaxReplans: 1, MaxSteps: 10}
+	default:
+		return ragruntime.PlanBudgetProjection{MaxReplans: 1, MaxSteps: 8}
+	}
+}
+
 func temporalRunStepID(stepType string) string {
 	switch stepType {
+	case "freshness_gate", "live_source_lookup":
+		return "retrieval.live_source_lookup"
 	case "evidence_coverage_verify", "supporting_evidence_select":
 		return "evidence.selection"
-	case "freshness_gate", "parent_context_expand":
-		return "retrieval.expand_or_rescue"
-	case "live_source_lookup":
-		return "retrieval.expand_or_rescue"
 	default:
 		return "retrieval.indexed_lookup"
 	}
@@ -264,6 +275,7 @@ func ragScopeForRun(
 	run execution.DurableRun,
 	payload map[string]any,
 	queryText string,
+	queryMode string,
 	queryServingScopesPath string,
 ) (runtimepolicy.Scope, error) {
 	scope, ok := payload["requested_scope"].(map[string]any)
@@ -276,11 +288,16 @@ func ragScopeForRun(
 		if corpus == "" || collection == "" {
 			return runtimepolicy.Scope{}, errors.New("rag requested_scope corpus and collection are required")
 		}
-		allowed, err := runtimepolicy.QueryScopeAllowed(corpus, collection, queryServingScopesPath)
+		admission, err := runtimepolicy.AdmitQueryScope(runtimepolicy.QueryScopeAdmissionRequest{
+			Collection:      collection,
+			Corpus:          corpus,
+			FreshnessIntent: firstNonEmptyText(payload["freshness_intent"]),
+			QueryMode:       queryMode,
+		}, queryServingScopesPath)
 		if err != nil {
 			return runtimepolicy.Scope{}, err
 		}
-		if !allowed {
+		if !admission.Allowed {
 			return runtimepolicy.Scope{}, fmt.Errorf("rag requested_scope %s/%s is not query-enabled", corpus, collection)
 		}
 		return runtimepolicy.Scope{Corpus: corpus, Collection: collection}, nil
@@ -372,46 +389,6 @@ func selectRAGEvidence(
 		return ragruntime.EvidenceSelectionResult{}, err
 	}
 	return selection, nil
-}
-
-func answerBearingEvidence(candidates []ragruntime.EvidenceRef) []ragruntime.EvidenceRef {
-	selected := make([]ragruntime.EvidenceRef, 0, len(candidates))
-	for _, candidate := range candidates {
-		if candidate.IsAnswerBearing {
-			selected = append(selected, candidate)
-		}
-	}
-	return selected
-}
-
-func retrievalRescueDecision(
-	plan ragruntime.PlanProjection,
-	lookup ragruntime.RetrievalLookupResult,
-) (bool, string, error) {
-	switch strings.TrimSpace(plan.QueryMode) {
-	case "live_assisted":
-		return false, "", errors.New("live_assisted retrieval requires admitted live source lookup; indexed rescue is not implemented")
-	case "as_of":
-		if plan.ResolvedVersionQuery == nil || strings.TrimSpace(plan.ResolvedVersionQuery.VersionID) == "" {
-			return false, "", errors.New("as_of retrieval requires pre-resolved version_id before indexed rescue")
-		}
-	}
-	if len(answerBearingEvidence(lookup.Candidates)) > 0 {
-		return false, "answer_bearing_evidence_present", nil
-	}
-	if hasRetrievalStepType(plan, "parent_context_expand") {
-		return false, "", errors.New("parent_context_expand is admitted but no Go document-section reader is configured")
-	}
-	return false, "answer_bearing_evidence_missing", nil
-}
-
-func hasRetrievalStepType(plan ragruntime.PlanProjection, stepType string) bool {
-	for _, step := range plan.Steps {
-		if strings.TrimSpace(step.StepType) == stepType {
-			return true
-		}
-	}
-	return false
 }
 
 func temporalRAGSynthesisPacketForRun(
@@ -521,10 +498,11 @@ func temporalGroundingVerificationForRun(
 		return ragruntime.GroundingVerificationResult{}, errors.New("source refs are required for grounding")
 	}
 	return ragruntime.GroundingVerificationResult{
-		ClaimSupportCount: len(sourceRefs),
+		ClaimSupportCount: 0,
 		GroundingRef:      temporalProjectionRef(run.RunID, "grounding/verify"),
 		RunID:             run.RunID,
 		SchemaVersion:     "grounding_verification_result_v1",
+		SourceRefCount:    len(sourceRefs),
 		SourceRefs:        sourceRefs,
 		UnsupportedFields: []string{},
 		Verdict:           "supported",

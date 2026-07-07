@@ -18,10 +18,14 @@ def _write(path: Path, content: str) -> None:
 
 def _execution_control_required_env() -> list[str]:
     return [
-        "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-profile.staging.json",
+        "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-config.staging.json",
         "EXECUTION_CONTROL_SHARED_SECRET=control-secret",
         "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
         "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime.example/campus_agent",
+        "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH=/run/campus-agent/provider-config-projection.json",
+        "CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_PATH=/run/campus-agent/observability-config-projection.json",
+        "QDRANT_URL=https://qdrant.example",
+        "QDRANT_QUERY_API_KEY=qdrant-query-secret",
         "EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233",
         "EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging",
         "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow",
@@ -34,17 +38,17 @@ def _execution_control_required_env() -> list[str]:
     ]
 
 
-def _write_execution_control_runtime_profile(
+def _write_execution_control_runtime_config(
     repo_root: Path,
     *,
     open_tools: list[str] | None = None,
     execution_audit_enabled: bool = False,
 ) -> None:
     _write(
-        repo_root / "configs/runtime/execution-control/runtime-profile.staging.json",
+        repo_root / "configs/runtime/execution-control/runtime-config.staging.json",
         json.dumps(
             {
-                "schema_version": "campus_execution_control_runtime_profile.v1",
+                "schema_version": "campus_execution_control_runtime_config.v1",
                 "open_tools": open_tools or [],
                 "execution_audit": {"enabled": execution_audit_enabled},
             }
@@ -91,6 +95,7 @@ class DoctorEnvTest(unittest.TestCase):
         rendered = json.dumps(SURFACE_SPECS, default=str, ensure_ascii=False)
 
         retired_doctor_keys = (
+            "EVAL_LLM_API_KEY",
             "EMBEDDING_MODEL",
             "INGESTION_EMBEDDING_MODEL",
             "OCR_MODEL",
@@ -145,7 +150,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root)
+            _write_execution_control_runtime_config(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -214,7 +219,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root)
+            _write_execution_control_runtime_config(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -232,12 +237,7 @@ class DoctorEnvTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
                 repo_root / ".env",
-                "\n".join(
-                    [
-                        "LLM_API_KEY=shared-llm-secret",
-                    ]
-                )
-                + "\n",
+                "\n",
             )
 
             with patch.dict(os.environ, {}, clear=True):
@@ -264,13 +264,12 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                     ]
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root, execution_audit_enabled=True)
+            _write_execution_control_runtime_config(repo_root, execution_audit_enabled=True)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -294,13 +293,12 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                     ]
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(
+            _write_execution_control_runtime_config(
                 repo_root, open_tools=["transport_schedule_lookup"]
             )
 
@@ -326,7 +324,6 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
@@ -334,7 +331,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(
+            _write_execution_control_runtime_config(
                 repo_root,
                 open_tools=["campus_notice_discover"],
             )
@@ -360,14 +357,13 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                     ]
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(
+            _write_execution_control_runtime_config(
                 repo_root,
                 open_tools=["campus_notice_discover"],
             )
@@ -394,14 +390,13 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                         "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co/v1/traces",
                     ]
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root)
+            _write_execution_control_runtime_config(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -424,14 +419,13 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
                         "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                     ]
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root)
+            _write_execution_control_runtime_config(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -451,9 +445,6 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
-                        "EMBEDDING_API_KEY=shared-embed-secret",
-                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
                     ]
                 )
@@ -489,8 +480,7 @@ class DoctorEnvTest(unittest.TestCase):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="query")
 
             self.assertTrue(status["overall_ready"])
-            self.assertTrue(status["providers"]["llm"]["present"])
-            self.assertTrue(status["providers"]["embedding"]["present"])
+            self.assertEqual(status["providers"], {})
             self.assertNotIn("qdrant_url", status["settings"]["required"])
             self.assertTrue(status["settings"]["required"]["shared_postgres_url"]["present"])
             shared_pg = status["postgres"]["shared"]
@@ -512,9 +502,6 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
-                        "EMBEDDING_API_KEY=shared-embed-secret",
-                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
                     ]
                 )
@@ -525,9 +512,6 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "LLM_API_KEY": "shared-llm-secret",
-                    "EMBEDDING_API_KEY": "shared-embed-secret",
-                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
                 },
                 clear=True,
@@ -552,9 +536,6 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
-                        "EMBEDDING_API_KEY=shared-embed-secret",
-                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
                     ]
                 )

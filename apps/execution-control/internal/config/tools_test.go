@@ -14,8 +14,8 @@ func TestLoadFromEnvRejectsRetiredOpenToolsEnv(t *testing.T) {
 func TestLoadFromEnvRejectsWildcardOpenTools(t *testing.T) {
 	for _, value := range []string{"*", "all", "campus_services,all"} {
 		t.Run(value, func(t *testing.T) {
-			setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+			setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "open_tools": ["`+value+`"]
 }`)
 
@@ -30,8 +30,8 @@ func TestLoadFromEnvRejectsWildcardOpenTools(t *testing.T) {
 func TestLoadFromEnvRejectsUnknownOpenTools(t *testing.T) {
 	for _, value := range []string{"campus_services,unknown_tool", "academic_calendar"} {
 		t.Run(value, func(t *testing.T) {
-			setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+			setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "open_tools": ["`+value+`"]
 }`)
 
@@ -44,8 +44,8 @@ func TestLoadFromEnvRejectsUnknownOpenTools(t *testing.T) {
 }
 
 func TestLoadFromEnvAcceptsOpenTool(t *testing.T) {
-	setRuntimeConfigProfile(t, `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
+	setRuntimeConfig(t, `{
+  "schema_version": "campus_execution_control_runtime_config.v1",
   "open_tools": ["public_web_search", "transport_schedule_lookup"]
 }`)
 

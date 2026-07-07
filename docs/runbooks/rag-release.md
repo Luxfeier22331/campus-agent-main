@@ -29,9 +29,9 @@ artifacts.
 - Eval metrics:
   - `../reference/student-handbook-eval-metrics.md`
   - `../reference/curriculum-plan-eval-metrics.md`
-- Collection runtime profiles:
-  - `../../configs/ingestion/regulations/student_rules/runtime-profile.json`
-  - `../../configs/ingestion/curriculum/curriculum_plan/runtime-profile.json`
+- Collection serving configs:
+  - `../../configs/ingestion/regulations/student_rules/serving-config.json`
+  - `../../configs/ingestion/curriculum/curriculum_plan/serving-config.json`
 
 ## Common Baseline
 
@@ -49,9 +49,9 @@ inference. Local mocks are test doubles and do not define live sparse truth.
 
 Before release acceptance:
 
-1. Confirm the runtime profile points at the intended corpus / collection,
+1. Confirm the serving config points at the intended corpus / collection,
    serving alias, physical collection prefix and vector binding.
-1. Confirm source OCR truth in the runtime profile still matches the accepted
+1. Confirm source OCR truth in the serving config still matches the accepted
    source family.
 1. Confirm `DOCUMENT_REGISTRY_DATABASE_URL` points at the registry for this
    release candidate.

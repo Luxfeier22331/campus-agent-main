@@ -20,6 +20,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
 
 type ragLookupExecutor interface {
@@ -29,13 +30,13 @@ type ragLookupExecutor interface {
 
 type qdrantRAGLookupExecutor struct {
 	embeddingHTTPClient *http.Client
-	embeddingProvider   string
 	embeddingRole       providerConfigRole
 	configResolver      providerConfigResolver
 	httpClient          *http.Client
+	queryScopesPath     string
 	qdrantQueryAPIKey   string
 	qdrantURL           string
-	runtimeProfileRoot  string
+	servingConfigRoot   string
 	timeout             time.Duration
 }
 
@@ -54,7 +55,7 @@ func newQdrantRAGLookupExecutor(
 	if parsedQdrantURL.Scheme != "http" && parsedQdrantURL.Scheme != "https" {
 		return nil, errors.New("QDRANT_URL must use http or https")
 	}
-	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeProfile) != "local" {
+	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeMode) != "local" {
 		return nil, errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")
 	}
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
@@ -78,12 +79,12 @@ func newQdrantRAGLookupExecutor(
 	return qdrantRAGLookupExecutor{
 		embeddingHTTPClient: &http.Client{Timeout: embeddingTimeout},
 		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
-		embeddingProvider:   strings.TrimSpace(cfg.EmbeddingProvider),
 		configResolver:      configResolver,
 		httpClient:          httpClient,
+		queryScopesPath:     strings.TrimSpace(cfg.QueryServingScopesPath),
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
-		runtimeProfileRoot:  retrievalRuntimeProfileRoot(),
+		servingConfigRoot:   retrievalServingConfigRoot(),
 		timeout:             qdrantTimeout,
 	}, nil
 }
@@ -123,7 +124,7 @@ func (e qdrantRAGLookupExecutor) Lookup(
 		return ragruntime.RetrievalLookupResult{}, err
 	}
 	started := time.Now()
-	profile, err := e.runtimeProfile(plan)
+	profile, err := e.servingConfig(plan)
 	if err != nil {
 		return ragruntime.RetrievalLookupResult{}, err
 	}
@@ -193,12 +194,12 @@ func (e qdrantRAGLookupExecutor) CheckEmbeddingCompatibility(
 	ctx context.Context,
 	snapshot providerConfigSnapshot,
 ) error {
-	profiles, err := e.queryServingRuntimeProfiles()
+	profiles, err := e.queryServingConfigs()
 	if err != nil {
 		return err
 	}
 	if len(profiles) == 0 {
-		return errors.New("no query-serving runtime profiles are available for RAG compatibility check")
+		return errors.New("no query-serving configs are available for RAG compatibility check")
 	}
 	for _, profile := range profiles {
 		if err := e.validateAliasReleaseMetadata(ctx, profile, snapshot); err != nil {
@@ -208,28 +209,24 @@ func (e qdrantRAGLookupExecutor) CheckEmbeddingCompatibility(
 	return nil
 }
 
-func (e qdrantRAGLookupExecutor) queryServingRuntimeProfiles() ([]retrievalruntime.RuntimeProfile, error) {
-	root := runtimeProfileScanRoot(e.runtimeProfileRoot)
-	matches, err := filepath.Glob(filepath.Join(root, "*", "*", "runtime-profile.json"))
+func (e qdrantRAGLookupExecutor) queryServingConfigs() ([]retrievalruntime.ServingConfig, error) {
+	root := servingConfigScanRoot(e.servingConfigRoot)
+	scopes, err := runtimepolicy.QueryServingPolicyScopes(e.queryScopesPath)
 	if err != nil {
-		return nil, fmt.Errorf("list runtime profiles: %w", err)
+		return nil, err
 	}
-	profiles := make([]retrievalruntime.RuntimeProfile, 0, len(matches))
-	for _, path := range matches {
-		collectionDir := filepath.Dir(path)
-		corpusDir := filepath.Dir(collectionDir)
-		corpus := filepath.Base(corpusDir)
-		collection := filepath.Base(collectionDir)
-		profile, err := retrievalruntime.LoadRuntimeProfile(root, corpus, collection)
+	profiles := make([]retrievalruntime.ServingConfig, 0, len(scopes))
+	for _, scope := range scopes {
+		profile, err := retrievalruntime.LoadServingConfig(root, scope.Corpus, scope.Collection)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		profiles = append(profiles, profile)
 	}
 	return profiles, nil
 }
 
-func runtimeProfileScanRoot(configRoot string) string {
+func servingConfigScanRoot(configRoot string) string {
 	root := strings.TrimSpace(configRoot)
 	if root != "" {
 		return root
@@ -333,7 +330,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	plan ragruntime.PlanProjection,
 	embedding []float64,
 ) ([]qdrantPoint, error) {
-	profile, err := e.runtimeProfile(plan)
+	profile, err := e.servingConfig(plan)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +350,7 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProviderConfig(
 	embedding []float64,
 	embeddingConfig providerConfigSnapshot,
 ) ([]qdrantPoint, error) {
-	profile, err := e.runtimeProfile(plan)
+	profile, err := e.servingConfig(plan)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +360,7 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProviderConfig(
 func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
 	ctx context.Context,
 	plan ragruntime.PlanProjection,
-	profile retrievalruntime.RuntimeProfile,
+	profile retrievalruntime.ServingConfig,
 	embedding []float64,
 	embeddingConfig providerConfigSnapshot,
 ) ([]qdrantPoint, error) {
@@ -371,7 +368,7 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
 		CompareToVersionID: resolvedQueryCompareToVersionID(plan),
 		DenseEmbedding:     embedding,
 		Mode:               plan.QueryMode,
-		Profile:            profile,
+		ServingConfig:      profile,
 		QueryText:          plan.QueryText,
 		RetrievalAccess:    retrievalAccessFromRAGPlan(plan),
 		TopK:               plan.TopK,
@@ -423,14 +420,14 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
 
 func validateRAGLookupQueryShape(
 	plan ragruntime.PlanProjection,
-	profile retrievalruntime.RuntimeProfile,
+	profile retrievalruntime.ServingConfig,
 	embedding []float64,
 ) error {
 	_, err := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
 		CompareToVersionID: resolvedQueryCompareToVersionID(plan),
 		DenseEmbedding:     embedding,
 		Mode:               plan.QueryMode,
-		Profile:            profile,
+		ServingConfig:      profile,
 		QueryText:          plan.QueryText,
 		RetrievalAccess:    retrievalAccessFromRAGPlan(plan),
 		TopK:               plan.TopK,
@@ -441,7 +438,7 @@ func validateRAGLookupQueryShape(
 
 func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 	ctx context.Context,
-	profile retrievalruntime.RuntimeProfile,
+	profile retrievalruntime.ServingConfig,
 	embeddingConfig providerConfigSnapshot,
 ) error {
 	metadata, err := e.readQdrantCollectionMetadata(ctx, profile.QdrantAliasName)
@@ -452,9 +449,9 @@ func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 		return retrievalruntime.ValidateReleaseMetadata(retrievalruntime.ReleaseGuardRequest{
 			EmbeddingDimensions: embeddingConfig.Dimensions,
 			EmbeddingModel:      embeddingConfig.Model,
-			EmbeddingProvider:   firstNonEmptyText(embeddingConfig.Provider, e.embeddingProvider),
+			EmbeddingProvider:   embeddingConfig.Provider,
 			Metadata:            metadata,
-			Profile:             profile,
+			ServingConfig:       profile,
 		})
 	}
 	samples, err := e.readQdrantReleaseMetadataSamples(ctx, profile.QdrantAliasName)
@@ -464,9 +461,9 @@ func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 	return retrievalruntime.ValidateReleaseMetadataSamples(retrievalruntime.ReleaseGuardSamplesRequest{
 		EmbeddingDimensions: embeddingConfig.Dimensions,
 		EmbeddingModel:      embeddingConfig.Model,
-		EmbeddingProvider:   firstNonEmptyText(embeddingConfig.Provider, e.embeddingProvider),
+		EmbeddingProvider:   embeddingConfig.Provider,
 		MetadataSamples:     samples,
-		Profile:             profile,
+		ServingConfig:       profile,
 	})
 }
 
@@ -616,23 +613,27 @@ func evidenceRefFromQdrantPoint(point qdrantPoint) (ragruntime.EvidenceRef, bool
 		sourceRef = "source://" + sourceID
 	}
 	return ragruntime.EvidenceRef{
-		Anchor:          firstNonEmptyText(metadata["anchor"], metadata["section_anchor"]),
-		CanonicalURL:    firstNonEmptyText(metadata["canonical_url"], metadata["source_uri"]),
-		ChunkID:         chunkID,
-		DocumentID:      documentID,
-		Excerpt:         excerpt,
-		IsAnswerBearing: optionalBoolFromAny(metadata["is_answer_bearing"], metadata["answer_bearing"]),
-		IsCurrent:       optionalBoolFromAny(metadata["is_current"]),
-		LatestURL:       firstNonEmptyText(metadata["latest_url"], metadata["canonical_url"], metadata["source_uri"]),
-		RevisionTrack:   firstNonEmptyText(metadata["revision_track"]),
-		RootUnitID:      firstNonEmptyText(metadata["root_unit_id"], metadata["parent_unit_id"]),
-		Score:           point.Score,
-		SourceChannel:   firstNonEmptyText(metadata["source_channel"]),
-		SourceID:        sourceID,
-		SourceRef:       sourceRef,
-		SourceUnitKey:   firstNonEmptyText(metadata["source_unit_key"]),
-		SourceUnitKind:  firstNonEmptyText(metadata["source_unit_kind"]),
-		SpanRef:         spanRef,
+		Anchor:              firstNonEmptyText(metadata["anchor"], metadata["section_anchor"]),
+		CanonicalIndexTruth: true,
+		CanonicalURL:        firstNonEmptyText(metadata["canonical_url"], metadata["source_uri"]),
+		ChunkID:             chunkID,
+		DocumentID:          documentID,
+		Excerpt:             excerpt,
+		IsAnswerBearing:     optionalBoolFromAny(metadata["is_answer_bearing"], metadata["answer_bearing"]),
+		IsCurrent:           optionalBoolFromAny(metadata["is_current"]),
+		LatestURL:           firstNonEmptyText(metadata["latest_url"], metadata["canonical_url"], metadata["source_uri"]),
+		RevisionTrack:       firstNonEmptyText(metadata["revision_track"]),
+		RetrievalMode:       "indexed",
+		RootUnitID:          firstNonEmptyText(metadata["root_unit_id"], metadata["parent_unit_id"]),
+		Score:               point.Score,
+		SourceChannel:       firstNonEmptyText(metadata["source_channel"]),
+		SourceID:            sourceID,
+		SourcePolicyVerdict: firstNonEmptyText(metadata["source_policy_verdict"]),
+		SourceRef:           sourceRef,
+		SourceTrustTier:     firstNonEmptyText(metadata["source_trust_tier"], metadata["source_trust"]),
+		SourceUnitKey:       firstNonEmptyText(metadata["source_unit_key"]),
+		SourceUnitKind:      firstNonEmptyText(metadata["source_unit_kind"]),
+		SpanRef:             spanRef,
 		Title: firstNonEmptyText(
 			metadata["source_title"],
 			metadata["title"],
@@ -667,11 +668,11 @@ func (s *Server) ragIndexedLookup(
 	return result, nil
 }
 
-func (e qdrantRAGLookupExecutor) runtimeProfile(plan ragruntime.PlanProjection) (retrievalruntime.RuntimeProfile, error) {
-	return retrievalruntime.LoadRuntimeProfile(e.runtimeProfileRoot, plan.Corpus, plan.Collection)
+func (e qdrantRAGLookupExecutor) servingConfig(plan ragruntime.PlanProjection) (retrievalruntime.ServingConfig, error) {
+	return retrievalruntime.LoadServingConfig(e.servingConfigRoot, plan.Corpus, plan.Collection)
 }
 
-func retrievalRuntimeProfileRoot() string {
+func retrievalServingConfigRoot() string {
 	return ""
 }
 

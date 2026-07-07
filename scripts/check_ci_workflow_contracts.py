@@ -80,7 +80,9 @@ REQUIRED_GOLANGCI_LINT_INSTALL = (
 )
 REQUIRED_GITLEAKS_INSTALL = "go install github.com/zricethezav/gitleaks/v8@v8.30.1"
 REQUIRED_OSV_SCANNER_INSTALL = "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8"
+REQUIRED_CONFTEST_INSTALL = "go install github.com/open-policy-agent/conftest@v0.65.0"
 REQUIRED_GO_BIN_PATH_EXPORT = 'echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"'
+REQUIRED_GO_SETUP = "actions/setup-go@v6"
 REQUIRED_UV_SETUP = "astral-sh/setup-uv@v8.3.0"
 PR_CHECKS_WORKFLOW = ".github/workflows/pr-checks.yml"
 RETIRED_AUTOMATIC_WORKFLOWS = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
@@ -647,16 +649,34 @@ def _audit_repo_checks_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue
         return ()
     setup_uv_step_index = _first_step_index_using(raw_steps, REQUIRED_UV_SETUP)
     uv_sync_step_index = _first_step_index_containing(raw_steps, "uv sync --all-packages --dev")
+    setup_go_step_index = _first_step_index_using(raw_steps, REQUIRED_GO_SETUP)
+    conftest_step_index = _first_step_index_containing(raw_steps, REQUIRED_CONFTEST_INSTALL)
+    go_path_step_index = _first_step_index_containing(raw_steps, REQUIRED_GO_BIN_PATH_EXPORT)
+    static_step_index = _first_step_index_containing(raw_steps, "pnpm ci:repo-static")
+    issues: list[CiWorkflowContractIssue] = []
     if uv_sync_step_index is None:
         return ()
-    if setup_uv_step_index is None or setup_uv_step_index >= uv_sync_step_index:
-        return (
-            CiWorkflowContractIssue(
-                path=workflow_relpath,
-                message="repo-checks must setup uv before uv sync",
+    for prior_index, later_index, message in (
+        (setup_uv_step_index, uv_sync_step_index, "repo-checks must setup uv before uv sync"),
+        (
+            setup_go_step_index,
+            conftest_step_index,
+            "repo-checks must setup Go before installing conftest",
+        ),
+    ):
+        if later_index is not None and (prior_index is None or prior_index >= later_index):
+            issues.append(CiWorkflowContractIssue(path=workflow_relpath, message=message))
+    if static_step_index is not None:
+        for step_index, message in (
+            (
+                conftest_step_index,
+                "repo-checks must install conftest v0.65.0 before pnpm ci:repo-static",
             ),
-        )
-    return ()
+            (go_path_step_index, "repo-checks must add Go bin to PATH before pnpm ci:repo-static"),
+        ):
+            if step_index is None or step_index >= static_step_index:
+                issues.append(CiWorkflowContractIssue(path=workflow_relpath, message=message))
+    return tuple(issues)
 
 
 def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:

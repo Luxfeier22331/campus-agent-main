@@ -61,9 +61,9 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 
 	knowledgeType := reflect.TypeOf(server.TemporalKnowledgeActivities())
 	for _, method := range []string{
+		"LiveSourceLookupActivity",
 		"PlanRAGActivity",
 		"RetrieveIndexedLookupActivity",
-		"ExpandOrRescueRetrievalActivity",
 		"SelectEvidenceActivity",
 		"SynthesizeRAGAnswerActivity",
 		"VerifyGroundingActivity",
@@ -95,8 +95,8 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"PlanRouteActivity",
 		"MemoryRecallActivity",
 		"PlanRAGActivity",
+		"LiveSourceLookupActivity",
 		"RetrieveIndexedLookupActivity",
-		"ExpandOrRescueRetrievalActivity",
 		"SelectEvidenceActivity",
 		"SynthesizeRAGAnswerActivity",
 		"VerifyGroundingActivity",

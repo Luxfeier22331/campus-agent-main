@@ -100,6 +100,40 @@ func TestResolveVersionQueryCurrentDoesNotRequireSingleCollectionVersion(t *test
 	}
 }
 
+func TestValidatePlanProjectionAcceptsFreshnessAndLiveQueryModes(t *testing.T) {
+	for _, mode := range []string{"freshness_sensitive", "live_assisted"} {
+		t.Run(mode, func(t *testing.T) {
+			plan := validPlanProjectionForMaturityTest()
+			plan.QueryMode = mode
+			plan.VersionQuery = &VersionQueryProjection{Mode: mode}
+			plan.Steps = []RetrievalStepProjection{{
+				Budget: StepBudgetProjection{
+					TopK: 3,
+				},
+				ExpectedOutput: "candidate_set",
+				QueryText:      plan.QueryText,
+				RunStepID:      "retrieval.live_source_lookup",
+				Scope: ScopeProjection{
+					Collection: plan.Collection,
+					Corpus:     plan.Corpus,
+				},
+				Stage:    "retrieval",
+				StepID:   "live-source-lookup",
+				StepType: "live_source_lookup",
+			}}
+			hash, err := HashProjection(plan)
+			if err != nil {
+				t.Fatalf("hash plan: %v", err)
+			}
+			plan.PayloadSHA256 = hash
+
+			if err := ValidatePlanProjection(plan); err != nil {
+				t.Fatalf("%s must validate as active RAG mode: %v", mode, err)
+			}
+		})
+	}
+}
+
 func TestSelectSupportingEvidenceRequiresCanonicalReference(t *testing.T) {
 	_, err := SelectSupportingEvidence(EvidenceSelectionRequest{
 		Lookup: RetrievalLookupResult{
@@ -128,6 +162,60 @@ func TestSelectSupportingEvidenceRequiresCanonicalReference(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "canonical reference") {
 		t.Fatalf("error = %v, want canonical reference diagnostic", err)
+	}
+}
+
+func TestSelectSupportingEvidenceRequiresMinimumSourceTrustTier(t *testing.T) {
+	_, err := SelectSupportingEvidence(EvidenceSelectionRequest{
+		Lookup: RetrievalLookupResult{
+			CandidateCount: 3,
+			Candidates: []EvidenceRef{
+				supportingEvidenceForMaturityTest("chunk-missing", ""),
+				supportingEvidenceForMaturityTest("chunk-low", "T3"),
+				supportingEvidenceForMaturityTest("chunk-pass", "T1"),
+			},
+			SchemaVersion: "retrieval_lookup_result_v1",
+		},
+		Plan: PlanProjection{
+			Collection: "student_rules",
+			Corpus:     "regulations",
+			QueryMode:  "current",
+			SourceTrustPolicy: SourceTrustPolicy{
+				MinimumTier: "T2",
+			},
+		},
+		RunID: "run-source-trust",
+	})
+	if err != nil {
+		t.Fatalf("select evidence with one trusted candidate: %v", err)
+	}
+}
+
+func TestSelectSupportingEvidenceFailsClosedWhenSourceTrustTierMissingOrTooLow(t *testing.T) {
+	_, err := SelectSupportingEvidence(EvidenceSelectionRequest{
+		Lookup: RetrievalLookupResult{
+			CandidateCount: 2,
+			Candidates: []EvidenceRef{
+				supportingEvidenceForMaturityTest("chunk-missing", ""),
+				supportingEvidenceForMaturityTest("chunk-low", "T3"),
+			},
+			SchemaVersion: "retrieval_lookup_result_v1",
+		},
+		Plan: PlanProjection{
+			Collection: "student_rules",
+			Corpus:     "regulations",
+			QueryMode:  "current",
+			SourceTrustPolicy: SourceTrustPolicy{
+				MinimumTier: "T2",
+			},
+		},
+		RunID: "run-source-trust-fail",
+	})
+	if err == nil {
+		t.Fatal("selection without source trust meeting the plan minimum must fail closed")
+	}
+	if !strings.Contains(err.Error(), "source trust") {
+		t.Fatalf("error = %v, want source trust diagnostic", err)
 	}
 }
 
@@ -173,6 +261,49 @@ func TestSelectSupportingEvidenceAsOfRequiresResolvedVersionCoverage(t *testing.
 	}
 	if !strings.Contains(err.Error(), "version v2") {
 		t.Fatalf("error = %v, want resolved version diagnostic", err)
+	}
+}
+
+func validPlanProjectionForMaturityTest() PlanProjection {
+	plan := PlanProjection{
+		Collection:               "student_rules",
+		CollectionAlias:          "student_rules_query",
+		Corpus:                   "regulations",
+		NoWideningPolicy:         true,
+		PlanID:                   "rag:regulations:student_rules:current",
+		QueryMode:                "current",
+		QueryText:                "学生请假手续",
+		RequestID:                "req-maturity",
+		RequiredEvidenceContract: "answer_bearing_evidence",
+		RetrievalAccess: RetrievalAccessProjection{
+			PolicyProjectionVersion: "retrieval-filter-v1",
+			VisibilityLevel:         "public",
+		},
+		RunID:         "run-maturity",
+		SchemaVersion: "rag_plan_projection_v1",
+		StepID:        "rag.plan",
+		TopK:          5,
+	}
+	hash, _ := HashProjection(plan)
+	plan.PayloadSHA256 = hash
+	return plan
+}
+
+func supportingEvidenceForMaturityTest(chunkID string, sourceTrustTier string) EvidenceRef {
+	return EvidenceRef{
+		Anchor:          "article-" + chunkID,
+		ChunkID:         chunkID,
+		DocumentID:      "doc-" + chunkID,
+		Excerpt:         "学生应当按照学校规定办理请假手续。",
+		IsAnswerBearing: true,
+		RootUnitID:      "root-" + chunkID,
+		Score:           0.91,
+		SourceID:        "doc-" + chunkID,
+		SourceRef:       "https://docs.example.edu/" + chunkID + "#article",
+		SourceTrustTier: sourceTrustTier,
+		SpanRef:         "span://doc-" + chunkID + "/" + chunkID,
+		Title:           "学生手册",
+		VersionID:       "v1",
 	}
 }
 

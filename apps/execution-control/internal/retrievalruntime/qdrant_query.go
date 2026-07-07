@@ -9,7 +9,7 @@ import (
 type QueryRequest struct {
 	DenseEmbedding     []float64
 	Mode               string
-	Profile            RuntimeProfile
+	ServingConfig      ServingConfig
 	QueryText          string
 	RetrievalAccess    RetrievalAccess
 	TopK               int
@@ -34,10 +34,10 @@ func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
 	}
 	topK := request.TopK
 	if topK <= 0 {
-		topK = request.Profile.RetrievalTopK
+		topK = request.ServingConfig.RetrievalTopK
 	}
-	denseLimit := maxInt(topK, request.Profile.DensePrefetchLimit)
-	sparseLimit := maxInt(topK, request.Profile.SparsePrefetchLimit)
+	denseLimit := maxInt(topK, request.ServingConfig.DensePrefetchLimit)
+	sparseLimit := maxInt(topK, request.ServingConfig.SparsePrefetchLimit)
 	filter, err := BuildQdrantFilter(request)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
 		"prefetch": []map[string]any{
 			{
 				"query":  request.DenseEmbedding,
-				"using":  request.Profile.DenseVectorName,
+				"using":  request.ServingConfig.DenseVectorName,
 				"filter": filter,
 				"limit":  denseLimit,
 			},
@@ -64,7 +64,7 @@ func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
 						"ascii_folding": false,
 					},
 				},
-				"using":  request.Profile.SparseVectorName,
+				"using":  request.ServingConfig.SparseVectorName,
 				"filter": filter,
 				"limit":  sparseLimit,
 			},
@@ -75,8 +75,8 @@ func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
 
 func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 	must := []map[string]any{
-		qdrantMatchCondition("corpus", request.Profile.Corpus),
-		qdrantMatchCondition("collection", request.Profile.Collection),
+		qdrantMatchCondition("corpus", request.ServingConfig.Corpus),
+		qdrantMatchCondition("collection", request.ServingConfig.Collection),
 		qdrantMatchCondition("status", "active"),
 	}
 	visibilityConditions, err := visibilityFilterConditions(request)
@@ -84,8 +84,8 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 		return nil, err
 	}
 	must = append(must, visibilityConditions...)
-	if len(request.Profile.ServingRevisionTracks) > 0 {
-		must = append(must, qdrantMatchAnyCondition("revision_track", request.Profile.ServingRevisionTracks))
+	if len(request.ServingConfig.ServingRevisionTracks) > 0 {
+		must = append(must, qdrantMatchAnyCondition("revision_track", request.ServingConfig.ServingRevisionTracks))
 	}
 	versionConditions, err := versionFilterConditions(request)
 	if err != nil {
@@ -96,9 +96,9 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 }
 
 func visibilityFilterConditions(request QueryRequest) ([]map[string]any, error) {
-	profileLevels := normalizeStringSlice(request.Profile.ServingVisibilityLevels)
-	if len(profileLevels) == 0 {
-		return nil, fmt.Errorf("runtime profile %s/%s serving_visibility_levels is required", request.Profile.Corpus, request.Profile.Collection)
+	configLevels := normalizeStringSlice(request.ServingConfig.ServingVisibilityLevels)
+	if len(configLevels) == 0 {
+		return nil, fmt.Errorf("serving config %s/%s serving_visibility_levels is required", request.ServingConfig.Corpus, request.ServingConfig.Collection)
 	}
 	accessLevel := strings.TrimSpace(request.RetrievalAccess.VisibilityLevel)
 	if accessLevel == "" {
@@ -108,13 +108,13 @@ func visibilityFilterConditions(request QueryRequest) ([]map[string]any, error) 
 		return nil, errors.New("retrieval access policy_projection_version is required")
 	}
 	allowedLevels := allowedVisibilityLevelsForAccess(accessLevel)
-	servingLevels := intersectStrings(profileLevels, allowedLevels)
+	servingLevels := intersectStrings(configLevels, allowedLevels)
 	if len(servingLevels) == 0 {
 		return nil, fmt.Errorf(
-			"retrieval access visibility_level %q is not admitted by runtime profile %s/%s",
+			"retrieval access visibility_level %q is not admitted by serving config %s/%s",
 			accessLevel,
-			request.Profile.Corpus,
-			request.Profile.Collection,
+			request.ServingConfig.Corpus,
+			request.ServingConfig.Collection,
 		)
 	}
 	branches := make([]map[string]any, 0, len(servingLevels))
@@ -131,7 +131,7 @@ func visibilityFilterConditions(request QueryRequest) ([]map[string]any, error) 
 			}
 			branches = append(branches, restrictedBranch)
 		default:
-			return nil, fmt.Errorf("runtime profile contains unsupported serving visibility level %q", level)
+			return nil, fmt.Errorf("serving config contains unsupported serving visibility level %q", level)
 		}
 	}
 	if len(branches) == 1 {
@@ -148,12 +148,12 @@ func restrictedVisibilityBranch(request QueryRequest) (map[string]any, error) {
 	if scope == "" {
 		return nil, errors.New("retrieval access visibility_scope is required for restricted lookup")
 	}
-	if !containsString(normalizeStringSlice(request.Profile.ServingVisibilityScopes), scope) {
+	if !containsString(normalizeStringSlice(request.ServingConfig.ServingVisibilityScopes), scope) {
 		return nil, fmt.Errorf(
-			"retrieval access visibility_scope %q is not admitted by runtime profile %s/%s",
+			"retrieval access visibility_scope %q is not admitted by serving config %s/%s",
 			scope,
-			request.Profile.Corpus,
-			request.Profile.Collection,
+			request.ServingConfig.Corpus,
+			request.ServingConfig.Collection,
 		)
 	}
 	groups := normalizeStringSlice(request.RetrievalAccess.EntitlementGroups)
@@ -193,8 +193,8 @@ func intersectStrings(left []string, right []string) []string {
 func versionFilterConditions(request QueryRequest) ([]map[string]any, error) {
 	mode := strings.TrimSpace(request.Mode)
 	switch mode {
-	case "", "current", "freshness_sensitive":
-		if request.Profile.CurrentOnly {
+	case "", "current":
+		if request.ServingConfig.CurrentOnly {
 			return []map[string]any{qdrantMatchCondition("is_current", true)}, nil
 		}
 		return nil, nil
@@ -219,8 +219,6 @@ func versionFilterConditions(request QueryRequest) ([]map[string]any, error) {
 			return nil, errors.New("as_of qdrant lookup requires pre-resolved version_id before indexed lookup")
 		}
 		return []map[string]any{qdrantMatchAnyCondition("version_id", []string{versionID})}, nil
-	case "live_assisted":
-		return nil, errors.New("live_assisted query_mode requires live source lookup branch, not indexed qdrant lookup")
 	default:
 		return nil, fmt.Errorf("unsupported qdrant lookup query_mode %q", mode)
 	}

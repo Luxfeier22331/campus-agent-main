@@ -264,7 +264,7 @@ collector/source admission
 - stable tool/domain package boundary 留在 `packages/*`
 - `packages/contracts` 不泄漏具体 runtime、vendor、infra 类型
 - online query path 与 offline data plane 不混层
-- serving surface 由 runtime profile / explicit policy 控制，而不是硬编码在 entry shell
+- serving surface 由 serving config / explicit policy 控制，而不是硬编码在 entry shell
 - canonical document 的 reader publish 与 RAG query-serving 是两条独立 release
   lane；文档站可见不等于 retrieval alias 已切换或 RAG 已可服务
 - surface tool allowlist 由 shared `app-api` / product runtime policy
@@ -275,7 +275,7 @@ collector/source admission
 - target architecture 不默认接纳开放域 generalist / web tool 进入主 campus path
 - `requested_scope` 只属于 `knowledge_query` path，不再作为所有 tool 共用的顶层默认字段
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
-- planner 不能绕过 runtime profile、source-trust、freshness gate 或 tool
+- planner 不能绕过 serving config、source-trust、freshness gate 或 tool
   opening gate
 - admitted live retrieval 只能命中 repo-owned source channel，不得退化为 general web
   answer path
@@ -423,7 +423,7 @@ collector/source admission
   model decision owner。进入 `knowledge` branch 后，RAG 在线目标不是单个
   `semantic.rag` 黑盒 step，而是 durable typed step graph：
   `knowledge.rag.plan -> knowledge.retrieval.indexed_lookup ->
-  knowledge.retrieval.expand_or_rescue -> knowledge.evidence.selection ->
+  knowledge.retrieval.live_source_lookup -> knowledge.evidence.selection ->
   knowledge.synthesis -> knowledge.grounding.verify`。每个 step 必须产生
   sanitized result projection，供 Operator Console / eval / badcase 诊断消费。
 - provider adapter 是 execution cost / cancellation 的明确边界：必须记录 provider
@@ -530,7 +530,7 @@ tool 与 deterministic query function 的边界必须保持清晰：
   按 selected notice ref 取 bounded context、读取附件 refs 或读取 OCR owner text。
 - query function 不应因为实现上有 JSON schema 就自动进入 ToolSpec 顶层 tool surface。
 - SDK internal function 是 deterministic query function 的受控子类：可以由
-  repo-owned `ToolSpec` 注册 strict function schema，但必须通过 runtime profile
+  repo-owned `ToolSpec` 注册 strict function schema，但必须通过 runtime config
   显式 admission；内部 retrieval 只读取 admitted query slot 与 bounded evidence
   anchors，不进入 public model-visible tool catalog。
 - notice tool surface 默认只暴露 `campus_notice_discover` 这类 card discovery tool；
@@ -677,8 +677,8 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   policy、metric semantics 与 release verdict authority
 - TS eval runtime / `packages/eval-langfuse` 拥有目标 runner、score report、
   Langfuse platform sync、score publishing、verdict artifact publishing 与 review automation
-- 旧 `packages/evals` package 已从 active workspace 退役；Langfuse-bound fixture
-  truth 已收口到 `packages/eval-langfuse/fixtures`，runtime-local truth 放在 owning
+- 旧 `packages/evals` package 已从 active workspace 退役；Langfuse-bound asset
+  truth 已收口到 `packages/eval-langfuse/assets`，runtime-local truth 放在 owning
   runtime testdata。旧 Python fixture loader、deterministic scorer 与
   `scripts.eval_gate` release gate 已退役
 - `apps/app-api` 拥有 request correlation 与最小 Ops Index，不拥有 golden truth、
@@ -805,11 +805,11 @@ Memory Plane 的 Hindsight runtime、online recall、写入链路与 Temporal �
   serving alias publish 后才进入可检索状态
 - query-enabled regulation scope 的 RAG release candidate 必须先通过
   `regulation_rag_release_admission.v1` scope-level manifest；该 manifest 绑定当前
-  document identity/version/hash、document-units hash、cleaning/chunk/runtime profile
+  document identity/version/hash、document-units hash、cleaning/chunk/serving config
   identity、reader current version 与 qrels/admission 检查结果。缺失或不匹配时只能进入
   `release_admission_blocked`，不得 embedding、index 或切 alias
-- RAG release lane 必须支持增量更新：用 document identity、version/hash 与 runtime
-  profile identity 判断 unchanged / changed / deleted / withdrawn，不靠定时全量重建或
+- RAG release lane 必须支持增量更新：用 document identity、version/hash 与 serving
+  config identity 判断 unchanged / changed / deleted / withdrawn，不靠定时全量重建或
   文档站发布状态反推 RAG 状态
 - historical / search-only regulation candidate 如果不是 withdrawn / deleted，不得误触
   current alias cleanup；它必须进入 non-serving terminal status，例如 `held_search_only`

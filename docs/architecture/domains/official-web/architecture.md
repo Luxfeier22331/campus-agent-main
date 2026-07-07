@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/official-web
 status: active
 created: 2026-04-02
-updated: 2026-05-04
+updated: 2026-07-07
 ---
 # Official Web Architecture
 
@@ -133,8 +133,9 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   target-first collection declaration
 - 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、task
   admission 或 selected-write
-- news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或未来
-  historical-news/archive surface
+- news / notice 类 target 当前默认保持 inventory-only，不进入 official-web 普通回答面；
+  `fresh_news` 与未来 historical-news/archive surface 只能通过 query-serving scope policy
+  的 intent-scoped admission 单独打开
 - 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
   包括 `dept.example.edu`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
   host-wide broad crawl。

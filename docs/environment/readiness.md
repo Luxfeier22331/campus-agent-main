@@ -66,10 +66,10 @@ from Worker staging:
 
 Conditional readiness:
 
-- if runtime profile `execution_audit.enabled=true`, doctor requires
+- if runtime config `execution_audit.enabled=true`, doctor requires
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-- if runtime profile `open_tools` opens concrete campus-services or notice tools,
+- if runtime config `open_tools` opens concrete campus-services or notice tools,
   doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; current notice-open readiness is read-model
   backed and does not require notice body object-store credentials
@@ -79,7 +79,7 @@ Runtime `/readyz` is stricter than liveness:
 - `200 ready` means provider-config resolver admitted, audit writer healthy,
   and answer admission not currently saturated
 - `503 degraded` means at least one execution runtime component is not ready
-- outside the `local` runtime profile, execution-control full `/readyz` requires
+- outside the `local` runtime mode, execution-control full `/readyz` requires
   internal worker auth and must not be used as an unauthenticated public deploy
   probe; public staging closure should use `app-api /readyz`, which performs the
   execution-control readiness probe with the configured shared secret
@@ -145,7 +145,7 @@ Readiness is a necessary gate, not release completion.
 
 - `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 的 provider projection artifact。
 - eval model、transport、reasoning 与 token 配置由
-  `packages/eval-langfuse` runtime profile builders 持有
+  `packages/eval-langfuse` runtime config builders 持有
 - 临时脚本 / REPL 不自动 bootstrap `.env`
 - 需要确认 eval surface 实际可见性时，优先使用：
 

@@ -40,7 +40,7 @@ func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
 	}
 }
 
-func TestMemoryActivityOptionsUseRuntimeProfileTimeoutAndHeartbeat(t *testing.T) {
+func TestMemoryActivityOptionsUseRuntimeConfigTimeoutAndHeartbeat(t *testing.T) {
 	base := defaultActivityOptions()
 	base.TaskQueue = "default"
 

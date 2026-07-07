@@ -191,7 +191,20 @@ describe("tool catalog", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 		const tools = buildVisibleToolDefinitions(catalog);
 
+		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
 		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
+
+		expect(knowledge?.parameterSchema.required).toEqual([
+			"query_text",
+			"intent",
+			"requested_scope",
+			"query_mode",
+			"version_query",
+			"freshness_intent",
+			"constraints",
+		]);
+		expect(knowledge?.parameterSchema.properties).toHaveProperty("requested_scope");
+		expect(knowledge?.parameterSchema.properties).toHaveProperty("version_query");
 
 		expect(transport?.parameterSchema.required).toEqual([
 			"query_text",

@@ -286,7 +286,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!configs/runtime/",
                 "!configs/runtime/intent-policy.v1.json",
                 "!configs/runtime/provider-pricing.v1.json",
-                "!configs/runtime/query-serving-scopes.v1.json",
+                "!configs/runtime/query-serving-scopes.v2.json",
                 "!configs/runtime/tool-function-schemas.v1.json",
                 "!configs/runtime/tools.v4.json",
                 "!configs/runtime/workflow-artifacts.v2.json",

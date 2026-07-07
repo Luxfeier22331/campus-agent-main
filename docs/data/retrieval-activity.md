@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: retrieval-runtime-seam
 status: active
 created: 2026-04-21
-updated: 2026-06-05
+updated: 2026-07-07
 ---
 # Retrieval Query Activity Model
 
@@ -26,7 +26,7 @@ supporting evidence 的逻辑数据模型。
 - 具体数据库表、对象存储 key 或 telemetry sink schema
 - browser-facing source card HTTP shape
 - retrieval backend vendor payload
-- 当前 single-shot baseline 的一次性补丁
+- 退役的 single-shot retrieval 补丁或迁移期兼容层
 
 ## Goal
 

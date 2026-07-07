@@ -43,7 +43,7 @@ execution origin 为准。
 - `worker-autoscaler`、`temporal-task-queue-sampler`、`temporal-ui` 与
   self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops validation、
   UI 排障或 eval/trace UI 会话中显式 opt-in。模型可见工具由 `tools.v4` 与
-  execution-control runtime profile 控制，不再通过额外 worker 进程打开。
+  execution-control runtime config 控制，不再通过额外 worker 进程打开。
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
   `https://execution-control-staging.mucwiki-edge.link`
 - `app-api-staging` 必须配置 execution-control Access service-token credentials 与

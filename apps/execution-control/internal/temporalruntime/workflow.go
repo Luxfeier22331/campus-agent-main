@@ -473,27 +473,8 @@ func executeKnowledgeBranch(
 		}).Get(ctx, &ragPlan); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
-	var lookup RetrieveIndexedLookupActivityOutput
-	if err := workflow.ExecuteActivity(
-		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, RetrieveIndexedLookupActivityName)),
-		RetrieveIndexedLookupActivityName,
-		RetrieveIndexedLookupActivityInput{
-			RAGPlanRef: ragPlan.PlanRef,
-			RunID:      input.RunID,
-			TraceID:    input.TraceID,
-		}).Get(ctx, &lookup); err != nil {
-		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
-	}
-	var rescue ExpandOrRescueRetrievalActivityOutput
-	if err := workflow.ExecuteActivity(
-		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, ExpandOrRescueRetrievalActivityName)),
-		ExpandOrRescueRetrievalActivityName,
-		ExpandOrRescueRetrievalActivityInput{
-			LookupRef:  lookup.LookupRef,
-			RAGPlanRef: ragPlan.PlanRef,
-			RunID:      input.RunID,
-			TraceID:    input.TraceID,
-		}).Get(ctx, &rescue); err != nil {
+	lookup, err := executeRAGRetrievalPlan(ctx, activityOptions, input, ragPlan)
+	if err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var evidence SelectEvidenceActivityOutput
@@ -503,7 +484,6 @@ func executeKnowledgeBranch(
 		SelectEvidenceActivityInput{
 			LookupRef:  lookup.LookupRef,
 			RAGPlanRef: ragPlan.PlanRef,
-			RescueRef:  rescue.RescueRef,
 			RunID:      input.RunID,
 			TraceID:    input.TraceID,
 		}).Get(ctx, &evidence); err != nil {
@@ -536,6 +516,113 @@ func executeKnowledgeBranch(
 	return synthesis, grounding, nil
 }
 
+func executeRAGRetrievalPlan(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	ragPlan PlanRAGActivityOutput,
+) (RetrieveIndexedLookupActivityOutput, error) {
+	if len(ragPlan.Steps) == 0 {
+		return RetrieveIndexedLookupActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			"rag plan steps are required",
+			"rag_plan_steps_missing",
+			nil,
+		)
+	}
+	retrievalSteps, err := retrievalStepTypes(ragPlan.Steps)
+	if err != nil {
+		return RetrieveIndexedLookupActivityOutput{}, err
+	}
+	if len(retrievalSteps) == 0 {
+		return RetrieveIndexedLookupActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			"rag plan retrieval steps are required",
+			"rag_plan_retrieval_steps_missing",
+			nil,
+		)
+	}
+	indexed := usesIndexedLookup(retrievalSteps)
+	liveSourceLookup := usesLiveSourceLookup(retrievalSteps)
+	if indexed && liveSourceLookup {
+		return RetrieveIndexedLookupActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			"rag plan mixes indexed lookup and live_source_lookup retrieval steps",
+			"rag_plan_mixed_retrieval_steps",
+			nil,
+		)
+	}
+	if indexed {
+		var lookup RetrieveIndexedLookupActivityOutput
+		err := workflow.ExecuteActivity(
+			workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, RetrieveIndexedLookupActivityName)),
+			RetrieveIndexedLookupActivityName,
+			RetrieveIndexedLookupActivityInput{
+				RAGPlanRef: ragPlan.PlanRef,
+				RunID:      input.RunID,
+				TraceID:    input.TraceID,
+			}).Get(ctx, &lookup)
+		return lookup, err
+	}
+	var expanded LiveSourceLookupActivityOutput
+	err = workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, LiveSourceLookupActivityName)),
+		LiveSourceLookupActivityName,
+		LiveSourceLookupActivityInput{
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      input.RunID,
+			StepTypes:  retrievalSteps,
+			TraceID:    input.TraceID,
+		}).Get(ctx, &expanded)
+	if err != nil {
+		return RetrieveIndexedLookupActivityOutput{}, err
+	}
+	return RetrieveIndexedLookupActivityOutput(expanded), nil
+}
+
+func retrievalStepTypes(steps []RAGPlanStep) ([]string, error) {
+	result := []string{}
+	for _, step := range steps {
+		switch strings.TrimSpace(step.StepType) {
+		case "hybrid_search", "historical_version_lookup", "compare_pair_lookup",
+			"freshness_gate", "live_source_lookup":
+			result = append(result, strings.TrimSpace(step.StepType))
+		case "evidence_coverage_verify", "supporting_evidence_select":
+			continue
+		case "":
+			return nil, temporal.NewNonRetryableApplicationError(
+				"rag plan step_type is required",
+				"rag_plan_step_type_missing",
+				nil,
+			)
+		default:
+			return nil, temporal.NewNonRetryableApplicationError(
+				"unsupported rag retrieval step_type "+strings.TrimSpace(step.StepType),
+				"rag_plan_step_type_unsupported",
+				nil,
+			)
+		}
+	}
+	return result, nil
+}
+
+func usesIndexedLookup(stepTypes []string) bool {
+	for _, stepType := range stepTypes {
+		switch stepType {
+		case "hybrid_search", "historical_version_lookup", "compare_pair_lookup":
+			return true
+		}
+	}
+	return false
+}
+
+func usesLiveSourceLookup(stepTypes []string) bool {
+	for _, stepType := range stepTypes {
+		switch stepType {
+		case "freshness_gate", "live_source_lookup":
+			return true
+		}
+	}
+	return false
+}
+
 func knowledgeActivityOptions(base workflow.ActivityOptions, activityName string) workflow.ActivityOptions {
 	options := base
 	options.TaskQueue = KnowledgeActivityTaskQueueForActivity(activityName)
@@ -546,7 +633,7 @@ func KnowledgeActivityTaskQueueForActivity(activityName string) string {
 	switch activityName {
 	case PlanRAGActivityName, SelectEvidenceActivityName, VerifyGroundingActivityName:
 		return ActivityTaskQueueKnowledge
-	case RetrieveIndexedLookupActivityName, ExpandOrRescueRetrievalActivityName:
+	case RetrieveIndexedLookupActivityName, LiveSourceLookupActivityName:
 		return ActivityTaskQueueKnowledge
 	case SynthesizeRAGAnswerActivityName:
 		return ActivityTaskQueueKnowledge

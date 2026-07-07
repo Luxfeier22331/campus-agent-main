@@ -173,6 +173,7 @@ func validLookupResultForTest(plan ragruntime.PlanProjection) ragruntime.Retriev
 			Score:           0.91,
 			SourceID:        "student_rules",
 			SourceRef:       "source://regulations/student_rules/student_rules",
+			SourceTrustTier: "T1",
 			SpanRef:         "span://student_rules/chunk-1#0-24",
 			Title:           "学生手册",
 			VersionID:       "student_rules:v-current",
@@ -229,6 +230,52 @@ func addRequestedScopeForRunTest(
 	}
 	payload["requested_scope"] = map[string]any{"corpus": corpus, "collection": collection}
 	ensurePublicRetrievalAccessForRunTest(payload)
+	metadata["execution_payload"] = payload
+	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
+		t.Fatalf("replace run metadata: %v", err)
+	}
+}
+
+func setVersionQueryForRunTest(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	versionQuery map[string]any,
+) {
+	t.Helper()
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run for version query update: %v", err)
+	}
+	metadata := cloneTemporalMetadata(run.Metadata)
+	payload, _ := metadata["execution_payload"].(map[string]any)
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	payload["version_query"] = versionQuery
+	metadata["execution_payload"] = payload
+	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
+		t.Fatalf("replace run metadata: %v", err)
+	}
+}
+
+func setFreshnessIntentForRunTest(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	freshnessIntent string,
+) {
+	t.Helper()
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run for freshness intent update: %v", err)
+	}
+	metadata := cloneTemporalMetadata(run.Metadata)
+	payload, _ := metadata["execution_payload"].(map[string]any)
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	payload["freshness_intent"] = freshnessIntent
 	metadata["execution_payload"] = payload
 	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
 		t.Fatalf("replace run metadata: %v", err)
