@@ -77,7 +77,7 @@ services:
       - -ec
     command:
       - |
-        for namespace in campus-agent-staging campus-agent-prod; do
+        for namespace in campus-agent-staging campus-agent-production; do
           temporal operator namespace describe --namespace "$${namespace}" >/dev/null 2>&1 ||
             temporal operator namespace create --namespace "$${namespace}" --retention 30d
         done

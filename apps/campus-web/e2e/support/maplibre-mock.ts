@@ -4,7 +4,7 @@ export async function installMapLibreMock(page: Page) {
 	await page.addInitScript(() => {
 		window.maplibregl = {
 			Map: class {
-				private canvas = document.createElement("canvas");
+				private readonly canvas = document.createElement("canvas");
 				constructor(input: { container: HTMLElement }) {
 					input.container.appendChild(this.canvas);
 				}
@@ -54,7 +54,7 @@ export async function installMapLibreMock(page: Page) {
 				}
 			},
 			Marker: class {
-				private element: HTMLElement;
+				private readonly element: HTMLElement;
 				constructor(input: { element: HTMLElement }) {
 					this.element = input.element;
 				}

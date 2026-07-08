@@ -226,12 +226,7 @@ async function loadFeedbackTarget(input: {
 		.where(and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)))
 		.limit(1);
 	const messageRow = messageRows[0];
-	if (
-		!messageRow ||
-		messageRow.role !== "assistant" ||
-		!messageRow.requestId ||
-		messageRow.kind === "error"
-	) {
+	if (messageRow?.role !== "assistant" || !messageRow.requestId || messageRow.kind === "error") {
 		return null;
 	}
 

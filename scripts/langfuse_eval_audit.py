@@ -13,7 +13,7 @@ SCORE_REGISTRY_PATH = Path(
 EVAL_MAP_PATH = Path("docs/reference/eval-map.md")
 LANGFUSE_CLI_PATH = Path("packages/eval-langfuse/src/cli.ts")
 RAG_ASSET_ROOT = Path("packages/eval-langfuse/assets")
-CI_SURFACE_DETECTOR_PATH = Path("scripts/detect_ci_changed_surfaces.py")
+PR_WORKFLOW_PATH = Path(".github/workflows/pr.yml")
 LANGFUSE_RUNTIME_CONTRACT_PATH = Path("docs/contracts/langfuse-runtime.md")
 APP_API_EVAL_INGRESS_CONTRACT_PATH = Path("docs/contracts/app-api/eval-benchmark.md")
 TRACE_EVIDENCE_PATH = Path("packages/eval-langfuse/src/trace-evidence.ts")
@@ -561,16 +561,16 @@ def _audit_eval_map_retired_lanes_absent(repo_root: Path) -> dict[str, object]:
 
 
 def _audit_langfuse_ci_surface_contract_path(repo_root: Path) -> dict[str, object]:
-    detector_path = repo_root / CI_SURFACE_DETECTOR_PATH
+    workflow_path = repo_root / PR_WORKFLOW_PATH
     active_path = LANGFUSE_RUNTIME_CONTRACT_PATH.as_posix()
     retired_path = "docs/contracts/langfuse-runtime-observability-contract.md"
-    if not detector_path.exists():
+    if not workflow_path.exists():
         return {
             "check_id": "langfuse_ci_surface_contract_path",
             "passed": False,
-            "missing_detector": str(detector_path),
+            "missing_workflow": str(workflow_path),
         }
-    text = detector_path.read_text(encoding="utf-8")
+    text = workflow_path.read_text(encoding="utf-8")
     return {
         "check_id": "langfuse_ci_surface_contract_path",
         "passed": active_path in text and retired_path not in text,

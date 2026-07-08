@@ -1,0 +1,99 @@
+name: scheduled-health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 3 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.2"
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Install conftest
+        run: |
+          go install github.com/open-policy-agent/conftest@v0.65.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run full repository lane
+        run: pnpm ci:repo:full
+
+  web:
+    runs-on: ubuntu-latest
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run full web lane
+        run: pnpm ci:web:full
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Run full Python unittest lane
+        run: uv run --all-packages python -m unittest discover -s tests -t .
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.2"
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+
+      - name: Run full Go lane
+        run: pnpm ci:go
+
+  deps:
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+    with:
+      upload-sarif: false
+      scan-args: |-
+        --config=osv-scanner.toml
+        --lockfile=pnpm-lock.yaml
+        --lockfile=uv.lock

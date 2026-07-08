@@ -47,7 +47,7 @@ provider-config active profiles。
 
 - `dev`
 - `staging`
-- `prod`
+- `production`
 
 每个环境必须使用独立 provider key。
 
@@ -106,7 +106,7 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 - 预算：中等
 - 不允许回退到开发机本地 `.env`
 
-### prod
+### production
 
 - 目标：真实用户流量
 - key owner：production secret store
@@ -117,7 +117,7 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 
 ### Add or update secrets
 
-1. 确认目标环境是 `dev`、`staging` 还是 `prod`
+1. 确认目标环境是 `dev`、`staging` 还是 `production`
 1. 确认此次修改是 online serving provider profile，还是 eval / ingestion /
    local command env
 1. online serving 修改：在 Operator Console 创建或更新 profile，validate 后 activate；
@@ -186,7 +186,7 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 ## Do Not
 
 - 不要把 root `.env` 当 deploy secret source
-- 不要让 staging / prod 共用 dev key
+- 不要让 staging / production 共用 dev key
 - 不要把 raw key 发到 issue、PR、chat 记录或测试 fixture
 - 不要通过“代码里自动 fallback 到别的 worktree `.env`”解决 deploy 或 staging 问题
 - 不要让 execution-control / agent-runtime 直接从 env 读取 online serving provider API

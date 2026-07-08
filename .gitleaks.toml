@@ -30,3 +30,17 @@ paths = [
 regexes = [
   '''DEFAULT_TOKENIZER_NAME = "regex_approximation_v1"''',
 ]
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Bitnami SealedSecret encryptedData ciphertext"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''^infra/gitops/secrets/.+\.sealedsecret\.yaml$''',
+]
+regexes = [
+  '''^[A-Za-z0-9_.-]+:\s+Ag[A-Za-z0-9+/=]+$''',
+]

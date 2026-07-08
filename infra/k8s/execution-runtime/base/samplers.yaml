@@ -21,7 +21,7 @@ spec:
       containers:
         - name: sampler
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - /bin/sh
             - -ec
@@ -73,7 +73,7 @@ spec:
       containers:
         - name: posture-collector
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - /bin/sh
             - -ec

@@ -186,11 +186,11 @@ pnpm web:test:worker
 ```bash
 pnpm web:test:integration
 pnpm web:build
-pnpm ci:web-graph:full
+pnpm ci:web:full
 ```
 
 - `pnpm web:test:integration` 需要 shared DB / Hyperdrive local connection env。
-- `pnpm web:build` 与 `pnpm ci:web-graph:full` 会构建文档站，需要已有
+- `pnpm web:build` 与 `pnpm ci:web:full` 会构建文档站，需要已有
   docs read-model sync manifest，或可访问 app-api operator database 的
   `APP_API_OPERATOR_DATABASE_URL` 等内部配置。
 
@@ -234,7 +234,10 @@ YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`�
 
 默认协作流是：
 
-`feature/worktree -> develop -> main`
+`feature/worktree -> PR -> main`
+
+`main` 是当前 merged truth。release tag 和 GitHub Environment 承接
+production / release 状态，不再通过长期开发分支中转。
 
 plain `codex` 继续用于讨论、评审、问答、方案分析与执行。
 workstream 的创建、查询、切换与完成由 GSD SDK 管理；执行现场由 Codex 原生会话承接。

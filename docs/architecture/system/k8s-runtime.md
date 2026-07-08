@@ -325,7 +325,7 @@ renderer output.
 
 ### GitOps And Helm Boundary
 
-Target K8s desired state is managed by Argo CD once a K8s staging/prod
+Target K8s desired state is managed by Argo CD once a K8s staging/production
 environment exists. Argo CD is not current Docker staging truth and must not be
 used as evidence that nc-arm-6c has already migrated to Kubernetes.
 

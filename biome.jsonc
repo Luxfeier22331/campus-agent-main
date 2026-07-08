@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -18,6 +18,8 @@
 			"docs/reference/eval/**",
 			"scripts/**",
 			"tests/**",
+			"!!apps/source-collector/adapters/official-web/test/assertions/pages",
+			"!!apps/campus-web/public",
 			"!!apps/campus-web/public/vendor",
 			"!!.planning",
 			"!!.tmp",
@@ -43,9 +45,9 @@
 			"test": "recommended"
 		},
 		"rules": {
-			"recommended": true,
+			"preset": "recommended",
 			"a11y": {
-				"recommended": true
+				"preset": "recommended"
 			},
 			"complexity": {
 				"noArguments": "error",
@@ -148,7 +150,7 @@
 				"useUnifiedTypeSignatures": "error"
 			},
 			"security": {
-				"recommended": true,
+				"preset": "recommended",
 				"noBlankTarget": "error",
 				"noDangerouslySetInnerHtml": "error",
 				"noDangerouslySetInnerHtmlWithChildren": "error",

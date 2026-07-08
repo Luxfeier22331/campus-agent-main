@@ -42,7 +42,7 @@ spec:
       containers:
         - name: execution-control
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8000

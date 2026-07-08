@@ -245,6 +245,17 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
             with self.subTest(deployment=name):
                 self.assertEqual(env_from, expected_by_deployment[name])
 
+    def test_mutable_staging_images_are_always_pulled(self) -> None:
+        deployments = _by_kind_name("Deployment")
+
+        for name, deployment in deployments.items():
+            container = _deployment_container(deployment)
+            image = str(container["image"])
+            if not image.endswith(":staging"):
+                continue
+            with self.subTest(deployment=name, image=image):
+                self.assertEqual(container["imagePullPolicy"], "Always")
+
     def test_runtime_deployments_mount_generated_file_resources_by_role(self) -> None:
         deployments = _by_kind_name("Deployment")
         expected_volumes = {

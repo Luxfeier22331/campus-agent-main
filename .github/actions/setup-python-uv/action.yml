@@ -1,0 +1,24 @@
+name: setup-python-uv
+description: Install Python and sync the uv workspace with the repository cache policy.
+inputs:
+  sync:
+    description: Whether to run uv sync.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v8.3.1
+      with:
+        enable-cache: true
+
+    - name: Sync workspace
+      if: inputs.sync == 'true'
+      shell: bash
+      run: uv sync --all-packages --dev

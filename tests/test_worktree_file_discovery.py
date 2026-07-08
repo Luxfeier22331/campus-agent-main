@@ -120,7 +120,7 @@ class WorktreeFileDiscoveryTest(unittest.TestCase):
                 ),
             ]
 
-            files = changed_worktree_paths(root=root, base_ref="origin/develop")
+            files = changed_worktree_paths(root=root, base_ref="origin/main")
 
         self.assertEqual(files, (changed, staged, untracked))
 

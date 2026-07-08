@@ -27,9 +27,9 @@ class RepoCollaborationTest(unittest.TestCase):
             ROOT / "CONTRIBUTING.md",
             ROOT / ".github" / "CODEOWNERS",
             ROOT / ".github" / "dependabot.yml",
-            ROOT / ".github" / "workflows" / "pr-checks.yml",
+            ROOT / ".github" / "workflows" / "pr.yml",
             ROOT / ".github" / "workflows" / "scorecard.yml",
-            ROOT / ".github" / "workflows" / "scheduled-checks.yml",
+            ROOT / ".github" / "workflows" / "scheduled-health.yml",
             ROOT / "SECURITY.md",
             ROOT / "SUPPORT.md",
         }
@@ -46,8 +46,10 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("CONTRIBUTING.md", readme)
         self.assertIn("SECURITY.md", readme)
         self.assertIn("public-source-data.md", contributing)
-        self.assertIn("develop", contributing)
+        self.assertIn("feature/worktree -> PR -> main", contributing)
         self.assertIn("main", contributing)
+        self.assertIn("release tag", contributing)
+        self.assertIn("GitHub Environment", contributing)
         self.assertIn("uv sync --all-packages --dev", contributing)
         self.assertIn("pnpm web:typecheck", contributing)
 
@@ -120,8 +122,8 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertNotIn("id-token: write", workflow_text)
         self.assertIn("not a PR blocker", lanes)
 
-    def test_scheduled_checks_run_full_non_release_health_lanes(self) -> None:
-        workflow_path = ROOT / ".github" / "workflows" / "scheduled-checks.yml"
+    def test_scheduled_health_runs_full_non_release_health_lanes(self) -> None:
+        workflow_path = ROOT / ".github" / "workflows" / "scheduled-health.yml"
         workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
         workflow_text = workflow_path.read_text(encoding="utf-8")
         lanes = (ROOT / "docs/reference/testing-and-verification-lanes.md").read_text(
@@ -133,16 +135,18 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("workflow_dispatch", triggers)
         self.assertIn("schedule", triggers)
         self.assertNotIn("pull_request", triggers)
-        self.assertIn("pnpm ci:repo-static", workflow_text)
-        self.assertIn("pnpm ci:web-graph:full", workflow_text)
+        self.assertIn("pnpm ci:repo:full", workflow_text)
+        self.assertIn("pnpm ci:web:full", workflow_text)
         self.assertIn(
             "uv run --all-packages python -m unittest discover -s tests -t .",
             workflow_text,
         )
         self.assertIn("pnpm ci:go", workflow_text)
-        self.assertIn("pnpm ci:deps:vuln", workflow_text)
+        self.assertIn(
+            "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8",
+            workflow_text,
+        )
         self.assertIn("golangci-lint@v2.11.4", workflow_text)
-        self.assertIn("osv-scanner@v2.3.8", workflow_text)
         secret_refs = sorted(set(re.findall(r"secrets\.[A-Z0-9_]+", workflow_text)))
         self.assertEqual(secret_refs, ["secrets.TURBO_TOKEN"])
         self.assertIn("TURBO_TEAM: ${{ vars.TURBO_TEAM }}", workflow_text)
@@ -159,9 +163,9 @@ class RepoCollaborationTest(unittest.TestCase):
 
         self.assertIn("Dependabot PR", combined)
         self.assertIn("GitHub Actions", combined)
-        self.assertIn("pnpm ci:config:lint", combined)
+        self.assertIn("pnpm ci:config", combined)
         self.assertIn("npm / pnpm", combined)
-        self.assertIn("pnpm ci:web-graph:affected", combined)
+        self.assertIn("pnpm ci:web", combined)
         self.assertIn("Go module", combined)
         self.assertIn("pnpm ci:go", combined)
 
@@ -174,9 +178,10 @@ class RepoCollaborationTest(unittest.TestCase):
         combined = "\n".join((template, contributing, lanes))
 
         self.assertIn("Security / Supply Chain Lanes", lanes)
-        self.assertIn("pnpm ci:secrets", combined)
-        self.assertIn("pnpm ci:deps:vuln", combined)
+        self.assertIn("gitleaks/gitleaks-action@v3", combined)
+        self.assertIn("pnpm ci:deps", combined)
         self.assertIn("actionlint", combined)
+        self.assertIn("zizmor", combined)
         self.assertIn("CodeQL", combined)
         self.assertIn("Dependency Review", combined)
         self.assertIn("artifact attestation", combined)
@@ -189,14 +194,15 @@ class RepoCollaborationTest(unittest.TestCase):
         lanes = (ROOT / "docs/reference/testing-and-verification-lanes.md").read_text(
             encoding="utf-8"
         )
-        pr_checks = (ROOT / ".github" / "workflows" / "pr-checks.yml").read_text(encoding="utf-8")
+        pr_checks = (ROOT / ".github" / "workflows" / "pr.yml").read_text(encoding="utf-8")
         root_package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         scripts = root_package.get("scripts", {})
 
-        self.assertIn("ci:secrets", scripts)
-        self.assertIn("ci:deps:vuln", scripts)
-        self.assertIn("secret-scan", pr_checks)
-        self.assertIn("pnpm ci:secrets", pr_checks)
+        self.assertNotIn("ci:secrets", scripts)
+        self.assertIn("ci:deps", scripts)
+        self.assertIn("gitleaks/gitleaks-action@v3", pr_checks)
+        self.assertIn("GITLEAKS_LICENSE", pr_checks)
+        self.assertIn("osv-scanner-reusable-pr.yml@v2.3.8", pr_checks)
         self.assertIn("Gitleaks", lanes)
         self.assertIn("OSV-Scanner", lanes)
         self.assertIn("pnpm-lock.yaml", lanes)
@@ -216,6 +222,51 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("severity: HIGH,CRITICAL", workflow_text)
         self.assertIn("dependency-snapshot: false", workflow_text)
         self.assertIn("SBOM artifact", lanes)
+
+    def test_execution_runtime_image_workflow_publishes_first_party_runtime_images(
+        self,
+    ) -> None:
+        workflow_text = (ROOT / ".github" / "workflows" / "execution-runtime-image.yml").read_text(
+            encoding="utf-8"
+        )
+        lanes = (ROOT / "docs/reference/testing-and-verification-lanes.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("apps/execution-control/Dockerfile", workflow_text)
+        self.assertIn("apps/agent-runtime/Dockerfile", workflow_text)
+        self.assertIn("ghcr.io/${{ github.repository }}/${{ matrix.image }}", workflow_text)
+        self.assertIn("name=${IMAGE_NAME,,}", workflow_text)
+        self.assertIn("${{ steps.image.outputs.name }}:${{ github.sha }}", workflow_text)
+        self.assertIn("${{ steps.image.outputs.name }}:staging", workflow_text)
+        self.assertIn("aquasecurity/trivy-action@v0.36.0", workflow_text)
+        self.assertIn("anchore/sbom-action@v0.24.0", workflow_text)
+        self.assertIn('exit-code: "1"', workflow_text)
+        self.assertIn("severity: HIGH,CRITICAL", workflow_text)
+        self.assertIn("dependency-snapshot: false", workflow_text)
+        self.assertIn("execution-runtime-image", lanes)
+        self.assertIn("execution-control:staging", lanes)
+        self.assertIn("agent-runtime:staging", lanes)
+
+    def test_execution_runtime_dockerfiles_use_fixed_security_patch_inputs(self) -> None:
+        agent_runtime_dockerfile = (ROOT / "apps" / "agent-runtime" / "Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        execution_control_dockerfile = (
+            ROOT / "apps" / "execution-control" / "Dockerfile"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("FROM node:24.15-bookworm-slim AS build", agent_runtime_dockerfile)
+        self.assertIn("FROM node:24.15-bookworm-slim AS runtime", agent_runtime_dockerfile)
+        self.assertNotIn("node:24-bookworm-slim", agent_runtime_dockerfile)
+        self.assertIn("corepack@0.35.0", agent_runtime_dockerfile)
+        self.assertNotIn("corepack@latest", agent_runtime_dockerfile)
+        self.assertIn("apt-get upgrade -y", agent_runtime_dockerfile)
+        self.assertIn("rm -rf /usr/local/lib/node_modules/corepack", agent_runtime_dockerfile)
+        self.assertIn("/usr/local/lib/node_modules/npm", agent_runtime_dockerfile)
+        self.assertIn("/usr/local/bin/npm", agent_runtime_dockerfile)
+        self.assertIn("FROM golang:1.26.4-bookworm AS build", execution_control_dockerfile)
+        self.assertNotIn("golang:1.26.2-bookworm", execution_control_dockerfile)
 
     def test_security_supply_chain_lanes_are_not_unconditional_pr_workflows(self) -> None:
         workflow_dir = ROOT / ".github" / "workflows"
@@ -240,7 +291,7 @@ class RepoCollaborationTest(unittest.TestCase):
         contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
         self.assertIn("branch protection / rulesets", contributing)
-        self.assertIn("pr-checks / required-checks", contributing)
+        self.assertIn("pr / required", contributing)
         self.assertIn("failed、cancelled、missing", contributing)
         self.assertIn("changed-surface", contributing)
         self.assertIn("manual、staging、eval lane", contributing)
@@ -302,7 +353,7 @@ class RepoCollaborationTest(unittest.TestCase):
             "changed-surface",
             "manual / staging / eval lane",
             "private repo",
-            "pr-checks / required-checks",
+            "pr / required",
             "source-derived documents",
             "No internal publish/deploy workflow",
             "explicitly redistributable",
@@ -341,7 +392,7 @@ class RepoCollaborationTest(unittest.TestCase):
 
         self.assertIn("private repository", lanes)
         self.assertIn("branch protection / rulesets", lanes)
-        self.assertIn("pr-checks / required-checks", lanes)
+        self.assertIn("pr / required", lanes)
         self.assertIn("changed-surface detection", lanes)
 
 

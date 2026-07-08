@@ -190,10 +190,17 @@ def _write_minimal_langfuse_eval_repo(
     ci_surface_contract_path: str = "docs/contracts/langfuse-runtime.md",
 ) -> None:
     _write_text(
-        root / "scripts/detect_ci_changed_surfaces.py",
+        root / ".github/workflows/pr.yml",
         f"""
-def _is_langfuse_path(path: str) -> bool:
-    return path == {ci_surface_contract_path!r}
+name: pr
+jobs:
+  changes:
+    steps:
+      - uses: dorny/paths-filter@v4.0.2
+        with:
+          filters: |
+            eval:
+              - {ci_surface_contract_path!r}
 """,
     )
     _write_json(

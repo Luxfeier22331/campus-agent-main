@@ -107,7 +107,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 
 只有在真实部署环境已存在时，才进入下一节。执行 `Post-Deploy Verification` 前，至少应具备：
 
-- 目标环境名，例如 `staging` 或 `prod`
+- 目标环境名，例如 `staging` 或 `production`
 - 真实 `campus-web`、`operator-console-web`、`app-api` hostname
 - 当次 Worker release 标识
 - deploy secret store 中的 `SENTRY_*` / Collector `OTEL_COLLECTOR_AXIOM_*` 已下发确认

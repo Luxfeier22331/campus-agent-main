@@ -61,7 +61,7 @@ Example closeout fields:
 Required namespaces:
 
 - `campus-agent-staging`
-- `campus-agent-prod`
+- `campus-agent-production`
 
 Readiness must confirm:
 

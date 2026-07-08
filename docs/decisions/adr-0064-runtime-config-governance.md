@@ -66,7 +66,7 @@ Wrangler, Docker Compose, External Secrets Operator or app-api provider-config.
   handles.
 - K8s ConfigMap/Secret and Cloudflare Worker vars/secrets may carry bootstrap
   handles and secret material, not app-level provider decisions.
-- K8s GitOps staging/prod paths must not generate ConfigMaps or Secrets
+- K8s GitOps staging/production paths must not generate ConfigMaps or Secrets
   directly from copied `.env` files. Any env renderer that emits
   `kubectl create configmap/secret --dry-run` output is a manual bootstrap or
   transitional debug helper, not desired-state truth.

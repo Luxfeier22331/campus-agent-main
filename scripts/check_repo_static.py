@@ -102,7 +102,7 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         ),
         StaticCheck("ruff check", ("ruff", "check", ".")),
         StaticCheck("ruff format", ("ruff", "format", ".", "--check")),
-        StaticCheck("ci workflow contracts", (py, "-m", "scripts.check_ci_workflow_contracts")),
+        StaticCheck("workflow action policy", (py, "-m", "scripts.check_workflow_action_policy")),
     )
 
 
@@ -279,12 +279,7 @@ def affected_repo_static_checks(
                 StaticCheck("ruff affected format", ("ruff", "format", "--check", *python_paths)),
             )
         )
-    if any(path.startswith(".github/workflows/") or path == "package.json" for path in paths):
-        checks.append(
-            StaticCheck(
-                "ci workflow contracts", (python, "-m", "scripts.check_ci_workflow_contracts")
-            )
-        )
+    if any(path.startswith(".github/") or path == "package.json" for path in paths):
         checks.append(
             StaticCheck(
                 "workflow action policy", (python, "-m", "scripts.check_workflow_action_policy")
@@ -297,7 +292,7 @@ def run_static_checks(
     *,
     root: Path | None = None,
     affected: bool = False,
-    base_ref: str = "origin/develop",
+    base_ref: str = "origin/main",
 ) -> int:
     base = root or repo_root()
     checks = repo_static_checks()
@@ -325,7 +320,7 @@ def run_static_checks(
 def main(argv: tuple[str, ...] = ()) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--affected", action="store_true")
-    parser.add_argument("--base", default="origin/develop")
+    parser.add_argument("--base", default="origin/main")
     args = parser.parse_args(argv)
     return run_static_checks(affected=args.affected, base_ref=args.base)
 

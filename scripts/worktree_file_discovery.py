@@ -42,7 +42,7 @@ def worktree_paths(*pathspecs: str, root: Path | None = None) -> tuple[Path, ...
 
 
 def changed_worktree_paths(
-    *, root: Path | None = None, base_ref: str = "origin/develop"
+    *, root: Path | None = None, base_ref: str = "origin/main"
 ) -> tuple[Path, ...]:
     base = root or repo_root()
     merge_base = _git_stdout(("merge-base", base_ref, "HEAD"), root=base).strip()

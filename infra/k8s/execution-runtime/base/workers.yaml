@@ -28,7 +28,7 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/usr/local/bin/workflow-worker"]
           envFrom:
             - configMapRef:
@@ -92,7 +92,7 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/usr/local/bin/activity-worker-core"]
           envFrom:
             - configMapRef:
@@ -177,7 +177,7 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/usr/local/bin/activity-worker-agent"]
           envFrom:
             - configMapRef:
@@ -258,7 +258,7 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/usr/local/bin/activity-worker-knowledge"]
           envFrom:
             - configMapRef:

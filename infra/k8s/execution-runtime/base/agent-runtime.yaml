@@ -37,7 +37,7 @@ spec:
       containers:
         - name: agent-runtime
           image: ghcr.io/muc-wiki/campus-agent/agent-runtime:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 27062

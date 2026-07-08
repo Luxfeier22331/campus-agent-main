@@ -14,6 +14,7 @@ _GITOPS_ROOT = Path("infra/gitops")
 _APP_DIR = _GITOPS_ROOT / "apps"
 _SECRET_DIR = _GITOPS_ROOT / "secrets"
 _SECRET_DELIVERY_README = _GITOPS_ROOT / "secrets" / "README.md"
+_CAMPUS_AGENT_REPO_URL = "https://github.com/MUC-WIKI/campus-agent.git"
 _SECRET_NAME_PATTERN = re.compile(
     r"(api[_-]?key|secret|token|password|dsn|database[_-]?url|private[_-]?key)",
     re.IGNORECASE,
@@ -170,6 +171,13 @@ def _audit_source(
         issues.append(
             GitOpsSkeletonIssue(path=app_path, message=f"{prefix}.targetRevision is required")
         )
+    elif repo_url == _CAMPUS_AGENT_REPO_URL and target_revision == "develop":
+        issues.append(
+            GitOpsSkeletonIssue(
+                path=app_path,
+                message=f"{prefix}.targetRevision must not use retired develop branch",
+            )
+        )
 
     if chart and path_value:
         issues.append(
@@ -181,7 +189,7 @@ def _audit_source(
         )
 
     if path_value:
-        if repo_url != "https://github.com/MUC-WIKI/campus-agent.git":
+        if repo_url != _CAMPUS_AGENT_REPO_URL:
             issues.append(
                 GitOpsSkeletonIssue(
                     path=app_path,
@@ -246,7 +254,7 @@ def _audit_helm_source(
                 )
             )
             continue
-        if value_ref_sources.get("values") != "https://github.com/MUC-WIKI/campus-agent.git":
+        if value_ref_sources.get("values") != _CAMPUS_AGENT_REPO_URL:
             issues.append(
                 GitOpsSkeletonIssue(
                     path=app_path,

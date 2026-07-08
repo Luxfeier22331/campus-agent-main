@@ -1,0 +1,380 @@
+name: pr
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      base_sha: ${{ steps.base.outputs.base_sha }}
+      ci: ${{ steps.filter.outputs.ci }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      deps: ${{ steps.filter.outputs.deps }}
+      eval: ${{ steps.filter.outputs.eval }}
+      go: ${{ steps.filter.outputs.go }}
+      ingest: ${{ steps.filter.outputs.ingest }}
+      web: ${{ steps.filter.outputs.web }}
+      worker: ${{ steps.filter.outputs.worker }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve base SHA
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            base_sha="${{ github.event.before }}"
+          else
+            base_sha="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$base_sha"
+          fi
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed surfaces
+        id: filter
+        uses: dorny/paths-filter@v4.0.2
+        with:
+          base: ${{ steps.base.outputs.base_sha }}
+          ref: ${{ github.sha }}
+          filters: |
+            ci:
+              - '.github/workflows/pr.yml'
+              - '.github/actions/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'scripts/check_workflow_action_policy.py'
+              - 'scripts/check_package_script_policy.py'
+            contracts:
+              - 'packages/contracts/**'
+              - 'tests/contracts/**'
+              - 'configs/runtime/**'
+            deps:
+              - 'pnpm-lock.yaml'
+              - 'uv.lock'
+              - 'pyproject.toml'
+              - '**/package.json'
+              - '**/go.mod'
+              - '**/go.sum'
+            eval:
+              - 'packages/eval-langfuse/**'
+              - 'packages/ragas-runner/**'
+              - 'apps/app-api/src/modules/telemetry/**'
+              - 'apps/app-api/scripts/check-langfuse-trace-id-vectors.ts'
+              - 'docs/architecture/system/langfuse.md'
+              - 'docs/contracts/langfuse-runtime.md'
+              - 'docs/decisions/adr-0061-eval-runtime.md'
+              - 'docs/decisions/adr-0062-ragas-langfuse.md'
+              - 'docs/product/langfuse-evals.md'
+              - 'docs/reference/eval.md'
+              - 'docs/reference/eval-map.md'
+              - 'docs/runbooks/eval-ragas.md'
+              - 'tests/fixtures/langfuse_trace_id_vectors.json'
+            go:
+              - 'apps/execution-control/**'
+              - 'configs/runtime/**'
+            ingest:
+              - 'apps/ingestion-control/**'
+              - 'apps/source-collector/**'
+              - 'packages/ingestion-contracts/**'
+              - 'packages/ingestion-kernels-rs/**'
+              - 'tests/ingestion/**'
+            web:
+              - 'apps/**/*.ts'
+              - 'apps/**/*.tsx'
+              - 'apps/**/*.js'
+              - 'apps/**/*.jsx'
+              - 'apps/**/*.mjs'
+              - 'apps/**/*.cjs'
+              - 'apps/**/*.json'
+              - 'apps/**/*.mts'
+              - 'apps/**/*.cts'
+              - 'jobs/**/*.ts'
+              - 'jobs/**/*.tsx'
+              - 'jobs/**/*.js'
+              - 'jobs/**/*.jsx'
+              - 'jobs/**/*.mjs'
+              - 'jobs/**/*.cjs'
+              - 'jobs/**/*.json'
+              - 'jobs/**/*.mts'
+              - 'jobs/**/*.cts'
+              - 'packages/**/*.ts'
+              - 'packages/**/*.tsx'
+              - 'packages/**/*.js'
+              - 'packages/**/*.jsx'
+              - 'packages/**/*.mjs'
+              - 'packages/**/*.cjs'
+              - 'packages/**/*.json'
+              - 'packages/**/*.mts'
+              - 'packages/**/*.cts'
+            worker:
+              - 'apps/app-api/**'
+              - 'apps/campus-web/**'
+              - 'apps/operator-console-web/**'
+              - 'configs/runtime/**'
+
+  repo:
+    needs: changes
+    runs-on: ubuntu-latest
+    env:
+      CI_BASE_REF: ${{ needs.changes.outputs.base_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.2"
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Install conftest
+        run: |
+          go install github.com/open-policy-agent/conftest@v0.65.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run repository lane
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            pnpm ci:repo
+          else
+            pnpm ci:repo:full
+          fi
+
+      - name: Validate workflow configuration
+        run: pnpm ci:config
+
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Scan secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run web lane
+        run: pnpm ci:web
+
+  worker:
+    needs: changes
+    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run Worker lane
+        run: pnpm ci:worker
+
+  contracts:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run contracts lane
+        run: pnpm ci:contracts
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.2"
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+
+      - name: Run Go lane
+        run: pnpm ci:go
+
+  eval:
+    needs: changes
+    if: needs.changes.outputs.eval == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run eval lane
+        run: pnpm ci:eval
+
+  ingest:
+    needs: changes
+    if: needs.changes.outputs.ingest == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run ingest lane
+        run: pnpm ci:ingest
+
+  deps-pr:
+    needs: changes
+    if: github.event_name == 'pull_request' && (needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true')
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.8
+    with:
+      upload-sarif: false
+      scan-args: |-
+        --config=osv-scanner.toml
+        --lockfile=pnpm-lock.yaml
+        --lockfile=uv.lock
+
+  deps-full:
+    needs: changes
+    if: github.event_name != 'pull_request' && (needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true')
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+    with:
+      upload-sarif: false
+      scan-args: |-
+        --config=osv-scanner.toml
+        --lockfile=pnpm-lock.yaml
+        --lockfile=uv.lock
+
+  required:
+    needs:
+      - changes
+      - repo
+      - secrets
+      - web
+      - worker
+      - contracts
+      - go
+      - eval
+      - ingest
+      - deps-pr
+      - deps-full
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful PR checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for result in \
+            "${{ needs.changes.result }}" \
+            "${{ needs.repo.result }}" \
+            "${{ needs.secrets.result }}" \
+            "${{ needs.web.result }}" \
+            "${{ needs.worker.result }}" \
+            "${{ needs.contracts.result }}" \
+            "${{ needs.go.result }}" \
+            "${{ needs.eval.result }}" \
+            "${{ needs.ingest.result }}" \
+            "${{ needs.deps-pr.result }}" \
+            "${{ needs.deps-full.result }}"; do
+            case "$result" in
+              success|skipped)
+                ;;
+              *)
+                failed=1
+                ;;
+            esac
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more required PR check lanes failed."
+            exit 1
+          fi

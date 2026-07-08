@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-07-03
+updated: 2026-07-08
 ---
 # Testing And Verification Lanes
 
@@ -16,37 +16,55 @@ configuration.
 
 ## CI Model
 
-GitHub Actions keeps one automatic PR / develop / main workflow:
-`.github/workflows/pr-checks.yml`.
+GitHub Actions keeps one automatic PR / main workflow:
+`.github/workflows/pr.yml`.
 
-- Workflow responsibility: event trigger, changed-surface detection and the
-  stable `required-checks` aggregate job.
-- Script responsibility: all verification behavior lives behind root
-  `package.json` `ci:*` lanes and must be locally reproducible.
-- Branch protection should require `pr-checks / required-checks`, not every
-  conditional job name. Conditional jobs may be skipped when their surface is
-  untouched.
+- Workflow responsibility: event trigger, changed-surface routing, GitHub-native
+  security actions and the stable `required` aggregate job.
+- Script responsibility: local verification behavior lives behind root
+  `package.json` `ci:*` lanes. Workflow-only platform actions, such as Gitleaks
+  Action and OSV reusable workflows, are documented here instead of wrapped in
+  repo Python.
+- Branch protection should require `pr / required`, not every conditional job
+  name. Conditional jobs may be skipped when their surface is untouched.
+- Repository rulesets should protect `main` with pull requests,
+  up-to-date branches, no force-push / deletion and the single required status
+  check `pr / required`.
 - When the private repository plan cannot enable branch protection / rulesets,
-  the same rule is enforced manually: do not merge to `develop` until
-  `pr-checks / required-checks` is success.
+  the same rule is enforced manually: do not merge to `main` until
+  `pr / required` is success.
 - Skipped conditional jobs are acceptable only when changed-surface detection
   correctly marks the untouched surface as out of scope.
 
-Manual workflows remain separate for image build / push and controlled release
-validation. They must not become ordinary PR blockers. Ragas/Langfuse scoring
-is an internal eval shell/runtime lane, not a GitHub Actions workflow.
+GitHub Environments own deploy credential separation. `staging` may be used by
+`.github/workflows/deploy-staging.yml` after successful `pr` on `main`.
+`production` is used only by `.github/workflows/production-preflight.yml` until
+real production deploy scripts and rollback are explicitly wired. Manual image
+build / push and controlled release validation stay outside ordinary PR
+blockers. Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a
+GitHub Actions workflow.
+
+Mutable K8s staging image tags must have an owning image workflow and
+`imagePullPolicy: Always` in the matching staging manifests. A GitOps sync must
+not rely on a node-local cached `:staging` image after repo-static runtime
+config, binary or schema files change.
+
+K8s/GitOps deployment validation is gated by live infrastructure bootstrap.
+Do not treat `infra/gitops/apps/*.yaml` as deployed truth, and do not claim
+nc-arm-6c deploy validation until Argo CD, the selected secret backend, KEDA
+and the target Applications exist and report healthy state in the cluster.
 
 ## Scheduled Full Health Checks
 
-`.github/workflows/scheduled-checks.yml` runs full non-release health checks on
+`.github/workflows/scheduled-health.yml` runs full non-release health checks on
 a weekly schedule and through manual dispatch. It is for drift / regression
 detection after PR-level affected checks have kept ordinary feedback cheap.
 
-- It runs `pnpm ci:repo-static`, `pnpm ci:web-graph:full`,
+- It runs `pnpm ci:repo:full`, `pnpm ci:web:full`,
   `uv run --all-packages python -m unittest discover -s tests -t .`,
-  `pnpm ci:go` and `pnpm ci:deps:vuln`.
+  `pnpm ci:go` and the OSV-Scanner reusable workflow.
 - It must not define `pull_request` triggers or participate in
-  `pr-checks / required-checks`.
+  `pr / required`.
 - It may use explicitly allowed CI infrastructure credentials, such as Turbo
   Remote Cache variables on Turbo jobs. It must not use deploy, provider,
   database, object-store, eval publishing or release credentials.
@@ -55,71 +73,48 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 
 ## Security / Supply Chain Lanes
 
-CodeQL / code scanning, Dependency Review and artifact attestations are security
-and supply-chain lanes with GitHub plan / repository setting prerequisites for
-private repositories. Do not add them as ordinary PR blockers until the required
-GitHub security features are confirmed for this repository.
-
 - Secret scanning:
-  - `pnpm ci:secrets` runs Gitleaks against the current repository tree and is
-    part of `pr-checks / required-checks`.
+  - PR CI uses `gitleaks/gitleaks-action@v3` in the `secrets` job.
+  - Organization/private operation requires `GITLEAKS_LICENSE` in GitHub
+    Secrets until repository ownership / visibility no longer requires it.
   - `pre-commit` also runs the Gitleaks staged-file hook for local hygiene.
-  - It does not replace GitHub Secret Protection when that feature becomes
-    available.
+  - It does not replace GitHub Secret Protection or historical leak response.
 - Dependency vulnerability scanning:
-  - `pnpm ci:deps:vuln` runs OSV-Scanner against root `pnpm-lock.yaml` and
-    `uv.lock`.
-  - It is scheduled / manual by default, not an ordinary PR blocker.
-  - Dependabot or dependency-risk PRs may run it explicitly and record the
-    result in the PR.
+  - PR and scheduled CI use Google OSV-Scanner reusable workflows with
+    root `pnpm-lock.yaml` and `uv.lock` lockfile scan args.
+  - `pnpm ci:deps` is the local CLI equivalent for manual verification.
+  - Any vulnerability exception must live in `osv-scanner.toml` with advisory
+    id, reason and `ignoreUntil`; do not hide exceptions in workflow logic.
+  - Dependabot PRs should record the dependency lane result in the PR.
 - Workflow security:
-  - `pnpm ci:config:lint` includes actionlint, repo-owned workflow contract
-    checks and workflow action policy checks.
+  - `pnpm ci:config` includes actionlint, zizmor and the repo-owned workflow
+    action policy check.
   - Trusted version-tagged actions are allowlisted; new untrusted actions must
     use a full commit SHA or be added to the policy with a reason.
-  - Workflow secret rules are capability-based. CI infrastructure credentials
-    may be allowed on the narrow job that consumes them. Deploy, provider,
-    database, object-store, eval publishing and release credentials remain
-    manual or protected-environment only.
-- CodeQL / code scanning:
-  - Private repositories require GitHub Code Security / Advanced Security before
-    code scanning can be enabled.
-  - Prefer GitHub default setup after the feature is available. Add an advanced
-    workflow only when this monorepo needs explicit build or language control.
-  - It is not represented by a repo-owned workflow until the prerequisite is
-    confirmed.
-- Dependency Review:
-  - The action is available for public repositories and for private repositories
-    with GitHub Code Security / Advanced Security enabled.
-  - Until that prerequisite is confirmed, Dependabot PRs use their dependency
-    surface plus the documented verification commands as the enforceable rule.
-  - After enablement, make it a dependency-change PR blocker, not a universal
-    PR blocker.
-- Artifact attestations / SBOM / SLSA:
-  - Use only for real release artifacts, such as pushed container images or
-    release bundles.
-  - Do not generate provenance for ordinary PR checks, repo static checks,
-    scheduled health checks or workflows that do not publish a release artifact.
-  - For private / internal repositories, confirm the required GitHub plan before
-    adding attestation steps.
+  - The repo does not maintain workflow topology or secret-rule Python checks;
+    topology belongs in GitHub Actions and branch protection.
+- CodeQL / Dependency Review / artifact attestations:
+  - Enable GitHub-native features when the repository plan supports GitHub Code Security / Advanced Security.
+  - Do not add them as ordinary PR blockers until the prerequisite and release
+    artifact surface are confirmed.
+  - SBOM / provenance applies to real release artifacts, not ordinary PR checks.
 
 ## PR Blocker Lanes
 
 - Always-on PR blockers:
-  - `pnpm ci:repo-guard`
-  - `pnpm ci:repo-static:affected` on pull requests
-  - `pnpm ci:config:lint`
-  - `pnpm ci:secrets`
-  - `pr-checks / required-checks`
-- Push-to-`develop` / `main` full static blocker:
-  - `pnpm ci:repo-static`
+  - `pnpm ci:repo` on pull requests, `pnpm ci:repo:full` on `main` pushes.
+  - `pnpm ci:config`.
+  - `gitleaks/gitleaks-action@v3` in the `secrets` job.
+  - `pr / required`.
 - Conditional PR blockers from changed-surface detection:
-  - `pnpm ci:web-graph:affected`
-  - `pnpm ci:worker-runtime`
-  - `pnpm ci:contracts`
-  - `pnpm ci:go`
-  - `pnpm ci:langfuse`
-  - `pnpm ci:ingestion`
+  - `pnpm ci:web`.
+  - `pnpm ci:worker`.
+  - `pnpm ci:contracts`.
+  - `pnpm ci:go`.
+  - `pnpm ci:eval`.
+  - `pnpm ci:ingest`.
+  - OSV-Scanner dependency scan for dependency manifests, lockfiles and Go
+    module files.
 
 ## Repo Lanes
 
@@ -140,41 +135,38 @@ GitHub security features are confirmed for this repository.
     JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, HTML checker,
     Biome, Ruff format checks and decomposition guard.
   - The lane is based on tracked + current worktree files selected by the repo
-    checker; untracked 文件 do not demonstrate branch-tip compliance until they
-    are intentionally added.
-  - The HTML checker validates tracked + untracked 文件 matched by the live
-    HTML pathspecs; it is part of repo static structure validation, not browser
-    runtime validation.
-  - PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`。
+    checker; untracked files do not demonstrate branch-tip compliance until
+    they are intentionally added.
+  - PowerShell remains a supplemental lane and is not part of default
+    `pnpm repo:static`.
   - Not a typecheck, unit test, integration test or E2E validation.
 - `pnpm repo:static:affected`
-  - Local changed-file static lane against `origin/develop`.
+  - Local changed-file static lane against `origin/main`.
   - Skips unrelated heavy checks such as Dockerfile lint when the affected file
     set does not touch those surfaces.
   - Not a replacement for CI / release full `pnpm repo:static`.
-- `pnpm ci:repo-static:affected`
-  - CI wrapper for PR affected static checks.
-- `pnpm ci:config:lint`
-  - CI workflow / lane contract check through actionlint, repo-owned workflow
-    contract checks and workflow action policy checks.
+- `pnpm ci:repo`
+  - CI wrapper for repo guard plus affected static checks.
+- `pnpm ci:repo:full`
+  - CI wrapper for repo guard plus full repo static checks.
+- `pnpm ci:config`
+  - CI workflow and action security lint through actionlint, zizmor and workflow
+    action policy.
   - It proves automation shape, not business runtime behavior.
-- `pnpm ci:secrets`
-  - Gitleaks current-tree secret scan.
-  - Requires the `gitleaks` CLI locally; the wrapper fails closed with the
-    pinned install command when the CLI is missing, and CI installs Gitleaks
-    before calling the script.
-  - Not a full historical secret audit and not a replacement for GitHub Secret
-    Protection.
-- `pnpm ci:deps:vuln`
-  - OSV-Scanner dependency vulnerability scan over root `pnpm-lock.yaml` and
-    `uv.lock`.
-  - Runs in scheduled checks and may be used for Dependabot / dependency-risk
-    PRs.
-  - Requires the `osv-scanner` CLI locally; the wrapper fails closed with the
-    pinned install command when the CLI is missing.
+- `pnpm ci:deps`
+  - Local OSV-Scanner dependency vulnerability scan over root `pnpm-lock.yaml`
+    and `uv.lock`.
+  - CI uses the OSV-Scanner reusable workflows rather than a repo-owned wrapper.
+- `pnpm ci:worker`
+  - Worker runtime tests plus hermetic Worker/app build smoke for app-api,
+    campus-web app build and operator-console-web build.
+  - Uses Wrangler dry-run for app-api and app-local build scripts for browser
+    Worker shells.
+  - Does not run `campus-web build:docs`, staging deploy, production deploy or
+    browser E2E.
 - `uv run --all-packages python -m unittest discover -s tests -t .`
   - Repo Python baseline through `uv` / `unittest`.
-- `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:web-graph:full`
+- `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:web:full`
   - JS/TS stable graph checks.
   - `pnpm web:test` is the stable default lane, not all Worker / integration
     tests.
@@ -192,37 +184,34 @@ GitHub security features are confirmed for this repository.
 
 ## Conditional CI Lanes
 
-- `pnpm ci:web-graph:affected`
+- `pnpm ci:web`
   - Affected JS/TS typecheck / test lane for app, package and job code.
-  - Used by PR CI when changed-surface detection marks `web_graph=true`.
-- `pnpm ci:worker-runtime`
-  - Worker runtime test lane for app-api, campus-web and operator-console-web.
-  - Used by PR CI when Worker app or runtime config files change.
+- `pnpm ci:worker`
+  - Worker runtime test and Worker/app build lane for app-api, campus-web,
+    operator-console-web and runtime config changes.
 - `pnpm ci:contracts`
   - Contract schema generation/checks plus contract unittest suite.
-  - Used by PR CI when contracts, runtime schemas or contract tests change.
 - `pnpm ci:go`
   - Execution-control Go static checks and tests.
-  - Used by PR CI when execution-control or runtime tool config changes.
-- `pnpm ci:langfuse`
+- `pnpm ci:eval`
   - Eval-langfuse typecheck/test plus app-api Langfuse trace-id vector check.
-  - Used by PR CI when Langfuse, Ragas runner, telemetry or eval docs/contracts
-    change.
-- `pnpm ci:ingestion`
+- `pnpm ci:ingest`
   - Ingestion/data-plane Python unittest lane.
-  - Used by PR CI when ingestion apps, packages or ingestion tests change.
+- OSV-Scanner reusable workflow
+  - Dependency vulnerability lane for dependency manifests, lockfiles and Go
+    module files.
 
 ## PR Verification Decision Table
 
 | Changed surface | PR lane | Extra lane decision |
 | --- | --- | --- |
-| `.github/workflows/pr-checks.yml`, root package / turbo config or CI scripts | all conditional PR lanes through changed-surface detection | Run `pnpm ci:config:lint`; do not add new automatic workflows without updating this document. |
-| Other manual workflow files | `pnpm ci:config:lint` and `pnpm ci:repo-static:affected` | If the workflow can publish artifacts or use secrets, confirm manual-only triggers and environment / input guards. |
-| npm / pnpm workspace dependency files | `pnpm ci:web-graph:affected` | Dependabot PRs use the dependency surface rule above; run `pnpm ci:deps:vuln` for dependency-risk changes. Run `pnpm web:build` only when the docs manifest / operator DB env is available. Dependency Review waits for GitHub security feature enablement. |
+| `.github/workflows/pr.yml`, `.github/actions/**`, root package / turbo config or CI scripts | all conditional PR lanes through changed-surface detection | Run `pnpm ci:config`; do not add new automatic workflows without updating this document. |
+| Other manual workflow files | `pnpm ci:config` and `pnpm ci:repo` | If the workflow can publish artifacts or use secrets, confirm manual-only triggers and environment / input guards. |
+| npm / pnpm workspace dependency files | `pnpm ci:web`, `pnpm ci:worker` and OSV-Scanner dependency scan | Dependency Review waits for GitHub security feature enablement. Do not use full `pnpm web:build` as a generic PR blocker while docs manifest / operator DB env is not hermetic. |
 | `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
-| `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker-runtime` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
-| `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:langfuse` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
-| ingestion apps/packages/kernels | `pnpm ci:ingestion` plus web graph when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
+| `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
+| `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:eval` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
+| ingestion apps/packages/kernels | `pnpm ci:ingest` plus `pnpm ci:web` when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
 | release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
 ## App / Runtime Lanes
@@ -285,22 +274,42 @@ GitHub security features are confirmed for this repository.
   - Manual dining-sync image build / optional GHCR push workflow.
   - It builds a local image, blocks on Trivy HIGH / CRITICAL findings, and
     generates an SBOM artifact when `push_image=true`.
+- `.github/workflows/execution-runtime-image.yml`
+  - Execution runtime image build and GHCR publish workflow for
+    `execution-control:staging` and `agent-runtime:staging`.
+  - Pull requests build and scan the images. Pushes to `main`, or manual
+    dispatch with `push_image=true`, publish both `${{ github.sha }}` and
+    `staging` tags and generate SBOM artifacts.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
   - It is not a PR blocker and must not be treated as branch protection
     replacement while the repository cannot enforce rulesets.
-- `.github/workflows/scheduled-checks.yml`
+- `.github/workflows/scheduled-health.yml`
   - Scheduled / manual full repository health check.
   - It is not a PR blocker and does not replace staging release closeout.
+- `.github/workflows/deploy-staging.yml`
+  - Automatic staging deployment after successful `pr` on `main`, and
+    manual dispatch for a selected ref.
+  - It binds the GitHub `staging` environment, runs existing app-local staging
+    deploy scripts, then checks Worker `healthz` / `readyz`.
+  - It is deployment validation, not a PR blocker.
+- `.github/workflows/production-preflight.yml`
+  - Protected production release preflight through manual dispatch and the
+    GitHub `production` environment.
+  - It verifies the selected ref is on `main` history and runs Worker build
+    preflight. It does not deploy production until production app deploy scripts
+    and rollback are explicitly added.
+  - It does not validate nc-arm-6c Kubernetes deployment. K8s deployment
+    validation starts only after the GitOps bootstrap prerequisites are live.
 
 ## Rules
 
 - Run the smallest lane that proves the changed surface, then broader repo gates
   when the change crosses boundaries.
 - Dependabot PRs must use their dependency surface as the verification surface:
-  GitHub Actions dependency updates run `pnpm ci:config:lint`, npm / pnpm
-  workspace updates run `pnpm ci:web-graph:affected`, and Go module updates run
-  `pnpm ci:go`. Run `pnpm ci:deps:vuln` when dependency risk is material.
+  GitHub Actions dependency updates run `pnpm ci:config`, npm / pnpm workspace
+  updates run `pnpm ci:web`, `pnpm ci:worker` and OSV-Scanner, and Go module
+  updates run `pnpm ci:go` plus OSV-Scanner.
 - CodeQL, Dependency Review and artifact attestations require an explicit
   security / supply-chain lane decision before they become PR or release
   requirements.
@@ -309,5 +318,6 @@ GitHub security features are confirmed for this repository.
 - Do not mix integration lanes into the default stable gate unless the changed
   surface requires external dependency validation.
 - Record exact commands in PRs and final handoff; do not write "should pass".
-- Do not add CI behavior directly in workflow YAML when a root `ci:*` script can
-  own it. Workflow YAML should route; scripts should verify.
+- Prefer root `ci:*` scripts for local verification behavior. Prefer mature
+  GitHub Actions or reusable workflows for platform-native security and routing
+  behavior.

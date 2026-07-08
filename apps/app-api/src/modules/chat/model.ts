@@ -378,7 +378,7 @@ function normalizeSourceAction(
 
 	if (!href) {
 		const isReaderTarget = targetKind === "canonical_reader" || targetKind === "notice_reader";
-		if (!(isReaderTarget && disabledReason) || Boolean(value.external)) {
+		if (!(isReaderTarget && disabledReason) || value.external) {
 			return null;
 		}
 		return {

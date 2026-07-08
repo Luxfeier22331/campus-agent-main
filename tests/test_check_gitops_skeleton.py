@@ -40,7 +40,7 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
                 "        valueFiles:\n"
                 "          - $values/infra/gitops/values/keda/staging.yaml\n"
                 "    - repoURL: https://github.com/MUC-WIKI/campus-agent.git\n"
-                "      targetRevision: develop\n"
+                "      targetRevision: main\n"
                 "      ref: values\n"
                 "  destination:\n"
                 "    server: https://kubernetes.default.svc\n"
@@ -66,7 +66,7 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
                 "  project: default\n"
                 "  source:\n"
                 "    repoURL: https://github.com/MUC-WIKI/campus-agent.git\n"
-                "    targetRevision: develop\n"
+                "    targetRevision: main\n"
                 "    path: infra/k8s/missing\n"
                 "  destination:\n"
                 "    server: https://kubernetes.default.svc\n"
@@ -80,6 +80,42 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
                     GitOpsSkeletonIssue(
                         path="infra/gitops/apps/runtime.yaml",
                         message="source[0].path does not exist: infra/k8s/missing",
+                    ),
+                ),
+            )
+
+    def test_rejects_retired_develop_branch_for_campus_repo_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            self.write_secret_contract(root)
+            app = root / "infra" / "gitops" / "apps" / "runtime.yaml"
+            runtime_path = root / "infra" / "k8s" / "execution-runtime" / "overlays" / "staging"
+            app.parent.mkdir(parents=True)
+            runtime_path.mkdir(parents=True)
+            app.write_text(
+                "apiVersion: argoproj.io/v1alpha1\n"
+                "kind: Application\n"
+                "metadata:\n"
+                "  name: runtime\n"
+                "  namespace: argocd\n"
+                "spec:\n"
+                "  project: default\n"
+                "  source:\n"
+                "    repoURL: https://github.com/MUC-WIKI/campus-agent.git\n"
+                "    targetRevision: develop\n"
+                "    path: infra/k8s/execution-runtime/overlays/staging\n"
+                "  destination:\n"
+                "    server: https://kubernetes.default.svc\n"
+                "    namespace: campus-agent-staging\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                audit_gitops_skeleton(root=root),
+                (
+                    GitOpsSkeletonIssue(
+                        path="infra/gitops/apps/runtime.yaml",
+                        message="source[0].targetRevision must not use retired develop branch",
                     ),
                 ),
             )
@@ -102,7 +138,7 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
                 "  project: default\n"
                 "  source:\n"
                 "    repoURL: https://github.com/MUC-WIKI/campus-agent.git\n"
-                "    targetRevision: develop\n"
+                "    targetRevision: main\n"
                 "    path: infra/k8s/execution-runtime/overlays/staging\n"
                 "  destination:\n"
                 "    server: https://kubernetes.default.svc\n"
@@ -221,7 +257,7 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
                 "  project: default\n"
                 "  source:\n"
                 "    repoURL: https://github.com/MUC-WIKI/campus-agent.git\n"
-                "    targetRevision: develop\n"
+                "    targetRevision: main\n"
                 "    path: infra/k8s/execution-runtime/overlays/staging\n"
                 "  destination:\n"
                 "    server: https://kubernetes.default.svc\n"
@@ -405,6 +441,7 @@ class CheckGitOpsSkeletonTest(unittest.TestCase):
             "platform-sealed-secrets.yaml",
             "platform-temporal-alias-staging.yaml",
             "platform-temporal-staging.yaml",
+            "secret-delivery-staging.yaml",
         }
 
         self.assertEqual({path.name for path in app_dir.glob("*.yaml")}, expected)

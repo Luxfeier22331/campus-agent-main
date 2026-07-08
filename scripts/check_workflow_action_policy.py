@@ -23,6 +23,10 @@ TRUSTED_TAG_ACTIONS = frozenset(
         "ossf/scorecard-action",
         "pnpm/action-setup",
         "anchore/sbom-action",
+        "dorny/paths-filter",
+        "gitleaks/gitleaks-action",
+        "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml",
+        "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml",
     }
 )
 RETIRED_NODE20_ACTION_REFS = frozenset(
@@ -58,9 +62,11 @@ def audit_workflow_action_policy(
     *, root: Path | None = None
 ) -> tuple[WorkflowActionPolicyIssue, ...]:
     base = root or repo_root()
-    workflow_dir = base / ".github" / "workflows"
     issues: list[WorkflowActionPolicyIssue] = []
-    for workflow_path in sorted(workflow_dir.glob("*.yml")):
+    candidate_paths = tuple(sorted((base / ".github" / "workflows").glob("*.yml"))) + tuple(
+        sorted((base / ".github" / "actions").glob("*/action.yml"))
+    )
+    for workflow_path in candidate_paths:
         workflow = _read_yaml(workflow_path)
         relpath = workflow_path.relative_to(base).as_posix()
         for action_ref in _workflow_uses(workflow):

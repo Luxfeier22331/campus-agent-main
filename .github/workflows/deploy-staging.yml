@@ -1,0 +1,110 @@
+name: deploy-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy to staging
+        required: true
+        default: main
+        type: string
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://campus-staging.mucwiki-edge.link
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      STAGING_ACCESS_POLICY_AUD: ${{ secrets.STAGING_ACCESS_POLICY_AUD }}
+      STAGING_ACCESS_TEAM_DOMAIN: ${{ secrets.STAGING_ACCESS_TEAM_DOMAIN }}
+      STAGING_APP_API_DATABASE_SSLMODE: ${{ vars.STAGING_APP_API_DATABASE_SSLMODE }}
+      STAGING_APP_API_OPERATOR_DATABASE_URL: ${{ secrets.STAGING_APP_API_OPERATOR_DATABASE_URL }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ secrets.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
+      STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID: ${{ secrets.STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID }}
+      STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET }}
+      STAGING_EXECUTION_CONTROL_BASE_URL: ${{ vars.STAGING_EXECUTION_CONTROL_BASE_URL }}
+      STAGING_SENTRY_RELEASE: ${{ vars.STAGING_SENTRY_RELEASE }}
+    steps:
+      - name: Resolve ref
+        id: deploy_ref
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ inputs.ref }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=$DISPATCH_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=$PUSH_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.deploy_ref.outputs.ref }}
+
+      - name: Verify ref is on main history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor HEAD origin/main
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Deploy app-api staging
+        run: pnpm --dir apps/app-api deploy:staging
+
+      - name: Build and deploy campus-web staging
+        run: pnpm --dir apps/campus-web build:staging && pnpm --dir apps/campus-web deploy:staging
+
+      - name: Build and deploy operator console staging
+        run: pnpm --dir apps/operator-console-web build:staging && pnpm --dir apps/operator-console-web deploy:staging
+
+      - name: Verify staging readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
+            https://api-staging.mucwiki-edge.link/healthz \
+            https://api-staging.mucwiki-edge.link/readyz \
+            https://campus-staging.mucwiki-edge.link/healthz \
+            https://campus-staging.mucwiki-edge.link/readyz \
+            https://panel-staging.mucwiki-edge.link/healthz \
+            https://panel-staging.mucwiki-edge.link/readyz; do
+            curl --noproxy '*' --fail --show-error --silent --retry 3 --retry-delay 5 "$url" >/dev/null
+          done
+
+      - name: Write deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## Staging deployment"
+            echo ""
+            echo "- Ref: \`${{ steps.deploy_ref.outputs.ref }}\`"
+            echo "- Campus Web: https://campus-staging.mucwiki-edge.link"
+            echo "- App API: https://api-staging.mucwiki-edge.link"
+            echo "- Operator Console: https://panel-staging.mucwiki-edge.link"
+          } >> "$GITHUB_STEP_SUMMARY"

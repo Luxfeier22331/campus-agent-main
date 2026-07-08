@@ -87,7 +87,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   sanitized projection writeback
 - Docker Compose execution runtime 只保留 local / transitional evidence；长期
   production target substrate 已由 ADR-0056 与 Kubernetes execution runtime
-  architecture 收口为 K8s + KEDA。live staging/prod substrate 不能只由本文
+  architecture 收口为 K8s + KEDA。live staging/production substrate 不能只由本文
   文档措辞推断，必须看 applied resources、runtime env、operator projection 与
   release closeout artifacts。
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过

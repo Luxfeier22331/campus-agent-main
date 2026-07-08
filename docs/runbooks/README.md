@@ -20,7 +20,7 @@ updated: 2026-07-04
 - `execution-ops.md`
   - 当前 execution-control + Temporal staging runtime 运维入口。
 - `forward-worker-smoke.md`
-- `develop-main-release.md`
+- `main-release.md`
 - `ingestion-control-clean-target.md`
   - 当前 ingestion/data-plane operational 入口；旧 Python collection worker
     runbook 已归档。

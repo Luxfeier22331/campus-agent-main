@@ -13,7 +13,7 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   deletion policy and fans out traces to the local self-hosted Langfuse OTLP
   endpoint plus the Collector `debug` exporter. Metrics are also exported to
   the Axiom metrics dataset when Axiom endpoint/auth env is populated.
-- `collector-staging-template.yaml`: staging/prod template. It receives OTLP,
+- `collector-staging-template.yaml`: staging/production template. It receives OTLP,
   applies the same redaction chain, samples traces/logs, exports traces to
   Sentry, Axiom and Langfuse, exports logs to Axiom, and exports metrics to the
   Axiom metrics dataset.
@@ -78,7 +78,7 @@ real Collector binary.
 Without a local Collector binary, run the repo structural guards:
 
 ```bash
-pnpm ci:langfuse
+pnpm ci:eval
 pnpm contracts:check
 uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
 ```

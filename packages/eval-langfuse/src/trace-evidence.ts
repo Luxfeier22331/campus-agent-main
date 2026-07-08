@@ -132,7 +132,7 @@ function assertTraceIdentityContract(trace: JsonObject, observations: unknown[])
 	const identity: JsonObject = {};
 	for (const key of REQUIRED_TRACE_IDENTITY_ATTRIBUTES) {
 		const collected = values[key];
-		if (!collected || collected.size !== 1) {
+		if (collected?.size !== 1) {
 			throw new Error(`trace evidence must include exactly one ${key}`);
 		}
 		identity[key] = [...collected][0];

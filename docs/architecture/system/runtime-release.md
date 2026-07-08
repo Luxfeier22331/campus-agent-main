@@ -50,7 +50,7 @@ identity injection -> post-deploy smoke -> release closeout artifact`
   Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local /
   transitional runtime projection；production target deploy substrate 已由 ADR-0056
-  收口为 Kubernetes + KEDA。live staging/prod substrate 必须由 applied resources、
+  收口为 Kubernetes + KEDA。live staging/production substrate 必须由 applied resources、
   runtime env、operator projection 与 release closeout artifact 共同确认。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam

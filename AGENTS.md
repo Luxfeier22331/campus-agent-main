@@ -9,9 +9,12 @@ guidance in `docs/` and link to it from here.
 ## Project Snapshot
 
 - `campus-agent` is the v2 monorepo for the campus assistant system.
-- `develop` is the long-lived integration branch. `main` is the stable branch.
+- `main` is the long-lived integration and stable trunk. Short-lived feature
+  branches merge to `main` through pull requests.
 - When discussing merged truth, default to the state already merged into
-  `develop`. Feature worktree progress is not merged truth until merged.
+  `main`. Feature worktree progress is not merged truth until merged.
+- Production release state is selected through release tags and GitHub
+  Environments, not through a long-lived development branch.
 - `apps/` contains long-running transport/runtime boundaries, `jobs/` contains
   one-shot or scheduled deployable runtime boundaries, and `packages/` contains
   stable tool/domain boundaries.

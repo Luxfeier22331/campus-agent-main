@@ -14,7 +14,7 @@ spec:
         valueFiles:
           - $values/infra/gitops/values/traefik/nc-arm-6c-shadow.yaml
     - repoURL: https://github.com/MUC-WIKI/campus-agent.git
-      targetRevision: develop
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc

@@ -164,7 +164,7 @@ fan-out contract. `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`,
 Structural repo test:
 
 ```bash
-pnpm ci:langfuse
+pnpm ci:eval
 pnpm contracts:check
 ```
 
@@ -329,12 +329,12 @@ Expected closeout artifacts:
 Collector config structural smoke:
 
 ```bash
-pnpm ci:langfuse
+pnpm ci:eval
 pnpm contracts:check
 uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
 ```
 
-`pnpm ci:langfuse` covers the TS Langfuse package and trace id vector checks.
+`pnpm ci:eval` covers the TS Langfuse package and trace id vector checks.
 These checks prove the eval platform management plane can create sanitized
 artifacts; they do not replace the real staging trace and score publish closeout.
 `pnpm contracts:check` covers alert materialization and latency-budget coverage
