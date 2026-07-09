@@ -161,20 +161,21 @@ jq . .tmp/execution-control-staging/evidence/run-projection-schema-install.json
 jq . .tmp/execution-control-staging/evidence/run-projection-schema-check.json
 ```
 
-Run the repo-owned Temporal-ready HTTP validation against deployed
-execution-control. It only reads `/readyz` and requires the projection store and
-Temporal runtime to be explicitly healthy:
+Run the repo-owned Temporal-ready HTTP validation only from a network position
+that can reach execution-control directly, such as inside `nc-arm-6c` K8s or a
+temporary port-forward. Staging no longer exposes execution-control through a
+public ingress.
 
 ```bash
-execution_control_url="${STAGING_EXECUTION_CONTROL_BASE_URL:-http://127.0.0.1:27051}"
+execution_control_url="${EXECUTION_CONTROL_INTERNAL_BASE_URL:-http://127.0.0.1:27051}"
 go run ./cmd/temporal-runtime-http-proof \
   --execution-control-url "$execution_control_url" \
   --shared-secret "$EXECUTION_CONTROL_SHARED_SECRET" \
   --evidence-path "$evidence_dir/execution-control-temporal-http-proof.json"
 ```
 
-If machine ingress or app-api public deploy credentials are unavailable, local
-Temporal validation can validate the isolated staging directory substrate only:
+If direct internal reachability is unavailable, local Temporal validation can
+validate the isolated staging directory substrate only:
 
 ```bash
 infra/local/staging/proof-execution-control-temporal-runtime-staging.sh

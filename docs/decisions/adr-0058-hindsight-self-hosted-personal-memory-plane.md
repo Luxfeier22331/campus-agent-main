@@ -202,9 +202,11 @@ materialization proof, recall, observation type coverage, reflect with
 `based_on` facts, operation list sanitized projection, explicit profile
 upsert/disable, owner disable and user isolation. It does not evaluate
 repo-owned extraction prompts because extraction is delegated to Hindsight.
-The live staging runtime gate is
-`pnpm --dir apps/app-api hindsight:memory:e2e:staging`; the retired Python
-`scripts.eval_gate accept` path must not be used as the Hindsight live gate.
+The live staging runtime gate is the app-api chat memory E2E path and
+execution-control K8s readiness. App-api no longer exposes a direct staging
+script that calls execution-control internal memory endpoints; the retired
+Python `scripts.eval_gate accept` path must not be used as the Hindsight live
+gate.
 
 Current implementation includes bank bootstrap, bank-level Memory Defense
 redaction verification, sanitized `Reflect`, async operation status/list/action

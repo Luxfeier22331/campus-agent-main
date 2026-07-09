@@ -81,7 +81,7 @@ they do not authorize raw replay packet body export through telemetry.
 | --------------------- | --------------- | -------------- |
 | `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, legacy tool hint, scope summary, trace/request correlation |
 | `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
-| `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control machine ingress transport failure |
+| `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control private upstream transport failure |
 | `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
 | `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
 | `agent.bridge.failed` | `apps/execution-control` | Historical/offline bridge failure code, retryability and circuit-breaker decision |

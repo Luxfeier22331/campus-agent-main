@@ -6,13 +6,16 @@ import {
 	ExecutionControlTransportError,
 	parseExecutionControlErrorEnvelope,
 	parseExecutionControlJsonResponse,
+	resolveExecutionControlUpstream,
+	selectExecutionControlFetchImplementation,
 } from "./execution-control-transport";
 
 type ExecutionControlRuntimeEnv = Pick<
 	Env,
-	| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-	| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
+	| "APP_API_ENVIRONMENT"
 	| "EXECUTION_CONTROL_BASE_URL"
+	| "EXECUTION_CONTROL_PRIVATE"
+	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 	| "EXECUTION_CONTROL_SHARED_SECRET"
 	| "EXECUTION_CONTROL_TIMEOUT_MS"
 >;
@@ -225,9 +228,12 @@ export interface ExecutionControlPersonalMemoryClient {
 }
 
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
-	return Boolean(
-		env.EXECUTION_CONTROL_BASE_URL?.trim() && env.EXECUTION_CONTROL_SHARED_SECRET?.trim(),
-	);
+	try {
+		resolveExecutionControlUpstream(env);
+	} catch {
+		return false;
+	}
+	return Boolean(env.EXECUTION_CONTROL_SHARED_SECRET?.trim());
 }
 
 export function createExecutionControlRuntimeClient(
@@ -391,7 +397,7 @@ function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
 export function createExecutionControlRequester(
 	env: ExecutionControlRuntimeEnv,
 	input: {
-		fetchImplementation: typeof fetch;
+		fetchImplementation?: typeof fetch;
 		traceDataProvider: () => Record<string, unknown>;
 	},
 ): (
@@ -404,7 +410,6 @@ export function createExecutionControlRequester(
 		traceId?: string | null;
 	},
 ) => Promise<JsonRecord> {
-	const fetchImplementation = input.fetchImplementation;
 	const traceDataProvider = input.traceDataProvider;
 	return async function requestExecutionControl(
 		path: string,
@@ -416,9 +421,8 @@ export function createExecutionControlRequester(
 			traceId?: string | null;
 		},
 	): Promise<JsonRecord> {
-		const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
 		const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
-		if (!(baseUrl && sharedSecret)) {
+		if (!sharedSecret) {
 			throw new ExecutionControlTransportError({
 				code: "dependency_not_ready",
 				message: "Execution control runtime is not configured.",
@@ -426,6 +430,12 @@ export function createExecutionControlRequester(
 				status: 503,
 			});
 		}
+		const upstream = resolveExecutionControlUpstream(env);
+		const fetchImplementation = selectExecutionControlFetchImplementation(
+			env,
+			upstream,
+			input.fetchImplementation,
+		);
 
 		const timeoutMs = parsePositiveInteger(
 			env.EXECUTION_CONTROL_TIMEOUT_MS,
@@ -447,10 +457,9 @@ export function createExecutionControlRequester(
 					);
 				}, timeoutMs);
 
-				fetchImplementation(`${baseUrl}${path}`, {
+				fetchImplementation(`${upstream.baseUrl}${path}`, {
 					body: options.body ? JSON.stringify(options.body) : undefined,
 					headers: createExecutionControlRequestHeaders({
-						env,
 						payload: {
 							traceHeaders: options.traceHeaders,
 							traceId: options.traceId?.trim() || "",

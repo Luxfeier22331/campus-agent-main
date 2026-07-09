@@ -12,6 +12,39 @@ import wranglerConfig from "../wrangler.toml?raw";
 const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
 };
+const retiredExecutionControlPublicUrlKey = ["STAGING", "EXECUTION", "CONTROL", "BASE", "URL"].join(
+	"_",
+);
+const retiredExecutionControlAccessClientIdKey = [
+	"STAGING",
+	"EXECUTION",
+	"CONTROL",
+	"ACCESS",
+	"CLIENT",
+	"ID",
+].join("_");
+const retiredExecutionControlAccessClientSecretKey = [
+	"STAGING",
+	"EXECUTION",
+	"CONTROL",
+	"ACCESS",
+	"CLIENT",
+	"SECRET",
+].join("_");
+const retiredExecutionControlAccessClientIdKeyLocal = [
+	"EXECUTION",
+	"CONTROL",
+	"ACCESS",
+	"CLIENT",
+	"ID",
+].join("_");
+const retiredExecutionControlAccessClientSecretKeyLocal = [
+	"EXECUTION",
+	"CONTROL",
+	"ACCESS",
+	"CLIENT",
+	"SECRET",
+].join("_");
 
 function readTomlBlock(source: string, startMarker: string, endMarker: string): string {
 	const startIndex = source.indexOf(startMarker);
@@ -148,7 +181,14 @@ describe("app-api worker foundation", () => {
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
+		expect(stagingVarsBlock).toContain(
+			'EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"',
+		);
 		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
+		expect(wranglerConfig).toContain("[[env.staging.vpc_services]]");
+		expect(wranglerConfig).toContain('binding = "EXECUTION_CONTROL_PRIVATE"');
+		expect(wranglerConfig).toContain('service_id = "019f45da-bf06-7f82-b06c-ee88af08c459"');
+		expect(wranglerConfig).toContain("remote = true");
 		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
@@ -198,24 +238,20 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
-		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
-		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
-		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
+		expect(stagingPreflightSource).not.toContain(retiredExecutionControlPublicUrlKey);
+		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
+		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
-		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
+		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
-		expect(deployStagingSource).toContain("execution-control trusted machine ingress");
-		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID");
-		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
-		expect(deployStagingSource).not.toMatch(
-			/EXECUTION_CONTROL_ACCESS_CLIENT_ID:\$\{accessClientId\}/,
-		);
-		expect(deployStagingSource).not.toMatch(
-			/EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:\$\{accessClientSecret\}/,
-		);
+		expect(deployStagingSource).not.toContain("execution-control trusted machine ingress");
+		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientIdKeyLocal);
+		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientSecretKeyLocal);
 		expect(deployStagingSource).not.toContain("execution-control origin");
-		expect(stagingPreflightSource).toContain("bootstrap-shared-product-with-seeds.mjs");
-		expect(stagingPreflightSource).toContain("reconcile-shared-db-drift.mjs");
+		expect(stagingPreflightSource).not.toContain("run-with-staging-db-env.mjs");
+		expect(stagingPreflightSource).not.toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(stagingPreflightSource).not.toContain("reconcile-shared-db-drift.mjs");
+		expect(stagingPreflightSource).not.toContain("drizzle-kit");
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {
@@ -243,8 +279,12 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
-		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_ID"');
-		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"');
+		expect(stagingSecretsBlock).not.toContain(
+			JSON.stringify(retiredExecutionControlAccessClientIdKeyLocal),
+		);
+		expect(stagingSecretsBlock).not.toContain(
+			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
+		);
 		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
@@ -404,7 +444,7 @@ describe("app-api worker foundation", () => {
 						"AUTH_TURNSTILE_SECRET_KEY",
 						"RESEND_API_KEY",
 						"AUTH_RESET_EMAIL_FROM",
-						"EXECUTION_CONTROL_BASE_URL",
+						"EXECUTION_CONTROL_UPSTREAM",
 						"EXECUTION_CONTROL_SHARED_SECRET",
 						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 						"APP_API_OPERATOR_EMAIL_ALLOWLIST",

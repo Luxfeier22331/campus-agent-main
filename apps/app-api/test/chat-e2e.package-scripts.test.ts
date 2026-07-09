@@ -28,12 +28,6 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["chat:memory:e2e:staging"]).toContain(
 			"run-with-staging-smoke-env.mjs",
 		);
-		expect(packageJson.scripts["hindsight:memory:e2e:staging"]).toContain(
-			"scripts/hindsight-memory-e2e-staging.ts",
-		);
-		expect(packageJson.scripts["hindsight:memory:e2e:staging"]).toContain(
-			"run-with-staging-smoke-env.mjs",
-		);
 		expect(packageJson.scripts["runtime-db:proof:staging"]).toContain(
 			"scripts/staging-runtime-db-proof.ts",
 		);
@@ -47,6 +41,7 @@ describe("chat e2e package scripts", () => {
 
 	it("does not keep the legacy staging smoke command as a public script", () => {
 		expect(packageJson.scripts["chat:smoke:staging"]).toBeUndefined();
+		expect(packageJson.scripts["hindsight:memory:e2e:staging"]).toBeUndefined();
 	});
 
 	it("does not expose the retired self-built online answer eval collector", () => {

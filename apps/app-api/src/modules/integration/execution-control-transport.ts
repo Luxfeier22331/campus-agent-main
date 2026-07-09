@@ -1,4 +1,10 @@
-import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
+import {
+	DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
+	type Env,
+	isDeployedEnvironment,
+	parsePositiveInteger,
+	resolveEnvironment,
+} from "../../config";
 import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
 
 import type { ToolExecutionInput } from "./tool-execution-types";
@@ -69,10 +75,11 @@ export interface ExecutionControlReadinessProbeResult {
 export async function probeExecutionControlReady(
 	env: Pick<
 		Env,
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-		| "EXECUTION_CONTROL_BASE_URL"
+		| "APP_API_ENVIRONMENT"
 		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>,
 	input: {
@@ -101,10 +108,11 @@ export async function probeExecutionControlReady(
 export async function probeExecutionControlOperatorRuntimeHealth(
 	env: Pick<
 		Env,
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-		| "EXECUTION_CONTROL_BASE_URL"
+		| "APP_API_ENVIRONMENT"
 		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>,
 	input: {
@@ -128,31 +136,28 @@ export async function probeExecutionControlOperatorRuntimeHealth(
 async function fetchExecutionControlReadyz(
 	env: Pick<
 		Env,
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-		| "EXECUTION_CONTROL_BASE_URL"
+		| "APP_API_ENVIRONMENT"
 		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>,
 	input: {
 		fetchImplementation?: typeof fetch;
 	} = {},
 ): Promise<Response> {
-	const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
-	if (!baseUrl) {
-		throw new ExecutionControlTransportError({
-			code: "dependency_not_ready",
-			message: "Execution control is not configured.",
-			retryable: true,
-			status: 503,
-		});
-	}
+	const upstream = resolveExecutionControlUpstream(env);
 
 	const timeoutMs = parsePositiveInteger(
 		env.EXECUTION_CONTROL_TIMEOUT_MS,
 		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
 	);
-	const fetchImplementation = input.fetchImplementation ?? fetch;
+	const fetchImplementation = selectExecutionControlFetchImplementation(
+		env,
+		upstream,
+		input.fetchImplementation,
+	);
 
 	let response: Response;
 	try {
@@ -170,7 +175,7 @@ async function fetchExecutionControlReadyz(
 				);
 			}, timeoutMs);
 
-			fetchImplementation(`${baseUrl}/readyz`, {
+			fetchImplementation(`${upstream.baseUrl}/readyz`, {
 				headers: createExecutionControlReadinessHeaders(env),
 				method: "GET",
 				signal: controller.signal,
@@ -535,7 +540,6 @@ export function mapStatusCodeToErrorCode(status: number): string {
 }
 
 export function createExecutionControlRequestHeaders(input: {
-	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">;
 	payload: Pick<ToolExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
@@ -558,38 +562,80 @@ export function createExecutionControlRequestHeaders(input: {
 	if (input.payload.traceHeaders) {
 		applyTracePropagationHeaders(headers, input.payload.traceHeaders);
 	}
-	return {
-		...Object.fromEntries(headers.entries()),
-		...createCloudflareAccessServiceTokenHeaders(input.env),
-	};
-}
-
-export function createCloudflareAccessServiceTokenHeaders(
-	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">,
-): Record<string, string> {
-	const clientId = env.EXECUTION_CONTROL_ACCESS_CLIENT_ID?.trim();
-	const clientSecret = env.EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?.trim();
-	if (!(clientId && clientSecret)) {
-		return {};
-	}
-
-	return {
-		"CF-Access-Client-Id": clientId,
-		"CF-Access-Client-Secret": clientSecret,
-	};
+	return Object.fromEntries(headers.entries());
 }
 
 function createExecutionControlReadinessHeaders(
-	env: Pick<
-		Env,
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-		| "EXECUTION_CONTROL_SHARED_SECRET"
-	>,
+	env: Pick<Env, "EXECUTION_CONTROL_SHARED_SECRET">,
 ): Record<string, string> {
 	const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
 	return {
 		...(sharedSecret ? { "x-worker-origin-auth": sharedSecret } : {}),
-		...createCloudflareAccessServiceTokenHeaders(env),
+	};
+}
+
+export interface ExecutionControlUpstream {
+	baseUrl: string;
+	fetch: typeof fetch;
+}
+
+export function selectExecutionControlFetchImplementation(
+	env: Pick<Env, "APP_API_ENVIRONMENT">,
+	upstream: ExecutionControlUpstream,
+	override?: typeof fetch,
+): typeof fetch {
+	if (isDeployedEnvironment(resolveEnvironment(env))) {
+		return upstream.fetch;
+	}
+	return override ?? upstream.fetch;
+}
+
+export function resolveExecutionControlUpstream(
+	env: Pick<
+		Env,
+		| "APP_API_ENVIRONMENT"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
+	>,
+): ExecutionControlUpstream {
+	const environment = resolveEnvironment(env);
+	const privateFetch = env.EXECUTION_CONTROL_PRIVATE?.fetch;
+	if (isDeployedEnvironment(environment)) {
+		if (typeof privateFetch !== "function") {
+			throw new ExecutionControlTransportError({
+				code: "dependency_not_ready",
+				message: "Execution control private service binding is not configured.",
+				retryable: true,
+				status: 503,
+			});
+		}
+		const privateOrigin = env.EXECUTION_CONTROL_PRIVATE_ORIGIN?.trim();
+		if (!privateOrigin) {
+			throw new ExecutionControlTransportError({
+				code: "dependency_not_ready",
+				message: "Execution control private service origin is not configured.",
+				retryable: true,
+				status: 503,
+			});
+		}
+		return {
+			baseUrl: privateOrigin.replace(/\/+$/u, ""),
+			fetch: privateFetch.bind(env.EXECUTION_CONTROL_PRIVATE) as typeof fetch,
+		};
+	}
+
+	const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
+	if (!baseUrl) {
+		throw new ExecutionControlTransportError({
+			code: "dependency_not_ready",
+			message: "Execution control is not configured.",
+			retryable: true,
+			status: 503,
+		});
+	}
+	return {
+		baseUrl,
+		fetch,
 	};
 }

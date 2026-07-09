@@ -4,7 +4,6 @@ namespace: campus-agent-staging
 resources:
   - ../../base
   - patch-network-policy.yaml
-  - staging-ingress.yaml
 images:
   - name: ghcr.io/muc-wiki/campus-agent/execution-control
     newTag: staging

@@ -25,19 +25,19 @@ class CheckK8sExecutionRuntimeFullOverlayTest(unittest.TestCase):
 
         self.assertEqual([f"{issue.path}: {issue.message}" for issue in issues], [])
 
-    def test_ingresses_are_owned_by_traefik_staging_class(self) -> None:
-        ingresses = {
-            doc["metadata"]["name"]: doc for doc in _rendered_docs() if doc.get("kind") == "Ingress"
+    def test_full_overlay_uses_private_service_path_without_public_ingress(self) -> None:
+        docs = _rendered_docs()
+        ingresses = [doc for doc in docs if doc.get("kind") == "Ingress"]
+        deployments = {
+            doc["metadata"]["name"]: doc for doc in docs if doc.get("kind") == "Deployment"
         }
 
-        self.assertEqual(set(ingresses), {"execution-control-staging"})
-        for ingress in ingresses.values():
-            with self.subTest(ingress=ingress["metadata"]["name"]):
-                self.assertEqual(ingress["spec"]["ingressClassName"], "traefik-staging")
-                self.assertEqual(
-                    ingress["spec"]["tls"][0]["secretName"],
-                    "mucwiki-edge-origin-tls",
-                )
+        self.assertEqual(ingresses, [])
+        self.assertIn("cloudflared-execution-control", deployments)
+        args = deployments["cloudflared-execution-control"]["spec"]["template"]["spec"][
+            "containers"
+        ][0]["args"]
+        self.assertIn("--token-file", args)
 
 
 def _rendered_docs() -> tuple[dict, ...]:

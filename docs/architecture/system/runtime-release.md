@@ -87,8 +87,8 @@ identity injection -> post-deploy smoke -> release closeout artifact`
 - production hostname 应新增独立 env truth，而不是覆写 staging baseline
 - `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 在 Worker web
   surfaces 中固定为 `https://app-api.internal`，只用于 Service Binding request construction
-- `api-staging.mucwiki-edge.link` 不得作为 browser surface upstream invariant；若保留，
-  必须按 machine ingress 处理
+- `api-staging.mucwiki-edge.link` 是 app-api public staging surface，不得被当作
+  browser-internal upstream invariant
 
 ## Release Identity
 
@@ -134,16 +134,17 @@ release identity 的长期规则固定为：
 
 ### Upstream Execution Gate
 
-- `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_CONTROL_BASE_URL`
-- staging forward deploy truth 必须指向真实可达的 Go `execution-control` origin；
-  production target deploy truth 应指向 Kubernetes internal execution-control Service
-  或受保护 machine ingress。不得只因旧 runbook/docs 仍提到 Compose 就推断 live
-  staging substrate。
-- 如果 Docker execution-control ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
-  `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
-- `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
-- repo-owned staging runbook 只消费 `execution-control` execution origin；不再保留
-  dev-backed path
+- `app-api` staging deploy 必须包含 `EXECUTION_CONTROL_PRIVATE` Worker VPC Service
+  binding，并显式配置非密的 `EXECUTION_CONTROL_PRIVATE_ORIGIN`
+- staging forward deploy truth 是
+  `app-api Worker -> Worker VPC Service -> cloudflared in nc-arm-6c K8s ->
+  ClusterIP execution-control:8000`
+- staging 不再要求旧的 execution-control public URL deploy 变量，也不再通过
+  Cloudflare Access service-token 访问 execution-control public ingress
+- `127.0.0.1`、repo placeholder、失效 tunnel 或被删除的 Ingress 不属于 deploy truth
+- repo-owned staging runbook 只消费 app-api / campus-web / operator-console public
+  product surfaces；execution-control readiness 由 app-api readyz 与 K8s/GitOps
+  状态间接证明
 
 ### Execution Runtime Gate
 

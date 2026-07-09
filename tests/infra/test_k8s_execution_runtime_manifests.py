@@ -11,6 +11,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 K8S_ROOT = ROOT / "infra/k8s/execution-runtime/base"
 STAGING_OVERLAY = ROOT / "infra/k8s/execution-runtime/overlays/staging"
+NC_ARM_6C_STAGING_FULL_OVERLAY = (
+    ROOT / "infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full"
+)
 
 WORKERS = {
     "workflow-worker": ("workflow", "campus-agent.workflow", 3),
@@ -55,6 +58,27 @@ def _by_kind_name(kind: str) -> dict[str, dict[str, Any]]:
         if doc.get("kind") == kind:
             result[str(doc["metadata"]["name"])] = doc
     return result
+
+
+def _render_overlay_docs(path: Path) -> list[dict[str, Any]]:
+    if shutil.which("kubectl") is None:
+        raise unittest.SkipTest("kubectl is required for kustomize overlay validation")
+    rendered = subprocess.run(
+        ["kubectl", "kustomize", str(path)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return [doc for doc in yaml.safe_load_all(rendered) if isinstance(doc, dict)]
+
+
+def _overlay_by_kind_name(path: Path, kind: str) -> dict[str, dict[str, Any]]:
+    return {
+        str(doc["metadata"]["name"]): doc
+        for doc in _render_overlay_docs(path)
+        if doc.get("kind") == kind
+    }
 
 
 def _deployment_container(deployment: dict[str, Any]) -> dict[str, Any]:
@@ -447,6 +471,71 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         )
         self.assertEqual(
             keda_policy["spec"]["ingress"][0]["ports"], [{"protocol": "TCP", "port": 7233}]
+        )
+
+    def test_private_execution_control_path_is_owned_by_cloudflared(self) -> None:
+        deployments = _by_kind_name("Deployment")
+
+        cloudflared = deployments["cloudflared-execution-control"]
+        self.assertEqual(cloudflared["spec"]["replicas"], 2)
+        self.assertNotIn(
+            "app.kubernetes.io/part-of",
+            cloudflared["metadata"].get("labels", {}),
+        )
+        self.assertNotIn(
+            "app.kubernetes.io/part-of",
+            cloudflared["spec"]["template"]["metadata"].get("labels", {}),
+        )
+        pod_spec = cloudflared["spec"]["template"]["spec"]
+        self.assertEqual(pod_spec["serviceAccountName"], "execution-runtime")
+        container = pod_spec["containers"][0]
+        self.assertEqual(container["image"], "cloudflare/cloudflared:2026.7.0")
+        self.assertIn("--token-file", container["args"])
+        self.assertIn("/var/run/cloudflared/token", container["args"])
+        self.assertEqual(
+            pod_spec["volumes"][0]["secret"]["secretName"],
+            "cloudflared-execution-control-tunnel-token",
+        )
+
+    def test_nc_arm_6c_overlay_routes_execution_control_through_private_service_path(
+        self,
+    ) -> None:
+        policies = _overlay_by_kind_name(NC_ARM_6C_STAGING_FULL_OVERLAY, "NetworkPolicy")
+
+        private_policy = policies["execution-runtime-private-service-path"]
+        self.assertEqual(
+            private_policy["spec"]["podSelector"]["matchLabels"],
+            {"app.kubernetes.io/name": "execution-control"},
+        )
+        self.assertEqual(private_policy["spec"]["policyTypes"], ["Ingress"])
+        self.assertNotIn("egress", private_policy["spec"])
+        self.assertEqual(
+            private_policy["spec"]["ingress"][0]["from"],
+            [
+                {
+                    "podSelector": {
+                        "matchLabels": {"app.kubernetes.io/name": "cloudflared-execution-control"}
+                    }
+                }
+            ],
+        )
+        self.assertEqual(
+            private_policy["spec"]["ingress"][0]["ports"],
+            [{"protocol": "TCP", "port": 8000}],
+        )
+
+        cloudflared_policy = policies["cloudflared-execution-control-egress"]
+        self.assertEqual(
+            cloudflared_policy["spec"]["podSelector"]["matchLabels"],
+            {"app.kubernetes.io/name": "cloudflared-execution-control"},
+        )
+        self.assertEqual(
+            cloudflared_policy["spec"]["egress"][1]["to"],
+            [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "execution-control"}}}],
+        )
+        self.assertEqual(
+            cloudflared_policy["spec"]["egress"][1]["ports"],
+            [{"protocol": "TCP", "port": 8000}],
         )
 
     def test_release_overlay_cannot_keep_mutable_runtime_identity(self) -> None:

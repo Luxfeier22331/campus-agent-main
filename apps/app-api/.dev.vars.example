@@ -22,10 +22,6 @@ EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
 EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
-# Optional. Required only when EXECUTION_CONTROL_BASE_URL is protected by
-# Cloudflare Access service-token authentication.
-EXECUTION_CONTROL_ACCESS_CLIENT_ID=
-EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the operator surface.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 APP_API_OPERATOR_SERVICE_ID_ALLOWLIST=

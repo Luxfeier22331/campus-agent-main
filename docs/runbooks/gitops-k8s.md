@@ -90,11 +90,12 @@ helm template traefik-staging traefik/traefik \
   -f infra/gitops/values/traefik/nc-arm-6c-shadow.yaml
 ```
 
-Shadow route proof uses the real host header against `18443`:
+Shadow route proof uses product surface hosts against `18443`; execution-control
+is not exposed through Traefik in the full staging overlay:
 
 ```bash
-curl -k --resolve execution-control-staging.mucwiki-edge.link:18443:127.0.0.1 \
-  https://execution-control-staging.mucwiki-edge.link:18443/healthz
+curl -k --resolve api-staging.mucwiki-edge.link:18443:127.0.0.1 \
+  https://api-staging.mucwiki-edge.link:18443/healthz
 ```
 
 Cutover to `80/443` requires a backup and reversible stop point:

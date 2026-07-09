@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-03
-updated: 2026-06-09
+updated: 2026-07-09
 ---
 # E2E QA Release Runbook
 
@@ -159,13 +159,6 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-memory-recall.json"
 ```
 
-运行 Hindsight personal memory product-path runtime gate：
-
-```bash
-pnpm --dir apps/app-api hindsight:memory:e2e:staging \
-  | tee "$E2E_QA_CLOSEOUT_DIR/hindsight-memory-e2e-staging.json"
-```
-
 运行真实 chat + app-api Postgres projection + Hyperdrive usage closeout：
 
 ```bash
@@ -181,6 +174,11 @@ Hyperdrive GraphQL 指标。`--output` 写入纯 JSON closeout artifact；stdout
 不要用 shell `tee` 生成 `.json` artifact。`--output` 只接受绝对路径，避免
 `pnpm --dir apps/app-api` 改变工作目录后把 artifact 写进 app 子目录。它不会打印
 Cloudflare token、Postgres DSN 或 Worker secrets。
+
+这条 runtime DB closeout 是 ops / release proof，不是
+`.github/workflows/deploy-staging.yml` 的部署前置条件。GitHub `staging`
+environment 不需要保存 staging operator DB DSN、DB sslmode 或 execution-control
+Access service-token credential。
 
 通过标准：
 

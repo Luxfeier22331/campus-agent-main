@@ -5,6 +5,7 @@ resources:
   - service-account.yaml
   - configmap.yaml
   - network-policy.yaml
+  - cloudflared-execution-control.yaml
   - availability.yaml
   - agent-runtime.yaml
   - execution-control.yaml

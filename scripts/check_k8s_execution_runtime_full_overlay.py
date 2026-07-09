@@ -12,6 +12,7 @@ import yaml
 
 _DEFAULT_OVERLAY = Path("infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full")
 _REQUIRED_DEPLOYMENTS = {
+    "cloudflared-execution-control",
     "execution-control",
     "agent-runtime",
     "workflow-worker",
@@ -25,7 +26,7 @@ _REQUIRED_SERVICES = {
     "execution-control",
     "agent-runtime",
 }
-_REQUIRED_INGRESSES = {"execution-control-staging"}
+_FORBIDDEN_INGRESSES = {"execution-control-staging"}
 _REQUIRED_SCALED_OBJECTS = {
     "workflow-worker",
     "activity-worker-core",
@@ -76,7 +77,6 @@ def audit_full_overlay(
     issues: list[FullOverlayIssue] = []
     issues.extend(_require_kind_names(docs, overlay, "Deployment", _REQUIRED_DEPLOYMENTS))
     issues.extend(_require_kind_names(docs, overlay, "Service", _REQUIRED_SERVICES))
-    issues.extend(_require_kind_names(docs, overlay, "Ingress", _REQUIRED_INGRESSES))
     issues.extend(_require_kind_names(docs, overlay, "ScaledObject", _REQUIRED_SCALED_OBJECTS))
 
     for doc in docs:
@@ -95,6 +95,13 @@ def audit_full_overlay(
                 FullOverlayIssue(
                     path=overlay.as_posix(),
                     message=f"full overlay must not include host-bridge EndpointSlice {name}",
+                )
+            )
+        if kind == "Ingress" and name in _FORBIDDEN_INGRESSES:
+            issues.append(
+                FullOverlayIssue(
+                    path=overlay.as_posix(),
+                    message=f"full overlay must not expose retired public machine ingress {name}",
                 )
             )
         if kind == "StatefulSet":
@@ -123,21 +130,12 @@ def audit_full_overlay(
                     )
                 )
         if kind == "Ingress":
-            spec = doc.get("spec", {})
-            if spec.get("ingressClassName") != "traefik-staging":
-                issues.append(
-                    FullOverlayIssue(
-                        path=overlay.as_posix(),
-                        message=f"Ingress {name} must use ingressClassName traefik-staging",
-                    )
+            issues.append(
+                FullOverlayIssue(
+                    path=overlay.as_posix(),
+                    message=f"execution-runtime full overlay must not expose Ingress {name}",
                 )
-            if not spec.get("tls"):
-                issues.append(
-                    FullOverlayIssue(
-                        path=overlay.as_posix(),
-                        message=f"Ingress {name} must declare TLS",
-                    )
-                )
+            )
 
     return tuple(issues)
 

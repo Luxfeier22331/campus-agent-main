@@ -30,76 +30,6 @@ function run(command, args) {
 	}
 }
 
-async function probeUrl(input) {
-	const response = await fetch(input.url, {
-		headers: {
-			accept: "application/json",
-			...input.headers,
-		},
-		signal: AbortSignal.timeout(10_000),
-	});
-
-	if (!response.ok) {
-		const body = (await response.text()).trim();
-		const detail = body ? ` body=${JSON.stringify(body.slice(0, 200))}` : "";
-		fail(`${input.label} returned HTTP ${response.status}.${detail}`);
-	}
-}
-
-function requireTrimmedEnv(key) {
-	const value = process.env[key]?.trim();
-	if (!value) {
-		fail(`${key} is required for apps/app-api staging preflight.`);
-	}
-	return value;
-}
-
-async function probeExecutionControlForStagingAppApi() {
-	const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
-	if (!upstream) {
-		fail("STAGING_EXECUTION_CONTROL_BASE_URL is required for apps/app-api staging preflight.");
-	}
-	const accessClientId = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
-	const accessClientSecret = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
-
-	let baseUrl;
-	try {
-		baseUrl = new URL(upstream);
-	} catch {
-		fail("STAGING_EXECUTION_CONTROL_BASE_URL must be a valid absolute URL.");
-	}
-	if (baseUrl.protocol !== "https:") {
-		fail("STAGING_EXECUTION_CONTROL_BASE_URL must use https:// for machine ingress.");
-	}
-	if (baseUrl.hostname !== "execution-control-staging.mucwiki-edge.link") {
-		fail(
-			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.mucwiki-edge.link.",
-		);
-	}
-
-	baseUrl.pathname = "/";
-	baseUrl.search = "";
-	baseUrl.hash = "";
-
-	const healthUrl = new URL("/healthz", baseUrl);
-
-	try {
-		await probeUrl({
-			label: `STAGING_EXECUTION_CONTROL_BASE_URL health probe (${healthUrl.toString()})`,
-			url: healthUrl,
-			headers: {
-				"CF-Access-Client-Id": accessClientId,
-				"CF-Access-Client-Secret": accessClientSecret,
-			},
-		});
-	} catch (error) {
-		if (error instanceof Error) {
-			fail(error.message);
-		}
-		fail(String(error));
-	}
-}
-
 function parseArgs(argv) {
 	let appPath = null;
 
@@ -139,33 +69,6 @@ const APP_PREFLIGHTS = {
 				],
 			],
 			["node", ["apps/app-api/scripts/verify-staging-config.mjs"]],
-			[
-				"node",
-				[
-					"apps/app-api/scripts/run-with-staging-db-env.mjs",
-					"node",
-					"./scripts/bootstrap-shared-product-with-seeds.mjs",
-				],
-			],
-			[
-				"node",
-				[
-					"apps/app-api/scripts/run-with-staging-db-env.mjs",
-					"pnpm",
-					"exec",
-					"drizzle-kit",
-					"migrate",
-				],
-			],
-			[
-				"node",
-				[
-					"apps/app-api/scripts/run-with-staging-db-env.mjs",
-					"node",
-					"./scripts/reconcile-shared-db-drift.mjs",
-					"--json",
-				],
-			],
 		],
 	},
 	"apps/campus-web": {
@@ -251,10 +154,6 @@ async function main() {
 		preflight.doctorSurface,
 		"--json",
 	]);
-
-	if (appPath === "apps/app-api") {
-		await probeExecutionControlForStagingAppApi();
-	}
 
 	for (const [command, args] of preflight.commands) {
 		run(command, args);

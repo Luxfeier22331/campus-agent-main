@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-05-01
+updated: 2026-07-09
 ---
 # Execution Control Staging Smoke Runbook
 
@@ -44,12 +44,17 @@ execution origin 为准。
   self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops validation、
   UI 排障或 eval/trace UI 会话中显式 opt-in。模型可见工具由 `tools.v4` 与
   execution-control runtime config 控制，不再通过额外 worker 进程打开。
-- `execution-control` 不作为 public staging surface；machine ingress 固定为
-  `https://execution-control-staging.mucwiki-edge.link`
-- `app-api-staging` 必须配置 execution-control Access service-token credentials 与
-  `x-worker-origin-auth` shared secret；缺任一都 fail closed
-- 只有当 trusted machine upstream URL 或 Access service-token credential 变化时，才需要重新
-  deploy `app-api`
+- `execution-control` 不作为 public staging surface；`app-api-staging` 通过
+  Cloudflare Worker VPC Service binding 访问 K8s 内的 ClusterIP Service
+- `cloudflared-execution-control` connector 在 `nc-arm-6c` K8s 内运行，使用
+  SealedSecret 投递 tunnel token
+- `app-api-staging` runtime 必须已经通过 Cloudflare Worker secret store 配置
+  `EXECUTION_CONTROL_SHARED_SECRET`；缺失时 fail closed
+- GitHub staging deploy 不注入 execution-control public URL。Worker VPC Service
+  binding 和 `EXECUTION_CONTROL_PRIVATE_ORIGIN` 由 `apps/app-api/wrangler.toml`
+  承载。
+- 只有当 private Service binding、private origin 或 app-api Worker runtime secret
+  变化时，才需要重新 deploy 或重新配置 `app-api`
 
 ## 判定标准
 
@@ -88,22 +93,17 @@ kubectl -n campus-agent-staging get pods,svc,ingress
 - Temporal、Hindsight、Qdrant、OTel、Postgres 由对应 platform/data Application
   提供，不通过 execution-runtime overlay 或 host-bridge 补齐
 
-如果需要重装 machine ingress reverse proxy 或 Cloudflare Access policy，按
-`execution-ops.md` 的 `配置 machine ingress reverse proxy` 执行。
+如果 `cloudflared-execution-control` 或 Cloudflare VPC Service binding 发生变化，先让
+GitOps 同步 K8s connector，再重新 deploy `app-api-staging`。
 
 ## Step 2. 判断是否需要重新 deploy app-api staging
 
-如果 `STAGING_EXECUTION_CONTROL_BASE_URL`、Cloudflare Access service-token credential、
-`EXECUTION_CONTROL_SHARED_SECRET` 或 app-api Worker secret 发生变化，必须重新 deploy
+如果 `EXECUTION_CONTROL_PRIVATE` binding、`EXECUTION_CONTROL_PRIVATE_ORIGIN` 或
+`EXECUTION_CONTROL_SHARED_SECRET` 发生变化，必须重新 deploy 或重新配置
 `app-api-staging`。
 
 ```bash
-base_url=https://execution-control-staging.mucwiki-edge.link
-env \
-  STAGING_EXECUTION_CONTROL_BASE_URL="$base_url" \
-  STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID=<client-id> \
-  STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=<client-secret> \
-  pnpm --dir apps/app-api deploy:staging
+pnpm --dir apps/app-api deploy:staging
 ```
 
 然后检查：
@@ -135,7 +135,7 @@ curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
 
 - product surface health / ready endpoints 返回预期 `200`
 - `api-staging /readyz` 中 `executionControl` 与 `executionRuntime` 为 `ready`
-- 不直接把 execution-control machine ingress 作为 public surface smoke endpoint
+- 不直接把 execution-control internal endpoint 作为 public surface smoke endpoint
 
 ## Step 4. Authenticated Chat Smoke
 
@@ -215,49 +215,10 @@ pnpm --dir apps/app-api chat:memory:e2e:staging
 `recall.status=completed` 且 `recall.selectedMemoryCount > 0`。它不以自然语言
 回答是否提到记忆作为验收依据。
 
-Hindsight personal memory runtime gate 通过 staging smoke runner 调用
-execution-control internal memory commands，覆盖 append accepted、operation
-status/list、recall、reflect based_on facts、profile upsert / disable、owner
-disable / RTBF 与 user isolation：
-
-```bash
-pnpm --dir apps/app-api hindsight:memory:e2e:staging
-```
-
-该 lane 需要当前 shell 提供：
-
-- `EXECUTION_CONTROL_BASE_URL` 或 `STAGING_EXECUTION_CONTROL_BASE_URL`
-- `API_WORKER_SHARED_SECRET` 或 `EXECUTION_CONTROL_SHARED_SECRET`
-
-通过标准：
-
-- completed turn append 返回 accepted，并能通过 operation status 或后续 recall /
-  reflect 证明 materialization
-- cross-thread recall、observation recall type 与 reflect based_on facts 都返回
-  sanitized projection
-- explicit profile memory upsert / disable、operation list、owner disable /
-  RTBF 与 user isolation 都完成
-- 只记录 schema、status、hash 与字段级 token
-- 不保存 raw transcript、provider raw response、Hindsight raw payload 或 API key
-- 不用 `not_collected`、离线 fixture 或退休 Python eval gate 冒充 live smoke
-
-公开官网搜索 typed tool 的 readiness smoke 通过 staging smoke runner 直连
-execution-control internal query endpoint：
-
-```bash
-(
-  cd apps/app-api &&
-  node ./scripts/run-with-staging-smoke-env.mjs \
-    pnpm exec tsx ./scripts/public-web-search-smoke-staging.ts
-)
-```
-
-这条命令只证明 `public_web_search` provider profile、machine ingress、
-`x-execution-query-auth` 与 sanitized source projection 可用。通过标准是
-`passed=true`，每个 sample 都返回 `resultKind=public_web_evidence`，且所有
-source URL 都是 HTTPS `muc.edu.cn` 或其公开子域，不包含 `my.muc.edu.cn`、
-显式端口、外部域名、raw provider response、raw HTML 或 source body。它不是
-RAGAS 评分，也不替代主链路 chat smoke。
+不再保留直连 execution-control internal endpoint 的 staging smoke。Hindsight /
+public web search 等能力验证必须通过 app-api chat stream、operator read model 或
+execution-control K8s readiness 间接证明；需要内部 endpoint 诊断时在 nc-arm-6c 内部
+临时执行，不进入 app-api package script 或 release closeout。
 
 公开官网搜索 agent eval 必须走 app-api chat stream，而不是直连 tool endpoint：
 
@@ -290,13 +251,10 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 - `kubectl -n campus-agent-staging get pods,svc,ingress`
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
-- `pnpm --dir apps/app-api public-web-search:smoke:staging` 的 JSON 摘要（仅当本轮改动触及
-  `public_web_search` tool/provider/config）
 - `pnpm --dir packages/eval-langfuse langfuse run-public-web-search-agent-eval ...`
   的 JSON 摘要（仅当本轮改动触及 public web search agent/tool routing/source projection）
-- 当前 app-api Worker 配置的
-  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link`
-  与 Access service-token secret presence
+- 当前 app-api Worker 配置包含 `EXECUTION_CONTROL_PRIVATE` VPC Service binding 与
+  `EXECUTION_CONTROL_PRIVATE_ORIGIN`
 
 ## Rollback
 

@@ -257,8 +257,10 @@ JSON 命名保持 `snake_case`，原因如下：
   第一版可以直接复用这个名字
 - `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `execution-control` 的长期 contract
   一部分
-- Cloudflare Access service token 只保护 machine ingress，不替代 `x-worker-origin-auth`
-  这层 app-level shared secret
+- 当某个环境仍使用 Cloudflare Access 保护机器入口时，Access service token 不替代
+  `x-worker-origin-auth` 这层 app-level shared secret。当前 staging
+  `app-api -> execution-control` 链路使用 Worker VPC Service binding，不再依赖
+  execution-control public ingress。
 
 ## Cancellation Endpoint
 

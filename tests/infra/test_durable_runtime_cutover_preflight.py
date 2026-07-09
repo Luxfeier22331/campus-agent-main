@@ -13,9 +13,6 @@ SCRIPT = REPO_ROOT / "scripts" / "check_run_projection_store_cutover_preflight.p
 
 VALID_STAGING_ENV = textwrap.dedent(
     """
-    STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link
-    STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID=execution-control-access-client-id
-    STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=execution-control-access-client-secret
     STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@example/campus_agent
     STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@example/campus_agent
     STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@example/campus_agent
@@ -122,9 +119,6 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
             {
                 "ops/staging/runtime.env": textwrap.dedent(
                     """
-                    STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link
-                    STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID=execution-control-access-client-id
-                    STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=execution-control-access-client-secret
                     EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                     EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@example/campus_agent
                     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password

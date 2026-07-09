@@ -82,13 +82,11 @@ TOKEN_OWNER_PATHS = frozenset(
 )
 PUBLIC_WEB_SEARCH_SOURCE_TOKEN_PATHS = frozenset(
     {
-        "apps/app-api/scripts/public-web-search-smoke-staging.ts",
         "apps/app-api/src/modules/chat/model.ts",
         "apps/app-api/src/modules/provider-config/validators.ts",
         "apps/app-api/src/modules/runtime-command/service/normalize-source-items.ts",
         "apps/app-api/test/chat-structured-parts.test.ts",
         "apps/app-api/test/provider-config.search-validator.test.ts",
-        "apps/app-api/test/public-web-search-smoke-staging.test.ts",
         "apps/campus-web/test/source-items.test.tsx",
         "apps/execution-control/internal/httpapi/public_web_search.go",
         "apps/execution-control/internal/httpapi/public_web_search_test.go",

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-07-08
+updated: 2026-07-09
 ---
 # Testing And Verification Lanes
 
@@ -38,11 +38,20 @@ GitHub Actions keeps one automatic PR / main workflow:
 
 GitHub Environments own deploy credential separation. `staging` may be used by
 `.github/workflows/deploy-staging.yml` after successful `pr` on `main`.
-`production` is used only by `.github/workflows/production-preflight.yml` until
-real production deploy scripts and rollback are explicitly wired. Manual image
-build / push and controlled release validation stay outside ordinary PR
-blockers. Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a
-GitHub Actions workflow.
+The `staging` environment keeps only deploy credentials and deploy-time public
+configuration: `CLOUDFLARE_API_TOKEN` as a secret, and
+`CLOUDFLARE_ACCOUNT_ID`, `STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY`,
+`STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` as variables.
+Execution-control staging upstream is a Worker VPC Service binding plus
+Kubernetes `cloudflared` connector, so GitHub deploy does not carry an
+execution-control public URL. Staging operator DB credentials and runtime
+secrets belong to ops smoke / closeout, Cloudflare Worker secrets or K8s secret
+delivery, not the GitHub staging deploy workflow. `production` is used only by
+`.github/workflows/production-preflight.yml` until real production deploy
+scripts and rollback are explicitly wired. Manual image build / push and
+controlled release validation stay outside ordinary PR blockers.
+Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a GitHub
+Actions workflow.
 
 Mutable K8s staging image tags must have an owning image workflow and
 `imagePullPolicy: Always` in the matching staging manifests. A GitOps sync must
@@ -244,14 +253,6 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 - `cd apps/execution-control && go test -tags temporal_e2e ...`
   - Explicit Temporal dev-server / test-server lane. It is not part of the
     default Go lane.
-- `pnpm --dir apps/app-api hindsight:memory:e2e:staging`
-  - Explicit live Hindsight personal-memory lane through execution-control
-    internal memory commands.
-  - It verifies async append acceptance, operation status/materialization confirmation,
-    operation list sanitized projection, recall, reflect, explicit profile memory
-    commands, owner disable and user isolation against a self-hosted Hindsight
-    runtime.
-  - Unit mocks or offline fixtures must not be reported as this live lane.
 
 ## Release / Staging Lanes
 
@@ -292,6 +293,11 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     manual dispatch for a selected ref.
   - It binds the GitHub `staging` environment, runs existing app-local staging
     deploy scripts, then checks Worker `healthz` / `readyz`.
+  - Its GitHub secret surface is limited to Cloudflare deploy auth. App-api
+    staging reaches execution-control through the committed
+    `EXECUTION_CONTROL_PRIVATE` VPC Service binding and non-secret
+    `EXECUTION_CONTROL_PRIVATE_ORIGIN`; staging DB credentials stay in smoke /
+    closeout paths.
   - It is deployment validation, not a PR blocker.
 - `.github/workflows/production-preflight.yml`
   - Protected production release preflight through manual dispatch and the

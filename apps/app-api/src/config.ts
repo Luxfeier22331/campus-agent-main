@@ -7,6 +7,10 @@ export interface HyperdriveBindingLike {
 	connectionString?: string;
 }
 
+export interface WorkerFetchBindingLike {
+	fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+
 export interface Env {
 	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
@@ -17,10 +21,10 @@ export interface Env {
 	RESEND_API_KEY?: string;
 	AUTH_RESET_EMAIL_FROM?: string;
 	AUTH_RESET_EMAIL_REPLY_TO?: string;
-	EXECUTION_CONTROL_ACCESS_CLIENT_ID?: string;
-	EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?: string;
+	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
+	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
 	EXECUTION_CONTROL_SHARED_SECRET?: string;
 	EXECUTION_CONTROL_TIMEOUT_MS?: string;
 	EXECUTION_CONTROL_EVAL_TIMEOUT_MS?: string;
@@ -99,7 +103,7 @@ const MISSING_CONFIG_KEYS = [
 	"AUTH_TURNSTILE_SECRET_KEY",
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
-	"EXECUTION_CONTROL_BASE_URL",
+	"EXECUTION_CONTROL_UPSTREAM",
 	"EXECUTION_CONTROL_SHARED_SECRET",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 	"APP_API_OPERATOR_EMAIL_ALLOWLIST",
@@ -195,7 +199,7 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[4]);
 	}
-	if (!env.EXECUTION_CONTROL_BASE_URL?.trim()) {
+	if (!isExecutionControlUpstreamConfigured(env)) {
 		missing.push(MISSING_CONFIG_KEYS[5]);
 	}
 	if (!env.EXECUTION_CONTROL_SHARED_SECRET?.trim()) {
@@ -212,6 +216,25 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	}
 
 	return missing;
+}
+
+function isExecutionControlUpstreamConfigured(
+	env: Pick<
+		Env,
+		| "APP_API_ENVIRONMENT"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
+	>,
+): boolean {
+	const environment = resolveEnvironment(env);
+	if (isDeployedEnvironment(environment)) {
+		return (
+			typeof env.EXECUTION_CONTROL_PRIVATE?.fetch === "function" &&
+			Boolean(env.EXECUTION_CONTROL_PRIVATE_ORIGIN?.trim())
+		);
+	}
+	return Boolean(env.EXECUTION_CONTROL_BASE_URL?.trim());
 }
 
 export function getMissingAuthRuntimeConfig(env: Env): string[] {
@@ -300,10 +323,13 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		env.APP_API_INTERNAL_SHARED_SECRET,
 		"APP_API_INTERNAL_SHARED_SECRET",
 	);
-	const executionControlBaseUrl = readRequiredTrimmedValue(
-		env.EXECUTION_CONTROL_BASE_URL,
-		"EXECUTION_CONTROL_BASE_URL",
-	);
+	const environment = resolveEnvironment(env);
+	const executionControlBaseUrl = isDeployedEnvironment(environment)
+		? readRequiredTrimmedValue(
+				env.EXECUTION_CONTROL_PRIVATE_ORIGIN,
+				"EXECUTION_CONTROL_PRIVATE_ORIGIN",
+			)
+		: readRequiredTrimmedValue(env.EXECUTION_CONTROL_BASE_URL, "EXECUTION_CONTROL_BASE_URL");
 	const executionControlSharedSecret = readRequiredTrimmedValue(
 		env.EXECUTION_CONTROL_SHARED_SECRET,
 		"EXECUTION_CONTROL_SHARED_SECRET",

@@ -1,10 +1,11 @@
 import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { AppApiRouteError } from "../../http";
 import {
-	createCloudflareAccessServiceTokenHeaders,
 	ExecutionControlTransportError,
 	parseExecutionControlErrorEnvelope,
 	parseExecutionControlJsonResponse,
+	resolveExecutionControlUpstream,
+	selectExecutionControlFetchImplementation,
 } from "../integration/execution-control-transport";
 import type {
 	CampusServicesTransportScheduleService,
@@ -26,9 +27,10 @@ type ToolReadModelRecord = Record<string, unknown>;
 interface CampusServicesTransportScheduleServiceDependencies {
 	env: Pick<
 		Env,
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
-		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
+		| "APP_API_ENVIRONMENT"
 		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_PRIVATE"
+		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 		| "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
 		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>;
@@ -41,7 +43,12 @@ const LOCAL_WALL_TIME_FORMAT = /^\d{2}:\d{2}$/;
 export function buildCampusServicesTransportScheduleService(
 	dependencies: CampusServicesTransportScheduleServiceDependencies,
 ): CampusServicesTransportScheduleService {
-	const fetchImplementation = dependencies.fetchImplementation ?? fetch;
+	const upstream = resolveExecutionControlUpstream(dependencies.env);
+	const fetchImplementation = selectExecutionControlFetchImplementation(
+		dependencies.env,
+		upstream,
+		dependencies.fetchImplementation as typeof fetch | undefined,
+	);
 
 	return {
 		async getPublicStatus() {
@@ -77,9 +84,8 @@ async function requestTransportStatus(
 function requireTransportBaseUrl(
 	env: CampusServicesTransportScheduleServiceDependencies["env"],
 ): string {
-	const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
 	const sharedSecret = env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim();
-	if (!(baseUrl && sharedSecret)) {
+	if (!sharedSecret) {
 		throw new AppApiRouteError({
 			code: "dependency_not_ready",
 			message: "Transport schedule runtime is not configured.",
@@ -87,7 +93,7 @@ function requireTransportBaseUrl(
 			status: 503,
 		});
 	}
-	return baseUrl;
+	return resolveExecutionControlUpstream(env).baseUrl;
 }
 
 function transportRequestHeaders(
@@ -99,7 +105,6 @@ function transportRequestHeaders(
 		accept: "application/json",
 		...(withBody ? { "content-type": "application/json" } : {}),
 		"x-execution-query-auth": sharedSecret,
-		...createCloudflareAccessServiceTokenHeaders(env),
 	};
 }
 
