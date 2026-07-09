@@ -54,6 +54,12 @@ type hpaResource struct {
 	} `json:"status"`
 }
 
+type hpaLookup struct {
+	Missing bool
+	Name    string
+	Status  int
+}
+
 type scaledObjectResource struct {
 	Metadata struct {
 		Annotations map[string]string `json:"annotations"`
@@ -95,6 +101,23 @@ type kedaEventSignal struct {
 	Type    string
 }
 
+type kubernetesAPIError struct {
+	Body       string
+	Name       string
+	Resource   string
+	StatusCode int
+}
+
+func (e kubernetesAPIError) Error() string {
+	return fmt.Sprintf(
+		"kubernetes %s/%s returned %d: %s",
+		e.Resource,
+		e.Name,
+		e.StatusCode,
+		e.Body,
+	)
+}
+
 func (c Collector) Collect(ctx context.Context, config Config) ([]autoscaler.WorkerAutoscalerPosture, error) {
 	namespace := strings.TrimSpace(config.Namespace)
 	if namespace == "" {
@@ -119,8 +142,14 @@ func (c Collector) Collect(ctx context.Context, config Config) ([]autoscaler.Wor
 		}
 		hpa := hpaResource{}
 		hpaName := "keda-hpa-" + normalized.Name
+		hpaLookup := hpaLookup{Name: hpaName}
 		if err := c.get(ctx, namespace, "apis/autoscaling/v2", "horizontalpodautoscalers", hpaName, &hpa); err != nil {
-			return nil, err
+			apiErr, ok := err.(kubernetesAPIError)
+			if !ok || apiErr.StatusCode != http.StatusNotFound {
+				return nil, err
+			}
+			hpaLookup.Missing = true
+			hpaLookup.Status = apiErr.StatusCode
 		}
 		scaledObject := scaledObjectResource{}
 		if err := c.get(ctx, namespace, "apis/keda.sh/v1alpha1", "scaledobjects", normalized.ScaledObject, &scaledObject); err != nil {
@@ -130,7 +159,7 @@ func (c Collector) Collect(ctx context.Context, config Config) ([]autoscaler.Wor
 		if err != nil {
 			return nil, err
 		}
-		postures = append(postures, postureFromResources(now, normalized, deployment, hpaName, hpa, scaledObject, events))
+		postures = append(postures, postureFromResources(now, normalized, deployment, hpaLookup, hpa, scaledObject, events))
 	}
 	return postures, nil
 }
@@ -229,7 +258,12 @@ func (c Collector) requestJSON(ctx context.Context, endpoint string, resource st
 	defer func() { _ = response.Body.Close() }()
 	body, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("kubernetes %s/%s returned %d: %s", resource, name, response.StatusCode, strings.TrimSpace(string(body)))
+		return kubernetesAPIError{
+			Body:       strings.TrimSpace(string(body)),
+			Name:       name,
+			Resource:   resource,
+			StatusCode: response.StatusCode,
+		}
 	}
 	if readErr != nil {
 		return readErr
@@ -244,17 +278,17 @@ func postureFromResources(
 	now time.Time,
 	target Target,
 	deployment deploymentResource,
-	hpaName string,
+	hpaLookup hpaLookup,
 	hpa hpaResource,
 	scaledObject scaledObjectResource,
 	events eventListResource,
 ) autoscaler.WorkerAutoscalerPosture {
 	minReplicas := target.MinReplicas
-	if hpa.Spec.MinReplicas != nil {
+	if !hpaLookup.Missing && hpa.Spec.MinReplicas != nil {
 		minReplicas = int(*hpa.Spec.MinReplicas)
 	}
 	maxReplicas := target.MaxReplicas
-	if hpa.Spec.MaxReplicas > 0 {
+	if !hpaLookup.Missing && hpa.Spec.MaxReplicas > 0 {
 		maxReplicas = int(hpa.Spec.MaxReplicas)
 	}
 	current := int(hpa.Status.CurrentReplicas)
@@ -296,6 +330,9 @@ func postureFromResources(
 	} else if hasEventSignal {
 		status = autoscaler.ScalerStatusDegraded
 		reason = "keda_metric_source_failed"
+	} else if hpaLookup.Missing {
+		status = autoscaler.ScalerStatusDegraded
+		reason = "keda_hpa_missing"
 	} else if !scaledReady || !hpaAble || !hpaActive {
 		status = autoscaler.ScalerStatusDegraded
 		reason = "keda_hpa_condition_degraded"
@@ -306,7 +343,7 @@ func postureFromResources(
 	return autoscaler.WorkerAutoscalerPosture{
 		CurrentReplicas:  current,
 		DesiredReplicas:  desired,
-		Evidence:         evidence(target, deployment, hpaName, hpa, scaledObject, scaledReady, hpaAble, hpaActive, paused, eventSignal, hasEventSignal),
+		Evidence:         evidence(target, deployment, hpaLookup, hpa, scaledObject, scaledReady, hpaAble, hpaActive, paused, eventSignal, hasEventSignal),
 		LastScaleEventAt: lastScaleEventAt,
 		LastScaleEventID: lastScaleEventAt,
 		MaxReplicas:      maxReplicas,
@@ -325,7 +362,7 @@ func postureFromResources(
 func evidence(
 	target Target,
 	deployment deploymentResource,
-	hpaName string,
+	hpaLookup hpaLookup,
 	hpa hpaResource,
 	scaledObject scaledObjectResource,
 	scaledReady bool,
@@ -342,11 +379,15 @@ func evidence(
 		"hpaAbleToScale":          hpaAble,
 		"hpaActive":               hpaActive,
 		"hpaConditions":           hpa.Status.Conditions,
-		"hpaName":                 hpaName,
+		"hpaMissing":              hpaLookup.Missing,
+		"hpaName":                 hpaLookup.Name,
 		"kedaPaused":              paused,
 		"scaledObjectConditions":  scaledObject.Status.Conditions,
 		"scaledObjectName":        target.ScaledObject,
 		"scaledObjectReady":       scaledReady,
+	}
+	if hpaLookup.Status > 0 {
+		result["hpaLookupStatus"] = hpaLookup.Status
 	}
 	if hasEventSignal {
 		result["kedaEventReason"] = eventSignal.Reason

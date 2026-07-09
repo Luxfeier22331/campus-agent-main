@@ -13,6 +13,7 @@ RUN npm install --global corepack@0.35.0 \
 COPY apps/agent-runtime ./apps/agent-runtime
 COPY configs/runtime/tools.v4.json ./configs/runtime/tools.v4.json
 COPY configs/runtime/tool-function-schemas.v1.json ./configs/runtime/tool-function-schemas.v1.json
+COPY configs/runtime/workflow-artifacts.v2.json ./configs/runtime/workflow-artifacts.v2.json
 
 RUN pnpm --filter agent-runtime typecheck
 

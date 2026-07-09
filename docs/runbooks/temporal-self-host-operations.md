@@ -273,11 +273,13 @@ documentation samples and must not be applied as real staging credentials.
 The full first-party runtime proof only adds
 `execution-app-api-internal-secrets` to the first-party runtime Secret set.
 Temporal server lifecycle, Temporal database credentials and the stable
-`temporal:7233` alias are managed by the GitOps platform Applications and
-the selected GitOps secret-delivery path (`platform-temporal-staging`,
-`platform-temporal-alias-staging`, `temporal-db-secret`), not by the
-execution-runtime overlay. OTel collector, Hindsight, Qdrant and CNPG
-Secrets follow the same platform/data ownership rule.
+same-namespace `temporal:7233` alias are managed by the GitOps platform
+Applications and the selected GitOps secret-delivery path
+(`platform-temporal-staging`, `platform-temporal-alias-staging`,
+`temporal-db-secret`), not by the execution-runtime overlay. KEDA Temporal
+scalers must use `temporal.campus-agent-staging.svc.cluster.local:7233`
+because they run from the `keda` namespace. OTel collector, Hindsight, Qdrant
+and CNPG Secrets follow the same platform/data ownership rule.
 
 Execution-runtime env renderers that emit Kubernetes ConfigMap or Secret YAML
 from local env files are retired. Use tracked Kustomize config and the selected

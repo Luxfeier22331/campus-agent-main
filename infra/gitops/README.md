@@ -52,8 +52,10 @@ env, projection and E2E evidence.
 - `data-qdrant-staging`: Qdrant Helm chart with platform-owned server Secrets.
 - `platform-temporal-staging`: Temporal Helm chart with external CNPG
   databases and UI disabled by default.
-- `platform-temporal-alias-staging`: stable `temporal:7233` Service alias for
-  first-party workers and KEDA.
+- `platform-temporal-alias-staging`: stable same-namespace `temporal:7233`
+  Service alias for first-party execution-control and workers. KEDA scalers use
+  `temporal.campus-agent-staging.svc.cluster.local:7233` because the KEDA
+  operator resolves DNS from the `keda` namespace.
 - `observability-otel-collector-staging`: OpenTelemetry Collector Helm chart.
 - `memory-hindsight-staging`: Hindsight API Helm chart with external providers,
   external Postgres and UI/control-plane/worker disabled by default.

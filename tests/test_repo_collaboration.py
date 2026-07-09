@@ -265,7 +265,7 @@ class RepoCollaborationTest(unittest.TestCase):
         self.assertIn("rm -rf /usr/local/lib/node_modules/corepack", agent_runtime_dockerfile)
         self.assertIn("/usr/local/lib/node_modules/npm", agent_runtime_dockerfile)
         self.assertIn("/usr/local/bin/npm", agent_runtime_dockerfile)
-        self.assertIn("FROM golang:1.26.4-bookworm AS build", execution_control_dockerfile)
+        self.assertIn("golang:1.26.4-bookworm AS build", execution_control_dockerfile)
         self.assertNotIn("golang:1.26.2-bookworm", execution_control_dockerfile)
 
     def test_security_supply_chain_lanes_are_not_unconditional_pr_workflows(self) -> None:

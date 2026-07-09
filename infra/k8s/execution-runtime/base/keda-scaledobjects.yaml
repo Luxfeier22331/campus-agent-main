@@ -31,7 +31,7 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal:7233
+        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
         namespace: campus-agent-staging
         taskQueue: campus-agent.workflow
         queueTypes: workflow
@@ -63,7 +63,7 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal:7233
+        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
         namespace: campus-agent-staging
         taskQueue: campus-agent.activity.core
         queueTypes: activity
@@ -95,7 +95,7 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal:7233
+        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
         namespace: campus-agent-staging
         taskQueue: campus-agent.activity.agent
         queueTypes: activity
@@ -127,7 +127,7 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal:7233
+        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
         namespace: campus-agent-staging
         taskQueue: campus-agent.activity.knowledge
         queueTypes: activity

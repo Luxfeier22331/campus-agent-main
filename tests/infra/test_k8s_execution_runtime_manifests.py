@@ -18,6 +18,7 @@ WORKERS = {
     "activity-worker-agent": ("activity", "campus-agent.activity.agent", 3),
     "activity-worker-knowledge": ("activity", "campus-agent.activity.knowledge", 5),
 }
+KEDA_TEMPORAL_ENDPOINT = "temporal.campus-agent-staging.svc.cluster.local:7233"
 
 FORBIDDEN_K8S_WORKLOADS = (
     "app-api",
@@ -163,6 +164,7 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                 self.assertEqual(metadata["queueTypes"], queue_type)
                 self.assertEqual(metadata["taskQueue"], task_queue)
                 self.assertEqual(metadata["targetQueueSize"], "8")
+                self.assertEqual(metadata["endpoint"], KEDA_TEMPORAL_ENDPOINT)
 
     def test_k8s_uses_keda_posture_collector_not_worker_autoscaler(self) -> None:
         deployments = _by_kind_name("Deployment")
@@ -197,6 +199,7 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
                 ("secretRef", "execution-run-projection-secrets"),
                 ("secretRef", "execution-memory-client-secrets"),
                 ("secretRef", "execution-control-internal-query-secrets"),
+                ("secretRef", "execution-app-api-internal-secrets"),
                 ("secretRef", "execution-rag-secrets"),
                 ("secretRef", "execution-tool-read-model-secrets"),
             ],
@@ -421,7 +424,16 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         external = platform_egress[1]
         self.assertEqual(external["to"], [{"ipBlock": {"cidr": "0.0.0.0/0"}}])
         self.assertEqual(
-            external["ports"], [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 5432}]
+            external["ports"],
+            [
+                {"protocol": "TCP", "port": 443},
+                {"protocol": "TCP", "port": 5432},
+                {"protocol": "TCP", "port": 6443},
+                {"protocol": "TCP", "port": 6333},
+                {"protocol": "TCP", "port": 7233},
+                {"protocol": "TCP", "port": 4318},
+                {"protocol": "TCP", "port": 8888},
+            ],
         )
 
         keda_policy = policies["execution-runtime-temporal-keda-ingress"]
@@ -458,6 +470,20 @@ class K8sExecutionRuntimeManifestTest(unittest.TestCase):
         self.assertFalse((K8S_ROOT / "secret.example.yaml").exists())
 
         self.assertEqual(set(rendered_configs), {"execution-runtime-rendered-config"})
+        rendered_config = rendered_configs["execution-runtime-rendered-config"]
+        self.assertEqual(
+            rendered_config["EXECUTION_CONTROL_APP_API_BASE_URL"],
+            "https://api-staging.mucwiki-edge.link",
+        )
+        self.assertEqual(
+            rendered_config["EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"],
+            "https://api-staging.mucwiki-edge.link",
+        )
+        self.assertEqual(
+            rendered_config["EXECUTION_CONTROL_EXECUTION_AUDIT_URL"],
+            "https://api-staging.mucwiki-edge.link/api/internal/execution/audit-events",
+        )
+        self.assertNotIn("api-staging.example.internal", "\n".join(rendered_config.values()))
         self.assertEqual(
             set(example_configs[0]["data"]),
             set(rendered_configs["execution-runtime-rendered-config"]),

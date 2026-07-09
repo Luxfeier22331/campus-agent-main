@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/x509"
+	"net/http"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestParseOptionsRequiresKubernetesAndAppAPIInputs(t *testing.T) {
@@ -57,4 +60,36 @@ func TestParseOptionsBuildsInClusterServerURLAndDefaultTargets(t *testing.T) {
 		options.targets[3].MaxReplicas != 5 {
 		t.Fatalf("knowledge target = %#v", options.targets[3])
 	}
+}
+
+func TestBuildRuntimeClientsKeepKubernetesCAOutOfAppAPIClient(t *testing.T) {
+	kubernetesPool := tlsRootPoolForTest(t)
+	kubernetesClient, appAPIClient := buildRuntimeClients(options{
+		kubernetesRootCAs: kubernetesPool,
+		timeout:           5 * time.Second,
+	})
+	kubernetesTransport, ok := kubernetesClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("kubernetes transport type = %T", kubernetesClient.Transport)
+	}
+	if kubernetesTransport.TLSClientConfig == nil ||
+		kubernetesTransport.TLSClientConfig.RootCAs != kubernetesPool {
+		t.Fatalf("kubernetes client did not use provided root CAs")
+	}
+	appAPITransport, ok := appAPIClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("app-api transport type = %T", appAPIClient.Transport)
+	}
+	if appAPITransport.TLSClientConfig != nil && appAPITransport.TLSClientConfig.RootCAs == kubernetesPool {
+		t.Fatalf("app-api client must not inherit Kubernetes root CAs")
+	}
+}
+
+func tlsRootPoolForTest(t *testing.T) *x509.CertPool {
+	t.Helper()
+	pool := x509.NewCertPool()
+	if pool == nil {
+		t.Fatal("x509.NewCertPool returned nil")
+	}
+	return pool
 }

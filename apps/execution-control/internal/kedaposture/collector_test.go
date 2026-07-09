@@ -221,6 +221,83 @@ func TestCollectorMarksKEDAMetricFailureEventDegraded(t *testing.T) {
 	}
 }
 
+func TestCollectorMarksMissingKEDAHPADegraded(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/apis/apps/v1/namespaces/campus-agent-staging/deployments/workflow-worker":
+			writeJSON(t, response, map[string]any{
+				"status": map[string]any{"replicas": 1, "readyReplicas": 1},
+			})
+		case "/apis/autoscaling/v2/namespaces/campus-agent-staging/horizontalpodautoscalers/keda-hpa-workflow-worker":
+			response.WriteHeader(http.StatusNotFound)
+			writeJSON(t, response, map[string]any{
+				"reason":  "NotFound",
+				"message": "horizontalpodautoscalers.autoscaling \"keda-hpa-workflow-worker\" not found",
+				"code":    404,
+			})
+		case "/apis/keda.sh/v1alpha1/namespaces/campus-agent-staging/scaledobjects/workflow-worker":
+			writeJSON(t, response, map[string]any{
+				"metadata": map[string]any{"annotations": map[string]any{}},
+				"status": map[string]any{
+					"conditions": []map[string]any{{
+						"message":            "failed to ensure HPA is correctly created",
+						"reason":             "KEDAScalerFailed",
+						"status":             "False",
+						"type":               "Ready",
+						"lastTransitionTime": "2026-06-15T10:00:10Z",
+					}},
+				},
+			})
+		case "/api/v1/namespaces/campus-agent-staging/events":
+			if request.URL.Query().Get("fieldSelector") != "involvedObject.name=workflow-worker" {
+				t.Fatalf("field selector = %q", request.URL.Query().Get("fieldSelector"))
+			}
+			writeJSON(t, response, map[string]any{"items": []map[string]any{}})
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	collector := Collector{
+		Client:    server.Client(),
+		Now:       func() time.Time { return time.Date(2026, 6, 15, 10, 0, 20, 0, time.UTC) },
+		ServerURL: server.URL,
+		Token:     "test-token",
+	}
+
+	postures, err := collector.Collect(t.Context(), Config{
+		Namespace: "campus-agent-staging",
+		Targets: []Target{{
+			MaxReplicas:   3,
+			MinReplicas:   1,
+			Name:          "workflow-worker",
+			QueueKind:     autoscaler.TaskQueueKindWorkflow,
+			ScaledObject:  "workflow-worker",
+			TaskQueue:     "campus-agent.workflow",
+			TargetService: "workflow-worker",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Collect returned error: %v", err)
+	}
+	if len(postures) != 1 {
+		t.Fatalf("posture count = %d", len(postures))
+	}
+	posture := postures[0]
+	if posture.ScalerStatus != autoscaler.ScalerStatusDegraded ||
+		posture.Reason != "keda_hpa_missing" ||
+		posture.CurrentReplicas != 1 ||
+		posture.DesiredReplicas != 1 {
+		t.Fatalf("posture = %#v", posture)
+	}
+	if posture.Evidence["hpaMissing"] != true ||
+		posture.Evidence["hpaLookupStatus"] != 404 ||
+		posture.Evidence["hpaName"] != "keda-hpa-workflow-worker" {
+		t.Fatalf("evidence = %#v", posture.Evidence)
+	}
+}
+
 func TestCollectorFailsClosedWhenEventsCannotBeRead(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {

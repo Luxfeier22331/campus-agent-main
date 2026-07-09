@@ -310,6 +310,9 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   GitHub Actions dependency updates run `pnpm ci:config`, npm / pnpm workspace
   updates run `pnpm ci:web`, `pnpm ci:worker` and OSV-Scanner, and Go module
   updates run `pnpm ci:go` plus OSV-Scanner.
+- Routine Dependabot version updates are limited to grouped minor / patch
+  updates. Major dependency upgrades require an explicit human-owned branch and
+  migration / verification plan.
 - CodeQL, Dependency Review and artifact attestations require an explicit
   security / supply-chain lane decision before they become PR or release
   requirements.

@@ -232,7 +232,10 @@ components enter Kubernetes through their own GitOps Applications:
 - `platform-temporal-staging` installs Temporal through the pinned Temporal
   Helm chart.
 - `platform-temporal-alias-staging` publishes the stable `temporal:7233`
-  service alias consumed by first-party workers and KEDA.
+  same-namespace Service alias consumed by first-party execution-control and
+  workers. KEDA Temporal scalers run from the `keda` namespace and must use the
+  fully qualified endpoint
+  `temporal.campus-agent-staging.svc.cluster.local:7233`.
 - `memory-hindsight-staging` installs the Hindsight API with external model
   providers, external Postgres and UI/control-plane/worker disabled by default.
 - `observability-otel-collector-staging` installs the OTel collector through the

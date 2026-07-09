@@ -64,6 +64,8 @@ spec:
             - secretRef:
                 name: execution-control-internal-query-secrets
             - secretRef:
+                name: execution-app-api-internal-secrets
+            - secretRef:
                 name: execution-rag-secrets
             - secretRef:
                 name: execution-tool-read-model-secrets

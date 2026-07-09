@@ -20,6 +20,7 @@ TRUSTED_TAG_ACTIONS = frozenset(
         "docker/build-push-action",
         "docker/login-action",
         "docker/setup-buildx-action",
+        "docker/setup-qemu-action",
         "ossf/scorecard-action",
         "pnpm/action-setup",
         "anchore/sbom-action",

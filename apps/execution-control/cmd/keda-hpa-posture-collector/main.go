@@ -22,6 +22,7 @@ type options struct {
 	appAPIBaseURL       string
 	allowInsecureTLS    bool
 	kubernetesCAFile    string
+	kubernetesRootCAs   *x509.CertPool
 	kubernetesServerURL string
 	namespace           string
 	sharedSecret        string
@@ -44,20 +45,19 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if options.allowInsecureTLS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		options.kubernetesRootCAs = nil
 	} else if strings.TrimSpace(options.kubernetesCAFile) != "" {
 		certPool, err := caCertPool(options.kubernetesCAFile)
 		if err != nil {
 			return err
 		}
-		transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
+		options.kubernetesRootCAs = certPool
 	}
-	client := &http.Client{Timeout: options.timeout, Transport: transport}
+	kubernetesClient, appAPIClient := buildRuntimeClients(options)
 	ctx := context.Background()
 	postures, err := kedaposture.Collector{
-		Client:    client,
+		Client:    kubernetesClient,
 		ServerURL: options.kubernetesServerURL,
 		Token:     options.token,
 	}.Collect(ctx, kedaposture.Config{
@@ -69,7 +69,7 @@ func run(args []string) error {
 	}
 	return autoscaler.AppAPIClient{
 		BaseURL:      options.appAPIBaseURL,
-		HTTPClient:   client,
+		HTTPClient:   appAPIClient,
 		SharedSecret: options.sharedSecret,
 		Timeout:      options.timeout,
 	}.PublishRuntimePayload(ctx, autoscaler.AppAPIRuntimePayload{
@@ -156,6 +156,22 @@ func parseOptions(args []string) (options, error) {
 	}
 	opts.targets = defaultTargets(opts.workflowTaskQueue)
 	return opts, nil
+}
+
+func buildRuntimeClients(opts options) (*http.Client, *http.Client) {
+	timeout := opts.timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	kubernetesTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if opts.allowInsecureTLS {
+		kubernetesTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	} else if opts.kubernetesRootCAs != nil {
+		kubernetesTransport.TLSClientConfig = &tls.Config{RootCAs: opts.kubernetesRootCAs}
+	}
+	appAPITransport := http.DefaultTransport.(*http.Transport).Clone()
+	return &http.Client{Timeout: timeout, Transport: kubernetesTransport},
+		&http.Client{Timeout: timeout, Transport: appAPITransport}
 }
 
 func caCertPool(path string) (*x509.CertPool, error) {
