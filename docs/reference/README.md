@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-04-12
-updated: 2026-07-04
+updated: 2026-07-10
 ---
 # Reference
 
@@ -17,6 +17,8 @@ updated: 2026-07-04
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `testing-and-verification-lanes.md`
+- `dependency-overrides.md`
+  - 根 pnpm override 的当前依据与删除条件
 - `eval.md`
   - Active eval shape: Langfuse/Ragas lanes, eval asset semantics and operator
     coverage projection contract.

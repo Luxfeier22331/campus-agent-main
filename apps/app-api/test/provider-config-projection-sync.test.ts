@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -21,7 +21,9 @@ describe("provider config projection sync script", () => {
 
 			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");
+			expect(server.authHeaders.every((header) => header === "internal-secret")).toBe(true);
 			expect(server.roles).toContain("public_web_search");
+			expect((await stat(outputPath)).mode & 0o777).toBe(0o600);
 			const written = JSON.parse(await readFile(outputPath, "utf8")) as {
 				profiles: Record<string, unknown>;
 				source: { roles: string[] };
@@ -117,6 +119,7 @@ async function runProjectionSync(input: {
 }
 
 class RecordingActiveProfileServer {
+	readonly authHeaders: string[] = [];
 	readonly roles: string[] = [];
 
 	private readonly publicWebSearchProfile: {
@@ -139,6 +142,7 @@ class RecordingActiveProfileServer {
 
 	private readonly server = createServer(async (request, response) => {
 		await drainRequest(request);
+		this.authHeaders.push(String(request.headers["x-app-internal-auth"] ?? ""));
 		const url = new URL(request.url ?? "/", "http://127.0.0.1");
 		if (url.pathname !== "/api/internal/provider-config/active") {
 			response.writeHead(404, { "content-type": "application/json" });

@@ -8,7 +8,7 @@ import {
 	activeSourceTokenScanPaths,
 	appApiEvalIngressContractPath,
 	type Check,
-	ciInternalSurfaceDetectorPath,
+	ciChangedSurfaceConfigPath,
 	evalMapPath,
 	forbiddenAppApiEvalIngressTokens,
 	langfuseCliPath,
@@ -344,7 +344,7 @@ function auditEvalMapRetiredLanesAbsent(root: string): Check {
 }
 
 function auditLangfuseCiSurfaceContractPath(root: string): Check {
-	const detectorPath = join(root, ciInternalSurfaceDetectorPath);
+	const detectorPath = join(root, ciChangedSurfaceConfigPath);
 	const retiredPath = "docs/contracts/langfuse-runtime-observability-contract.md";
 	if (!existsSync(detectorPath)) {
 		return {

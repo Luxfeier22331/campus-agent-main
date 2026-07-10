@@ -174,9 +174,9 @@ pnpm install
 Public clone 默认验证入口：
 
 ```bash
-pnpm repo:guard
 pnpm repo:static
 pnpm go:check
+pnpm ci:rust
 pnpm ci:contracts
 pnpm ci:ingest
 pnpm ci:eval
@@ -221,12 +221,9 @@ git history 恢复具体片段，再提升到当前 runbook 或 data contract。
 不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 
-其中 `pnpm repo:static` 是仓库级 live-surface static gate：默认覆盖 tracked 的源码、tests、repo-owned
-config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked
-`.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked
-YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`、archive/historical
-文档、vendor、generated、未跟踪草稿与本地 runtime 产物。Dockerfile checker 已通过
-`pnpm repo:static` 并入默认仓库静态 gate。
+其中 `pnpm repo:static` 直接运行 Biome、Markdownlint 与 EditorConfig Checker，只负责通用格式和文本
+卫生。Python、Worker、contract、ingestion、Go、K8s 与依赖安全约束由对应 owner lane 或原生工具承担；
+`repo:static` 不判断架构目录、运行时能力或领域策略。
 
 更细的验证 lane 与 smoke 路径见：
 

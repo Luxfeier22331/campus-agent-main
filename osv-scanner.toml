@@ -1,5 +1,5 @@
 # OSV vulnerability ignores must include an upstream advisory id, reason, and
-# ignoreUntil date. Keep this file empty until a real exception is reviewed.
+# ignoreUntil date. Add entries only after a concrete exception is reviewed.
 
 [[IgnoredVulns]]
 id = "GHSA-95ww-475f-pr4f"
@@ -15,3 +15,8 @@ reason = "diskcache is a transitive dependency of the retained Ragas eval island
 id = "GHSA-p2fr-6hmx-4528"
 ignoreUntil = 2026-08-15
 reason = "Better Auth oauth-provider 1.7.0-rc.1 is the first available fixed line but currently breaks app-api Worker bundling through @better-auth/kysely-adapter imports from Kysely root exports; keep 1.6.23 until a Worker-compatible fixed release is available."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2026-10-01
+reason = "paste is an unmaintained compile-time proc-macro dependency of the latest tokenizers release; no fixed tokenizers release or maintained drop-in replacement is currently available, so revisit the upstream dependency before this exception expires."

@@ -21,14 +21,24 @@ jobs:
       pull-requests: read
     outputs:
       base_sha: ${{ steps.base.outputs.base_sha }}
-      ci: ${{ steps.filter.outputs.ci }}
+      config: ${{ steps.filter.outputs.config }}
       contracts: ${{ steps.filter.outputs.contracts }}
       deps: ${{ steps.filter.outputs.deps }}
+      docker: ${{ steps.filter.outputs.docker }}
       eval: ${{ steps.filter.outputs.eval }}
       go: ${{ steps.filter.outputs.go }}
+      go_deps: ${{ steps.filter.outputs.go_deps }}
       ingest: ${{ steps.filter.outputs.ingest }}
+      infra: ${{ steps.filter.outputs.infra }}
+      node_deps: ${{ steps.filter.outputs.node_deps }}
+      python: ${{ steps.filter.outputs.python }}
+      python_deps: ${{ steps.filter.outputs.python_deps }}
+      rust: ${{ steps.filter.outputs.rust }}
+      shell: ${{ steps.filter.outputs.shell }}
+      sql: ${{ steps.filter.outputs.sql }}
       web: ${{ steps.filter.outputs.web }}
       worker: ${{ steps.filter.outputs.worker }}
+      yaml: ${{ steps.filter.outputs.yaml }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -62,16 +72,8 @@ jobs:
           base: ${{ steps.base.outputs.base_sha }}
           ref: ${{ github.sha }}
           filters: |
-            ci:
-              - '.github/workflows/pr.yml'
-              - '.github/actions/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'scripts/check_repo_guard.ts'
-              - 'scripts/check_repo_static.ts'
-              - 'tools/**'
+            config:
+              - '.github/**'
             contracts:
               - 'packages/contracts/**'
               - 'configs/runtime/**'
@@ -80,8 +82,51 @@ jobs:
               - 'uv.lock'
               - 'pyproject.toml'
               - '**/package.json'
+              - '**/pyproject.toml'
               - '**/go.mod'
               - '**/go.sum'
+              - 'Cargo.lock'
+              - '**/Cargo.toml'
+            docker:
+              - '.dockerignore'
+              - '.hadolint.yaml'
+              - '**/Dockerfile'
+              - '**/Dockerfile.*'
+              - '**/*.dockerfile'
+            node_deps:
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            python_deps:
+              - 'pyproject.toml'
+              - 'uv.lock'
+            go_deps:
+              - '**/go.mod'
+              - '**/go.sum'
+            rust:
+              - 'Cargo.lock'
+              - '**/Cargo.toml'
+              - 'packages/ingestion-kernels-rs/**'
+            python:
+              - '**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '**/pyproject.toml'
+            yaml:
+              - '.yamllint.yml'
+              - '**/*.yaml'
+              - '**/*.yml'
+            sql:
+              - '.sqlfluff'
+              - '.sqlfluffignore'
+              - '**/*.sql'
+            shell:
+              - '.shellcheckrc'
+              - '**/*.sh'
+            infra:
+              - 'infra/gitops/**'
+              - 'infra/k8s/**'
+              - 'infra/policies/**'
             eval:
               - 'packages/eval-langfuse/**'
               - 'packages/ragas-runner/**'
@@ -102,9 +147,12 @@ jobs:
             ingest:
               - 'apps/ingestion-control/**'
               - 'apps/source-collector/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
               - 'packages/ingestion-contracts/**'
-              - 'packages/ingestion-kernels-rs/**'
             web:
+              - 'apps/**/.dev.vars.example'
+              - 'apps/**/wrangler*.toml'
               - 'apps/**/*.ts'
               - 'apps/**/*.tsx'
               - 'apps/**/*.js'
@@ -141,19 +189,30 @@ jobs:
   repo:
     needs: changes
     runs-on: ubuntu-latest
-    env:
-      CI_BASE_REF: ${{ needs.changes.outputs.base_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
-
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run repository lane
+        run: pnpm ci:repo
+
+  config:
+    needs: changes
+    if: needs.changes.outputs.config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python and uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          sync: "false"
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -161,21 +220,123 @@ jobs:
           go-version: "1.26.2"
           cache-dependency-path: apps/execution-control/go.mod
 
-      - name: Install conftest
+      - name: Validate workflow configuration
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+      - name: Audit workflow security
+        run: uvx zizmor --min-severity=medium .github
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true' || needs.changes.outputs.python_deps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Check Python
         run: |
+          uv run --all-packages ruff check .
+          uv run --all-packages ruff format . --check
+          uv lock --check --offline
+
+  yaml:
+    needs: changes
+    if: needs.changes.outputs.yaml == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Lint YAML
+        run: >-
+          uv run yamllint -c .yamllint.yml
+          .github configs infra
+          docs/contracts/schemas/tool-execution.openapi.yaml
+          apps/execution-control/.golangci.yml
+
+  sql:
+    needs: changes
+    if: needs.changes.outputs.sql == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Lint SQL
+        run: uv run sqlfluff lint --config .sqlfluff
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint Dockerfiles
+        run: |
+          mapfile -d '' files < <(git ls-files -z '**/Dockerfile' '**/Dockerfile.*' '**/*.dockerfile')
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            hadolint/hadolint:v2.14.0-debian \
+            hadolint -c /work/.hadolint.yaml "${files[@]}"
+
+  shell:
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint shell scripts
+        run: |
+          mapfile -d '' files < <(git ls-files -z '*.sh')
+          if [ "${#files[@]}" -eq 0 ]; then
+            exit 0
+          fi
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            koalaman/shellcheck:v0.11.0 \
+            -x -s bash "${files[@]}"
+
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.2"
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Install Kustomize and Conftest
+        run: |
+          go install sigs.k8s.io/kustomize/kustomize/v5@v5.7.1
           go install github.com/open-policy-agent/conftest@v0.65.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Run repository lane
+      - name: Validate Kubernetes resources
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            pnpm ci:repo
-          else
-            pnpm ci:repo:full
-          fi
-
-      - name: Validate workflow configuration
-        run: pnpm ci:config
+          set -euo pipefail
+          while IFS= read -r kustomization; do
+            directory="${kustomization%/kustomization.yaml}"
+            kustomize build "$directory" | conftest test --policy infra/policies --parser yaml -
+          done < <(find infra/k8s -name kustomization.yaml -print | sort)
 
   secrets:
     runs-on: ubuntu-latest
@@ -197,7 +358,7 @@ jobs:
 
   web:
     needs: changes
-    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.node_deps == 'true'
     runs-on: ubuntu-latest
     env:
       TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}
@@ -217,7 +378,7 @@ jobs:
 
   worker:
     needs: changes
-    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.node_deps == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -231,7 +392,7 @@ jobs:
 
   contracts:
     needs: changes
-    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node_deps == 'true' || needs.changes.outputs.python_deps == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -248,7 +409,7 @@ jobs:
 
   go:
     needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.go_deps == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -271,9 +432,25 @@ jobs:
       - name: Run Go lane
         run: pnpm ci:go
 
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Run Rust lane
+        run: pnpm ci:rust
+
   eval:
     needs: changes
-    if: needs.changes.outputs.eval == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.eval == 'true' || needs.changes.outputs.node_deps == 'true' || needs.changes.outputs.python_deps == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -290,7 +467,7 @@ jobs:
 
   ingest:
     needs: changes
-    if: needs.changes.outputs.ingest == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.ingest == 'true' || needs.changes.outputs.node_deps == 'true' || needs.changes.outputs.python_deps == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -307,7 +484,7 @@ jobs:
 
   deps-pr:
     needs: changes
-    if: github.event_name == 'pull_request' && (needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true')
+    if: github.event_name == 'pull_request' && needs.changes.outputs.deps == 'true'
     permissions:
       actions: read
       contents: read
@@ -319,10 +496,12 @@ jobs:
         --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=uv.lock
+        --lockfile=Cargo.lock
+        --lockfile=apps/execution-control/go.mod
 
   deps-full:
     needs: changes
-    if: github.event_name != 'pull_request' && (needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci == 'true')
+    if: github.event_name != 'pull_request' && needs.changes.outputs.deps == 'true'
     permissions:
       actions: read
       contents: read
@@ -334,16 +513,26 @@ jobs:
         --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=uv.lock
+        --lockfile=Cargo.lock
+        --lockfile=apps/execution-control/go.mod
 
   required:
     needs:
       - changes
       - repo
+      - config
+      - python
+      - yaml
+      - sql
+      - docker
+      - shell
+      - infra
       - secrets
       - web
       - worker
       - contracts
       - go
+      - rust
       - eval
       - ingest
       - deps-pr
@@ -359,11 +548,19 @@ jobs:
           for result in \
             "${{ needs.changes.result }}" \
             "${{ needs.repo.result }}" \
+            "${{ needs.config.result }}" \
+            "${{ needs.python.result }}" \
+            "${{ needs.yaml.result }}" \
+            "${{ needs.sql.result }}" \
+            "${{ needs.docker.result }}" \
+            "${{ needs.shell.result }}" \
+            "${{ needs.infra.result }}" \
             "${{ needs.secrets.result }}" \
             "${{ needs.web.result }}" \
             "${{ needs.worker.result }}" \
             "${{ needs.contracts.result }}" \
             "${{ needs.go.result }}" \
+            "${{ needs.rust.result }}" \
             "${{ needs.eval.result }}" \
             "${{ needs.ingest.result }}" \
             "${{ needs.deps-pr.result }}" \

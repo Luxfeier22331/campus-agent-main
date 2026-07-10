@@ -9,8 +9,6 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "html5lib>=1.1",
-  "jsonschema>=4.26.0",
   "pre-commit>=4.2.0",
   "ruff>=0.15.11",
   "sqlfluff>=3.4.2",

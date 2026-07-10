@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-03-28
-updated: 2026-07-07
+updated: 2026-07-10
 ---
 # App API Tool Execution Contract
 
@@ -56,10 +56,10 @@ durable runtime contract 为当前 canonical source。`tool-execution.openapi.ya
   offline historical comparison，应从 git history 恢复到隔离环境，不能作为 active
   generated artifact 或 serving seam
 
-生成物必须通过 `pnpm contracts:check` 保持同步。这条 check 已接入
-`tool-runtime-contract` eval gate。凡是修改 schema、
-execution contract version、runtime decision schema version、status enum 或
-terminal response shape，都必须先更新 canonical schema，再重新生成 artifact。
+生成物必须通过 `pnpm contracts:check` 保持同步；runtime tool catalog 与
+model-visible function schema 的一致性由 `packages/contracts` 测试验证。凡是修改
+schema、execution contract version、runtime decision schema version、status enum
+或 terminal response shape，都必须先更新 canonical schema，再重新生成 artifact。
 
 `packages/contracts/schemas/tool-handoff.v1.schema.json` 只冻结
 Execution Agent Layer -> tool handoff 的 `ToolRequest` /
@@ -116,7 +116,7 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新 `docs/contracts/schemas/tool-execution.openapi.yaml`
 - 运行 `pnpm contracts:generate` 或至少通过 `pnpm contracts:check`
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
-- 更新 `tool-runtime-contract` gate 或对应 targeted tests
+- 更新 `packages/contracts` 对应 targeted tests
 
 `agent.primary` 是 current durable first-decision contract。它在
 `context.memory_recall` 之后执行，由 `activity-worker-agent` 调用

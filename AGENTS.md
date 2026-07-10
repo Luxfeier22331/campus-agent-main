@@ -19,8 +19,8 @@ guidance in `docs/` and link to it from here.
   manual or scheduled deployable runtime boundaries, and `packages/` contains
   stable tool/domain boundaries.
 - `scripts/` contains repo-level executable entrypoints and shared deploy/env
-  primitives. `tools/` contains repo-internal governance/checker
-  implementations; prefer `pnpm repo:*` commands over direct `tools/` calls.
+  primitives. Generic validation uses standard tool CLIs; domain and contract
+  invariants belong to their owning app or package tests.
 - Current forward student product surface is `campus-web`; `/docs/*` is the
   Rspress-powered canonical reader surface.
 - `apps/app-api` is the Worker-owned shared browser-facing API surface.
@@ -124,17 +124,17 @@ changing structure or contracts.
   change is being prepared for release.
 - Do not list release validation as a normal feature’s current P0 implementation
   step.
-- `pnpm repo:guard` checks collaboration/governance rules only. It is not
-  runtime or E2E validation.
+- `pnpm repo:static` runs generic formatting and text hygiene only. It is not
+  architecture, runtime or E2E validation.
 - Use `docs/reference/testing-and-verification-lanes.md` for exact lane meaning
   and commands.
 
 Common local commands:
 
 ```bash
-pnpm repo:guard
 pnpm repo:static
 pnpm go:check
+pnpm ci:rust
 pnpm web:lint
 pnpm web:typecheck
 pnpm web:test

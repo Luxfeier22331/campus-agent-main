@@ -31,7 +31,7 @@ ON "chat"."conversations" USING btree ("owner_user_id", "updated_at");
 
 CREATE TABLE IF NOT EXISTS "chat"."messages" (
     "id" text PRIMARY KEY,
-    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE cascade,
+    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE CASCADE,
     "role" text NOT NULL,
     "kind" text,
     "text" text NOT NULL,
@@ -61,8 +61,8 @@ ON "chat"."messages" USING btree ("run_id");
 CREATE TABLE IF NOT EXISTS "chat"."message_feedback" (
     "feedback_id" text PRIMARY KEY,
     "owner_user_id" text NOT NULL,
-    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE cascade,
-    "message_id" text NOT NULL REFERENCES "chat"."messages" ("id") ON DELETE cascade,
+    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE CASCADE,
+    "message_id" text NOT NULL REFERENCES "chat"."messages" ("id") ON DELETE CASCADE,
     "request_id" text NOT NULL,
     "vote" text NOT NULL,
     "reason_codes_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS "chat_message_feedback_updated_at_idx"
 ON "chat"."message_feedback" USING btree ("updated_at");
 
 CREATE TABLE IF NOT EXISTS "chat"."session_slots" (
-    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE cascade,
+    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE CASCADE,
     "name" text NOT NULL,
     "value" text NOT NULL,
     "confirmed" boolean DEFAULT true NOT NULL,

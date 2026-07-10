@@ -10,7 +10,15 @@ import {
 	loadIngestionTaskRegistryFromFile,
 } from "../src/node.ts";
 
+const repoRoot = join(import.meta.dirname, "..", "..", "..");
+
 describe("ingest-core node registry loading", () => {
+	it("loads every repository ingestion registry through the runtime catalog", () => {
+		expect(() =>
+			loadIngestionTaskRegistryCatalogFromRoot(join(repoRoot, "configs", "ingestion")),
+		).not.toThrow();
+	});
+
 	it("loads registry files recursively and validates shape", () => {
 		const root = mkdtempSync(join(tmpdir(), "ingest-core-registry-"));
 		const registryDir = join(root, "official_web", "stable_reference");

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-06-03
-updated: 2026-07-04
+updated: 2026-07-10
 ---
 # Code Organization And Decomposition Architecture
 
@@ -15,7 +15,7 @@ updated: 2026-07-04
 - 什么是可接受的小区块
 - 什么是可审查的目录美感
 - 哪些重复必须归并到 owner module
-- `pnpm repo:static` 内部 decomposition checker 能证明什么，不能证明什么
+- 结构约束应该由什么证据证明
 
 它不负责：
 
@@ -57,9 +57,8 @@ deploy identity、输入环境、失败语义与验证命令。只有本地开�
 `scripts/` 或 owner package 的 `scripts/` 下。
 
 `scripts/` 只承载 repo-level executable entrypoints 与共享 deploy / env primitives。
-`tools/` 承载 repo-internal governance checker implementation，不是用户或 runbook 的首选入口；
-常规验证应通过 `pnpm repo:*`、`pnpm ci:*` 或 owner package script 进入。不得为了保留旧路径在
-`scripts/` 下新增 repo-internal checker 兼容 wrapper。
+通用格式、安全和配置语法检查直接调用成熟工具；领域、contract 和 runtime 不变量由 owner package
+或 app 测试证明。不得新增中央目录允许列表、历史路径扫描器或为旧检查入口提供兼容 wrapper。
 
 Temporal workflow / activity worker、Crawlee crawler runtime、Postgres / S3 /
 Qdrant concrete client lifecycle 与 provider HTTP client 默认属于 `apps/*` 或
@@ -96,8 +95,7 @@ package 级测试默认使用 TS-first 布局：
 - Python 测试不得使用 `load_tests` 聚合或 `from ... import *`。这些模式会隐藏
   discovery 范围，导致 CI 显示通过但实际 suite 被跳过。
 
-这条规则由 repo static 的 package test layout guard 维护。它只检查结构漂移，不替代
-package 自己的 typecheck/test。
+这条规则通过 owner package 的 typecheck/test 和代码评审维护，不再由中央目录扫描器重复表达。
 
 ## 不重复原则
 
@@ -119,23 +117,11 @@ package 自己的 typecheck/test。
 
 出现第三次同类重复前，必须选择一个 owner module 或 owner document 归并。不能用“先跑通”作为继续复制的理由。
 
-## Gate 语义
+## 验证语义
 
-`pnpm repo:static` 内部的 repo policy gate 是基础分解 gate。它证明的是：
-
-- tracked handwritten code/test 没有新增超预算大文件
-- 当前 decomposition baseline 没有被静默扩张
-
-它不能证明：
-
-- 模块 owner 正确
-- 目录结构同构
-- 没有语义重复
-- helper 没有变成垃圾桶
-- runtime boundary 没有被穿透
-
-因此结构性改动的 review 需要同时检查本文规则、相关 architecture 文档与实际 diff。通过
-decomposition checker 只能作为必要证据，不能作为充分证据。
+`pnpm repo:static` 只证明 Biome、Markdownlint 与 EditorConfig Checker 覆盖的通用格式和文本卫生。
+模块 owner、目录结构、语义重复与 runtime boundary 不能由中央扫描器可靠推断，必须通过 owner tests、
+相关 architecture/contract 文档和实际 diff 共同评审。
 
 ## Review Contract
 

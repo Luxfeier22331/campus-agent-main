@@ -58,10 +58,10 @@
   `query-serving-scopes.v2.schema.json`、`intent-policy.v1.schema.json`、
   `intent-drift-thresholds.v1.schema.json`、`provider-pricing.v1.schema.json`、
   `runtime-latency-budgets.v1.schema.json` 与 `env-surface-policy.v1.schema.json`
-  覆盖当前 execution runtime、ops summary、learning-loop 与 repo static checks
+  覆盖当前 execution runtime、ops summary、learning-loop 与 owner tests
   实际读取的 non-code JSON artifacts
 - cross-language generated artifacts 由 `pnpm contracts:generate` 生成，并由
-  `pnpm contracts:check` 和 `tool-runtime-contract` gate 防漂移
+  `pnpm contracts:check` 和 `packages/contracts` targeted tests 防漂移
 
 新增共享字段时，先判断它属于稳定 tool handoff、execution wrapper 还是
 runtime JSON artifact。工具 payload/result 的跨语言边界先落到

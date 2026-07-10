@@ -19,28 +19,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
-
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.26.2"
-          cache-dependency-path: apps/execution-control/go.mod
-
-      - name: Install conftest
-        run: |
-          go install github.com/open-policy-agent/conftest@v0.65.0
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Run full repository lane
-        run: pnpm ci:repo:full
-
-      - name: Run repository self-tests
-        run: pnpm repo:self-test
+        run: pnpm ci:repo
 
   web:
     runs-on: ubuntu-latest
@@ -125,6 +108,20 @@ jobs:
       - name: Run full Go lane
         run: pnpm ci:go
 
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Run full Rust lane
+        run: pnpm ci:rust
+
   deps:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
     with:
@@ -133,3 +130,5 @@ jobs:
         --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=uv.lock
+        --lockfile=Cargo.lock
+        --lockfile=apps/execution-control/go.mod

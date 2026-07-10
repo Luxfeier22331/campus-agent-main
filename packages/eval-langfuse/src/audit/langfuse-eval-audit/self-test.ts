@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
 	appApiEvalIngressContractPath,
-	ciInternalSurfaceDetectorPath,
+	ciChangedSurfaceConfigPath,
 	evalMapPath,
 	langfuseCliPath,
 	langfuseRuntimeContractPath,
@@ -128,7 +128,7 @@ function writeMinimalLangfuseEvalRepo({
 	root: string;
 }): void {
 	writeText(
-		join(root, ciInternalSurfaceDetectorPath),
+		join(root, ciChangedSurfaceConfigPath),
 		`function isLangfusePath(path: string) { return path === ${JSON.stringify(ciSurfaceContractPath)}; }\n`,
 	);
 	writeJson(join(root, scoreRegistryPath), {

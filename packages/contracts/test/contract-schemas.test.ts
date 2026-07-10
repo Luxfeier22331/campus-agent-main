@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { isRecord, loadYaml, repoPath, stringArray } from "../scripts/contracts/common.ts";
 import { validateJsonArtifactInvariants } from "../scripts/contracts/schema-invariants.ts";
 import { checkContractSchemas } from "../scripts/contracts/schema-registry.ts";
 
@@ -14,10 +15,22 @@ function readJson(path: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
+function readToolContractEnum(name: string): string[] {
+	const contract = loadYaml(repoPath("docs/contracts/schemas/tool-execution.openapi.yaml"));
+	if (!(isRecord(contract) && isRecord(contract.components))) {
+		throw new Error("tool execution contract must define components");
+	}
+	const schemas = contract.components.schemas;
+	if (!(isRecord(schemas) && isRecord(schemas[name]))) {
+		throw new Error(`tool execution contract must define ${name}`);
+	}
+	return stringArray(schemas[name].enum, `tool execution contract ${name}.enum`);
+}
+
 describe("contract schema registry", () => {
 	it("validates registered schemas, runtime artifacts and fixtures", () => {
 		expect(() => checkContractSchemas()).not.toThrow();
-	});
+	}, 60_000);
 
 	it("keeps model-visible runtime tool schemas on registered JSON Schema refs", () => {
 		const registry = readJson("packages/contracts/schemas/contract-schema-registry.v1.json");
@@ -44,6 +57,28 @@ describe("contract schema registry", () => {
 				);
 			}
 		}
+	});
+
+	it("keeps the runtime tool catalog aligned with model-visible schemas", () => {
+		const tools = readJson("configs/runtime/tools.v4.json").tools as Record<string, unknown>[];
+		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v1.json")
+			.tools as Record<string, unknown>[];
+		const toolIds = readToolContractEnum("ToolID");
+		const modelVisibleToolNames = readToolContractEnum("ModelVisibleToolName");
+		const requestedTools = readToolContractEnum("RequestedTool");
+		const catalogNames = tools.map((tool) => String(tool.name));
+		const modelVisibleNames = tools
+			.filter((tool) => tool.exposure === "model_visible")
+			.map((tool) => String(tool.name))
+			.sort();
+		const requestableNames = tools
+			.filter((tool) => tool.exposure !== "internal_only")
+			.map((tool) => String(tool.name));
+
+		expect(toolIds).toEqual(expect.arrayContaining(catalogNames));
+		expect(requestedTools).toEqual(expect.arrayContaining(requestableNames));
+		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
+		expect(functionSchemas.map((tool) => String(tool.name)).sort()).toEqual(modelVisibleNames);
 	});
 
 	it("rejects raw replay sections when the capture policy does not admit them", () => {

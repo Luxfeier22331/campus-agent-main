@@ -4,21 +4,7 @@
 	"packageManager": "pnpm@10.26.1",
 	"pnpm": {
 		"overrides": {
-			"@babel/core": "7.29.6",
-			"@better-auth/core": "1.6.23",
-			"@tanstack/react-start": "1.168.27",
-			"@tanstack/react-start-client": "1.168.15",
-			"@tanstack/react-start-rsc": "0.1.26",
-			"@tanstack/react-start-server": "1.167.21",
-			"@tanstack/router-plugin": "1.168.19",
-			"@tanstack/router-utils": "1.162.2",
-			"@tanstack/start-plugin-core": "1.171.19",
-			"@tanstack/start-server-core": "1.169.16",
-			"defu": "6.1.5",
-			"esbuild@<0.25.0": "0.25.12",
-			"js-yaml@4.1.1": "5.2.1",
-			"lodash": "4.18.1",
-			"react-router@7.13.2": "7.18.1"
+			"esbuild@<0.25.0": "0.25.12"
 		},
 		"packageExtensions": {
 			"@hookform/resolvers@*": {
@@ -37,27 +23,24 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"repo:guard": "pnpm exec tsx scripts/check_repo_guard.ts",
-		"repo:self-test": "pnpm exec tsx scripts/check_repo_static.ts --self-test-all",
-		"repo:static": "pnpm exec tsx scripts/check_repo_static.ts",
-		"repo:static:affected": "pnpm exec tsx scripts/check_repo_static.ts --affected",
+		"repo:static": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(node_modules|vendor|\\.planning|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
 		"smoke:app-api": "pnpm exec tsx scripts/smoke/app-api.ts",
-		"ci:repo": "pnpm repo:guard && pnpm exec tsx scripts/check_repo_static.ts --affected --base \"${CI_BASE_REF:-origin/main}\"",
-		"ci:repo:full": "pnpm repo:guard && pnpm repo:static",
+		"ci:repo": "pnpm repo:static",
 		"ci:contracts": "pnpm --filter campus-contracts typecheck && pnpm --filter campus-contracts test && pnpm contracts:check && uv run --package campus-contracts python -m unittest discover -s packages/contracts/tests -t packages/contracts -q",
-		"ci:ingest": "pnpm --filter ingestion-contracts typecheck && pnpm --filter ingestion-contracts test && uv run --package campus-ingestion-contracts python -m unittest discover -s packages/ingestion-contracts/tests -t packages/ingestion-contracts -q",
+		"ci:ingest": "pnpm --filter ingestion-contracts typecheck && pnpm --filter ingestion-contracts test && pnpm --filter ingest-core typecheck && pnpm --filter ingest-core test && uv run --package campus-ingestion-contracts python -m unittest discover -s packages/ingestion-contracts/tests -t packages/ingestion-contracts -q",
 		"ci:eval": "pnpm --dir packages/eval-langfuse typecheck && pnpm --dir packages/eval-langfuse test && pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json && uv run --package campus-ragas-runner python -m unittest discover -s packages/ragas-runner/tests -t packages/ragas-runner -q && pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/telemetry.index.test.ts",
 		"ci:go": "pnpm go:check",
+		"ci:rust": "cargo fmt --all --check && cargo clippy --locked --workspace --all-targets -- -D warnings && cargo test --locked --workspace",
 		"ci:web": "turbo run typecheck test --affected --concurrency=2",
 		"ci:web:full": "pnpm web:check",
 		"ci:worker": "pnpm web:test:worker && pnpm --dir apps/app-api exec wrangler deploy --dry-run --outdir /tmp/campus-agent-app-api-worker-bundle --env local && pnpm --dir apps/campus-web build:app && pnpm --dir apps/operator-console-web build",
-		"ci:config": "pnpm ci:actions:lint && uvx zizmor --min-severity=medium .github && pnpm exec tsx scripts/check_repo_static.ts --ci-workflows",
+		"ci:config": "pnpm ci:actions:lint && uvx zizmor --min-severity=medium .github",
 		"ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
-		"ci:deps": "go run github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8 scan source --config osv-scanner.toml --format=vertical --verbosity=error --lockfile pnpm-lock.yaml --lockfile uv.lock",
+		"ci:deps": "go run github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8 scan source --config osv-scanner.toml --format=vertical --verbosity=error --lockfile pnpm-lock.yaml --lockfile uv.lock --lockfile Cargo.lock --lockfile apps/execution-control/go.mod",
 		"dev": "turbo run dev --filter=campus-web --filter=app-api",
 		"web:build": "turbo run build",
 		"web:check": "turbo run typecheck test build --concurrency=2",
-		"web:lint": "pnpm exec tsx scripts/check_repo_static.ts --format",
+		"web:lint": "pnpm exec biome check .",
 		"web:test": "turbo run test",
 		"web:test:worker": "turbo run test:worker",
 		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
@@ -68,13 +51,10 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.3",
-		"ajv": "8.20.0",
 		"editorconfig-checker": "^6.1.1",
 		"markdownlint-cli2": "^0.23.0",
-		"smol-toml": "1.7.0",
 		"tsx": "^4.23.0",
-		"turbo": "^2.10.3",
-		"yaml": "^2.9.0"
+		"turbo": "^2.10.3"
 	},
 	"license": "Apache-2.0",
 	"repository": {

@@ -77,6 +77,8 @@ pre-commit install
 默认 public clone 最低门禁：
 
 ```bash
+pnpm repo:static
+pnpm ci:rust
 pnpm ci:contracts
 pnpm ci:ingest
 pnpm ci:eval
@@ -109,7 +111,7 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 - 不提交 raw notice、采集 HTML、OCR 输出、canonical docs artifact、真实 qrels / gold truth
 - 不提交 secret、private URL、数据库连接串、对象存储 key 或内部运行日志
 - 不把 current serving truth、release current pointer 或生产 projection 写进 git
-- 触及这些路径时运行 `pnpm repo:static`
+- 触及这些路径时运行所属 package/app 测试，并确认 Gitleaks 与对应数据边界检查通过
 
 长期策略见 `docs/policies/public-source-data.md`，当前 tracked data-like artifact 盘点见
 `docs/reference/open-source-data.md`。
@@ -146,13 +148,10 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
   `main`
 - conditional CI job 为 skipped 是允许状态，但 PR 作者和 reviewer 必须确认
   changed-surface 分类与本次改动匹配
-- Dependabot PR 按依赖面跑对应验证：GitHub Actions 依赖运行 `pnpm ci:config`，
-  npm / pnpm workspace 依赖运行 `pnpm ci:web` 和 `pnpm ci:worker`，Go module
-  依赖运行 `pnpm ci:go`；依赖风险较高或 lockfile 大幅变更时，额外运行
-  `pnpm ci:deps`
-- `pnpm ci:config` 包含 actionlint、zizmor 和 workflow action policy check；
-  新增未信任 GitHub Action 时，优先 pin 到 full commit SHA，或在 policy 中加入
-  allowlist 并说明原因
+- Dependabot PR 按依赖生态运行 `.github/workflows/pr.yml` 选择的 owner lanes；本地至少运行
+  `pnpm ci:deps` 与受影响的 Node、Python、Go 或 Rust owner 验证
+- `pnpm ci:config` 直接运行 actionlint 与 zizmor；新增 GitHub Action 时优先使用
+  官方维护、固定版本的 action，并按 zizmor 结果处理权限与引用风险
 - PR 默认 secret scan 由 `gitleaks/gitleaks-action@v3` 执行；组织 / private
   阶段需要配置 `GITLEAKS_LICENSE`，它不替代 GitHub Secret Protection 或历史泄漏审计
 - CodeQL、Dependency Review 和 artifact attestation 需要先确认 private repo 的 GitHub
