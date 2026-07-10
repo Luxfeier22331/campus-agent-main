@@ -43,17 +43,17 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps shared product bootstrap aligned with candidate-first dining storage", () => {
-		const sql = readAppFile("db/shared-product-migrations/0007_dining_operations.sql");
+		const sql = readAppFile("drizzle/0000_current_baseline.sql");
 
 		for (const requiredFragment of [
 			'"floorplan_id" text',
 			'"floorplan_sha256" text',
-			'CREATE TABLE IF NOT EXISTS "dining"."draft_versions"',
-			'CREATE TABLE IF NOT EXISTS "dining"."release_candidates"',
+			'CREATE TABLE "dining"."draft_versions"',
+			'CREATE TABLE "dining"."release_candidates"',
 			'"snapshot_payload_json" jsonb NOT NULL',
-			'CREATE TABLE IF NOT EXISTS "dining"."release_candidate_validation_reports"',
-			'CREATE TABLE IF NOT EXISTS "dining"."release_schedule_jobs"',
-			'CREATE TABLE IF NOT EXISTS "dining"."release_latest_pointer"',
+			'CREATE TABLE "dining"."release_candidate_validation_reports"',
+			'CREATE TABLE "dining"."release_schedule_jobs"',
+			'CREATE TABLE "dining"."release_latest_pointer"',
 			'"svg_anchor_id" text',
 			'"snapshot_hash" text',
 			"\"svg_object_refs_json\" jsonb DEFAULT '[]'::jsonb NOT NULL",
@@ -62,21 +62,30 @@ describe("dining operations schema", () => {
 		}
 	});
 
-	it("keeps the manifest-ref dining migration safe for pre-existing dining rows", () => {
-		const sql = readAppFile("drizzle/0041_dining_floorplan_manifest_refs.sql");
+	it("keeps dining floorplan manifest refs in the current baseline", () => {
+		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
+			tables: Record<
+				string,
+				{ columns: Record<string, { name: string; notNull: boolean; type: string }> }
+			>;
+		};
+		const floorColumns = latestSnapshot.tables["dining.floors"]?.columns ?? {};
 
-		expect(sql).not.toContain(
-			'ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_id" text NOT NULL;',
-		);
-		expect(sql).toContain('ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_id" text DEFAULT');
-		expect(sql).toContain(
-			'ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_sha256" text DEFAULT',
-		);
-		expect(sql).toContain('DROP TABLE "dining"."floorplan_assets"');
+		expect(floorColumns.floorplan_id).toMatchObject({
+			name: "floorplan_id",
+			notNull: true,
+			type: "text",
+		});
+		expect(floorColumns.floorplan_sha256).toMatchObject({
+			name: "floorplan_sha256",
+			notNull: true,
+			type: "text",
+		});
+		expect(latestSnapshot.tables["dining.floorplan_assets"]).toBeUndefined();
 	});
 
 	it("keeps dining menu offering price labels nullable for incomplete source prices", () => {
-		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0055_snapshot.json")) as {
+		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
 			tables: Record<
 				string,
 				{ columns: Record<string, { name: string; notNull: boolean; type: string }> }
@@ -89,14 +98,11 @@ describe("dining operations schema", () => {
 			notNull: false,
 			type: "text",
 		});
-		expect(readAppFile("drizzle/0055_nullable_dining_price_label.sql")).toContain(
-			'ALTER TABLE "dining"."menu_offerings" ALTER COLUMN "price_label" DROP NOT NULL',
-		);
 	});
 
 	it("keeps dining source observations incremental and replayable", () => {
-		const migration = readAppFile("drizzle/0056_dining_source_observation_incremental.sql");
-		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0056_snapshot.json")) as {
+		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
 			tables: Record<
 				string,
 				{ columns: Record<string, { name: string; notNull: boolean; type: string }> }
@@ -105,9 +111,9 @@ describe("dining operations schema", () => {
 		const observationColumns = latestSnapshot.tables["dining.source_observations"]?.columns ?? {};
 		const syncRunColumns = latestSnapshot.tables["dining.source_sync_runs"]?.columns ?? {};
 
-		expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dining"."source_sync_runs"');
-		expect(migration).toContain('"last_seen_run_id" text');
-		expect(migration).toContain('"stale_at" timestamp with time zone');
+		expect(sql).toContain('CREATE TABLE "dining"."source_sync_runs"');
+		expect(sql).toContain('"last_seen_run_id" text NOT NULL');
+		expect(sql).toContain('"stale_at" timestamp with time zone');
 		expect(observationColumns.content_hash).toMatchObject({
 			name: "content_hash",
 			notNull: true,
@@ -131,22 +137,36 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps shared dining review projections bound to published stall/window ids", () => {
-		const bootstrap = readAppFile(
-			"db/shared-product-migrations/0010_dining_review_projections.sql",
-		);
-		const migration = readAppFile(
-			"db/shared-product-migrations/0012_dining_review_binding_ids.sql",
-		);
+		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
+			tables: Record<
+				string,
+				{
+					columns: Record<string, { name: string; notNull: boolean; type: string }>;
+					indexes?: Record<string, unknown>;
+				}
+			>;
+		};
+		const reviewTable = latestSnapshot.tables["dining.review_projections"];
+		const reviewColumns = reviewTable?.columns ?? {};
 
 		expect(Object.keys(appApiSchema)).toContain("diningReviewProjections");
-		expect(bootstrap).toContain('CREATE TABLE IF NOT EXISTS "dining"."review_projections"');
-		expect(migration).toContain('DELETE FROM "dining"."review_projections"');
-		expect(migration).toContain('"stall_profile_id" text');
-		expect(migration).toContain('"window_id" text');
-		expect(migration).toContain('ALTER COLUMN "stall_profile_id" SET NOT NULL');
-		expect(migration).toContain('ALTER COLUMN "window_id" SET NOT NULL');
-		expect(migration).not.toContain("DEFAULT ''");
-		expect(migration).toContain("dining_review_projections_stall_profile_idx");
-		expect(migration).toContain("dining_review_projections_window_idx");
+		expect(sql).toContain('CREATE TABLE "dining"."review_projections"');
+		expect(reviewColumns.stall_profile_id).toMatchObject({
+			name: "stall_profile_id",
+			notNull: true,
+			type: "text",
+		});
+		expect(reviewColumns.window_id).toMatchObject({
+			name: "window_id",
+			notNull: true,
+			type: "text",
+		});
+		expect(Object.keys(reviewTable?.indexes ?? {})).toEqual(
+			expect.arrayContaining([
+				"dining_review_projections_stall_profile_idx",
+				"dining_review_projections_window_idx",
+			]),
+		);
 	});
 });

@@ -9,8 +9,8 @@ updated: 2026-07-04
 # Eval Operations Governance
 
 This runbook covers active Langfuse/Ragas eval operations. It does not author
-domain truth, define product release gates, or keep legacy profile-gate policy
-files alive.
+domain truth, define product release gates, or keep profile-gate policy files
+alive.
 
 ## Source Of Truth
 
@@ -18,9 +18,8 @@ files alive.
 - Active eval lanes: `docs/reference/eval-map.md`
 - Golden truth model: `docs/reference/eval-gold-truth-model.md`
 
-The retired Python/profile-gate policy files are deleted. New operational
-checks must be implemented in `packages/eval-langfuse` or the owning runtime
-before they become active.
+New operational checks must be implemented in `packages/eval-langfuse` or the
+owning runtime before they become active.
 
 ## Active Operations
 
@@ -51,7 +50,7 @@ APP_API_DB_URL=<app-api projection database> \
 LANGFUSE_BASE_URL=<langfuse base url> \
 LANGFUSE_PUBLIC_KEY=<project public key> \
 LANGFUSE_SECRET_KEY=<project secret key> \
-pnpm --dir jobs/learning-loop-candidates verify-published-candidates -- \
+pnpm --dir jobs/learning-loop-candidates exec tsx ./src/cli.ts verify-published-candidates \
   --since <ISO timestamp> \
   --limit <N> \
   --json
@@ -65,37 +64,39 @@ Langfuse dataset，可供 annotation / dataset / eval 工作流消费。
 Learning-loop candidate selector:
 
 ```bash
-pnpm --dir jobs/learning-loop-candidates select-candidates -- --since <ISO> --limit <N> --json
+pnpm --dir jobs/learning-loop-candidates exec tsx ./src/cli.ts \
+  select-candidates --since <ISO> --limit <N> --json
 ```
 
 Learning-loop candidate publisher:
 
 ```bash
-pnpm --dir jobs/learning-loop-candidates publish-candidates -- --since <ISO> --limit <N> --dry-run
+pnpm --dir jobs/learning-loop-candidates exec tsx ./src/cli.ts \
+  publish-candidates --since <ISO> --limit <N> --dry-run
 ```
 
 Langfuse score config sync:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse sync-score-configs
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs
 ```
 
 Langfuse dataset sync:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse sync-datasets
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-datasets
 ```
 
 RAG dataset manifest builder:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts build-rag-dataset-manifest
 ```
 
 Runtime trace evidence verifier:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse verify-trace
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace
 ```
 
 ## Release Posture
@@ -130,18 +131,17 @@ allowed in published metadata.
 Before relying on eval evidence for release closeout, run:
 
 ```bash
-uv run --all-packages python -m scripts.langfuse_eval_audit audit --json
+pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json
 ```
 
-The audit checks workflow dispatch choices, Langfuse publish contract, retired
-self-built eval package references, retired CLI commands, score registry shape
+The audit checks workflow dispatch choices, Langfuse publish contract, blocked
+self-built eval package references, blocked CLI commands, score registry shape
 and active eval-map expectations.
 
 ## Operator Projection
 
-The former app-api eval coverage and low-score diagnostic projections are
-retired. Operator observability no longer mirrors Langfuse/Ragas scoring state
-into app-api tables.
+Operator observability does not mirror Langfuse/Ragas scoring state into
+app-api tables.
 
 Operator-facing eval evidence should stay in Langfuse datasets, runs, scores and
 annotation queues. App-api does not expose runtime quality badcases, negative

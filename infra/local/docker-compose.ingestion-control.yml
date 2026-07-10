@@ -1,0 +1,23 @@
+name: campus-agent-local-ingestion-control
+
+services:
+  ingestion-control:
+    build:
+      context: ../..
+      dockerfile: apps/ingestion-control/Dockerfile
+    environment:
+      INGESTION_CONTROL_DATABASE_URL: postgresql://${LOCAL_POSTGRES_USER:-postgres}:${LOCAL_POSTGRES_PASSWORD:-postgres}@campus-agent-postgres:5432/${LOCAL_POSTGRES_DB:-campus_agent}
+      INGESTION_CONTROL_HOST: 0.0.0.0
+      INGESTION_CONTROL_PORT: 8000
+    ports:
+      - "127.0.0.1:${LOCAL_INGESTION_CONTROL_PORT:-27061}:8000"
+    restart: unless-stopped
+    networks:
+      data-plane:
+        aliases:
+          - campus-agent-ingestion-control
+
+networks:
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}

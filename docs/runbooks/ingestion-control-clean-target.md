@@ -11,12 +11,11 @@ updated: 2026-07-05
 
 ## Document Boundary
 
-This is the active ingestion/data-plane operational entrypoint after retiring
-legacy Python collection CLIs.
+This is the active ingestion/data-plane operational entrypoint.
 
-Legacy Python collection module commands, on-demand batch wrappers, registry
-release CLIs, root ingestion runtime smoke/report scripts, Qdrant backup/GC
-CLIs and serving seed CLIs are not active operation surfaces.
+Python collection module commands, on-demand batch wrappers, registry release
+CLIs, root ingestion runtime smoke/report scripts, Qdrant backup/GC CLIs and
+serving seed CLIs are not active operation surfaces.
 
 ## Active Runtime Boundary
 
@@ -47,7 +46,7 @@ not a Cloudflare Worker.
 - collector jobs or services: source-channel adapters that write source-bucket
   artifacts, run ledgers and source-channel task input refs, then admit
   ingestion tasks through the control plane.
-- Python library or private service: extraction capability invoked only behind
+- Python library or private service: extraction function invoked only behind
   explicit TS-controlled handlers.
 
 The API and Temporal worker roles may share the same package or container
@@ -93,7 +92,7 @@ as the worker process command.
 ```bash
 pnpm --filter ingestion-contracts test
 pnpm --filter ingestion-control test -- task-registry.test.ts
-uv run --all-packages python -m scripts.check_ingestion_task_executability
+pnpm repo:static
 ```
 
 The registry contract rejects Python adapter executors. If a task requires
@@ -101,10 +100,10 @@ Python extraction, model that as a TS-controlled handler that invokes a private
 adapter process behind an explicit handler. Do not add a registry fallback
 executor.
 
-`scripts.check_ingestion_task_executability` is the current static gate for
+`pnpm repo:static` is the current static gate for
 registry executability. It reads the default executable inventory from
-`packages/ingest-core/src/default-executor-inventory.v1.json`; the Python
-script must not maintain a second TS handler / Rust kernel allowlist. It
+`packages/ingest-core/src/default-executor-inventory.v1.json`; the static
+checker must not maintain a second TS handler / Rust kernel allowlist. It
 classifies every registry-declared task and its declared input/output contract
 as one of:
 
@@ -133,8 +132,8 @@ these task kinds only when the corresponding default handler or kernel bridge
 is registered and the executability audit returns `executable`.
 Collection runtime / chunk profile payload validation belongs to TS
 `packages/ingest-core`; Python `chunking*`, `process*`,
-`regulation_chunking*`, tokenizer cache and corpus profile modules are retired
-and must not be reintroduced as alternate execution paths.
+`regulation_chunking*`, tokenizer cache and corpus profile modules must not be
+introduced as alternate execution paths.
 
 Generic ingestion artifact/model helpers also belong to TS `packages/ingest-core`
 or explicit handlers. Do not restore Python `artifact_keys.py`, `artifacts.py`,
@@ -360,8 +359,8 @@ adapters directly.
 `apps/app-api` may expose authenticated collector-machine ingress and
 operator-safe query/projection routes for existing product surfaces, but it must
 not import collector app source, shell out to collector package scripts, or own
-collection execution. Static boundary tests under `tests/api` guard this
-app-api / collector execution split.
+collection execution. `pnpm repo:static` enforces this app-api / collector
+execution split through repo-owned static checks.
 
 ## Historical Instructions
 

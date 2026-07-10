@@ -212,12 +212,12 @@ Current implementation includes bank bootstrap, bank-level Memory Defense
 redaction verification, sanitized `Reflect`, async operation status/list/action
 projection, timestamped retain, timestamped recall, `observation` recall
 coverage, untimed fact projection, execution-control bounded `recall_limit`
-projection and a live self-hosted Hindsight staging smoke runner. The live
-runner proves async retain materialization via operation status or later recall
-/ reflect evidence, plus profile upsert / disable and owner isolation.
-Operation cancel/retry are covered as internal API smoke/unit behavior because
-live success depends on Hindsight having a pending or failed operation at that
-moment.
+projection and app-api chat memory E2E coverage. Async retain materialization
+is validated through operation status, later recall / reflect evidence and
+K8s readiness rather than an app-api package script that calls internal
+execution-control endpoints directly. Operation cancel/retry are covered as
+internal API smoke/unit behavior because live success depends on Hindsight
+having a pending or failed operation at that moment.
 
 ## Rejected Alternatives
 

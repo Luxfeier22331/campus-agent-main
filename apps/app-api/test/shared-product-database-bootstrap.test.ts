@@ -1,14 +1,15 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
 	APP_AUTH_SCHEMA,
 	APP_CHAT_SCHEMA,
+	applySharedProductCurrentSchemaSql,
 	BETTER_AUTH_TABLES,
 	classifyBetterAuthTableOwnership,
 	readSharedProductBootstrapEnv,
-} from "../scripts/shared-product-database-bootstrap.mjs";
+} from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 
 describe("app-api shared product database bootstrap", () => {
 	it("freezes app_auth/chat as fixed shared product schemas", () => {
@@ -70,5 +71,14 @@ describe("app-api shared product database bootstrap", () => {
 				publicSchemaTables: [],
 			}),
 		).toBe("target_schema_needs_migration");
+	});
+
+	it("rejects invalid current-schema SQL before querying PostgreSQL", async () => {
+		const query = vi.fn(async () => undefined);
+
+		await expect(
+			applySharedProductCurrentSchemaSql({ query }, "DELETE FROM chat.messages;"),
+		).rejects.toThrow("Unsupported shared-product schema baseline statement shape");
+		expect(query).not.toHaveBeenCalled();
 	});
 });

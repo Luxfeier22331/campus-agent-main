@@ -12,15 +12,10 @@ dev = [
   "html5lib>=1.1",
   "jsonschema>=4.26.0",
   "pre-commit>=4.2.0",
-  "pytest>=8.0.0",
   "ruff>=0.15.11",
   "sqlfluff>=3.4.2",
   "yamllint>=1.37.1",
 ]
-
-[tool.pytest.ini_options]
-addopts = "-q"
-testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py312"
@@ -108,30 +103,14 @@ select = [
   "UP047",
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"tests/*/test_*.py" = ["F403"]
-"tests/api/*_suite.py" = ["F403", "F405"]
-"tests/api/*_support.py" = ["F401", "F403", "F405", "I001"]
-"tests/contracts/*_suite.py" = ["F403", "F405"]
-"tests/evals/*_suite.py" = ["F403"]
-"tests/ingestion/*_suite.py" = ["F403", "F405"]
-"tests/ingestion/*_support.py" = ["F401", "F403", "F405", "I001"]
-"tests/ingestion/*_test_support.py" = ["E402", "F401", "F403", "F405", "I001"]
-"tests/retrieval/*_suite.py" = ["F403"]
-"tests/agent/*_suite.py" = ["F403"]
-
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
 members = [
   "packages/contracts",
-  "packages/eval-langfuse",
   "packages/ingestion-contracts",
-  "packages/ingestion-kernels-rs",
-  "packages/navigation-tool",
   "packages/ragas-runner",
-  "packages/shared",
 ]
 
 [build-system]

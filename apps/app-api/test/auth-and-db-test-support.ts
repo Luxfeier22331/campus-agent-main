@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import migration0000Raw from "../drizzle/0000_funny_tiger_shark.sql?raw";
+import currentBaselineRaw from "../drizzle/0000_current_baseline.sql?raw";
 import * as appModule from "../src/app";
 import * as configModule from "../src/config";
 import * as runtimeDbModule from "../src/db/runtime";
@@ -98,5 +98,5 @@ export const isEndUserEmailAllowedForAuth = authModule.isEndUserEmailAllowedForA
 export const probeAppAuthRuntime = authModule.probeAppAuthRuntime;
 export const resolvePasswordResetRedirectTarget = authModule.resolvePasswordResetRedirectTarget;
 export const verifyAppPassword = authModule.verifyAppPassword;
-export const migration0000 = migration0000Raw;
+export const migration0000 = currentBaselineRaw;
 export { appApiSchema } from "../src/db/schema";

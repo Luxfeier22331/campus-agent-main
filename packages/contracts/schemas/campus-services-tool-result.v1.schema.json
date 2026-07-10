@@ -159,7 +159,7 @@
 			"allOf": [
 				{
 					"not": {
-						"pattern": "(?i)(raw_sql|raw_source|raw_html|source_html|object_locator|object_store_key|provider_raw_response|raw_provider|s3://|r2://|minio://)"
+						"pattern": "([Rr][Aa][Ww]_[Ss][Qq][Ll]|[Rr][Aa][Ww]_[Ss][Oo][Uu][Rr][Cc][Ee]|[Rr][Aa][Ww]_[Hh][Tt][Mm][Ll]|[Ss][Oo][Uu][Rr][Cc][Ee]_[Hh][Tt][Mm][Ll]|[Oo][Bb][Jj][Ee][Cc][Tt]_[Ll][Oo][Cc][Aa][Tt][Oo][Rr]|[Oo][Bb][Jj][Ee][Cc][Tt]_[Ss][Tt][Oo][Rr][Ee]_[Kk][Ee][Yy]|[Pp][Rr][Oo][Vv][Ii][Dd][Ee][Rr]_[Rr][Aa][Ww]_[Rr][Ee][Ss][Pp][Oo][Nn][Ss][Ee]|[Rr][Aa][Ww]_[Pp][Rr][Oo][Vv][Ii][Dd][Ee][Rr]|[Ss]3://|[Rr]2://|[Mm][Ii][Nn][Ii][Oo]://)"
 					}
 				}
 			]

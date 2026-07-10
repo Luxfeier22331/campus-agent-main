@@ -148,11 +148,11 @@ app-api builds context.conversation provenance envelope
 
 ### 7.5 Previous Evidence Reuse
 
-- 追问上一轮 evidence 局部内容时，优先使用上一轮 selected evidence proof ref。
+- 追问上一轮 evidence 局部内容时，优先使用上一轮 selected evidence verification ref。
 - 新问题中，上一轮 evidence 只能作为辅助上下文，不能替代新检索。
 - Evidence ref 必须保留 source id、document id、version / snapshot metadata、access
   scope 和 content hash。
-- 缺 source / version / access / hash proof 时不得复用。
+- 缺 source / version / access / content hash 时不得复用。
 - Final answer 必须能区分上一轮 evidence 与本轮检索来源。
 
 ### 7.6 Budget And Truncation

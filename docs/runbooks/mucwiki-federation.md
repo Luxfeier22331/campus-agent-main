@@ -32,8 +32,8 @@ APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
 APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:UserLogout' \
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-node apps/app-api/scripts/run-with-staging-db-env.mjs \
-  pnpm exec tsx ./scripts/provision-muc-wiki-federation-client.ts
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-staging-db-env.ts \
+  pnpm exec tsx ./ops/identity/provision-muc-wiki-federation-client.ts
 ```
 
 The command materializes the controlled `muc-wiki` client into app-owned

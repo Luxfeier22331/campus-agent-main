@@ -46,7 +46,7 @@ durable runtime contract 为当前 canonical source。`tool-execution.openapi.ya
 - `docs/contracts/schemas/tool-execution.openapi.yaml`：OpenAPI 3.1.1 +
   JSON Schema 2020-12，冻结 tool execution request / response、runtime
   decisions summary 与 workflow trace summary 的 wire shape
-- `scripts/generate_tool_execution_contracts.py`：从上述 schema 生成 active runtime
+- `pnpm contracts:generate`：从上述 schema 生成 active runtime
   artifact
 - `apps/app-api/src/modules/integration/generated/tool-execution-contract.ts`：Worker
   adapter 消费的 TS wire enum / interface
@@ -183,7 +183,7 @@ workflow/activity workers -> sanitized run event + step/attempt/result projectio
 - panel、eval、badcase 与 operational diagnostic artifact 只能消费 app-api materialized projection；
   `workflow_trace_summary` 只作为兼容摘要，主诊断事实源是 step trajectory
 - `execution-control` 的 deploy substrate 不改变本文冻结的 request/response 语义；
-  Docker Compose 只保留 local / transitional evidence，production target substrate
+  Docker Compose 只保留 local diagnostics harness，production target substrate
   由 K8s + KEDA 承接
 
 ## Transport Conclusion

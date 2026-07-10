@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	provisionMucWikiFederationClient,
 	readMucWikiFederationClientProvisionInput,
-} from "../scripts/provision-muc-wiki-federation-client-lib.mjs";
+} from "../src/script-support/provisioning/provision-muc-wiki-federation-client-lib.ts";
 
 describe("muc-wiki federation client provision", () => {
 	it("requires runtime-only secret and redirect URI inputs", () => {

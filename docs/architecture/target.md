@@ -593,7 +593,7 @@ prompt 内部的隐式判断。
   metrics
 - `apps/execution-control` 拥有 Execution Agent Layer routing intent framing、routing
   clarification 与 handoff semantics
-- domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
+- domain agent 只拥有已选定 tool group 内部的 agent clarification 与执行语义
 - repo-owned eval truth 拥有 intent dataset、regression gate 语义与 observed-case
   promotion 协议；具体 runner / platform automation 默认走 TS eval runtime 与 Langfuse
 

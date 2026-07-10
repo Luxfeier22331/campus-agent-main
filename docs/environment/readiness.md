@@ -38,7 +38,7 @@ updated: 2026-06-28
 ### Shared doctor gate
 
 ```bash
-uv run --all-packages python -m scripts.doctor_env <surface> --json
+pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 ```
 
 当前支持的 surface：
@@ -106,14 +106,13 @@ Fixed interpretation:
 ### Cloudflare secret presence
 
 ```bash
-uv run --all-packages python -m scripts.check_worker_secret_presence --env \
-  staging --json
+pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --json
 ```
 
 固定解释：
 
 - `worker-staging` 不直接读取 Cloudflare secret store
-- 发布前先过 `check_worker_secret_presence`
+- 发布前先过 `check-worker-secret-presence`
 - publish 时再由各 app `wrangler.toml` 的 `secrets.required` 做 fail-fast
 
 ## Release Boundary
@@ -150,13 +149,13 @@ Readiness is a necessary gate, not release completion.
 - 需要确认 eval surface 实际可见性时，优先使用：
 
 ```bash
-uv run --all-packages python -m scripts.doctor_env evals --json
+pnpm exec tsx scripts/deploy/doctor-env.ts evals --json
 ```
 
 - repo-owned shared automation doctor 入口：
 
 ```bash
-uv run --all-packages python -m scripts.langfuse_eval_audit doctor --json
+pnpm --dir packages/eval-langfuse exec tsx src/cli.ts doctor --json
 ```
 
 ## Related Runbooks

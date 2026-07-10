@@ -6,6 +6,7 @@ import {
 	packageManifest,
 	stagingAccessServiceTokenSmokeSource,
 	stagingBrowserE2ESource,
+	stagingPreflightSource,
 	viteConfigSource,
 	wranglerConfig,
 	wranglerLocalSmokeConfig,
@@ -55,7 +56,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["build:staging"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(packageManifest.scripts?.["build:staging"]).toContain("run-worker-staging-build.mjs");
+		expect(packageManifest.scripts?.["build:staging"]).toContain("run-worker-staging-build.ts");
 		expect(packageManifest.scripts?.["build:staging"]).toContain(
 			"OPERATOR_CONSOLE_APP_API_SHARED_SECRET",
 		);
@@ -105,15 +106,21 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(viteConfigSource).toContain("process.env.EXECUTION_CONTROL_BASE_URL");
 		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
-		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
+		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
+		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.ts");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain('loadRepoStagingEnvFile(import.meta.url, "../../..")');
-		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
+		expect(deployStagingSource).toContain("preflight-staging.ts");
+		expect(stagingPreflightSource).toContain("worker-staging-operator-console-web");
+		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
+		expect(stagingPreflightSource).toContain("apps/operator-console-web");
+		expect(stagingPreflightSource).toContain(
+			"apps/operator-console-web/dist/operator_console_web/wrangler.json",
+		);
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);

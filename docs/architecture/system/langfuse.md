@@ -170,7 +170,7 @@ repo's eval truth.
   separate policy-governed data plane defined by
   `docs/contracts/replay-capture.md`.
 
-Trace closeout is capability-aware: a memory-enabled product path must prove
+Trace closeout is tool/domain-aware: a memory-enabled product path must prove
 the corresponding repo-owned observations exist, starting with `memory.recall`.
 When a flow evaluates retain materialization or reflection, closeout may require
 `memory.append`, `memory.operation_status` or `memory.reflect` as explicit step

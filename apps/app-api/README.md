@@ -44,14 +44,13 @@ Dining student routes read published `dining.*` projections. Dining catalog
 fixture truth belongs to `packages/domains/dining`; import/review sync belongs to
 `jobs/dining-sync`, not the app-api request path.
 
-Repeatable local / staging database artifacts stay under `apps/app-api/scripts`
-and `apps/app-api/db/shared-product-migrations` rather than package lifecycle
-scripts:
+Repeatable local / staging database artifacts stay under app-owned `ops/`
+entry points, `apps/app-api/drizzle/0000_current_baseline.sql` and
+`apps/app-api/db/shared-product-schema/chat_current.sql` rather than
+package lifecycle scripts:
 
-- `scripts/bootstrap-shared-product-with-seeds.mjs`
-- `scripts/bootstrap-shared-product-database.mjs`
-- `scripts/ensure-app-auth-role-search-path.mjs`
-- `scripts/reconcile-shared-db-drift.mjs`
+- `ops/db/bootstrap-shared-product-database.ts`
+- `ops/db/ensure-app-auth-role-search-path.ts`
 
 The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 `profile.*`, `runtime.*`, `operator.*`, `official_web.*`, `dining.*`,
@@ -82,13 +81,11 @@ pnpm --dir apps/app-api test:shared-db-integration
 pnpm --dir apps/app-api typecheck
 ```
 
-Shared product database bootstrap and reconciliation entry points live under
-`apps/app-api/scripts/`:
+Shared product database bootstrap entry points live under `apps/app-api/ops/db/`:
 
-- `bootstrap-shared-product-with-seeds.mjs` applies shared DB migrations and
-  delegates dining catalog fixture import to `jobs/dining-sync`
-- `ensure-app-auth-role-search-path.mjs`
-- `reconcile-shared-db-drift.mjs`
+- `bootstrap-shared-product-database.ts` applies shared DB migrations. Dining
+  catalog fixture import stays with `jobs/dining-sync`.
+- `ensure-app-auth-role-search-path.ts`
 
 The fixed shared product schemas include `app_auth.*` and `chat.*`.
 

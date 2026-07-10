@@ -9,7 +9,7 @@ updated: 2026-06-28
 # Place Lookup
 
 This is the canonical human document for the `place_lookup` /
-`place_finding` narrow capability.
+`place_finding` narrow domain/tool surface.
 
 ## Boundary
 
@@ -23,12 +23,12 @@ Current product posture:
   use repo-owned `place_catalog` in the typed tool runtime.
 - The browser product path still fails closed for `place_lookup` until the map
   product surface is explicitly opened.
-- `place_card` / map consumption is outside this capability document until a
+- `place_card` / map consumption is outside this domain document until a
   product requirement and browser projection contract explicitly open it.
 
 ## Consumption
 
-The intended capability chain is:
+The intended tool consumption chain is:
 
 ```text
 app-api -> execution-control -> admitted typed navigation tool

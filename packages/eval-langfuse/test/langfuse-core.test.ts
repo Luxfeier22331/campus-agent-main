@@ -115,7 +115,10 @@ function traceFetch(payload: unknown) {
 describe("Langfuse trace identity", () => {
 	it("matches the shared trace id vectors", () => {
 		const fixture = JSON.parse(
-			readFileSync(resolve(repoRoot, "tests/fixtures/langfuse_trace_id_vectors.json"), "utf-8"),
+			readFileSync(
+				resolve(repoRoot, "packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json"),
+				"utf-8",
+			),
 		) as {
 			vectors: Array<{ product_trace_id: string; langfuse_trace_id: string; traceparent: string }>;
 		};
@@ -413,9 +416,10 @@ describe("Ragas Langfuse official pipeline", () => {
 			},
 			url: "https://langfuse.example/api/public/scores",
 		});
-		expect(
-			(requests[0]?.body as { metadata?: Record<string, unknown> }).metadata,
-		).not.toHaveProperty("source_artifact_path");
+		const scoreRequestBody = requests[0]?.body as
+			| { metadata?: Record<string, unknown> }
+			| undefined;
+		expect(scoreRequestBody?.metadata).not.toHaveProperty("source_artifact_path");
 	});
 
 	it("scores Langfuse dataset items and preserves dataset score identity", async () => {

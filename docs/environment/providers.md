@@ -194,7 +194,7 @@ Reading model:
   `DINING_OBJECT_STORE_PUBLIC_BASE_URL` must expose the derived moderation
   object prefix to the provider. The moderation prefix is not written to
   `dining.review_projections`.
-- Placement: dining sync Job/CronJob Secret/ConfigMap or one-shot Job env.
+- Placement: dining sync Job/CronJob Secret/ConfigMap or manual Job env.
   These values are not app-api Worker env and are not browser public env.
 - Minimum Feishu/Lark scopes for the current catalog/review table shape:
   `base:table:read`, `base:field:read`, `base:record:retrieve`,
@@ -341,12 +341,9 @@ Add:
 - `env/commands/campus-docs-reader-build.env`
 - derived object-store access for the docs reader publish path
 
-For feature worktrees, first run:
-
-```bash
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-```
+For feature worktrees, provide the command-scoped env file explicitly in that
+checkout or via the developer's local secret manager. The repo does not maintain
+a script that copies or symlinks ignored env files between worktrees.
 
 ### Ingestion / Replay / Rebuild
 

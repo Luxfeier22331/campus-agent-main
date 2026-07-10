@@ -117,8 +117,8 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ### Navigation Tool Runtime
 
-当前 `place_lookup` 没有 model-visible runtime；旧 Python
-`packages/navigation-tool` 已退役。重新开放前必须在 TS/Go owner 中重新建立 typed
+当前 `place_lookup` 没有 model-visible runtime；旧 Python navigation package
+已退役。重新开放前必须在 TS/Go owner 中重新建立 typed
 tool runtime 或 internal query service。
 
 长期负责：

@@ -166,7 +166,7 @@ and budget state only.
 policy for this projection. It records signal, threshold, severity, window and
 runbook anchor for Collector/backend alert setup. The artifact must materialize
 to one Axiom monitor spec per enabled alert rule through
-`scripts/materialize_observability_alerts.py`; the contract gate validates that
+`packages/contracts/scripts/contracts/materialize-observability-alerts.ts`; the contract gate validates that
 materialization. It does not create an Operator Console dashboard or mirror
 external sink data.
 

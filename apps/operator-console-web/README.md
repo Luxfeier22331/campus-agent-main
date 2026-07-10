@@ -60,7 +60,7 @@ Authenticated local smoke uses the same signed-assertion admission path as the
 Worker:
 
 ```bash
-node apps/operator-console-web/scripts/local-access-smoke-server.mjs
+pnpm --dir apps/operator-console-web exec tsx ./e2e/support/local-access-server.ts
 cd apps/operator-console-web
 OPERATOR_CONSOLE_LIVE_SMOKE=1 pnpm dev
 ```

@@ -53,7 +53,7 @@ updated: 2026-07-05
 
 ## Campus services contract
 
-- Human transport capability truth lives in `../domains/transport.md`.
+- Human transport domain truth lives in `../domains/transport.md`.
 - Machine-readable transport tool/status schemas live in
   `../../packages/contracts/schemas/`.
 

@@ -32,7 +32,7 @@
 			"type": "array",
 			"minItems": 1,
 			"items": {
-				"enum": ["supported_go_runtime", "contract_only", "planned_contract_gap"]
+				"enum": ["supported_go_runtime", "contract_only", "closed_no_runtime"]
 			}
 		},
 		"forbidden_raw_key_tokens": {
@@ -110,7 +110,7 @@
 					"enum": ["tool_private", "operator_safe_summary", "finalizer_input"]
 				},
 				"current_projection_support": {
-					"enum": ["supported_go_runtime", "contract_only", "planned_contract_gap"]
+					"enum": ["supported_go_runtime", "contract_only", "closed_no_runtime"]
 				},
 				"answer_eligible": {
 					"type": "boolean"

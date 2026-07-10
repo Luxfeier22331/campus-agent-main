@@ -77,7 +77,9 @@ pre-commit install
 默认 public clone 最低门禁：
 
 ```bash
-uv run --all-packages python -m unittest discover -s tests -t .
+pnpm ci:contracts
+pnpm ci:ingest
+pnpm ci:eval
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker

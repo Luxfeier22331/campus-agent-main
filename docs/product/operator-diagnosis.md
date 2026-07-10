@@ -113,7 +113,7 @@ Sink 是 drill-down destination，不是 request state 的第一查询路径，�
 Operator Console request detail 至少展示：
 
 - request status
-- selected tool / capability
+- selected tool / domain surface
 - terminal outcome / fail-close reason
 - duration and token / cost summary
 - source / citation / retrieval summary

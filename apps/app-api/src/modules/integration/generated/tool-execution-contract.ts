@@ -11,18 +11,21 @@ export const TOOL_EXECUTION_CONTRACT = {
 export const TOOL_IDS = [
 	"knowledge_query",
 	"place_lookup",
+	"public_web_search",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
 	"campus_notice_get",
 ] as const;
 export const MODEL_VISIBLE_TOOL_NAMES = [
 	"knowledge_query",
+	"public_web_search",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
 ] as const;
 export const REQUESTED_TOOLS = [
 	"knowledge_query",
 	"place_lookup",
+	"public_web_search",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
 ] as const;

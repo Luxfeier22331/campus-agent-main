@@ -6,7 +6,7 @@ import {
 	buildSmokeIdentityProvisionRuntimeEnv,
 	provisionSmokeIdentity,
 	readSmokeIdentityProvisionInput,
-} from "../scripts/provision-smoke-identity-lib.mjs";
+} from "../src/script-support/provisioning/provision-smoke-identity-lib.ts";
 
 describe("app-api smoke identity provisioning", () => {
 	it("requires an already-admitted email and a password env var", () => {

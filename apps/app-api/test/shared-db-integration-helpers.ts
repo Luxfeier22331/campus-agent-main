@@ -1,10 +1,8 @@
 // @vitest-environment node
 
 import process from "node:process";
-import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs";
-import { runSharedDatabaseDriftReconcile } from "../scripts/reconcile-shared-db-drift.mjs";
-import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
 import type { Env } from "../src/config";
+import { bootstrapSharedProductDatabase } from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 
 const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
 
@@ -68,28 +66,6 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
 		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
-	});
-	await runSharedDatabaseAdoption({
-		apply: true,
-		env: {
-			...process.env,
-			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
-		},
-	});
-	await runSharedDatabaseDriftReconcile({
-		allowNonEmptyDriftTables: true,
-		apply: true,
-		env: {
-			...process.env,
-			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
-		},
-	});
-	await runSharedDatabaseAdoption({
-		apply: true,
-		env: {
-			...process.env,
-			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
-		},
 	});
 
 	return {

@@ -140,20 +140,17 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   包括 `dept.example.edu`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
   host-wide broad crawl。
 
-### Legacy Broad Crawl Cleanup
+### Broad Crawl Boundary
 
-旧契约下产生的 broad official-web crawl 不做物理硬删除。
-
-清理形态固定为：
+Broad official-web crawl rows do not define current collection scope.
 
 - collector 默认执行必须 fail closed：没有 `ingestion-control` target workset admission 时，不得从
   `enabled hosts` 或 `hostFilter` 自行推导 collection scope
 - `hostFilter` 只允许缩小已准入 target workset；它不是 target admission
-- 不再允许显式 legacy/debug collector run；没有 `ingestion-control` target workset admission 时必须
-  fail closed
+- 不允许显式 debug collector run 绕过 `ingestion-control` target workset admission
 - `apps/app-api` 不再为 `official_web` 维护独立 run cleanup admission ledger
 - projection drain 直接推进 admitted run 的 operator projection 与 ingestion-control task
-  admission，不再读取 `legacy_contract_excluded` 之类的历史 cleanup decision
+  admission，不读取 historical cleanup decision
 - 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
   cleanup CLI 自动删除
 

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-
-import stagingPreflightSource from "../../../scripts/run-worker-staging-preflight.mjs?raw";
+import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
 import packageManifest from "../package.json";
-import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
-import stagingBrowserE2ESource from "../scripts/staging-browser-e2e.ts?raw";
-import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
+import deployStagingSource from "../scripts/deploy-staging.ts?raw";
+import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
+import verifyStagingConfigSource from "../scripts/verify-staging-config.ts?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageScripts = packageManifest.scripts as Record<string, string | undefined>;
@@ -26,18 +25,18 @@ describe("campus web staging config", () => {
 	});
 
 	it("keeps app-only staging deploy separate from docs reader builds", () => {
-		expect(packageScripts["build:app:staging"]).toContain("vite build");
-		expect(packageScripts["build:app:staging"]).not.toContain("rspress");
-		expect(packageScripts["build:app:staging"]).not.toContain("build-published-reader-docs.mjs");
-		expect(packageScripts["build:docs:staging"]).toContain(
-			"build-published-reader-docs.mjs --staging",
-		);
-		expect(packageScripts["build:staging"]).toBe(
-			"pnpm run build:docs:staging && pnpm run build:app:staging",
-		);
+		expect(packageScripts["build:app:staging"]).toBeUndefined();
+		expect(packageScripts["build:docs:staging"]).toBeUndefined();
+		expect(packageScripts["build:staging"]).toContain("build-published-reader-docs.ts --staging");
+		expect(packageScripts["build:staging"]).toContain("run-worker-staging-build.ts -- vite build");
+		expect(packageScripts["build:staging"]).toContain("check-client-bundle-budget.ts");
+		expect(packageScripts["build:staging"]).not.toContain("pnpm run build:docs:staging");
+		expect(packageScripts["build:staging"]).not.toContain("pnpm run build:app:staging");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
-		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.mjs");
+		expect(stagingPreflightSource).toContain("worker-staging-campus-web");
+		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
+		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");
 	});
 

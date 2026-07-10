@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 
 const testDir = resolve(fileURLToPath(import.meta.url), "..");
 const repoRoot = resolve(testDir, "../../..");
-const stagingBuildScript = resolve(repoRoot, "scripts/run-worker-staging-build.mjs");
+const stagingBuildScript = resolve(repoRoot, "scripts/deploy/run-worker-staging-build.ts");
+const tsxBin = resolve(repoRoot, "node_modules/.bin/tsx");
 
 describe("worker staging build wrapper", () => {
 	it("allows staging builds that do not need runtime secret placeholders", () => {
@@ -23,7 +24,7 @@ describe("worker staging build wrapper", () => {
 		`;
 
 		const result = spawnSync(
-			process.execPath,
+			tsxBin,
 			[stagingBuildScript, "--", process.execPath, "-e", childSource],
 			{
 				cwd: workDir,
@@ -50,7 +51,7 @@ describe("worker staging build wrapper", () => {
 			`;
 
 		const result = spawnSync(
-			process.execPath,
+			tsxBin,
 			[stagingBuildScript, "SENTRY_DSN", "--", process.execPath, "-e", childSource],
 			{
 				cwd: workDir,
@@ -79,7 +80,7 @@ describe("worker staging build wrapper", () => {
 			`;
 
 		const result = spawnSync(
-			process.execPath,
+			tsxBin,
 			[stagingBuildScript, "SENTRY_DSN", "--", process.execPath, "-e", childSource],
 			{
 				cwd: workDir,

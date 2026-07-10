@@ -162,12 +162,11 @@ app-api docs read model
 
 ## Deploy Sync Manifest Shape
 
-当前 `app-api` 导出脚本仍沿用历史文件名
-`export-public-docs-sync-manifest.ts`；命令兼容入口
-`PUBLIC_DOCS_SYNC_MANIFEST_PATH` 只表示“面向浏览器文档阅读面的发布 manifest”，不重新定义
-已删除 `apps/public-docs` 的任何产品职责。`campus-web` 同步发布 reader 时必须通过
-`--manifest-path` 或 `--manifest-key` 显式选择 manifest，不再消费
-`CAMPUS_DOCS_SYNC_MANIFEST_*` runtime env。
+当前 `app-api` 通过 `export-docs-reader-sync-manifest.ts` 导出文档阅读面发布
+manifest；命令环境变量为 `DOCS_READER_SYNC_MANIFEST_PATH`。旧 public-docs 导出脚本名和
+对应环境变量不再是入口，也不重新定义已删除 `apps/public-docs` 的任何产品职责。
+`campus-web` 同步发布 reader 时必须通过 `--manifest-path` 或 `--manifest-key` 显式选择
+manifest，不再消费 `CAMPUS_DOCS_SYNC_MANIFEST_*` runtime env。
 
 deploy sync manifest 的最小逻辑形态固定为：
 

@@ -1,2 +1,0 @@
-ALTER TABLE "runtime"."request_observability_fact"
-ADD COLUMN "source_trust_summary_json" jsonb;

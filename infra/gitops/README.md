@@ -23,8 +23,10 @@ env, projection and E2E evidence.
   External Secrets references, SealedSecret resources, SOPS-encrypted Secret
   manifests or backend-specific examples after a deployment selects a delivery
   path, but never plaintext secret material.
-- First-party workloads point to existing Kustomize overlays under
-  `infra/k8s/**/overlays/staging`.
+- First-party workload Applications point to the reviewed Kustomize overlays
+  named in `infra/gitops/apps/*.yaml`. The current execution-runtime staging
+  Application uses
+  `infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full`.
 - Third-party platform components may use pinned upstream Helm charts. When a
   chart comes from a Helm repository, values files are sourced from this repo
   through Argo CD multiple sources and `$values/...` references.

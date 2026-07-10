@@ -292,7 +292,7 @@ Migration posture:
 - `official_web` projection drain 直接基于 `crawl_runs`、`run_outbox` 与 run-level
   dispatch/execution 状态推进
 - `apps/app-api` 不再维护独立 cleanup admission ledger
-- 历史 migration artifacts 可以保留，但不应再被解释为当前运行时依赖
+- historical schema rows 不应再被解释为当前运行时依赖
 
 ## `official_web.page_observations`
 

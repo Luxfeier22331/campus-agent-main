@@ -53,7 +53,7 @@ Index：
   对 `stage_timing.v1` 字段做 warn / critical 分类
 - alert policy：从 `configs/runtime/observability-alerts.v1.json` 提供
   repo-owned symptom alert rule、threshold、window、severity 与 runbook anchor；
-  `scripts/materialize_observability_alerts.py` 将 enabled rules 物化为 Axiom
+  `packages/contracts/scripts/contracts/materialize-observability-alerts.ts` 将 enabled rules 物化为 Axiom
   monitor specs，并由 `pnpm contracts:check` 校验
 - sink correlation：能让 operator 跳到 Sentry / Axiom / Langfuse 的关联 ID 或链接模板
 
@@ -198,9 +198,9 @@ operator browser
 - Runtime health summary 只展示 reason-code 级别的 blocker，不展示 raw Temporal history
   或 worker 内部 payload。
 
-## Retired Broad Observability Shape
+## Excluded Broad Observability Shape
 
-以下历史概念不再是 target architecture：
+以下 broad dashboard labels 不是 target architecture：
 
 - `operator quality dashboard`
 - `operator safety dashboard`

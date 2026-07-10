@@ -10,7 +10,7 @@ import {
 	DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 	DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
 	parseChatE2eArgs,
-} from "../scripts/chat-e2e.args";
+} from "../e2e/support/chat-e2e.args";
 
 describe("chat e2e args", () => {
 	it("uses canonical staging profile defaults", () => {
@@ -35,9 +35,9 @@ describe("chat e2e args", () => {
 		});
 	});
 
-	it("uses local endpoints for the local-real-provider profile", () => {
+	it("uses local endpoints for the local-provider profile", () => {
 		expect(
-			parseChatE2eArgs(["--profile", "local-real-provider"], {
+			parseChatE2eArgs(["--profile", "local-provider"], {
 				APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "smoke-captcha-token",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "smoke-password",
 			} as NodeJS.ProcessEnv),
@@ -47,7 +47,7 @@ describe("chat e2e args", () => {
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
 			expectModelExecutionState: null,
-			profile: "local-real-provider",
+			profile: "local-provider",
 			transport: "stream",
 		});
 	});
@@ -130,7 +130,7 @@ describe("chat e2e args", () => {
 			parseChatE2eArgs(["--profile", "prod"], {
 				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
 			} as NodeJS.ProcessEnv),
-		).toThrow("--profile must be one of: dev, local-real-provider, staging.");
+		).toThrow("--profile must be one of: dev, local-provider, staging.");
 	});
 
 	it("fails closed when no smoke auth secret is available", () => {

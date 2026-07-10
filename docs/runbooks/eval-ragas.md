@@ -12,21 +12,19 @@ updated: 2026-06-29
 
 ## Purpose
 
-This runbook records the active Langfuse/Ragas scoring automation after
-retiring repo-owned profile gates, artifact score publishers and app-api eval
-backlink projections.
+This runbook records the active Langfuse/Ragas scoring automation.
 
 Active repo commands:
 
-- `uv run --all-packages python -m scripts.langfuse_eval_audit doctor --json`
-- `uv run --all-packages python -m scripts.langfuse_eval_audit audit --json`
-- `pnpm --dir packages/eval-langfuse langfuse ragas-score-traces`
-- `pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset`
-- `pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest`
-- `pnpm --dir packages/eval-langfuse langfuse sync-score-configs`
-- `pnpm --dir packages/eval-langfuse langfuse sync-datasets`
+- `pnpm --dir packages/eval-langfuse exec tsx src/cli.ts doctor --json`
+- `pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-traces`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-dataset`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts build-rag-dataset-manifest`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-datasets`
 
-Retired paths must not be used for new automation:
+The following command names and surfaces are not active automation:
 
 - `run-experiment`
 - `sync-annotation-queue`
@@ -39,13 +37,13 @@ Retired paths must not be used for new automation:
 - `run-ragas-scoring`
 - `build-ragas-sample-batch`
 - `closeout-staging`
-- app-api `online-answer-path:collect:staging`
+- app-api online-answer-path collector aliases
 - app-api Langfuse eval backlink ingest/query routes
 - Go `cmd/intent-eval-runner`
 
 ## Execution Surface
 
-Ragas/Langfuse scoring is an internal eval shell/runtime capability. It is not
+Ragas/Langfuse scoring is an internal eval shell/runtime lane. It is not
 exposed as a GitHub Actions workflow.
 
 Run scoring from a configured internal eval environment that has the repo
@@ -59,7 +57,7 @@ credentials.
 ## Ragas Trace Scoring
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   ragas-score-traces \
   --trace-name <optional-trace-name> \
   --tag <optional-trace-tag> \
@@ -77,7 +75,7 @@ validates Langfuse score payloads.
 ## Ragas Dataset Scoring
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   ragas-score-dataset \
   --dataset <langfuse-dataset-name> \
   --dataset-version <optional-version> \
@@ -118,7 +116,7 @@ It currently contains active `ragas.*` score configs:
 Dry-run:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse sync-score-configs \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs \
   --registry packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json \
   --dry-run --json
 ```
@@ -130,7 +128,7 @@ Remove `--dry-run` to create missing Langfuse score configs.
 Build a manifest from active repo RAG eval assets:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   build-rag-dataset-manifest \
   --output .tmp/langfuse-rag-dataset-manifest.json \
   --json
@@ -145,7 +143,7 @@ The builder includes:
 They deliberately do not invent `answer` or `retrieved_contexts`.
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   sync-datasets \
   --dataset-manifest <langfuse-dataset-manifest.json> \
   --dry-run \
@@ -154,7 +152,7 @@ pnpm --dir packages/eval-langfuse langfuse \
 
 Dataset manifests should point at repo eval assets that can become Langfuse
 dataset items. Current accepted kinds are RAG / answer-quality / agent dataset
-shapes handled by `packages/eval-langfuse/src/platform.ts`; the retired
+shapes handled by `packages/eval-langfuse/src/platform.ts`;
 `online_answer_path` profile shape is not accepted.
 
 Langfuse experiments and annotation queues remain official platform workflows.

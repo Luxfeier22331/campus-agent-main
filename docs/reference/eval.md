@@ -233,7 +233,7 @@ dataset partitions:
 - `smoke`: small connectivity/projection sample
 - `curated`: reviewer-curated representative case
 - `regression`: accepted regression case
-- `known_gap`: known missing-source or unsupported-capability case
+- `known_gap`: known missing-source or unsupported tool/domain case
 
 `curated` and `regression` in public synthetic assets do not mean release
 admission. Release readiness is owned by product/runtime release checks and

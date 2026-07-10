@@ -40,7 +40,7 @@ authority.
 materialized before scoring.
 
 `agent-tool-use`
--> repo-authored agent cases grouped by tool family
+-> repo-authored agent cases grouped by tool group
 -> `packages/eval-langfuse` submits each case through the app-api chat stream
    or consumes an approved sanitized runtime projection
 -> `packages/eval-langfuse` extracts `tool_trajectory.v1`
@@ -75,19 +75,19 @@ sets or model-selected provider routing.
 ## Active Supporting Surfaces
 
 - Langfuse score config sync:
-  `pnpm --dir packages/eval-langfuse langfuse sync-score-configs`
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs`
 - Langfuse dataset sync:
-  `pnpm --dir packages/eval-langfuse langfuse sync-datasets`
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-datasets`
 - RAG dataset manifest builder:
-  `pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest`
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts build-rag-dataset-manifest`
 - Runtime trace evidence:
-  `pnpm --dir packages/eval-langfuse langfuse verify-trace`
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace`
 - Agent tool-use eval canonical lane:
   `agent-tool-use` over `tool_trajectory.v1`
 - Public web search agent asset validation:
-  `pnpm --dir packages/eval-langfuse langfuse validate-public-web-search-eval`
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts validate-public-web-search-eval`
 - Public web search agent eval through app-api chat:
-  `pnpm --dir packages/eval-langfuse langfuse run-public-web-search-agent-eval
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts run-public-web-search-agent-eval
   --app-api-base-url <url>`; this is the current public-web-search slice of
   `agent-tool-use`
 - Learning-loop candidate selector / publisher:
@@ -115,7 +115,7 @@ The following self-built lanes are no longer active eval package surfaces:
 - custom `export-review-results`
 - artifact `run-ragas-scoring`
 - artifact `publish-score-report`
-- app-api `online-answer-path:collect:staging`
+- retired app-api online-answer-path collector aliases
 - app-api Langfuse eval backlink routes
 - Go `cmd/intent-eval-runner`
 - Python `campus_evals` and the retired `packages/evals`

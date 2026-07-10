@@ -26,7 +26,7 @@ updated: 2026-07-04
 - `eval-gold-truth-model.md`
 - `runtime-otel-telemetry-taxonomy.md`
 - `observability-ledger.md`
-  - trace / observability capability completion ledger and verification mapping
+  - trace / observability completion ledger and verification mapping
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 

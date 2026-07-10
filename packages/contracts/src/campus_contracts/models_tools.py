@@ -85,7 +85,13 @@ class PlaceRef:
     def __post_init__(self) -> None:
         if not self.place_id.strip():
             raise ValueError("place_id must not be empty")
-        if self.entity_type not in {"building", "service_point", "office", "gate", "stop"}:
+        if self.entity_type not in {
+            "building",
+            "service_point",
+            "office",
+            "gate",
+            "stop",
+        }:
             raise ValueError(f"unsupported place entity_type: {self.entity_type}")
         if not self.display_name.strip():
             raise ValueError("display_name must not be empty")

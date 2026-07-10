@@ -36,7 +36,7 @@ Out of scope:
 
 ## Tool
 
-The only model-visible tool for this capability is `public_web_search`.
+The only model-visible tool for this domain surface is `public_web_search`.
 Provider names such as Perplexity, Brave, Google or OpenAI-compatible search
 models are implementation details and must not become separate model-visible
 tools.
@@ -62,7 +62,7 @@ public_web_search
 
 Provider configuration is split into explicit layers:
 
-- tool capability: `public_web_search`, the only model-visible search tool
+- tool id: `public_web_search`, the only model-visible search tool
 - provider role: `public_web_search`, the provider-config role consumed by
   execution-control
 - provider identity: the real admitted provider name, such as `perplexity`,
@@ -202,7 +202,7 @@ the eval lane and projection boundary are owned by `../reference/eval.md`,
 `../reference/eval-map.md` and `../contracts/tool-trajectory.md`.
 
 Operational command details belong in runbooks; this document only owns the
-capability boundary.
+tool boundary.
 
 ## Owner Documents
 

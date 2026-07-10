@@ -70,7 +70,7 @@ Feishu does not provide SVG anchors or floorplan geometry.
 Floorplan scaffold/SVG presence is not student visibility truth. A hall becomes
 visible in `campus-web` only after it is present in the latest published dining
 snapshot served by `app-api`. Local development must prove that path by running
-shared-product migrations, importing the local dev seed, and checking the
+shared-product schema baseline, importing the local dev seed, and checking the
 published snapshot; checking only `@campus-agent/dining/floorplans` assets or
 scaffold entries is insufficient.
 
@@ -280,8 +280,8 @@ Dining source sync is an offline/runtime task, not an app-api request path.
 
 Allowed shapes:
 
-- local one-shot validation through `lark-cli` or `jobs/dining-sync`
-- Docker one-shot sync for local runtime validation
+- local manual validation through `lark-cli` or `jobs/dining-sync`
+- Docker manual sync for local runtime validation
 - Kubernetes `Job` for manual rerun
 - Kubernetes `CronJob` for scheduled production sync
 
@@ -301,12 +301,11 @@ Default scheduling posture:
 
 - production: hourly CronJob, `concurrencyPolicy: Forbid`,
   `timeZone: Asia/Shanghai`
-- staging: same manifest shape, default suspended until explicit one-shot validation
-- local: explicit one-shot command only. For student-surface validation, run the
-  current-worktree app-api local env wrapper with
-  `node ./scripts/prepare-local-dining.mjs`; it executes shared-product
-  migrations, imports the local dev seed and verifies the published dining
-  snapshot contains the committed validation floorplans.
+- staging: same manifest shape, default suspended until explicit manual validation
+- local: explicit manual commands only. For student-surface validation, run
+  app-api shared product bootstrap first, then `jobs/dining-sync`
+  `import-dev-seed` and `verify-published`; app-api must not own a
+  dining-specific preparation script.
 
 Catalog sync output must be deterministic and fail closed. Catalog publish and
 dev seed import closeout must expose the visible hall/floor set so missing

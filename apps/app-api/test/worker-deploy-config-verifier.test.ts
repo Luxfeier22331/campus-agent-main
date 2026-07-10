@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 const testDir = resolve(fileURLToPath(import.meta.url), "..");
 const repoRoot = resolve(testDir, "../../..");
-const verifierScript = resolve(repoRoot, "scripts/verify-worker-deploy-config.mjs");
+const verifierScript = resolve(repoRoot, "scripts/deploy/verify-worker-deploy-config.ts");
 
 function writeConfig(payload: unknown) {
 	const workDir = mkdtempSync(join(tmpdir(), "worker-deploy-config-"));
@@ -27,8 +27,8 @@ describe("worker deploy config verifier", () => {
 		});
 
 		const result = spawnSync(
-			process.execPath,
-			[verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
+			"pnpm",
+			["exec", "tsx", verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
 			{ encoding: "utf8" },
 		);
 
@@ -44,8 +44,8 @@ describe("worker deploy config verifier", () => {
 		});
 
 		const result = spawnSync(
-			process.execPath,
-			[verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
+			"pnpm",
+			["exec", "tsx", verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
 			{ encoding: "utf8" },
 		);
 

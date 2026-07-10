@@ -23,6 +23,7 @@ type ToolID string
 const (
 	ToolIDKnowledgeQuery          ToolID = "knowledge_query"
 	ToolIDPlaceLookup             ToolID = "place_lookup"
+	ToolIDPublicWebSearch         ToolID = "public_web_search"
 	ToolIDTransportScheduleLookup ToolID = "transport_schedule_lookup"
 	ToolIDCampusNoticeDiscover    ToolID = "campus_notice_discover"
 	ToolIDCampusNoticeGet         ToolID = "campus_notice_get"
@@ -32,6 +33,7 @@ type ModelVisibleToolName string
 
 const (
 	ModelVisibleToolNameKnowledgeQuery          ModelVisibleToolName = "knowledge_query"
+	ModelVisibleToolNamePublicWebSearch         ModelVisibleToolName = "public_web_search"
 	ModelVisibleToolNameTransportScheduleLookup ModelVisibleToolName = "transport_schedule_lookup"
 	ModelVisibleToolNameCampusNoticeDiscover    ModelVisibleToolName = "campus_notice_discover"
 )
@@ -41,6 +43,7 @@ type RequestedTool string
 const (
 	RequestedToolKnowledgeQuery          RequestedTool = "knowledge_query"
 	RequestedToolPlaceLookup             RequestedTool = "place_lookup"
+	RequestedToolPublicWebSearch         RequestedTool = "public_web_search"
 	RequestedToolTransportScheduleLookup RequestedTool = "transport_schedule_lookup"
 	RequestedToolCampusNoticeDiscover    RequestedTool = "campus_notice_discover"
 )
@@ -622,7 +625,7 @@ func (wire DebugTraceRefWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDKnowledgeQuery, ToolIDPlaceLookup, ToolIDTransportScheduleLookup, ToolIDCampusNoticeDiscover, ToolIDCampusNoticeGet:
+	case ToolIDKnowledgeQuery, ToolIDPlaceLookup, ToolIDPublicWebSearch, ToolIDTransportScheduleLookup, ToolIDCampusNoticeDiscover, ToolIDCampusNoticeGet:
 		return true
 	default:
 		return false
@@ -631,7 +634,7 @@ func (value ToolID) Valid() bool {
 
 func (value RequestedTool) Valid() bool {
 	switch value {
-	case RequestedToolKnowledgeQuery, RequestedToolPlaceLookup, RequestedToolTransportScheduleLookup, RequestedToolCampusNoticeDiscover:
+	case RequestedToolKnowledgeQuery, RequestedToolPlaceLookup, RequestedToolPublicWebSearch, RequestedToolTransportScheduleLookup, RequestedToolCampusNoticeDiscover:
 		return true
 	default:
 		return false

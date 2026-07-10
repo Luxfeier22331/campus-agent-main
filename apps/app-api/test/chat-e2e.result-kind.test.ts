@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { assertExpectedChatE2eResultKind } from "../scripts/chat-e2e.result-kind";
+import { assertExpectedChatE2eResultKind } from "../e2e/support/chat-e2e.result-kind";
 
 describe("chat e2e result kind gate", () => {
 	it("allows the expected answer result kind", () => {

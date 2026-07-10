@@ -26,8 +26,7 @@ store.
   operator projection truth.
 - Temporal history must not be exposed directly to browser, panel, or eval
   consumers.
-- Old PG lease / worker loop / recovery loop artifacts are historical migration
-  material and must not be used as an online serving fallback.
+- PG must not be reintroduced as an online execution queue or worker fallback.
 
 ## Persistence Backup
 
@@ -121,7 +120,7 @@ it.
 Release closeout must cover:
 
 - Temporal unavailable: app-api / execution-control fail closed and do not enter
-  a PG lease worker fallback.
+  a secondary worker fallback.
 - Worker missing: execution-control `/readyz` is degraded because required
   Temporal task queue pollers are missing.
 - Activity timeout/failure: run projection becomes `failed`, emits sanitized
@@ -144,8 +143,7 @@ current process env; it must not deploy, mutate remote state, or print secret
 values:
 
 ```bash
-uv run --all-packages python \
-  -m scripts.check_run_projection_store_cutover_preflight --json
+pnpm repo:static
 ```
 
 `CLOUDFLARE_API_TOKEN` stays in the deploy shell process env and must not be
@@ -168,20 +166,13 @@ public ingress.
 
 ```bash
 execution_control_url="${EXECUTION_CONTROL_INTERNAL_BASE_URL:-http://127.0.0.1:27051}"
-go run ./cmd/temporal-runtime-http-proof \
+go run ./cmd/temporal-runtime-http-check \
   --execution-control-url "$execution_control_url" \
   --shared-secret "$EXECUTION_CONTROL_SHARED_SECRET" \
-  --evidence-path "$evidence_dir/execution-control-temporal-http-proof.json"
+  --evidence-path "$evidence_dir/execution-control-temporal-http-check.json"
 ```
 
-If direct internal reachability is unavailable, local Temporal validation can
-validate the isolated staging directory substrate only:
-
-```bash
-infra/local/staging/proof-execution-control-temporal-runtime-staging.sh
-```
-
-That local validation cannot replace deployed
+Local validation cannot replace deployed
 `campus-staging -> app-api-staging -> execution-control -> Temporal`
 reconnect closeout. The validation passes only when `/readyz` reports both
 `run_projection_store.healthy=true` and `temporal_runtime.healthy=true`.
@@ -196,13 +187,7 @@ state, computes desired worker replicas, and publishes sanitized decision /
 actuation projections back to app-api. It does not read app-api Postgres
 directly, and it is not a default serving-loop component.
 
-On the staging host, prefer the explicit one-shot closeout entrypoint:
-
-```bash
-infra/local/staging/run-execution-control-ops-proof.sh
-```
-
-For manual local validation, first run the task queue sampler:
+For manual validation, first run the task queue sampler:
 
 ```bash
 cd apps/execution-control
@@ -246,7 +231,7 @@ terminal state, or downstream budget.
 First-stage Kubernetes staging manifests live at:
 
 ```bash
-kubectl kustomize infra/k8s/execution-runtime/overlays/staging
+kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
 ```
 
 Before apply, confirm the first-party Kustomize overlay renders the tracked
@@ -263,15 +248,14 @@ set is:
 `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` owns sanitized product/operator
 projection. `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`, when configured, owns
 the trace-observability workflow-run store and must not be treated as the same
-database role. The retired monolithic
-`execution-runtime-secrets` and `execution-worker-common-secrets` Secrets must
-not be recreated. The provider-config
+database role. Do not create monolithic
+`execution-runtime-secrets` or `execution-worker-common-secrets` Secrets. The provider-config
 projection Secret is created from a reviewed `provider_config_projection.v1`
 artifact by the selected secret-delivery path; it is not a handwritten example
 Secret. The example files under `infra/k8s/execution-runtime/base/` are
 documentation samples and must not be applied as real staging credentials.
 
-The full first-party runtime proof only adds
+The full first-party runtime validation only adds
 `execution-app-api-internal-secrets` to the first-party runtime Secret set.
 Temporal server lifecycle, Temporal database credentials and the stable
 same-namespace `temporal:7233` alias are managed by the GitOps platform
@@ -282,14 +266,14 @@ scalers must use `temporal.campus-agent-staging.svc.cluster.local:7233`
 because they run from the `keda` namespace. OTel collector, Hindsight, Qdrant
 and CNPG Secrets follow the same platform/data ownership rule.
 
-Execution-runtime env renderers that emit Kubernetes ConfigMap or Secret YAML
-from local env files are retired. Use tracked Kustomize config and the selected
-Secret delivery backend instead.
+Execution-runtime env renderers must not emit Kubernetes ConfigMap or Secret
+YAML from local env files. Use tracked Kustomize config and the selected Secret
+delivery backend instead.
 
 Render and apply:
 
 ```bash
-kubectl kustomize infra/k8s/execution-runtime/overlays/staging > /tmp/campus-agent-k8s-staging.yaml
+kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full > /tmp/campus-agent-k8s-staging.yaml
 kubectl apply -f /tmp/campus-agent-k8s-staging.yaml
 kubectl -n campus-agent-staging wait \
   --for=condition=available deploy/execution-control \
@@ -338,23 +322,10 @@ A Temporal closeout is not complete until the closeout directory contains:
 - Sentry / Axiom closeout artifact for the same time window
 - failure-mode closeout artifact or explicit blocker
 
-Failure-mode closeout is captured per scenario:
-
-```bash
-infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
-  --request-id <request_id> \
-  --scenario normal-answer
-
-infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
-  --request-id <request_id> \
-  --scenario cancel-during-synthesis
-
-infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
-  --request-id <request_id> \
-  --scenario activity-timeout-late-completion
-```
-
-Each scenario directory must contain `PASS_FAIL.md` with command, timestamp,
-host, git SHA, result, and failure reason. A cancel validation passes only when the
-sanitized synthesis attempt records `provider_connection_aborted` and no
-finalization projection is written after the canceled terminal state.
+Failure-mode closeout must be captured through the current app-api/operator
+projection surfaces and the staging smoke runner. Do not add
+`infra/local/staging/*` evidence scripts. Each scenario record must include the
+command, timestamp, host, git SHA, result, failure reason and related run id.
+A cancel validation passes only when the sanitized synthesis attempt records
+`provider_connection_aborted` and no finalization projection is written after
+the canceled terminal state.

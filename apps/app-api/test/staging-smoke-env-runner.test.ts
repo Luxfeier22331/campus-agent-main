@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest";
-import loadRepoEnvSource from "../../../scripts/load-repo-env.mjs?raw";
-import rootRunWithStagingSmokeEnvSource from "../../../scripts/run-with-staging-smoke-env.mjs?raw";
-import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
+import rootPackageManifestRaw from "../../../package.json?raw";
+import loadRepoEnvSource from "../../../scripts/deploy/lib/repo-env.ts?raw";
+import rootRunWithStagingSmokeEnvSource from "../../../scripts/deploy/run-with-staging-smoke-env.ts?raw";
+import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
+import packageManifestRaw from "../package.json?raw";
+
+const packageManifest = JSON.parse(packageManifestRaw) as { scripts: Record<string, string> };
+const rootPackageManifest = JSON.parse(rootPackageManifestRaw) as {
+	scripts: Record<string, string>;
+};
 
 describe("staging smoke env runner", () => {
-	it("serializes staging smoke commands that share the fixed smoke identity", () => {
-		expect(runWithStagingSmokeEnvSource).toContain("STAGING_SMOKE_LOCK_PATH");
-		expect(runWithStagingSmokeEnvSource).toContain(".tmp/staging-smoke.lock");
-		expect(runWithStagingSmokeEnvSource).toContain("openSync");
-		expect(runWithStagingSmokeEnvSource).toContain('"wx"');
-		expect(runWithStagingSmokeEnvSource).toContain("releaseStagingSmokeLock");
-		expect(runWithStagingSmokeEnvSource).toContain('process.on("SIGINT"');
-		expect(runWithStagingSmokeEnvSource).toContain('process.on("SIGTERM"');
-	});
-
 	it("provides the repo-level runner used by cross-app staging smoke scripts", () => {
 		expect(rootRunWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(rootRunWithStagingSmokeEnvSource).toContain("--cwd");
@@ -24,14 +21,25 @@ describe("staging smoke env runner", () => {
 		expect(rootRunWithStagingSmokeEnvSource).toContain("releaseStagingSmokeLock");
 	});
 
+	it("routes app-api staging smoke through the scripts public entrypoint", () => {
+		expect(packageManifest.scripts["chat:e2e:staging"]).toBeUndefined();
+		expect(rootPackageManifest.scripts["smoke:app-api"]).toBe(
+			"pnpm exec tsx scripts/smoke/app-api.ts",
+		);
+		expect(appApiSmokeEntrypointSource).toContain("./scripts/deploy/run-with-staging-smoke-env.ts");
+		expect(appApiSmokeEntrypointSource).toContain("--cwd");
+		expect(appApiSmokeEntrypointSource).toContain("apps/app-api");
+		expect(packageManifest.scripts["chat:durable:e2e:staging"]).toBeUndefined();
+		expect(packageManifest.scripts["chat:memory:e2e:staging"]).toBeUndefined();
+		expect(packageManifest.scripts["hindsight:memory:e2e:staging"]).toBeUndefined();
+	});
+
 	it("loads only explicit ops-owned staging runtime env for smoke scripts", () => {
 		expect(loadRepoEnvSource).not.toContain("/srv/docker/campus-agent/staging/env/runtime.env");
 		expect(loadRepoEnvSource).toContain("STAGING_RUNTIME_ENV_FILE");
 		expect(loadRepoEnvSource).toContain("EXECUTION_CONTROL_STAGING_ENV_FILE");
-		for (const source of [runWithStagingSmokeEnvSource, rootRunWithStagingSmokeEnvSource]) {
-			expect(source).toContain("loadStagingSmokeEnvFile");
-			expect(source).not.toContain("loadRepoStagingEnvFile");
-			expect(source).not.toContain("process.loadEnvFile");
-		}
+		expect(rootRunWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
+		expect(rootRunWithStagingSmokeEnvSource).not.toContain("loadRepoStagingEnvFile");
+		expect(rootRunWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 	});
 });

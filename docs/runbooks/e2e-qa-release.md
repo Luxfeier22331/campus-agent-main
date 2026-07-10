@@ -112,7 +112,7 @@ done | tee "$E2E_QA_CLOSEOUT_DIR/surface-health.txt"
 
 - API、campus、chat health / ready endpoints 返回预期 `200`
 - docs 作为 campus 内部支撑面，由 campus ready、`/docs/*` browser check 与
-  `docs:gated:smoke:staging` 共同证明
+  `pnpm smoke:app-api -- docs-gated-staging` 共同证明
 - endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
 - execution-control readiness 由
   K8s rollout status 与 `api-staging /readyz` 的 `executionControl` /
@@ -123,62 +123,47 @@ done | tee "$E2E_QA_CLOSEOUT_DIR/surface-health.txt"
 运行真实 staging chat 链路：
 
 ```bash
-pnpm --dir apps/app-api chat:e2e:staging \
+pnpm smoke:app-api -- chat-staging \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-default.json"
 
-pnpm --dir apps/app-api chat:e2e:staging -- \
+pnpm smoke:app-api -- chat-staging -- \
   --prompt "民族学本科人才培养方案总学分要求是多少？" \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-curriculum-plan.json"
 
-pnpm --dir apps/app-api chat:e2e:staging -- \
+pnpm smoke:app-api -- chat-staging -- \
   --prompt "校园网密码怎么改？" \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-alias-campus-network.json"
 
-pnpm --dir apps/app-api chat:e2e:staging -- \
+pnpm smoke:app-api -- chat-staging -- \
   --prompt "示例大学本科学生国家奖学金评审办法" \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-student-rule.json"
 ```
 
-`chat:e2e:staging` 是 release gate 默认入口，验证 durable submit + run-event
+`pnpm smoke:app-api -- chat-staging` 是 release gate 默认入口，验证 durable submit + run-event
 resume：先从 `POST /api/chat/requests/stream` 读取 `request.accepted` 与 durable
 `runId`，再订阅 `/api/chat/runs/:runId/events/stream` 直到 terminal event，并检查 run
 status、steps、Langfuse closeout 身份与 conversation materialization。通用
-`chat:e2e -- --profile staging` runner 只允许作为显式诊断，不作为 release gate。
+`pnpm smoke:app-api -- chat -- --profile staging` runner 只允许作为显式诊断，
+不作为 release gate。
 
 运行同一 durable reconnect 专项 smoke：
 
 ```bash
-pnpm --dir apps/app-api chat:durable:e2e:staging \
+pnpm smoke:app-api -- chat-staging \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-durable-reconnect.json"
 ```
 
 运行 profile memory 写入 + Temporal memory recall projection 专项 smoke：
 
 ```bash
-pnpm --dir apps/app-api chat:memory:e2e:staging \
+pnpm smoke:app-api -- chat-memory-staging \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-memory-recall.json"
 ```
 
-运行真实 chat + app-api Postgres projection + Hyperdrive usage closeout：
-
-```bash
-pnpm --dir apps/app-api runtime-db:proof:staging \
-  -- --output "$E2E_QA_CLOSEOUT_DIR/runtime-db-proof.json"
-```
-
-该命令由 app-api staging closeout runner 读取 ops-owned staging runtime env，并把
-`STAGING_APP_API_OPERATOR_DATABASE_URL` 等 staging profile 配置投影为
-`APP_API_OPERATOR_DATABASE_URL` 等 canonical runtime env。closeout 脚本本身只消费
-canonical env，并额外要求 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 用于读取
-Hyperdrive GraphQL 指标。`--output` 写入纯 JSON closeout artifact；stdout 仅用于人工查看，
-不要用 shell `tee` 生成 `.json` artifact。`--output` 只接受绝对路径，避免
-`pnpm --dir apps/app-api` 改变工作目录后把 artifact 写进 app 子目录。它不会打印
-Cloudflare token、Postgres DSN 或 Worker secrets。
-
-这条 runtime DB closeout 是 ops / release proof，不是
-`.github/workflows/deploy-staging.yml` 的部署前置条件。GitHub `staging`
-environment 不需要保存 staging operator DB DSN、DB sslmode 或 execution-control
-Access service-token credential。
+Hindsight personal memory 与 public web search 不再通过 app-api package script 直连
+execution-control internal endpoint。相关能力必须通过 app-api chat stream、
+operator read model 或 execution-control K8s readiness 间接证明；需要内部 endpoint
+诊断时在 `nc-arm-6c` 内部临时执行，不进入 release closeout 默认命令。
 
 通过标准：
 
@@ -197,24 +182,8 @@ Access service-token credential。
 - memory recall 输出 `memory.deleted=true`
 - memory recall 输出 `recall.stepId=memory.recall`、`recall.status=completed`
   与 `recall.selectedMemoryCount > 0`
-- Hindsight memory staging 输出 `passed=true`，并覆盖 append accepted、operation
-  status materialization validation、operation list sanitized projection、recall、
-  reflect based_on facts、profile upsert / disable、owner disable / RTBF 与 user
-  isolation
-- runtime DB closeout 输出 `passed=true`
-- runtime DB closeout 输出 `checks.chatCompleted=true`、
-  `checks.postgresProjectionFound=true`、
-  `checks.hyperdriveUsageCollected=true` 与
-  `checks.traceBacklinkSatisfied=true`
-- runtime DB closeout 的 `postgres.projection.requestExecution` 与
-  `postgres.projection.observabilityFact` 必须都存在，并且 `traceId` 与本次 chat
-  durable run 一致
-- runtime DB closeout 的 `postgres.delta.temporalTaskQueueSnapshotCount` 与
-  `postgres.delta.workerAutoscalerDecisionCount` 应保持 `0`；如果非 `0`，说明本轮
-  release window 内仍有 sampler/autoscaler 历史写入，需要先定位
-- runtime DB closeout 的 `hyperdrive.delta.freshQueryCount` 只接受来自 auth /
-  provider-config / dining 这类白名单路径；真实 chat 主链路不应把 runtime /
-  observability projection 默认打到 `APP_API_DB_FRESH`
+- 当前 app-api Worker 配置包含 `EXECUTION_CONTROL_PRIVATE` VPC Service binding 与
+  `EXECUTION_CONTROL_PRIVATE_ORIGIN`
 
 不接受：
 
@@ -231,8 +200,8 @@ Access service-token credential。
 运行 repo-owned gated docs smoke：
 
 ```bash
-node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
-  pnpm exec tsx ./scripts/staging-docs-gated-smoke.ts \
+pnpm exec tsx scripts/deploy/run-with-staging-smoke-env.ts --cwd apps/app-api \
+  pnpm exec tsx ./e2e/docs-gated-staging.ts \
   | tee "$E2E_QA_CLOSEOUT_DIR/docs-gated-smoke.json"
 ```
 
@@ -259,7 +228,7 @@ curl --noproxy '*' -sS -i \
 运行 Access service-token smoke：
 
 ```bash
-node apps/operator-console-web/scripts/staging-access-service-token-smoke.mjs \
+pnpm --dir apps/operator-console-web exec tsx ./e2e/staging-access-service-token.ts \
   | tee "$E2E_QA_CLOSEOUT_DIR/operator-console-access-service-token.json"
 ```
 
@@ -298,7 +267,7 @@ Sentry, Axiom or Langfuse during this browser check.
 browser E2E runner 生成 panel matrix evidence：
 
 ```bash
-node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
+pnpm --dir apps/operator-console-web exec tsx ./e2e/staging-browser.ts \
   --storage-state "$OPERATOR_CONSOLE_STORAGE_STATE" \
   --evidence-dir "$E2E_QA_CLOSEOUT_DIR" \
   | tee "$E2E_QA_CLOSEOUT_DIR/operator-console-browser-e2e.stdout.json"
@@ -338,9 +307,8 @@ node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
 campus-web browser runner：
 
 ```bash
-node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
-  --cwd apps/campus-web \
-  pnpm exec tsx ./scripts/staging-browser-e2e.ts \
+pnpm exec tsx scripts/deploy/run-with-staging-smoke-env.ts --cwd apps/campus-web \
+  pnpm exec tsx ./e2e/staging-browser.ts \
     --evidence-dir "$E2E_QA_CLOSEOUT_DIR" \
   | tee "$E2E_QA_CLOSEOUT_DIR/campus-browser-e2e.stdout.json"
 ```
@@ -357,25 +325,10 @@ node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
 
 ## 8. Sentry And Axiom Verification
 
-先确认 Sentry lookup token：
-
-```bash
-uv run --all-packages python -m scripts.check_sentry_lookup_access --json \
-  | tee "$E2E_QA_CLOSEOUT_DIR/sentry-lookup.json"
-```
-
-Sentry closeout 默认查询 Explore spans，不依赖 issue-list endpoint：
-
-```bash
-uv run --all-packages python -m scripts.query_sentry_spans \
-  --org-slug linear27 \
-  --project 4511351503454208 \
-  --environment staging \
-  --stats-period 3h \
-  --query 'span.description:"POST /api/chat/requests/stream"' \
-  --markdown-output "$E2E_QA_CLOSEOUT_DIR/sentry-chat-spans.md" \
-  | tee "$E2E_QA_CLOSEOUT_DIR/sentry-chat-spans.txt"
-```
+Sentry closeout 默认使用 Explore spans，不依赖 issue-list endpoint。按目标 org /
+project、`environment=staging`、本轮时间窗口和
+`span.description:"POST /api/chat/requests/stream"` 过滤，把 Sentry trace 链接或导出的
+spans 摘要保存到 `$E2E_QA_CLOSEOUT_DIR/sentry-chat-spans.md`。
 
 如果 Sentry issue-list endpoint 返回
 `403 You do not have permission to perform this action.`，不要把它判为 staging
@@ -394,16 +347,6 @@ projection drain 时间段，并保存：
 
 上线前必须验证 operator-safe runtime projection，而不是回读 Temporal history、
 Docker state 或本地 closeout artifact。
-
-先在 `nc-arm-6c` 的 pinned staging checkout 中运行一次显式 ops closeout，刷新 bounded
-current projection。该步骤不启动常驻 sampler/autoscaler loop：
-
-```bash
-ssh nc-arm-6c \
-  'cd /srv/apps/campus-agent && \
-    ./infra/local/staging/run-execution-control-ops-proof.sh' \
-  | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-ops-proof.txt"
-```
 
 检查 Temporal task queue snapshot：
 
@@ -425,26 +368,6 @@ curl --noproxy '*' -sS \
   | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-autoscaler-postures.json"
 ```
 
-Docker Compose transitional runtime 额外检查 autoscaler decisions：
-
-```bash
-curl --noproxy '*' -sS \
-  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
-  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
-  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/decisions?limit=8" \
-  | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-autoscaler-decisions.json"
-```
-
-Docker Compose transitional runtime 额外检查 autoscaler actuations：
-
-```bash
-curl --noproxy '*' -sS \
-  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
-  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
-  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/actuations?limit=8" \
-  | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-autoscaler-actuations.json"
-```
-
 通过标准：
 
 - task queue current projection 覆盖 workflow worker 与 opened activity workers
@@ -453,10 +376,6 @@ curl --noproxy '*' -sS \
 - 当前 sampler 下 `scheduleToStartLatency` 必须显式为 `unsupported_by_source`
 - K8s runtime 的 autoscaler posture 覆盖每个 KEDA-managed worker pool，且
   `scalerKind=keda_temporal`
-- Docker Compose transitional autoscaler decision 包含 `sourceSnapshotId`、`currentReplicas`、`desiredReplicas`
-  与 `budgetState`
-- Docker Compose apply mode 下 autoscaler actuation 只允许 `applied`、`skipped` 或
-  `failed`
 - explicit closeout 如需保留历史行，producer 必须使用 `history=1`；release QA 默认只要求
   current projection closeout artifact
 
@@ -506,7 +425,7 @@ E2E QA 通过必须同时满足：
 - Sentry 有真实 staging span 或等价 trace closeout artifact
 - Axiom 有真实 runtime event closeout artifact
 - Langfuse real trace closeout artifact 通过
-  `pnpm --dir packages/eval-langfuse langfuse verify-trace`，并带 request /
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace`，并带 request /
   run / workflow identity 比对
 - 若本轮执行 Ragas eval，`ragas-score-traces` 或 `ragas-score-dataset` 输出已落盘；
   Langfuse score 只作为 eval sink closeout artifact

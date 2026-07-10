@@ -143,7 +143,7 @@ func markArtifactUnsupported(registry *WorkflowArtifactRegistry, kind string) {
 		if artifact.Kind != kind {
 			continue
 		}
-		registry.Artifacts[index].CurrentProjectionSupport = "planned_contract_gap"
+		registry.Artifacts[index].CurrentProjectionSupport = "closed_no_runtime"
 		return
 	}
 }

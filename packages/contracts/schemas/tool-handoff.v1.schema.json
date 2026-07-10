@@ -26,7 +26,12 @@
 		},
 		"ModelVisibleToolName": {
 			"type": "string",
-			"enum": ["knowledge_query", "transport_schedule_lookup", "campus_notice_discover"]
+			"enum": [
+				"knowledge_query",
+				"public_web_search",
+				"transport_schedule_lookup",
+				"campus_notice_discover"
+			]
 		},
 		"DelegateStatus": {
 			"type": "string",

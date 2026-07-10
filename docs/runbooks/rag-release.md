@@ -56,7 +56,7 @@ Before release acceptance:
 1. Confirm `DOCUMENT_REGISTRY_DATABASE_URL` points at the registry for this
    release candidate.
 1. Confirm reset / publish policy for the target alias family is explicit.
-1. Confirm legacy corpus-specific Python live runner entrypoints are not used.
+1. Confirm corpus-specific Python live runner entrypoints are not used.
 1. Confirm whether this release uses public synthetic repo fixtures or a private
    fixture root / Langfuse dataset. Public fixtures are not real gold truth.
 
@@ -109,26 +109,26 @@ provided by private release data or Langfuse datasets.
 Repo-tracked automated baseline:
 
 ```bash
-uv run --all-packages python -m scripts.langfuse_eval_audit audit --json
+pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json
 ```
 
 Ragas scoring lanes:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse ragas-score-traces --validate-only --json
-pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-traces --validate-only --json
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-dataset \
   --dataset <dataset-name> --validate-only --json
 ```
 
 Dataset and score config sync dry-run:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts build-rag-dataset-manifest \
   --fixture-root <public-synthetic-or-private-fixture-root> \
   --output .tmp/langfuse-rag-dataset-manifest.json --json
-pnpm --dir packages/eval-langfuse langfuse sync-datasets \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-datasets \
   --dataset-manifest .tmp/langfuse-rag-dataset-manifest.json --dry-run --json
-pnpm --dir packages/eval-langfuse langfuse sync-score-configs --dry-run --json
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs --dry-run --json
 ```
 
 ## Closeout Artifact Template

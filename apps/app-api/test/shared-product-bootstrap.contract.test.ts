@@ -4,9 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
-
-import { APP_API_KNOWN_SCHEMAS } from "../scripts/adopt-shared-database.mjs";
 import { appApiSchema } from "../src/db/schema";
+import { APP_API_KNOWN_SCHEMAS } from "../src/script-support/shared-db/shared-product-schema-shared.ts";
 
 const appRoot = resolve(import.meta.dirname, "..");
 
@@ -43,9 +42,9 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["db:print-auth-migration"]).toBeUndefined();
 		expect(packageJson.scripts["db:reconcile-shared-drift"]).toBeUndefined();
 		expect(packageJson.scripts["official-web:drain-projection"]).toBeUndefined();
-		expect(packageJson.scripts.test).toContain("run-node-tests.mjs");
-		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(true);
-		expect(packageJson.scripts["test:all"]).toContain("vitest.config.mts");
+		expect(packageJson.scripts.test).toBe("vitest run -c vitest.node.config.mts");
+		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(false);
+		expect(packageJson.scripts["test:all"]).toBeUndefined();
 		expect(packageJson.scripts["test:node"]).toContain("vitest.node.config.mts");
 		expect(packageJson.scripts["test:worker"]).toContain("vitest.worker.config.mts");
 		expect(packageJson.scripts["test:shared-db-integration"]).toContain(
@@ -54,26 +53,13 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toBeUndefined();
 	});
 
-	it("checks in explicit shared product bootstrap artifacts under app-api", () => {
+	it("checks in explicit current shared product bootstrap artifacts under app-api", () => {
 		const requiredFiles = [
-			"db/shared-product-migrations/0001_chat_schema.sql",
-			"db/shared-product-migrations/0002_message_retryable.sql",
-			"db/shared-product-migrations/0003_chat_session_slots.sql",
-			"db/shared-product-migrations/0004_chat_message_structured_parts.sql",
-			"db/shared-product-migrations/0005_profile_memory.sql",
-			"db/shared-product-migrations/0006_message_feedback.sql",
-			"db/shared-product-migrations/0007_dining_operations.sql",
-			"db/shared-product-migrations/0008_chat_conversation_management.sql",
-			"db/shared-product-migrations/0009_chat_turn_branch_context.sql",
-			"scripts/bootstrap-shared-product-with-seeds.mjs",
-			"scripts/bootstrap-shared-product-database.mjs",
-			"scripts/ensure-app-auth-role-search-path.mjs",
-			"scripts/print-shared-product-auth-migration.mjs",
-			"scripts/reconcile-shared-db-drift.mjs",
-			"scripts/run-with-staging-proof-env.mjs",
-			"scripts/staging-runtime-db-proof.ts",
-			"scripts/shared-product-database-bootstrap.mjs",
-			"scripts/shared-product-database-bootstrap.d.mts",
+			"db/shared-product-schema/chat_current.sql",
+			"drizzle/0000_current_baseline.sql",
+			"ops/db/bootstrap-shared-product-database.ts",
+			"ops/db/ensure-app-auth-role-search-path.ts",
+			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
 			"vitest.worker.config.mts",
 			"vitest.shared-db.config.mts",
 			"test/shared-product-db.integration.test.ts",
@@ -82,13 +68,14 @@ describe("app-api shared product bootstrap contracts", () => {
 		for (const relativePath of requiredFiles) {
 			expect(existsSync(join(appRoot, relativePath)), relativePath).toBe(true);
 		}
+		expect(existsSync(join(appRoot, "db/shared-product-migrations"))).toBe(false);
 	});
 
 	it("exports chat message feedback from the unified app-api schema object", () => {
 		expect(Object.keys(appApiSchema)).toEqual(expect.arrayContaining(["messageFeedback"]));
 	});
 
-	it("scans all app-owned schemas during shared DB adoption and drift reconciliation", () => {
+	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
 			expect.arrayContaining([
 				"docs",
@@ -106,9 +93,10 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("documents app-api as the shared product DB bootstrap owner", () => {
 		const readme = readAppFile("README.md");
 
-		expect(readme).toContain("bootstrap-shared-product-with-seeds.mjs");
-		expect(readme).toContain("ensure-app-auth-role-search-path.mjs");
-		expect(readme).toContain("reconcile-shared-db-drift.mjs");
+		expect(readme).toContain("bootstrap-shared-product-database.ts");
+		expect(readme).toContain("ensure-app-auth-role-search-path.ts");
+		expect(readme).toContain("0000_current_baseline.sql");
+		expect(readme).toContain("chat_current.sql");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
@@ -216,11 +204,11 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(requestScopeSource).not.toContain("createProcessDiningOperationsStore");
 	});
 
-	it("delegates dining dev seed import to the dining sync job", () => {
-		const bootstrapSource = readAppFile("scripts/bootstrap-shared-product-with-seeds.mjs");
+	it("keeps dining dev seed import outside the app-api bootstrap", () => {
+		const bootstrapSource = readAppFile("ops/db/bootstrap-shared-product-database.ts");
 
-		expect(bootstrapSource).toContain("jobs/dining-sync");
-		expect(bootstrapSource).toContain("import-dev-seed");
+		expect(bootstrapSource).not.toContain("jobs/dining-sync");
+		expect(bootstrapSource).not.toContain("import-dev-seed");
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

@@ -495,6 +495,7 @@ components:
       enum:
         - knowledge_query
         - place_lookup
+        - public_web_search
         - transport_schedule_lookup
         - campus_notice_discover
         - campus_notice_get
@@ -502,6 +503,7 @@ components:
       type: string
       enum:
         - knowledge_query
+        - public_web_search
         - transport_schedule_lookup
         - campus_notice_discover
     RequestedTool:
@@ -509,6 +511,7 @@ components:
       enum:
         - knowledge_query
         - place_lookup
+        - public_web_search
         - transport_schedule_lookup
         - campus_notice_discover
     ConfidenceLevel:

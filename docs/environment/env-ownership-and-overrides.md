@@ -128,23 +128,20 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 
 ## Feature Worktree Local Env
 
-Feature worktrees do not receive ignored `.env` / `.dev.vars` files from Git.
-After creating or switching into `.worktrees/*`, link local env files from the
-root worktree:
+Feature worktrees do not receive ignored `.env` / `.dev.vars` files from Git. A
+feature worktree must use explicit local env files owned by that checkout or by
+the developer's local secret manager. Do not copy secrets between worktrees and
+do not rely on repo scripts to fan out ignored env files.
 
-```bash
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-```
+## Canonical Checks
 
-This creates symlinks and refuses to replace existing non-symlink targets. Do
-not copy secrets between worktrees.
-
-## Convenience Scripts
-
-- `uv run --all-packages python -m scripts.check_worker_observability_env
-  --json`
-- `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
+- Local Worker observability env: `pnpm exec tsx scripts/deploy/doctor-env.ts
+  worker-observability-local --json`
+- Deployed Worker secret presence: `pnpm exec tsx
+  scripts/deploy/check-worker-secret-presence.ts --env staging --json`
+- External sink verification uses the Sentry / Axiom UI or their official APIs
+  from the operator workstation. The repo does not maintain Sentry query helper
+  scripts.
 
 [source-collector-internal-portal-env]: ../../apps/source-collector/adapters/internal-portal/.env.example
 [source-collector-official-web-env]: ../../apps/source-collector/adapters/official-web/.env.example

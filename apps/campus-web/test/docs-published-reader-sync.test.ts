@@ -10,7 +10,7 @@ import {
 	resolvePublishedReaderObjectStoreCredentials,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
-} from "../scripts/sync-campus-published-reader.mjs";
+} from "../src/docs-reader-build/sync-campus-published-reader.ts";
 import {
 	cleanupPublishedReaderFixture,
 	createPublishedReaderFixture,
@@ -100,11 +100,11 @@ describe("campus-web published reader sync", () => {
 			parsePublishedReaderSyncArgs([
 				"all",
 				"--manifest-path",
-				"../../var/public-docs-sync-manifest.json",
+				"../../var/docs-reader-sync-manifest.json",
 			]),
 		).toEqual({
 			command: "all",
-			manifestFilePath: "../../var/public-docs-sync-manifest.json",
+			manifestFilePath: "../../var/docs-reader-sync-manifest.json",
 			manifestObjectKey: undefined,
 		});
 		expect(

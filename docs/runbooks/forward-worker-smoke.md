@@ -49,12 +49,12 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
 - 为避免 `wrangler` 写入默认家目录日志，命令使用 repo-local
   `XDG_CONFIG_HOME=./.wrangler-home`
 - 做 online answer local browser smoke 前，如果本地 Postgres 可能落后于
-  `apps/app-api/db/shared-product-migrations/*`，先执行
-  `node apps/app-api/scripts/run-with-local-env.mjs node
-  ./scripts/bootstrap-shared-product-with-seeds.mjs`
+  `apps/app-api/db/shared-product-schema/*`，先执行
+  `pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts node
+  ./ops/db/bootstrap-shared-product-database.ts`
 - 做 campus-web docs build 前，repo-local MinIO 应已运行并包含
   `campus-agent-source` / `campus-agent-derived` bucket。`campus-web` 本地 build
-  通过 `apps/campus-web/scripts/run-with-local-env.mjs` 读取 root/app explicit env；
+  通过 `apps/campus-web/scripts/run-with-local-env.ts` 读取 root/app explicit env；
   `OBJECT_STORE_*` 必须来自显式 local env 或平台注入
 
 ## 标准命令
@@ -71,11 +71,9 @@ allowlist：
 ```bash
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:node -- test/campus-worker.test.ts
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-node scripts/prepare-campus-docs-reader-build.mjs \
+pnpm exec tsx apps/campus-web/scripts/prepare-docs-reader-build.ts \
   --read-model-manifest var/docs-read-model-manifest.json
-node apps/campus-web/scripts/build-published-reader-docs.mjs
+pnpm --dir apps/campus-web exec tsx ./scripts/build-published-reader-docs.ts
 ```
 
 再验证 campus-web online answer 主链路 smoke：
@@ -120,28 +118,26 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 当前 docs browser route 属于 campus-web。做本地 docs smoke 时使用：
 
 ```bash
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-node scripts/prepare-campus-docs-reader-build.mjs \
+pnpm exec tsx apps/campus-web/scripts/prepare-docs-reader-build.ts \
   --read-model-manifest var/docs-read-model-manifest.json
-node apps/campus-web/scripts/build-published-reader-docs.mjs
+pnpm --dir apps/campus-web exec tsx ./scripts/build-published-reader-docs.ts
 pnpm dev
 ```
 
 约束：
 
 - campus-web dev 固定监听 `http://127.0.0.1:27014`
-- feature worktree 中先通过 `scripts.link_worktree_app_local_env` 链接 root
-  worktree 的 ignored local env；不要复制 secret
+- feature worktree 必须显式提供本地 env 或通过开发者本地 secret manager 注入；不要复制
+  secret，也不要依赖 repo 脚本在 worktree 间分发 ignored env
 - root `pnpm dev` 同时启动 `campus-web` 与 same-origin 依赖的
   `app-api`，避免 docs admission、auth session、chat history、dining 等
   `/api/*` 在本地 smoke 中变成依赖缺失 503
 - `env/commands/campus-docs-reader-build.env` 必须存在于 root worktree，并提供
   `APP_API_OPERATOR_DATABASE_URL` 与 docs reader derived bucket object-store 凭据
-- `prepare-campus-docs-reader-build.mjs` 先从 `app-api` docs read model 导出
-  `var/public-docs-sync-manifest.json`，并验证 manifest 引用的对象存储 reader
+- `prepare-docs-reader-build.ts` 先从 `app-api` docs read model 导出
+  `var/docs-reader-sync-manifest.json`，并验证 manifest 引用的对象存储 reader
   assets 可读
-- `build-published-reader-docs.mjs` 只消费已准备好的 manifest / reader assets，再由
+- `build-published-reader-docs.ts` 只消费已准备好的 manifest / reader assets，再由
   campus-web 静态 delivery 提供 `/docs/*` 与 `/_docs-static/*`
 - `/_docs/*` 是匿名 public reader asset delivery
 - `/_gated-docs/*` 必须走 Worker-first admission，并通过 same-origin
@@ -154,9 +150,9 @@ pnpm dev
 online answer 的 E2E contract 不应由 staging 域名定义。当前 repo-owned 入口是：
 
 ```bash
-pnpm --dir apps/app-api chat:e2e:dev
-pnpm --dir apps/app-api chat:e2e:staging
-pnpm --dir apps/app-api chat:e2e:local-real-provider
+pnpm smoke:app-api -- chat-dev
+pnpm smoke:app-api -- chat-local-provider
+pnpm smoke:app-api -- chat-staging
 ```
 
 profile 语义：
@@ -168,7 +164,7 @@ profile 语义：
 - `staging`：部署验收 profile，默认使用 `campus-staging` /
   `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
   public smoke surface
-- `local-real-provider`：复用 `dev` 的 online answer 产品路径编排，但强制启用
+- `local-provider`：复用 `dev` 的 online answer 产品路径编排，但强制启用
   Temporal execution-control runtime，并要求 app-api provider-config 已激活真实
   `primary_agent` / `rag_synthesis` profile。它用于验证
   `campus-web -> app-api -> execution-control -> Temporal memory + RAG
@@ -178,7 +174,7 @@ profile 语义：
 本地激活真实模型 profile：
 
 ```bash
-node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx ./ops/dev/seed-local-provider-config.ts
 ```
 
 该命令读取 root `.env` 的 `LLM_*`、`EMBEDDING_*` 与可选 `RERANK_*`，并把它们写入
@@ -208,11 +204,8 @@ execution-control 仍通过 app-api internal provider-config snapshot 消费 act
 - 不证明真实数据库、真实 Better Auth session 或真实 execution-control live execution 已接通
 - 不证明 retrieval、grounding 或答案质量达标
 
-## 与旧 smoke 的关系
+## Smoke Ownership
 
-- `public-docs` 的本地 browser/live smoke 不再是 forward product topology 的 canonical
-  smoke 入口；该 app 已删除，历史 Rspress/MDX/anchor/highlight/search 实现只能通过 git
-  history 追溯
 - `campus-web` 的本地 browser/live smoke 必须通过 root `pnpm dev` 启动学生侧
   web + shared `app-api`，单独 `pnpm --dir apps/campus-web dev` 只用于前端 asset
   路由或纯 shell 调试

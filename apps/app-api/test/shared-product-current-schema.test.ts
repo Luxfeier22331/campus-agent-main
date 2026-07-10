@@ -1,53 +1,75 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-
+import {
+	buildCurrentSharedDatabaseExpectedTableSpecs,
+	validateSharedProductCurrentSchemaSql,
+} from "../src/script-support/shared-db/shared-product-current-schema.ts";
 import {
 	buildExpectedTableSpecs,
-	loadMigrationContext,
-} from "../scripts/adopt-shared-database.mjs";
-import { buildCurrentSharedDatabaseExpectedTableSpecs } from "../scripts/shared-product-current-schema.mjs";
+	loadCurrentDrizzleSnapshot,
+} from "../src/script-support/shared-db/shared-product-schema-context.ts";
 
-const migrationContext = loadMigrationContext();
+const currentSnapshot = loadCurrentDrizzleSnapshot();
 
 describe("app-api shared product current schema", () => {
 	it("supplements drizzle snapshots with shared-product tables that are current repo truth", () => {
-		const drizzleSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
-		const currentSpecs = buildCurrentSharedDatabaseExpectedTableSpecs(
-			migrationContext.latestSnapshot,
-		);
+		const drizzleSpecs = buildExpectedTableSpecs(currentSnapshot);
+		const currentSpecs = buildCurrentSharedDatabaseExpectedTableSpecs(currentSnapshot);
 
-		expect(drizzleSpecs.has("dining.review_projections")).toBe(false);
+		expect(drizzleSpecs.has("chat.conversations")).toBe(false);
 		expect(
 			[...currentSpecs.keys()].filter((qualifiedName) => !drizzleSpecs.has(qualifiedName)),
-		).toEqual(["dining.review_projections"]);
-		expect(currentSpecs.get("dining.review_projections")).toMatchObject({
-			schema: "dining",
-			table: "review_projections",
-		});
-		expect(
-			currentSpecs.get("dining.review_projections")?.columns.get("stall_profile_id"),
-		).toMatchObject({
-			name: "stall_profile_id",
-			notNull: true,
-			type: "text",
-		});
-		expect(currentSpecs.get("dining.review_projections")?.columns.get("window_id")).toMatchObject({
-			name: "window_id",
-			notNull: true,
-			type: "text",
-		});
-		expect([...(currentSpecs.get("dining.review_projections")?.indexes.keys() ?? [])]).toEqual(
+		).toEqual(
 			expect.arrayContaining([
-				"dining_review_projections_hall_idx",
-				"dining_review_projections_source_record_idx",
-				"dining_review_projections_stall_profile_idx",
-				"dining_review_projections_window_idx",
+				"chat.conversations",
+				"chat.message_feedback",
+				"chat.messages",
+				"chat.session_slots",
+			]),
+		);
+		expect(currentSpecs.get("chat.conversations")).toMatchObject({
+			schema: "chat",
+			table: "conversations",
+		});
+		expect(currentSpecs.get("chat.conversations")?.columns.get("owner_user_id")).toMatchObject({
+			name: "owner_user_id",
+			notNull: true,
+			type: "text",
+		});
+		expect(currentSpecs.get("chat.messages")?.columns.get("structured_parts_json")).toMatchObject({
+			name: "structured_parts_json",
+			notNull: false,
+			type: "jsonb",
+		});
+		expect(currentSpecs.get("chat.message_feedback")?.columns.get("vote")).toMatchObject({
+			name: "vote",
+			notNull: true,
+			type: "text",
+		});
+		expect([...(currentSpecs.get("chat.conversations")?.indexes.keys() ?? [])]).toEqual(
+			expect.arrayContaining([
+				"chat_conversations_owner_archived_updated_at_idx",
+				"chat_conversations_owner_deleted_updated_at_idx",
+				"chat_conversations_owner_pinned_updated_at_idx",
+				"chat_conversations_owner_updated_at_idx",
 			]),
 		);
 		expect(currentSpecs.get("dining.menu_offerings")?.columns.get("price_label")).toMatchObject({
 			notNull: false,
 			type: "text",
 		});
+	});
+
+	it.each([
+		"ALTER TABLE",
+		"DROP TABLE",
+		"INSERT INTO",
+		"UPDATE",
+		"DELETE FROM",
+	])("rejects %s statements from the current schema baseline", (statement) => {
+		expect(() => validateSharedProductCurrentSchemaSql(`${statement} chat.messages;`)).toThrow(
+			"Unsupported shared-product schema baseline statement shape",
+		);
 	});
 });

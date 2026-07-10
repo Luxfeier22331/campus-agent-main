@@ -8,7 +8,7 @@ export default defineConfig({
 		timeout: 5_000,
 	},
 	forbidOnly: Boolean(process.env.CI),
-	globalSetup: "./e2e-worker.global-setup.ts",
+	globalSetup: "./e2e/worker/global-setup.ts",
 	outputDir: "test-results/e2e-worker",
 	projects: [
 		{
@@ -18,7 +18,7 @@ export default defineConfig({
 	],
 	reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
 	retries: process.env.CI ? 1 : 0,
-	testDir: "./e2e-worker",
+	testDir: "./e2e/worker",
 	timeout: 30_000,
 	use: {
 		baseURL,

@@ -15,7 +15,7 @@ updated: 2026-04-12
 它不重新定义：
 
 - repo-shipped Python entrypoint 的本地 bootstrap contract
-- `packages/eval-langfuse` / `packages/shared` 的 provider precedence
+- `packages/eval-langfuse` 的 provider precedence
 - app/runtime topology
 
 这些代码与本地配置语义以 `docs/environment/README.md` 为准。
@@ -130,7 +130,7 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 本地只验证当前工作区：
 
 1. 确认 `.env` 在当前工作区
-1. 运行： `uv run --all-packages python -m scripts.doctor_env evals --json`
+1. 运行： `pnpm exec tsx scripts/deploy/doctor-env.ts evals --json`
 1. 检查：
    - `bootstrap.file_found=true`
    - `bootstrap.loaded_path` 指向当前工作区 `.env`
@@ -140,15 +140,15 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 
 ### Verify deploy environment
 
-1. 先运行： `uv run --all-packages python -m scripts.check_worker_secret_presence
-   --env staging --json`
+1. 先运行： `pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env
+   staging --json`
 1. 确认输出里每个 Worker app 都是 `ready=true`，且没有 `missing_secrets`
 1. 再在 Operator Console 确认目标 provider profiles 已 validate + active
-1. 运行 `scripts/sync-provider-config-projection.mjs`，确认目标 runtime 的
+1. 运行 `apps/execution-control/scripts/sync-provider-config-projection.ts`，确认目标 runtime 的
    `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` /
    `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 projection artifact
 1. 如果启用 LLM debug trace，先在 Operator Console 的 `观测配置` 页面确认
-   Langfuse OTLP 配置，再运行 `scripts/sync-observability-config-projection.mjs`，
+   Langfuse OTLP 配置，再运行 `apps/execution-control/scripts/sync-observability-config-projection.ts`，
    确认目标 runtime 的 `CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH` 指向
    0600 projection artifact，并被挂载到 runtime config 声明的
    `observability_config_projection_path`

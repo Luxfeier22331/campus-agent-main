@@ -49,7 +49,7 @@ Python claim-level validator。
 
 ## Retrieval Boundary
 
-旧 Python `packages/retrieval-core` 已从 active workspace 删除。当前 online retrieval
+旧 Python retrieval package 已从 active workspace 删除。当前 online retrieval
 kernel 收口到 Go-owned execution-control / repo-owned internal retrieval seam：
 
 - Qdrant backend runtime adapter、embedding query cache、registry lookup、
@@ -160,6 +160,20 @@ native rendering dependency.
 
 ## Guardrails
 
+- Repo governance scripts and common app scripts live in TypeScript. The
+  top-level `scripts/` directory and app script directories for app-api,
+  campus-web and operator-console-web must not add `.py`, `.mjs` or `.d.mts`
+  implementations. Use `pnpm exec tsx` for these script entrypoints.
+- Python tests remain valid only when they exercise admitted Python
+  package/runtime islands: contracts models, ingestion contract package behavior
+  and the isolated Ragas runner. Repo governance, CI/workflow contracts,
+  Worker/app scripts, ingestion clean-target checks and other common tooling
+  must be tested through TS checks or the owning package tests, not root-level
+  Python unittest suites.
+- Root `uv.workspace.members` is a narrow Python boundary allowlist:
+  `packages/contracts`, `packages/ingestion-contracts`,
+  `packages/ragas-runner`. TS / Worker / Rust owners must not add
+  `pyproject.toml` workspace shells or re-enter `uv.lock`.
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
 - 不把 deterministic Execution Agent Layer admission、routing、structured payload
   planning 写回 Python

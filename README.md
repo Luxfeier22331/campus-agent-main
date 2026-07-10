@@ -6,7 +6,7 @@
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
 Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
-受保护运营面、共享 `app-api`、内部 `execution-control`、按 one-shot /
+受保护运营面、共享 `app-api`、内部 `execution-control`、按 manual /
 scheduled runtime 拆分的 jobs，以及按 tool / retrieval / ingestion boundary 拆分的
 packages。
 
@@ -40,7 +40,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端；
-  Docker Compose 只保留 local / transitional runtime evidence，长期 production
+  Docker Compose 只保留 local diagnostics harness，长期 production
   target substrate 是 K8s + KEDA
 - 当前 online answer path 已硬切为 Go/Temporal durable envelope +
   OpenAI Agents SDK primary agent loop；ordinary chat 由 primary agent 在
@@ -99,7 +99,8 @@ See:
     `operator-console-web`、`app-api`、`execution-control`、
     `ingestion-control`、`source-collector`
 - [`jobs/`](./jobs/)
-  - 一次性或定时 deployable runtime，例如 `dining-sync`
+  - manual 或定时 deployable runtime，例如 `dining-sync`、
+    `learning-loop-candidates`
 - [`packages/`](./packages/)
   - 稳定边界，例如
     `ingest-core`、`ingestion-contracts`、`contracts`
@@ -122,9 +123,10 @@ See:
 - [`apps/ingestion-control`](./apps/ingestion-control/)
 - [`apps/source-collector`](./apps/source-collector/)
 - [`jobs/dining-sync`](./jobs/dining-sync/)
+- [`jobs/learning-loop-candidates`](./jobs/learning-loop-candidates/)
 - [`packages/ingest-core`](./packages/ingest-core/)
-- [`packages/ingestion-core`](./packages/ingestion-core/)：Python file / OCR / legacy Office
-  adapter support，不是 ingestion lifecycle owner
+- [`packages/ingestion-contracts`](./packages/ingestion-contracts/)
+- [`packages/ingestion-kernels-rs`](./packages/ingestion-kernels-rs/)
 
 ## Documentation
 
@@ -175,7 +177,9 @@ Public clone 默认验证入口：
 pnpm repo:guard
 pnpm repo:static
 pnpm go:check
-uv run --all-packages python -m unittest discover -s tests -t .
+pnpm ci:contracts
+pnpm ci:ingest
+pnpm ci:eval
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker

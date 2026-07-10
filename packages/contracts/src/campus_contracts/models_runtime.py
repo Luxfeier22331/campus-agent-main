@@ -72,7 +72,9 @@ def _reject_raw_workflow_trace_keys(value: object, field_name: str) -> None:
     )
 
 
-def _validate_workflow_projection_refs(projection_refs: tuple[dict[str, Any], ...]) -> None:
+def _validate_workflow_projection_refs(
+    projection_refs: tuple[dict[str, Any], ...],
+) -> None:
     for index, projection_ref in enumerate(projection_refs):
         if not isinstance(projection_ref, dict):
             raise ValueError(f"workflow_context.projection_refs[{index}] must be an object")

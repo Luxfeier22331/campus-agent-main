@@ -115,27 +115,29 @@ collector control-plane writer owner；具体规则另见
 - 一套 Drizzle schema codebase
 - 一套 runtime type 定义与 query helpers
 
-但 migration ownership 已显式拆分为：
+当前 schema artifact ownership 已显式拆分为：
 
-- `apps/app-api` 的 `drizzle.app_api_migrations` 拥有 `runtime.*` / `operator.*` /
-  `docs.*` / `profile.*` / `identity.*` / `dining.*`
+- `apps/app-api/drizzle/0000_current_baseline.sql` 是 app-api Drizzle current
+  baseline，覆盖 app-facing product、projection 与 operator surfaces。
+- `apps/app-api/db/shared-product-schema/chat_current.sql` 是
+  shared-product `chat.*` bootstrap baseline。
 - `official_web.*` 的 collector control-plane durable writes 由
-  `apps/ingestion-control` 执行；app-api schema export 只服务历史 migration
-  baseline、operator projection 和 query/type safety，不得恢复 collector write path
-- `apps/app-api` shared-product bootstrap 负责 `app_auth.*` / `chat.*` 的 bootstrap
-  / adoption，不与 `drizzle.app_api_migrations` 混用同一 ownership 语义
+  `apps/ingestion-control` 执行；app-api schema export 只服务 operator projection、
+  release-gate ledger 和 query/type safety，不得恢复 collector write path。
+- `drizzle.app_api_migrations` 不与 shared-product SQL baseline 混用同一 journal 语义。
 
 这意味着：
 
 - `apps/app-api` 运行时仍可通过统一 schema codebase 访问 `app_auth.*` / `chat.*`
 - 但不能再把 `app_auth.*` / `chat.*` 误写成 `app-api` Drizzle migration ownership
-- 可以按模块分文件组织 schema，但 bootstrap/adoption owner 与 Drizzle migration owner 都必须保持显式
+- 可以按模块分文件组织 schema，但 Drizzle baseline、shared-product SQL baseline 与
+  ingestion-control-owned schema ensure 必须保持显式边界。
 
 ## Migration Rules
 
-- Better Auth 相关表与 app-domain 表共享同一条 Drizzle migration pipeline
-- app-domain 第一波 migration 至少包含 `chat.*`、`runtime.*`、`operator.*`
+- 当前 repo 以单一 current baseline 表达 app-api Drizzle schema；staging/prod 未正式上线
+  前，环境数据库可以备份后重建，不保留历史 migration chain 作为默认运行时事实。
+- Better Auth/app-auth 与 chat shared-product bootstrap 使用显式 SQL baseline。
 - Worker runtime 使用 Hyperdrive；migration 命令不通过 Hyperdrive 执行
-- migration / drift check / schema inspection 使用 direct database management
-  connection
+- schema bootstrap / schema inspection 使用 direct database management connection
 - 允许第一版单库共存，但禁止把 schema separation 退化成无边界的大表堆

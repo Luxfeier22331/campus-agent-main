@@ -89,7 +89,7 @@ Production worker replica autoscaling 由 KEDA Temporal scaler + Kubernetes HPA
 
 `worker-autoscaler` 不再是长期 production autoscaling controller。它只能保留为：
 
-- Docker Compose local smoke / transitional staging proof
+- Docker Compose local smoke / transitional staging validation
 - comparison evidence producer
 - migration fallback while K8s staging is not yet serving
 

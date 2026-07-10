@@ -48,7 +48,7 @@ APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 # APP_API_DB is a Worker binding and is not configured in .dev.vars.
 # For local Wrangler / Drizzle commands, place the process-level database URLs in
 # `apps/app-api/.env` instead. `pnpm dev` and direct
-# `node ./scripts/run-with-local-env.mjs ...` commands load that file before
+# `pnpm exec tsx ./scripts/run-with-local-env.ts ...` commands load that file before
 # invoking the underlying tool.
-# APP_API_OPERATOR_DATABASE_URL lives in `apps/app-api/.env` for schema generation,
-# drift reconciliation, and repo-owned operator scripts.
+# APP_API_OPERATOR_DATABASE_URL lives in `apps/app-api/.env` for schema generation
+# and repo-owned operator scripts.

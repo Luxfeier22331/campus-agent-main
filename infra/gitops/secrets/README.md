@@ -61,6 +61,19 @@ admin keys.
 Provider active profiles remain owned by app-api provider-config and are
 consumed through explicit runtime projections, not through this directory.
 
+`dining-sync-secrets` is consumed by the dining sync CronJob and must contain:
+
+- `DATABASE_URL`
+- `DINING_LARK_APP_ID`
+- `DINING_LARK_APP_SECRET`
+- `DINING_MODERATION_API_KEY`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+
+Dining table ids, object-store bucket names, public asset URLs and moderation
+model names are non-secret config and stay in the dining-sync ConfigMap or
+environment-specific overlays.
+
 ## Delivery Options
 
 The stable contract is Kubernetes Secret name and key shape, not the backend.
@@ -114,7 +127,6 @@ SealedSecret resources must use the default strict scope. Do not commit
 `sealedsecrets.bitnami.com/scope` values unless a separate ADR/runbook accepts
 that wider blast radius.
 
-Kubernetes ConfigMap/Secret separation policy is checked by
-`uv run --all-packages python -m scripts.check_k8s_config_secret_policy` when
-Conftest is installed. It is an explicit infrastructure policy lane until the
-repo standardizes Conftest installation in CI images.
+Kubernetes ConfigMap/Secret separation policy is checked by `pnpm repo:static`.
+It is an explicit infrastructure policy lane until the repo standardizes
+Conftest installation in CI images.

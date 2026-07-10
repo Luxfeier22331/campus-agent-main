@@ -153,11 +153,13 @@ settings; human-maintained staging config should own only the canonical
 Real endpoint, header and dataset values belong in the deployment secret manager
 or local ignored environment file after derivation.
 
-The runtime compose file treats the Langfuse exporter as part of the staging
-fan-out contract. `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`,
+The canonical local runtime compose uses the debug Collector and does not
+require external sink credentials. Add
+`infra/local/docker-compose.execution-runtime.fanout.yml` when testing
+the fan-out contract. In fan-out mode, `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`,
 `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER` and
-`OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` are required when using
-`infra/local/docker-compose.execution-control-runtime.yml`.
+`OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` must be supplied by local ignored
+env or the deployment secret manager.
 
 ## Validation
 
@@ -173,7 +175,7 @@ pnpm contracts:check
 repo-owned symptom policy source for stage latency, request error rate,
 projection outbox, telemetry export failure and missing trace rate alerts. It
 also materializes one Axiom monitor spec per enabled alert rule through
-`scripts/materialize_observability_alerts.py`. The repo still does not mirror
+`packages/contracts/scripts/contracts/materialize-observability-alerts.ts`. The repo still does not mirror
 external dashboard content into app-api.
 
 Fail-closed Langfuse env check:
@@ -182,7 +184,7 @@ Fail-closed Langfuse env check:
 OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel \
 OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER="Basic <base64-public-secret-pair>" \
 OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4 \
-pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts check-collector-config --json
 ```
 
 Langfuse Ragas score smoke:
@@ -192,7 +194,7 @@ LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
 LANGFUSE_ENVIRONMENT=staging \
-pnpm --dir packages/eval-langfuse langfuse ragas-score-traces \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-traces \
   --trace-name online-answer \
   --limit 5 \
   --validate-only \
@@ -208,7 +210,7 @@ Langfuse real trace closeout smoke:
 LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
-pnpm --dir packages/eval-langfuse langfuse verify-trace \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace \
   --product-trace-id <app-api-trace-id-from-chat-request> \
   --session-id <conversation-id> \
   --user-id <stable-non-pii-user-id> \
@@ -241,12 +243,12 @@ command produces release closeout artifacts only; Langfuse remains a sink and
 does not become product truth.
 
 Langfuse trace closeout artifact is produced by running `verify-trace` with the
-identity values from `chat-durable-reconnect.json`. The old bundled
-`closeout-staging` / `build-release-artifacts` / `check-release-artifacts` path
-has been retired with the artifact score-report publisher.
+identity values from `chat-durable-reconnect.json`. Do not add bundled
+`closeout-staging`, `build-release-artifacts` or `check-release-artifacts`
+release paths beside this command.
 
 `chat-durable-reconnect.json` is produced by
-`pnpm --dir apps/app-api chat:durable:e2e:staging`. Its `langfuseCloseout` block
+`pnpm smoke:app-api -- chat-staging`. Its `langfuseCloseout` block
 is the product-side identity source for closeout: `productTraceId`, `requestId`,
 `runId`, `workflowId`, `sessionId` and `userId`. Do not derive `workflowId` from
 `runId`; it must come from the sanitized run step attempt projection.
@@ -254,7 +256,7 @@ is the product-side identity source for closeout: `productTraceId`, `requestId`,
 Manual trace closeout path:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse verify-trace \
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace \
   --product-trace-id "$(jq -er '.langfuseCloseout.productTraceId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --request-id "$(jq -er '.langfuseCloseout.requestId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --run-id "$(jq -er '.langfuseCloseout.runId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
@@ -320,7 +322,7 @@ Expected closeout artifacts:
 - `TestProjectTemporalStepEmitsLangfuseObservationTelemetry` proves an
   execution-control Temporal step observation reaches an in-test `/v1/traces`
   OTLP collector as protobuf with Langfuse observation attributes.
-- `pnpm --dir packages/eval-langfuse langfuse verify-trace ... --json`
+- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace ... --json`
   passes for the real deployed chat request trace after the Collector fans out
   to Langfuse.
 - `verify-trace.json` is saved with product trace, request, run, workflow,
@@ -331,7 +333,7 @@ Collector config structural smoke:
 ```bash
 pnpm ci:eval
 pnpm contracts:check
-uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
+pnpm repo:static
 ```
 
 `pnpm ci:eval` covers the TS Langfuse package and trace id vector checks.
@@ -349,7 +351,7 @@ If the Collector receives telemetry but no sink records appear:
 3. Check sampling percentages.
 4. Confirm Sentry and Axiom endpoint/header values were injected by the runtime secret manager.
 5. Confirm Langfuse endpoint, Basic auth header and ingestion version passed
-   `pnpm --dir packages/eval-langfuse langfuse check-collector-config --json`.
+   `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts check-collector-config --json`.
 6. Confirm Sentry uses `x-sentry-auth`, not `Authorization`.
 7. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
    for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,

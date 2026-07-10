@@ -36,7 +36,10 @@ interface LangfuseTraceIdVector {
 }
 
 function langfuseTraceIdVectors(): LangfuseTraceIdVector[] {
-	const fixturePath = resolve(process.cwd(), "../../tests/fixtures/langfuse_trace_id_vectors.json");
+	const fixturePath = resolve(
+		process.cwd(),
+		"../../packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
+	);
 	const payload = JSON.parse(readFileSync(fixturePath, "utf-8")) as {
 		vectors: LangfuseTraceIdVector[];
 	};

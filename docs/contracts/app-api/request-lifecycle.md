@@ -206,7 +206,7 @@ fail-close checks。
 - 不回写 panel projection
 - 只返回 typed execution outcome
 - execution origin 必须指向 Go `apps/execution-control`，而不是 Python private handoff
-  worker；Docker Compose 只保留 local / transitional evidence，production target
+  worker；Docker Compose 只保留 local diagnostics harness，production target
   substrate 由 K8s + KEDA 承接
 
 ### Step 4: Finalize

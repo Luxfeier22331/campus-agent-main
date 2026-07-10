@@ -307,7 +307,7 @@ async function runSeedScript(input: {
 	return new Promise((resolvePromise, reject) => {
 		const child = spawn(
 			"pnpm",
-			["exec", "tsx", "./scripts/seed-local-provider-config.ts", ...input.args],
+			["exec", "tsx", "./ops/dev/seed-local-provider-config.ts", ...input.args],
 			{
 				cwd: appDir,
 				env,

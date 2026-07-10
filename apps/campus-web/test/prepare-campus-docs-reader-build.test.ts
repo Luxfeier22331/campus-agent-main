@@ -7,7 +7,7 @@ import {
 	loadPrepareDocsReaderBuildEnvFiles,
 	parsePrepareDocsReaderBuildArgs,
 	resolvePrepareDocsReaderBuildEnv,
-} from "../../../scripts/prepare-campus-docs-reader-build.mjs";
+} from "../scripts/prepare-docs-reader-build.ts";
 
 let tempDir: string | null = null;
 
@@ -19,9 +19,9 @@ afterEach(() => {
 });
 
 describe("campus docs reader build prepare script", () => {
-	it("resolves the default public docs sync manifest output path", () => {
+	it("resolves the default docs reader sync manifest output path", () => {
 		expect(parsePrepareDocsReaderBuildArgs([])).toEqual({
-			publicDocsSyncManifestPath: "var/public-docs-sync-manifest.json",
+			docsReaderSyncManifestPath: "var/docs-reader-sync-manifest.json",
 			readModelManifestPath: undefined,
 		});
 	});
@@ -30,7 +30,7 @@ describe("campus docs reader build prepare script", () => {
 		expect(
 			parsePrepareDocsReaderBuildArgs(["--read-model-manifest", "var/docs-read-model.json"]),
 		).toEqual({
-			publicDocsSyncManifestPath: "var/public-docs-sync-manifest.json",
+			docsReaderSyncManifestPath: "var/docs-reader-sync-manifest.json",
 			readModelManifestPath: "var/docs-read-model.json",
 		});
 	});

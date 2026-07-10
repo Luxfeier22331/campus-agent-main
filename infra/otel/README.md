@@ -8,11 +8,11 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
 - `collector-local-debug.yaml`: local debug Collector config. It receives
   OTLP traces, metrics and logs, applies the repo forbidden-field deletion
   policy and exports to the Collector `debug` exporter.
-- `collector-local-prodlike.yaml`: default local execution-control Collector
-  config. It receives the same local OTLP signals, applies the forbidden-field
-  deletion policy and fans out traces to the local self-hosted Langfuse OTLP
-  endpoint plus the Collector `debug` exporter. Metrics are also exported to
-  the Axiom metrics dataset when Axiom endpoint/auth env is populated.
+- `collector-local-prodlike.yaml`: optional local fan-out Collector config. It
+  receives the same local OTLP signals, applies the forbidden-field deletion
+  policy and fans out traces to the local self-hosted Langfuse OTLP endpoint
+  plus the Collector `debug` exporter. Metrics are also exported to the Axiom
+  metrics dataset when Axiom endpoint/auth env is populated.
 - `collector-staging-template.yaml`: staging/production template. It receives OTLP,
   applies the same redaction chain, samples traces/logs, exports traces to
   Sentry, Axiom and Langfuse, exports logs to Axiom, and exports metrics to the
@@ -38,12 +38,14 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   appends the signal path.
 - Worker surfaces must not configure Axiom REST ingest. Axiom endpoint, auth
   header and dataset are Collector exporter settings only.
-- Default local execution-control runtime uses `collector-local-prodlike.yaml`
-  and the self-hosted Langfuse compose stack. Set
-  `EXECUTION_CONTROL_RUNTIME_FLAVOR=minimal` when a local smoke only needs the
-  `debug` exporter and should not start Langfuse.
-- Local minimal/debug uses only the `debug` exporter and does not require
-  Sentry/Axiom/Langfuse credentials.
+- Default local execution-control runtime uses `collector-local-debug.yaml`.
+  It uses only the `debug` exporter and does not require Sentry, Axiom or
+  Langfuse credentials.
+- Add `infra/local/docker-compose.execution-runtime.fanout.yml` when a
+  local run intentionally exercises `collector-local-prodlike.yaml` and external
+  sink fan-out.
+- Start `infra/local/docker-compose.langfuse.yml` only when the
+  local fan-out run needs a self-hosted Langfuse dependency stack.
 - Langfuse OTLP endpoint should be the `/api/public/otel` endpoint. Use
   `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` unless the Langfuse deployment
   contract changes.
@@ -80,7 +82,7 @@ Without a local Collector binary, run the repo structural guards:
 ```bash
 pnpm ci:eval
 pnpm contracts:check
-uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q
+pnpm repo:static
 ```
 
 To check a populated staging shell before starting compose:

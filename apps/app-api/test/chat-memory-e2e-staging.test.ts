@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type ChatMemoryE2eStagingDependencies,
 	runChatMemoryE2eStaging,
-} from "../scripts/chat-memory-e2e-staging";
+} from "../e2e/chat-memory-staging";
 
 function jsonResult<T>(
 	payload: T,

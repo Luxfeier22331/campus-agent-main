@@ -238,7 +238,7 @@ Current implemented truth:
   mutating profile memory settings. Scoped preference mutation updates
   `profile.memory_settings` and then materializes the same `identity.*`
   projection.
-- `apps/app-api/scripts/provision-muc-wiki-federation-client.ts` materializes
+- `apps/app-api/ops/identity/provision-muc-wiki-federation-client.ts` materializes
   the controlled `muc-wiki` client into both app-owned
   `identity.federation_*` policy tables and Better Auth-owned
   `app_auth.oauthClient` runtime table.

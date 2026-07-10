@@ -10,9 +10,9 @@ updated: 2026-07-06
 
 ## Boundary
 
-This runbook is the operational entry for K8s/GitOps-owned staging. Legacy
-Docker staging lifecycle, bridge overlays and local runtime env renderers are
-retired.
+This runbook is the operational entry for K8s/GitOps-owned staging. Docker
+Compose remains local diagnostics only; bridge overlays and local env renderers
+must not own staging lifecycle.
 
 ## Preflight
 
@@ -20,7 +20,6 @@ Before applying any Argo CD Application:
 
 ```bash
 pnpm repo:static
-kubectl kustomize infra/k8s/execution-runtime/overlays/staging
 kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
 kubectl kustomize infra/k8s/data-postgres/overlays/nc-arm-6c-staging
 kubectl kustomize infra/k8s/platform-temporal/overlays/nc-arm-6c-staging
@@ -158,13 +157,13 @@ encrypted Secrets without changing first-party Deployment/CronJob consumption.
 For repo-supported self-hosted GitOps, Sealed Secrets is the recommended
 default.
 
-## Retired Local Renderers
+## Local Renderer Boundary
 
-Execution-runtime env renderers that emit ConfigMap or Secret YAML from local
-env files are retired. Do not recreate `kubectl create ... --from-env-file`
-helpers for first-party runtime config or secrets. Kustomize owns tracked
-non-secret bootstrap config, and the selected Secret delivery backend owns
-Secret material and projected runtime artifacts.
+Execution-runtime env renderers must not emit ConfigMap or Secret YAML from
+local env files. Do not add `kubectl create ... --from-env-file` helpers for
+first-party runtime config or secrets. Kustomize owns tracked non-secret
+bootstrap config, and the selected Secret delivery backend owns Secret material
+and projected runtime artifacts.
 
 ## Sealed Secrets Operations
 
@@ -244,8 +243,8 @@ The Temporal schema Job is rendered as a Helm hook. Do not add Argo CD native
 hook annotations to the same Application or its sibling alias Application;
 Argo CD ignores Helm hooks when Argo CD hooks are present in that app. The
 Application also sets `helm.skipTests: true` so the chart test Pod is not part
-of desired state. Runtime health must be proven through readiness and Temporal
-runtime proof commands, not Helm test hooks.
+of desired state. Runtime health must be validated through readiness and
+Temporal runtime checks, not Helm test hooks.
 
 Hindsight UI/control-plane/worker and Temporal UI are disabled by default. They
 may be enabled temporarily by a reviewed values change or an operator-owned

@@ -281,10 +281,13 @@ func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
+	if body["status"] != "ready" {
+		t.Fatalf("status body = %v, want ready", body["status"])
+	}
 	if _, ok := body["prompt_config_gate"]; ok {
 		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
 	}
@@ -316,7 +319,7 @@ func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
 	}
 }
 
-func TestReadyzRequiresPublicWebSearchProviderConfigWhenToolIsOpen(t *testing.T) {
+func TestReadyzDoesNotBlockOverallServiceWhenPublicWebSearchProviderConfigIsMissing(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.OpenTools = []string{"public_web_search"}
 	})
@@ -324,10 +327,13 @@ func TestReadyzRequiresPublicWebSearchProviderConfigWhenToolIsOpen(t *testing.T)
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
+	if body["status"] != "ready" {
+		t.Fatalf("status body = %v, want ready", body["status"])
+	}
 	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
 	if providerConfigGate["configured"] != false {
 		t.Fatalf("provider_config_gate.configured = %v, want false", providerConfigGate["configured"])

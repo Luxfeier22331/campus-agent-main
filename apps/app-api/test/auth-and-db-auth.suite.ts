@@ -336,8 +336,18 @@ export function registerAppApiAuthConfigSuite() {
 			);
 		});
 
-		it("creates the official_web schema in the baseline migration before official_web tables", () => {
-			expect(migration0000).toContain('CREATE SCHEMA IF NOT EXISTS "official_web";');
+		it("creates every table schema before baseline tables", () => {
+			const tableSchemas = new Set(
+				[...migration0000.matchAll(/CREATE TABLE "([^"]+)"/gu)].map((match) => match[1]),
+			);
+			for (const schema of tableSchemas) {
+				const createSchema = `CREATE SCHEMA IF NOT EXISTS "${schema}";`;
+				const firstTable = `CREATE TABLE "${schema}".`;
+				expect(migration0000.indexOf(createSchema), schema).toBeGreaterThanOrEqual(0);
+				expect(migration0000.indexOf(createSchema), schema).toBeLessThan(
+					migration0000.indexOf(firstTable),
+				);
+			}
 		});
 
 		it("admits campus-domain and explicitly allowlisted end-user emails for email/password auth", () => {

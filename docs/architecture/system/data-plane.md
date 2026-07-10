@@ -84,7 +84,7 @@ layout 决定。下表定义目标拓扑；它不宣称当前 K8s / GitOps manif
 | `packages/ingest-core` | No | runtime-neutral TS ingestion helper package | package import only | artifact refs, object-store interfaces, `s3://` URI helpers, source-channel handoff DTOs, canonical JSON / JSONL writers, pure validation / parser / materialization helpers, default executor inventory audit | Temporal, Crawlee, concrete S3 / Postgres / Qdrant clients, provider transport, env bootstrap |
 | `packages/ingestion-contracts` | No | runtime-neutral contract package | package import only | task envelope, task registry, closeout DTOs and validators | task lifecycle, storage clients, workflow / activity execution |
 | `packages/ingestion-kernels-rs` | No standalone service | deterministic kernel binary / library called by ingestion-control worker | called from registered worker activity | file-level validation, chunk preparation, release manifest checks | source-channel semantics, Postgres / S3 / Qdrant clients, operator workflow |
-| Python adapters | Optional | package library or private adapter service dependency behind explicit TS handler | called only by admitted TS handler | MinerU / OCR / ML / legacy Office / domain extraction adapters | default worker runtime, task workflow, closeout, registry fallback executor |
+| Python adapters | Optional | package library or private adapter service dependency behind explicit TS handler | called only by admitted TS handler | MinerU / OCR / ML / Office / domain extraction adapters | default worker runtime, task workflow, closeout, registry fallback executor |
 
 The production service chain therefore stays:
 
@@ -99,7 +99,7 @@ scheduled or workflow-invoked source-collector
 -> app-api / execution-control / operator-safe projection consumers
 ```
 
-`apps/source-collector` can be run as one-shot or scheduled work because capture
+`apps/source-collector` can be run as manual or scheduled work because capture
 has an external source lifecycle. `apps/ingestion-control` remains a self-hosted
 control-plane service because task admission, workflow start and terminal
 closeout need stable internal state, diagnostics and failure semantics.
@@ -243,21 +243,14 @@ admit
   collection-specific handler、contract artifact、registry entry 与 executability gate。
   active registry 只能声明 executability audit 已确认存在 handler / kernel 的 task；
   新增枚举不能作为 registry 占位。
-- `apps/ingestion-worker` 与旧 Python ingestion package 已移除；Python 不再作为
-  app-level worker runtime、default package library 或 fallback executor 存在。
+- Python 不作为 app-level worker runtime、default package library 或 fallback executor。
   需要 Python 生态的 MinerU / OCR / ML / domain extraction 能力时，必须重新建模为
   explicit TS handler 调用的 private adapter service 或明确 admission 的窄 package，
-  并返回 canonical artifacts / document units；不能恢复旧 Python package 作为
-  source-truth / projection / registry owner。
-- Regulation semantic、answer-role 与 answer-ready contract helper 不再由独立
-  Python package 承接；若未来重新需要，必须按 collection-local TS handler、
-  deterministic Rust kernel 或显式 adapter contract 重新 admission。通用 artifact key
-  builder、artifact filename contract、raw asset / document registry DTO、
-  `DocumentImportInput`、通用 split-manifest loader 或 raw split materialization helper
-  由 TS / Rust owner 承接；不再存在 Python 默认 owner。
-- student handbook cleanup、layout cleanup、file asset routing 或 extraction metadata
-  若未来重新需要，必须按 TS handler、Rust kernel 或显式 adapter contract 重新 admission；
-  不得恢复 `source_truth_common.py`、`RawAsset*` registry 术语或旧 package facade。
+  并返回 canonical artifacts / document units。
+- Regulation semantic、answer-role、answer-ready contract helper、student handbook
+  cleanup、layout cleanup、file asset routing 或 extraction metadata 如需新增，必须按
+  collection-local TS handler、deterministic Rust kernel 或显式 adapter contract
+  admission。
 - `packages/ingest-core` 是已存在的 runtime-neutral TypeScript ingestion helper
   package。它只能承载 artifact refs、object-store interface、`s3://` URI helper、
   source-channel handoff DTO、Zod-backed TS boundary parsers、canonical JSON /
@@ -281,16 +274,12 @@ admit
   manifest validation 与 embedding batch input preparation；Rust kernel 不拥有
   source-channel semantics、operator workflow 或 provider adapter contract。
 - Python 只允许作为重新 admission 的 MinerU / OCR / ML / domain extraction
-  adapter、offline eval 或 historical tooling。Python adapter 产物必须回到 canonical
-  source truth / document artifact / projection contract 后才能被下游消费。Python
-  adapter code 不得从 env 构造 provider HTTP client、拥有 provider polling lifecycle
-  或作为 ingestion executor；provider execution 必须通过显式 TS handler、注入的
-  private adapter 或外部服务边界进入。legacy Office conversion 当前已退出 active
-  workspace；未来若需要必须基于新 adapter contract 重新设计。旧 handbook /
-  curriculum provider-response normalization、source-truth validation、course-map
-  multimodal probe 与 Python docs-surface 生成器已退役；
-  reader-facing course-map supplement 的 schema validation、asset packaging 与发布 helper
-  由 TS `packages/ingest-core` 承接。
+  adapter 或 offline eval tooling。Python adapter 产物必须回到 canonical source
+  truth / document artifact / projection contract 后才能被下游消费。Python adapter
+  code 不得从 env 构造 provider HTTP client、拥有 provider polling lifecycle 或作为
+  ingestion executor；provider execution 必须通过显式 TS handler、注入的 private
+  adapter 或外部服务边界进入。reader-facing course-map supplement 的 schema
+  validation、asset packaging 与发布 helper 由 TS `packages/ingest-core` 承接。
 - Python 不拥有默认 Postgres connection runtime。Python data-plane code 只能保留连接
   URL validation / normalization、SQL shape test 与显式隔离 adapter；registry /
   projection 的实际数据库 mutation owner 必须回到 TS/Go runtime 或重新 admission 的
@@ -316,52 +305,28 @@ admit
   实现采集，但它的唯一 data-plane handoff 是 source bucket artifact pack 和
   capture-release object；不能因语言或部署便利绕过 ingestion-control。
 
-`provider_response_replay` 只能作为 historical bootstrap、local rebuild、audit 或
-diagnostic input。长期 rebuild / replay 的主路径必须从 canonical source truth、
+`provider_response_replay` 只能作为 local rebuild、audit 或 diagnostic input。长期
+rebuild / replay 的主路径必须从 canonical source truth、
 canonical document artifacts 或 `document-units` 继续，不得把 provider response
 或 raw asset replay 提升为 canonical rebuild owner。
 
-## Staged Clean Path
-
-repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapper path。
-
-阶段顺序固定为：
-
-1. **Freeze contracts**：先冻结 source unit、source bucket layout、input/output
-   contracts、operator projection boundary 与 forbidden shapes。task registry 只声明
-   default runtime 已能执行的 handler / kernel。
-2. **Build real execution entries**：每个迁移 collection 至少落地一个真实
-   `ts_control` handler 或 Rust kernel bridge，读取 object-store input，产出 contract
-   artifact，并由 ingestion-control Temporal workflow/activity worker 完成 terminal
-   closeout。
-3. **Prove Rust kernels**：只把 output equivalence 与 profiling 都证明成立的
-   deterministic file-level work 下沉到 Rust。
-4. **Shrink Python to adapters**：Python 仅作为 MinerU / OCR / ML / legacy Office /
-   domain extraction adapter；adapter 输出必须回到 source-truth、document artifact 或
-   projection contract。
-5. **Delete old lifecycle**：TS/Rust handler 覆盖当前生产能力后，删除旧 Python import /
-   closeout / replay / repair / smoke CLI 与 runbook executable path。
-
-阶段门槛：
+## Execution Admission Rules
 
 - collection task registry 必须对应 default runtime 已实现的 handler / kernel bridge；
-  registry 存在本身不能证明 collection migration complete。
+  registry 存在本身不能证明 collection rollout complete。
 - capture / provider-extract task contract 已从 active registry contract 中移除；
   重新接入时必须和 collection-specific Temporal handler 同步设计、同步落地，不得先以
   enum 或 registry 占位。
 - post-source projection / read-model / derived-scope materialization 不得以 generic
   task kind、Python import/replay/publish CLI 或 report-only handler 形式保留；需要时
   必须作为 collection-specific TS handler 或明确 adapter contract 重新 admission。
-- 旧 Python CLI 不迁入 registry/executor seam；仍需要的 tool 必须按 TS/Rust target
-  runtime 或 Python adapter 重新建模。
 - `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth
   materialization 的主输入；mainline handoff 必须是 source bucket `object_store` refs。
 - 双路径只允许在有明确外部迁移约束时短期存在；默认不新增 fallback、兼容 shim 或
   silent replay path。
 - source-truth replay、local attachment blob-root backfill、provider comparison、
-  runtime smoke 与 document canonical markdown backfill 已退出 active ingestion
-  operation surface；需要同等能力时必须重新设计为 Temporal activity、Crawlee
-  collector 或显式 provider activity，而不是恢复 Python CLI。
+  runtime smoke 与 document canonical markdown backfill 如需恢复，必须重新设计为
+  Temporal activity、Crawlee collector 或显式 provider activity。
 
 ## Shared File-Asset Loader Boundary
 
@@ -377,11 +342,10 @@ artifacts`
   source-specific path 收口成 shared contract
 - source unit 继续由 source channel 定义；`official_web` 仍是 page-level
   source-truth，`internal_portal` 仍是 notice-level source-truth
-- shared file asset loader 当前只保留 architecture boundary；旧 Python implementation
-  已移除。后续若在 TS ingest core 或 adapter service 中重新落地，仍必须保持
-  runtime-neutral contract，不得携带 concrete storage / database / Temporal /
-  Crawlee runtime。
-- legacy binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment
+- shared file asset loader 当前只保留 architecture boundary。后续若在 TS ingest core
+  或 adapter service 中重新落地，仍必须保持 runtime-neutral contract，不得携带
+  concrete storage / database / Temporal / Crawlee runtime。
+- binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment
   posture 固定看 `docs/architecture/system/file-asset-loader.md`
 - remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的
   data-plane layer
@@ -668,24 +632,6 @@ registry / control-plane database 与对象存储长期分层。
 的任务；derived/read-model scope 如果只有 generic report-only handler，必须退出
 active registry，直到 collection-specific handler 与 contract artifact 同步落地。
 
-## Authenticated Notice Historical Closeout
-
-旧 authenticated notice async staged closeout / batch-leased closeout 只保留为历史
-ADR 事实。它曾使用 `ingestion_closeout.closeout_*` 表、
-`campus_notices/operations/authenticated-notice-closeout/{run_id}/` operations
-prefix、Python planner / worker / promoter 与 staging rows 承接批处理吞吐。
-ADR-0026 曾进一步把 executor 升级为 batch-leased pipeline；这些历史 closeout
-模型不改变 data-plane canonical chain。
-
-当前 active workspace 已删除这条 Python closeout 生命周期和旧 Python ingestion
-package。当前 notice source-truth materialization 只能通过 `apps/ingestion-control`
-的 registry-aware Temporal workflow/activity worker 执行；Python 不再提供
-closeout store、worker、lease、repair、operations retention runtime、
-source-truth mutation 或 projection materialization owner。
-
-历史 closeout 细节只可通过 ADR 或 git history 追溯，不能作为当前 executor contract、
-测试 assertion 或运维入口。
-
 ## Forbidden Shapes
 
 - 不把 raw local path 语义提升成长期 truth source
@@ -706,9 +652,3 @@ source-truth mutation 或 projection materialization owner。
 - `docs/data/authenticated-notice.md`
 - `docs/architecture/system/file-asset-loader.md`
 - `docs/reference/internal-notice-pdf-chunks.md`
-
-Closeout references retained only as historical / superseded background:
-
-- historical / superseded: `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
-- historical / superseded: `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
-  .md`

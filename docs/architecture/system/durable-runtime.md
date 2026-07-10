@@ -63,18 +63,14 @@ model -> browser surface / Operator Console / eval / badcase`
 - K8s 只调度 pod / resource，不拥有 workflow history、task queue、product projection 或
   terminal truth。
 - production worker replica autoscaling 的目标 controller 是 KEDA Temporal scaler +
-  Kubernetes HPA；repo-owned `worker-autoscaler` 只保留为 Docker Compose local /
-  transitional runtime adapter。
+  Kubernetes HPA；repo-owned `worker-autoscaler` 只保留为 Docker Compose local
+  diagnostics runtime adapter。
 - tool 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
   outcome 都能写入 sanitized step / attempt / result projection，并能被
   app-api operator read model 消费时，才算 production-open。
 
 Current merged execution facts belong in `../current.md`; they
 must not be duplicated in this supporting architecture.
-
-The retired Python semantic bridge remains outside online serving. Historical
-bridge code is recoverable only through git history and must not be restored as
-a serving fallback or readiness dependency.
 
 ## Temporal Execution Plane
 
@@ -213,8 +209,7 @@ canceled / expired`
 
 固定规则：
 
-- 每次 attempt 必须来自 Temporal activity task；PG execution lease attempt 只属于
-  historical baseline，不再授权 online serving。
+- 每次 attempt 必须来自 Temporal activity task。
 - retry 必须产生新的 attempt record，不得覆盖旧 attempt。
 - attempt status、worker id、task queue、started/completed time、terminal reason
   与 safe failure summary 必须可审计。
@@ -312,13 +307,13 @@ context.memory_recall when needed
 - `context.memory_recall` 使用 Hindsight runtime recall bounded personal memory
   context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
-- `memory.reflect` 是目标 internal memory capability，用于 Hindsight
+- `memory.reflect` 是目标 internal memory tool/function，用于 Hindsight
   memory-grounded reasoning / `based_on` facts；它不替代 `agent.primary` 的 final
   answer owner。
-- `memory.operation_status` 是目标 async retain follow-up capability，用于证明
+- `memory.operation_status` 是目标 async retain follow-up tool/function，用于确认
   Hindsight 后台处理结果；`memory.append` accepted 不等于 graph materialized。
-- `plan.route` 只能作为 retained deterministic support path / historical
-  planning artifact，不读取 PG profile memory full dump，也不把普通 chat
+- `plan.route` 只能作为 retained deterministic support path，不读取 PG profile
+  memory full dump，也不把普通 chat
   缺失 tool hint 的请求默认压成 `knowledge_query` / RAG。
 - `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与
   `grounding.verify` evidence-integrity verification；该 step 不适用于
@@ -363,8 +358,8 @@ context.memory_recall when needed
 - `grounding.verify` 当前在线语义是 evidence-integrity verification：检查
   synthesis/evidence ref 一致性、`answer_text` presence 与 selected evidence
   `source_ref` presence；不通过时 fail closed。claim / list item semantic
-  grounding 属于后续 badcase/eval-driven Go RAG hardening，不得由旧 Python
-  validator depth 冒充当前 serving truth。
+  grounding 属于后续 badcase/eval-driven Go RAG hardening，不得由非 serving
+  validator 冒充当前 truth。
 - `finalization.write` 只写 sanitized finalization projection 与 user-facing
   answer event。
 
@@ -508,25 +503,10 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
     eval read models
   - used when direct activity writeback is not the selected implementation
 - `worker-autoscaler`
-  - local / Docker Compose transitional role that reads Temporal task queue metrics,
-    worker poller health, downstream budget projection and SLO policy; adjusts worker
+  - local diagnostics role that reads Temporal task queue metrics, worker poller
+    health, downstream budget projection and SLO policy; adjusts local worker
     replica count only.
-  - production target role is replaced by KEDA Temporal scaler + Kubernetes HPA.
-
-### Retired Python Semantic Bridge
-
-retired Python semantic worker 已从 active workspace 删除。旧 Python semantic bridge
-code 只可通过 git history 追溯；不得作为 serving fallback、readiness dependency
-或 Temporal workflow branch 恢复。
-
-它不负责：
-
-- run creation truth
-- global admission truth
-- product identity truth
-- final public response envelope
-- RAG DTO canonical boundary
-- provider hot path, token/cost accounting, cancel outcome truth
+  - production target role is KEDA Temporal scaler + Kubernetes HPA.
 
 ### Worker Pools
 
@@ -647,8 +627,7 @@ canonical execution queue 形态固定为 Temporal Task Queue：
 - worker polling
 - Temporal retry / timeout / heartbeat / timer semantics
 
-PG queued rows / `FOR UPDATE SKIP LOCKED` 是当前 baseline 和 migration evidence，不是
-target execution substrate。
+PG rows must not be used as a queue substrate.
 
 Redis 不进入 canonical queue path。允许的 Redis 用途只包括：
 

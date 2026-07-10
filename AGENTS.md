@@ -16,8 +16,11 @@ guidance in `docs/` and link to it from here.
 - Production release state is selected through release tags and GitHub
   Environments, not through a long-lived development branch.
 - `apps/` contains long-running transport/runtime boundaries, `jobs/` contains
-  one-shot or scheduled deployable runtime boundaries, and `packages/` contains
+  manual or scheduled deployable runtime boundaries, and `packages/` contains
   stable tool/domain boundaries.
+- `scripts/` contains repo-level executable entrypoints and shared deploy/env
+  primitives. `tools/` contains repo-internal governance/checker
+  implementations; prefer `pnpm repo:*` commands over direct `tools/` calls.
 - Current forward student product surface is `campus-web`; `/docs/*` is the
   Rspress-powered canonical reader surface.
 - `apps/app-api` is the Worker-owned shared browser-facing API surface.
@@ -140,7 +143,9 @@ pnpm web:test:integration
 pnpm web:build
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
-uv run --all-packages python -m unittest discover -s tests -t .
+pnpm ci:contracts
+pnpm ci:ingest
+pnpm ci:eval
 ```
 
 ## External Verification
@@ -176,12 +181,15 @@ uv run --all-packages python -m unittest discover -s tests -t .
 - `apps/ingestion-worker`: removed from the active workspace; old code may only
   be traced through git history and must not be reattached to serving or
   ingestion lifecycle.
-- `jobs/dining-sync`: dining data write job/cronjob.
+- `jobs/dining-sync`: dining data write job/CronJob.
+- `jobs/learning-loop-candidates`: learning-loop candidate selection and
+  Langfuse dataset publication job.
 - `packages/contracts`: shared execution/tool/evidence schemas without runtime
   infrastructure leakage.
 - `packages/ingest-core`: runtime-neutral TS ingestion helpers, parsers,
   canonical artifact writers and registry-aware dispatch helpers.
+- `packages/ingestion-contracts`: runtime-neutral TS ingestion task envelopes,
+  registry schemas and assertion fixtures.
 - `packages/ingestion-kernels-rs`: deterministic file-level ingestion kernels.
 - `packages/eval-langfuse`: TS Langfuse eval adapter.
 - `packages/ragas-runner`: narrow Python Ragas execution island.
-- `packages/shared`: lightweight constants and env/provider helpers only.

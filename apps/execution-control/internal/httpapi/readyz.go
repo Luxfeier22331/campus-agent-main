@@ -56,8 +56,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		personalMemoryStatus["healthy"] == true &&
-		ragRuntimeStatus["healthy"] == true &&
-		providerConfigGate.Configured
+		ragRuntimeStatus["healthy"] == true
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {

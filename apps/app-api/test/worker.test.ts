@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import stagingPreflightSource from "../../../scripts/run-worker-staging-preflight.mjs?raw";
+import rootPackageManifestRaw from "../../../package.json?raw";
+import sharedStagingPreflightSource from "../../../scripts/deploy/run-worker-staging-preflight.ts?raw";
+import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
-import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
-import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
-import runWithStagingProofEnvSource from "../scripts/run-with-staging-proof-env.mjs?raw";
-import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
+import deployStagingSource from "../scripts/deploy-staging.ts?raw";
+import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
+import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.ts?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
+	scripts?: Record<string, string | undefined>;
+};
+const rootPackageManifest = JSON.parse(rootPackageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
 };
 const retiredExecutionControlPublicUrlKey = ["STAGING", "EXECUTION", "CONTROL", "BASE", "URL"].join(
@@ -199,16 +203,20 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
-		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
+		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
+		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.ts");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
-		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain("chat-durable-e2e-staging.ts");
+		expect(deployStagingSource).toContain("preflight-staging.ts");
+		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
+		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(
+			"pnpm exec tsx scripts/smoke/app-api.ts",
+		);
+		expect(appApiSmokeEntrypointSource).toContain("chat-durable-staging.ts");
 		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
@@ -217,9 +225,7 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["db:bootstrap:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["db:migrate:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toBeUndefined();
-		expect(packageManifest.scripts?.["test:all"]).toContain(
-			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
-		);
+		expect(packageManifest.scripts?.["test:all"]).toBeUndefined();
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
@@ -228,29 +234,29 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingProofEnvSource).toContain("loadRepoStagingEnvFile");
-		expect(runWithStagingProofEnvSource).not.toContain("process.loadEnvFile");
-		expect(runWithStagingProofEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingProofEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_ACCOUNT_ID");
-		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_API_TOKEN");
-		expect(runWithStagingProofEnvSource).toContain("run-with-staging-smoke-env.mjs");
-		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
-		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
+		expect(appApiSmokeEntrypointSource).toContain("./scripts/deploy/run-with-staging-smoke-env.ts");
+		expect(appApiSmokeEntrypointSource).toContain("apps/app-api");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlPublicUrlKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
-		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
+		expect(stagingPreflightSource).toContain("worker-staging-app-api");
+		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
+		expect(stagingPreflightSource).toContain("apps/app-api/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
+		expect(sharedStagingPreflightSource).not.toContain("APP_PREFLIGHTS");
+		expect(sharedStagingPreflightSource).not.toContain(
+			"apps/app-api/scripts/verify-staging-config.ts",
+		);
+		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
 		expect(deployStagingSource).not.toContain("execution-control trusted machine ingress");
 		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientIdKeyLocal);
 		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientSecretKeyLocal);
 		expect(deployStagingSource).not.toContain("execution-control origin");
 		expect(stagingPreflightSource).not.toContain("run-with-staging-db-env.mjs");
 		expect(stagingPreflightSource).not.toContain("bootstrap-shared-product-with-seeds.mjs");
-		expect(stagingPreflightSource).not.toContain("reconcile-shared-db-drift.mjs");
+		expect(stagingPreflightSource).not.toContain("bootstrap-shared-product-database.ts");
 		expect(stagingPreflightSource).not.toContain("drizzle-kit");
 	});
 

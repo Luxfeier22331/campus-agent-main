@@ -12,13 +12,11 @@ updated: 2026-07-06
 
 本文只冻结 repo 级 file-like asset handling 的边界和重新接入要求。
 
-它不记录旧 Python package、旧 Java conversion service 或某个 OCR provider 的
-runtime 操作步骤；这些实现已经退出 active workspace。
+它不记录某个 OCR provider、Office conversion service 或 adapter runtime 的操作步骤。
 
 ## 当前状态
 
-旧 Python ingestion package、legacy Office conversion service、OOXML 验证脚本和
-相关测试已经清退。当前 active workspace 没有默认 file asset loader runtime。
+当前 active workspace 没有默认 file asset loader runtime。
 
 OCR、MinerU、Paddle、Office conversion 或其他 file extraction 能力后续如果重新接入，
 必须作为以下形态之一重新 admission：
@@ -27,8 +25,8 @@ OCR、MinerU、Paddle、Office conversion 或其他 file extraction 能力后续
 - deterministic Rust kernel
 - 窄范围 adapter package，且只能被显式 TS handler 调用
 
-不得恢复旧 Python package 作为 default worker、fallback executor、provider client owner、
-source-truth mutation owner 或 registry owner。
+不得把 file extraction adapter 做成 default worker、fallback executor、provider
+client owner、source-truth mutation owner 或 registry owner。
 
 ## Canonical Boundary
 

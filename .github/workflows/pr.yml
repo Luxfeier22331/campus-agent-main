@@ -69,11 +69,11 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - 'scripts/check_workflow_action_policy.py'
-              - 'scripts/check_package_script_policy.py'
+              - 'scripts/check_repo_guard.ts'
+              - 'scripts/check_repo_static.ts'
+              - 'tools/**'
             contracts:
               - 'packages/contracts/**'
-              - 'tests/contracts/**'
               - 'configs/runtime/**'
             deps:
               - 'pnpm-lock.yaml'
@@ -104,7 +104,6 @@ jobs:
               - 'apps/source-collector/**'
               - 'packages/ingestion-contracts/**'
               - 'packages/ingestion-kernels-rs/**'
-              - 'tests/ingestion/**'
             web:
               - 'apps/**/*.ts'
               - 'apps/**/*.tsx'
@@ -279,6 +278,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
 
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm

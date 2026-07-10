@@ -81,9 +81,14 @@ async function runProjectionSync(input: {
 }): Promise<{ exitCode: number | null; stderr: string; stdout: string }> {
 	return new Promise((resolvePromise, reject) => {
 		const child = spawn(
-			"node",
+			"pnpm",
 			[
-				resolve(__dirname, "../../../scripts/sync-provider-config-projection.mjs"),
+				"exec",
+				"tsx",
+				resolve(
+					__dirname,
+					"../../../apps/execution-control/scripts/sync-provider-config-projection.ts",
+				),
 				"--app-api-base-url",
 				input.appApiBaseUrl,
 				"--internal-shared-secret",

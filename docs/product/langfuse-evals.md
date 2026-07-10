@@ -125,7 +125,7 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - Its repo eval asset lives under
   `packages/eval-langfuse/assets/datasets/agent/public_web_search/`.
 - Asset validation is owned by `packages/eval-langfuse`:
-  `pnpm --dir packages/eval-langfuse langfuse validate-public-web-search-eval`.
+  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts validate-public-web-search-eval`.
 - Tool-use scoring consumes `tool_trajectory.v1`; it must not infer routing
   from raw prompt, provider response or final answer prose.
 - It must not be scored through RAGAS unless a dedicated case explicitly evaluates

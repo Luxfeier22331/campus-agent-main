@@ -16,7 +16,6 @@ updated: 2026-06-11
 
 - 哪些 logical tables / records 拥有 product runtime projection truth
 - conversation、run、step、attempt、result、event 如何关联
-- historical PG lease / execution-group budget / worker heartbeat artifact 如何被隔离
 - 哪些字段是 canonical truth，哪些只是 projection / correlation
 
 它不负责：
@@ -41,8 +40,7 @@ updated: 2026-06-11
 
 - app-api 已拥有 `runtime.request_execution` 与 `runtime.projection_outbox`
 - run projection 是 product/runtime projection truth，不属于 `chat.*`
-- worker lease 与 scheduler truth 已由 Temporal Task Queue / Activity policy 承接；
-  PG lease rows 只保留为 historical migration artifact
+- worker dispatch 与 scheduler truth 由 Temporal Task Queue / Activity policy 承接
 
 ## Table Overview
 
@@ -54,12 +52,6 @@ active product projection tables：
 - `runtime.agent_step_results`
 - `runtime.agent_run_events`
 - `runtime.conversation_run_locks`
-
-historical PG lease artifact tables：
-
-- retired execution lease table
-- retired execution-group budget table
-- retired worker heartbeat table
 
 现有表关系：
 
@@ -88,19 +80,6 @@ target queue model：
 - worker polling
 - Temporal retry / timeout / heartbeat semantics
 
-retired PG baseline queue 曾由 PG durable rows 表达；这些行现在只属于 historical
-artifact，不是当前 online serving truth，不得被重新作为 fallback 接回 app-api /
-execution-control：
-
-- run-level queue：`runtime.agent_runs.status='queued'`
-- step-level queue：`runtime.agent_run_steps.status='queued'`
-
-retired baseline 消费规则：
-
-- scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
-- scheduler 在同一事务中检查 execution-group budget、worker readiness、
-  dependency state 与 downstream budget，并写入 retired execution lease table
-- worker 只消费 active lease，不直接扫描 queued rows 自行执行
 - process-local queue 只能作为本进程 protection，不是 canonical execution queue
 - Redis 只能用于非权威 wakeup、live fanout、cache 或 derived counter；不拥有 run、step、
   lease、event 或 terminal truth
@@ -294,8 +273,8 @@ projection spine。
 
 用途：
 
-- worker 对某个 step 的 attempt projection truth；target architecture 中来源是 Temporal
-  activity attempt；PG execution lease attempt 只属于 historical baseline
+- worker 对某个 step 的 attempt projection truth；当前来源是 Temporal activity
+  attempt
 
 最小列：
 
@@ -387,8 +366,7 @@ forward-required projection fields：
 
 规则：
 
-- attempt 必须来自 Temporal activity task 或明确标记为本地 unit-test projection；active
-  serving 不引用 PG lease。
+- attempt 必须来自 Temporal activity task 或明确标记为本地 unit-test projection。
 - retry 必须新建 attempt 并递增 `attempt` / `activity_attempt`
 - failed attempt 不得原地改写成 succeeded
 - `scheduled_at` / `started_at` / `completed_at`、`schedule_to_start_ms` 与
@@ -456,120 +434,6 @@ forward-required projection fields：
 - synthesis / finalization 只能消费 admitted result，不得补造缺失 retrieval/tool result
 - browser / Operator Console / eval 只能读取 projection 或 read model，不读取 raw
   provider trace
-
-## Retired PG Execution Lease Table
-
-用途：
-
-- historical PG baseline durable execution lease artifact
-
-target architecture 中 Temporal task queue / activity heartbeat / timeout 替代
-execution lease 作为 canonical dispatch substrate；本表只保留为 migration artifact，不参与
-online serving。
-
-最小列：
-
-- `lease_id`
-- `run_id`
-- `step_id`
-- `execution_group`
-- `worker_id`
-- `attempt`
-- `status`
-- `acquired_at`
-- `heartbeat_at`
-- `expires_at`
-- `released_at`
-- `release_reason`
-- `created_at`
-- `updated_at`
-
-最小索引：
-
-- primary key `(lease_id)`
-- `(run_id, step_id, attempt)`
-- `(execution_group, status, expires_at)`
-- `(worker_id, status)`
-- partial unique active lease by `(run_id, step_id)`
-
-`status` enum：
-
-- `available`
-- `leased`
-- `released`
-- `expired`
-- `revoked`
-
-历史规则：
-
-- retired PG worker 只有持有 `leased` 且未过期的 lease 才能执行
-- lease heartbeat 必须更新 `heartbeat_at` 与可选 `expires_at`
-- lease expiry 由 scheduler 判断并写 terminal event / retry event；未达到显式
-  retry 上限时，同一 run 可以回到 `queued`，下一条 lease 必须写递增后的
-  `attempt`
-- release 必须写 `release_reason`
-- run-level single-step execution 也必须使用 canonical root `step_id`，不能让
-  `execution_leases.step_id` 永久为空
-
-## Retired PG Budget Artifact
-
-用途：
-
-- historical PG baseline execution-group budget artifact
-
-target architecture 中 worker budget 与扩缩容决策来自 Temporal task queue metrics、
-downstream budget projection 与 operations-plane policy。本表不参与 online serving
-scheduler，不拥有当前 execution truth。
-
-最小列：
-
-- `execution_group`
-- `max_active_leases`
-- `max_queued_runs`
-- `queue_timeout_ms`
-- `run_timeout_ms`
-- `lease_timeout_ms`
-- `worker_heartbeat_timeout_ms`
-- `enabled`
-- `updated_at`
-
-最小索引：
-
-- primary key `(execution_group)`
-
-规则：
-
-- execution group enum 是 historical artifact，不参与 current online routing
-- disabled historical execution group 不允许创建新 execution lease
-- execution-group budget 不替代 user / org / conversation budget
-
-## `runtime.worker_heartbeats`
-
-用途：
-
-- historical PG baseline worker readiness / lease ownership observation
-
-最小列：
-
-- `worker_id`
-- `worker_kind`
-- `lanes_json`
-- `runtime_version`
-- `status`
-- `heartbeat_at`
-- `started_at`
-- `metadata_json`
-
-最小索引：
-
-- primary key `(worker_id)`
-- `(status, heartbeat_at desc)`
-
-历史规则：
-
-- heartbeat 只证明 historical PG worker liveness，不证明 run success
-- historical scheduler 可以拒绝 stale worker 获取新 lease
-- metadata 不保存 secrets、raw prompt、provider payload 或 object-store credentials
 
 以上 raw payload 禁令限定于 durable runtime schema、metadata、operator projection 与
 repo-owned product truth。受控 Langfuse/OpenAI LLM debug trace 可按
@@ -639,17 +503,15 @@ operator-facing read model 不直接读取 scheduler internals。
 - raw object-store path with credentials
 - restricted source body
 
-## Migration Boundary
+## Implementation Boundary
 
 本文冻结 logical schema。当前 active serving path 使用 Temporal 作为 canonical execution
-plane；PG-backed run-level durable baseline 仅保留为 historical migration artifact。
-step-level tables 是 product / Operator Console / eval projection truth，不能用
+plane；step-level tables 是 product / Operator Console / eval projection truth，不能用
 Temporal raw history、runtime event 字符串或 provider trace 代替。
 
 实现必须遵守：
 
 - schema first
-- migration tests before runtime cutover
 - no fallback synthesis of missing run fields
 - no dual-write silent success when durable run write fails
 - no fallback synthesis of missing step / attempt / result fields

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { filterRspressSearchIndexes } from "../scripts/filter-rspress-search-index.mjs";
+import { filterRspressSearchIndexes } from "../src/docs-reader-build/filter-rspress-search-index.ts";
 
 let tempDir: string | null = null;
 

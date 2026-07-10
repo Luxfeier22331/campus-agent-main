@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type ChatDurableE2eDependencies,
 	runChatDurableE2eStaging,
-} from "../scripts/chat-durable-e2e-staging";
+} from "../e2e/chat-durable-staging";
 
 function jsonResult<T>(
 	payload: T,

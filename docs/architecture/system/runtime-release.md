@@ -48,21 +48,19 @@ identity injection -> post-deploy smoke -> release closeout artifact`
   `panel-staging.mucwiki-edge.link`；docs 作为
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
-- `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local /
-  transitional runtime projection；production target deploy substrate 已由 ADR-0056
+- `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local
+  diagnostics runtime projection；production target deploy substrate 已由 ADR-0056
   收口为 Kubernetes + KEDA。live staging/production substrate 必须由 applied resources、
   runtime env、operator projection 与 release closeout artifact 共同确认。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- repo-owned transitional execution runtime shape 已 hardcut 到
+- repo-owned local diagnostics execution runtime shape 固定为
   `execution-control + Temporal + workflow-worker + activity-worker-core +
   activity-worker-agent + agent-runtime + activity-worker-knowledge +
   worker-autoscaler`；
-  legacy dev-backed execution host 与 Python bridge serving path 不再是 active
-  runback path
-- production target runtime 将 `worker-autoscaler` 替换为 KEDA Temporal scaler +
-  Kubernetes HPA；Docker Compose autoscaler 只保留 local / transitional runtime
-  projection
+  不允许新增第二条 dev-backed serving fallback path
+- production target runtime 使用 KEDA Temporal scaler + Kubernetes HPA；
+  Docker Compose autoscaler 只保留 local diagnostics projection
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / RAG runtime unhealthy 才进入 degraded posture

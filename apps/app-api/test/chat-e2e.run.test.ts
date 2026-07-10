@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type ChatE2eDependencies, runChatE2e } from "../scripts/chat-e2e";
+import { type ChatE2eDependencies, runChatE2e } from "../e2e/chat-e2e";
 
 function jsonResult<T>(
 	payload: T,

@@ -12,7 +12,7 @@ updated: 2026-06-28
 ## Boundary
 
 This document owns the app-api ops-store data shape for the current campus
-services capability: shuttle transport overrides and published release
+services ops surface: shuttle transport overrides and published release
 snapshots.
 
 Current scope:
@@ -30,7 +30,7 @@ Out of scope:
 - execution-control transport tool request/result schema
 - browser status projection schema
 
-Human transport capability truth lives in `../domains/transport.md`.
+Human transport domain truth lives in `../domains/transport.md`.
 
 ## Flow
 

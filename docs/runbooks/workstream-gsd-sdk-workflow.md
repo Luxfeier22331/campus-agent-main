@@ -44,16 +44,11 @@ test execution, code review, commits, and closeout.
 
 ## Feature Worktree Bring-up
 
-After creating a feature worktree, link ignored local env files from the root
-worktree instead of copying secrets:
-
-```bash
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-```
-
-This is only for local development and smoke validation. Deploy and staging
-checkouts continue to use their own ops-owned env files and secret stores.
+After creating a feature worktree, create only the local env files required by
+the current task or expose them through the developer's local secret manager. Do
+not copy secrets between worktrees and do not add repo scripts that fan out
+ignored `.env` / `.dev.vars` files. Deploy and staging checkouts use their own
+ops-owned env files and secret stores.
 
 ## Scenario Routing
 

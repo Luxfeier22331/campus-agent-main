@@ -29,7 +29,7 @@ updated: 2026-04-14
 ## 当前 Artifact 位置
 
 - seed：`configs/reference-data/campus_navigation/place_catalog/seed.v1.json`
-- consumption owner：`packages/navigation-tool` internal semantic package；产品路径当前仍
+- consumption owner：TS/Go typed tool or internal query owner；产品路径当前仍
   fail-close，等待地图产品显式开放
 - authoritative source inventory：private source/data boundary；公开 repo 只保留
   admission rule 与 synthetic fixture

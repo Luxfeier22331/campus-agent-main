@@ -69,9 +69,9 @@ fact or which document wins a conflict.
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)
   - [contracts/tool-trajectory.md](./contracts/tool-trajectory.md)
-- Campus shuttle timetable capability:
+- Campus shuttle timetable tool/domain surface:
   - [domains/transport.md](./domains/transport.md)
-- Public official-web search capability:
+- Public official-web search tool surface:
   - [domains/public-web-search.md](./domains/public-web-search.md)
 - Authenticated notice / internal notice document routing:
   - [architecture/domains/authenticated-notice/architecture.md](./architecture/domains/authenticated-notice/architecture.md)
@@ -135,7 +135,7 @@ fact or which document wins a conflict.
 - [architecture/domains/README.md](./architecture/domains/README.md)
   - domain / tool architecture boundaries
 - [domains/README.md](./domains/README.md)
-  - narrow human capability docs and direct owner routing
+  - narrow domain surface docs and direct owner routing
 - [contracts/README.md](./contracts/README.md)
   - contract truth for HTTP, runtime and tool seams
 - [data/README.md](./data/README.md)

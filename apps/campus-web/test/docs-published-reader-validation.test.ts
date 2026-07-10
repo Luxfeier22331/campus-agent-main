@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { checkCampusPublishedReaderInputs } from "../scripts/sync-campus-published-reader.mjs";
+import { checkCampusPublishedReaderInputs } from "../src/docs-reader-build/sync-campus-published-reader.ts";
 import {
 	cleanupPublishedReaderFixture,
 	createPublishedReaderFixture,

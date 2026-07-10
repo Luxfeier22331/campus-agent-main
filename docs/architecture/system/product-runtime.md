@@ -60,7 +60,7 @@ projection / operator read model / operator-safe operations domains`
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
 - `apps/execution-control` 是 Go-owned internal execution engine；Docker Compose
-  只保留 local / transitional runtime evidence，production target deployment
+  只保留 local diagnostics harness，production target deployment
   substrate 已接受 Kubernetes + KEDA，但不改变 product/runtime owner boundary
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
@@ -218,7 +218,7 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
 - internal execution admission
 - typed execution transport
 - runtime substrate must point to a real Go `execution-control` origin. Docker Compose
-  is local / transitional evidence; production target deploy substrate is a
+  is local diagnostics only; production target deploy substrate is a
   Kubernetes internal execution-control Service + KEDA/HPA worker autoscaling.
 - Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
   metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
@@ -246,8 +246,8 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
   start、registry-aware activity dispatch、materialize、publish 与失败状态
 - `packages/ingest-core` 保留 runtime-neutral TS contract/helper、source-channel
   parser、canonical artifact helper、registry-aware dispatch helper 与纯
-  materialization/projection helper；旧 Python ingestion package 已删除，file/OCR/
-  Office 能力后续需要重新 admission 为 explicit adapter boundary
+  materialization/projection helper；file/OCR/Office 能力后续需要重新 admission
+  为 explicit adapter boundary
 - Operator Console 不调用 release task mutation；它只展示 app-api/operator projection 或未来
   ingestion 投影后的 read model
 
@@ -260,16 +260,9 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `ToolExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
     Operator Console / eval 消费的 sanitized projection store
-  - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
-    bridge
+  - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
-    canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
-    只保留为 historical migration artifact
-- Retired Python semantic bridge code
-  - 已从 active workspace 删除，只可通过 git history 追溯
-  - 不参与 online answer serving、deployment readiness 或 active product runtime
-  - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
-    或 RAG step projection truth
+    canonical execution truth 在 Temporal workflow / task queue 中
 
 长期边界固定为：
 
@@ -375,12 +368,11 @@ contract 或 auth family route/endpoint truth。
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/execution-control` live substrate must be proven by environment evidence;
-  committed Docker Compose config is local / transitional evidence, and production
+  committed Docker Compose config is local diagnostics only, and production
   target substrate is Kubernetes + KEDA，详见
   `k8s-runtime.md`
-- execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
-  semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
-  online answer hot path
+- execution public ingress 固定到 Go `apps/execution-control`，不允许引入第二条
+  serving fallback path
 
 ## Forbidden Shapes
 

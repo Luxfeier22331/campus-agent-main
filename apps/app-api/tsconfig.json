@@ -11,5 +11,12 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["src/**/*.ts", "test/**/*.ts", "vitest*.config.mts", "drizzle.config.ts"]
+	"include": [
+		"src/**/*.ts",
+		"test/**/*.ts",
+		"e2e/**/*.ts",
+		"ops/**/*.ts",
+		"vitest*.config.mts",
+		"drizzle.config.ts"
+	]
 }

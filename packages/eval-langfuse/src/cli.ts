@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-
+import {
+	auditLangfuseEvalConfiguration,
+	collectLangfuseEvalStatus,
+} from "./audit/langfuse-eval-audit/core";
+import { runLangfuseEvalAuditSelfTest } from "./audit/langfuse-eval-audit/self-test";
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
 import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
 import { runPublicWebSearchAgentEval } from "./public-web-search-agent-runner";
@@ -27,12 +31,41 @@ export async function main(argv: string[]): Promise<number> {
 		}
 		return 0;
 	} catch (error) {
+		if (error instanceof CliExit) {
+			if (json) {
+				console.log(JSON.stringify(error.payload, null, 2));
+			} else {
+				console.log(JSON.stringify(error.payload));
+			}
+			return error.exitCode;
+		}
 		console.error(error instanceof Error ? error.message : String(error));
 		return 1;
 	}
 }
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
+	if (command === "audit") {
+		const report = auditLangfuseEvalConfiguration(optionalArg(args, "repo-root") ?? repoRoot());
+		if (!report.passed) {
+			throw new CliExit(report, 1);
+		}
+		return report;
+	}
+	if (command === "doctor") {
+		const status = collectLangfuseEvalStatus(optionalArg(args, "repo-root") ?? repoRoot());
+		if (!status.overall_ready) {
+			throw new CliExit(status, 1);
+		}
+		return status;
+	}
+	if (command === "self-test") {
+		const code = runLangfuseEvalAuditSelfTest();
+		if (code !== 0) {
+			throw new Error(`langfuse eval audit self-test failed with code ${code}`);
+		}
+		return { passed: true };
+	}
 	if (command === "ragas-score-traces") {
 		return runRagasTraceScoring({
 			environment: environmentFromEnv(),
@@ -229,6 +262,21 @@ function currentGitHead(): string {
 		throw new Error(`git rev-parse HEAD failed: ${(result.stderr || result.stdout || "").trim()}`);
 	}
 	return result.stdout.trim();
+}
+
+function repoRoot(): string {
+	return resolve(import.meta.dirname, "../..", "..");
+}
+
+class CliExit extends Error {
+	readonly exitCode: number;
+	readonly payload: JsonObject;
+
+	constructor(payload: JsonObject, exitCode: number) {
+		super("cli exit");
+		this.payload = payload;
+		this.exitCode = exitCode;
+	}
 }
 
 function stringArg(args: ParsedArgs, key: string): string {

@@ -1,0 +1,18 @@
+{
+	"name": "campus-contracts",
+	"private": true,
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"check": "pnpm exec tsx ./scripts/check_contract_schemas.ts && pnpm exec tsx ./scripts/generate_tool_execution_contracts.ts --check",
+		"generate": "pnpm exec tsx ./scripts/generate_tool_execution_contracts.ts",
+		"self-test": "pnpm exec tsx ./scripts/check_contract_schemas.ts --self-test && pnpm exec tsx ./scripts/generate_tool_execution_contracts.ts --self-test",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.2",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.9"
+	}
+}

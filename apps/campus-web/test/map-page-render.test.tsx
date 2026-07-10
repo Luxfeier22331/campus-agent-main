@@ -395,10 +395,10 @@ describe("campus map page", () => {
 
 		expect(maplibreRuntimeMock.mapOptions?.localIdeographFontFamily).toBe("sans-serif");
 		expect(maplibreRuntimeMock.mapOptions?.style?.sources).toHaveProperty("fengtai-campus");
-		expect(
-			(maplibreRuntimeMock.mapOptions?.style?.sources?.["fengtai-campus"] as { data?: string })
-				.data,
-		).toBe("/map-data/v2026-06-30/geojson/fengtai-campus.geojson");
+		const fengtaiSource = maplibreRuntimeMock.mapOptions?.style?.sources?.["fengtai-campus"] as
+			| { data?: string }
+			| undefined;
+		expect(fengtaiSource?.data).toBe("/map-data/v2026-06-30/geojson/fengtai-campus.geojson");
 		expect(maplibreRuntimeMock.mapOptions?.style?.layers?.map((layer) => layer.id)).toEqual(
 			expect.arrayContaining([
 				"campus-green",

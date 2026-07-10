@@ -62,9 +62,9 @@ taxonomy names as active architecture.
 
 Rules:
 
-- Retired capability taxonomy, family taxonomy and deployment-role labels are
-  retired or implementation-scoped. They may appear only in historical or
-  migration context.
+- Broad taxonomies, family taxonomy and deployment-role labels are
+  implementation-scoped. They must not be introduced as active product-facing
+  tool concepts.
 - Internal query functions and tool-internal functions are not model-visible
   unless admitted by the tool registry and opened by the runtime config.
 - Worker command names, Temporal task queues and deployment roles do not create

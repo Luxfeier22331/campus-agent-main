@@ -2,7 +2,7 @@
 	"schema_version": "workflow-artifact-registry-v2",
 	"registry_version": "2026-05-07",
 	"visibility_values": ["tool_private", "operator_safe_summary", "finalizer_input"],
-	"support_status_values": ["supported_go_runtime", "contract_only", "planned_contract_gap"],
+	"support_status_values": ["supported_go_runtime", "contract_only", "closed_no_runtime"],
 	"forbidden_raw_key_tokens": [
 		"raw_prompt",
 		"raw_transcript",
@@ -193,7 +193,7 @@
 			"opening_gate": "closed",
 			"eval_denominator": ["workflow_trace"],
 			"priority": 1,
-			"notes": "Navigation runtime remains closed; artifact stays registered for future rollout."
+			"notes": "Navigation runtime remains closed; artifact is registered only as a contract residue."
 		}
 	]
 }

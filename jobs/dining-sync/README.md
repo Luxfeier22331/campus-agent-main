@@ -28,7 +28,7 @@ publish、non-production dev seed import 和 Feishu/Lark 评价来源同步。
 
 ## Runtime
 
-本任务可以作为本地 one-shot、Docker one-shot、Kubernetes Job 或 Kubernetes
+本任务可以作为本地 manual command、Docker manual command、Kubernetes Job 或 Kubernetes
 CronJob 运行。源码放在 `jobs/` 表示它是可部署任务 runtime，不是长驻 product app，也不是共享
 package。
 
@@ -37,7 +37,7 @@ package。
 ```bash
 pnpm --dir jobs/dining-sync typecheck
 pnpm --dir jobs/dining-sync test
-pnpm --dir jobs/dining-sync sync
+pnpm --dir jobs/dining-sync exec tsx ./src/cli.ts sync-all
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts catalog-observations
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts publish-catalog
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts publish-catalog-from-observations
@@ -82,7 +82,7 @@ fixture 读取。正确顺序是：
 1. 先对目标 PG 执行 `apps/app-api` 的 shared product / dining migrations。
 2. 配置生产或 staging Feishu/Lark app 凭据、目标 Base table ids 与 `DATABASE_URL`。
 3. 配置 review、object-store 与 moderation env 后执行
-   `pnpm --dir jobs/dining-sync sync`，刷新 catalog、落地 `feishu_review`
+   `pnpm --dir jobs/dining-sync exec tsx ./src/cli.ts sync-all`，刷新 catalog、落地 `feishu_review`
    observations，并写入 `dining.review_projections`。
    若只需要单独重放 catalog，执行 `publish-catalog-from-observations`，不重新访问
    Feishu/Lark。
@@ -95,17 +95,22 @@ fixture 读取。正确顺序是：
 `import-dev-seed`。Production 不应依赖 dev seed 作为食堂内容真相。
 
 本地 student-surface 验证不要只检查 `@campus-agent/dining/floorplans` 中是否存在 SVG。
-正确入口是先通过当前 worktree 的 app-api env wrapper 执行：
+正确入口是先显式收敛 app-api shared product migrations，再由 dining-sync job 导入
+dev seed 并执行 published closeout：
 
 ```bash
-cd apps/app-api
-node ./scripts/run-with-local-env.mjs node ./scripts/prepare-local-dining.mjs
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts \
+  pnpm exec tsx ./scripts/bootstrap-shared-product-database.ts
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts \
+  pnpm --dir jobs/dining-sync exec tsx src/cli.ts import-dev-seed
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts \
+  pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
 ```
 
-该命令会执行 shared-product migrations、导入 dining dev seed，并从 PG latest
-published snapshot 校验海淀一、海淀二、海淀四、荟贤和聚雅的验证地图都已发布。
-如果当前 worktree 没有 app-api 本地 env，应先运行 repo 既有 env sync/link 脚本；
-任务脚本不会隐式读取 root worktree env。
+app-api 只负责自己的 shared product migrations；dining dev seed import 和
+published snapshot closeout 由 `jobs/dining-sync` 负责。如果当前 worktree 没有
+app-api 本地 env，应显式提供当前 checkout 的 `apps/app-api/.env`；任务脚本不会隐式读取
+其他 worktree 的 env。
 
 catalog table ids 必须显式配置：
 
@@ -140,7 +145,7 @@ review 前缀并删除审核对象；未通过或 provider 异常时不写入公
 
 ## Image And CronJob
 
-`jobs/dining-sync/Dockerfile` 是 Docker/K8s one-shot runtime 的构建入口。
+`jobs/dining-sync/Dockerfile` 是 Docker/K8s manual job runtime 的构建入口。
 `.github/workflows/dining-sync-image.yml` 提供手动镜像构建；默认只构建不推送，
 只有 `workflow_dispatch.push_image=true` 时才推送到 GHCR，并写入
 `${GITHUB_SHA}` 与 `staging` 两个 tag。

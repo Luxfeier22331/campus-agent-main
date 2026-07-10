@@ -55,7 +55,7 @@ COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing
 COPY configs/runtime/query-serving-scopes.v2.json /etc/campus-agent/query-serving-scopes.v2.json
 COPY configs/runtime/tool-function-schemas.v1.json /etc/campus-agent/tool-function-schemas.v1.json
 COPY configs/runtime/execution-control/runtime-config.local.json /etc/campus-agent/runtime-config.local.json
-COPY configs/runtime/execution-control/runtime-config.local-real-provider.json /etc/campus-agent/runtime-config.local-real-provider.json
+COPY configs/runtime/execution-control/runtime-config.local-provider.json /etc/campus-agent/runtime-config.local-provider.json
 COPY configs/runtime/execution-control/runtime-config.staging.json /etc/campus-agent/runtime-config.staging.json
 COPY configs/runtime/tools.v4.json /etc/campus-agent/tools.v4.json
 COPY configs/runtime/workflow-artifacts.v2.json /etc/campus-agent/workflow-artifacts.v2.json

@@ -5,7 +5,7 @@ import { EventEmitter } from "node:events";
 
 import { describe, expect, it } from "vitest";
 
-import { waitForReadyzWhileChildAlive } from "../scripts/chat-e2e-local-dev";
+import { waitForReadyzWhileChildAlive } from "../e2e/chat-e2e-local-dev";
 
 class FakeChildProcess extends EventEmitter {
 	exitCode: number | null = null;

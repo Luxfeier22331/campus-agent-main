@@ -115,7 +115,7 @@ materialization, but it is not required for resolved results and must not be
 used for default answer rendering.
 
 Removed notice tools and packets are not compatibility surfaces. If product
-needs a period summary or change-set capability later, it must enter as a new
+needs a period summary or change-set tool later, it must enter as a new
 design with ToolSpec, runtime config `open_tools` exposure, read-model ownership, eval
 denominators and failure policy defined together.
 
@@ -151,9 +151,9 @@ Go `apps/execution-control` owns:
 - finalizer/workflow projection leak guards
 - runtime observability labels
 
-Python owns no query-time notice capability runtime. The retired
-`packages/notice-capability` implementation must not be reintroduced as a
-serving shortcut, SDK adapter or provider-loop tool path.
+Python owns no query-time notice tool runtime. The retired legacy notice
+package implementation must not be reintroduced as a serving shortcut, SDK
+adapter or provider-loop tool path.
 
 ## Internal Query HTTP Packet
 

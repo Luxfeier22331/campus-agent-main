@@ -11,7 +11,7 @@ updated: 2026-07-05
 ## 文档边界
 
 这份文档冻结 repo root `CAMPUS_SHARED_POSTGRES_URL` 指向的共享 Supabase Postgres 的
-ownership、逻辑 schema 划分与迁移接管规则。
+ownership、逻辑 schema 划分与当前可重建 schema 规则。
 
 它补充但不替代以下文档：
 
@@ -51,7 +51,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 
 - `CAMPUS_SHARED_POSTGRES_URL`
 
-同时允许一个只服务于 offline operator / migration / DBA 路径的 companion key：
+同时允许一个只服务于 offline operator / schema bootstrap / DBA 路径的 companion key：
 
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
 
@@ -82,7 +82,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 
 当前共享库允许以下 repo-owned schema 共存：
 
-- `app_auth.*` repo-owned Better Auth truth；runtime 与 shared-product bootstrap
+- `app_auth.*` repo-owned Better Auth truth；runtime 与 current schema bootstrap
   owner 都是 `apps/app-api`
 - `chat.*` consumer conversation/message truth；product-layer owner 与 shared-db
   bootstrap owner 都是 `apps/app-api`
@@ -93,8 +93,8 @@ repo root `.env` 的 canonical runtime key 固定为：
   只消费 operator projection/read surface 与 operator release-gate command ledger。
 - `ingestion_registry.*` 或其他 ingestion task / document / raw asset registry
   truth；runtime owner 是 `apps/ingestion-control`。Runtime-neutral DTO /
-  parser / canonical artifact helper 归 `packages/ingest-core`；旧 Python ingestion
-  package 已删除，不拥有 registry connection 或 migration truth。
+  parser / canonical artifact helper 归 `packages/ingest-core`；Python 不拥有
+  registry connection 或 migration truth。
 
 ## Env Ownership Rules
 
@@ -108,7 +108,7 @@ repo root `.env` 的 canonical runtime key 固定为：
   `DOCUMENT_REGISTRY_DATABASE_URL`、`RAW_ASSET_REGISTRY_DATABASE_URL`，只在对应 owner
   明确偏离共享库时使用
 
-## Migration / Bootstrap Rules
+## Current Schema Bootstrap Rules
 
 - Supabase platform-managed `auth.*` 保留给 Supabase Auth；repo 不接管，也不把它当成 Better
   Auth 的物理 schema
@@ -126,19 +126,25 @@ repo root `.env` 的 canonical runtime key 固定为：
   read-after-write-sensitive product paths，并要求在
   Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中
   stale negative cache。它不是第二个数据库，也不是默认 command lane。
-- `apps/app-api` 负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有
-  `runtime.*` / `operator.*` / `docs.*` / `profile.*` / `identity.*` / `dining.*`
-  的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管
-  `app_auth.*` / `chat.*`
-- `official_web.*` 仍可能存在于历史 app-api Drizzle migration 与 schema type
-  export 中，作为共享库历史 baseline 和 app-api 只读/query 类型来源；forward
-  collector control-plane writer owner 是 `apps/ingestion-control`，不得新增
-  app-api collector write route 或 app-api-owned run admission ledger。
+- `apps/app-api` 负责当前 app-facing schema baseline：
+  - `apps/app-api/drizzle/0000_current_baseline.sql` 是 Drizzle 管理的 current
+    baseline artifact。
+  - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
+    shared-product `chat.*` current bootstrap artifact。
+  - `drizzle.app_api_migrations` 只记录 app-api Drizzle baseline，不与
+    shared-product SQL baseline 混用同一 journal 语义。
+- `official_web.*` 的 collector control-plane writer owner 是
+  `apps/ingestion-control`，不得新增 app-api collector write route 或 app-api-owned
+  run admission ledger。`apps/app-api` 只保留 operator read/projection 与
+  release-gate command ledger 所需的 query/type surface。
 - `apps/ingestion-control` 不接管 `app-api` 的 Drizzle migration journal；
   ingestion task / registry / closeout tables 由 ingestion-control 代码路径负责
   schema ensure。需要 full current-scope replay / chunk-prep / release 这类
   offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
   Python 不创建 ingestion Postgres client，也不拥有 registry table migration。
+- 当前 staging / production 尚未作为不可重建数据库上线时，优先重建到 current
+  baseline；不得恢复一次性的 schema reconciliation、inventory 或自动 destructive
+  repair 脚本作为默认流程。
 
 ## Journal Ownership
 
@@ -153,11 +159,12 @@ repo root `.env` 的 canonical runtime key 固定为：
 - `app-api` 不再使用默认 `drizzle.__drizzle_migrations`
 - 以后若其他 owner 引入 Drizzle，也必须使用自己的独立 journal table
 
-## Adoption Rules
+## Existing Database Handling
 
-当共享库已经存在部分 schema 但没有 `app-api` migration journal 时：
+当某个环境已经存在部分 schema 但还没有接受当前 repo baseline 时：
 
-- 必须先做 inventory / schema validation
-- 只允许在对象结构与 repo baseline 一致时写入 `app-api` migration journal
+- 默认处理方式是备份后重建到 current baseline，而不是在产品代码中保留迁移接管逻辑。
+- 如果未来出现不可重建的正式生产数据库，必须通过新的 ADR/runbook 接受一次性迁移计划，
+  并在迁移完成后删除迁移脚本、测试和文档入口。
 - 不允许把“不确定是否一致”的共享库直接标记为已迁移
 - 发现结构不一致时必须 fail closed，而不是自动 destructive 修复

@@ -1,10 +1,3 @@
-from campus_contracts.context_projection_builder import (
-    AuthorizationInput,
-    AuthorizedRetrievalFilterInput,
-    SessionSlotRecord,
-    VerifiedIdentityInput,
-    build_context_projection,
-)
 from campus_contracts.models import (
     ALLOWED_CAMPUS_SERVICES_FACT_KINDS,
     ALLOWED_CAMPUS_SERVICES_QUERY_KINDS,
@@ -153,10 +146,8 @@ __all__ = [
     "DEFAULT_REVISION_TRACK",
     "DEFAULT_SOURCE_CHANNEL",
     "ActorContext",
-    "AuthorizationInput",
     "AuthorizationProjection",
     "AuthorizedRetrievalFilter",
-    "AuthorizedRetrievalFilterInput",
     "CampusNoticeDiscoverPayload",
     "CampusNoticeDiscoverResult",
     "CampusNoticeGetPayload",
@@ -218,7 +209,6 @@ __all__ = [
     "ScheduledDeparture",
     "SelectedNoticeRef",
     "SessionSlot",
-    "SessionSlotRecord",
     "SessionSummary",
     "SourceTrustSummary",
     "SourceTrustTier",
@@ -247,11 +237,9 @@ __all__ = [
     "TransportServiceTimeQuery",
     "TransportServiceWindow",
     "TransportStopRef",
-    "VerifiedIdentityInput",
     "VersionQuery",
     "VersionQueryMode",
     "WorkflowToolContext",
     "WorkflowTraceSummary",
-    "build_context_projection",
     "resolve_curriculum_follow_up_slots",
 ]

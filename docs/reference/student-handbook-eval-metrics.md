@@ -157,7 +157,7 @@ deterministic error gate 固定为：
 
 实现落点：
 
-- 旧 Python `packages/retrieval-core` / `tests/retrieval` 实现已从 active workspace
+- 旧 Python retrieval package / `tests/retrieval` 实现已从 active workspace
   删除；该 marker 现在只保留为 regression behavior 说明
 - 后续等价检查应落在 Go-owned retrieval runtime seam 与 repo-owned qrels /
   release acceptance closeout artifact 上

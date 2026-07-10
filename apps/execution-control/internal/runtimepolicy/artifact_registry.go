@@ -17,7 +17,7 @@ const (
 var supportedArtifactProjectionStatuses = map[string]struct{}{
 	"supported_go_runtime": {},
 	"contract_only":        {},
-	"planned_contract_gap": {},
+	"closed_no_runtime":    {},
 }
 
 var supportedArtifactVisibilities = map[string]struct{}{

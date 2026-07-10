@@ -26,7 +26,7 @@ HTTP contracts, data schemas, operational procedures or active work status.
   - Langfuse eval platform completion for trace evidence, score publishing,
     datasets, experiments and RAG parameter evals
 - [run-context.md](./run-context.md)
-  - run context envelope, RAG follow-up resolution, previous evidence proof
+  - run context envelope, RAG follow-up resolution, previous evidence verification
     reuse and context-quality evals
 - [operator-diagnosis.md](./operator-diagnosis.md)
   - observability orchestration repair across OTel Collector, Sentry, Axiom,

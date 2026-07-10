@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "@rspress/core";
-import { campusDocsSearchIndexPlugin } from "./scripts/rspress-search-index-plugin";
-import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
+import { campusDocsSearchIndexPlugin } from "./src/docs-reader-build/rspress-search-index-plugin";
+import { buildRspressSidebarConfig } from "./src/docs-reader-build/rspress-sidebar";
 import { buildRspressProductNav } from "./src/platform/navigation/product-nav";
 
 const docsRoot = path.resolve(

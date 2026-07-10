@@ -11,10 +11,9 @@ updated: 2026-07-06
 
 ## Boundary
 
-Repo-owned shell wrappers for local execution-control, Qdrant and generated
-runtime env are retired. Local development may still run services directly, but
-the repository does not maintain a second lifecycle platform beside
-Kubernetes/GitOps.
+Local development may use the canonical Docker Compose file as a
+developer/diagnostic harness, but the repository does not maintain a second
+staging lifecycle platform beside Kubernetes/GitOps.
 
 This runbook records the supported local checks after a developer has started
 the required services through their chosen platform.
@@ -32,6 +31,14 @@ The repo no longer generates local runtime env bundles or local runtime
 secrets. Missing provider, database, Qdrant, Temporal or Hindsight values must
 be supplied through explicit local env or the platform deployment.
 
+The canonical local execution-runtime harness is
+`infra/local/docker-compose.execution-runtime.yml`. It defaults to the
+debug OTel collector and does not require external sink credentials. Add
+`infra/local/docker-compose.execution-runtime.fanout.yml` only when
+testing Langfuse/Axiom fan-out; use
+`infra/local/docker-compose.langfuse.yml` only when the run needs
+a local self-hosted Langfuse stack.
+
 ## App And Worker Checks
 
 ```bash
@@ -44,18 +51,18 @@ Provider-config local seeding remains an app-api script and requires explicit
 env:
 
 ```bash
-node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
-  ./scripts/seed-local-provider-config.ts --stage prompt
-node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
-  ./scripts/seed-local-provider-config.ts --stage embedding
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx \
+  ./ops/dev/seed-local-provider-config.ts --stage prompt
+pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx \
+  ./ops/dev/seed-local-provider-config.ts --stage embedding
 ```
 
 Projection refresh is explicit and writes reviewed artifacts:
 
 ```bash
-node scripts/sync-provider-config-projection.mjs \
+pnpm exec tsx apps/execution-control/scripts/sync-provider-config-projection.ts \
   --output .tmp/provider-config-projection.json
-node scripts/sync-observability-config-projection.mjs \
+pnpm exec tsx apps/execution-control/scripts/sync-observability-config-projection.ts \
   --output .tmp/observability-config-projection.json
 ```
 
@@ -71,8 +78,8 @@ curl -sS http://127.0.0.1:27051/readyz
 Then run the app-level E2E:
 
 ```bash
-pnpm --dir apps/app-api chat:e2e:dev
+pnpm smoke:app-api -- chat-dev
 ```
 
-`chat:e2e:dev` does not start or restart execution-control. A missing runtime is
-a blocker, not a signal to recreate local lifecycle scripts.
+`chat-dev` does not start or restart execution-control. A missing runtime is a
+blocker, not a signal to recreate local lifecycle scripts.

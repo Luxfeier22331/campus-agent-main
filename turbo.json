@@ -1,6 +1,10 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
-	"globalPassThroughEnv": ["STAGING_EXECUTION_CONTROL_BASE_URL", "STAGING_SENTRY_RELEASE"],
+	"globalPassThroughEnv": [
+		"STAGING_EXECUTION_CONTROL_BASE_URL",
+		"STAGING_SENTRY_RELEASE",
+		"WORKER_SECRET_AUDIT_MAX_ATTEMPTS"
+	],
 	"tasks": {
 		"build": {
 			"env": [

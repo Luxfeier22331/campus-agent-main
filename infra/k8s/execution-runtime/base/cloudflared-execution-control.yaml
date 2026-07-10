@@ -63,7 +63,7 @@ spec:
         - name: tunnel-token
           secret:
             secretName: cloudflared-execution-control-tunnel-token
-            defaultMode: 0400
+            defaultMode: 0444
             items:
               - key: token
                 path: token

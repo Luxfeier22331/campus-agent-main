@@ -25,7 +25,7 @@ Current implementation note:
 
 - `apps/app-api/src/db/schema/identity.ts` is the first physical
   materialization of the app-owned `identity.*` schema family.
-- `apps/app-api/drizzle/0034_empty_exodus.sql` creates the current
+- `apps/app-api/drizzle/0000_current_baseline.sql` creates the current
   `identity.accounts`, `identity.identity_profiles`,
   `identity.access_snapshots`, `identity.preference_settings`,
   `identity.federation_clients`, `identity.federation_claims_policies` and
@@ -243,7 +243,7 @@ Rules:
 
 - First implementation uses controlled/static client registration.
 - The first `muc-wiki` client policy is materialized by
-  `apps/app-api/scripts/provision-muc-wiki-federation-client.ts`.
+  `apps/app-api/ops/identity/provision-muc-wiki-federation-client.ts`.
 - Browser shells and MediaWiki do not create, mutate or own federation client
   policy.
 - Client secret values are secret material and must not be committed as schema

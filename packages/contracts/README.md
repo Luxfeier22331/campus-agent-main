@@ -60,9 +60,8 @@
   `runtime-latency-budgets.v1.schema.json` 与 `env-surface-policy.v1.schema.json`
   覆盖当前 execution runtime、ops summary、learning-loop 与 repo static checks
   实际读取的 non-code JSON artifacts
-- cross-language generated artifacts 由
-  `uv run --all-packages python -m scripts.generate_tool_execution_contracts`
-  生成，并由 `--check` 和 `tool-runtime-contract` gate 防漂移
+- cross-language generated artifacts 由 `pnpm contracts:generate` 生成，并由
+  `pnpm contracts:check` 和 `tool-runtime-contract` gate 防漂移
 
 新增共享字段时，先判断它属于稳定 tool handoff、execution wrapper 还是
 runtime JSON artifact。工具 payload/result 的跨语言边界先落到
@@ -74,3 +73,11 @@ runtime JSON artifact。工具 payload/result 的跨语言边界先落到
 解析、helper model 或生成物职责，不能作为 runtime catalog 的 active schema
 truth。
 契约漂移检查统一走 `pnpm contracts:check`。
+
+## Test Ownership
+
+`packages/contracts` 的 contract truth 由 JSON Schema / OpenAPI registry、
+`pnpm --filter campus-contracts test` 和 `pnpm contracts:check` 证明。
+Python `campus_contracts.*` dataclass 只作为语言本地 adapter/helper；对应
+`tests/` 目录只保留 `test_python_adapter.py` 烟测，不再维护 Python 聚合 suite
+或 `load_tests` discovery。

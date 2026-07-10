@@ -55,7 +55,7 @@ app-api Worker
 - KEDA / HPA 只调整 worker Deployment replica count，不拥有 execution truth、
   product run projection、step projection 或 terminal state。
 - `worker-autoscaler` 不再作为长期 production autoscaling controller；它只保留为
-  local / Docker Compose transitional runtime projection producer。
+  local diagnostics runtime projection producer。
 - Operator Console 不读取 Kubernetes API、Temporal history 或 raw KEDA metrics；它只读取
   app-api 物化的 operator-safe runtime projection。
 
@@ -73,9 +73,8 @@ Runtime substrate ownership is split by truth type:
   It does not own run/step/event projection, terminal state or tool policy.
 - app-api owns product projection and operator-safe runtime projection. It does
   not expose raw Temporal history or raw Kubernetes/KEDA/HPA objects.
-- worker-autoscaler owns only local/Docker Compose transitional runtime
-  projection production. It is not the production replica controller once
-  KEDA/HPA owns workers.
+- worker-autoscaler owns only local diagnostics projection production. It is not
+  the production replica controller once KEDA/HPA owns workers.
 
 This ledger is the runtime equivalent of the tool concept governance rule:
 deployment role names and scaler components do not create product/runtime truth.
@@ -200,7 +199,6 @@ Execution-runtime K8s manifests live at:
 
 ```text
 infra/k8s/execution-runtime/base
-infra/k8s/execution-runtime/overlays/staging
 infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
 ```
 
@@ -221,7 +219,7 @@ Temporal server lifecycle, Hindsight API lifecycle, OTel collector lifecycle or
 Traefik controller lifecycle.
 
 The `nc-arm-6c-staging-full` overlay is the single-node first-party execution
-runtime full proof. It owns only `execution-control`, `agent-runtime`, worker
+runtime validation overlay. It owns only `execution-control`, `agent-runtime`, worker
 pools and first-party KEDA/posture support. Platform stateful and observability
 components enter Kubernetes through their own GitOps Applications:
 
@@ -428,8 +426,8 @@ Production readiness for K8s execution runtime requires:
 
 K8s migration is an operations rollout, not an architecture truth owner. This
 document owns the target runtime boundary and forbidden shapes. Shadow
-validation, traffic cutover, deploy order and retirement of transitional Docker
-components belong to the release runbooks and planning signals.
+validation, traffic cutover and deploy order belong to the release runbooks
+and planning signals. Docker Compose remains local diagnostics only.
 
 ## Forbidden Shapes
 

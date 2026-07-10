@@ -12,7 +12,7 @@ updated: 2026-07-06
 ## Boundary
 
 Execution-control staging operations are Kubernetes/GitOps-owned. Docker Compose
-staging lifecycle scripts and repo-owned runtime env generators are retired.
+is local diagnostics only and must not own staging lifecycle.
 
 Related owner docs:
 
@@ -82,8 +82,8 @@ curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/readyz
 
 If execution-control readiness is degraded, inspect the owning platform
 Application first: Temporal, Hindsight, Qdrant, OTel, Postgres or the
-first-party execution-runtime Application. Do not recreate Docker staging
-scripts or local env renderers as a workaround.
+first-party execution-runtime Application. Do not add Docker staging scripts or
+local env renderers as a workaround.
 
 ## Rollback
 

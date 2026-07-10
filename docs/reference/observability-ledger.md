@@ -46,15 +46,15 @@ updated: 2026-07-05
 
 | Capability | Owner | Status | Verification |
 | --- | --- | --- | --- |
-| Canonical `stage_timing.v1` field table | `docs/contracts/stage-timing.md` + generated contracts | complete | `pnpm contracts:check`; `uv run --all-packages python -m unittest discover -s tests/contracts -t . -q` |
+| Canonical `stage_timing.v1` field table | `docs/contracts/stage-timing.md` + generated contracts | complete | `pnpm ci:contracts` |
 | App-api stage timing event and histogram projection | `apps/app-api` | complete | `pnpm --dir apps/app-api test -- telemetry.index.test.ts telemetry.otlp.test.ts request-observability.stage-timing.test.ts` |
 | Execution-control stage timing producer mapping | `apps/execution-control/internal/httpapi` | complete | `cd apps/execution-control && go test ./internal/httpapi -run 'TestStageTimingForRun' -count=1` |
 | Agent-runtime primary-agent runtime / first-delta timing | `apps/agent-runtime` | complete | `pnpm --dir apps/agent-runtime test -- primary-agent.test.ts http-server.test.ts` |
 | Latency budget coverage for every canonical stage field | `configs/runtime/latency-budgets.v1.json` | complete | `pnpm contracts:check` |
-| Alert policy materialization to Axiom monitor specs | `configs/runtime/observability-alerts.v1.json` + `scripts/materialize_observability_alerts.py` | complete | `uv run --all-packages python -m unittest tests.test_materialize_observability_alerts -q`; `pnpm contracts:check` |
-| Collector traces fan-out | `infra/otel` + K8s execution runtime config | complete | `uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q`; `otelcol-contrib validate --config=infra/otel/collector-staging-template.yaml` with populated env |
-| Collector logs fan-out to Axiom events dataset | `infra/otel` + K8s execution runtime config | complete | `uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q` |
-| Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `uv run --all-packages python -m unittest tests.infra.test_k8s_execution_runtime_manifests -q`; `pnpm --dir packages/eval-langfuse test -- langfuse-core.test.ts` |
+| Alert policy materialization to Axiom monitor specs | `configs/runtime/observability-alerts.v1.json` + `packages/contracts/scripts/contracts/materialize-observability-alerts.ts` | complete | `pnpm exec tsx packages/contracts/scripts/contracts/materialize-observability-alerts.ts --self-test`; `pnpm contracts:check` |
+| Collector traces fan-out | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `otelcol-contrib validate --config=infra/otel/collector-staging-template.yaml` with populated env |
+| Collector logs fan-out to Axiom events dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static` |
+| Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `pnpm --dir packages/eval-langfuse test -- langfuse-core.test.ts` |
 | Langfuse trace verification adapter | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test`; `pnpm --dir packages/eval-langfuse typecheck` |
 | LLM I/O fingerprint contract | `docs/contracts/replay-capture.md` | designed | `pnpm repo:static` |
 | Restricted raw replay packet contract | `docs/contracts/replay-capture.md` | designed | `pnpm repo:static` |

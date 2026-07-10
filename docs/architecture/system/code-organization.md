@@ -47,7 +47,7 @@ updated: 2026-07-04
 - `apps/*` 承载长驻 product app、browser surface、Worker / service runtime 或
   transport boundary。
 - `jobs/*` 承载一次性或定时 deployable runtime，例如 Kubernetes Job /
-  CronJob、Docker one-shot 或本地 one-shot 同步任务。
+  CronJob、Docker manual command 或本地 manual sync 任务。
 - `packages/*` 与 `packages/domains/*` 承载稳定库、contract、domain/tool
   boundary 与可复用逻辑，不拥有
   transport lifecycle 或 deploy entrypoint。
@@ -55,6 +55,11 @@ updated: 2026-07-04
 `jobs/*` 是 runtime boundary，不是脚本垃圾桶。能进入 `jobs/*` 的代码必须有清晰
 deploy identity、输入环境、失败语义与验证命令。只有本地开发辅助、不需要部署或调度的工具仍应留在
 `scripts/` 或 owner package 的 `scripts/` 下。
+
+`scripts/` 只承载 repo-level executable entrypoints 与共享 deploy / env primitives。
+`tools/` 承载 repo-internal governance checker implementation，不是用户或 runbook 的首选入口；
+常规验证应通过 `pnpm repo:*`、`pnpm ci:*` 或 owner package script 进入。不得为了保留旧路径在
+`scripts/` 下新增 repo-internal checker 兼容 wrapper。
 
 Temporal workflow / activity worker、Crawlee crawler runtime、Postgres / S3 /
 Qdrant concrete client lifecycle 与 provider HTTP client 默认属于 `apps/*` 或
@@ -68,11 +73,31 @@ queue/storage handle、数据库连接生命周期或 deploy-time env bootstrap 
 
 - 同类模块目录同构，命名对称，文件职责可预测
 - app/job 边界与 package 边界清晰，不把 transport/runtime 细节混进 tool package
-- domain-specific 能力留在 domain owner 内，不把业务逻辑堆进 `packages/shared`
+- domain-specific 能力留在 domain owner 内，不新增 shared bucket 承载业务逻辑
 - helper 文件服务一个明确 owner，不承担跨 owner 的业务归并
 - 测试、fixture、schema、script 与被验证的 owner 保持可追溯关系
 
 结构性拆分应优先恢复正确 owner，而不是先追求文件数量均匀。目录看起来整齐但边界错误，仍然是不合格结构。
+
+## 测试布局
+
+package 级测试默认使用 TS-first 布局：
+
+- TS package 的单元 / contract / schema 测试放在 owner package 的 `test/`
+  目录，并通过该 package 的 `test` / `typecheck` script 进入。
+- `tests/` 目录保留给 Python island 或 Python adapter smoke。它不承载 TS
+  package 的 Vitest 测试。
+- `packages/contracts/tests` 与 `packages/ingestion-contracts/tests` 只能保留
+  `__init__.py` 和 `test_python_adapter.py`。共享 contract truth 由 JSON
+  Schema / OpenAPI、TS checker 和 TS tests 证明，Python dataclass / validator
+  只证明 Python adapter 可导入、关键 guardrail 可用。
+- 真实 Python runtime island，例如 `packages/ragas-runner/tests`，可以继续使用
+  Python unittest。
+- Python 测试不得使用 `load_tests` 聚合或 `from ... import *`。这些模式会隐藏
+  discovery 范围，导致 CI 显示通过但实际 suite 被跳过。
+
+这条规则由 repo static 的 package test layout guard 维护。它只检查结构漂移，不替代
+package 自己的 typecheck/test。
 
 ## 不重复原则
 
@@ -96,7 +121,7 @@ queue/storage handle、数据库连接生命周期或 deploy-time env bootstrap 
 
 ## Gate 语义
 
-`pnpm repo:static` 内部的 `scripts.check_decomposition_tracked` 是基础分解 gate。它证明的是：
+`pnpm repo:static` 内部的 repo policy gate 是基础分解 gate。它证明的是：
 
 - tracked handwritten code/test 没有新增超预算大文件
 - 当前 decomposition baseline 没有被静默扩张

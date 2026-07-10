@@ -39,6 +39,9 @@ jobs:
       - name: Run full repository lane
         run: pnpm ci:repo:full
 
+      - name: Run repository self-tests
+        run: pnpm repo:self-test
+
   web:
     runs-on: ubuntu-latest
     env:
@@ -54,7 +57,7 @@ jobs:
       - name: Run full web lane
         run: pnpm ci:web:full
 
-  python:
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -63,8 +66,41 @@ jobs:
       - name: Setup Python
         uses: ./.github/actions/setup-python-uv
 
-      - name: Run full Python unittest lane
-        run: uv run --all-packages python -m unittest discover -s tests -t .
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run contracts lane
+        run: pnpm ci:contracts
+
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run ingest lane
+        run: pnpm ci:ingest
+
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run eval lane
+        run: pnpm ci:eval
 
   go:
     runs-on: ubuntu-latest

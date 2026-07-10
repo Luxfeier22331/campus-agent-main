@@ -1,11 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-
 import {
 	importDocsReadModelPlan,
 	resolveDocsReadModelManifestPath,
-} from "../scripts/import-docs-read-model";
+} from "../ops/docs-reader/import-docs-read-model";
 import type { DocsReadModelImportPlan } from "../src/modules/docs/read-model-manifest";
 
 class FakeQueryable {

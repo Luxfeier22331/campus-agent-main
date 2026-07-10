@@ -19,7 +19,6 @@ architecture。
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、model-visible tool / workflow signal、clarification 分别属于哪一层
 - `apps/app-api`、`execution-control` / current `apps/execution-control`、
-  retired Python bridge、
   typed tools 与 agent-as-tool 各自负责什么
 
 它不负责：

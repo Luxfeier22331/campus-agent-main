@@ -69,9 +69,9 @@ and the target Applications exist and report healthy state in the cluster.
 a weekly schedule and through manual dispatch. It is for drift / regression
 detection after PR-level affected checks have kept ordinary feedback cheap.
 
-- It runs `pnpm ci:repo:full`, `pnpm ci:web:full`,
-  `uv run --all-packages python -m unittest discover -s tests -t .`,
-  `pnpm ci:go` and the OSV-Scanner reusable workflow.
+- It runs `pnpm ci:repo:full`, `pnpm repo:self-test`, `pnpm ci:web:full`,
+  `pnpm ci:contracts`, `pnpm ci:ingest`, `pnpm ci:eval`, `pnpm ci:go` and the
+  OSV-Scanner reusable workflow.
 - It must not define `pull_request` triggers or participate in
   `pr / required`.
 - It may use explicitly allowed CI infrastructure credentials, such as Turbo
@@ -138,11 +138,24 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     closeout.
 - `pnpm repo:guard`
   - Fast collaboration / docs structure / workspace layout guard.
+  - Keep this lane lightweight: it checks repository shape and collaboration
+    boundaries only, and must not fan out to script self-tests, domain static
+    audits, builds, typechecks, runtime smokes or release validation.
   - Not a lint, build, test, runtime validation or release closeout.
+- `pnpm repo:self-test`
+  - Repo tooling self-test lane for script fixtures and checker internals.
+  - It is locally runnable and may be used when changing repo tooling, but it is
+    not an ordinary PR blocker unless CI policy explicitly promotes it later.
+  - Not a replacement for `pnpm repo:static`, app tests, runtime validation or
+    release closeout.
 - `pnpm repo:static`
   - Repo-wide static gate for live tracked surfaces: docs, configs, env examples,
     JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, HTML checker,
-    Biome, Ruff format checks and decomposition guard.
+    Biome, Ruff format checks, decomposition guard, runtime tool contract checks
+    and domain/config static audits.
+  - Checker/package self-tests live in `pnpm repo:self-test`; default static
+    must not run them unless an affected checker path explicitly selects that
+    self-test.
   - The lane is based on tracked + current worktree files selected by the repo
     checker; untracked files do not demonstrate branch-tip compliance until
     they are intentionally added.
@@ -173,8 +186,6 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     Worker shells.
   - Does not run `campus-web build:docs`, staging deploy, production deploy or
     browser E2E.
-- `uv run --all-packages python -m unittest discover -s tests -t .`
-  - Repo Python baseline through `uv` / `unittest`.
 - `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:web:full`
   - JS/TS stable graph checks.
   - `pnpm web:test` is the stable default lane, not all Worker / integration
@@ -199,13 +210,16 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - Worker runtime test and Worker/app build lane for app-api, campus-web,
     operator-console-web and runtime config changes.
 - `pnpm ci:contracts`
-  - Contract schema generation/checks plus contract unittest suite.
+  - `packages/contracts` TS typecheck / Vitest contract tests, contract schema
+    generation/checks and a thin Python adapter smoke suite.
 - `pnpm ci:go`
   - Execution-control Go static checks and tests.
 - `pnpm ci:eval`
-  - Eval-langfuse typecheck/test plus app-api Langfuse trace-id vector check.
+  - Eval-langfuse typecheck/test/audit, isolated Ragas runner tests and app-api
+    Langfuse trace-id vector check.
 - `pnpm ci:ingest`
-  - Ingestion/data-plane Python unittest lane.
+  - `packages/ingestion-contracts` TS typecheck / Vitest schema tests plus a
+    thin Python adapter smoke suite.
 - OSV-Scanner reusable workflow
   - Dependency vulnerability lane for dependency manifests, lockfiles and Go
     module files.
@@ -220,7 +234,8 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 | `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
 | `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
 | `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:eval` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
-| ingestion apps/packages/kernels | `pnpm ci:ingest` plus `pnpm ci:web` when TS workspace code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion contract package | `pnpm ci:ingest` plus `pnpm ci:web` when TS package code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion apps, source collectors, ingest-core or kernels | `pnpm ci:web` when TS workspace code changes, plus repo-static ingestion owner checks | Rust kernel/package-specific checks and release closeout stay in the owning ingestion runbook. |
 | release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
 ## App / Runtime Lanes
@@ -316,6 +331,10 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   GitHub Actions dependency updates run `pnpm ci:config`, npm / pnpm workspace
   updates run `pnpm ci:web`, `pnpm ci:worker` and OSV-Scanner, and Go module
   updates run `pnpm ci:go` plus OSV-Scanner.
+- Python tests are valid only for admitted Python adapters/islands. Repo
+  governance, CI contracts, workflow policy and common tooling are tested
+  through TS checks or the owning package tests, not root Python unittest
+  discovery.
 - Routine Dependabot version updates are limited to grouped minor / patch
   updates. Major dependency upgrades require an explicit human-owned branch and
   migration / verification plan.

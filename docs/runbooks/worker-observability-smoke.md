@@ -48,11 +48,10 @@ updated: 2026-06-09
 
 ### 1. 本地 Preflight
 
-先检查 root `.env` 与 app-local `.dev.vars` 是否已经对齐：
+先检查 app-local `.dev.vars` 是否已经具备 Worker observability 必需项：
 
 ```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
-  scripts.check_worker_observability_env --json
+pnpm exec tsx scripts/deploy/doctor-env.ts worker-observability-local --json
 ```
 
 通过标准：
@@ -89,7 +88,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 
 - 执行日期
 - 执行 worktree / branch
-- `check_worker_observability_env` 输出摘要
+- `doctor-env worker-observability-local` 输出摘要
 - 三个 Worker smoke 的通过摘要
 
 推荐落盘位置：
@@ -123,35 +122,14 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 - Worker 不再配置 `AXIOM_TOKEN`；Axiom exporter credential 属于 Collector
   deployment secret
 - `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry
-  UI 或 repo-local `SENTRY_API_TOKEN`
+  UI 或有权限的 Sentry API token
 - `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker
   `.dev.vars` 或 deploy secret store
-- 建议先执行：
-
-```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
-  scripts.check_sentry_lookup_access --json
-```
-
-确认 token 至少能读取目标 org / project，再进入 trace / event closeout artifact 留存
-
 - 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not
   have permission to perform this action.`，不要把它误判成 staging observability
-  blocker。当前 repo 的默认 closure 路径是直接查询 Sentry Explore `spans`：
-
-```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
-  scripts.query_sentry_spans
-  --org-slug <org-slug> \
-  --project <surface-project-id-or-slug> \
-  --project <app-api-project-id-or-slug> \
-  --environment staging \
-  --stats-period 30d \
-  --query 'trace:<sentry-trace-id> span.op:http.server' \
-  --markdown-output .tmp/observability-smoke/<timestamp>/trace-query.md
-```
-
-这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
+  blocker。当前 closeout 路径是使用 Sentry Explore `spans`，按
+  `trace:<sentry-trace-id> span.op:http.server`、目标 project 和 environment 过滤，并把
+  结果链接或导出的摘要保存到 closeout artifact。repo 不维护 Sentry 查询 CLI。
 
 - 建议先填完 handoff 与 closeout artifact 字段，再执行真实环境 smoke
 

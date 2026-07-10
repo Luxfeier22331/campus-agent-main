@@ -159,7 +159,7 @@ schedule tool/status surface.
 
 ### Tool Domain
 
-The top-level capability or workflow signal recognized before agent-owned
+The top-level tool/domain or workflow signal recognized before agent-owned
 execution. It is used for admission, routing, guardrails and clarification.
 
 Tool domain is not the same as `corpus/collection`, and it does not have to map

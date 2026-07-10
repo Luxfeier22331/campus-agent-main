@@ -85,9 +85,9 @@ dining.review_projections -> app-api /api/dining/* reader`
 - `apps/execution-control` 负责 internal workflow command/query、admission/policy gate、
   Temporal start/cancel/query seam、memory recall + RAG activity execution 与
   sanitized projection writeback
-- Docker Compose execution runtime 只保留 local / transitional evidence；长期
-  production target substrate 已由 ADR-0056 与 Kubernetes execution runtime
-  architecture 收口为 K8s + KEDA。live staging/production substrate 不能只由本文
+- Docker Compose execution runtime 只保留 local diagnostics；长期 production
+  target substrate 已由 ADR-0056 与 Kubernetes execution runtime architecture
+  收口为 K8s + KEDA。live staging/production substrate 不能只由本文
   文档措辞推断，必须看 applied resources、runtime env、operator projection 与
   release closeout artifacts。
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
@@ -95,9 +95,6 @@ dining.review_projections -> app-api /api/dining/* reader`
   启动 / 取消 `ToolExecutionWorkflow`，Temporal task queue 承担 execution substrate
 - PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
   tables 是 app-api / Operator Console / eval 消费的 sanitized run projection store
-- retired PG lease tables、execution-group budget、worker heartbeat、PG lease
-  worker loop 与 recovery loop 只允许作为 historical migration artifact /
-  retired code path 出现，不参与当前 online serving
 - 当前在线主问答路径已进入 first Execution Agent decision / direct no-tool terminal
   branch：`ToolExecutionWorkflow` 执行
   `context.memory_recall -> agent.primary -> finalization.write`。
@@ -111,10 +108,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   `requested_tool` 写成 `knowledge_query`，而是把 admitted visible tool set
   交给 `agent.primary` 决策。neutral memory recall 使用 `any` tool filter，
   direct/no-tool finalization 归因到 `primary_agent`。
-- `plan.route -> tool branch` 不再是主问答链路的第一模型决策。它仍作为
-  Go-owned deterministic structured planner / typed activity / historical RAG graph
-  support path 保留，服务显式 typed branch、测试与内部 policy 约束；知识分支
-  RAG graph 为 `rag.plan -> retrieval.indexed_lookup|retrieval.live_source_lookup ->
+- `plan.route -> tool branch` 不再是主问答链路的第一模型决策。知识分支 RAG graph
+  为 `rag.plan -> retrieval.indexed_lookup|retrieval.live_source_lookup ->
   evidence.selection -> synthesis -> grounding.verify`。fresh/live 只在 query-serving
   scope policy admit 后进入 `retrieval.live_source_lookup`，不是普通查询默认路径。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Hindsight self-host runtime；
@@ -136,9 +131,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   projection 承接；repo-local projection path 已能记录
   `activity_context_canceled`、`requested_before_start`、
   `provider_connection_aborted`、provider timeout 与 late completion ignored。
-- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 handoff/server
-  code 只可通过 git history 追溯，不得作为 readiness dependency、online fallback 或
-  active workflow branch 恢复。
+- Python `apps/supervisor-agent-worker` 不属于当前 serving workspace，不得作为
+  readiness dependency、online fallback 或 active workflow branch 恢复。
 - opened deterministic structured tool 必须作为 Go-owned typed Temporal
   activity 执行并写入 sanitized projection；未完成 worker contract 的 tool
   fail closed，不走 Python serving shortcut。
@@ -281,8 +275,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   request 调用 `execution-control` 创建 Temporal-backed run，Temporal
   workflow/activity worker 负责执行编排，PG `runtime.agent_runs` / events /
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
-  projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
-  serving。
+  projection truth。
 - 当前 `ToolExecutionWorkflow` 主干已切为 `context.memory_recall ->
   agent.primary -> finalization.write` 或 `context.memory_recall ->
   agent.primary -> knowledge RAG graph -> finalization.write`。`agent.primary`
@@ -313,9 +306,9 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。
-- 旧 deterministic structured planner 已从 active runtime 删除。当前 ordinary chat
-  first decision 由 `agent.primary` 在已裁剪的 visible tool set 内完成；RAG graph 与
-  typed tools 保留各自内部 deterministic projection / validation support path。
+- 当前 ordinary chat first decision 由 `agent.primary` 在已裁剪的 visible tool set
+  内完成；RAG graph 与 typed tools 保留各自内部 deterministic projection /
+  validation support path。
 - `ToolExecutionWorkflow` 的当前主干由 primary agent SDK loop 承接工具选择
   与 direct answer；当 primary agent 选择 `knowledge_query` 时，workflow 使用
   agent result projection ref 作为 plan/dependency input 进入 Go RAG graph。
@@ -323,8 +316,7 @@ dining.review_projections -> app-api /api/dining/* reader`
   `campus_services` / `notice` step 进入 typed tool activity；
   selected-notice follow-through 可由 resolver 编译为 typed tool step + knowledge
   step。workflow trace / projection 只记录 bounded result refs、step metadata 与 safe
-  summaries，不携带 raw projection payload。旧 handoff v6 `runtime_decisions` 不再是
-  current durable chat path 的规划输入。
+  summaries，不携带 raw projection payload。
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/execution-control/internal/runtimepolicy`，负责 product scope gate、
   readiness / reject gate、context follow-up preflight、query-enabled scope
@@ -356,9 +348,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   独立 self-hosted runtime processes，不是 Cloudflare Worker。
 - registry-aware activity 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
   kernel 时 fail closed，不回退 Python collection CLI
-- Python app-level worker 已移除；Python 只允许作为 explicit library / service
-  dependency 由 TS handler 调用，例如 MinerU / OCR / legacy Office / ML extraction
-  adapter
+- Python 只允许作为 explicit library / service dependency 由 TS handler 调用，
+  例如 MinerU / OCR / Office / ML extraction adapter
 
 ### `apps/source-collector`
 
@@ -390,7 +381,7 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 写入 dining catalog/release tables、
   `dining.source_observations(source_type=feishu_catalog|feishu_review)` 与
   `dining.review_projections`
-- 可作为 local one-shot、Docker one-shot、Kubernetes Job 或 CronJob 运行
+- 可作为 local manual command、Docker manual command、Kubernetes Job 或 CronJob 运行
 - 不属于 `apps/app-api` 在线请求路径，不提供 browser route，不承载 Operator Console
   控制面，不公开 raw Feishu/Lark row、file token 或临时下载 URL
 
@@ -399,22 +390,18 @@ dining.review_projections -> app-api /api/dining/* reader`
 - `apps/execution-control` 当前拥有 Go-owned knowledge / RAG Temporal activity graph，
   负责 retrieval-specific planning、evidence selection、grounded synthesis 与
   fail-close finalization runtime
-- `packages/navigation-tool` 是 navigation semantic specialist package；
-  产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线。
+- 产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线。
   deterministic place / point reads 必须先表现为 typed tool 或 internal query
-  service；navigation specialist 只能作为 typed `agent_step` / agent-as-tool
-  消费这些工具，不拥有 spatial source truth
+  service；重新开放前必须在 TS/Go owner 中建立 runtime
 - `campus_services` 当前由 `apps/execution-control` 拥有 Go tool read model runtime。
   model-visible opened tool 只有 `transport_schedule_lookup`。generic service status、
   service guide、contact directory、process guide 与 academic calendar 不属于当前
   campus-services runtime surface。
 - repo-owned internal retrieval seam / Go RAG runtime 负责 retrieval abstraction、
-  metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
-  active workspace
+  metadata pre-filter、evidence shaping
 - `apps/ingestion-control` ingestion task control plane and Temporal worker
   runtime；TS `packages/ingest-core` 提供 runtime-neutral ingestion helpers；
-  旧 Python ingestion package 已删除，未来 OCR / file extraction 需重新 admission 为
-  explicit adapter boundary
+  未来 OCR / file extraction 需重新 admission 为 explicit adapter boundary
 - `packages/contracts` tool handoff 与 shared typed seam
 
 ## 当前术语真相

@@ -635,15 +635,13 @@ notice source-truth 不等于逻辑 document 真相。
 
 如需定义 `campus_notices/internal_notice` 的 parent notice / attachment lane
 split、cleanup、chunk-preparation 与 release gate，固定查看
-`docs/runbooks/ingestion-control-clean-target.md`。旧 Python worker
-preparation 正文已退出 branch tip；需要追溯时通过 git history 恢复具体片段。
+`docs/runbooks/ingestion-control-clean-target.md`。
 
-## Historical Closeout Integration
+## Closeout Boundary
 
-ADR-0025 与 ADR-0026 记录了 historical closeout / batch-leased throughput
-时期的 rationale。它们不改变本文的 current source-truth schema，也不把
-`ingestion_closeout.*` staging 表、operations prefix、Python worker 或 historical
-promoter 重新提升为当前 notice mainline。
+ADR-0025 与 ADR-0026 记录的 batch closeout 方案不改变本文的 current
+source-truth schema，也不把 `ingestion_closeout.*` staging 表、operations prefix
+或 promoter 提升为当前 notice mainline。
 
 当前文档只保留以下不变量：
 
@@ -651,7 +649,6 @@ promoter 重新提升为当前 notice mainline。
 - source-truth 不携带 document / chunk / serving 字段
 - replay / rebuild 从 canonical source-truth 或 explicit capture-release object refs
   开始
-- 历史 closeout 细节只通过 ADR 或 git history 追溯，不能作为当前 executor contract
 
 ## 与其他文档的关系
 
