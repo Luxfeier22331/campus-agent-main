@@ -240,6 +240,14 @@ official-web 的消费链路边界以
   不承载校园服务校对与发布 workspace
 - 它是唯一当前 Operator Console implementation package，不定义第二个长期后台产品概念
 
+### `apps/ops-web`
+
+- 已有自托管只读运行排查源码，Hono 服务端同时提供 React 页面和固定 `/api/ops/*`
+- 读取四个允许的 PostgreSQL 摘要、固定服务健康检查和 OpenObserve，不经过 `app-api`
+- 使用 Access JWT、两级操作者白名单、列级数据库权限和原始观测读取审计
+- 当前浏览器 serving truth 仍是 `operator-console-web`；Ops Web 源码和 K8s base 不证明
+  staging 已部署，也不替换现有 Worker Console
+
 ### `apps/app-api`
 
 - shared Worker-native application/control-plane backend

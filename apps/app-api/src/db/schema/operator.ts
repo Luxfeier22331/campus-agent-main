@@ -84,6 +84,13 @@ export const requestProjection = operator.table(
 		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
+		startedAtRequestIdIndex: index("operator_request_projection_started_at_request_id_idx").on(
+			table.startedAt.desc(),
+			table.requestId.desc(),
+		),
+		traceStartedAtRequestIdIndex: index(
+			"operator_request_projection_trace_started_at_request_id_idx",
+		).on(table.traceId, table.startedAt.desc(), table.requestId.desc()),
 		statusStartedAtIndex: index("operator_request_projection_status_started_at_idx").on(
 			table.status,
 			table.startedAt,

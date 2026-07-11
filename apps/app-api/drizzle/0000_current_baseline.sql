@@ -747,6 +747,18 @@ CREATE TABLE "official_web"."target_release_gates" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "observability"."ops_observability_read_audit" (
+	"audit_id" text PRIMARY KEY NOT NULL,
+	"kind" text NOT NULL,
+	"operator_id" text NOT NULL,
+	"operator_principal_class" text NOT NULL,
+	"read_at" timestamp with time zone NOT NULL,
+	"record_count" integer NOT NULL,
+	"request_id" text NOT NULL,
+	"trace_id" text NOT NULL,
+	"truncated" boolean NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "official_web"."page_freshness" (
 	"site_id" text NOT NULL,
 	"normalized_canonical_url" text NOT NULL,
@@ -1363,6 +1375,8 @@ CREATE INDEX "official_web_target_attempts_job_attempted_idx" ON "official_web".
 CREATE INDEX "official_web_target_attempts_run_idx" ON "official_web"."target_page_attempts" USING btree ("run_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "official_web_target_release_gates_inventory_run_decision_idx" ON "official_web"."target_release_gates" USING btree ("inventory_id","run_id","decision");--> statement-breakpoint
 CREATE INDEX "official_web_target_release_gates_status_updated_at_idx" ON "official_web"."target_release_gates" USING btree ("status","updated_at");--> statement-breakpoint
+CREATE INDEX "observability_ops_read_at_idx" ON "observability"."ops_observability_read_audit" USING btree ("read_at");--> statement-breakpoint
+CREATE INDEX "observability_ops_read_request_at_idx" ON "observability"."ops_observability_read_audit" USING btree ("request_id","read_at");--> statement-breakpoint
 CREATE INDEX "official_web_page_freshness_cadence_eligible_idx" ON "official_web"."page_freshness" USING btree ("cadence_class","next_eligible_fetch_at");--> statement-breakpoint
 CREATE INDEX "official_web_page_freshness_host_updated_at_idx" ON "official_web"."page_freshness" USING btree ("host","updated_at");--> statement-breakpoint
 CREATE INDEX "official_web_page_freshness_last_seen_at_idx" ON "official_web"."page_freshness" USING btree ("last_seen_at");--> statement-breakpoint
@@ -1404,6 +1418,8 @@ CREATE INDEX "runtime_request_observability_selected_tool_started_at_idx" ON "ru
 CREATE INDEX "runtime_request_observability_principal_type_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("principal_type","started_at");--> statement-breakpoint
 CREATE INDEX "runtime_request_observability_model_name_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("model_name","started_at");--> statement-breakpoint
 CREATE INDEX "runtime_request_observability_safety_identifier_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("safety_identifier","started_at");--> statement-breakpoint
+CREATE INDEX "operator_request_projection_started_at_request_id_idx" ON "operator"."request_projection" USING btree ("started_at" DESC NULLS LAST,"request_id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "operator_request_projection_trace_started_at_request_id_idx" ON "operator"."request_projection" USING btree ("trace_id","started_at" DESC NULLS LAST,"request_id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "operator_request_projection_status_started_at_idx" ON "operator"."request_projection" USING btree ("status","started_at");--> statement-breakpoint
 CREATE INDEX "operator_request_projection_conversation_started_at_idx" ON "operator"."request_projection" USING btree ("conversation_id","started_at");--> statement-breakpoint
 CREATE INDEX "official_web_run_artifacts_run_type_idx" ON "official_web"."run_artifacts" USING btree ("run_id","artifact_type");--> statement-breakpoint

@@ -4,13 +4,13 @@ truth_scope: product
 owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # Product Runtime Architecture
 
 ## 文档边界
 
-本文冻结 `campus-web`、Operator Console、shared `app-api` 与 delivery/runtime seam 的
+本文冻结 `campus-web`、Operator Console、Ops Web、shared `app-api` 与 delivery/runtime seam 的
 supporting architecture。
 
 它回答的是：
@@ -19,6 +19,7 @@ supporting architecture。
 - `apps/app-api` 的长期职责是什么
 - request projection 与 operator read surface 属于谁
 - Operator Console 的 trust model 与当前 runtime shells 应怎样理解
+- 自托管 Ops Web 为什么不经过 `app-api`
 
 ## 核心结论
 
@@ -39,6 +40,9 @@ sanitized projection`
 
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
+
+`operator browser -> Cloudflare Access -> ops-web -> allowlisted PostgreSQL summaries /
+OpenObserve fixed queries / service health checks`
 
 这意味着：
 
@@ -66,7 +70,8 @@ projection / operator read model / operator-safe operations domains`
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
-- Operator Console 不读数据库、不读 telemetry sink、不绕过 `app-api`
+- Worker Operator Console 不读数据库、不读 telemetry sink、不绕过 `app-api`
+- Ops Web 是 ADR-0072 限定的自托管只读诊断例外；浏览器仍不能直连任何数据源
 - ingestion/release task state machine 不属于 product runtime；它属于 offline data
   plane
 
@@ -105,9 +110,7 @@ projection / operator read model / operator-safe operations domains`
   - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
     `https://campus-staging.mucwiki-edge.link`
 - `Operator Console`
-  - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
-    operations domains
-  - 当前唯一 implementation surface 是 `operator-console-web`
+  - 承接受控业务操作和配置，当前 implementation surface 是 `operator-console-web`
   - 当前最小 implementation surface 只承载 `/requests` 与
     `/operations/provider-config`、`/operations/observability`
   - 当前只通过 explicitly allowlisted request / runtime health / provider
@@ -121,6 +124,11 @@ projection / operator read model / operator-safe operations domains`
     `operator-console-web` 不承载校园服务校对与发布 workspace
   - 泛化 `Jobs` 不属于当前 Operator Console rollout；后台任务观察必须落到具体
     operator domain，不应被写成当前 merged truth
+- `Ops Web`
+  - 是自托管、受保护、只读的运行排查应用，不是第二个业务操作后台
+  - Hono 服务端同时提供 React 页面和固定 `/api/ops/*`
+  - 只读取四个允许的 PostgreSQL 摘要、固定健康检查和 OpenObserve
+  - 不通过 `app-api` 代理内部观测数据，不读取 Temporal、Langfuse 或 Hindsight 数据库
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
@@ -167,6 +175,13 @@ projection / operator read model / operator-safe operations domains`
 - fail-closed by default
 - 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode，
   也不定义第二套 operator backend
+
+### `apps/ops-web`
+
+- 自托管运行诊断页面和同包 Hono API
+- Access JWT、基础操作者和原始观测数据两级权限
+- PostgreSQL 列级读取、OpenObserve 固定查询和原始读取审计
+- 不承载 provider 配置、校园内容操作或 Temporal 控制命令
 
 ### `apps/app-api`
 
@@ -284,7 +299,7 @@ request projection 的 canonical durable truth 固定为：
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 
-Operator Console `Requests` 的 canonical read path 固定为：
+Worker Operator Console `Requests` 的 canonical read path 固定为：
 
 `operator console surface -> apps/app-api -> operator.request_projection`
 
@@ -305,9 +320,11 @@ Additional operator-facing visibility 域也遵循同一 ownership rule：
   也必须经
   `apps/app-api` 的 operator-safe projection 暴露，不能让 Operator Console 回读 queue、object-store、
   operations 目录或 raw logs
-- Operator Console 只能读取 app-api admitted Ops Index / domain projection API，不能
+- Worker Operator Console 只能读取 app-api admitted Ops Index / domain projection API，不能
   route-time 查询 raw sink、Temporal history、Docker state、Kubernetes API、HPA/KEDA API
   或 execution-control 本地证据文件
+- Ops Web 只按 `ops-observability.md` 读取四个数据库摘要和 OpenObserve；该例外不能扩张到
+  Worker Console、业务操作或任意查询
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
 `docs/architecture/system/ops-observability.md`。

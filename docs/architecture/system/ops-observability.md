@@ -1,275 +1,212 @@
 ---
 doc_type: architecture
 truth_scope: ops
-owner_boundary: app-api
+owner_boundary: apps/ops-web
 status: active
 created: 2026-04-02
-updated: 2026-07-04
+updated: 2026-07-11
 ---
-# Ops Index And External Sinks Architecture
 
-## 文档边界
+# Ops Web 可观测性架构
 
-本文冻结 Operator Console 在线值班观测的最小架构口径。
+## 文档范围
 
-它回答：
+本文定义 `ops-web`、PostgreSQL、OpenTelemetry、OpenObserve、Temporal、Langfuse、
+Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/ops-web.md`，HTTP 字段见
+`../../contracts/ops-web.md`，Worker Operator Console 见 `operator-console.md`。
 
-- `app-api` 应该保存哪些最小运维索引
-- `operator-console-web` 如何消费这些索引
-- `Sentry`、`Axiom`、`Langfuse` 与 repo-owned runtime 各自负责什么
-- 为什么不在 `app-api` 中复制外部 dashboard、trace、log、score 或 eval 明细
-- 为什么 Operator Console 不承载 learning-loop review UI
+本文不宣称 staging 已部署，也不记录环境地址、Secret 或资源规格；这些由环境 GitOps
+仓库和实际运行证据负责。
 
-它不负责：
+## 核心结论
 
-- 具体 dashboard 布局
-- alert threshold、retention、sampling ratio
-- sink SDK 或 Collector 的逐字段接入，见
-  `docs/reference/runtime-otel-telemetry-taxonomy.md`
-- eval 平台细节，见 `docs/architecture/system/langfuse.md`
-- 用户使用驱动的持续优化闭环，见
-  `docs/architecture/system/learning-loop.md`
+仓库保留两个用途不同的受控入口：
 
-## Core Conclusion
+- `operator-console-web` 继续通过 `app-api` 承担供应商配置和业务操作。它仍受
+  ADR-0055、ADR-0067 约束，不直连数据库或观测平台。
+- `ops-web` 是独立、自托管、只读的运行排查应用。它在服务端读取严格授权的 PostgreSQL
+  摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。
 
-Operator Console 的当前和目标观测面固定为：
+两者不互相代理，也不共享一个通用运维后端。`ops-web` 不是产品 API、数据库浏览器、
+Temporal 控制台或通用日志平台。
 
-```text
-operator browser
--> operator-console-web
--> app-api Ops Index
--> external sink links / native sink UI
+## 数据流
+
+```mermaid
+flowchart LR
+  Browser[值班人员浏览器]
+  Access[Cloudflare Access]
+  OpsWeb[ops-web 页面与服务端]
+  Pg[(PostgreSQL 请求与队列摘要)]
+  Health[固定服务健康检查]
+  OpenObserve[(OpenObserve)]
+  OTel[OpenTelemetry Collector]
+  Runtime[应用运行时]
+  TemporalUI[Temporal UI]
+  LangfuseUI[Langfuse UI]
+  Sentry[Sentry]
+  Axiom[Axiom]
+
+  Browser --> Access --> OpsWeb
+  OpsWeb --> Pg
+  OpsWeb --> Health
+  OpsWeb --> OpenObserve
+  Runtime --> OTel
+  OTel --> OpenObserve
+  OTel --> Sentry
+  OTel --> Axiom
+  OTel --> LangfuseUI
+  OpsWeb -. 关联入口 .-> TemporalUI
+  OpsWeb -. 关联入口 .-> LangfuseUI
+  OpsWeb -. 关联入口 .-> Sentry
+  OpsWeb -. 关联入口 .-> Axiom
 ```
 
-`apps/app-api` 不是 observability platform。它只拥有产品运行所需的最小 Ops
-Index：
+图中的外部输出只表示对应环境配置了该输出；某个外部平台未启用时不影响请求状态读取。
 
-- request identity：`requestId`、`traceId`、`conversationId`、`runId`
-- request state：`surface`、`status`、`errorCode`、`startedAt`、`completedAt`
-- runtime health summary：执行平面 ready/degraded/blocker 摘要
-- stage timing summary：`stage_timing.v1` 安全分段耗时，见
-  `docs/contracts/stage-timing.md`
-- latency budget summary：从 `configs/runtime/latency-budgets.v1.json`
-  对 `stage_timing.v1` 字段做 warn / critical 分类
-- alert policy：从 `configs/runtime/observability-alerts.v1.json` 提供
-  repo-owned symptom alert rule、threshold、window、severity 与 runbook anchor；
-  `packages/contracts/scripts/contracts/materialize-observability-alerts.ts` 将 enabled rules 物化为 Axiom
-  monitor specs，并由 `pnpm contracts:check` 校验
-- sink correlation：能让 operator 跳到 Sentry / Axiom / Langfuse 的关联 ID 或链接模板
+## 组件职责
 
-`Sentry`、`Axiom`、`Langfuse` 是详细观测 truth：
+| 组件 | 负责 | 不负责 |
+| --- | --- | --- |
+| Ops Web 页面 | 展示、筛选、复制关联标识、打开已配置入口 | 持有服务凭据或提交任意查询 |
+| Ops Web 服务端 | Access 验证、固定查询、短缓存、响应校验、读取审计 | 写请求状态、执行工作流、提供通用代理 |
+| PostgreSQL | 请求、执行、观测和 Temporal 队列摘要；原始读取审计 | 原始日志、原始调用链、Temporal 历史 |
+| OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
+| OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
+| Temporal | 工作流历史、重试、超时、取消和任务队列真相 | Ops Web 请求状态或页面合同 |
+| Langfuse | 模型调用、提示词、输入输出、评分、数据集和评测 | 产品请求状态数据库 |
+| Sentry | 错误、异常和性能排查 | Ops Web 的内网原始记录来源 |
+| Axiom | 外部日志、事件、查询、看板和告警 | Ops Web 的内网原始记录来源 |
+| Hindsight | 由 execution-control Activities 调用的个人记忆服务 | Ops Web 浏览器或服务端查询接口 |
 
-- Sentry：错误、异常、性能 tracing、release-aware debugging
-- Axiom：日志、事件、长窗口查询、dashboard、monitor
-- Langfuse：LLM trace、受控 debug observation、session、dataset、eval、score、annotation workflow
+## 请求状态和关联
 
-因此 `app-api` 不保存外部平台的 raw dashboard 查询结果、raw event、raw trace、raw
-LLM observation、raw score 或 raw issue body。
+请求状态只来自以下 PostgreSQL 来源：
 
-Langfuse / OpenAI trace 可以在外部平台中保存受控 raw 或 masked LLM input/output，用于
-debug、eval 和首字延迟分析；该内容不进入 `app-api` Ops Index，也不通过 Operator
-Console 重新分发。
+- `operator.request_projection`
+- `operator.temporal_task_queue_current`
+- `runtime.request_execution`
+- `runtime.request_observability_fact`
 
-## Current Operator Surface
+Ops Web 只获得这些来源中合同列出的列。OpenObserve、健康检查、Temporal、Langfuse、
+Sentry 和 Axiom 只能补充排查信息，不能改写请求状态。
 
-当前 `operator-console-web` 只暴露：
+关联标识的用途：
 
-- `请求与运行`
-- `模型服务配置`
+- `requestId`：列表、详情和 OpenObserve 查询的主标识；
+- `traceId`：同一次调用链的跨系统标识；
+- `conversationId`：同一会话中的请求关联；
+- `runId`：运行记录标识；
+- `workflowId`：由 `runId` 按 `campus-agent.chat.<runId>` 生成的 Temporal 工作流标识。
 
-当前观测面只回答值班最低问题：
+缺少 `runId` 时不生成工作流标识，也不猜测其他 Temporal 字段。
 
-- 最近请求是否成功、失败、取消或被拒绝
-- 当前执行平面是否 ready / degraded
-- 失败请求的 `requestId`、`traceId` 与 `errorCode`
-- 是否存在可跳转到外部 sink 的关联入口
+## 运行概况
 
-当前不开放：
+Ops Web 并行读取三类信息：
 
-- standalone audit workspace
-- online quality dashboard
-- online safety dashboard
-- online cost dashboard
-- intent drift dashboard
-- badcase / eval candidate / release-closeout 在线面板
-- learning-loop review UI
-- external sink mirror
+1. PostgreSQL 提供请求数量、状态、95% 耗时、趋势和 Temporal 队列摘要。
+2. 固定健康检查提供五个服务的 HTTP 状态。
+3. OpenObserve 提供日志、指标和调用链在所选时间窗口内的记录数与最近时间。
 
-这些内容如未来重新进入产品面，必须先有明确 operator workflow、current app-api
-contract、Worker allowlist、UI 实现和验收测试。默认不能因为代码里存在历史 route 或表，就把它们写成 active surface。
+单个健康检查有独立超时。概况结果在每个进程内缓存 15 秒；PostgreSQL 和运行信号都失败时，
+只允许使用五分钟内的最近成功结果并标为 `STALE`。该缓存不承担持久化或跨实例一致性。
 
-## App-Owned Ops Index
+## OpenTelemetry 和 OpenObserve
 
-`app-api` 允许保存的最小索引字段族：
+应用继续通过现有 OpenTelemetry 入口发送信号。环境中的 Collector 可以将同一批允许数据
+同时发送到 OpenObserve 和已启用的外部平台。OpenObserve 不是从 Sentry 或 Axiom 回传数据，
+因此外部平台不可访问时，内网仍可查询已写入 OpenObserve 的记录。
 
-- request correlation：`request_id`、`trace_id`、`conversation_id`、`run_id`
-- product surface：`surface`、`principal_type`
-- request state：`status`、`error_code`、`started_at`、`completed_at`、`duration_ms`
-- product summary：`question_preview`、`answer_preview`、bounded `diagnostics_json`
-- runtime health：ready/degraded/blocker reason code summary
-- sink correlation：Sentry/Axiom/Langfuse 查询所需的 safe ID、URL template
-  output 或 dashboard entry metadata
+Collector 配置必须：
 
-这些字段的用途是产品值班和跳转定位，不是复刻外部观测平台。
+- 删除认证材料、Cookie、JWT、数据库地址、提示词和其他禁止字段；
+- 为每个输出使用独立凭据；
+- 批处理并进行有界重试；
+- 暴露自身健康和发送失败信号；
+- 不把调试输出重新采集回自身。
 
-`diagnostics_json` 只能承载 compact operator summary：reason code、verdict、count、
-latency/status、stable document id/title summary 与 `knowledge_search` scope/version /
-evidence shape。它不承载 query rewrite text、retrieval query text、raw filter payload、
-source snippet 或 raw provider/tool diagnostics。
+Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择日志或调用链；服务端从已保存
+请求取得 `requestId` 和时间范围，应用 200/500 条上限，并在成功返回前写审计。
 
-禁止保存：
+低流量窗口没有日志或调用链不自动表示故障。持续指标没有数据可视为采集链路降级。单个流
+查询失败只影响该流；OpenObserve 整体不可用也不使 Ops Web Pod 退出就绪状态。
 
-- raw prompt
-- raw answer
-- raw transcript
-- raw auth material、JWT、cookie、secret、token
-- raw retrieval payload、support snippet dump 或 raw provider response
-- query rewrite text 或 retrieval query text
-- raw log body
-- raw trace body
-- raw Sentry event / issue body
-- raw Axiom dashboard query result
-- raw Langfuse trace / observation / score / annotation body
-- raw Temporal history
-- local artifact path、object bucket/key，除非有独立 contract 明确允许
+## Temporal、Langfuse 和外部平台
 
-## External Sink Boundary
+- Ops Web 从 PostgreSQL 读取 Temporal 队列摘要，不访问 Temporal persistence。
+- 完整工作流历史、重试、Signal、Update、Reset 和 Terminate 留在 Temporal UI。
+- Ops Web 展示已保存的模型、提示词版本和调用链引用，不查询 Langfuse 数据库。
+- 模型输入输出、token、费用、评分、数据集和人工评审留在 Langfuse UI。
+- Sentry 和 Axiom 只作为已配置的外部入口；Ops Web 不定时同步、不缓存其接口响应。
+- 外部链接必须使用 HTTPS，并通过每个平台的服务端地址白名单校验。
 
-Runtime 边界通过 OTel / SDK / Collector 把 sanitized telemetry 送入 sink。Operator
-Console 不把 sink 当作 route-time database。
+## 权限和审计
 
-### Sentry
+### 浏览器访问
 
-Sentry 负责错误、异常、性能和跨 Worker tracing。Operator Console 可以展示 Sentry
-deep link 或查询提示，但不从 Sentry 拉取 issue/event 明细后再落库。
+Cloudflare Access 负责登录和 JWT 签发，Ops Web 服务端再次验证签发方、受众、签名和
+操作者白名单。原始日志和调用链使用更窄的独立白名单。
 
-### Axiom
+### 数据库权限
 
-Axiom 负责日志、事件、查询、dashboard 和 monitor。Operator Console 可以展示 Axiom
-view/query 入口，但不缓存 Axiom dashboard 结果作为 app-api read model。
+`ops_web` 账号拥有四个允许来源的列级读取权限，并只能向
+`observability.ops_observability_read_audit` 插入。它不能读取、更新或删除审计记录，
+不能访问其他业务表，也不能使用 owner 权限。
 
-### Langfuse
+`ops_audit_maintenance` 账号只能执行固定的 180 天审计清理函数，不能直接访问审计表。
+非本地 PostgreSQL 连接使用 CA 和 `verify-full` 验证证书链及主机名。
 
-Langfuse 负责 LLM trace、受控 debug observation、session、dataset、score 和 annotation
-workflow。`packages/eval-langfuse` 可与 Langfuse 平台同步 dataset / score；Operator
-Console 只消费 repo-owned 最小索引和必要的 safe correlation，不查询 Langfuse trace
-body。
+### OpenObserve 凭据
 
-## Access Model
+环境必须为以下用途分配不同凭据：
 
-外部平台权限优先由平台自身 RBAC 承担：
+- OpenObserve 服务初始化；
+- Collector 写入；
+- Ops Web 读取；
+- 保留期维护。
 
-- Sentry 使用 organization/team membership 和 role 管理访问。
-- Axiom 使用 role / dashboard / dataset / view 权限管理访问。
-- Langfuse 使用 organization / project RBAC 管理访问。
+Ops Web 和 Collector 不得使用 root 凭据。若环境尚未创建可用的读取服务账号，Ops Web
+GitOps 变更必须保持未完成状态，不能提交占位用户名、占位令牌或 root 密码。
 
-repo 不用高权限 service token 抓取三家平台的数据，再通过 Operator Console 重新分发。
-这会绕过外部平台权限模型，也会让 `app-api` 变成影子观测平台。
+## 故障边界
 
-如果未来必须支持“operator 没有外部平台账号也能值班”，只能新增 curated summary：
+- PostgreSQL 失败：请求列表和详情返回错误，不能显示为空列表。
+- OpenObserve 失败：原始记录和观测状态不可用，请求摘要仍可读取。
+- 单个健康检查失败：该服务显示故障，其他服务继续展示。
+- 审计写入失败：拒绝返回原始记录。
+- 外部入口未配置：显示未配置，不影响本地排查。
+- 外部输出失败：由 Collector 自身状态反映，不改写请求状态。
 
-- fixed allowlist fields only
-- aggregated status/count/last-seen only
-- no raw event/log/trace/LLM body
-- no dashboard mirror
-- no per-sink high-cardinality explorer
+`/healthz` 只检查进程。`/readyz` 检查 Access 配置、PostgreSQL 读取和审计写入，不检查
+OpenObserve 或被观测服务。
 
-该能力必须以独立 backlog / contract 进入，不能复用当前 broad audit、quality、cost 或
-safety 历史口径。
+## 部署边界
 
-## Runtime Health
+源码仓库拥有 `apps/ops-web`、镜像发布和 `infra/k8s/ops-web/base`。该 base 不选择
+namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角色或保留期任务。
 
-`Runtime Health` 的固定路径是：
+环境 GitOps 仓库拥有这些环境事实，并以完整源码提交 SHA 引用 base、以镜像 digest 选择
+`ops-web` 镜像。应用、OpenObserve、OTel、PostgreSQL 和 Secret 全部渲染成功仍不是上线证明；
+实际可访问性和数据写入需要环境验证。
 
-```text
-operator browser
--> operator-console-web explicit proxy
--> app-api /api/operator/runtime/health
--> execution-control /readyz projection
-```
+## 禁止形态
 
-规则：
+- 不让浏览器直连 PostgreSQL、OpenObserve、Temporal、Langfuse 或 Hindsight。
+- 不让 Ops Web 服务端查询 Temporal、Langfuse 或 Hindsight 数据库。
+- 不让浏览器传入任意 SQL、数据流、`traceId`、时间范围或记录上限。
+- 不在 `app-api` 中保存 OpenObserve、Sentry、Axiom 或 Langfuse 查询结果。
+- 不恢复供应商正文同步任务或外部观测数据镜像表。
+- 不把 Ops Web 做成通用管理后台、工作流控制台或外部平台复制品。
+- 不为 Ops Web 单独拆分一个只有它消费的后端服务。
 
-- Operator Console 不直接访问 `apps/execution-control`、Temporal service、Prometheus、
-  Sentry、Axiom、Langfuse 或 PG。
-- `app-api` 可以把 execution-control `/readyz` 的 structured payload 转成最小
-  operator-safe runtime health summary。
-- 缺配置、网络错误、鉴权错误、非 JSON 或非 readyz projection 错误仍 fail closed。
-- Runtime health summary 只展示 reason-code 级别的 blocker，不展示 raw Temporal history
-  或 worker 内部 payload。
+## 相关文档
 
-## Excluded Broad Observability Shape
-
-以下 broad dashboard labels 不是 target architecture：
-
-- `operator quality dashboard`
-- `operator safety dashboard`
-- `operator cost dashboard`
-- `operator intent dashboard`
-- `standalone audit workspace`
-- `trace backlink projection` 作为默认持久表
-- `quality grade projection` 作为 Operator Console 当前 read model
-- `badcase / eval candidate / release-closeout` 在线面板
-- app-api-owned Sentry/Axiom/Langfuse dashboard cache
-
-如果代码或 schema 中仍存在这些名字，它们只能作为 current-code residue 或后续清理对象，
-不得被新文档引用为目标态。
-
-## Data Minimization
-
-Ops Index 只保存值班必须字段：
-
-- identity
-- status
-- reason code
-- bounded preview
-- latency / duration
-- minimal runtime health
-- safe sink correlation
-
-所有更详细的调试、查询、趋势、LLM 质量分析和人工复核 workflow，默认回到
-Sentry / Axiom / Langfuse 原生平台。
-
-用户使用驱动的持续优化闭环由 `learning-loop.md` 定义。Operator Console 只能展示最小
-Ops Index、stage timing 摘要和外部 sink link；它不承载 annotation queue、dataset
-curation、score analytics 或改进动作 review UI。
-
-Stage timing 摘要只消费 `stage_timing.v1` canonical fields。Operator Console 可以按
-request / stream / memory / agent / tool / RAG / finalization 分组展示这些数字，但不得
-展示 raw span tree、raw Langfuse observation、raw SDK trace body 或 raw Temporal history。
-请求详情可以展示 app-api 从 latency budget artifact 派生的 `stageTimingBudget`
-状态，用于标注“预算内 / 接近预算 / 超出预算”。前端不重新计算预算，也不展示非 canonical
-timing key。
-Overview 可以展示最小运行趋势，例如首字 P95、模型运行 P95、RAG 查询 P95 与超预算计数；
-完整分段字段留在请求详情和外部 sink deep link 中，不在 overview 做高密度 trace viewer。
-
-## Forbidden Shapes
-
-- 不把 Operator Console 做成 Sentry、Axiom 或 Langfuse 的嵌入式 viewer。
-- 不在 app-api 中保存外部 dashboard 内容。
-- 不让 Operator Console route-time 查询 external sink。
-- 不让 execution-control 承担 operator observability query backend。
-- 不把 raw audit log、raw trace、raw event、raw LLM observation 变成 app-api read model。
-- 不把 vendor-specific schema 写进 `packages/contracts`。
-
-## 相关稳定文档
-
-- `docs/contracts/app-api/observability.md`
-- `docs/contracts/stage-timing.md`
-- `docs/reference/observability-ledger.md`
-- `docs/architecture/system/operator-console.md`
-- `docs/architecture/system/langfuse.md`
-- `docs/reference/runtime-otel-telemetry-taxonomy.md`
-- `docs/runbooks/worker-observability-smoke.md`
-- `docs/decisions/adr-0067-ops-index-external-sinks.md`
-
-## 外部参考
-
-- Sentry organization membership and roles:
-  <https://docs.sentry.io/organization/membership/>
-- Axiom role-based access control:
-  <https://axiom.co/docs/reference/settings>
-- Axiom views access:
-  <https://axiom.co/docs/query-data/views>
-- Langfuse RBAC:
-  <https://langfuse.com/docs/administration/rbac>
+- `../../product/ops-web.md`
+- `../../contracts/ops-web.md`
+- `operator-console.md`
+- `k8s-runtime.md`
+- `langfuse.md`
+- `../../decisions/adr-0067-ops-index-external-sinks.md`
+- `../../decisions/adr-0070-source-and-environment-repository-boundary.md`
+- `../../decisions/adr-0072-self-hosted-ops-web.md`

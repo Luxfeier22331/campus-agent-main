@@ -178,6 +178,8 @@ pnpm ci:eval
 
 - `apps/campus-web`: student web shell, account surface and Rspress docs reader.
 - `apps/operator-console-web`: controlled operator browser surface.
+- `apps/ops-web`: self-hosted read-only runtime diagnosis surface; its server
+  owns fixed PostgreSQL/OpenObserve reads and raw-observability audit.
 - `apps/app-api`: Worker-owned shared browser-facing API and product proxy seam.
 - `apps/execution-control`: Go execution admission, Temporal control, memory
   activities, internal query admission, evidence validation, source projection,

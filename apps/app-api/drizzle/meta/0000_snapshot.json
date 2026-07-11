@@ -1,5 +1,5 @@
 {
-  "id": "326d50a7-c470-428c-b452-fe35ec1addb9",
+  "id": "13f56940-d914-49ff-9046-d5fdab53b2c0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -6353,6 +6353,110 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "observability.ops_observability_read_audit": {
+      "name": "ops_observability_read_audit",
+      "schema": "observability",
+      "columns": {
+        "audit_id": {
+          "name": "audit_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_principal_class": {
+          "name": "operator_principal_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_count": {
+          "name": "record_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "truncated": {
+          "name": "truncated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "observability_ops_read_at_idx": {
+          "name": "observability_ops_read_at_idx",
+          "columns": [
+            {
+              "expression": "read_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "observability_ops_read_request_at_idx": {
+          "name": "observability_ops_read_request_at_idx",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "read_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "official_web.page_freshness": {
       "name": "page_freshness",
       "schema": "official_web",
@@ -8284,9 +8388,21 @@
           "primaryKey": false,
           "notNull": false
         },
+        "requested_scope": {
+          "name": "requested_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version_query_json": {
           "name": "version_query_json",
           "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_scope": {
+          "name": "resolved_scope",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -8355,18 +8471,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "requested_scope": {
-          "name": "requested_scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_scope": {
-          "name": "resolved_scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -8986,9 +9090,21 @@
           "primaryKey": false,
           "notNull": false
         },
+        "requested_scope": {
+          "name": "requested_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version_query_json": {
           "name": "version_query_json",
           "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_scope": {
+          "name": "resolved_scope",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -9051,21 +9167,57 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "requested_scope": {
-          "name": "requested_scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_scope": {
-          "name": "resolved_scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
+        "operator_request_projection_started_at_request_id_idx": {
+          "name": "operator_request_projection_started_at_request_id_idx",
+          "columns": [
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operator_request_projection_trace_started_at_request_id_idx": {
+          "name": "operator_request_projection_trace_started_at_request_id_idx",
+          "columns": [
+            {
+              "expression": "trace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "operator_request_projection_status_started_at_idx": {
           "name": "operator_request_projection_status_started_at_idx",
           "columns": [

@@ -18,6 +18,8 @@ apps/source-collector/**/.crawlee/**
 !apps/execution-control/**
 !apps/ingestion-control/
 !apps/ingestion-control/**
+!apps/ops-web/
+!apps/ops-web/**
 !jobs/dining-sync/
 !jobs/dining-sync/**
 !packages/domains/

@@ -24,6 +24,8 @@ shape 与字段语义。
 - `app-api/official-web.md`
 - `app-api/eval-benchmark.md`
 - `document-reader-publish.md`
+- `ops-web.md`
+  - self-hosted Ops Web HTTP responses, access checks and PostgreSQL read boundary
 
 ## Runtime And Diagnostic Contracts
 

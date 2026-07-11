@@ -28,9 +28,9 @@ HTTP contracts, data schemas, operational procedures or active work status.
 - [run-context.md](./run-context.md)
   - run context envelope, RAG follow-up resolution, previous evidence ref
     reuse and context-quality evals
-- [operator-diagnosis.md](./operator-diagnosis.md)
-  - observability orchestration repair across OTel Collector, Sentry, Axiom,
-    Temporal, Langfuse and operator projections
+- [ops-web.md](./ops-web.md)
+  - self-hosted runtime overview, request diagnosis and controlled raw
+    observability access
 
 ## Use Rules
 

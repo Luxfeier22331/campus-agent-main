@@ -52,6 +52,7 @@ owner-boundary 映射。
 - Agents SDK knowledge handoff：
   `adr-0071-primary-agent-knowledge-tool-routing.md`
 - Operator Console long-term surface：`adr-0055-unified-operator-console-surface.md`
+- Self-hosted runtime diagnosis：`adr-0072-self-hosted-ops-web.md`
 - Eval runtime and Ragas / Langfuse：`adr-0061-eval-runtime.md`、
   `adr-0062-ragas-langfuse.md`
 - Ingestion control-plane and kernels：

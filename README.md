@@ -41,7 +41,7 @@ See:
 
 - [`apps/`](./apps/)
   - 长驻 runtime shell 与 transport boundary，例如 `campus-web`、
-    `operator-console-web`、`app-api`、`execution-control`、
+    `operator-console-web`、`ops-web`、`app-api`、`execution-control`、
     `ingestion-control`、`source-collector`
 - [`jobs/`](./jobs/)
   - manual 或定时 deployable runtime，例如 `dining-sync`、

@@ -19,6 +19,7 @@ Kubernetes deployment substrate 与 autoscaling boundary。
 - KEDA / HPA 与 Temporal task queue 指标如何参与 worker replica autoscaling
 - Docker Compose `worker-autoscaler` 在目标态中的位置
 - Operator Console / app-api 应消费什么运行证据
+- 自托管 Ops Web 如何与 execution runtime 分开部署
 
 它不负责：
 
@@ -214,6 +215,13 @@ They do not own StatefulSets, platform databases, Qdrant server lifecycle,
 Temporal server lifecycle, Hindsight API lifecycle, OTel collector lifecycle or
 Traefik controller lifecycle.
 
+Ops Web is also not part of the execution-runtime base. Its reusable workload
+contract lives at `infra/k8s/ops-web/base` and contains only the Service,
+Deployment and ServiceAccount. The base is namespace-neutral and references
+stable ConfigMap, Secret and PostgreSQL CA names without creating environment
+instances. The environment repository owns the concrete config, ingress,
+NetworkPolicy, image digest, registry credentials and audit-retention CronJob.
+
 Concrete Applications and overlays live in the deployment environment
 repository under ADR-0070. A supported environment composes the first-party
 execution base with separately owned PostgreSQL, Qdrant, Temporal, Hindsight,
@@ -296,6 +304,11 @@ Platform Secrets such as
 `hindsight-api-secrets`, `otel-collector-secrets` and CNPG owner Secrets are
 owned by the environment GitOps secret-delivery path. Registry pull Secret
 selection is also environment-owned and is not part of the reusable base.
+
+Ops Web follows the same split. Its base consumes `ops-web-config`,
+`ops-web-database-secrets`, `ops-web-access-secrets`,
+`openobserve-reader-secrets` and `campus-agent-postgres-ca`. The environment
+must not start the workload with root or placeholder OpenObserve credentials.
 
 ### GitOps And Helm Boundary
 

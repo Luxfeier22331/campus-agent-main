@@ -62,8 +62,8 @@ not create Namespaces.
 On a successful `main` image build,
 `.github/workflows/execution-runtime-publish.yml`:
 
-1. publishes `execution-control` and `agent-runtime` with only the source commit
-   SHA as a tag;
+1. publishes `execution-control`, `agent-runtime` and `ops-web` with only the
+   source commit SHA as a tag;
 2. resolves each multi-architecture manifest digest;
 3. authenticates as a dedicated GitHub App limited to the environment
    repository;
@@ -93,6 +93,12 @@ For Sealed Secrets:
 Cloudflare Worker secrets remain in the Cloudflare secret store and are not
 mirrored into Kubernetes.
 
+Ops Web uses the stable Secret names documented by its base. The environment
+change must remain a draft until dedicated OpenObserve write, read and
+maintenance credentials exist and are sealed for their exact target names and
+namespace. Do not use the OpenObserve root account or commit placeholder
+credentials to make an overlay render.
+
 ## Schema Ownership
 
 The environment execution overlay owns an Argo CD `PreSync` Job for run
@@ -104,6 +110,12 @@ does not succeed.
 Long-running execution-control processes keep
 `EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=false`. They do not become schema
 owners.
+
+Before enabling Ops Web, the environment operator must apply and verify the
+`ops_web` and `ops_audit_maintenance` grants through
+`apps/app-api/ops/db/ops-web-database.ts`. The Ops Web runtime account has
+column-scoped reads and audit insert only; the maintenance account can execute
+only the fixed 180-day pruning function.
 
 ## Verification
 
@@ -128,6 +140,8 @@ After merge, cluster evidence must include:
 - successful schema PreSync output with `passed=true`, `schema_ready=true` and
   `store=postgres`;
 - first-party Deployments using the reviewed image digests;
+- if Ops Web is selected, authenticated `/readyz`, page shell and one
+  `/api/ops/overview` response through the configured Access envelope;
 - authenticated execution-control readiness and the relevant product smoke.
 
 Committed manifests or successful source CI alone are not deployment evidence.

@@ -73,6 +73,8 @@ infra/local/.generated/
 tmp/
 docs-*.png
 rspress-*.png
+apps/ops-web/playwright-report/
+apps/ops-web/test-results/
 
 # Local secret-delivery inputs and key backups.
 secret.local.yaml

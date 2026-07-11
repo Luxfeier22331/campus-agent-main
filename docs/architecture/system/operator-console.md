@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/operator-console-web
 status: active
 created: 2026-06-08
-updated: 2026-06-22
+updated: 2026-07-11
 ---
 # Operator Console Operations Architecture
 
@@ -27,11 +27,13 @@ operations domain 重新进入 Operator Console 的准入条件。
 - dining HTTP contract，见 `docs/contracts/app-api/dining-ops.md`
 - Operator Console observability query，见
   `ops-observability.md`
+- 自托管只读运行排查与 Worker Console 的分工，见
+  `../../decisions/adr-0072-self-hosted-ops-web.md`
 - account / OAuth browser experience，见 identity browser architecture 文档
 
 ## Core Conclusion
 
-Operator Console 是唯一长期受控 operator product concept。当前最小实现只承载两个上线面：
+Operator Console 是业务操作和配置的受控 operator product concept。当前最小实现只承载：
 
 - 请求与运行值班台
 - 模型服务配置
@@ -58,6 +60,9 @@ operator browser
 - `campus-web` 的隐藏编辑模式
 - generic internal-tools builder
 - dining / official-web / eval 的占位入口集合
+
+`apps/ops-web` 是 ADR-0072 接受的独立自托管只读运行排查面。它不进入当前 Worker
+Console 的导航或代理路由，也不承接本文定义的业务操作和配置能力。
 
 ## Runtime Boundary
 

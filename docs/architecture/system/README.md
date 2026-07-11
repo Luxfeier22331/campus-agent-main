@@ -44,7 +44,7 @@ tool-local readiness.
   - `agentic-retrieval.md`
 - Data-plane owner boundaries:
   - `data-plane.md`
-- Operator/eval/badcase/release diagnostic projection:
+- Worker operator summaries and self-hosted runtime diagnosis:
   - `ops-observability.md`
 - Runtime stage timing contract:
   - `../../contracts/stage-timing.md`

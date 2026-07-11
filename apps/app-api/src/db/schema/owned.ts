@@ -77,6 +77,7 @@ export {
 	workerAutoscalerDecisionCurrent,
 	workerAutoscalerPosture,
 } from "./operator-runtime";
+export { opsObservabilityReadAudit } from "./ops-observability";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 export { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
@@ -166,6 +167,7 @@ import {
 	workerAutoscalerDecisionCurrent,
 	workerAutoscalerPosture,
 } from "./operator-runtime";
+import { opsObservabilityReadAudit } from "./ops-observability";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 import { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
@@ -226,6 +228,7 @@ export const appApiOwnedSchema = {
 	profileMemorySettings,
 	profileMemoryItems,
 	llmDebugTraceConfig,
+	opsObservabilityReadAudit,
 	providerConfigConnections,
 	providerConfigProfiles,
 	replayPacketAccessAudit,

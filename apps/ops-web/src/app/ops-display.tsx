@@ -1,0 +1,385 @@
+import { Check, CircleAlert, Clipboard, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
+import { useState } from "react";
+import { formatTimestamp } from "./format";
+import { OpsApiError } from "./ops-api-client";
+import { formatStatusLabel } from "./ops-view-helpers";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent } from "./ui/card";
+import { cn } from "./ui/cn";
+
+export function PageHeader({
+	actions,
+	description,
+	title,
+}: {
+	actions?: ReactNode;
+	description: string;
+	title: string;
+}) {
+	return (
+		<div className="mb-6 flex flex-col gap-3 border-slate-200 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+			<div className="space-y-1">
+				<h1 className="font-semibold text-2xl text-slate-950">{title}</h1>
+				<p className="max-w-3xl text-slate-600 text-sm">{description}</p>
+			</div>
+			{actions}
+		</div>
+	);
+}
+
+export function PageShell({ children, title }: { children: ReactNode; title: string }) {
+	return (
+		<section>
+			<PageHeader description="查看当前运行信息。" title={title} />
+			<Card>
+				<CardContent aria-live="polite" className="p-6 text-slate-600 text-sm" role="status">
+					{children}
+				</CardContent>
+			</Card>
+		</section>
+	);
+}
+
+export function ErrorState({
+	error,
+	onRetry,
+	title,
+}: {
+	error: unknown;
+	onRetry?: () => void;
+	title: string;
+}) {
+	const detail = describeError(error);
+	return (
+		<div
+			className="grid gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-red-900"
+			role="alert"
+		>
+			<div className="grid gap-1">
+				<p className="font-semibold">{title}</p>
+				<p className="text-sm">{detail.message}</p>
+			</div>
+			<TechnicalErrorDetails detail={detail} />
+			{onRetry ? (
+				<div>
+					<Button onClick={onRetry} variant="outline">
+						<RefreshCw className="size-4" />
+						重试
+					</Button>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+export function InlineError({ error, title }: { error: unknown; title: string }) {
+	const detail = describeError(error);
+	return (
+		<div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900" role="alert">
+			<p className="font-medium">{title}</p>
+			<p className="mt-1 text-xs">{detail.message}</p>
+			<TechnicalErrorDetails className="mt-2" detail={detail} />
+		</div>
+	);
+}
+
+export function StaleDataWarning({
+	error,
+	lastSuccessfulAt,
+	onRetry,
+	title,
+}: {
+	error: unknown;
+	lastSuccessfulAt: number;
+	onRetry: () => void;
+	title: string;
+}) {
+	const detail = describeError(error);
+	return (
+		<div
+			className="mb-4 flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+			role="alert"
+		>
+			<div className="grid gap-1 text-sm">
+				<p className="font-medium">{title}</p>
+				<p className="text-amber-800 text-xs">
+					仍显示最后一次成功数据（{formatTimestamp(new Date(lastSuccessfulAt).toISOString())}）。
+					数据可能已经过期。{detail.message}
+				</p>
+				<TechnicalErrorDetails detail={detail} />
+			</div>
+			<Button onClick={onRetry} variant="outline">
+				<RefreshCw className="size-4" />
+				重试刷新
+			</Button>
+		</div>
+	);
+}
+
+function TechnicalErrorDetails({
+	className,
+	detail,
+}: {
+	className?: string;
+	detail: ReturnType<typeof describeError>;
+}) {
+	return (
+		<details className={cn("text-xs", className)}>
+			<summary className="w-fit cursor-pointer font-medium text-current">技术信息</summary>
+			<div className="mt-2 flex flex-wrap gap-2">
+				<Badge tone="danger">{detail.status}</Badge>
+				<Badge tone="muted">{detail.code}</Badge>
+				{detail.reasonCode ? <Badge tone="warning">{detail.reasonCode}</Badge> : null}
+			</div>
+			{detail.details ? (
+				<pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-current/20 bg-white p-2 font-mono text-current text-xs">
+					{detail.details}
+				</pre>
+			) : null}
+		</details>
+	);
+}
+
+export function KeyValue({ label, value }: { label: string; value: ReactNode }) {
+	return (
+		<div className="grid min-w-0 gap-1 border-slate-100 border-b py-2 last:border-b-0">
+			<span className="font-medium text-slate-500 text-xs">{label}</span>
+			<span className="min-w-0 break-words text-slate-950">{value}</span>
+		</div>
+	);
+}
+
+export function CopyableKeyValue({
+	contextLabel,
+	label,
+	value,
+}: {
+	contextLabel?: string;
+	label: string;
+	value: string | null;
+}) {
+	return (
+		<div className="grid min-w-0 gap-1 px-1 py-2">
+			<span className="font-medium text-slate-500 text-xs">{label}</span>
+			<CopyableValue contextLabel={contextLabel} label={label} value={value} />
+		</div>
+	);
+}
+
+export function CopyableValue({
+	compact = false,
+	contextLabel,
+	label,
+	value,
+}: {
+	compact?: boolean;
+	contextLabel?: string;
+	label: string;
+	value: string | null;
+}) {
+	const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | "idle">("idle");
+	const displayValue = value ?? "未关联";
+	const canCopy = Boolean(value);
+	const statusText =
+		copyStatus === "copied" ? "已复制" : copyStatus === "failed" ? "复制失败" : null;
+
+	return (
+		<div className={compact ? "grid min-w-0 gap-1" : "grid min-w-0 gap-2"}>
+			{compact ? <span className="font-medium text-slate-500 text-xs">{label}</span> : null}
+			<div className="flex min-w-0 items-center justify-between gap-2">
+				<span
+					className={cn(
+						"min-w-0 truncate font-mono text-xs",
+						compact ? "text-slate-600" : "text-slate-950",
+					)}
+					title={value ?? undefined}
+				>
+					{displayValue}
+				</span>
+				<Button
+					aria-label={copyButtonLabel(label, contextLabel)}
+					className={cn(
+						"size-11 shrink-0 p-0",
+						copyStatus === "failed" && "text-red-700",
+						copyStatus === "copied" && "text-emerald-700",
+					)}
+					data-copy-status={copyStatus}
+					disabled={!canCopy}
+					onClick={async () => {
+						if (!value) {
+							return;
+						}
+						try {
+							await navigator.clipboard.writeText(value);
+							setCopyStatus("copied");
+						} catch {
+							setCopyStatus("failed");
+						}
+						window.setTimeout(() => setCopyStatus("idle"), 1600);
+					}}
+					title={statusText ?? copyButtonLabel(label, contextLabel)}
+					variant="ghost"
+				>
+					<CopyStatusIcon status={copyStatus} />
+				</Button>
+			</div>
+			<span aria-live="polite" className="sr-only">
+				{statusText ?? ""}
+			</span>
+		</div>
+	);
+}
+
+export function CopyIconButton({
+	contextLabel,
+	label,
+	value,
+}: {
+	contextLabel?: string;
+	label: string;
+	value: string;
+}) {
+	const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | "idle">("idle");
+	const statusText =
+		copyStatus === "copied" ? "已复制" : copyStatus === "failed" ? "复制失败" : null;
+	return (
+		<div className="shrink-0">
+			<Button
+				aria-label={copyButtonLabel(label, contextLabel)}
+				className={cn(
+					"size-11 p-0",
+					copyStatus === "failed" && "text-red-700",
+					copyStatus === "copied" && "text-emerald-700",
+				)}
+				data-copy-status={copyStatus}
+				onClick={async () => {
+					try {
+						await navigator.clipboard.writeText(value);
+						setCopyStatus("copied");
+					} catch {
+						setCopyStatus("failed");
+					}
+					window.setTimeout(() => setCopyStatus("idle"), 1600);
+				}}
+				title={statusText ?? copyButtonLabel(label, contextLabel)}
+				variant="ghost"
+			>
+				<CopyStatusIcon status={copyStatus} />
+			</Button>
+			<span aria-live="polite" className="sr-only">
+				{statusText ?? ""}
+			</span>
+		</div>
+	);
+}
+
+function copyButtonLabel(label: string, contextLabel: string | undefined) {
+	return contextLabel ? `复制 ${contextLabel} 的 ${label}` : `复制 ${label}`;
+}
+
+function CopyStatusIcon({ status }: { status: "copied" | "failed" | "idle" }) {
+	if (status === "copied") {
+		return <Check className="size-4" />;
+	}
+	if (status === "failed") {
+		return <CircleAlert className="size-4" />;
+	}
+	return <Clipboard className="size-4" />;
+}
+
+export function MetricTile({
+	className,
+	label,
+	value,
+	valueClassName,
+}: {
+	className?: string;
+	label: string;
+	value: ReactNode;
+	valueClassName?: string;
+}) {
+	return (
+		<div
+			className={cn(
+				"grid min-w-0 content-center gap-1 rounded-md border border-slate-100 bg-white px-3 py-2.5",
+				className,
+			)}
+		>
+			<span className="font-medium text-slate-500 text-xs">{label}</span>
+			<span
+				className={cn(
+					"min-w-0 break-words font-semibold text-slate-950 tabular-nums",
+					valueClassName,
+				)}
+			>
+				{value}
+			</span>
+		</div>
+	);
+}
+
+export function StatusBadge({ status }: { status: string }) {
+	const tone =
+		status === "COMPLETED" || status === "HEALTHY" || status === "READY"
+			? "success"
+			: status === "FAILED" || status === "BLOCKED" || status === "OUTAGE"
+				? "danger"
+				: status === "CANCELLED"
+					? "muted"
+					: "warning";
+	return (
+		<Badge tone={tone}>
+			<span title={formatStatusLabel(status) === status ? undefined : status}>
+				{formatStatusLabel(status)}
+			</span>
+		</Badge>
+	);
+}
+
+export function formatIssueSeverity(severity: "CRITICAL" | "INFO" | "WARNING") {
+	return { CRITICAL: "严重", INFO: "提示", WARNING: "警告" }[severity];
+}
+
+export function BudgetBadge({ state }: { state: string }) {
+	const tone = state === "BREACH" ? "danger" : state === "WARN" ? "warning" : "success";
+	return <Badge tone={tone}>{formatStatusLabel(state)}</Badge>;
+}
+
+function describeError(error: unknown) {
+	if (error instanceof OpsApiError) {
+		const details = formatErrorDetails(error.details);
+		return {
+			code: error.code,
+			details,
+			message: error.message,
+			reasonCode: error.reasonCode,
+			status: `HTTP ${error.status}`,
+		};
+	}
+	if (error instanceof Error) {
+		return {
+			code: "CLIENT_ERROR",
+			details: null,
+			message: error.message,
+			reasonCode: undefined,
+			status: "client",
+		};
+	}
+	return {
+		code: "UNKNOWN_ERROR",
+		details: null,
+		message: "未知错误。",
+		reasonCode: undefined,
+		status: "unknown",
+	};
+}
+
+function formatErrorDetails(details: Record<string, unknown>): string | null {
+	const entries = Object.entries(details).filter((entry) => entry[1] !== undefined);
+	if (entries.length === 0) {
+		return null;
+	}
+	return JSON.stringify(Object.fromEntries(entries), null, 2);
+}

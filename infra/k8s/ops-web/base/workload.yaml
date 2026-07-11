@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-web
+  labels:
+    app.kubernetes.io/name: ops-web
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  ports:
+    - name: http
+      port: 5178
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: ops-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-web
+  labels:
+    app.kubernetes.io/name: ops-web
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ops-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ops-web
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: ops-web
+      automountServiceAccountToken: false
+      containers:
+        - name: ops-web
+          image: ghcr.io/muc-wiki/campus-agent/ops-web:replace-me
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 5178
+          envFrom:
+            - configMapRef:
+                name: ops-web-config
+          env:
+            - name: PORT
+              value: "5178"
+            - name: OPS_WEB_PROTECTION_ENVELOPE
+              value: cloudflare-access
+            - name: OPS_WEB_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-database-secrets
+                  key: OPS_WEB_DATABASE_URL
+            - name: ACCESS_TEAM_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: ACCESS_TEAM_DOMAIN
+            - name: ACCESS_POLICY_AUD
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: ACCESS_POLICY_AUD
+            - name: OPS_WEB_PRINCIPAL_HASH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_PRINCIPAL_HASH_SECRET
+            - name: OPS_WEB_ACCESS_HUMAN_OPERATOR_EMAIL_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_ACCESS_HUMAN_OPERATOR_EMAIL_ALLOWLIST
+                  optional: true
+            - name: OPS_WEB_ACCESS_HUMAN_OPERATOR_GROUP_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_ACCESS_HUMAN_OPERATOR_GROUP_ALLOWLIST
+                  optional: true
+            - name: OPS_WEB_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST
+                  optional: true
+            - name: OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST
+                  optional: true
+            - name: OPS_WEB_RAW_HUMAN_OPERATOR_GROUP_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_RAW_HUMAN_OPERATOR_GROUP_ALLOWLIST
+                  optional: true
+            - name: OPS_WEB_RAW_SERVICE_TOKEN_OPERATOR_ALLOWLIST
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_RAW_SERVICE_TOKEN_OPERATOR_ALLOWLIST
+                  optional: true
+            - name: OPENOBSERVE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: openobserve-reader-secrets
+                  key: OPENOBSERVE_READER_USERNAME
+            - name: OPENOBSERVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openobserve-reader-secrets
+                  key: OPENOBSERVE_READER_TOKEN
+          volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-ca
+            items:
+              - key: ca.crt
+                path: ca.crt

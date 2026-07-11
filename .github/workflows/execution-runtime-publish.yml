@@ -14,6 +14,7 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/ops-web/**
       - configs/runtime/**
       - configs/ingestion/**
       - infra/k8s/data-postgres/base/**
@@ -21,6 +22,7 @@ on:
       - infra/k8s/execution-runtime/base/**
       - infra/k8s/memory-hindsight/base/**
       - infra/k8s/observability-otel-collector/base/**
+      - infra/k8s/ops-web/base/**
       - infra/k8s/platform-temporal/base/**
       - packages/contracts/**
       - pnpm-lock.yaml
@@ -48,6 +50,9 @@ jobs:
           - image: agent-runtime
             dockerfile: apps/agent-runtime/Dockerfile
             sbom: agent-runtime-sbom.spdx.json
+          - image: ops-web
+            dockerfile: apps/ops-web/Dockerfile
+            sbom: ops-web-sbom.spdx.json
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -99,6 +104,9 @@ jobs:
           - image: agent-runtime
             dockerfile: apps/agent-runtime/Dockerfile
             sbom: agent-runtime-sbom.spdx.json
+          - image: ops-web
+            dockerfile: apps/ops-web/Dockerfile
+            sbom: ops-web-sbom.spdx.json
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -205,10 +213,17 @@ jobs:
               "${IMAGE_ROOT,,}/agent-runtime:${SOURCE_SHA}" \
               --format '{{json .Manifest}}' | jq -r '.digest'
           )"
+          ops_web_digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE_ROOT,,}/ops-web:${SOURCE_SHA}" \
+              --format '{{json .Manifest}}' | jq -r '.digest'
+          )"
           [[ "${execution_control_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "${agent_runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${ops_web_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "execution_control=${execution_control_digest}" >> "${GITHUB_OUTPUT}"
           echo "agent_runtime=${agent_runtime_digest}" >> "${GITHUB_OUTPUT}"
+          echo "ops_web=${ops_web_digest}" >> "${GITHUB_OUTPUT}"
 
       - name: Update immutable GitOps inputs
         id: source
@@ -218,6 +233,8 @@ jobs:
           AGENT_RUNTIME_IMAGE: ghcr.io/muc-wiki/campus-agent/agent-runtime
           EXECUTION_CONTROL_DIGEST: ${{ steps.digests.outputs.execution_control }}
           EXECUTION_CONTROL_IMAGE: ghcr.io/muc-wiki/campus-agent/execution-control
+          OPS_WEB_DIGEST: ${{ steps.digests.outputs.ops_web }}
+          OPS_WEB_IMAGE: ghcr.io/muc-wiki/campus-agent/ops-web
           SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
         with:
@@ -245,6 +262,13 @@ jobs:
             ).digest = strenv(AGENT_RUNTIME_DIGEST)' \
               "${runtime_kustomization}"
 
+            ops_web_kustomization="${overlay_root}/ops-web/kustomization.yaml"
+            yq -i '(
+              .images[] |
+              select(.name == strenv(OPS_WEB_IMAGE))
+            ).digest = strenv(OPS_WEB_DIGEST)' \
+              "${ops_web_kustomization}"
+
             runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
             short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
             SHORT_SHA="${short_sha}" yq -i '
@@ -260,7 +284,7 @@ jobs:
               ] | length' "${kustomization}")"
               source_ref_count="$((source_ref_count + count))"
             done
-            test "${source_ref_count}" -eq 6
+            test "${source_ref_count}" -eq 7
             test "$(yq '[
               .images[] |
               select(
@@ -268,6 +292,13 @@ jobs:
                 .digest == strenv(EXECUTION_CONTROL_DIGEST)
               )
             ] | length' "${runtime_kustomization}")" -eq 1
+            test "$(yq '[
+              .images[] |
+              select(
+                .name == strenv(OPS_WEB_IMAGE) and
+                .digest == strenv(OPS_WEB_DIGEST)
+              )
+            ] | length' "${ops_web_kustomization}")" -eq 1
             test "$(yq '[
               .images[] |
               select(
@@ -314,7 +345,7 @@ jobs:
             ## 变更内容
 
             - 使用 `campus-agent@${{ github.sha }}` 的 Kubernetes 基座
-            - 固定 `execution-control` 和 `agent-runtime` 的多架构镜像 digest
+            - 固定 `execution-control`、`agent-runtime` 和 `ops-web` 的多架构镜像 digest
             - 同步运行时发布标识
 
             ## 验证结果
