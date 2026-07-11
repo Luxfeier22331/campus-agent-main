@@ -14,36 +14,24 @@ RemoteContentSuspicionLabel = Literal[
     "tool_or_browser_action_request",
     "hidden_or_embedded_text_marker",
 ]
-DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 ToolID = Literal[
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
+    "knowledge_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
-    "campus_notice_get",
 ]
 ToolName = Literal[
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
+    "knowledge_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
-    "campus_notice_get",
 ]
 ModelVisibleToolName = Literal[
     "knowledge_query",
-    "public_web_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
 ]
 RequestedTool = Literal[
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
 ]
 ExecutionStatus = Literal[
     "completed",
@@ -52,17 +40,14 @@ ExecutionStatus = Literal[
     "error",
     "rejected",
     "approval_required",
+    "cancelled",
 ]
 MemorySourceType = Literal[
     "verified_record", "user_declared", "conversation_summary", "system_inferred"
 ]
 MemoryVisibility = Literal["user_visible", "internal_only"]
-PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
-CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
-VersionQueryMode = Literal[
-    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
-]
+VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -155,36 +140,24 @@ ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS = (
 )
 DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
-ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 ALLOWED_TOOL_IDS = (
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
+    "knowledge_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
-    "campus_notice_get",
 )
 ALLOWED_TOOL_NAMES = (
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
+    "knowledge_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
-    "campus_notice_get",
 )
 ALLOWED_MODEL_VISIBLE_TOOL_NAMES = (
     "knowledge_query",
-    "public_web_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
 )
 ALLOWED_REQUESTED_TOOLS = (
     "knowledge_query",
-    "place_lookup",
-    "public_web_search",
     "transport_schedule_lookup",
-    "campus_notice_discover",
 )
 ALLOWED_EXECUTION_STATUSES = (
     "completed",
@@ -193,6 +166,7 @@ ALLOWED_EXECUTION_STATUSES = (
     "error",
     "rejected",
     "approval_required",
+    "cancelled",
 )
 ALLOWED_MEMORY_SOURCE_TYPES = (
     "verified_record",
@@ -201,7 +175,6 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
     "system_inferred",
 )
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
-ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = (
     "current",
     "latest",
@@ -209,14 +182,7 @@ ALLOWED_TEMPORAL_QUERY_MODES = (
     "as_of",
     "current_year",
 )
-ALLOWED_VERSION_QUERY_MODES = (
-    "current",
-    "historical",
-    "as_of",
-    "compare",
-    "freshness_sensitive",
-    "live_assisted",
-)
+ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",

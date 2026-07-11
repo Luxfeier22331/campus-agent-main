@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # Execution Control Staging Smoke Runbook
 
@@ -37,7 +37,6 @@ updated: 2026-07-10
   - `activity-worker-core`
   - `agent-runtime`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
   - Temporal
 - `worker-autoscaler`、`temporal-task-queue-sampler`、`temporal-ui` 与
   self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops validation、
@@ -61,7 +60,7 @@ updated: 2026-07-10
 
 - `campus-staging -> app-api-staging -> current execution-control upstream` 真实可用
 - browser 真实请求不再卡在 transport failure
-- typed execution outcome 可以成功回到 chat surface
+- finalized answer 与 sources 可以成功回到 chat surface
 
 它不表示：
 
@@ -204,33 +203,11 @@ pnpm smoke:app-api -- chat-memory-staging
 `recall.status=completed` 且 `recall.selectedMemoryCount > 0`。它不以自然语言
 回答是否提到记忆作为验收依据。
 
-不再保留直连 execution-control internal endpoint 的 staging smoke。Hindsight /
-public web search 等能力验证必须通过 app-api chat stream、operator read model 或
-execution-control K8s readiness 间接证明；需要内部 endpoint 诊断时在目标集群内部
-临时执行，不进入 app-api package script 或 release closeout。
-
-公开官网搜索 agent eval 必须走 app-api chat stream，而不是直连 tool endpoint：
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts run-public-web-search-agent-eval \
-  --app-api-base-url https://campus-staging.mucwiki-edge.link \
-  --provider perplexity_compatible \
-  --provider-profile-id provider_profile_public_web_search \
-  --provider-model sonar-compatible \
-  --staging-smoke-auth-secret "$APP_API_STAGING_SMOKE_AUTH_SECRET"
-```
-
-provider bakeoff 每次只评估一个已配置的 `public_web_search` active profile；
-`--provider` 只能是 `perplexity`、`perplexity_compatible`、`openai`、`gemini`
-或 `linux_do`。Linux.do 搜索 profile 必须是
-`transport=openai_chat_completions_web_search`，不要复用 prompt
-`chat_completions` profile。输出必须记录 provider、transport、model、profile
-id、latency、provider error count 与 source-policy scores。没有已接受单价时，
-成本字段保持 `cost_projection_status=unavailable`，不得写成 0。
-
-默认是 dry-run，只输出确定性 score artifact。需要写入 Langfuse 时显式加
-`--publish-scores`，并确保 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、
-`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_ENVIRONMENT` 已配置。
+不保留直连 execution-control internal endpoint 的 staging acceptance smoke。
+Knowledge handoff 必须通过 app-api chat stream 验证，并在 sanitized trajectory 中
+确认单个 Agent Activity、`knowledge_query` handoff、internal `knowledge_search`
+结果和 finalized sources。需要内部 endpoint 诊断时按环境仓 runbook 在受控集群
+网络内临时执行，不进入 app-api package script 或 release closeout。
 
 ## Step 5. 记录链路 closeout artifact
 
@@ -239,8 +216,6 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 - 环境仓 revision、Argo CD sync/health 与 first-party rollout 摘要
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm smoke:app-api -- chat-staging` 的 JSON 摘要
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts run-public-web-search-agent-eval ...`
-  的 JSON 摘要（仅当本轮改动触及 public web search agent/tool routing/source projection）
 - 当前 app-api Worker 配置包含 `EXECUTION_CONTROL_PRIVATE` VPC Service binding 与
   `EXECUTION_CONTROL_PRIVATE_ORIGIN`
 

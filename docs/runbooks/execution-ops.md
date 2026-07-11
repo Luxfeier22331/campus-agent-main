@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 
 # Execution Control Staging Operations

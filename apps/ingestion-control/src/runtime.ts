@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
+import { loadIngestionTaskRegistryCatalogFromRoot } from "ingest-core/node";
 import { Pool } from "pg";
-
+import type { IngestionControlServiceTokens } from "./http";
 import { createIngestionControlHandler } from "./http";
 import {
 	createOfficialWebControlPlaneService,
@@ -23,7 +24,6 @@ import {
 	createPostgresIngestionTaskStore,
 	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
-import { loadIngestionTaskRegistryCatalogFromRoot } from "./task-registry";
 import {
 	type ClosableIngestionWorkflowStarter,
 	createTemporalIngestionWorkflowStarter,
@@ -36,8 +36,8 @@ export interface IngestionControlRuntimeConfig {
 	databaseUrl: string;
 	registryRoot: string;
 	host: string;
-	officialWebCollectorToken: string | null;
 	port: number;
+	serviceTokens: Required<IngestionControlServiceTokens>;
 	sourceBucket: string;
 	temporal: IngestionTemporalConfig;
 }
@@ -60,8 +60,16 @@ export function buildIngestionControlRuntimeConfig(
 		databaseUrl,
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
-		officialWebCollectorToken: env.INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN?.trim() || null,
 		port: readPort(env.INGESTION_CONTROL_PORT),
+		serviceTokens: {
+			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
+			appApiProjectionToken: env.INGESTION_CONTROL_APP_API_PROJECTION_TOKEN?.trim() || null,
+			officialWebCollectorToken: env.INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN?.trim() || null,
+			officialWebExecutionStatusToken:
+				env.INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN?.trim() || null,
+			officialWebProjectionToken:
+				env.INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN?.trim() || null,
+		},
 		sourceBucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
 		temporal: buildIngestionTemporalConfig(env),
 	};
@@ -73,11 +81,11 @@ export async function startIngestionControlServer(
 ): Promise<{ close(): Promise<void> }> {
 	const runtime = input.runtime ?? (await createIngestionControlRuntime(config));
 	const handler = createIngestionControlHandler({
-		officialWebCollectorToken: config.officialWebCollectorToken,
 		officialWebControlPlaneService: runtime.officialWebControlPlaneService,
 		officialWebExecutionStatusService: runtime.officialWebExecutionStatusService,
 		officialWebProjectionProjector: runtime.officialWebProjectionProjector,
 		registryCatalog: runtime.registryCatalog,
+		serviceTokens: config.serviceTokens,
 		store: runtime.store,
 		workflowStarter: runtime.workflowStarter,
 	});

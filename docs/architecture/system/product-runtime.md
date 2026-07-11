@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-07-05
+updated: 2026-07-10
 ---
 # Product Runtime Architecture
 
@@ -31,8 +31,9 @@ supporting architecture。
 `browser -> campus-web Q&A -> app-api durable chat lifecycle SSE
 (/api/chat/requests/stream, /api/chat/runs/:runId/events/stream) ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-core / activity-worker-agent /
-activity-worker-knowledge -> sanitized projection`
+workflow-worker / activity-worker-core / activity-worker-agent ->
+Memory Recall -> one SDK Agent Activity -> Finalization -> Memory Append ->
+sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -42,7 +43,7 @@ projection / operator read model / operator-safe operations domains`
 这意味着：
 
 - 当前已落地的 student-facing public surface 与 protected Operator Console 都在 shared
-  `app-api` 前面；docs 已收口为 `campus-web /docs/*` 内部支撑面
+  `app-api` 前面；docs 已归属为 `campus-web /docs/*` 内部支撑面
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
   `APP_API_BASE_URL` / `OPERATOR_CONSOLE_APP_API_BASE_URL` 只是构造内部
@@ -172,7 +173,6 @@ projection / operator read model / operator-safe operations domains`
 - auth / session / principal mapping
 - Identity Platform account / identity / access / preferences / federation
   policy boundary
-- surface tool policy
 - conversation 与 chat ingress
 - durable run creation / status / cancel / stream proxy 的 product-layer
   command / query surface
@@ -192,26 +192,20 @@ projection / operator read model / operator-safe operations domains`
 - `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress
   与 readiness/smoke 入口，不是 browser product contract
 
-## Surface Tool Policy
+## Runtime Tool Exposure
 
-surface tool policy 的长期 owner 固定为 `apps/app-api`。
-
-直接含义：
-
-- `campus-web` Q&A 的 tool set 是 current surface posture
-- `campus-web /docs/*` 是非执行 reader surface，不自动进入 tool routing
-- separately admitted `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
-- `apps/execution-control` 不拥有 browser-facing tool allowlist truth
+`apps/execution-control` 是 runtime tool exposure 与 admission owner。
 
 固定规则：
 
-- 不把某个 surface 当前开放的 tool 直接写成整个 repo 的长期入口原则
-- surface policy 先于 primary agent tool decision
-- `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
-  execution input
-- `app-api` 不选择 product persona、surface prompt profile 或 agent instructions；
-  first Execution Agent decision 由 primary agent runtime 在 `execution-control`
-  裁剪后的 visible tool set 内完成
+- `app-api` 的 public chat contract 只接受 `conversationId?` 与 `prompt`；trusted
+  internal eval route 可以透传显式 tool hint，但不维护 tool allowlist
+- `execution-control` 从 `tools.v4`、workflow/runtime 状态与 query-serving scope
+  registry 生成本次 run 的 visible tool set
+- primary agent 在该集合内决定 direct answer、clarification 或 tool call
+- `knowledge_query.scope` 由 SDK handoff arguments 或 trusted internal eval hint
+  提供，并由 execution-control 做 published-scope admission
+- `/docs/*` 等非执行 reader route 不创建 execution run，因此不进入 tool routing
 
 ### `apps/execution-control`
 
@@ -221,8 +215,8 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
   is local diagnostics only; production target deploy substrate is a
   Kubernetes internal execution-control Service + KEDA/HPA worker autoscaling.
 - Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
-  metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
-  tool policy
+  metrics、graceful drain、runtime tool exposure 与 tool admission；它不拥有
+  product-level 用户限流或 browser route contracts
 - 长期上，production run admission 与 workflow/activity dispatch 必须落在
   `execution-control` + Temporal execution plane；当前 Go 进程内 admission 只表达
   single-process protection
@@ -260,24 +254,28 @@ surface tool policy 的长期 owner 固定为 `apps/app-api`。
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `ToolExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
     Operator Console / eval 消费的 sanitized projection store
-  - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行
+  - online answer 由四阶段 Temporal workflow 包裹单个 OpenAI Agents SDK run；
+    primary 通过 official handoff 进入 Knowledge Agent，Knowledge Agent 只调用
+    internal `knowledge_search`
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中
 
 长期边界固定为：
 
-- `apps/app-api` 仍拥有 product-layer auth/session/principal、surface tool
-  policy、conversation、request projection 与 operator read model
+- `apps/app-api` 仍拥有 product-layer auth/session/principal、conversation、
+  browser transport、request projection 与 operator read model；runtime tool
+  exposure/admission 由 `apps/execution-control` 拥有
 - `apps/app-api` 拥有 browser-facing run command / query / stream proxy；streaming
-  是 run event subscription，不是 execution ownership
-- Go execution runtime 不能反向拥有 browser-facing tool allowlist、用户级限流、
-  duplicate-click UX、conversation truth 或 operator control plane
+  是 run event subscription，不是 execution ownership；它持久化并返回 finalized
+  answer 与 sources，不改写答案
+- Go execution runtime 不拥有用户级限流、duplicate-click UX、conversation truth
+  或 operator control plane；它拥有 model-visible tool set 与 runtime admission
 - 长期 `execution-control` 拥有 workflow command/query、admission、execution
-  budget projection 与 finalization；Temporal 拥有 workflow history、task queue、
+  budget projection、evidence/source validation 与 finalization projection；Temporal
+  拥有 workflow history、task queue、
   retry、timeout 与 worker dispatch。process-local limiter 只能作为本进程 protection
-- Go runtime 可以继续吸收 deterministic execution runtime kernel，但不能因此把
-  semantic orchestration、explicit agent-as-tool reasoning 或 retrieval planning
-  塞进 `apps/*`
+- Go runtime 可以继续吸收 deterministic execution kernel，但不能因此接管
+  agent/tool loop、handoff、answer synthesis 或语义澄清
 
 ## Operator Projection And Read Model
 
@@ -367,12 +365,10 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/execution-control` live substrate must be proven by environment evidence;
-  committed Docker Compose config is local diagnostics only, and production
-  target substrate is Kubernetes + KEDA，详见
-  `k8s-runtime.md`
-- execution public ingress 固定到 Go `apps/execution-control`，不允许引入第二条
-  serving fallback path
+- deployed `app-api` 通过 Cloudflare private service binding 调用
+  `apps/execution-control`；本地 base URL 只用于 diagnostics。production target
+  substrate 是 Kubernetes + KEDA，详见 `k8s-runtime.md`。
+- 不允许引入第二条 execution serving fallback path。
 
 ## Forbidden Shapes
 

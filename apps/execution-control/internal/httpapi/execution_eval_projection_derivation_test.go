@@ -70,59 +70,47 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 				"previous_evidence_count":             float64(1),
 				"previous_evidence_source_hash_count": float64(1),
 			},
-			"selected_tools": []any{"knowledge_query"},
+			"selected_tools": []any{"knowledge_query", "knowledge_search"},
+			"tool_results": []any{
+				map[string]any{
+					"arguments_json_sha256":    "sha256:args",
+					"arguments_schema_sha256":  "sha256:schema",
+					"arguments_schema_version": "knowledge_search.args.v1",
+					"payload_kind":             "knowledge_search",
+					"result": map[string]any{
+						"outcome":        "found",
+						"resolved_scope": "student_rules",
+					},
+					"result_ref": "projection://runs/run-temporal-derived-eval/knowledge/search/search-1",
+					"status":     "completed",
+					"tool_name":  "knowledge_search",
+				},
+			},
 		},
 	}); err != nil {
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "rag.plan:result:1",
-		StepID:               "rag.plan",
+		ResultID:             "knowledge.search.search-1:result:1",
+		StepID:               "knowledge.search.search-1",
 		RunID:                run.RunID,
-		AttemptID:            "rag.plan:attempt:1",
+		AttemptID:            "knowledge.search.search-1:attempt:1",
 		Status:               "completed",
-		ResultKind:           "rag_plan",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/rag/plan",
+		ResultKind:           "knowledge_search_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/knowledge/search/search-1",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"collection_alias": "student_rules",
-			"query_mode":       "current",
-			"steps": []any{
-				map[string]any{"stage": "indexed_lookup"},
-				map[string]any{"stage": "supporting_evidence_selection"},
+			"evidence_refs":  []any{"evidence://student-rules/scholarship"},
+			"invocation_id":  "search-1",
+			"outcome":        "found",
+			"resolved_scope": "student_rules",
+			"resolved_version": map[string]any{
+				"mode": "current",
 			},
 		},
 	}); err != nil {
-		t.Fatalf("upsert rag plan result: %v", err)
-	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "retrieval.indexed_lookup:result:1",
-		StepID:               "retrieval.indexed_lookup",
-		RunID:                run.RunID,
-		AttemptID:            "retrieval.indexed_lookup:attempt:1",
-		Status:               "completed",
-		ResultKind:           "retrieval_result",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/retrieval/indexed-lookup",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     map[string]any{},
-	}); err != nil {
-		t.Fatalf("upsert indexed lookup result: %v", err)
-	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "evidence.selection:result:1",
-		StepID:               "evidence.selection",
-		RunID:                run.RunID,
-		AttemptID:            "evidence.selection:attempt:1",
-		Status:               "completed",
-		ResultKind:           "evidence_selection",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/evidence/selection",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     map[string]any{},
-	}); err != nil {
-		t.Fatalf("upsert evidence selection result: %v", err)
+		t.Fatalf("upsert knowledge search result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
@@ -138,12 +126,13 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 			"finalized_response": map[string]any{
 				"answer_text": "学习成绩、综合测评和奖励标准都需要满足。",
 				"result": map[string]any{
-					"evidence": map[string]any{
-						"sources": []any{
-							map[string]any{
-								"source_title": "本科生国家奖学金评审办法",
-								"source_body":  "must not leak",
-							},
+					"sources": []any{
+						map[string]any{
+							"canonical_url": "https://example.edu/rules/scholarship",
+							"source_body":   "must not leak",
+							"source_kind":   "regulation",
+							"source_title":  "本科生国家奖学金评审办法",
+							"target_kind":   "public_web_url",
 						},
 					},
 				},
@@ -173,8 +162,15 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("rag.source_titles = %#v", rag["source_titles"])
 	}
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
-	if steps, _ := planning["planned_steps"].([]any); len(steps) != 2 ||
-		steps[0] != "indexed_lookup" || steps[1] != "supporting_evidence_selection" {
+	if planning["freshness_branch"] != "current" {
+		t.Fatalf("planning.freshness_branch = %#v", planning["freshness_branch"])
+	}
+	if decomposition, _ := planning["decomposition"].([]any); len(decomposition) != 2 ||
+		decomposition[0] != "student_rules" || decomposition[1] != "current" {
+		t.Fatalf("planning.decomposition = %#v", planning["decomposition"])
+	}
+	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
+		steps[0] != "agent.primary" || steps[1] != "knowledge.search" || steps[2] != "finalization.write" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
@@ -233,52 +229,26 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 		t.Fatalf("complete run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "rag.plan:result:1",
-		StepID:               "rag.plan",
+		ResultID:             "knowledge.search.search-as-of:result:1",
+		StepID:               "knowledge.search.search-as-of",
 		RunID:                run.RunID,
-		AttemptID:            "rag.plan:attempt:1",
+		AttemptID:            "knowledge.search.search-as-of:attempt:1",
 		Status:               "completed",
-		ResultKind:           "rag_plan",
-		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/rag/plan",
+		ResultKind:           "knowledge_search_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/knowledge/search/search-as-of",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"collection_alias": "student_rules",
-			"query_mode":       "as_of",
-			"version_query": map[string]any{
-				"as_of": "2024-09",
+			"outcome":        "found",
+			"resolved_scope": "student_rules",
+			"resolved_version": map[string]any{
+				"as_of":      "2024-09-01",
+				"mode":       "as_of",
+				"version_id": "student-rules-2024-09",
 			},
 		},
 	}); err != nil {
-		t.Fatalf("upsert rag plan result: %v", err)
-	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "retrieval.indexed_lookup:result:1",
-		StepID:               "retrieval.indexed_lookup",
-		RunID:                run.RunID,
-		AttemptID:            "retrieval.indexed_lookup:attempt:1",
-		Status:               "completed",
-		ResultKind:           "retrieval_result",
-		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/retrieval/indexed-lookup",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     map[string]any{},
-	}); err != nil {
-		t.Fatalf("upsert indexed lookup result: %v", err)
-	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "evidence.selection:result:1",
-		StepID:               "evidence.selection",
-		RunID:                run.RunID,
-		AttemptID:            "evidence.selection:attempt:1",
-		Status:               "completed",
-		ResultKind:           "evidence_selection",
-		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/evidence/selection",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     map[string]any{},
-	}); err != nil {
-		t.Fatalf("upsert evidence selection result: %v", err)
+		t.Fatalf("upsert knowledge search result: %v", err)
 	}
 
 	response := httptest.NewRecorder()
@@ -301,7 +271,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 		t.Fatalf("planning.freshness_branch = %#v", planning["freshness_branch"])
 	}
 	decomposition, _ := planning["decomposition"].([]any)
-	if len(decomposition) != 2 || decomposition[0] != "student_rules" || decomposition[1] != "as_of:2024-09" {
+	if len(decomposition) != 2 || decomposition[0] != "student_rules" || decomposition[1] != "as_of:2024-09-01" {
 		t.Fatalf("planning.decomposition = %#v", planning["decomposition"])
 	}
 	for _, token := range decomposition {
@@ -310,7 +280,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 		}
 	}
 	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 2 || steps[0] != "indexed_lookup" || steps[1] != "supporting_evidence_selection" {
+	if len(steps) != 1 || steps[0] != "knowledge.search" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 }

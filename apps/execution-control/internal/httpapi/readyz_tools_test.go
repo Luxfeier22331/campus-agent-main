@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
@@ -30,10 +30,9 @@ func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) 
 	}
 }
 
-func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"transport_schedule_lookup"}
-	})
+func TestReadyzDegradesWhenModelVisibleCampusServicesRuntimeIsUnavailable(t *testing.T) {
+	server := newReadyServerForTest(t)
+	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -48,14 +47,12 @@ func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T
 	}
 }
 
-func TestReadyzDegradesWhenOpenedCampusServicesTransportProjectionIsUnavailable(t *testing.T) {
+func TestReadyzDegradesWhenModelVisibleCampusServicesTransportProjectionIsUnavailable(t *testing.T) {
 	emptyTransportFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[]
 	}`
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"transport_schedule_lookup"}
-	})
+	server := newReadyServerForTest(t)
 	useToolReadModelRuntimeFixtures(
 		t,
 		server,
@@ -76,7 +73,7 @@ func TestReadyzDegradesWhenOpenedCampusServicesTransportProjectionIsUnavailable(
 	}
 }
 
-func TestReadyzDoesNotRequireClosedCampusServicesServiceStatusToolToBeModelVisible(t *testing.T) {
+func TestReadyzDoesNotRequireUnregisteredCampusServicesServiceStatusToolToBeModelVisible(t *testing.T) {
 	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"service_status_records":[
@@ -102,9 +99,7 @@ func TestReadyzDoesNotRequireClosedCampusServicesServiceStatusToolToBeModelVisib
 			}
 		]
 	}`
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"transport_schedule_lookup"}
-	})
+	server := newReadyServerForTest(t)
 	useToolReadModelRuntimeFixture(t, server, projectionFixture, "2026-04-24T10:30:00+08:00")
 	response := httptest.NewRecorder()
 
@@ -120,67 +115,8 @@ func TestReadyzDoesNotRequireClosedCampusServicesServiceStatusToolToBeModelVisib
 	}
 }
 
-func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"campus_notice_discover"}
-	})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["notice_read_model_configured"] != false {
-		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
-	}
-}
-
-func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"campus_notice_discover"}
-		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
-		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
-	})
-	defer func() {
-		_ = server.Shutdown(context.Background())
-	}()
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["notice_read_model_configured"] != true {
-		t.Fatalf("notice runtime should be configured: %#v", toolReadModelRuntime)
-	}
-	if toolReadModelRuntime["notice_read_model_healthy"] != false {
-		t.Fatalf("notice runtime health should fail closed: %#v", toolReadModelRuntime)
-	}
-	lastError, _ := toolReadModelRuntime["notice_runtime_last_error"].(string)
-	if lastError == "" {
-		t.Fatalf("notice_runtime_last_error = %q, want stable reason", lastError)
-	}
-	for _, secret := range []string{"secret-pass", "127.0.0.1:1"} {
-		if strings.Contains(lastError, secret) {
-			t.Fatalf("notice_runtime_last_error leaked %q: %s", secret, lastError)
-		}
-	}
-}
-
-func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
-		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
-	})
-	defer func() {
-		_ = server.Shutdown(context.Background())
-	}()
+func TestReadyzDoesNotPublishRetiredToolGates(t *testing.T) {
+	server := newReadyServerForTest(t, func(*config.Config) {})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -189,9 +125,10 @@ func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.
 		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["notice_read_model_healthy"] != false {
-		t.Fatalf("notice health should still be reported: %#v", toolReadModelRuntime)
+	toolGates := expectRecord(t, body["tool_gates"], "tool_gates")
+	knowledgeGate := expectRecord(t, toolGates["knowledge_query"], "tool_gates.knowledge_query")
+	if knowledgeGate["open"] != true || knowledgeGate["gate"] != "openai_agents_handoff" {
+		t.Fatalf("knowledge gate = %#v, want OpenAI Agents handoff", knowledgeGate)
 	}
 }
 
@@ -218,7 +155,8 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 		nil,
 	)
 	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+	markKnowledgeRuntimeReadyForTest(server)
+	useReadyTransportReadModelRuntimeFixture(t, server)
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

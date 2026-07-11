@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-23
-updated: 2026-06-28
+updated: 2026-07-08
 ---
 
 # Conversation Attachment Upload PRD
@@ -89,7 +89,7 @@ campus-web composer
 -> app-api attachment metadata
 -> /api/chat/requests/stream text + attachment_refs
 -> execution-control bounded attachment projection
--> agent.primary / typed tool / provider-facing activity
+-> one OpenAI Agents SDK Agent Activity
 -> finalization.write
 ```
 
@@ -237,7 +237,7 @@ execution-control 应把附件作为本轮 run context 的一个 typed slice，�
 
 - 后端未开启附件能力时，问答页不展示附件入口。
 - 请求携带附件但后端未开启附件能力时，服务端返回明确错误，不静默忽略。
-- 附件能力开启后，前端、app-api 和 execution-control 必须按同一能力开关收口。
+- 附件能力开启后，前端、app-api 和 execution-control 必须使用同一能力开关。
 
 ### 8.2 图片闭环
 

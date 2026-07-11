@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-03-29
-updated: 2026-06-10
+updated: 2026-07-08
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -30,7 +30,7 @@ updated: 2026-06-10
 - `app-api` 内部边界：`docs/architecture/system/product-runtime.md`
 - Operator Console operator access：
   `docs/architecture/system/product-runtime.md`
-- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
+- 当前 planning signal：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
 
 ## 当前 smoke 形态
 
@@ -166,9 +166,10 @@ profile 语义：
   public smoke surface
 - `local-provider`：复用 `dev` 的 online answer 产品路径编排，但强制启用
   Temporal execution-control runtime，并要求 app-api provider-config 已激活真实
-  `primary_agent` / `rag_synthesis` profile。它用于验证
-  `campus-web -> app-api -> execution-control -> Temporal memory + RAG
-  graph -> Go activity workers -> Go finalizer`，不是 deployed staging smoke，
+  `primary_agent` profile。它用于验证
+  `campus-web -> app-api -> execution-control -> Temporal Memory Recall -> one
+  SDK Agent Activity -> Finalization -> Memory Append`，包括 official Knowledge
+  Agent handoff 与 internal `knowledge_search`，不是 deployed staging smoke，
   也不是 notice discover 专用 smoke
 
 本地激活真实模型 profile：

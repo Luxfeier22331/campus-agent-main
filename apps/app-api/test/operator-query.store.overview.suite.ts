@@ -13,13 +13,11 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 		const observabilityRows = [
 			{
 				durationMs: 100,
-				estimatedCostMicrousd: 10,
 				requestId: "req_health_01",
-				retrievalAttempted: false,
 				stageTimingJson: {
 					"agent.runtime_ms": 13_000,
 					"memory.recall_ms": 2_200,
-					"rag.lookup_ms": 2_000,
+					"knowledge.search_ms": 8_000,
 					"stream.browser_ttft_ms": 5_500,
 				},
 				startedAt: new Date("2026-03-28T08:50:00.000Z"),
@@ -28,12 +26,10 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			},
 			{
 				durationMs: 200,
-				estimatedCostMicrousd: 20,
 				requestId: "req_health_02",
-				retrievalAttempted: false,
 				stageTimingJson: {
 					"agent.runtime_ms": 600,
-					"rag.lookup_ms": 100,
+					"knowledge.search_ms": 100,
 					"stream.browser_ttft_ms": 800,
 				},
 				startedAt: new Date("2026-03-28T08:55:00.000Z"),
@@ -111,9 +107,9 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				sampleCount: 1,
 				warnCount: 1,
 			},
-			"rag.lookup_ms": {
-				criticalCount: 0,
-				p95Ms: 2_000,
+			"knowledge.search_ms": {
+				criticalCount: 1,
+				p95Ms: 8_000,
 				sampleCount: 2,
 				warnCount: 1,
 			},
@@ -125,7 +121,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			},
 		});
 		expect(result.overview.latencyBudget).toMatchObject({
-			criticalFieldCount: 3,
+			criticalFieldCount: 4,
 			version: "latency-budget-v1",
 			warnFieldCount: 4,
 			worstField: "agent.runtime_ms",

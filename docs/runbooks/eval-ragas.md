@@ -39,7 +39,6 @@ The following command names and surfaces are not active automation:
 - `closeout-staging`
 - app-api online-answer-path collector aliases
 - app-api Langfuse eval backlink ingest/query routes
-- Go `cmd/intent-eval-runner`
 
 ## Execution Surface
 

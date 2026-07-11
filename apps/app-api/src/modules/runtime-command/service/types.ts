@@ -15,10 +15,15 @@ export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 export interface ChatCommandPayload {
 	conversationId?: unknown;
 	prompt?: unknown;
+}
+
+export interface InternalEvalChatCommandPayload extends ChatCommandPayload {
 	requestedTool?: unknown;
-	requestedScope?: unknown;
+	scope?: unknown;
 	versionQuery?: unknown;
 }
+
+export type ChatCommandRequestKind = "public_chat" | "internal_eval";
 
 export type ChatCommandResult =
 	| {
@@ -79,9 +84,9 @@ export interface ChatCommandStreamEvent {
 
 export interface ChatCommandSubmitInput {
 	idempotencyKey?: string | null;
-	payload: ChatCommandPayload;
+	payload: ChatCommandPayload | InternalEvalChatCommandPayload;
 	principal: ResolvedAppPrincipal;
-	surface?: string;
+	requestKind?: ChatCommandRequestKind;
 	traceHeaders?: TracePropagationHeaders;
 	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 }

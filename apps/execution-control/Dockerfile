@@ -15,9 +15,7 @@ COPY apps/execution-control/go.mod apps/execution-control/go.sum ./
 RUN go mod download
 
 COPY apps/execution-control ./
-COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
-COPY configs/runtime/provider-pricing.v1.json /src/configs/runtime/provider-pricing.v1.json
-COPY configs/runtime/query-serving-scopes.v2.json /src/configs/runtime/query-serving-scopes.v2.json
+COPY configs/runtime/query-serving-scopes.v3.json /src/configs/runtime/query-serving-scopes.v3.json
 COPY configs/runtime/tool-function-schemas.v1.json /src/configs/runtime/tool-function-schemas.v1.json
 COPY configs/runtime/tools.v4.json /src/configs/runtime/tools.v4.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
@@ -30,7 +28,6 @@ RUN go test ./... \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-core ./cmd/activity-worker-core \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge ./cmd/activity-worker-knowledge \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/keda-hpa-posture-collector ./cmd/keda-hpa-posture-collector \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/temporal-task-queue-sampler ./cmd/temporal-task-queue-sampler \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema \
@@ -47,14 +44,11 @@ COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-core /usr/local/bin/activity-worker-core
 COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent
-COPY --from=build /out/activity-worker-knowledge /usr/local/bin/activity-worker-knowledge
 COPY --from=build /out/keda-hpa-posture-collector /usr/local/bin/keda-hpa-posture-collector
 COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-queue-sampler
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
-COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
-COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json
-COPY configs/runtime/query-serving-scopes.v2.json /etc/campus-agent/query-serving-scopes.v2.json
+COPY configs/runtime/query-serving-scopes.v3.json /etc/campus-agent/query-serving-scopes.v3.json
 COPY configs/runtime/tool-function-schemas.v1.json /etc/campus-agent/tool-function-schemas.v1.json
 COPY configs/runtime/execution-control/runtime-config.local.json /etc/campus-agent/runtime-config.local.json
 COPY configs/runtime/execution-control/runtime-config.local-provider.json /etc/campus-agent/runtime-config.local-provider.json

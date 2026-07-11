@@ -16,7 +16,13 @@ source channel.
 - `configs/sources/official_web/<site_id>/credentials.schema.json`: runtime
   secret shape only
 - `configs/sources/official_web/<site_id>/projection-declarations.json`:
-  downstream projection declarations
+  page-family action hints used only after explicit target admission
+- `configs/sources/official_web/<site_id>/target-source-map.json`:
+  target-first admission map
+- `configs/sources/official_web/<site_id>/consumer-denominator.json`:
+  retained source-truth denominator for downstream consumers
+- `configs/sources/official_web/<site_id>/target-inventory.json`:
+  operator-facing target inventory
 
 Host policy groups are source-layer segmentation only. They distinguish
 university-level, college-level, topic, and excluded hosts inside the same
@@ -28,4 +34,5 @@ Multiple lanes may share the same `run_intent` when their `lane_id` values are
 different. Use `host_filter` and host-level `rollout_order` to keep university
 pages first, then roll out college/topic hosts one at a time.
 
-These files are source-channel truth. They are not collection serving configs.
+These files are source-channel truth. They are not collection serving configs,
+and they do not prove document/chunk/index/release or serving alias publish.

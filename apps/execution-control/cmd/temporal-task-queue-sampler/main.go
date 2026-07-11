@@ -54,7 +54,6 @@ func run(args []string) error {
 			{Name: opts.workflowTaskQueue, Kind: temporalmetrics.TaskQueueKindWorkflow},
 			{Name: temporalruntime.ActivityTaskQueueCore, Kind: temporalmetrics.TaskQueueKindActivity},
 			{Name: temporalruntime.ActivityTaskQueueAgent, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueKnowledge, Kind: temporalmetrics.TaskQueueKindActivity},
 		},
 	}
 	payload, err := sampler.Sample(ctx)

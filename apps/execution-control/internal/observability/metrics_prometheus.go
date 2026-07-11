@@ -226,25 +226,6 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.personalMemoryChars[operation],
 		)
 	}
-	builder.WriteString("# HELP campus_execution_control_runtime_policy_decisions_total Total Go runtime policy decisions by bounded decision labels.\n")
-	builder.WriteString("# TYPE campus_execution_control_runtime_policy_decisions_total counter\n")
-	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {
-		fmt.Fprintf(
-			&builder,
-			"campus_execution_control_runtime_policy_decisions_total{target=%q,task_queue=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
-			key.Target,
-			key.TaskQueue,
-			key.ScopeGate,
-			key.PolicyGate,
-			key.ContextPreflightState,
-			key.RoutingNextAction,
-			key.PlanningOutcome,
-			key.SelectedTool,
-			key.TerminalOutcome,
-			key.FailCloseReason,
-			m.runtimeDecisionTotals[key],
-		)
-	}
 	builder.WriteString("# HELP campus_execution_control_lifecycle_active_executions Current registered executions.\n")
 	builder.WriteString("# TYPE campus_execution_control_lifecycle_active_executions gauge\n")
 	fmt.Fprintf(&builder, "campus_execution_control_lifecycle_active_executions %d\n", snapshot.Lifecycle.ActiveExecutions)

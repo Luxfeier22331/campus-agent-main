@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-12
-updated: 2026-04-18
+updated: 2026-07-08
 ---
 # Authenticated Notice File-Release Auth-Window Runbook
 
@@ -17,7 +17,7 @@ updated: 2026-04-18
 
 它不替代：
 
-- `docs/contracts/authenticated-notice-file-release-export.md` 的导出契约
+- `docs/contracts/file-release-export.md` 的导出契约
 - `docs/runbooks/ingestion-control-clean-target.md` 的 ingestion task
   admission / closeout 路径
 - historical replay / preparation 旧证据；旧正文已退出 branch tip，需要追溯时通过

@@ -213,7 +213,8 @@ Top-level response shape:
 - external sink link entries generated from safe templates or allowlisted
   dashboard metadata
 - compact reason-code diagnostics
-- compact retrieval plan summary without query text or raw filter payload
+- compact `knowledge_search` scope/version and evidence summary without query
+  text or raw filter payload
 - `stageTiming`: `stage_timing.v1` allowlisted numeric duration map; see
   `docs/contracts/stage-timing.md`
 - `stageTimingBudget`: per canonical timing field budget projection derived

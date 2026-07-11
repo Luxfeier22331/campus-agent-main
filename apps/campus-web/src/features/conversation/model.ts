@@ -17,24 +17,10 @@ export interface SourceItemPayload {
 	versionLabel: string;
 }
 
-export interface PlaceCardPayload {
-	accessNote?: string;
-	campusArea?: string;
-	displayName: string;
-	locationDescription: string;
-	placeId: string;
-	serviceTags?: string[];
+export interface ChatStructuredPart {
+	sourceItems: SourceItemPayload[];
+	type: "source_items";
 }
-
-export type ChatStructuredPart =
-	| {
-			sourceItems: SourceItemPayload[];
-			type: "source_items";
-	  }
-	| {
-			placeCard: PlaceCardPayload;
-			type: "place_card";
-	  };
 
 export interface ChatMessage {
 	conversationId: string;

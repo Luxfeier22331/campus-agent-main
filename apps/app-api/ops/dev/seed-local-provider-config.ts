@@ -1,15 +1,9 @@
 import process from "node:process";
 
-type PromptRole =
-	| "eval_judge_llm"
-	| "eval_ragas_llm"
-	| "hindsight_llm"
-	| "primary_agent"
-	| "rag_synthesis";
+type PromptRole = "eval_judge_llm" | "eval_ragas_llm" | "hindsight_llm" | "primary_agent";
 type EmbeddingRole = "eval_ragas_embedding" | "hindsight_embedding" | "rag_query_embedding";
 type RerankRole = "rag_reranker";
-type SearchRole = "public_web_search";
-type SeedStage = "all" | "embedding" | "prompt" | "rerank" | "search";
+type SeedStage = "all" | "embedding" | "prompt" | "rerank";
 
 interface Args {
 	apiKey: string;
@@ -39,14 +33,6 @@ interface Args {
 		timeoutMs: number;
 		transport: string;
 	} | null;
-	search: {
-		apiKey: string;
-		baseUrl: string;
-		model: string;
-		provider: string;
-		timeoutMs: number;
-		transport: string;
-	} | null;
 	stage: SeedStage;
 	timeoutMs: number;
 	transports: Record<PromptRole, string>;
@@ -54,7 +40,6 @@ interface Args {
 
 const PROMPT_ROLES: PromptRole[] = [
 	"primary_agent",
-	"rag_synthesis",
 	"hindsight_llm",
 	"eval_ragas_llm",
 	"eval_judge_llm",
@@ -141,22 +126,6 @@ async function main() {
 			transport: args.rerank.transport,
 		});
 	}
-	if (args.search && shouldRunStage(args.stage, "search")) {
-		await createAndActivateProfile(args, {
-			connection: await createConnection(args, {
-				apiKey: args.search.apiKey,
-				baseUrl: args.search.baseUrl,
-				features: ["search"],
-				featureConfig: {},
-				provider: args.search.provider,
-			}),
-			kind: "search",
-			model: args.search.model,
-			role: "public_web_search",
-			timeoutMs: args.search.timeoutMs,
-			transport: args.search.transport,
-		});
-	}
 }
 
 function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
@@ -178,10 +147,8 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 	const stage = parseStage(readCli(values, "stage") || "all");
 	const sharedModel = readCli(values, "model") || readEnv(env, "LLM_MODEL");
 	const primaryAgentModel = readCli(values, "primary-agent-model") || sharedModel;
-	const ragSynthesisModel =
-		readCli(values, "rag-synthesis-model") || readEnv(env, "RAG_SYNTHESIS_MODEL") || sharedModel;
-	if (shouldRunStage(stage, "prompt") && !(primaryAgentModel && ragSynthesisModel)) {
-		throw new Error("--model/LLM_MODEL and --rag-synthesis-model/RAG_SYNTHESIS_MODEL are required");
+	if (shouldRunStage(stage, "prompt") && !primaryAgentModel) {
+		throw new Error("--model/LLM_MODEL is required");
 	}
 	const defaultPromptTransport = readCli(values, "transport") || "responses";
 
@@ -224,12 +191,10 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 			eval_ragas_llm: primaryAgentModel,
 			hindsight_llm: primaryAgentModel,
 			primary_agent: primaryAgentModel,
-			rag_synthesis: ragSynthesisModel,
 		},
 		operatorEmail,
 		provider: readCli(values, "provider") || "openai",
 		rerank: parseRerankArgs(values, env, stage),
-		search: parseSearchArgs(values, env, stage),
 		stage,
 		timeoutMs: parsePositiveInteger(readCli(values, "timeout-ms") || "30000", "--timeout-ms"),
 		transports: {
@@ -237,7 +202,6 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 			eval_ragas_llm: defaultPromptTransport,
 			hindsight_llm: defaultPromptTransport,
 			primary_agent: defaultPromptTransport,
-			rag_synthesis: defaultPromptTransport,
 		},
 	};
 }
@@ -314,72 +278,6 @@ function parseRerankArgs(
 	};
 }
 
-function parseSearchArgs(
-	values: Map<string, string>,
-	env: NodeJS.ProcessEnv,
-	stage: SeedStage,
-): Args["search"] {
-	const model =
-		readCli(values, "public-web-search-model") || readEnv(env, "PUBLIC_WEB_SEARCH_MODEL");
-	const apiKey =
-		readCli(values, "public-web-search-api-key") || readEnv(env, "PUBLIC_WEB_SEARCH_API_KEY");
-	const provider =
-		readCli(values, "public-web-search-provider") ||
-		readEnv(env, "PUBLIC_WEB_SEARCH_PROVIDER") ||
-		"perplexity";
-	if (!shouldRunStage(stage, "search")) {
-		return null;
-	}
-	if (!(model && apiKey)) {
-		throw new Error(
-			"--public-web-search-model/PUBLIC_WEB_SEARCH_MODEL and --public-web-search-api-key/PUBLIC_WEB_SEARCH_API_KEY are required when seeding search",
-		);
-	}
-	return {
-		apiKey,
-		baseUrl:
-			readCli(values, "public-web-search-base-url") ||
-			readEnv(env, "PUBLIC_WEB_SEARCH_BASE_URL") ||
-			defaultPublicWebSearchBaseURL(provider),
-		model,
-		provider,
-		timeoutMs: parsePositiveInteger(
-			readCli(values, "public-web-search-timeout-ms") || "30000",
-			"--public-web-search-timeout-ms",
-		),
-		transport:
-			readCli(values, "public-web-search-transport") ||
-			readEnv(env, "PUBLIC_WEB_SEARCH_TRANSPORT") ||
-			defaultPublicWebSearchTransport(provider),
-	};
-}
-
-function defaultPublicWebSearchBaseURL(provider: string): string {
-	if (provider === "gemini") {
-		return "https://generativelanguage.googleapis.com/v1beta";
-	}
-	if (provider === "linux_do") {
-		return "https://hub.linux.do/v1";
-	}
-	if (provider === "openai") {
-		return "https://api.openai.com/v1";
-	}
-	return "https://api.perplexity.ai";
-}
-
-function defaultPublicWebSearchTransport(provider: string): string {
-	if (provider === "gemini") {
-		return "gemini_google_search";
-	}
-	if (provider === "openai") {
-		return "openai_responses_web_search";
-	}
-	if (provider === "linux_do") {
-		return "openai_chat_completions_web_search";
-	}
-	return "perplexity_search";
-}
-
 async function createConnection(
 	args: Args,
 	body: {
@@ -402,9 +300,9 @@ async function createAndActivateProfile(
 	input: {
 		connection: { connection: { connectionId: string } };
 		dimensions?: number;
-		kind: "embedding" | "rerank" | "search";
+		kind: "embedding" | "rerank";
 		model: string;
-		role: EmbeddingRole | RerankRole | SearchRole;
+		role: EmbeddingRole | RerankRole;
 		timeoutMs: number;
 		transport: string;
 	},
@@ -486,16 +384,10 @@ function firstCsvValue(value: string): string {
 }
 
 function parseStage(value: string): SeedStage {
-	if (
-		value === "all" ||
-		value === "prompt" ||
-		value === "embedding" ||
-		value === "rerank" ||
-		value === "search"
-	) {
+	if (value === "all" || value === "prompt" || value === "embedding" || value === "rerank") {
 		return value;
 	}
-	throw new Error("--stage must be one of all, prompt, embedding, rerank, search");
+	throw new Error("--stage must be one of all, prompt, embedding, rerank");
 }
 
 function shouldRunStage(configured: SeedStage, candidate: Exclude<SeedStage, "all">): boolean {

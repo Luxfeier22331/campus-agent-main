@@ -52,10 +52,9 @@ describe("chat command service memory gate projection", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我之后主要关注保研材料",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(profileMemoryStore.loadSummary).toHaveBeenCalledWith({
@@ -103,10 +102,9 @@ describe("chat command service memory gate projection", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我之后主要关注保研材料",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(telemetry.captureException).toHaveBeenCalledWith(

@@ -3,143 +3,6 @@
 	"tools": [
 		{
 			"type": "function",
-			"name": "knowledge_query",
-			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, official-web facts, or institutional account/network/auth/portal policy facts are needed.",
-			"strict": true,
-			"parameters": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-					"query_text": {
-						"type": "string",
-						"description": "Original knowledge question to answer with governed retrieval, including campus network, unified authentication, portal, and account/password policy questions."
-					},
-					"intent": {
-						"type": ["string", "null"],
-						"description": "Knowledge workflow intent.",
-						"enum": ["answer_question", "compare_rules", "clarify_scope", null]
-					},
-					"requested_scope": {
-						"type": ["object", "null"],
-						"additionalProperties": false,
-						"properties": {
-							"corpus": {
-								"type": "string",
-								"description": "Knowledge corpus such as regulations, curriculum, or official_web."
-							},
-							"collection": {
-								"type": "string",
-								"description": "Knowledge collection within the corpus."
-							}
-						},
-						"required": ["corpus", "collection"],
-						"description": "Optional explicit knowledge retrieval scope when the user intent clearly identifies it."
-					},
-					"query_mode": {
-						"type": ["string", "null"],
-						"description": "Knowledge retrieval query mode.",
-						"enum": [
-							"current",
-							"historical",
-							"as_of",
-							"compare",
-							"freshness_sensitive",
-							"live_assisted",
-							null
-						]
-					},
-					"version_query": {
-						"type": ["object", "null"],
-						"additionalProperties": false,
-						"properties": {
-							"mode": {
-								"type": ["string", "null"],
-								"description": "Version query mode.",
-								"enum": [
-									"current",
-									"historical",
-									"as_of",
-									"compare",
-									"freshness_sensitive",
-									"live_assisted",
-									null
-								]
-							},
-							"as_of": {
-								"type": ["string", "null"],
-								"description": "ISO timestamp/date for as_of lookup."
-							},
-							"version_id": {
-								"type": ["string", "null"],
-								"description": "Version id for historical or compare lookup."
-							},
-							"compare_to_version_id": {
-								"type": ["string", "null"],
-								"description": "Second version id for compare lookup."
-							}
-						},
-						"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
-						"description": "Optional version or freshness query constraints."
-					},
-					"freshness_intent": {
-						"type": ["string", "null"],
-						"description": "Explicit freshness intent; required for fresh_news/latest style lookups.",
-						"enum": ["latest", "recent", "fresh", null]
-					},
-					"constraints": {
-						"type": ["object", "null"],
-						"additionalProperties": false,
-						"properties": {
-							"max_age_hours": {
-								"type": ["integer", "null"],
-								"description": "Optional freshness age bound.",
-								"minimum": 1
-							},
-							"official_sources_only": {
-								"type": ["boolean", "null"],
-								"description": "Whether evidence must remain inside governed official sources."
-							}
-						},
-						"required": ["max_age_hours", "official_sources_only"],
-						"description": "Optional structured retrieval constraints."
-					}
-				},
-				"required": [
-					"query_text",
-					"intent",
-					"requested_scope",
-					"query_mode",
-					"version_query",
-					"freshness_intent",
-					"constraints"
-				]
-			}
-		},
-		{
-			"type": "function",
-			"name": "public_web_search",
-			"description": "Search current public MUC official-web pages for evidence when governed RAG is missing or likely stale.",
-			"strict": true,
-			"parameters": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-					"query_text": {
-						"type": "string",
-						"description": "Original public official-web question to search for evidence."
-					},
-					"max_results": {
-						"type": ["integer", "null"],
-						"description": "Optional positive maximum source count. Runtime caps this at 5.",
-						"minimum": 1,
-						"maximum": 5
-					}
-				},
-				"required": ["query_text", "max_results"]
-			}
-		},
-		{
-			"type": "function",
 			"name": "transport_schedule_lookup",
 			"description": "Lookup campus shuttle schedule snapshots, departures, and service windows.",
 			"strict": true,
@@ -283,8 +146,8 @@
 		},
 		{
 			"type": "function",
-			"name": "campus_notice_discover",
-			"description": "Discover governed campus notices by topic, family, and target surface.",
+			"name": "knowledge_query",
+			"description": "Handoff a campus knowledge question to governed RAG. Choose one scope from the runtime-provided allowed scope list. If the scope is unclear, ask the user to clarify instead of calling this tool.",
 			"strict": true,
 			"parameters": {
 				"type": "object",
@@ -292,77 +155,56 @@
 				"properties": {
 					"query_text": {
 						"type": "string",
-						"description": "Original notice discovery question."
+						"description": "The complete campus knowledge question to answer with governed RAG evidence."
 					},
-					"temporal_query": {
+					"scope": {
+						"type": "string",
+						"description": "A model-facing knowledge scope id from the runtime-provided allowed scope list."
+					},
+					"version_query": {
 						"type": ["object", "null"],
 						"additionalProperties": false,
 						"properties": {
 							"mode": {
-								"type": ["string", "null"],
-								"description": "Temporal query mode.",
-								"enum": ["current", "latest", "effective", "as_of", "current_year", null]
+								"type": "string",
+								"description": "Version mode for this query.",
+								"enum": ["current", "historical", "as_of", "compare"]
 							},
 							"as_of": {
 								"type": ["string", "null"],
-								"description": "Required only when mode is as_of."
+								"description": "As-of date or timestamp when mode is as_of."
 							},
-							"year_hint": {
+							"version_id": {
 								"type": ["string", "null"],
-								"description": "Required only when mode is current_year."
+								"description": "Target version id for historical/as_of/compare queries when known."
+							},
+							"compare_to_version_id": {
+								"type": ["string", "null"],
+								"description": "Second version id for compare queries."
 							}
 						},
-						"required": ["mode", "as_of", "year_hint"],
-						"description": "Optional temporal constraint for notice discovery."
-					},
-					"source_families": {
-						"type": ["array", "null"],
-						"description": "Allowed notice source families.",
-						"items": {
-							"type": "string",
-							"description": "Allowed notice source families.",
-							"enum": [
-								"official_web_public_notice",
-								"internal_notice_restricted",
-								"wechat_public_notice"
-							]
-						}
-					},
-					"target_surfaces": {
-						"type": ["array", "null"],
-						"description": "Allowed notice target surfaces.",
-						"items": {
-							"type": "string",
-							"description": "Allowed notice target surfaces.",
-							"enum": [
-								"notice_level_query",
-								"procurement_notice_history",
-								"regulations/*",
-								"regulations/student_rules",
-								"regulations/institutional_rules",
-								"regulations/scoped_rules",
-								"campus_services/service_status_candidate",
-								"campus_services/special_service_candidate",
-								"campus_services/stable_contact_candidate",
-								"publication_surface_candidate",
-								"multimodal_processing_candidate",
-								"unsupported"
-							]
-						}
-					},
-					"max_results": {
-						"type": ["integer", "null"],
-						"description": "Positive maximum number of notice cards.",
-						"minimum": 1
+						"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
+						"description": "Version selector. Use null for current data."
 					}
 				},
-				"required": [
-					"query_text",
-					"temporal_query",
-					"source_families",
-					"target_surfaces",
-					"max_results"
-				]
+				"required": ["query_text", "scope", "version_query"]
+			}
+		},
+		{
+			"type": "function",
+			"name": "knowledge_search",
+			"description": "Search the knowledge scope admitted by the knowledge_query handoff.",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query_text": {
+						"type": "string",
+						"description": "A focused retrieval query for the admitted knowledge scope."
+					}
+				},
+				"required": ["query_text"]
 			}
 		}
 	]

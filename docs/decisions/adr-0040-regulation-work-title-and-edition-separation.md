@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0040
 status: accepted
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-07-08
 ---
 # ADR-0040 Regulation Work Title And Edition Separation
 
@@ -208,7 +208,7 @@ Accepted on 2026-04-14.
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+- `docs/reference/institutional-rules-promotion.md`
 - `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
 - `configs/ingestion/regulations/institutional_rules/source-projections.v1.json`
 

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 import {
+	assertIngestionKernelOutputSucceeded,
 	buildIngestionKernelArtifactKey,
 	buildObjectStoreArtifactRef,
 	type CollectionChunkProfile,
@@ -114,6 +115,11 @@ function createRustKernelHandler(input: {
 			expectedSchemaVersion: task.output_contract,
 			kernelId: input.kernelId,
 			stdout: result.stdout,
+		});
+		assertIngestionKernelOutputSucceeded({
+			errorCount: output.errorCount,
+			errors: output.errors,
+			kernelId: input.kernelId,
 		});
 		const artifactKey = buildIngestionKernelArtifactKey({
 			kernelId: input.kernelId,

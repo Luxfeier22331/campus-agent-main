@@ -17,6 +17,7 @@ import (
 func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelope(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 31, 0, 0, time.UTC)
+	longAssistantTurn := strings.Repeat("转专业要求", 60)
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
@@ -35,7 +36,6 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 			"content":    "那大一能不能申请？",
 			"created_at": "2026-06-12T10:31:00Z",
 		},
-		"previous_answer_summary": "上一轮围绕转专业申请条件回答。",
 		"previous_evidence_refs": []any{
 			map[string]any{
 				"access_scope":  "public_student_rule",
@@ -63,6 +63,11 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		},
 		"recent_turns": []any{
 			map[string]any{
+				"message_id": "msg_user_000",
+				"role":       "user",
+				"content":    "最早一轮应被丢弃。",
+			},
+			map[string]any{
 				"message_id": "msg_user_001",
 				"role":       "user",
 				"content":    "转专业条件是什么？",
@@ -70,35 +75,35 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 			map[string]any{
 				"message_id": "msg_assistant_002",
 				"role":       "assistant",
-				"summary":    "上一轮回答的是转专业申请条件。",
+				"content":    "上一轮回答的是转专业申请条件。",
+			},
+			map[string]any{
+				"message_id": "msg_user_003",
+				"role":       "user",
+				"content":    "名额有限制吗？",
+			},
+			map[string]any{
+				"message_id": "msg_assistant_004",
+				"role":       "assistant",
+				"content":    "名额由学院公布。",
+			},
+			map[string]any{
+				"message_id": "msg_user_005",
+				"role":       "user",
+				"content":    "成绩有什么要求？",
+			},
+			map[string]any{
+				"message_id": "msg_assistant_006",
+				"role":       "assistant",
+				"content":    longAssistantTurn,
+			},
+			map[string]any{
+				"message_id": "msg_user_007",
+				"role":       "user",
+				"content":    "还要学院审核吗？",
 			},
 		},
 		"session_state": map[string]any{"confirmed_slots": []any{}, "turn_count": 2},
-		"visibility": map[string]any{
-			"model_visible": []any{
-				"current_user_message",
-				"recent_turns",
-				"previous_answer_summary",
-				"previous_evidence_refs",
-				"previous_tool_results",
-				"session_state",
-			},
-			"runtime_only": []any{
-				"schema_version",
-				"conversation_id",
-				"user_message_id",
-				"parent_message_id",
-				"memory_recall",
-				"source_attribution",
-				"budget",
-				"truncation",
-			},
-		},
-		"memory_recall":      map[string]any{"gate_field": "context.memory.enabled", "owner": "execution-control", "runtime": "hindsight"},
-		"source_attribution": []any{},
-		"context_summary":    nil,
-		"budget":             map[string]any{"token_estimate": 320, "recent_turn_limit": 6},
-		"truncation":         map[string]any{"reason": "recent_turn_limit"},
 	})
 	var seenBody map[string]any
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -153,17 +158,21 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 	}
 	usageSummary, ok := finalModelContext["usage_summary"].(map[string]any)
 	if !ok || usageSummary["memory_recall_state"] != "completed" ||
-		usageSummary["token_estimate"] != float64(320) ||
-		usageSummary["truncation_reason"] != "recent_turn_limit" {
+		usageSummary["truncation_reason"] != "context_policy_limit" ||
+		intFromAny(usageSummary["token_estimate"]) <= 0 {
 		t.Fatalf("usage_summary = %#v", finalModelContext["usage_summary"])
 	}
 	truncationSummary, ok := usageSummary["truncation_summary"].(map[string]any)
 	if !ok || truncationSummary["schema_version"] != "truncation_summary.v1" ||
-		truncationSummary["reason"] != "recent_turn_limit" ||
-		truncationSummary["model_visible_after_count"] != float64(6) ||
-		truncationSummary["runtime_only_after_count"] != float64(8) ||
-		truncationSummary["token_estimate_after"] != float64(320) {
+		truncationSummary["policy_version"] != "primary_agent_context.v1" ||
+		truncationSummary["reason"] != "context_policy_limit" ||
+		intFromAny(truncationSummary["token_estimate_before"]) <= intFromAny(truncationSummary["token_estimate_after"]) {
 		t.Fatalf("truncation_summary = %#v", usageSummary["truncation_summary"])
+	}
+	droppedCounts, ok := truncationSummary["dropped_category_counts"].(map[string]any)
+	if !ok || intFromAny(droppedCounts["recent_turns"]) != 2 ||
+		intFromAny(droppedCounts["recent_turn_characters"]) <= 0 {
+		t.Fatalf("dropped_category_counts = %#v", truncationSummary["dropped_category_counts"])
 	}
 	encodedTruncationSummary, err := json.Marshal(truncationSummary)
 	if err != nil {
@@ -173,6 +182,17 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		if strings.Contains(string(encodedTruncationSummary), forbidden) {
 			t.Fatalf("truncation_summary leaked %q: %s", forbidden, encodedTruncationSummary)
 		}
+	}
+	recentTurns, ok := finalModelContext["recent_turns"].([]any)
+	if !ok || len(recentTurns) != 6 {
+		t.Fatalf("recent_turns = %#v", finalModelContext["recent_turns"])
+	}
+	firstRecentTurn, _ := recentTurns[0].(map[string]any)
+	trimmedAssistantTurn, _ := recentTurns[4].(map[string]any)
+	if firstRecentTurn["message_id"] != "msg_assistant_002" ||
+		len([]rune(firstNonEmptyText(trimmedAssistantTurn["content"]))) > 240 ||
+		!strings.HasSuffix(firstNonEmptyText(trimmedAssistantTurn["content"]), "...") {
+		t.Fatalf("bounded recent_turns = %#v", recentTurns)
 	}
 	previousEvidence, ok := finalModelContext["previous_evidence"].([]any)
 	if !ok || len(previousEvidence) != 1 {
@@ -207,7 +227,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 	}
 	if summary, ok := contextUsage["truncation_summary"].(map[string]any); !ok ||
 		summary["schema_version"] != "truncation_summary.v1" ||
-		summary["reason"] != "recent_turn_limit" {
+		summary["reason"] != "context_policy_limit" {
 		t.Fatalf("context_usage truncation_summary = %#v", contextUsage["truncation_summary"])
 	}
 }

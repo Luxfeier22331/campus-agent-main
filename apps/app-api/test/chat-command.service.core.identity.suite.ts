@@ -63,9 +63,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				error: null,
 				followUpQuestion: "",
 				result: {
-					evidence: {
-						sources: [{ doc_id: "handbook:library-hours" }],
-					},
+					sources: [{ doc_id: "handbook:library-hours" }],
 				},
 				selectedTool: "knowledge_query",
 				status: "completed",
@@ -88,14 +86,9 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: " 图书馆开放到几点？ ",
-				requestedTool: "knowledge_query",
-				requestedScope: {
-					collection: "student_rules",
-					corpus: "regulations",
-				},
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
@@ -110,11 +103,8 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					},
 				}),
 				requestId: "req_0001",
-				requestedScope: {
-					collection: "student_rules",
-					corpus: "regulations",
-				},
-				requestedTool: "knowledge_query",
+				requestedScope: null,
+				requestedTool: null,
 				safetyIdentifier: expectedSafetyIdentifier,
 				surface: "campus_web",
 				tenantId: "tenant-main",
@@ -132,7 +122,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				requestedTool: "knowledge_query",
+				requestedTool: null,
 				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
 			}),
@@ -294,10 +284,9 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我接下来该看什么？",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(executionClient.execute).toHaveBeenCalledWith(

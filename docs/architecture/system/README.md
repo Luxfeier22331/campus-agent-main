@@ -1,15 +1,16 @@
 ---
 doc_type: index
 truth_scope: execution
-owner_boundary: docs
+owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-23
-updated: 2026-07-04
+updated: 2026-07-08
 ---
 # System Architecture
 
 `system/` owns cross-domain supporting architecture. It explains repo-wide
 runtime, routing, execution, retrieval, data-plane and observability boundaries.
+Stable cross-boundary diagrams are indexed in `../flows.md`.
 
 It does not own phase status, release closeout, source-channel schemas or
 tool-local readiness.
@@ -22,7 +23,7 @@ tool-local readiness.
   - `execution-agent-layer.md`
 - Tool routing, surface admission and visible tool set:
   - `tool-routing.md`
-- Typed tool, deterministic query function and agent-as-tool runtime:
+- SDK function-tool and internal-query runtime:
   - `tool-runtime.md`
 - Agent framework / OpenAI Agents SDK boundary:
   - `agent-framework.md`
@@ -38,7 +39,7 @@ tool-local readiness.
   - `prompt.md`
 - Personal memory recall and memory lifecycle:
   - `memory-plane.md`
-- Retrieval serving and RAG-family internal planning:
+- Knowledge Agent and indexed retrieval serving:
   - `retrieval-serving.md`
   - `agentic-retrieval.md`
 - Data-plane owner boundaries:

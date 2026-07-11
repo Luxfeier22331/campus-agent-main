@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { type CollectionChunkProfile, DEFAULT_EXECUTABLE_RUST_KERNEL_IDS } from "ingest-core";
 import { describe, expect, it } from "vitest";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
 import {
 	createDefaultRustKernelRegistry,
 	type IngestionTaskEnvelope,
 	type IngestionTaskRegistry,
-	InMemoryIngestionTaskStore,
 	type RustKernelCommandRunner,
 } from "../src/index.ts";
 import { TsTaskHandlerRegistry } from "../src/task-executor";
@@ -325,6 +325,48 @@ describe("Rust ingestion kernel runner bridge", () => {
 		expect(result.task?.closeout?.error?.code).toBe("ingestion_task_execution_failed");
 		expect(result.task?.closeout?.error?.message).toContain(
 			"expected schema_version document_units_validation_report.v1",
+		);
+		expect(
+			[...objectStore.objects.keys()].filter((key) => key.startsWith("ingestion-kernels/")),
+		).toHaveLength(0);
+	});
+
+	it("fails closed when a kernel reports validation errors in a zero-exit stdout contract", async () => {
+		const store = new InMemoryIngestionTaskStore({
+			now: () => new Date("2026-06-30T00:00:00Z"),
+		});
+		store.admitTask(task);
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
+		objectStore.putText(inputKey, '{"bad":true}\n');
+
+		const result = await runDeclaredTaskForTest({
+			store,
+			registry,
+			tsHandlers: new TsTaskHandlerRegistry(),
+			rustKernels: createDefaultRustKernelRegistry({
+				commandRunner: async () => ({
+					exitCode: 0,
+					signal: null,
+					stdout: Buffer.from(
+						`${JSON.stringify({
+							schema_version: "document_units_validation_report.v1",
+							unit_count: 1,
+							error_count: 1,
+							errors: ["line 1 doc_id is required"],
+						})}\n`,
+						"utf8",
+					),
+					stderr: "",
+				}),
+				objectStore,
+			}),
+			taskId: task.task_id,
+		});
+
+		expect(result.status).toBe("failed");
+		expect(result.task.closeout?.error?.code).toBe("ingestion_task_execution_failed");
+		expect(result.task.closeout?.error?.message).toContain(
+			"ingestion kernel validate-document-units reported 1 validation error",
 		);
 		expect(
 			[...objectStore.objects.keys()].filter((key) => key.startsWith("ingestion-kernels/")),

@@ -4,25 +4,25 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-07-11
 ---
-
 # App API Runtime Schema
 
 <!-- markdownlint-disable MD013 -->
 
 ## `runtime.request_execution`
 
-用途：
+Purpose:
 
-- command-side durable request truth
+- command-side request ledger and source for operator request projection.
 
-最小列：
+Columns:
 
 - `request_id`
 - `conversation_id`
 - `user_message_id`
 - `assistant_message_id` nullable
+- `turn_sequence`
 - `surface`
 - `actor_user_id`
 - `actor_principal_id`
@@ -38,16 +38,16 @@ updated: 2026-06-13
 - `request_fingerprint_sha256` nullable
 - `trace_id`
 - `run_id` nullable
+- `safety_identifier` nullable
 - `requested_tool` nullable
-- `requested_scope_json` nullable
+- `requested_scope` nullable
 - `version_query_json` nullable
-- `resolved_scope_json` nullable
+- `resolved_scope` nullable
 - `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
 - `answer_preview` nullable
-- `diagnostics_json` nullable
 - `source_doc_ids_json` nullable
 - `started_at`
 - `completed_at` nullable
@@ -55,66 +55,39 @@ updated: 2026-06-13
 - `created_at`
 - `updated_at`
 
-最小索引：
+Indexes:
 
-- `(conversation_id, started_at desc)`
-- `(status, started_at desc)`
-- `(run_id, started_at desc)`
-- unique `(actor_user_id, idempotency_key)` where `idempotency_key is not null`
+- `(conversation_id, started_at)`
+- `(conversation_id, turn_sequence)`
+- `(status, started_at)`
+- `(run_id, started_at)`
+- `(safety_identifier, started_at)`
+- unique `(actor_user_id, idempotency_key)`
 
-`status` 第一版允许：
+Status is one of `accepted`, `completed`, `needs_clarification`,
+`no_answer`, `error`, `approval_required`, `rejected` or `cancelled`.
 
-- `accepted`
-- `completed`
-- `needs_clarification`
-- `no_answer`
-- `error`
-- `approval_required`
-- `rejected`
-- `cancelled`
+Rules:
 
-规则：
-
-- 这是 panel request truth 的上游 command-side owner
-- 首轮 lazy-create 请求在分配 canonical conversation id 之前，允许用稳定的 new-conversation
-  discriminator 参与 `request_fingerprint_sha256` 计算
-- `question_preview` / `answer_preview` 是 projection-friendly 摘要，不要求保存 raw full
-  prompt / raw full answer
-- `principal_type` / `principal_label` 是 command-side 落盘后的最小 operator projection
-  metadata；不要再把 raw auth/session snapshot 宽 JSON 写入这里
-- `entitlement_snapshot_id` / `entitlement_groups_json` / `visibility_scope` /
-  `applicability_scope` 只保存 app-layer 已收口的最小授权摘要，用于 request projection 与
-  operator-facing restricted request diagnostics；不要把 raw provider claims、raw
-  cookie、raw session 或宽 auth snapshot 落进这里
-- `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side
-  payload 原样塞进宽 JSON dump
-- `requested_scope_json` 表示 accept 时上游显式请求的 scope，可为空
-- `version_query_json` 保存 raw caller-supplied version query；缺失表示 caller 没有显式覆盖
-  current
-- `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 agent
-  自主解析 surface，这里必须落最终解析结果
-- `selected_tool` 表示 finalized execution 实际选择的 tool id；它不承载
-  forward family vocabulary，也不应被重载为 operator-facing display label
-- `run_id` 是 durable agent runtime 的 answer execution backlink；cutover 前旧同步执行
-  路径可以为空，durable chat 主路径必须在第一次 command-side commit 后显式绑定真实
-  durable `Run`
-- `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy
-  object、rewritten query、clarification/no-answer reason 与 retrieved title
-  summary；不要写 raw evidence snippet、score 或 backend payload
-- `rejected` 覆盖两类显式 fail-close：
-  - execution policy reject
-  - app-api precheck reject，例如 abuse throttle 命中后的 `error_code=rate_limit_exceeded`
-- 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`
-- `cancelled` 表示 execution 已接受 explicit cancel 或 upstream cancel 并停止等待；它不是
-  semantic answer failure
+- app-api writes acceptance before starting durable execution and updates the
+  same row from the validated finalization response;
+- `run_id` links the request to execution-control's durable run;
+- public chat leaves `requested_tool` and `requested_scope` empty;
+- `resolved_scope`, `selected_tool`, answer preview and source ids are
+  finalization facts;
+- previews and source ids are bounded projections, not raw prompts, answers or
+  evidence payloads;
+- no request diagnostics, planner, grounding or retrieval candidate JSON is
+  stored in this table.
 
 ## `runtime.projection_outbox`
 
-用途：
+Purpose:
 
-- command-side 已提交事实到 read-model projector 的边界
+- committed boundary from request command truth to app-api read-model
+  projection.
 
-最小列：
+Columns:
 
 - `event_id`
 - `request_id`
@@ -126,12 +99,12 @@ updated: 2026-06-13
 - `attempt_count`
 - `last_error` nullable
 
-最小索引：
+Indexes:
 
 - `(processed_at, available_at)`
-- `(request_id, occurred_at desc)`
+- `(request_id, occurred_at)`
 
-第一版 `event_type` 至少允许：
+Request lifecycle event types include:
 
 - `request.accepted`
 - `request.completed`
@@ -141,33 +114,35 @@ updated: 2026-06-13
 - `request.approval_required`
 - `request.rejected`
 - `request.cancelled`
+
+Execution audit event types include:
+
 - `execution.admission_rejected`
 - `execution.cancel_requested`
 - `execution.cancelled`
 - `execution.activity_failed`
 - `execution.timed_out`
 
-规则：
+Rules:
 
-- projector 必须按 `event_id` 做幂等消费
-- outbox payload 只携带 projection 所需字段，不承担 raw audit dump 角色
-- `execution.*` payload 只允许 Go `apps/execution-control` 的 safe runtime summary，例如
-  lane、decision、failure kind、HTTP status、retryable、duration、queue wait、
-  activity duration；禁止 raw prompt、raw answer、raw transcript、auth material、
-  retrieval payload 或 provider raw response
+- projector consumption is idempotent by `event_id`;
+- payloads contain only fields required by request/audit projection;
+- execution audit payloads may carry bounded decision, failure, HTTP, task
+  queue and timing facts;
+- payloads never contain raw prompt, answer, transcript, source body, provider
+  response or auth material.
 
 ## `runtime.request_observability_fact`
 
-用途：
+Purpose:
 
-- request-scoped Ops Index foundation
-- current schema still includes historical observability columns; target
-  architecture only admits the minimal Ops Index fields described below
+- request-scoped safe runtime index used by app-api operator queries.
 
-最小列：
+Columns:
 
 - `request_id`
 - `trace_id`
+- `safety_identifier` nullable
 - `conversation_id`
 - `surface`
 - `principal_type`
@@ -179,87 +154,61 @@ updated: 2026-06-13
 - `version_query_mode` nullable
 - `version_query_summary` nullable
 - `resolved_scope_summary` nullable
-- `collection` nullable
 - `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `started_at`
 - `completed_at` nullable
 - `duration_ms` nullable
-- `retrieval_attempted` nullable
-- `candidate_count` nullable
-- `retrieved_source_count` nullable
-- `retrieved_sources_json` not null default `[]`
 - `supporting_sources_json` not null default `[]`
-- `empty_recall` nullable
-- `citation_expected` nullable
-- `citation_count` nullable
-- `citation_missing` nullable
 - `refusal_class` nullable
 - `semantic_outcome` nullable
 - `scope_class` nullable
 - `acl_decision` nullable
 - `acl_anomaly_code` nullable
 - `fail_closed` nullable
+- `workflow_trace_summary_json` nullable
+- `stage_timing_json` not null default `{}`
+- `debug_trace_refs_json` not null default `[]`
+- `answer_eval_fingerprint_json` nullable
+- `llm_io_fingerprint_json` nullable
 - `model_provider` nullable
 - `model_name` nullable
 - `prompt_id` nullable
 - `prompt_version` nullable
 - `template_sha256` nullable
-- `model_execution_state` nullable
-- `model_execution_detail` nullable
-- `input_tokens` nullable
-- `output_tokens` nullable
-- `cached_input_tokens` nullable
-- `estimated_cost_microusd` nullable
-- `retrieval_adequacy_verdict` nullable
-- `retrieval_adequacy_reason` nullable
-- `claim_support_summary_json` nullable
 - `trace_available`
 - `projection_lag_ms` nullable
 - `measured_at`
 - `updated_at`
 
-最小索引：
+Indexes:
 
-- `(started_at desc)`
-- `(status, started_at desc)`
-- `(surface, started_at desc)`
-- `(selected_tool, started_at desc)`
-- `(principal_type, started_at desc)`
-- `(model_name, started_at desc)`
-- `(collection, started_at desc)`
+- `(started_at)`
+- `(status, started_at)`
+- `(surface, started_at)`
+- `(selected_tool, started_at)`
+- `(principal_type, started_at)`
+- `(model_name, started_at)`
+- `(safety_identifier, started_at)`
 
-规则：
+Rules:
 
-- `request_id` 与 `runtime.request_execution.request_id` 一一对应
-- `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
-- `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
-- `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection
-  回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
-- `selected_tool` 继续只保存 raw tool id，供 operator projection /
-  aggregate 过滤；family grouping 如有需要，应走显式新字段或 projection
-- `version_query_mode` / `version_query_summary` 只保存 operator-safe 版本查询摘要，不回放
-  raw caller payload
-- `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` 表示 retrieval base
-  是否足以支撑回答；它们与 `grounding` 结果不是同一维度
-- `retrieved_sources_json` 保存 bounded raw retrieval candidate
-  trace；`supporting_sources_json` 保存最终 answer-facing support trace
-- 两列都只允许保存 operator-safe compact identity fields，不保存 raw snippet、raw provider
-  citation blob 或 vendor payload
-- `supporting_sources_json` 必须允许同时表达 canonical source identity 与 physical
-  projection-unit identity，例如 `canonical_source_id` / `source_unit_key`
-- `claim_support_summary_json` 只保存 operator-safe 聚合摘要，不保存 raw
-  `claim_supports`、support snippet 或 provider-native citation/support blob
-- `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与
-  projection health summary，不回写 `runtime.request_execution`
-- 这是 app-owned Ops Index fact family，不保存 raw prompt、raw answer、raw transcript、raw
-  retrieval payload、raw auth material、raw sink event、raw trace body 或 raw Langfuse
-  observation
-- prompt 相关列只保存 observability-safe identity 与 typed runtime state，不保存 raw prompt
-  或 provider refusal 文本
-- token / model / cost 字段如仍存在，只能作为 current-code residue 或 minimal request
-  summary；detailed cost / quality analysis 不再由 app-api broad observability
-  projection 承担
-- panel 只能读 app-owned Ops Index / domain projection，不得直连或缓存 `Sentry` /
-  `Axiom` / `Langfuse` 原始 sink
+- acceptance seeds the row; finalization replaces it with validated outcome
+  facts for the same `request_id`;
+- model and prompt identity are derived from the validated
+  `llm_io_fingerprint`, not from duplicate free-form observability fields;
+- `supporting_sources_json` is derived only from top-level finalization
+  `result.sources`;
+- each supporting source contains canonical URL, source title, source kind,
+  target kind and version id; raw snippets and retrieval candidates are not
+  persisted here;
+- workflow trace, stage timing and debug refs are allowlisted safe projections;
+- answer-eval and LLM I/O fingerprints are verified for request/run/trace and
+  hash consistency before persistence;
+- `projection_lag_ms` is updated by read-model materialization;
+- the table does not store usage rollups, estimated cost, candidate counts,
+  retrieval adequacy, citation heuristics, grounding verdicts or app-owned
+  quality badcases;
+- Operator Console reads this app-owned projection and approved links; it does
+  not query raw Langfuse, Sentry or OpenTelemetry payloads.

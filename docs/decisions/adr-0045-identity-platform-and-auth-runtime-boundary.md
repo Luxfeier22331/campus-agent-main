@@ -141,7 +141,7 @@ Profile memory、UI preferences 与 personalization hints 只允许影响：
 
 - launcher/account UX
 - query wording / disambiguation
-- retrieval planning hints
+- `knowledge_search` query-framing hints
 - answer wording
 
 它们不得扩大 visibility、serving surface、approval、tool permission 或 restricted document

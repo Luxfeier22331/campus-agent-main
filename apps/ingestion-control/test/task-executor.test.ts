@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
+import type { IngestionTaskEnvelope, IngestionTaskRegistry } from "../src/index.ts";
 import * as IngestionControl from "../src/index.ts";
-import {
-	type IngestionTaskEnvelope,
-	type IngestionTaskRegistry,
-	InMemoryIngestionTaskStore,
-} from "../src/index.ts";
 import { RustKernelRegistry, TsTaskHandlerRegistry } from "../src/task-executor";
 import { createDefaultTsTaskHandlerRegistry } from "../src/ts-task-handlers";
 import { runDeclaredTaskForTest } from "./test-support.ts";
@@ -102,8 +99,8 @@ describe("ingestion-control declared task runner", () => {
 			async (record) => ({
 				artifactRefs: [
 					{
-						kind: "inline",
-						uri: `ts-control://${record.corpus}/${record.collection}/${record.task_kind}`,
+						kind: "object_store",
+						uri: `s3://campus-agent-source/${record.corpus}/${record.collection}/${record.task_kind}.json`,
 					},
 				],
 			}),
@@ -120,8 +117,8 @@ describe("ingestion-control declared task runner", () => {
 		expect(result.status).toBe("completed");
 		expect(result.task?.closeout?.artifact_refs).toEqual([
 			{
-				kind: "inline",
-				uri: "ts-control://official_web/stable_reference/source_truth_materialize",
+				kind: "object_store",
+				uri: "s3://campus-agent-source/official_web/stable_reference/source_truth_materialize.json",
 			},
 		]);
 	});
@@ -142,8 +139,8 @@ describe("ingestion-control declared task runner", () => {
 			async (record) => ({
 				artifactRefs: [
 					{
-						kind: "inline",
-						uri: `ts-control://${record.corpus}/${record.collection}/${record.task_kind}`,
+						kind: "object_store",
+						uri: `s3://campus-agent-source/${record.corpus}/${record.collection}/${record.task_kind}.json`,
 					},
 				],
 			}),
@@ -173,8 +170,8 @@ describe("ingestion-control declared task runner", () => {
 		rustKernels.register("validate-document-units", async (record) => ({
 			artifactRefs: [
 				{
-					kind: "inline",
-					uri: `rust-kernel://${record.corpus}/${record.collection}/${record.task_kind}`,
+					kind: "object_store",
+					uri: `s3://campus-agent-source/${record.corpus}/${record.collection}/${record.task_kind}.json`,
 				},
 			],
 		}));
@@ -190,8 +187,8 @@ describe("ingestion-control declared task runner", () => {
 		expect(result.status).toBe("completed");
 		expect(result.task?.closeout?.artifact_refs).toEqual([
 			{
-				kind: "inline",
-				uri: "rust-kernel://regulations/student_rules/document_units_validate",
+				kind: "object_store",
+				uri: "s3://campus-agent-source/regulations/student_rules/document_units_validate.json",
 			},
 		]);
 	});
@@ -298,7 +295,7 @@ describe("ingestion-control declared task runner", () => {
 					kind: "inline",
 					uri: "not-an-object-store-artifact",
 				},
-			}),
+			} as unknown as typeof task),
 		).toThrow("input_ref.kind is not supported: inline");
 	});
 });

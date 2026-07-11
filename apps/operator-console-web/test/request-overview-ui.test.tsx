@@ -64,7 +64,7 @@ describe("request overview UI", () => {
 									sampleCount: 2,
 									warnCount: 0,
 								},
-								"rag.lookup_ms": {
+								"knowledge.search_ms": {
 									criticalCount: 0,
 									p50Ms: 400,
 									p95Ms: 1800,
@@ -130,7 +130,7 @@ describe("request overview UI", () => {
 		expect(screen.getByText("首字 P95")).toBeInTheDocument();
 		expect(await screen.findByText("5.5 s")).toBeInTheDocument();
 		expect(screen.getByText("模型运行 P95")).toBeInTheDocument();
-		expect(screen.getByText("RAG 查询 P95")).toBeInTheDocument();
+		expect(screen.getByText("知识检索 P95")).toBeInTheDocument();
 		expect(screen.getByText("超预算字段")).toBeInTheDocument();
 		expect(screen.getByText("1 / 2")).toBeInTheDocument();
 		expect(document.body.textContent).not.toContain("stream.browser_ttft_ms");

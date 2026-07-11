@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/policies
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-07-08
 ---
 # Policies
 
@@ -13,9 +13,9 @@ updated: 2026-04-12
 ## 当前 policy 集合
 
 - `official-web-crawl-policy.md`
-- `official-web-cleaning-and-chunking-policy.md`
+- `official-web-chunking.md`
 - `public-source-data.md`
-- `student-handbook-chunking-and-validation-policy.md`
+- `student-rules-chunking.md`
 - `student-handbook-judge-gate-policy.md`
 
 ## 使用规则

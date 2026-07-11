@@ -30,7 +30,6 @@ export interface StoredRequestObservabilitySeed {
 	selectedTool: string | null;
 	requestedTool: string | null;
 	principalType: string;
-	collection: string | null;
 	modelName: string | null;
 }
 
@@ -61,7 +60,6 @@ function toStoredRequestObservabilitySeed(
 	row: typeof requestObservabilityFact.$inferSelect,
 ): StoredRequestObservabilitySeed {
 	return {
-		collection: row.collection ?? null,
 		modelName: row.modelName ?? null,
 		principalType: row.principalType,
 		requestId: row.requestId,

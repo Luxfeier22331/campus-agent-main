@@ -65,8 +65,8 @@ export function replayPacketIndexPayload(): ReplayPacketIndexTestPayload {
 			request_id: "req_rag_01",
 			trace_id: "trace_rag_01",
 			runtime_release: "execution-control@test",
-			llm_call_site: "rag.synthesis",
-			provider_profile_revision: "rag_synthesis:provider_profile_rag:4",
+			llm_call_site: "agent.primary",
+			provider_profile_revision: "primary_agent:provider_profile_primary:4",
 			provider: "openai",
 			model: "gpt-5-mini",
 			model_params_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -83,21 +83,21 @@ export function replayPacketIndexPayload(): ReplayPacketIndexTestPayload {
 					tool_choice: "none",
 				},
 			},
-			prompt_id: "rag_synthesis_answer",
+			prompt_id: "primary_agent",
 			prompt_registry_attestation: {
 				schema_version: "prompt_registry_attestation.v1",
 				prompt_registry_version: "2026-07-05",
-				prompt_id: "rag_synthesis_answer",
+				prompt_id: "primary_agent",
 				prompt_template_sha256:
 					"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				prompt_variables_schema_version: "rag_synthesis_packet.v1",
-				output_schema_id: "rag_answer_v2",
+				prompt_variables_schema_version: "final_model_context.v1",
+				output_schema_id: "primary_agent_terminal_output.v1",
 				attestation_sha256:
 					"sha256:5555555555555555555555555555555555555555555555555555555555555555",
 			},
 			prompt_template_sha256:
 				"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-			prompt_variables_schema_version: "rag_synthesis_packet.v1",
+			prompt_variables_schema_version: "final_model_context.v1",
 			rendered_prompt_sha256:
 				"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 			provider_request_safe_hash: {
@@ -144,11 +144,11 @@ export function replayPacketIndexPayload(): ReplayPacketIndexTestPayload {
 				"sha256:2222222222222222222222222222222222222222222222222222222222222222",
 			evidence_packet_sha256:
 				"sha256:3333333333333333333333333333333333333333333333333333333333333333",
-			output_schema_id: "rag_answer_v2",
+			output_schema_id: "primary_agent_terminal_output.v1",
 			primary_attestation: {
 				schema_version: "primary_attestation.v1",
-				attestation_kind: "primary_admitted_rag_synthesis",
-				attested_by: "execution-control",
+				attestation_kind: "primary_agent_call",
+				attested_by: "apps/agent-runtime",
 				attestation_sha256:
 					"sha256:7777777777777777777777777777777777777777777777777777777777777777",
 			},
@@ -161,14 +161,14 @@ export function replayPacketIndexPayload(): ReplayPacketIndexTestPayload {
 			request_id: "req_rag_01",
 			trace_id: "trace_rag_01",
 			runtime_release: "execution-control@test",
-			llm_call_site: "rag.synthesis",
+			llm_call_site: "agent.primary",
 			llm_io_fingerprint_sha256: "",
-			provider_profile_revision: "rag_synthesis:provider_profile_rag:4",
-			output_schema_id: "rag_answer_v2",
+			provider_profile_revision: "primary_agent:provider_profile_primary:4",
+			output_schema_id: "primary_agent_terminal_output.v1",
 			branch_identity: {
 				schema_version: "answer_branch_identity.v1",
-				prompt_id: "rag_synthesis_answer",
-				branch_kind: "rag_synthesis",
+				prompt_id: "primary_agent",
+				branch_kind: "tool_routed",
 				workflow_mode: "single_step",
 			},
 			terminal_outcome: "grounded_answer",

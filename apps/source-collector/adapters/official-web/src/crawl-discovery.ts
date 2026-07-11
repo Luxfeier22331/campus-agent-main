@@ -2,7 +2,7 @@ export {
 	buildConditionalHeaders,
 	buildConfiguredSitemapRequestTransform,
 	buildInitialRequests,
-	buildLegacyNavigationRequestsForTest,
+	buildNavigationRequestsForTest,
 	collectNavigationRequests,
 	transformNavigationRequest,
 } from "./crawl-discovery-requests.ts";

@@ -59,722 +59,188 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
+		resolvedScope: overrides.resolvedScope ?? null,
+		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
 
-describe("request observability", () => {
-	it("carries the same safety identifier through accepted and finalized observability facts", () => {
-		const safetyIdentifier = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+function buildFinalizedFact(
+	overrides: Partial<Parameters<typeof buildFinalizedRequestObservabilityFact>[0]> = {},
+) {
+	return buildFinalizedRequestObservabilityFact({
+		completedAt: "2026-04-05T08:00:01.000Z",
+		conversationId: "conv_01HQ",
+		durationMs: 1000,
+		errorCode: null,
+		principal: createPrincipal(),
+		requestId: "req_01HQ",
+		requestedTool: "knowledge_query",
+		requestedScope: "student_rules",
+		resolvedScope: "student_rules",
+		response: createResponse(),
+		runId: "run_01HQ",
+		safetyIdentifier: null,
+		startedAt: "2026-04-05T08:00:00.000Z",
+		status: "no_answer",
+		surface: "campus_web",
+		traceId: "trace_01HQ",
+		versionQuery: null,
+		...overrides,
+	});
+}
 
+describe("request observability", () => {
+	it("carries request identity and version facts through acceptance and finalization", () => {
+		const safetyIdentifier = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+		const versionQuery = {
+			compareToVersionId: "v2025-student-rules",
+			mode: "compare" as const,
+			versionId: "v2024-student-rules",
+		};
 		const accepted = buildAcceptedRequestObservabilityFact({
 			conversationId: "conv_01HQ",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
 			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
+			requestedScope: "student_rules",
 			resolvedScope: null,
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
-			versionQuery: {
-				compareToVersionId: "v2025-student-rules",
-				mode: "compare",
-				versionId: "v2024-student-rules",
-			},
+			versionQuery,
 		});
-
-		const finalized = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-05T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: null,
-			durationMs: 1000,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			resolvedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			response: createResponse({
-				status: "completed",
-			}),
-			runId: "run_01HQ",
+		const finalized = buildFinalizedFact({
+			response: createResponse({ status: "completed" }),
 			safetyIdentifier,
-			sourceDocIds: [],
-			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			versionQuery: {
-				compareToVersionId: "v2025-student-rules",
-				mode: "compare",
-				versionId: "v2024-student-rules",
-			},
+			versionQuery,
 		});
 
-		expect(accepted.safetyIdentifier).toBe(safetyIdentifier);
-		expect(finalized.safetyIdentifier).toBe(safetyIdentifier);
-		expect(accepted.versionQueryMode).toBe("compare");
-		expect(accepted.versionQuerySummary).toBe("compare:v2024-student-rules->v2025-student-rules");
-		expect(finalized.versionQueryMode).toBe("compare");
-		expect(finalized.versionQuerySummary).toBe("compare:v2024-student-rules->v2025-student-rules");
+		expect(accepted).toMatchObject({
+			safetyIdentifier,
+			status: "accepted",
+			versionQueryMode: "compare",
+			versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
+		});
+		expect(finalized).toMatchObject({
+			aclDecision: "allowed",
+			failClosed: false,
+			safetyIdentifier,
+			scopeClass: "in_scope",
+			semanticOutcome: "answer",
+			status: "completed",
+			versionQueryMode: "compare",
+			versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
+		});
 	});
 
-	it("derives semantic outcome fields for in-scope no-answer responses", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-05T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: {
-				claimSupportSummary: {
-					supportedClaims: 0,
-					totalClaims: 2,
-					unsupportedClaimTypes: ["material_requirement", "time_or_deadline"],
-					unsupportedClaims: 2,
-					unsupportedFields: ["requirement_claims", "time_claims"],
-				},
-				clarificationReason: null,
-				freshnessFailClosed: null,
-				groundingDowngraded: null,
-				groundingVerdict: null,
-				noAnswerReason: "resolved_policy_clause_not_found",
-				policyReason: null,
-				retrievalAdequacyReason: "resolved_policy_clause_not_found",
-				retrievalAdequacyVerdict: "insufficient",
-				resolvedEntityType: null,
-				resolvedPolicyDocumentId: "handbook:scholarship",
-				resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
-				resolvedProgramFamilyTitle: null,
-				remoteContentSuspicionSummary: {
-					flagLabels: ["instructional_imperative"],
-					flaggedSourceCount: 1,
-					generationBlocked: false,
-				},
-				retrievedTitleSummary: ["示例大学本科学生国家奖学金评审办法"],
-				scopeClass: null,
-				semanticOutcome: null,
-				sessionProgram: null,
-				sessionProgramFamily: null,
-				sessionSemester: null,
-				sourceTrustSummary: {
-					answerBearingTiers: ["T1"],
-					authorizationClaimBlocked: false,
-					blockedClaimTypes: ["time_or_deadline"],
-					freshnessClaimBlocked: false,
-					observedTiers: ["T1"],
-				},
-				unsupportedFields: ["requirement_claims", "time_claims"],
-			},
-			durationMs: 1200,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			resolvedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			response: createResponse(),
-			runId: "run_01HQ",
-			safetyIdentifier: null,
-			sourceDocIds: [],
-			startedAt: "2026-04-05T08:00:00.000Z",
-			status: "no_answer",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
+	it("derives terminal policy facts from the final status", () => {
+		const noAnswer = buildFinalizedFact();
+		const rejected = buildFinalizedFact({
+			errorCode: "request_rejected",
+			requestedScope: null,
+			resolvedScope: null,
+			response: createResponse({ status: "rejected" }),
+			status: "rejected",
 		});
 
-		expect(fact).toMatchObject({
-			claimSupportSummary: {
-				supportedClaims: 0,
-				totalClaims: 2,
-				unsupportedClaimTypes: ["material_requirement", "time_or_deadline"],
-				unsupportedClaims: 2,
-				unsupportedFields: ["requirement_claims", "time_claims"],
-			},
-			remoteContentSuspicionSummary: {
-				flagLabels: ["instructional_imperative"],
-				flaggedSourceCount: 1,
-				generationBlocked: false,
-			},
-			sourceTrustSummary: {
-				answerBearingTiers: ["T1"],
-				authorizationClaimBlocked: false,
-				blockedClaimTypes: ["time_or_deadline"],
-				freshnessClaimBlocked: false,
-				observedTiers: ["T1"],
-			},
-			policyReason: null,
-			retrievalAdequacyReason: "resolved_policy_clause_not_found",
-			retrievalAdequacyVerdict: "insufficient",
+		expect(noAnswer).toMatchObject({
+			aclDecision: "allowed",
+			failClosed: true,
 			refusalClass: "no_answer",
 			scopeClass: "in_scope",
-			semanticOutcome: "unsupported_by_evidence",
+			semanticOutcome: "no_answer",
 		});
-	});
-
-	it("prefers explicit execution observability semantics when provided", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-05T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: null,
-			durationMs: 800,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: null,
-			resolvedScope: null,
-			response: createResponse({
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: 0,
-					citationCount: 0,
-					citationExpected: false,
-					citationMissing: false,
-					estimatedCostMicrousd: null,
-					failClosed: true,
-					inputTokens: null,
-					modelName: null,
-					modelProvider: null,
-					outputTokens: null,
-					policyReason: "product_scope_boundary",
-					refusalClass: "no_answer",
-					retrievedSourceCount: 0,
-					retrievalAttempted: false,
-					scopeClass: "out_of_scope",
-					semanticOutcome: "out_of_scope",
-				},
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-05T08:00:00.000Z",
-			status: "no_answer",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
-		});
-
-		expect(fact).toMatchObject({
-			policyReason: "product_scope_boundary",
-			scopeClass: "out_of_scope",
-			semanticOutcome: "out_of_scope",
-		});
-	});
-
-	it("persists structured tool and workflow trace summaries from execution response", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-13T08:00:01.000Z",
-			conversationId: "conv_workflow_01HQ",
-			diagnostics: null,
-			durationMs: 640,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_workflow_01HQ",
-			requestedTool: "transport_schedule_lookup",
-			requestedScope: null,
-			resolvedScope: null,
-			response: createResponse({
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: 1,
-					citationCount: 0,
-					citationExpected: false,
-					citationMissing: false,
-					estimatedCostMicrousd: null,
-					failClosed: false,
-					inputTokens: null,
-					modelName: null,
-					modelProvider: null,
-					outputTokens: null,
-					refusalClass: null,
-					retrievedSourceCount: 0,
-					retrievalAttempted: false,
-					scopeClass: "in_scope",
-					selectedTool: "transport_schedule_lookup",
-					semanticOutcome: "resolved_current",
-					toolBusinessOutcome: "resolved_current",
-					toolFailCloseReason: null,
-					toolHistoricalDowngradeReason: null,
-				},
-				selectedTool: "transport_schedule_lookup",
-				status: "completed",
-				workflowTraceSummary: {
-					contextResolution: {
-						state: "not_follow_up",
-					},
-					directVsDelegateBranch: "direct",
-					failCloseReason: null,
-					guardrailOutcomes: {
-						scope_gate: "allow",
-					},
-					handoff: {
-						payload_kind: "transport_schedule_lookup",
-						target: "transport_schedule_lookup",
-					},
-					handoffChain: [],
-					contextProjections: [],
-					planningOutcome: "preplanned",
-					policyArtifactVersions: {
-						"intent-policy": "v1",
-					},
-					routingFrame: {
-						suggested_next_action: "delegate",
-					},
-					runtimeVersions: {
-						"execution-control": "test",
-					},
-					selectedTool: "transport_schedule_lookup",
-					selectedTools: ["transport_schedule_lookup"],
-					traceSteps: [],
-					toolCallSummaries: [],
-					toolArgumentSummary: {
-						payload_kind: "transport_schedule_lookup",
-					},
-					workflowMode: "single_step",
-				},
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-13T08:00:00.000Z",
-			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_workflow_01HQ",
-			runId: "run_01HQ",
-		});
-
-		expect(fact).toMatchObject({
-			selectedTool: "transport_schedule_lookup",
-			toolBusinessOutcome: "resolved_current",
-			toolFailCloseReason: null,
-			toolHistoricalDowngradeReason: null,
-			workflowTraceSummary: {
-				directVsDelegateBranch: "direct",
-				selectedTool: "transport_schedule_lookup",
-				selectedTools: ["transport_schedule_lookup"],
-			},
-		});
-	});
-
-	it("projects prompt metadata and model execution state from execution observability", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-12T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: null,
-			durationMs: 420,
-			errorCode: "prompt_runtime_failed",
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			resolvedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			response: createResponse({
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: 0,
-					citationCount: 0,
-					citationExpected: false,
-					citationMissing: false,
-					estimatedCostMicrousd: 1200,
-					failClosed: true,
-					inputTokens: 128,
-					modelName: "gpt-5.2-mini",
-					modelProvider: "openai-responses",
-					outputTokens: 0,
-					policyReason: null,
-					modelExecutionDetail: "content_filter",
-					modelExecutionState: "content_filter",
-					promptTrace: {
-						modelName: "gpt-5.2-mini",
-						modelProvider: "openai-responses",
-						outputSchemaVersion: "v2",
-						promptId: "rag_synthesis_answer",
-						promptVersion: "v1",
-						templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-						variablesSchemaVersion: "rag_synthesis_packet.v1",
-					},
-					refusalClass: "no_answer",
-					retrievedSourceCount: 0,
-					retrievalAttempted: true,
-					scopeClass: "in_scope",
-					semanticOutcome: "unsupported_by_evidence",
-				},
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-12T08:00:00.000Z",
-			status: "no_answer",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
-		});
-
-		expect(fact).toMatchObject({
-			modelName: "gpt-5.2-mini",
-			modelProvider: "openai-responses",
-			promptId: "rag_synthesis_answer",
-			modelExecutionDetail: "content_filter",
-			modelExecutionState: "content_filter",
-			promptVersion: "v1",
-			semanticOutcome: "unsupported_by_evidence",
-			templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		});
-	});
-
-	it("derives out-of-scope executionClient stop semantics from diagnostics when observability is absent", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-11T09:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: {
-				claimSupportSummary: null,
-				clarificationReason: null,
-				freshnessFailClosed: null,
-				groundingDowngraded: null,
-				groundingVerdict: null,
-				noAnswerReason: "out_of_scope",
-				policyReason: "product_scope_boundary",
-				retrievalAdequacyReason: null,
-				retrievalAdequacyVerdict: null,
-				resolvedEntityType: null,
-				resolvedPolicyDocumentId: null,
-				resolvedPolicyTitle: null,
-				resolvedProgramFamilyTitle: null,
-				retrievedTitleSummary: [],
-				scopeClass: "out_of_scope",
-				semanticOutcome: null,
-				sessionProgram: null,
-				sessionProgramFamily: null,
-				sessionSemester: null,
-				unsupportedFields: [],
-			},
-			durationMs: 200,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: null,
-			resolvedScope: null,
-			response: createResponse({
-				selectedTool: null,
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-11T09:00:00.000Z",
-			status: "no_answer",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
-		});
-
-		expect(fact).toMatchObject({
+		expect(rejected).toMatchObject({
+			aclDecision: "denied",
 			failClosed: true,
-			policyReason: "product_scope_boundary",
-			refusalClass: "out_of_scope",
-			scopeClass: "out_of_scope",
-			semanticOutcome: "out_of_scope",
-			selectedTool: null,
+			policyReason: "request_rejected",
+			refusalClass: "rejected",
+			scopeClass: null,
+			semanticOutcome: "policy_refusal",
 		});
 	});
 
-	it("derives agent grounding downgrade semantics from diagnostics when observability is absent", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-11T09:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: {
-				claimSupportSummary: {
-					supportedClaims: 0,
-					totalClaims: 2,
-					unsupportedClaimTypes: [
-						"audience_or_major_or_program_or_class_family",
-						"offering_unit_or_owning_school",
+	it("projects only trusted top-level result sources", () => {
+		const fact = buildFinalizedFact({
+			response: createResponse({
+				result: {
+					evidence: {
+						sources: [
+							{
+								doc_id: "legacy-doc",
+								source_title: "旧来源",
+							},
+						],
+					},
+					sources: [
+						{
+							canonical_url:
+								"/docs/regulations/student_rules/leave-policy?chunk=raw#legacy-fragment",
+							source_kind: "regulation",
+							source_title: "学生请假管理规定",
+							target_kind: "canonical_reader",
+							version_id: "student-rules-current",
+						},
+						{
+							canonical_url: "/docs/incomplete",
+						},
 					],
-					unsupportedClaims: 2,
-					unsupportedFields: ["audience_claims", "offering_unit_claims"],
 				},
-				clarificationReason: null,
-				freshnessFailClosed: null,
-				groundingDowngraded: true,
-				groundingVerdict: "unsupported",
-				noAnswerReason: null,
-				policyReason: null,
-				retrievalAdequacyReason: "sufficient",
-				retrievalAdequacyVerdict: "sufficient",
-				resolvedEntityType: null,
-				resolvedPolicyDocumentId: null,
-				resolvedPolicyTitle: null,
-				resolvedProgramFamilyTitle: null,
-				retrievedTitleSummary: ["习近平新时代中国特色社会主义思想概论"],
-				scopeClass: "in_scope",
-				semanticOutcome: null,
-				sessionProgram: null,
-				sessionProgramFamily: null,
-				sessionSemester: null,
-				unsupportedFields: ["audience_claims", "offering_unit_claims"],
-			},
-			durationMs: 300,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			resolvedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			response: createResponse(),
-			sourceDocIds: [],
-			startedAt: "2026-04-11T09:00:00.000Z",
-			status: "no_answer",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
+				status: "completed",
+			}),
+			status: "completed",
 		});
 
-		expect(fact).toMatchObject({
-			claimSupportSummary: {
-				supportedClaims: 0,
-				totalClaims: 2,
-				unsupportedClaimTypes: [
-					"audience_or_major_or_program_or_class_family",
-					"offering_unit_or_owning_school",
-				],
-				unsupportedClaims: 2,
-				unsupportedFields: ["audience_claims", "offering_unit_claims"],
+		expect(fact.supportingSources).toEqual([
+			{
+				canonicalUrl: "/docs/regulations/student_rules/leave-policy",
+				sourceKind: "regulation",
+				sourceTitle: "学生请假管理规定",
+				targetKind: "canonical_reader",
+				versionId: "student-rules-current",
 			},
-			failClosed: true,
-			retrievalAdequacyReason: "sufficient",
-			retrievalAdequacyVerdict: "sufficient",
-			refusalClass: "no_answer",
-			scopeClass: "in_scope",
-			semanticOutcome: "unsupported_by_evidence",
+		]);
+	});
+
+	it("persists official workflow and trace projections without raw runtime payloads", () => {
+		const workflowTraceSummary = {
+			answerArtifactKinds: ["agent_final_output"],
+			answerArtifactRefs: ["projection://run_01HQ/agent/final"],
+			directVsDelegateBranch: "knowledge_agent",
+			firstDecisionActor: "primary_agent",
+			planningOutcome: "primary_agent_completed",
+			runtimeVersions: { agentRuntime: "openai_agents_sdk" },
 			selectedTool: "knowledge_query",
-		});
-	});
-
-	it("stores retrieved and supporting source traces separately", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-12T10:00:01.000Z",
-			conversationId: "conv_trace",
-			diagnostics: null,
-			durationMs: 510,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_trace",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			resolvedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
+			selectedTools: ["knowledge_query"],
+			terminalReason: "answer",
+			workflowMode: "single_step",
+		};
+		const fact = buildFinalizedFact({
 			response: createResponse({
-				answerText: "第四学期开设侵权责任法。",
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: 2,
-					citationCount: 1,
-					citationExpected: true,
-					citationMissing: false,
-					estimatedCostMicrousd: null,
-					failClosed: false,
-					inputTokens: null,
-					modelName: null,
-					modelProvider: null,
-					outputTokens: null,
-					refusalClass: null,
-					retrievedSourceCount: 2,
-					retrievedSources: [
-						{
-							canonicalSourceId: null,
-							canonicalSourceTitle: null,
-							chunkId: "chunk-raw-1",
-							collection: "curriculum_plan",
-							docId: "curriculum:法学（民族实验班）本科人才培养方案",
-							score: 0.94,
-							sourceTitle: "法学（民族实验班）本科人才培养方案",
-							sourceUnitKey: null,
-							sourceUnitKind: null,
-						},
-						{
-							canonicalSourceId: null,
-							canonicalSourceTitle: null,
-							chunkId: "chunk-raw-2",
-							collection: "curriculum_plan",
-							docId: "curriculum:培养方案说明",
-							score: 0.71,
-							sourceTitle: "培养方案说明",
-							sourceUnitKey: null,
-							sourceUnitKind: null,
-						},
-					],
-					retrievalAttempted: true,
-					scopeClass: "in_scope",
-					semanticOutcome: "grounded_answer",
-				},
-				result: {
-					evidence: {
-						sources: [
-							{
-								chunk_id: "chunk-support-1",
-								collection: "program_semester_facts",
-								doc_id: "program_semester_facts:law:semester-4",
-								score: 0.97,
-								canonical_source_id: "curriculum:法学（民族实验班）本科人才培养方案",
-								source_title: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
-								source_unit_kind: "semester_course_list",
-								source_unit_key: "semester-4",
-							},
-						],
+				debugTraceRefs: [
+					{
+						sink: "langfuse_otlp",
+						traceId: "trace_01HQ",
+						traceRef: "langfuse://trace_01HQ",
 					},
-				},
+				],
 				status: "completed",
+				workflowTraceSummary,
 			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-12T10:00:00.000Z",
 			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_trace",
-			runId: "run_01HQ",
 		});
 
-		expect(fact.retrievedSourceCount).toBe(2);
-		expect(fact.retrievedSources).toMatchObject([
+		expect(fact.debugTraceRefs).toEqual([
 			{
-				chunkId: "chunk-raw-1",
-				collection: "curriculum_plan",
-				docId: "curriculum:法学（民族实验班）本科人才培养方案",
-				score: 0.94,
-				sourceTitle: "法学（民族实验班）本科人才培养方案",
-			},
-			{
-				chunkId: "chunk-raw-2",
-				collection: "curriculum_plan",
-				docId: "curriculum:培养方案说明",
-				score: 0.71,
-				sourceTitle: "培养方案说明",
+				sink: "langfuse_otlp",
+				traceId: "trace_01HQ",
+				traceRef: "langfuse://trace_01HQ",
 			},
 		]);
-		expect(fact.supportingSources).toMatchObject([
-			{
-				chunkId: "chunk-support-1",
-				collection: "program_semester_facts",
-				docId: "program_semester_facts:law:semester-4",
-				score: 0.97,
-				sourceTitle: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
-				canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
-				sourceUnitKind: "semester_course_list",
-				sourceUnitKey: "semester-4",
-			},
-		]);
-	});
-
-	it("treats missing retrieved trace as empty recall when retrieval was attempted", () => {
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-12T11:00:01.000Z",
-			conversationId: "conv_empty_recall",
-			diagnostics: null,
-			durationMs: 460,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_empty_recall",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			resolvedScope: {
-				collection: "curriculum_plan",
-				corpus: "curriculum",
-			},
-			response: createResponse({
-				answerText: "第四学期开设侵权责任法。",
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: 2,
-					citationCount: 1,
-					citationExpected: true,
-					citationMissing: false,
-					estimatedCostMicrousd: null,
-					failClosed: false,
-					inputTokens: null,
-					modelName: null,
-					modelProvider: null,
-					outputTokens: null,
-					refusalClass: null,
-					retrievedSourceCount: null,
-					retrievedSources: [],
-					retrievalAttempted: true,
-					scopeClass: "in_scope",
-					semanticOutcome: "grounded_answer",
-				},
-				result: {
-					evidence: {
-						sources: [
-							{
-								chunk_id: "chunk-support-1",
-								collection: "program_semester_facts",
-								doc_id: "program_semester_facts:law:semester-4",
-								score: 0.97,
-								canonical_source_id: "curriculum:法学（民族实验班）本科人才培养方案",
-								source_title: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
-								source_unit_kind: "semester_course_list",
-								source_unit_key: "semester-4",
-							},
-						],
-					},
-				},
-				status: "completed",
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-12T11:00:00.000Z",
-			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_empty_recall",
-			runId: "run_01HQ",
-		});
-
-		expect(fact.retrievalAttempted).toBe(true);
-		expect(fact.retrievedSourceCount).toBe(0);
-		expect(fact.emptyRecall).toBe(true);
-		expect(fact.retrievedSources).toEqual([]);
-		expect(fact.supportingSources).toMatchObject([
-			{
-				chunkId: "chunk-support-1",
-				collection: "program_semester_facts",
-				docId: "program_semester_facts:law:semester-4",
-				canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
-				sourceUnitKind: "semester_course_list",
-				sourceUnitKey: "semester-4",
-			},
-		]);
+		expect(fact.workflowTraceSummary).toEqual(workflowTraceSummary);
+		expect(JSON.stringify(fact)).not.toContain("raw_prompt");
+		expect(JSON.stringify(fact)).not.toContain("raw_answer");
 	});
 });

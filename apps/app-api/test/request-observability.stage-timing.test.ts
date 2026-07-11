@@ -56,6 +56,8 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
+		resolvedScope: overrides.resolvedScope ?? null,
+		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
 
@@ -64,7 +66,6 @@ describe("request observability stage timing", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-13T08:00:01.350Z",
 			conversationId: "conv_stage_timing_01HQ",
-			diagnostics: null,
 			durationMs: 1350,
 			errorCode: null,
 			principal: createPrincipal(),
@@ -81,7 +82,6 @@ describe("request observability stage timing", () => {
 				},
 				status: "completed",
 			}),
-			sourceDocIds: [],
 			startedAt: "2026-04-13T08:00:00.000Z",
 			status: "completed",
 			streamBrowserTtftMs: 420,
@@ -105,7 +105,6 @@ describe("request observability stage timing", () => {
 			buildFinalizedRequestObservabilityFact({
 				completedAt: "2026-04-13T08:00:01.350Z",
 				conversationId: "conv_stage_timing_invalid_01HQ",
-				diagnostics: null,
 				durationMs: 1350,
 				errorCode: null,
 				principal: createPrincipal(),
@@ -120,7 +119,6 @@ describe("request observability stage timing", () => {
 					},
 					status: "completed",
 				}),
-				sourceDocIds: [],
 				startedAt: "2026-04-13T08:00:00.000Z",
 				status: "completed",
 				stageTiming: {

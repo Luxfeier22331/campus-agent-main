@@ -25,7 +25,7 @@ navigation tool domain 与 spatial truth 边界，不把 `supervisor` 作为当�
 `campus-agent` 当前已经冻结了以下长期边界：
 
 - `supervisor` 是唯一顶层协调入口
-- deterministic tool 表示稳定能力边界；agent 只保留给显式 semantic agent-as-tool
+- deterministic SDK tool 表示稳定能力边界；semantic agent 只通过 official handoff 进入
 - `apps/app-api` 是 canonical identity / authz / memory owner
 - execution path 只消费 typed projection
 - source truth 与 document / chunk / index truth 持续分层

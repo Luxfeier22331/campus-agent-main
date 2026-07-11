@@ -327,13 +327,10 @@ function normalizeDeletionLinkage(value: unknown): ReplayPacketDeletionLinkage {
 }
 
 function assertReplayPacketIndexRequiredProjections(input: ReplayPacketIndexWrite): void {
-	if (input.llmIoFingerprint.llmCallSite !== "rag.synthesis") {
-		return;
-	}
 	if (!input.answerEvalFingerprint) {
 		throw routeError({
 			code: "validation_failed",
-			message: "answer_eval_fingerprint is required for rag.synthesis replay packet index.",
+			message: "answer_eval_fingerprint is required for replay packet index.",
 			status: 422,
 		});
 	}
@@ -341,14 +338,14 @@ function assertReplayPacketIndexRequiredProjections(input: ReplayPacketIndexWrit
 		throw routeError({
 			code: "validation_failed",
 			message:
-				"answer_eval_fingerprint.evidence_replay_index_sha256 is required for rag.synthesis replay packet index.",
+				"answer_eval_fingerprint.evidence_replay_index_sha256 is required for replay packet index.",
 			status: 422,
 		});
 	}
 	if (!input.sinkIdentityProjection) {
 		throw routeError({
 			code: "validation_failed",
-			message: "sink_identity_projection is required for rag.synthesis replay packet index.",
+			message: "sink_identity_projection is required for replay packet index.",
 			status: 422,
 		});
 	}

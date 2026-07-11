@@ -1,4 +1,3 @@
-import { summarizeObservedSources } from "../source-trace";
 import { parseAnswerEvalFingerprint } from "./answer-eval-fingerprint-parser";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
@@ -8,14 +7,10 @@ import {
 	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
 import { parseLlmIoFingerprint } from "./llm-io-fingerprint-parser";
-import { parseReplayPacketRef } from "./replay-packet-ref-parser";
 import type {
 	ToolExecutionDebugTraceRef,
-	ToolExecutionModelUsageSummary,
 	ToolExecutionObservability,
-	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
-	ToolExecutionUsageSummary,
 	ToolExecutionWorkflowTraceSummary,
 } from "./tool-execution-types";
 
@@ -42,8 +37,10 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"error",
 	"follow_up_question",
 	"observability",
+	"resolved_scope",
 	"result",
 	"selected_tool",
+	"session_update",
 	"stage_timing",
 	"status",
 	"trace_id",
@@ -55,8 +52,10 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"confidence",
 	"error",
 	"follow_up_question",
+	"resolved_scope",
 	"result",
 	"selected_tool",
+	"session_update",
 	"status",
 	"trace_id",
 ] as const;
@@ -75,14 +74,6 @@ function getRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: null;
-}
-
-function normalizeNullableBoolean(value: unknown): boolean | null {
-	return typeof value === "boolean" ? value : null;
-}
-
-function normalizeNullableNumber(value: unknown): number | null {
-	return Number.isFinite(value) ? Number(value) : null;
 }
 
 function normalizeNullableString(value: unknown): string | null {
@@ -215,6 +206,12 @@ function assertExecutionFinalizationResponseWire(
 	if (!(record.selected_tool === null || typeof record.selected_tool === "string")) {
 		throw new ExecutionFinalizationResponseContractError("selected_tool must be a string or null");
 	}
+	if (!(record.resolved_scope === null || normalizeNullableString(record.resolved_scope))) {
+		throw new ExecutionFinalizationResponseContractError(
+			"resolved_scope must be a non-empty string or null",
+		);
+	}
+	assertSessionUpdate(record.session_update);
 	if (!(record.result === null || getRecord(record.result))) {
 		throw new ExecutionFinalizationResponseContractError("result must be an object or null");
 	}
@@ -254,6 +251,49 @@ function assertExecutionFinalizationResponseWire(
 	}
 	assertStageTiming(record.stage_timing);
 	assertDebugTraceRefs(record.debug_trace_refs);
+}
+
+const SESSION_UPDATE_SLOT_NAMES = new Set([
+	"curriculum_program",
+	"curriculum_program_family",
+	"curriculum_semester",
+]);
+
+function assertSessionUpdate(
+	value: unknown,
+): asserts value is ExecutionFinalizationResponseWire["session_update"] {
+	if (value === null) {
+		return;
+	}
+	const record = getRecord(value);
+	if (!record || Object.keys(record).some((key) => key !== "upsert_slots")) {
+		throw new ExecutionFinalizationResponseContractError(
+			"session_update must contain only upsert_slots",
+		);
+	}
+	if (!Array.isArray(record.upsert_slots)) {
+		throw new ExecutionFinalizationResponseContractError(
+			"session_update.upsert_slots must be an array",
+		);
+	}
+	const seenNames = new Set<string>();
+	for (const [index, value] of record.upsert_slots.entries()) {
+		const slot = getRecord(value);
+		if (
+			!slot ||
+			Object.keys(slot).some((key) => !["confirmed", "name", "value"].includes(key)) ||
+			slot.confirmed !== true ||
+			typeof slot.name !== "string" ||
+			!SESSION_UPDATE_SLOT_NAMES.has(slot.name) ||
+			!normalizeNullableString(slot.value) ||
+			seenNames.has(slot.name)
+		) {
+			throw new ExecutionFinalizationResponseContractError(
+				`session_update.upsert_slots[${index}] is invalid`,
+			);
+		}
+		seenNames.add(slot.name);
+	}
 }
 
 function normalizeRecordString(
@@ -300,103 +340,6 @@ function normalizeWorkflowRecord(value: unknown): Record<string, unknown> {
 	return record;
 }
 
-function normalizeStringArrayRecord(
-	record: Record<string, unknown>,
-	snakeCaseKey: string,
-): string[] | null {
-	const value = recordValue(record, snakeCaseKey);
-	if (!Array.isArray(value)) {
-		return null;
-	}
-	const items = value.filter(
-		(item): item is string => typeof item === "string" && item.trim().length > 0,
-	);
-	return items.length > 0 ? items : [];
-}
-
-function normalizeStringRecord(
-	record: Record<string, unknown>,
-	snakeCaseKey: string,
-): Record<string, string> | null {
-	const value = getRecord(recordValue(record, snakeCaseKey));
-	if (!value) {
-		return null;
-	}
-	const normalized = Object.fromEntries(
-		Object.entries(value).flatMap(([key, entry]) =>
-			typeof entry === "string" && entry.trim() ? [[key, entry]] : [],
-		),
-	);
-	return Object.keys(normalized).length > 0 ? normalized : {};
-}
-
-function parsePromptTrace(value: unknown): ToolExecutionPromptTrace | null {
-	const record = getRecord(value);
-	if (!record) {
-		return null;
-	}
-
-	const parsed: ToolExecutionPromptTrace = {
-		modelName: normalizeNullableString(record.model_name),
-		modelProvider: normalizeNullableString(record.model_provider),
-		outputSchemaVersion: normalizeNullableString(record.output_schema_version),
-		promptId: normalizeNullableString(record.prompt_id),
-		promptVersion: normalizeNullableString(record.prompt_version),
-		templateSha256: normalizeNullableString(record.template_sha256),
-		variablesSchemaVersion: normalizeNullableString(record.variables_schema_version),
-	};
-
-	if (Object.values(parsed).every((item) => item === null)) {
-		return null;
-	}
-
-	return parsed;
-}
-
-function parseModelUsageSummary(value: unknown): ToolExecutionModelUsageSummary | null {
-	const record = getRecord(value);
-	if (!record) {
-		return null;
-	}
-	return {
-		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens) ?? 0,
-		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd) ?? 0,
-		inputTokens: normalizeNullableNumber(record.input_tokens) ?? 0,
-		modelName: normalizeNullableString(record.model_name),
-		modelProvider: normalizeNullableString(record.model_provider),
-		outputTokens: normalizeNullableNumber(record.output_tokens) ?? 0,
-		stepCount: normalizeNullableNumber(record.step_count) ?? 0,
-	};
-}
-
-function parseUsageSummary(value: unknown): ToolExecutionUsageSummary | null {
-	const record = getRecord(value);
-	if (!record) {
-		return null;
-	}
-	const modelUsageValue = record.model_usage;
-	const modelUsage = Array.isArray(modelUsageValue)
-		? modelUsageValue.flatMap((item) => {
-				const parsed = parseModelUsageSummary(item);
-				return parsed ? [parsed] : [];
-			})
-		: [];
-	const parsed: ToolExecutionUsageSummary = {
-		billableStepCount: normalizeNullableNumber(record.billable_step_count) ?? 0,
-		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens) ?? 0,
-		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd) ?? 0,
-		inputTokens: normalizeNullableNumber(record.input_tokens) ?? 0,
-		modelName: normalizeNullableString(record.model_name),
-		modelProvider: normalizeNullableString(record.model_provider),
-		modelUsage,
-		outputTokens: normalizeNullableNumber(record.output_tokens) ?? 0,
-	};
-	if (parsed.billableStepCount <= 0 && parsed.modelUsage.length === 0) {
-		return null;
-	}
-	return parsed;
-}
-
 function parseExecutionObservability(value: unknown): ToolExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -405,70 +348,34 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 	if (containsForbiddenWorkflowTraceKey(record)) {
 		throw new ExecutionFinalizationResponseContractError("observability contains forbidden keys");
 	}
-
-	const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
-	const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
-	const rawRetrievedSources = record.retrieved_sources;
-	const hasRetrievedSourcesTrace = Array.isArray(rawRetrievedSources);
-	const retrievedSources = summarizeObservedSources(rawRetrievedSources);
-	const retrievalAttempted = normalizeNullableBoolean(record.retrieval_attempted);
-	const explicitRetrievedSourceCount = normalizeNullableNumber(record.retrieved_source_count);
-	const retrievedSourceCount =
-		explicitRetrievedSourceCount ??
-		(retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
+	const allowedKeys = new Set([
+		"agent_runtime",
+		"answer_eval_fingerprint",
+		"llm_io_fingerprint",
+		"sdk_trace_ref",
+		"selected_tools",
+		"terminal_reason",
+	]);
+	for (const key of Object.keys(record)) {
+		if (!allowedKeys.has(key)) {
+			throw new ExecutionFinalizationResponseContractError(`observability.${key} is not allowed`);
+		}
+	}
+	const selectedTools = stringArray(record.selected_tools);
 	const parsed: ToolExecutionObservability = {
-		aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
-		aclDecision: normalizeNullableString(record.acl_decision),
-		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens),
-		candidateCount: normalizeNullableNumber(record.candidate_count),
-		citationCount: normalizeNullableNumber(record.citation_count),
-		citationExpected: normalizeNullableBoolean(record.citation_expected),
-		citationMissing: normalizeNullableBoolean(record.citation_missing),
-		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
-		failClosed: normalizeNullableBoolean(record.fail_closed),
-		inputTokens: normalizeNullableNumber(record.input_tokens),
-		intentAmbiguityReason: normalizeRecordString(record, "intent_ambiguity_reason"),
-		intentAmbiguitySignal: normalizeRecordString(record, "intent_ambiguity_signal"),
-		intentTool: normalizeRecordString(record, "intent_tool"),
-		intentClassifierVersion: normalizeRecordString(record, "intent_classifier_version"),
-		intentContextReferenceType: normalizeRecordString(record, "intent_context_reference_type"),
-		intentContextResolutionState: normalizeRecordString(record, "intent_context_resolution_state"),
-		intentLaunchState: normalizeRecordString(record, "intent_launch_state"),
-		intentMissingSlots: normalizeStringArrayRecord(record, "intent_missing_slots"),
-		intentNextAction: normalizeRecordString(record, "intent_next_action"),
-		intentPolicyReason: normalizeRecordString(record, "intent_policy_reason"),
-		intentResolvedSlots: normalizeStringRecord(record, "intent_resolved_slots"),
-		intentRoutingConfidence: normalizeRecordString(record, "intent_routing_confidence"),
-		intentSchemaVersion: normalizeRecordString(record, "intent_schema_version"),
-		intentScopeClass: normalizeRecordString(record, "intent_scope_class"),
-		intentScopeReason: normalizeRecordString(record, "intent_scope_reason"),
-		intentTaskKind: normalizeRecordString(record, "intent_task_kind"),
+		agentRuntime: normalizeNullableString(record.agent_runtime),
 		answerEvalFingerprint: parseAnswerEvalFingerprint(record.answer_eval_fingerprint),
 		llmIoFingerprint: parseLlmIoFingerprint(record.llm_io_fingerprint),
-		modelName: normalizeNullableString(record.model_name),
-		modelProvider: normalizeNullableString(record.model_provider),
-		outputTokens: normalizeNullableNumber(record.output_tokens),
-		policyReason: normalizeNullableString(record.policy_reason),
-		modelExecutionDetail: normalizeNullableString(record.model_execution_detail),
-		modelExecutionState: normalizeNullableString(record.model_execution_state),
-		promptTrace: parsePromptTrace(record.prompt_trace),
-		replayPacketRef: parseReplayPacketRef(record.replay_packet_ref),
-		refusalClass: normalizeNullableString(record.refusal_class),
-		retrievedSourceCount,
-		...(hasRetrievedSourcesTrace ? { retrievedSources } : {}),
-		retrievalAttempted,
-		scopeClass: normalizeNullableString(record.scope_class),
-		semanticOutcome: normalizeNullableString(record.semantic_outcome),
-		selectedTool: normalizeNullableString(record.selected_tool),
-		toolBusinessOutcome: normalizeNullableString(record.tool_business_outcome),
-		toolFailCloseReason: normalizeNullableString(record.tool_fail_close_reason),
-		toolHistoricalDowngradeReason: normalizeNullableString(record.tool_historical_downgrade_reason),
-		usageSummary: parseUsageSummary(record.usage_summary),
-		...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
-		...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
+		sdkTraceRef: normalizeNullableString(record.sdk_trace_ref),
+		selectedTools,
+		terminalReason: normalizeNullableString(record.terminal_reason),
 	};
 
-	if (Object.values(parsed).every((item) => item === null)) {
+	if (
+		Object.values(parsed).every(
+			(item) => item === null || (Array.isArray(item) && item.length === 0),
+		)
+	) {
 		return null;
 	}
 
@@ -486,20 +393,8 @@ function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSu
 				(item): item is string => typeof item === "string" && item.trim().length > 0,
 			)
 		: [];
-	const handoffChainValue = recordValue(record, "handoff_chain");
-	const handoffChain = Array.isArray(handoffChainValue)
-		? handoffChainValue.flatMap((item) => {
-				const handoff = getRecord(item);
-				return handoff ? [handoff] : [];
-			})
-		: [];
-	const contextProjectionsValue = recordValue(record, "context_projections");
-	const contextProjections = Array.isArray(contextProjectionsValue)
-		? contextProjectionsValue.flatMap((item) => {
-				const projection = getRecord(item);
-				return projection ? [projection] : [];
-			})
-		: [];
+	const answerArtifactKinds = stringArray(recordValue(record, "answer_artifact_kinds"));
+	const answerArtifactRefs = stringArray(recordValue(record, "answer_artifact_refs"));
 	const traceStepsValue = recordValue(record, "trace_steps");
 	const traceSteps = Array.isArray(traceStepsValue)
 		? traceStepsValue.flatMap((item) => {
@@ -515,29 +410,31 @@ function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSu
 			})
 		: [];
 	const parsed: ToolExecutionWorkflowTraceSummary = {
-		contextResolution: normalizeWorkflowRecord(recordValue(record, "context_resolution")),
+		answerArtifactKinds,
+		answerArtifactRefs,
 		directVsDelegateBranch: normalizeRecordString(record, "direct_vs_delegate_branch"),
-		failCloseReason: normalizeRecordString(record, "fail_close_reason"),
-		guardrailOutcomes: normalizeWorkflowRecord(recordValue(record, "guardrail_outcomes")),
-		handoff: normalizeWorkflowRecord(record.handoff),
-		handoffChain,
-		contextProjections,
+		firstDecisionActor: normalizeRecordString(record, "first_decision_actor"),
 		planningOutcome: normalizeRecordString(record, "planning_outcome"),
-		policyArtifactVersions: normalizeWorkflowRecord(
-			recordValue(record, "policy_artifact_versions"),
-		),
-		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
 		runtimeVersions: normalizeWorkflowRecord(recordValue(record, "runtime_versions")),
 		selectedTool: normalizeRecordString(record, "selected_tool"),
 		selectedTools,
-		toolArgumentSummary: normalizeWorkflowRecord(recordValue(record, "tool_argument_summary")),
+		terminalReason: normalizeRecordString(record, "terminal_reason"),
 		traceSteps,
 		toolCallSummaries,
 		workflowMode: normalizeRecordString(record, "workflow_mode"),
 	};
 
 	if (
-		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTool) &&
+		!(
+			parsed.directVsDelegateBranch ||
+			parsed.firstDecisionActor ||
+			parsed.planningOutcome ||
+			parsed.selectedTool ||
+			parsed.terminalReason ||
+			parsed.workflowMode
+		) &&
+		parsed.answerArtifactKinds.length === 0 &&
+		parsed.answerArtifactRefs.length === 0 &&
 		parsed.selectedTools.length === 0 &&
 		Object.values(parsed).every(
 			(item) =>
@@ -550,6 +447,12 @@ function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSu
 	}
 
 	return parsed;
+}
+
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+		: [];
 }
 
 function parseStageTiming(value: unknown): Record<string, number> | null {
@@ -608,8 +511,18 @@ export function parseExecutionFinalizationResponsePayload(
 				: null,
 		followUpQuestion: parsed.follow_up_question,
 		observability: parseExecutionObservability(parsed.observability),
+		resolvedScope: parsed.resolved_scope,
 		result: parsed.result ?? null,
 		selectedTool: parsed.selected_tool,
+		sessionUpdate: parsed.session_update
+			? {
+					upsertSlots: parsed.session_update.upsert_slots.map((slot) => ({
+						confirmed: true,
+						name: slot.name,
+						value: slot.value.trim(),
+					})),
+				}
+			: null,
 		...(stageTiming ? { stageTiming } : {}),
 		status: parsed.status,
 		traceId: parsed.trace_id,

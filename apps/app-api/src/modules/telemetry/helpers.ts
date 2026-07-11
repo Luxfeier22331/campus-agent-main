@@ -20,8 +20,7 @@ export function toScopeSummary(scope: RequestedScope | null | undefined): string
 	if (!scope) {
 		return null;
 	}
-
-	return `${scope.corpus}/${scope.collection}`;
+	return scope;
 }
 
 export function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {

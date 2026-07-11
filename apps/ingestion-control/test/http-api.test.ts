@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
 import {
 	createIngestionControlHandler,
 	createIngestionTaskRegistryCatalog,
 	type IngestionTaskEnvelope,
-	InMemoryIngestionTaskStore,
 } from "../src/index.ts";
 import type { OfficialWebControlPlaneService } from "../src/official-web-control-plane-service.ts";
 import type { OfficialWebExecutionStatusService } from "../src/official-web-execution-status-service.ts";
@@ -30,6 +30,14 @@ const task: IngestionTaskEnvelope = {
 	created_at: "2026-06-11T00:00:00Z",
 };
 
+const serviceTokens = {
+	adminToken: "admin-token",
+	appApiProjectionToken: "app-api-projection-token",
+	officialWebCollectorToken: "collector-token",
+	officialWebExecutionStatusToken: "execution-status-token",
+	officialWebProjectionToken: "projection-token",
+};
+
 describe("ingestion-control internal HTTP API", () => {
 	it("admits and exposes queue state without executor mutation routes", async () => {
 		const workflowStarter = new RecordingWorkflowStarter();
@@ -52,6 +60,7 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store: new InMemoryIngestionTaskStore({
 				now: () => new Date("2026-06-11T00:00:00Z"),
 			}),
@@ -59,7 +68,7 @@ describe("ingestion-control internal HTTP API", () => {
 		});
 
 		const admittedResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -70,7 +79,10 @@ describe("ingestion-control internal HTTP API", () => {
 		expect(workflowStarter.startedTaskIds).toEqual([task.task_id]);
 
 		const fetchedResponse = await handler(
-			new Request(`http://ingestion-control/internal/ingestion/tasks/${task.task_id}`),
+			authorizedRequest(
+				`http://ingestion-control/internal/ingestion/tasks/${task.task_id}`,
+				"admin",
+			),
 		);
 		expect(fetchedResponse.status).toBeLessThan(400);
 		const fetched = await json(fetchedResponse);
@@ -99,11 +111,12 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 		});
 
 		const response = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -137,6 +150,7 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 			workflowStarter: {
 				async startTask() {
@@ -146,7 +160,7 @@ describe("ingestion-control internal HTTP API", () => {
 		});
 
 		const response = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -184,12 +198,13 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 			workflowStarter,
 		});
 
 		const firstResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -198,7 +213,7 @@ describe("ingestion-control internal HTTP API", () => {
 		store.markTaskRunning({ taskId: task.task_id, workflowRunId: "temporal-run-001" });
 
 		const runningDuplicateResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -209,7 +224,7 @@ describe("ingestion-control internal HTTP API", () => {
 
 		store.completeTask({ taskId: task.task_id, artifactRefs: [] });
 		const terminalDuplicateResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -243,18 +258,19 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 			workflowStarter,
 		});
 
 		await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
 		);
 		const duplicateResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -267,6 +283,7 @@ describe("ingestion-control internal HTTP API", () => {
 	it("does not expose executor claim, heartbeat, complete or fail mutation routes", async () => {
 		const handler = createIngestionControlHandler({
 			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			serviceTokens,
 			store: new InMemoryIngestionTaskStore(),
 		});
 
@@ -306,6 +323,7 @@ describe("ingestion-control internal HTTP API", () => {
 			officialWebCollectorToken: "collector-token",
 			officialWebControlPlaneService: service,
 			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			serviceTokens,
 			store: new InMemoryIngestionTaskStore(),
 		});
 
@@ -325,11 +343,14 @@ describe("ingestion-control internal HTTP API", () => {
 		});
 
 		const started = await handler(
-			new Request("http://ingestion-control/internal/ingestion/official-web/runs", {
-				body: JSON.stringify({ siteId: "campus_public" }),
-				headers: { authorization: "Bearer collector-token" },
-				method: "POST",
-			}),
+			authorizedRequest(
+				"http://ingestion-control/internal/ingestion/official-web/runs",
+				"collector",
+				{
+					body: JSON.stringify({ siteId: "campus_public" }),
+					method: "POST",
+				},
+			),
 		);
 		expect(started.status).toBe(200);
 		expect(await json(started)).toMatchObject({
@@ -341,11 +362,14 @@ describe("ingestion-control internal HTTP API", () => {
 		});
 
 		const resolved = await handler(
-			new Request("http://ingestion-control/internal/ingestion/official-web/plans:resolve", {
-				body: JSON.stringify({ siteId: "campus_public" }),
-				headers: { authorization: "Bearer collector-token" },
-				method: "POST",
-			}),
+			authorizedRequest(
+				"http://ingestion-control/internal/ingestion/official-web/plans:resolve",
+				"collector",
+				{
+					body: JSON.stringify({ siteId: "campus_public" }),
+					method: "POST",
+				},
+			),
 		);
 		expect(resolved.status).toBe(200);
 		expect(service.calls).toEqual(["start", "resolvePlan"]);
@@ -359,6 +383,7 @@ describe("ingestion-control internal HTTP API", () => {
 			officialWebExecutionStatusService: executionStatusService,
 			officialWebProjectionProjector: projectionProjector,
 			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			serviceTokens,
 			store: new InMemoryIngestionTaskStore(),
 		});
 
@@ -369,12 +394,27 @@ describe("ingestion-control internal HTTP API", () => {
 		);
 		expect(rejected.status).toBe(401);
 
+		const collectorDrain = await handler(
+			authorizedRequest(
+				"http://ingestion-control/internal/ingestion/official-web/projection:drain",
+				"collector",
+				{
+					body: JSON.stringify({ limit: 5 }),
+					method: "POST",
+				},
+			),
+		);
+		expect(collectorDrain.status).toBe(401);
+
 		const drained = await handler(
-			new Request("http://ingestion-control/internal/ingestion/official-web/projection:drain", {
-				body: JSON.stringify({ limit: 5 }),
-				headers: { authorization: "Bearer collector-token" },
-				method: "POST",
-			}),
+			authorizedRequest(
+				"http://ingestion-control/internal/ingestion/official-web/projection:drain",
+				"projection",
+				{
+					body: JSON.stringify({ limit: 5 }),
+					method: "POST",
+				},
+			),
 		);
 		expect(drained.status).toBe(200);
 		expect(await json(drained)).toEqual({
@@ -386,15 +426,15 @@ describe("ingestion-control internal HTTP API", () => {
 		expect(projectionProjector.calls).toEqual([{ limit: 5 }]);
 
 		const executionUpdated = await handler(
-			new Request(
+			authorizedRequest(
 				"http://ingestion-control/internal/ingestion/official-web/runs/owrun_01HQ/ingestion-execution",
+				"execution-status",
 				{
 					body: JSON.stringify({
 						executionRef: "task_01",
 						status: "running",
 						updatedAt: "2026-06-11T00:00:00.000Z",
 					}),
-					headers: { authorization: "Bearer collector-token" },
 					method: "POST",
 				},
 			),
@@ -417,6 +457,22 @@ describe("ingestion-control internal HTTP API", () => {
 				},
 			},
 		]);
+
+		const collectorExecutionStatus = await handler(
+			authorizedRequest(
+				"http://ingestion-control/internal/ingestion/official-web/runs/owrun_01HQ/ingestion-execution",
+				"collector",
+				{
+					body: JSON.stringify({
+						executionRef: "task_02",
+						status: "running",
+						updatedAt: "2026-06-11T00:01:00.000Z",
+					}),
+					method: "POST",
+				},
+			),
+		);
+		expect(collectorExecutionStatus.status).toBe(401);
 	});
 
 	it("rejects task admission before storage when registry membership is missing", async () => {
@@ -425,11 +481,12 @@ describe("ingestion-control internal HTTP API", () => {
 		});
 		const handler = createIngestionControlHandler({
 			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			serviceTokens,
 			store,
 		});
 
 		const response = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -466,11 +523,12 @@ describe("ingestion-control internal HTTP API", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 		});
 
 		const response = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -487,6 +545,43 @@ describe("ingestion-control internal HTTP API", () => {
 
 async function json(response: Response): Promise<Record<string, unknown>> {
 	return (await response.json()) as Record<string, unknown>;
+}
+
+function authorizedRequest(
+	url: string,
+	principal: "admin" | "app-api" | "collector" | "execution-status" | "projection",
+	init: RequestInit = {},
+): Request {
+	return new Request(url, {
+		...init,
+		headers: {
+			...(init.headers as Record<string, string> | undefined),
+			authorization: `Bearer ${tokenForPrincipal(principal)}`,
+		},
+	});
+}
+
+function tokenForPrincipal(
+	principal: "admin" | "app-api" | "collector" | "execution-status" | "projection",
+): string {
+	switch (principal) {
+		case "admin":
+			return serviceTokens.adminToken;
+		case "app-api":
+			return serviceTokens.appApiProjectionToken;
+		case "collector":
+			return serviceTokens.officialWebCollectorToken;
+		case "execution-status":
+			return serviceTokens.officialWebExecutionStatusToken;
+		case "projection":
+			return serviceTokens.officialWebProjectionToken;
+		default:
+			return assertNeverPrincipal(principal);
+	}
+}
+
+function assertNeverPrincipal(value: never): never {
+	throw new Error(`Unsupported test principal: ${String(value)}`);
 }
 
 class RecordingWorkflowStarter {

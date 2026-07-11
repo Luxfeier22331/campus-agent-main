@@ -4,18 +4,18 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-13
+updated: 2026-07-08
 ---
 
 # App API Schema
 
 ## Document Boundary
 
-This file is the stable index for app-api logical schema ownership. It
-owns global rules, code ownership and migration rules only. Table-family
-details live in split data documents.
+This file is the app-api logical schema owner overview. It owns shared storage,
+schema-code and migration-ownership rules for app-api data domains. Table-family
+field details live in split data documents.
 
-## Split Documents
+## Owner Documents
 
 - `app-api/auth-chat-docs-profile.md`
   - Auth, chat, docs and profile: app auth, chat, docs and memory tables

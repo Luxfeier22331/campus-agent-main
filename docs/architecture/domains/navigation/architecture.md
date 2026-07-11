@@ -40,21 +40,21 @@ tool-using product 中的稳定 tool domain。
 长期导航主链路固定为：
 
 ```text
-web surface -> app-api -> execution-control -> Temporal activity
--> tool worker -> navigation / typed spatial tools
--> spatial truth / provider adapters -> execution response
+web surface -> app-api -> execution-control -> Temporal Agent Activity
+-> Agents SDK primary agent -> admitted navigation function tool
+-> internal navigation query service -> spatial truth / provider adapters
 ```
 
-在长期 multi-tool / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
-specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
-`StopContext`、route summary 或 accessibility warning projection。它不因此拥有
-timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
+未来开放后，`navigation` 只能作为 Agents SDK run 内的受限 function tool 或
+official handoff target 被调用，并返回 bounded `PlaceContext`、`StopContext`、
+route summary 或 accessibility warning。它不因此拥有 timetable truth、
+service-status truth、notice truth 或 knowledge evidence truth。
 
 ## Product Goal
 
 长期用户可见目标至少包括：
 
-- `place_lookup` 例如“图书馆在哪”
+- place finding，例如“图书馆在哪”
 - `route_planning` 例如“从北门到图书馆怎么走”
 - `entrance_selection` 例如“去文科楼从哪个门进更近”
 - `accessibility_routing` 例如“轮椅可达怎么走”
@@ -102,35 +102,34 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 长期负责：
 
-- intent framing
-- risk / safety gate
-- tool routing
-- handoff shaping
-- response finalization
+- deterministic admission and policy gates
+- Temporal workflow lifecycle and Agent Activity dispatch
+- bounded projection and terminal-state persistence
 
 长期不负责：
 
+- agent/tool loop、tool routing 或 handoff selection
 - place alias business rules
 - route graph search
 - provider-specific route or geocode logic
+- answer text generation or rewriting
 - browser map rendering
 
 ### Navigation Tool Runtime
 
-当前 `place_lookup` 没有 model-visible runtime；旧 Python navigation package
-已退役。重新开放前必须在 TS/Go owner 中重新建立 typed
-tool runtime 或 internal query service。
+当前没有 model-visible place tool 或 execution contract。未来实现 place finding
+时必须建立由 Agents SDK function tool 调用的 internal query service，并通过
+runtime config 显式开放。
 
 长期负责：
 
 - place / building / entrance / gate / stop resolution
 - route planning inside the tool boundary
 - ambiguity handling and clarification
-- navigation answer shaping
+- bounded navigation result shaping
 - provider candidate orchestration inside the tool boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
-- manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
-  projection
+- SDK run 中 bounded `PlaceContext` / `StopContext` tool result
 
 长期不负责：
 

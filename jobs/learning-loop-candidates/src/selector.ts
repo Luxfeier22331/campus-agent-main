@@ -14,7 +14,6 @@ function firstReason(row: CandidateSourceRow): string {
 	const latency = evaluateStageTimingBudget(row.stageTiming);
 	return (
 		latency.worstBreach?.reason ??
-		row.toolFailCloseReason ??
 		row.reasonCodes[0] ??
 		row.errorCode ??
 		"operator_review_needed"
@@ -30,17 +29,13 @@ function classifyCandidate(row: CandidateSourceRow): ImprovementCategory {
 	if (reason.includes("schema") || reason.includes("validation") || reason.includes("tool_arg")) {
 		return "tool_schema_or_description_fix";
 	}
-	if (row.modelExecutionState === "timeout" || row.reasonCodes.includes("too_slow")) {
+	if (row.reasonCodes.includes("too_slow")) {
 		return "model_provider_or_latency_budget_fix";
 	}
 	if (row.reasonCodes.includes("wrong_tool")) {
 		return "tool_admission_or_routing_fix";
 	}
-	if (
-		row.reasonCodes.includes("missing_context") ||
-		row.retrievalAdequacyVerdict === "inadequate" ||
-		row.retrievedSourceCount === 0
-	) {
+	if (row.reasonCodes.includes("missing_context")) {
 		return "retrieval_source_fix";
 	}
 	if (row.reasonCodes.includes("bad_tone") || row.reasonCodes.includes("unclear_answer")) {
@@ -68,10 +63,7 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 						debugTraceRefCount: row.traceAvailable ? 1 : 0,
 						durationMs: breach.durationMs,
 						failClosed: row.failClosed,
-						modelExecutionState: row.modelExecutionState,
 						reasonCodes: row.reasonCodes,
-						retrievalAttempted: row.retrievalAttempted,
-						retrievedSourceCount: row.retrievedSourceCount,
 						selectedTool: row.selectedTool ?? row.requestedTool,
 						stageField: breach.field,
 						status: row.status,
@@ -94,10 +86,7 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 			category: classifyCandidate(row),
 			evidence: {
 				failClosed: row.failClosed,
-				modelExecutionState: row.modelExecutionState,
 				reasonCodes: row.reasonCodes,
-				retrievalAttempted: row.retrievalAttempted,
-				retrievedSourceCount: row.retrievedSourceCount,
 				selectedTool: row.selectedTool ?? row.requestedTool,
 				status: row.status,
 				traceAvailable: row.traceAvailable,

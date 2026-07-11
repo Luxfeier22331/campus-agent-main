@@ -105,32 +105,6 @@ type valueHistogram struct {
 	Sum     float64
 }
 
-type RuntimeDecisionLabels struct {
-	Target                string
-	TaskQueue             string
-	ScopeGate             string
-	PolicyGate            string
-	ContextPreflightState string
-	RoutingNextAction     string
-	PlanningOutcome       string
-	SelectedTool          string
-	TerminalOutcome       string
-	FailCloseReason       string
-}
-
-type runtimeDecisionKey struct {
-	Target                string
-	TaskQueue             string
-	ScopeGate             string
-	PolicyGate            string
-	ContextPreflightState string
-	RoutingNextAction     string
-	PlanningOutcome       string
-	SelectedTool          string
-	TerminalOutcome       string
-	FailCloseReason       string
-}
-
 type Metrics struct {
 	mu sync.Mutex
 
@@ -147,7 +121,6 @@ type Metrics struct {
 	personalMemoryDurations map[string]*routeHistogram
 	personalMemoryItems     map[string]*valueHistogram
 	personalMemoryChars     map[string]*valueHistogram
-	runtimeDecisionTotals   map[runtimeDecisionKey]uint64
 }
 
 func NewMetrics() *Metrics {
@@ -174,7 +147,6 @@ func NewMetrics() *Metrics {
 		personalMemoryDurations: make(map[string]*routeHistogram),
 		personalMemoryItems:     make(map[string]*valueHistogram),
 		personalMemoryChars:     make(map[string]*valueHistogram),
-		runtimeDecisionTotals:   make(map[runtimeDecisionKey]uint64),
 	}
 }
 
@@ -304,21 +276,4 @@ func (m *Metrics) RecordPersonalMemoryOperation(
 		m.personalMemoryChars[operation] = charHistogram
 	}
 	recordValueHistogram(charHistogram, float64(selectedChars))
-}
-
-func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.runtimeDecisionTotals[runtimeDecisionKey{
-		Target:                defaultMetricLabel(labels.Target, "unknown"),
-		TaskQueue:             defaultMetricLabel(labels.TaskQueue, "unknown"),
-		ScopeGate:             defaultMetricLabel(labels.ScopeGate, "unknown"),
-		PolicyGate:            defaultMetricLabel(labels.PolicyGate, "unknown"),
-		ContextPreflightState: defaultMetricLabel(labels.ContextPreflightState, "unknown"),
-		RoutingNextAction:     defaultMetricLabel(labels.RoutingNextAction, "unknown"),
-		PlanningOutcome:       defaultMetricLabel(labels.PlanningOutcome, "unknown"),
-		SelectedTool:          defaultMetricLabel(labels.SelectedTool, "none"),
-		TerminalOutcome:       defaultMetricLabel(labels.TerminalOutcome, "none"),
-		FailCloseReason:       defaultMetricLabel(labels.FailCloseReason, "none"),
-	}]++
 }

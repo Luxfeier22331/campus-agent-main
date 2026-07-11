@@ -82,10 +82,13 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["type"],
+							"required": ["type", "target"],
 							"properties": {
 								"type": {
-									"const": "workflow_signal"
+									"const": "agent_handoff"
+								},
+								"target": {
+									"const": "knowledge_agent"
 								}
 							}
 						}

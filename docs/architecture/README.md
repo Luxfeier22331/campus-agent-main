@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-12
-updated: 2026-06-13
+updated: 2026-07-09
 ---
 # Architecture
 
@@ -23,6 +23,9 @@ planning status.
   - current accepted merged-truth snapshot
 - `target.md`
   - long-term architecture invariants and non-regression boundaries
+- `flows.md`
+  - stable cross-boundary flow diagrams; visual map only, not a replacement for
+    owner docs
 
 ## Supporting Architecture Layout
 
@@ -50,6 +53,7 @@ planning status.
 - "What must the system converge to?" -> `target.md`
 - "How does a cross-domain runtime or owner boundary work?" -> `system/`
 - "How does one domain or tool boundary work?" -> `domains/`
+- "Where is the end-to-end flow diagram for a stable chain?" -> `flows.md`
 - "Where is official-web source truth?" ->
   `../data/official-web.md`
 - "Where is authenticated notice source truth?" ->
@@ -63,6 +67,9 @@ planning status.
 - `target.md` writes long-term invariants only.
 - Supporting architecture explains boundaries and owners, not one-off plans or
   execution history.
+- Migration-state text must be labeled explicitly as current fact, accepted
+  target, reserved / closed capability, retired historical artifact or
+  compatibility name/path.
 - Cross-domain supporting architecture belongs in `system/`.
 - Domain-specific architecture belongs in `domains/`.
 - Canonical source-truth artifacts and schemas belong in `docs/data/`, not in

@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-func TestDecodeToolExecutionRequestWireJSONAcceptsCanonicalFixture(t *testing.T) {
-	payload := readContractFixture(t, "tool_execution_delegate.valid.json")
+func TestDecodeExecutionPayloadWireJSONAcceptsCanonicalFixture(t *testing.T) {
+	payload := readContractFixture(t, "execution_payload.valid.json")
 
-	wire, err := DecodeToolExecutionRequestWireJSON(payload)
+	wire, err := DecodeExecutionPayloadWireJSON(payload)
 	if err != nil {
-		t.Fatalf("DecodeToolExecutionRequestWireJSON returned error: %v", err)
+		t.Fatalf("DecodeExecutionPayloadWireJSON returned error: %v", err)
 	}
 	if wire.ExecutionContractVersion != ExecutionContractVersion {
 		t.Fatalf("execution contract version = %q, want %q", wire.ExecutionContractVersion, ExecutionContractVersion)
@@ -22,25 +22,86 @@ func TestDecodeToolExecutionRequestWireJSONAcceptsCanonicalFixture(t *testing.T)
 	}
 }
 
-func TestDecodeToolExecutionRequestWireJSONAcceptsRequestWithoutRuntimeDecisions(t *testing.T) {
-	payload := canonicalToolExecutionRequestPayload()
+func TestDecodeExecutionRunCreateRequestWireJSONAcceptsCanonicalRequest(t *testing.T) {
+	body, err := json.Marshal(canonicalExecutionRunCreateRequestPayload())
+	if err != nil {
+		t.Fatalf("marshal run create request: %v", err)
+	}
+
+	wire, err := DecodeExecutionRunCreateRequestWireJSON(body)
+	if err != nil {
+		t.Fatalf("DecodeExecutionRunCreateRequestWireJSON returned error: %v", err)
+	}
+	if wire.Metadata.ExecutionPayload.RequestedTool != RequestedToolKnowledgeQuery {
+		t.Fatalf("requested tool = %q, want knowledge_query", wire.Metadata.ExecutionPayload.RequestedTool)
+	}
+}
+
+func TestDecodeExecutionRunCreateRequestWireJSONRejectsCallerRoutingFields(t *testing.T) {
+	for _, field := range []string{"requested_tool", "selected_tool", "task_queue"} {
+		t.Run(field, func(t *testing.T) {
+			payload := canonicalExecutionRunCreateRequestPayload()
+			payload[field] = "caller-owned-value"
+			body, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("marshal run create request: %v", err)
+			}
+
+			if _, err := DecodeExecutionRunCreateRequestWireJSON(body); err == nil {
+				t.Fatalf("expected caller routing field %s to be rejected", field)
+			}
+		})
+	}
+}
+
+func TestDecodeExecutionPayloadWireJSONRejectsUnknownField(t *testing.T) {
+	payload := canonicalExecutionPayload()
+	payload["unexpected_field"] = true
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	wire, err := DecodeToolExecutionRequestWireJSON(body)
-	if err != nil {
-		t.Fatalf("DecodeToolExecutionRequestWireJSON returned error: %v", err)
-	}
-	if wire.RequestID != "req-contract-runtime-neutral" {
-		t.Fatalf("request id = %q", wire.RequestID)
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
+		t.Fatal("expected unknown execution payload field to be rejected")
 	}
 }
 
-func TestDecodeToolExecutionRequestWireJSONRejectsContextProfileMemory(t *testing.T) {
+func TestDecodeExecutionPayloadWireJSONRejectsUnknownTraceField(t *testing.T) {
+	payload := canonicalExecutionPayload()
+	payload["trace"] = map[string]any{
+		"trace_id":   "trace-contract-runtime-neutral",
+		"unexpected": true,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
+		t.Fatal("expected unknown trace field to be rejected")
+	}
+}
+
+func TestDecodeExecutionPayloadWireJSONRejectsUnknownVersionQueryField(t *testing.T) {
+	payload := canonicalExecutionPayload()
+	payload["version_query"] = map[string]any{
+		"mode":       "current",
+		"unexpected": true,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
+		t.Fatal("expected unknown version query field to be rejected")
+	}
+}
+
+func TestDecodeExecutionPayloadWireJSONRejectsContextProfileMemory(t *testing.T) {
 	var payload map[string]any
-	if err := json.Unmarshal(readContractFixture(t, "tool_execution_delegate.valid.json"), &payload); err != nil {
+	if err := json.Unmarshal(readContractFixture(t, "execution_payload.valid.json"), &payload); err != nil {
 		t.Fatalf("decode fixture: %v", err)
 	}
 	payload["context"] = map[string]any{
@@ -54,13 +115,13 @@ func TestDecodeToolExecutionRequestWireJSONRejectsContextProfileMemory(t *testin
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	if _, err := DecodeToolExecutionRequestWireJSON(body); err == nil {
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
 		t.Fatal("expected context.profile_memory to be rejected")
 	}
 }
 
-func TestDecodeToolExecutionRequestWireJSONRejectsTopLevelConversationContext(t *testing.T) {
-	payload := canonicalToolExecutionRequestPayload()
+func TestDecodeExecutionPayloadWireJSONRejectsTopLevelConversationContext(t *testing.T) {
+	payload := canonicalExecutionPayload()
 	payload["conversation_context"] = map[string]any{
 		"schema_version":  "conversation_context.v1",
 		"conversation_id": "conv-contract-runtime-neutral",
@@ -70,49 +131,31 @@ func TestDecodeToolExecutionRequestWireJSONRejectsTopLevelConversationContext(t 
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	if _, err := DecodeToolExecutionRequestWireJSON(body); err == nil {
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
 		t.Fatal("expected top-level conversation_context to be rejected")
 	}
 }
 
-func TestDecodeToolExecutionLegacyRuntimeDecisionsWireStillValidatesWhenPresent(t *testing.T) {
-	payload := readContractFixture(t, "tool_execution_delegate.valid.json")
-	wire, err := DecodeToolExecutionRequestWireJSON(payload)
+func TestDecodeExecutionPayloadWireJSONRejectsScopeForNonKnowledgeTool(t *testing.T) {
+	payload := canonicalExecutionPayload()
+	payload["requested_tool"] = "transport_schedule_lookup"
+	body, err := json.Marshal(payload)
 	if err != nil {
-		t.Fatalf("DecodeToolExecutionRequestWireJSON returned error: %v", err)
+		t.Fatalf("marshal payload: %v", err)
 	}
-	if wire.RuntimeDecisions.RuntimeDecisionSummary.PlanningOutcome != "preplanned" {
-		t.Fatalf(
-			"planning outcome = %q, want preplanned",
-			wire.RuntimeDecisions.RuntimeDecisionSummary.PlanningOutcome,
-		)
-	}
-	if wire.RuntimeDecisions.WorkflowPlan == nil {
-		t.Fatal("workflow_plan is nil, want canonical plan projection")
-	}
-	if wire.RuntimeDecisions.WorkflowPlan.WorkflowMode != WorkflowModeSingleStep {
-		t.Fatalf(
-			"workflow mode = %q, want single_step",
-			wire.RuntimeDecisions.WorkflowPlan.WorkflowMode,
-		)
+
+	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
+		t.Fatal("expected scope for non-knowledge tool to be rejected")
 	}
 }
 
-func TestStepOutputProjectionKindValidAcceptsAllSchemaProjectionKinds(t *testing.T) {
-	for _, kind := range []StepOutputProjectionKind{
-		StepOutputProjectionKindNoticeContext,
-		StepOutputProjectionKindScheduleBaseline,
-		StepOutputProjectionKindPlaceContext,
-		StepOutputProjectionKindEvidenceBundle,
-		StepOutputProjectionKindGroundingVerdict,
-	} {
-		if !kind.Valid() {
-			t.Fatalf("projection kind %q should be valid", kind)
-		}
+func TestAnswerArtifactKindValidAcceptsAgentFinalOutput(t *testing.T) {
+	if !AnswerArtifactKindAgentFinalOutput.Valid() {
+		t.Fatal("agent_final_output should be a valid answer artifact kind")
 	}
 }
 
-func canonicalToolExecutionRequestPayload() map[string]any {
+func canonicalExecutionPayload() map[string]any {
 	return map[string]any{
 		"execution_contract_version": "tool_execution_v1",
 		"response_contract":          "execution_finalization_response_v2",
@@ -121,35 +164,41 @@ func canonicalToolExecutionRequestPayload() map[string]any {
 		"request_id":                 "req-contract-runtime-neutral",
 		"safety_identifier":          nil,
 		"trace":                      map[string]any{"trace_id": "trace-contract-runtime-neutral"},
-		"actor": map[string]any{
-			"user_id":        "student@example.edu",
-			"principal_id":   "principal-contract-runtime-neutral",
-			"principal_type": "student",
-			"roles":          []string{"student"},
-			"departments":    []string{},
-		},
 		"context": map[string]any{
 			"session_slots": map[string]any{},
 		},
 		"requested_tool": "knowledge_query",
-		"effective_tool": "knowledge_query",
-		"task_queue":     "campus-agent.workflow",
-		"requested_scope": map[string]any{
-			"corpus":     "regulations",
-			"collection": "student_rules",
-		},
-		"version_query": map[string]any{"mode": "current"},
+		"scope":          "student_rules",
+		"version_query":  map[string]any{"mode": "current"},
 	}
 }
 
-func TestDecodeToolExecutionRequestWireJSONRejectsInvalidFixtures(t *testing.T) {
+func canonicalExecutionRunCreateRequestPayload() map[string]any {
+	return map[string]any{
+		"run_id":          "run-contract-runtime-neutral",
+		"conversation_id": "conv-contract-runtime-neutral",
+		"turn_id":         "turn-contract-runtime-neutral",
+		"request_id":      "req-contract-runtime-neutral",
+		"trace_id":        "trace-contract-runtime-neutral",
+		"owner_user_id":   "user-contract-runtime-neutral",
+		"surface":         "internal_eval",
+		"runtime_versions": map[string]any{
+			"caller": "app-api@test",
+		},
+		"metadata": map[string]any{
+			"execution_payload": canonicalExecutionPayload(),
+		},
+	}
+}
+
+func TestDecodeExecutionPayloadWireJSONRejectsInvalidFixtures(t *testing.T) {
 	for _, fixtureName := range []string{
-		"tool_execution_extra_field.invalid.json",
-		"tool_execution_invalid_enum.invalid.json",
-		"tool_execution_invalid_version.invalid.json",
+		"execution_payload_extra_field.invalid.json",
+		"execution_payload_invalid_enum.invalid.json",
+		"execution_payload_invalid_version.invalid.json",
 	} {
 		t.Run(fixtureName, func(t *testing.T) {
-			if _, err := DecodeToolExecutionRequestWireJSON(readContractFixture(t, fixtureName)); err == nil {
+			if _, err := DecodeExecutionPayloadWireJSON(readContractFixture(t, fixtureName)); err == nil {
 				t.Fatal("expected invalid handoff fixture to be rejected")
 			}
 		})
@@ -273,6 +322,42 @@ func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTimingAndDebugT
 	}
 }
 
+func TestDecodeToolExecutionResponseWireJSONRejectsInvalidSessionUpdate(t *testing.T) {
+	payload := canonicalToolExecutionResponsePayload()
+	payload["session_update"] = map[string]any{
+		"upsert_slots": []map[string]any{{
+			"confirmed": true,
+			"name":      "unexpected_slot",
+			"value":     "计算机科学与技术",
+		}},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
+		t.Fatal("expected invalid session update slot name to be rejected")
+	}
+}
+
+func TestDecodeToolExecutionResponseWireJSONRequiresNullableFinalizationFields(t *testing.T) {
+	for _, field := range []string{"resolved_scope", "session_update"} {
+		t.Run(field, func(t *testing.T) {
+			payload := canonicalToolExecutionResponsePayload()
+			delete(payload, field)
+			body, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+
+			if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
+				t.Fatalf("expected missing %s to be rejected", field)
+			}
+		})
+	}
+}
+
 func canonicalToolExecutionResponsePayload() map[string]any {
 	return map[string]any{
 		"selected_tool":          nil,
@@ -280,6 +365,8 @@ func canonicalToolExecutionResponsePayload() map[string]any {
 		"answer_text":            "ok",
 		"follow_up_question":     "",
 		"confidence":             "high",
+		"resolved_scope":         nil,
+		"session_update":         nil,
 		"result":                 map[string]any{},
 		"error":                  nil,
 		"observability":          map[string]any{},

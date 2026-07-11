@@ -159,8 +159,10 @@ export {
 	repairInternalNoticeReadModelConsistency,
 } from "./internal-notice-read-model.ts";
 export {
+	assertIngestionKernelOutputSucceeded,
 	buildIngestionKernelArtifactKey,
 	INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE,
+	IngestionKernelReportedErrorsError,
 	parseIngestionKernelJsonOutput,
 } from "./kernel-artifacts.ts";
 export {

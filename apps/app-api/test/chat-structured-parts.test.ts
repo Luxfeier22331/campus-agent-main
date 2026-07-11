@@ -22,97 +22,6 @@ describe("chat structured parts", () => {
 		createRuntimeDbGetter.mockImplementation(() => () => createRuntimeDatabase());
 	});
 
-	it("maps persisted assistant place cards back into conversation detail", async () => {
-		const conversationLimit = vi.fn().mockResolvedValue([
-			{
-				createdAt: new Date("2026-04-11T09:00:00.000Z"),
-				id: "conv_01",
-				ownerUserId: "user_01",
-				title: "图书馆在哪里",
-				updatedAt: new Date("2026-04-11T09:00:02.000Z"),
-			},
-		]);
-		const conversationWhere = vi.fn(() => ({
-			limit: conversationLimit,
-		}));
-		const messageOrderBy = vi.fn().mockResolvedValue([
-			{
-				conversationId: "conv_01",
-				createdAt: new Date("2026-04-11T09:00:02.000Z"),
-				id: "msg_assistant",
-				kind: "answer",
-				requestId: "req_01",
-				retryable: false,
-				role: "assistant",
-				structuredPartsJson: [
-					{
-						placeCard: {
-							accessNote: "访客请先完成入校登记。",
-							campusArea: "主教学区西侧",
-							coordinateReferenceSystem: "EPSG:4326",
-							displayName: "图书馆",
-							entityType: "building",
-							locationDescription: "海淀校区主教学区西侧，靠近校医院。",
-							placeId: "muc.haidian.library",
-						},
-						type: "place_card",
-					},
-				],
-				text: "图书馆在海淀校区主教学区西侧，靠近校医院。",
-			},
-		]);
-		const messageWhere = vi.fn(() => ({
-			orderBy: messageOrderBy,
-		}));
-		const sessionSlotOrderBy = vi.fn().mockResolvedValue([]);
-		const sessionSlotWhere = vi.fn(() => ({
-			orderBy: sessionSlotOrderBy,
-		}));
-		const select = vi
-			.fn()
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: conversationWhere,
-				})),
-			})
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: messageWhere,
-				})),
-			})
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: sessionSlotWhere,
-				})),
-			})
-			.mockReturnValueOnce({
-				from: vi.fn(() => ({
-					where: vi.fn().mockResolvedValue([]),
-				})),
-			});
-
-		createRuntimeDatabase.mockResolvedValue({
-			select,
-		});
-
-		const store = createPgChatConversationStore({} as never);
-		const conversation = await store.getConversationDetailByOwner("user_01", "conv_01");
-
-		expect(conversation?.messages[0]).toMatchObject({
-			id: "msg_assistant",
-			structuredParts: [
-				{
-					placeCard: {
-						displayName: "图书馆",
-						entityType: "building",
-						placeId: "muc.haidian.library",
-					},
-					type: "place_card",
-				},
-			],
-		});
-	});
-
 	it("maps persisted assistant source items back into conversation detail", async () => {
 		const conversationLimit = vi.fn().mockResolvedValue([
 			{
@@ -354,7 +263,7 @@ describe("chat structured parts", () => {
 		});
 	});
 
-	it("derives previous-evidence proof metadata from safe RAG source fields", () => {
+	it("ignores legacy nested evidence sources", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {
 				evidence: {
@@ -373,51 +282,30 @@ describe("chat structured parts", () => {
 			status: "completed",
 		});
 
-		expect(parts).toHaveLength(1);
-		expect(parts[0]).toMatchObject({
-			sourceItems: [
-				{
-					accessScope: "public",
-					collection: "regulations/student_rules",
-					contentHash: "sha256:handbook:scholarship:chunk-0019",
-					documentId: "handbook:scholarship",
-					evidenceId: "handbook:scholarship:chunk-0019",
-					sourceId: "campus-agent://regulations/student_rules/docs/handbook:scholarship",
-					versionId: "span://handbook:scholarship/handbook:scholarship:chunk-0019",
-				},
-			],
-			type: "source_items",
-		});
+		expect(parts).toEqual([]);
 	});
 
-	it("projects public web search results as browser-safe source items", () => {
+	it("projects finalized external knowledge sources as browser-safe source items", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {
-				model: "gpt-5-search-api-2025-10-14",
-				provider: "linux_do",
-				query_text: "校园网密码怎么改",
-				result_kind: "public_web_evidence",
 				sources: [
 					{
-						content_hash: "sha256:web-source",
-						evidence_id: "public_web:abc123",
-						publisher_label: "中央民族大学",
+						canonical_url: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
 						snippet: "校园网用户可通过数字校园相关页面查看上网指南。",
-						source_kind: "public_web",
+						source_kind: "document",
+						source_title: "上网指南",
 						target_kind: "public_web_url",
-						title: "上网指南",
-						url: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
 					},
 					{
+						canonical_url: "https://example.com/muc",
 						snippet: "外部污染不应进入结果。",
-						source_kind: "public_web",
+						source_kind: "document",
+						source_title: "外部污染",
 						target_kind: "public_web_url",
-						title: "外部污染",
-						url: "https://example.com/muc",
 					},
 				],
 			},
-			selectedTool: "public_web_search",
+			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 
@@ -425,17 +313,13 @@ describe("chat structured parts", () => {
 			{
 				sourceItems: [
 					expect.objectContaining({
-						collectionLabel: "公开网页",
-						contentHash: "sha256:web-source",
-						evidenceId: "public_web:abc123",
 						primaryAction: {
 							disabledReason: null,
 							external: true,
 							href: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
 							label: "打开网页",
 						},
-						publisherLabel: "中央民族大学",
-						sourceKind: "public_web",
+						sourceKind: "document",
 						targetKind: "public_web_url",
 						title: "上网指南",
 					}),
@@ -447,16 +331,14 @@ describe("chat structured parts", () => {
 
 	it("requires an explicit allowlist for public notice URL source cards", () => {
 		const result = {
-			evidence: {
-				sources: [
-					{
-						original_url: "https://www.example.edu/info/1041/12345.htm",
-						source_kind: "notice",
-						source_title: "关于校园开放日安排的通知",
-						target_kind: "public_notice_url",
-					},
-				],
-			},
+			sources: [
+				{
+					original_url: "https://www.example.edu/info/1041/12345.htm",
+					source_kind: "notice",
+					source_title: "关于校园开放日安排的通知",
+					target_kind: "public_notice_url",
+				},
+			],
 		};
 
 		expect(
@@ -501,7 +383,7 @@ describe("chat structured parts", () => {
 					},
 				],
 			},
-			selectedTool: "public_web_search",
+			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 

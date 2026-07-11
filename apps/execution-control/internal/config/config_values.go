@@ -45,24 +45,8 @@ func readFirstString(names ...string) string {
 	return ""
 }
 
-func readNoticeReadModelDatabaseURL() string {
-	databaseURL := readFirstString(
-		"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
-		"CAMPUS_SHARED_POSTGRES_URL",
-	)
-	return normalizePostgresDatabaseURL(databaseURL)
-}
-
 func readStructuredProjectionDatabaseURL() string {
 	databaseURL := readFirstString("CAMPUS_SHARED_POSTGRES_URL")
-	return normalizePostgresDatabaseURL(databaseURL)
-}
-
-func readWorkflowRunDatabaseURL(values envValues) string {
-	databaseURL := strings.TrimSpace(values.WorkflowRunDatabaseURL)
-	if databaseURL == "" {
-		databaseURL = readFirstString("CAMPUS_SHARED_POSTGRES_URL")
-	}
 	return normalizePostgresDatabaseURL(databaseURL)
 }
 
@@ -154,20 +138,4 @@ func readStringList(name string) []string {
 		}
 	}
 	return values
-}
-
-func validateOpenTools(values []string) ([]string, error) {
-	for _, value := range values {
-		switch strings.TrimSpace(value) {
-		case "knowledge_query",
-			"public_web_search",
-			"transport_schedule_lookup",
-			"campus_notice_discover":
-		case "*", "all":
-			return nil, fmt.Errorf("runtime config open_tools does not support wildcard value %q", value)
-		default:
-			return nil, fmt.Errorf("runtime config open_tools contains unsupported tool %q", value)
-		}
-	}
-	return values, nil
 }

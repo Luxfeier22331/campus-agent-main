@@ -3,12 +3,94 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
+
+type fakeTemporalStarter struct {
+	cancelRunID  string
+	cancelReason string
+	cancelErr    error
+	ctx          context.Context
+	input        temporalruntime.ToolExecutionWorkflowInput
+	err          error
+}
+
+func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
+	ctx context.Context,
+	input temporalruntime.ToolExecutionWorkflowInput,
+) error {
+	f.ctx = ctx
+	f.input = input
+	return f.err
+}
+
+func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
+	_ context.Context,
+	input temporalruntime.ToolExecutionWorkflowCancelInput,
+) error {
+	f.cancelRunID = input.RunID
+	f.cancelReason = input.Reason
+	return f.cancelErr
+}
+
+func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
+	return temporalruntime.RuntimeReadiness{
+		Healthy: true,
+		TaskQueues: []temporalruntime.TaskQueueReadiness{
+			{
+				Name:    temporalruntime.WorkflowTaskQueue,
+				Type:    temporalruntime.TaskQueueTypeWorkflow,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueCore,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueAgent,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+		},
+	}
+}
+
+func publicRetrievalFilterForTest() map[string]any {
+	return map[string]any{
+		"policy_projection_version": "phase1-authorization-projection-v1",
+		"visibility_level":          "public",
+	}
+}
+
+func setExecutionPayloadConversationContextForRunTest(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	conversationContext map[string]any,
+) {
+	t.Helper()
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run projection: %v", err)
+	}
+	metadata := cloneAnyMapFromMetadata(run.Metadata)
+	executionPayload := cloneAnyMapFromMetadata(metadata["execution_payload"])
+	contextEnvelope := cloneAnyMapFromMetadata(executionPayload["context"])
+	contextEnvelope["conversation"] = conversationContext
+	executionPayload["context"] = contextEnvelope
+	metadata["execution_payload"] = executionPayload
+	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
+		t.Fatalf("replace run metadata: %v", err)
+	}
+}
 
 func attachRunProjectionStoreForHandlerTest(
 	server *Server,
@@ -19,44 +101,62 @@ func attachRunProjectionStoreForHandlerTest(
 }
 
 func durableRunCreateBodyForTest(runID string, conversationID string) string {
-	return fmt.Sprintf(`{
-		"run_id":%q,
-		"conversation_id":%q,
-		"turn_id":"turn-%s",
-		"request_id":"req-%s",
-		"trace_id":"trace-%s",
-		"owner_user_id":"user-executor",
-		"surface":"campus-web",
-		"requested_tool":"knowledge_query",
-		"selected_tool":"knowledge_query",
-		"task_queue":"campus-agent.workflow",
-		"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
-		"metadata":{
-			"execution_payload":{
-				"user_goal":"hello",
-				"request_id":"req-%s",
-				"conversation_id":%q,
-				"trace":{"trace_id":"trace-%s"},
-				"actor":{"user_id":"user-executor"},
-				"context":{
-					"actor":{"user_id":"user-executor"},
-					"authorization":{
-						"retrieval_filter":{
-							"policy_projection_version":"phase1-authorization-projection-v1",
-							"visibility_level":"public"
-						}
-					}
+	return durableRunCreateBodyWithToolForTest(
+		runID,
+		conversationID,
+		"knowledge_query",
+		"student_rules",
+	)
+}
+
+func durableRunCreateBodyWithToolForTest(
+	runID string,
+	conversationID string,
+	requestedTool string,
+	scope string,
+) string {
+	executionPayload := map[string]any{
+		"execution_contract_version": "tool_execution_v1",
+		"response_contract":          "execution_finalization_response_v2",
+		"user_goal":                  "hello",
+		"request_id":                 "req-" + runID,
+		"conversation_id":            conversationID,
+		"trace":                      map[string]any{"trace_id": "trace-" + runID},
+		"context": map[string]any{
+			"actor": map[string]any{"user_id": "user-executor"},
+			"authorization": map[string]any{
+				"retrieval_filter": map[string]any{
+					"policy_projection_version": "phase1-authorization-projection-v1",
+					"visibility_level":          "public",
 				},
-				"runtime_decisions":{"runtime_decision_summary":{}}
 			},
-			"handoff":{
-				"tool":"rag-tool",
-				"payload_kind":"rag_request",
-				"allowed_tools":["knowledge_query"],
-				"payload":{"query_text":"hello"}
-			}
-		}
-	}`, runID, conversationID, runID, runID, runID, runID, conversationID, runID)
+		},
+		"version_query": map[string]any{},
+	}
+	body := map[string]any{
+		"run_id":          runID,
+		"conversation_id": conversationID,
+		"turn_id":         "turn-" + runID,
+		"request_id":      "req-" + runID,
+		"trace_id":        "trace-" + runID,
+		"owner_user_id":   "user-executor",
+		"surface":         "campus-web",
+		"runtime_versions": map[string]any{
+			"contract": "durable-agent-runtime-contract-v1",
+		},
+		"metadata": map[string]any{"execution_payload": executionPayload},
+	}
+	if requestedTool != "" {
+		executionPayload["requested_tool"] = requestedTool
+	}
+	if scope != "" {
+		executionPayload["scope"] = scope
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
 }
 
 func createHTTPAPIQueuedDurableRunForTest(
@@ -76,11 +176,12 @@ func createHTTPAPIQueuedDurableRunForTest(
 	}
 	metadata := map[string]any{
 		"execution_payload": map[string]any{
-			"user_goal":       userGoal,
-			"request_id":      "req-executor-001",
-			"conversation_id": conversationID,
-			"trace":           map[string]any{"trace_id": "trace-executor-001"},
-			"actor":           map[string]any{"user_id": "user-executor"},
+			"execution_contract_version": "tool_execution_v1",
+			"response_contract":          "execution_finalization_response_v2",
+			"user_goal":                  userGoal,
+			"request_id":                 "req-executor-001",
+			"conversation_id":            conversationID,
+			"trace":                      map[string]any{"trace_id": "trace-executor-001"},
 			"context": map[string]any{
 				"actor": map[string]any{"user_id": "user-executor"},
 				"authorization": map[string]any{
@@ -92,13 +193,8 @@ func createHTTPAPIQueuedDurableRunForTest(
 					},
 				},
 			},
-			"runtime_decisions": map[string]any{
-				"runtime_decision_summary": map[string]any{},
-			},
+			"version_query": map[string]any{},
 		},
-	}
-	if handoff != nil {
-		metadata["handoff"] = handoff
 	}
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
 		RunID:          runID,

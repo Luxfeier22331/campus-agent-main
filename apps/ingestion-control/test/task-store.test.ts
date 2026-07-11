@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type IngestionTaskEnvelope, InMemoryIngestionTaskStore } from "../src/index.ts";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
+import type { IngestionTaskEnvelope } from "../src/index.ts";
 
 const baseTask: IngestionTaskEnvelope = {
 	schema_version: "ingestion_task_envelope.v2",

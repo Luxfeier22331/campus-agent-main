@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-16
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # Kubernetes Execution Runtime Architecture
 
@@ -33,7 +33,7 @@ applied resources、runtime env、operator projection 与 release closeout artif
 
 ## Core Conclusion
 
-execution-control production target substrate 收口为：
+execution-control production target substrate 固定为：
 
 ```text
 app-api Worker
@@ -120,15 +120,12 @@ internal DB 或 Temporal UI 当成 product truth。
 - `workflow-worker`
 - `activity-worker-core`
 - `activity-worker-agent`
-- `activity-worker-knowledge`
 
 拆分原则：
 
 - 每个 Deployment 只 poll 自己的 Temporal task queue。
 - 每个 Deployment 独立设置 resource requests / limits、readiness、liveness、
   rollout strategy、PodDisruptionBudget 与 KEDA ScaledObject。
-- `activity-worker-knowledge` 可使用更高 max replicas 与更高 resource
-  request，因为它承接 RAG graph、Qdrant / embedding lookup 与 provider-heavy path。
 - worker image 可以先复用同一 `apps/execution-control` image，通过 command / args
   选择 Temporal task queue / worker target；是否拆 image 是交付优化，不是架构边界。
 
@@ -165,7 +162,6 @@ poller / slot 行为；它不是 Deployment replica autoscaling 的替代品。
 | `workflow-worker` | workflow | 1 | 3 | 8 |
 | `activity-worker-core` | activity | 1 | 3 | 8 |
 | `activity-worker-agent` | activity | 1 | 3 | 8 |
-| `activity-worker-knowledge` | activity | 1 | 5 | 8 |
 
 These values mirror the current Docker Compose autoscaler policy as the first
 K8s target baseline. They are not permanent capacity promises; production tuning
@@ -326,14 +322,14 @@ The example below is the committed baseline shape:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: activity-worker-knowledge
+  name: activity-worker-agent
 spec:
   scaleTargetRef:
-    name: activity-worker-knowledge
+    name: activity-worker-agent
   pollingInterval: 15
   cooldownPeriod: 180
   minReplicaCount: 1
-  maxReplicaCount: 5
+  maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
@@ -343,7 +339,7 @@ spec:
     - type: temporal
       metadata:
         namespace: default
-        taskQueue: campus-agent.activity.knowledge
+        taskQueue: campus-agent.activity.agent
         queueTypes: activity
         targetQueueSize: "8"
         activationTargetQueueSize: "0"
@@ -354,8 +350,8 @@ spec:
 
 The baseline sets `minReplicaCount=1`, `targetQueueSize="8"`,
 `pollingInterval=15`, `cooldownPeriod=180` and HPA scale-down stabilization to
-`300` seconds. `activity-worker-knowledge` uses `maxReplicaCount=5`; other
-worker pools use `maxReplicaCount=3`.
+`300` seconds. Online workflow, core and agent pools use
+`maxReplicaCount=3` as the initial baseline.
 
 ## Runtime Projection And Operator Evidence
 

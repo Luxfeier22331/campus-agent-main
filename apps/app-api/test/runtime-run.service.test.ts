@@ -32,7 +32,6 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		traceId: "trace_01HQ",
 		turnId: "turn_01HQ",
 		updatedAt: "2026-06-04T01:02:04.000Z",
-		workflowPlanRef: "",
 		...overrides,
 	};
 }
@@ -543,10 +542,8 @@ describe("runtime run service", () => {
 					modelProvider: "",
 					outputTokens: 0,
 					payloadSchemaVersion: "step-attempt-projection-v1",
-					pricingVersion: "",
 					providerRequestRef: "",
 					providerResponseId: "",
-					replanReason: "",
 					runId: "run_01HQ",
 					sanitizedPayload: {
 						operation_id: "op-hidden",

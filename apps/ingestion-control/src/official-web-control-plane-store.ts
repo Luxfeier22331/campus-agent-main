@@ -1,4 +1,3 @@
-import type { OfficialWebFetchDisposition } from "ingestion-contracts";
 import type { OfficialWebControlPlaneStore } from "./official-web-control-plane-service";
 import { insertTargetAttempts } from "./official-web-control-plane-store-target-attempts";
 import type {
@@ -8,6 +7,7 @@ import type {
 	StoredOfficialWebPageFreshnessState,
 	StoredOfficialWebRun,
 } from "./official-web-control-plane-types";
+import type { OfficialWebFetchDisposition } from "./official-web-lifecycle";
 import type { PgQueryable } from "./postgres-store";
 
 export interface OfficialWebPgPoolLike {

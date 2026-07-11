@@ -45,7 +45,7 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 }
 
 describe("durable run metadata", () => {
-	it("builds tool-neutral metadata for campus services without preselected tool plan", () => {
+	it("forwards an explicit requested tool without local preplanning", () => {
 		const metadata = buildToolExecutionRunMetadata(
 			executionInput({ requestedTool: "transport_schedule_lookup" }),
 		);
@@ -53,15 +53,39 @@ describe("durable run metadata", () => {
 		const payload = metadata.execution_payload as Record<string, unknown>;
 
 		expect(payload.requested_tool).toBe("transport_schedule_lookup");
-		expect(payload.effective_tool).toBe("transport_schedule_lookup");
-		expect(payload.task_queue).toBe("campus-agent.workflow");
 		expect(payload.tenant_id).toBe("tenant-main");
-		expect(payload.runtime_decisions).toBeUndefined();
-		expect(metadata.handoff).toBeUndefined();
-		expect(JSON.stringify(metadata)).not.toContain("retrieval.query");
-		expect(JSON.stringify(metadata)).not.toContain("rag_request");
-		expect(JSON.stringify(metadata)).not.toContain("allowed_tools");
-		expect(JSON.stringify(metadata)).not.toContain("selected_tool");
+		expect(Object.keys(metadata)).toEqual(["execution_payload"]);
+		expect(Object.keys(payload).sort()).toEqual([
+			"context",
+			"conversation_id",
+			"execution_contract_version",
+			"request_id",
+			"requested_tool",
+			"response_contract",
+			"safety_identifier",
+			"tenant_id",
+			"trace",
+			"user_goal",
+			"version_query",
+		]);
+	});
+
+	it("serializes a trusted knowledge eval hint with its scope", () => {
+		const metadata = buildToolExecutionRunMetadata(
+			executionInput({ requestedScope: "student_rules", requestedTool: "knowledge_query" }),
+		);
+
+		const payload = metadata.execution_payload as Record<string, unknown>;
+		expect(payload.requested_tool).toBe("knowledge_query");
+		expect(payload.scope).toBe("student_rules");
+	});
+
+	it("does not apply tool admission while serializing metadata", () => {
+		for (const requestedTool of ["unpublished_tool", "unsupported_tool"]) {
+			const metadata = buildToolExecutionRunMetadata(executionInput({ requestedTool }));
+			const payload = metadata.execution_payload as Record<string, unknown>;
+			expect(payload.requested_tool).toBe(requestedTool);
+		}
 	});
 
 	it("projects selected notice context as an explicit session reference", () => {

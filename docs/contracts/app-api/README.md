@@ -4,18 +4,18 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-17
+updated: 2026-07-08
 ---
 
 # App API HTTP Contract
 
 ## Document Boundary
 
-This file is the stable index for browser-facing app-api HTTP contracts.
-It owns exposure classes, cross-cutting rules, shared response shapes and
-endpoint grouping. Detailed endpoint bodies live in split contract docs.
+This file is the browser-facing app-api HTTP contract owner overview. It owns
+exposure classes, cross-cutting rules, shared response shapes and endpoint
+grouping. Detailed endpoint bodies live in split contract docs.
 
-## Split Documents
+## Endpoint Family Owners
 
 - `system-auth-memory.md`
   - System, auth and profile memory: health, auth, me and memory endpoints
@@ -35,6 +35,20 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
   - Dining operations draft, release candidate, release and audit endpoints
 - `document-reader.md`
   - Document reader published asset and read-model contract
+- `eval-benchmark.md`
+  - Eval benchmark ingress
+- `error.md`
+  - Shared error envelope
+- `request-lifecycle.md`
+  - Request, stream and finalization lifecycle
+- `observability.md`
+  - Expanded operator observability, quality, safety, cost and audit
+- `official-web.md`
+  - Official-web control-plane and operator-safe API
+- campus map route semantics:
+  `docs/architecture/domains/navigation/architecture.md` and
+  `docs/domains/place.md`
+- campus shuttle status route semantics: `docs/domains/transport.md`
 
 ## Scope
 
@@ -79,26 +93,6 @@ contract test carrier。新增 route 必须声明：
 - `requestId` 是业务级 correlation id；`traceId` 是 runtime trace correlation id
 - `POST /api/chat/requests` 成功时返回 `x-request-id` 与 `x-trace-id`
 - 所有错误响应使用 `docs/contracts/app-api/error.md` 中定义的统一 envelope
-
-## Endpoint Families
-
-This index only routes endpoint families to their owners:
-
-- system, auth and profile memory: `system-auth-memory.md`
-- chat conversation, request, stream and run lifecycle: `chat.md`
-- account center and identity projection: `identity.md`
-- federation provider surface: `federation.md`
-- operator request list and detail: `operator.md`
-- expanded operator observability, quality, safety, cost and audit:
-  `observability.md`
-- runtime stage timing safe projection: `../stage-timing.md`
-- operator ops cross-cutting rules: `operator-ops.md`
-- dining public projection: `dining.md`
-- dining operations, release and audit: `dining-ops.md`
-- document reader published asset and read model: `document-reader.md`
-- campus map route semantics: `docs/architecture/domains/navigation/architecture.md`
-  and `docs/domains/place.md`
-- campus shuttle status route semantics: `docs/domains/transport.md`
 
 Route inventory is verified by `apps/app-api/src/app/route-exposure.ts`.
 

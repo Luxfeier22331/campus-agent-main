@@ -13,11 +13,9 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 	server := &Server{}
 
 	for name, activities := range map[string]any{
-		"context":         server.TemporalContextActivities(),
-		"agent":           server.TemporalAgentActivities(),
-		"knowledge_query": server.TemporalKnowledgeActivities(),
-		"typed_tool":      server.TemporalTypedToolActivities(),
-		"finalization":    server.TemporalFinalizationActivities(),
+		"context":      server.TemporalContextActivities(),
+		"agent":        server.TemporalAgentActivities(),
+		"finalization": server.TemporalFinalizationActivities(),
 	} {
 		activityType := reflect.TypeOf(activities)
 		if activityType == nil {
@@ -38,17 +36,16 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"MemoryOperationStatusActivity",
 		"MemoryReflectActivity",
 		"MemoryRecallActivity",
-		"PlanRouteActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {
 			t.Fatalf("context activities missing %s", method)
 		}
 	}
+	if _, ok := contextType.MethodByName("PlanRouteActivity"); ok {
+		t.Fatal("context activities expose retired PlanRouteActivity")
+	}
 	if _, ok := contextType.MethodByName("UpdateInferredMemoryActivity"); ok {
 		t.Fatal("context activities still expose retired UpdateInferredMemoryActivity")
-	}
-	if _, ok := contextType.MethodByName("PlanRAGActivity"); ok {
-		t.Fatal("context activities expose knowledge method")
 	}
 
 	agentType := reflect.TypeOf(server.TemporalAgentActivities())
@@ -59,34 +56,6 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		t.Fatal("agent activities expose context method")
 	}
 
-	knowledgeType := reflect.TypeOf(server.TemporalKnowledgeActivities())
-	for _, method := range []string{
-		"LiveSourceLookupActivity",
-		"PlanRAGActivity",
-		"RetrieveIndexedLookupActivity",
-		"SelectEvidenceActivity",
-		"SynthesizeRAGAnswerActivity",
-		"VerifyGroundingActivity",
-	} {
-		if _, ok := knowledgeType.MethodByName(method); !ok {
-			t.Fatalf("knowledge activities missing %s", method)
-		}
-	}
-	if _, ok := knowledgeType.MethodByName("PlanRouteActivity"); ok {
-		t.Fatal("knowledge activities expose context method")
-	}
-
-	typedToolType := reflect.TypeOf(server.TemporalTypedToolActivities())
-	if _, ok := typedToolType.MethodByName("ExecuteTypedToolActivity"); !ok {
-		t.Fatal("typed tool activities missing ExecuteTypedToolActivity")
-	}
-	if _, ok := typedToolType.MethodByName("ExecuteAgentAsToolActivity"); !ok {
-		t.Fatal("typed tool activities missing ExecuteAgentAsToolActivity")
-	}
-	if _, ok := typedToolType.MethodByName("PlanRAGActivity"); ok {
-		t.Fatal("typed tool activities expose knowledge method")
-	}
-
 	finalizationType := reflect.TypeOf(server.TemporalFinalizationActivities())
 	if _, ok := finalizationType.MethodByName("WriteFinalizationActivity"); !ok {
 		t.Fatal("finalization activities missing WriteFinalizationActivity")
@@ -94,12 +63,7 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	for _, method := range []string{
 		"PlanRouteActivity",
 		"MemoryRecallActivity",
-		"PlanRAGActivity",
-		"LiveSourceLookupActivity",
-		"RetrieveIndexedLookupActivity",
-		"SelectEvidenceActivity",
-		"SynthesizeRAGAnswerActivity",
-		"VerifyGroundingActivity",
+		"ExecutePrimaryAgentActivity",
 	} {
 		if _, ok := finalizationType.MethodByName(method); ok {
 			t.Fatalf("finalization activities expose %s", method)
@@ -119,7 +83,6 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 			temporalClient,
 			"test-core",
 			server.TemporalContextActivities(),
-			server.TemporalTypedToolActivities(),
 			server.TemporalFinalizationActivities(),
 			workerOptionsForRegistrationTest(),
 		)
@@ -130,15 +93,6 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 			temporalClient,
 			"test-agent",
 			server.TemporalAgentActivities(),
-		)
-		worker.Stop()
-	})
-	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewKnowledgeActivityWorkerWithOptions(
-			temporalClient,
-			"test-knowledge",
-			server.TemporalKnowledgeActivities(),
-			workerOptionsForRegistrationTest(),
 		)
 		worker.Stop()
 	})

@@ -3,7 +3,7 @@ import type {
 	OfficialWebIngestionExecutionStatus,
 	OfficialWebRunIntent,
 	OfficialWebRunStatus,
-} from "ingestion-contracts";
+} from "./official-web-lifecycle";
 
 export interface OfficialWebArtifactSummary {
 	artifactType: string;

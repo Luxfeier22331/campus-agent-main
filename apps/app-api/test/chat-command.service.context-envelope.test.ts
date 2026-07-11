@@ -134,10 +134,9 @@ describe("chat command context envelope assembly", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "那大一能不能申请？",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
@@ -160,7 +159,8 @@ describe("chat command context envelope assembly", () => {
 
 		expect(context).not.toHaveProperty("profile_memory");
 		expect(executionPayload).not.toHaveProperty("conversation_context");
-		expect(context.conversation).toMatchObject({
+		const conversationContext = context.conversation as Record<string, unknown>;
+		expect(conversationContext).toMatchObject({
 			schema_version: "conversation_context.v1",
 			conversation_id: "conv_01HQ",
 			user_message_id: "msg_0001",
@@ -170,7 +170,13 @@ describe("chat command context envelope assembly", () => {
 				content: "那大一能不能申请？",
 				created_at: "2026-06-21T00:01:00.000Z",
 			},
-			previous_answer_summary: "转专业通常需要满足成绩、名额、学院审核等条件。",
+			recent_turns: [
+				expect.objectContaining({ role: "user", content: "转专业条件是什么？" }),
+				expect.objectContaining({
+					role: "assistant",
+					content: "转专业通常需要满足成绩、名额、学院审核等条件。",
+				}),
+			],
 			previous_evidence_refs: [
 				expect.objectContaining({
 					access_scope: "public_student_rule",
@@ -181,23 +187,18 @@ describe("chat command context envelope assembly", () => {
 					version_id: "rule-transfer-major-2026",
 				}),
 			],
-			visibility: {
-				model_visible: [
-					"current_user_message",
-					"recent_turns",
-					"previous_answer_summary",
-					"previous_evidence_refs",
-					"previous_tool_results",
-					"session_state",
-				],
-				runtime_only: expect.arrayContaining(["budget", "truncation", "memory_recall"]),
-			},
-			memory_recall: {
-				gate_field: "context.memory.enabled",
-				owner: "execution-control",
-				runtime: "hindsight",
-			},
 		});
+		for (const retiredField of [
+			"budget",
+			"context_summary",
+			"memory_recall",
+			"previous_answer_summary",
+			"source_attribution",
+			"truncation",
+			"visibility",
+		]) {
+			expect(conversationContext).not.toHaveProperty(retiredField);
+		}
 	});
 
 	it("adds sanitized previous tool result refs from runtime projection truth", async () => {
@@ -211,7 +212,6 @@ describe("chat command context envelope assembly", () => {
 			activeMessageId: "msg_assistant_0002",
 			activeRunId: "run_previous",
 			activeTurnSequence: 2,
-			contextSummary: "上一轮查询了图书馆开放状态。",
 			sessionSlots: [],
 			messages: [
 				{
@@ -296,10 +296,9 @@ describe("chat command context envelope assembly", () => {
 			payload: {
 				conversationId: "conv_services",
 				prompt: "那闭馆前多久不能进？",
-				requestedTool: "transport_schedule_lookup",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(store.listPreviousToolResultRefs).toHaveBeenCalledWith({
@@ -326,10 +325,8 @@ describe("chat command context envelope assembly", () => {
 					summary: "图书馆今天正常开放。",
 				},
 			],
-			visibility: {
-				model_visible: expect.arrayContaining(["previous_tool_results"]),
-			},
 		});
+		expect(context.conversation).not.toHaveProperty("visibility");
 		expect(acceptedWrites[0]).toMatchObject({
 			requestExecution: {
 				turnSequence: 3,

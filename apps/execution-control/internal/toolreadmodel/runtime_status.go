@@ -18,32 +18,18 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		status.TransportScheduleImplemented = projectionReady(ctx, r.transportScheduleReadModelStore)
 	}
 	status.CampusServicesOpsReleaseConfigured = r.campusServicesOpsReleaseStore != nil
-	status.CampusServicesOpsReleaseHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+	status.CampusServicesOpsReleaseHealthy, status.ProjectionRuntimeLastError = projectionRuntimeComponentHealthy(
 		ctx,
 		r.campusServicesOpsReleaseStore,
 		"campus_services_ops_release_unhealthy",
-		status.NoticeRuntimeLastError,
+		status.ProjectionRuntimeLastError,
 	)
 	status.TransportScheduleReadModelConfigured = r.transportScheduleReadModelStore != nil
-	status.TransportScheduleReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+	status.TransportScheduleReadModelHealthy, status.ProjectionRuntimeLastError = projectionRuntimeComponentHealthy(
 		ctx,
 		r.transportScheduleReadModelStore,
 		"transport_schedule_read_model_unhealthy",
-		status.NoticeRuntimeLastError,
-	)
-	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
-	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil
-	status.NoticeReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
-		ctx,
-		r.noticeReadModelStore,
-		"notice_read_model_unhealthy",
-		status.NoticeRuntimeLastError,
-	)
-	status.NoticeBodyStoreHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
-		ctx,
-		r.noticeBodyStore,
-		"notice_body_store_unhealthy",
-		status.NoticeRuntimeLastError,
+		status.ProjectionRuntimeLastError,
 	)
 	return status
 }
@@ -68,7 +54,7 @@ func projectionReady(
 	return err == nil && ready
 }
 
-func noticeRuntimeComponentHealthy(
+func projectionRuntimeComponentHealthy(
 	ctx context.Context,
 	component any,
 	unhealthyReason string,
@@ -89,12 +75,12 @@ func noticeRuntimeComponentHealthy(
 	checkCtx, cancel := context.WithTimeout(ctx, defaultToolReadModelHealthTimeout)
 	defer cancel()
 	if err := checker.HealthCheck(checkCtx); err != nil {
-		return false, appendNoticeRuntimeLastError(lastError, unhealthyReason)
+		return false, appendProjectionRuntimeLastError(lastError, unhealthyReason)
 	}
 	return true, lastError
 }
 
-func appendNoticeRuntimeLastError(current string, reason string) string {
+func appendProjectionRuntimeLastError(current string, reason string) string {
 	if current == "" {
 		return reason
 	}

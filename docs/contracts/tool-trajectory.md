@@ -17,7 +17,7 @@ It complements but does not replace:
 
 - `tool-execution.md`, which owns the app-api -> execution-control run
   command/query wire contract
-- `tool-read-model.md`, which owns internal typed tool read-model seams
+- `tool-read-model.md`, which owns internal SDK tool read-model seams
 - `langfuse-runtime.md`, which owns Langfuse-bound OTel attribute and score
   payload limits
 - `../reference/eval.md`, which owns active eval lanes and score names
@@ -36,7 +36,7 @@ may consume this projection, but they do not own it.
 - whether tool arguments matched the admitted schema
 - whether tool execution produced a valid result contract or a diagnosable
   fail-closed state
-- which provider/model/search transport participated when that fact is safe
+- which provider/model/internal query participated when that fact is safe
   and useful for evaluation
 - which bounded source categories were returned for source-policy checks
 
@@ -98,8 +98,8 @@ to make an eval case pass.
 `direct_answer` means the primary agent completed without calling a
 model-visible tool.
 
-`tool_call` means an admitted model-visible tool or workflow signal was
-selected and projected into durable execution.
+`tool_call` means an admitted SDK function tool or `knowledge_query` handoff was
+selected inside the Agent Activity and projected as a sanitized trajectory fact.
 
 `fail_closed` means the request was rejected, blocked or stopped because a
 required contract, configuration, policy, tool readiness or evidence condition
@@ -124,14 +124,10 @@ publisher or browser projection.
 
 Source summaries are tool-specific but must remain bounded and sanitized.
 
-For `public_web_search`, source projection may include source count, source
-kinds and source-policy categories such as public HTTPS MUC official-web
-validity. It must not include raw provider response, full page text,
-unrestricted snippets or provider-local ranking payload.
-
-For RAG-related branches, source summaries must follow the Ragas-safe
-projection boundary in `langfuse-runtime.md` and the owning retrieval / evidence
-contracts.
+For Knowledge Agent answers, source projection is derived from validated
+`knowledge_search` evidence. It may include source count, source kinds,
+resolved scope/version and bounded source-policy categories. It must not include
+raw Qdrant/provider response, full document text or unrestricted snippets.
 
 ## Forbidden Fields
 
@@ -170,5 +166,5 @@ Deterministic tool-use scorers may evaluate:
 - tool-specific source-policy checks
 - latency as a numeric diagnostic signal
 
-Tool-use eval must not score answer prose, primary model selection or RAGAS
-answer/evidence quality. RAGAS remains a separate RAG scoring lane.
+Tool-use eval must not score answer prose or Knowledge Agent evidence quality.
+Those remain separate answer/evidence evaluation lanes.

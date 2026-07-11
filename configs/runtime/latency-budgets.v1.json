@@ -67,14 +67,6 @@
 			"enabled": true
 		},
 		{
-			"field": "tool.knowledge_query_ms",
-			"warn_ms": 6000,
-			"critical_ms": 12000,
-			"candidate_reason": "knowledge_query_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
 			"field": "tool.transport_schedule_lookup_ms",
 			"warn_ms": 3000,
 			"critical_ms": 8000,
@@ -83,50 +75,10 @@
 			"enabled": true
 		},
 		{
-			"field": "tool.campus_notice_discover_ms",
+			"field": "knowledge.search_ms",
 			"warn_ms": 3000,
-			"critical_ms": 8000,
-			"candidate_reason": "campus_notice_discover_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "rag.plan_ms",
-			"warn_ms": 800,
-			"critical_ms": 2000,
-			"candidate_reason": "rag_plan_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "rag.lookup_ms",
-			"warn_ms": 1500,
-			"critical_ms": 3500,
-			"candidate_reason": "rag_lookup_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "rag.rerank_ms",
-			"warn_ms": 1500,
-			"critical_ms": 3500,
-			"candidate_reason": "rag_rerank_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "rag.synthesis_ms",
-			"warn_ms": 5000,
-			"critical_ms": 10000,
-			"candidate_reason": "rag_synthesis_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "rag.grounding_ms",
-			"warn_ms": 1500,
-			"critical_ms": 3500,
-			"candidate_reason": "rag_grounding_too_slow",
+			"critical_ms": 7000,
+			"candidate_reason": "knowledge_search_too_slow",
 			"candidate_category": "model_provider_or_latency_budget_fix",
 			"enabled": true
 		},

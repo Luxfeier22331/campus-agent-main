@@ -26,13 +26,13 @@ const snapshot = {
 	namespace: "default",
 	oldestTaskAge: { ms: 4500, state: "observed" as const },
 	pollerCount: 1,
-	pollerIdentities: ["knowledge-worker-1"],
+	pollerIdentities: ["agent-worker-1"],
 	projectedAt: "2026-06-15T10:00:02.000Z",
 	sampledAt: "2026-06-15T10:00:00.000Z",
 	scheduleToStartLatency: { ms: null, state: "unsupported_by_source" as const },
 	snapshotId: "temporal-snapshot-20260615T100000Z",
 	source: "execution-control.temporal-task-queue-sampler",
-	taskQueue: "campus-agent.activity.knowledge",
+	taskQueue: "campus-agent.activity.agent",
 	taskQueueKind: "activity" as const,
 };
 
@@ -51,8 +51,8 @@ const decision = {
 	projectedAt: "2026-06-15T10:00:02.000Z",
 	reason: "replica target already satisfied",
 	sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-	targetService: "activity-worker-knowledge",
-	taskQueue: "campus-agent.activity.knowledge",
+	targetService: "activity-worker-agent",
+	taskQueue: "campus-agent.activity.agent",
 	taskQueueKind: "activity" as const,
 };
 
@@ -103,11 +103,11 @@ describe("operator runtime projection store", () => {
 		expect(dbMock.valuesPayloads).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					currentId: "default:activity:campus-agent.activity.knowledge",
+					currentId: "default:activity:campus-agent.activity.agent",
 					snapshotId: "temporal-snapshot-20260615T100000Z",
 				}),
 				expect.objectContaining({
-					currentId: "activity-worker-knowledge",
+					currentId: "activity-worker-agent",
 					decisionId: "decision-20260615T100005Z",
 				}),
 			]),
@@ -137,7 +137,7 @@ describe("operator runtime projection store", () => {
 	it("lists Temporal task queues from the bounded current projection", async () => {
 		const row = {
 			backlogJson: snapshot.backlog,
-			currentId: "default:activity:campus-agent.activity.knowledge",
+			currentId: "default:activity:campus-agent.activity.agent",
 			namespace: snapshot.namespace,
 			oldestTaskAgeJson: snapshot.oldestTaskAge,
 			pollerCount: snapshot.pollerCount,

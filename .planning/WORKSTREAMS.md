@@ -44,7 +44,7 @@ decision, requirement, or closeout reference into an active doc/ADR/runbook with
 current terminology. Do not restore the archive directory or treat old phase
 status as current project truth.
 
-## Active Planning Signals
+## Current Signal Ledger
 
 - Ops / QA signal: Temporal execution-control normal-path release closeout has
   real `nc-arm-6c` artifacts; remaining closeout work is failure-mode coverage

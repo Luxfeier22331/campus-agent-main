@@ -31,20 +31,6 @@ func validTransportScheduleLookupArguments(queryText string) map[string]any {
 	}
 }
 
-func validCampusNoticeDiscoverArguments(queryText string) map[string]any {
-	return map[string]any{
-		"query_text": queryText,
-		"temporal_query": map[string]any{
-			"mode":      "latest",
-			"as_of":     nil,
-			"year_hint": nil,
-		},
-		"source_families": []any{"official_web_public_notice"},
-		"target_surfaces": []any{"notice_level_query"},
-		"max_results":     5,
-	}
-}
-
 func campusServicesToolResultForTest(
 	toolName string,
 	outcome string,

@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: shared-postgres/official-web
 status: active
 created: 2026-03-29
-updated: 2026-07-07
+updated: 2026-07-08
 ---
 # Official Web Shared Schema
 
@@ -58,8 +58,9 @@ ownership 与最小表形态。
 - `apps/app-api` owns operator list/detail query, `operator.*` panel-facing
   site/run projections, stable-reference release-gate operator command ledger,
   and redacted release task projection ingest/read.
-- `operator.official_web_release_task_*` ingestion-produced operator-safe
-  release task projections
+- `operator.official_web_release_task_*` stores ingestion-produced operator-safe
+  task projections. These projections may describe current source-truth
+  verification tasks; they do not prove document/chunk/index/release publish.
 
 ## Global Rules
 
@@ -158,8 +159,9 @@ Migration posture:
 - `ingestion_dispatch_ref` 当前保存 ingestion-control task id；字段名是历史
   schema 命名，不表示 official-web 仍有独立 terminal handoff object
 - ingestion execution 回调当前允许 `pending -> running -> staged -> promoted/failed`
-- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被
-  promote 改写
+- 对当前 official-web source-truth verification task，`staged` 只表示 verification
+  closeout 已到达相应投影阶段，不表示 canonical document、chunk、index 或 alias
+  publish 已完成
 
 ## `official_web.run_heartbeats`
 
@@ -339,7 +341,7 @@ Migration posture:
   `deleted` / `fetch_failed`
 - `change_status` 反映 control plane 依据 freshness truth 计算出的 `new` / `changed` /
   `deleted` / `not_modified` / `fetch_failed`
-- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion task
+- `fetch_failed` 主要用于 operator 可见性与 repair queue，不单独推进 ingestion task
   page change
 - 这是 official-web control-plane durable truth，不退回对象存储扫描或 generic
   ingestion task 内部状态
@@ -380,7 +382,7 @@ Migration posture:
 规则：
 
 - `(site_id, normalized_canonical_url)` 是 canonical page identity
-- `page_freshness` 是 scheduler / collector 后续拉取动态 workset 的 durable truth
+- `page_freshness` 是 scheduler / collector 解析动态 workset 的 durable truth
 - `last_fetch_disposition` 当前允许 `fetched / not_modified / deleted /
   fetch_failed`
 - `new / changed / deleted / not_modified / fetch_failed` 的分类以这里和
@@ -430,8 +432,10 @@ Migration posture:
 用途：
 
 - panel `Official Web / Release Tasks` 的 canonical read model
-- 展示 ingestion-owned release task state machine 的 redacted operator projection
+- 展示 ingestion-owned task state 的 redacted operator projection
 - 不承担 task truth、workflow、activity dispatch 或 publish 状态推进
+- 名称保留 `release_task` 是历史 schema 形态；当前 projection 也可承载 source-truth
+  verification task，不表示每条记录都是 release/publish task
 
 最小列：
 
@@ -472,9 +476,9 @@ Migration posture:
   source object key、bucket、raw HTML、raw body、本地路径、credential 或 stack trace
 - `timeline_json` 是 panel-friendly timeline cache；event 级幂等事实写入
   `operator.official_web_release_task_event_projection`
-- `lifecycle_status` 第一版按 ingestion release task 状态投影，例如 `queued`、
-  `claimed`、`running`、`materialized`、`indexed`、`published`、`failed_retryable`、
-  `failed_terminal`
+- `lifecycle_status` 按 ingestion task operator projection 写入；`materialized`、
+  `indexed`、`published` 这类值只有在 producer 确实执行对应阶段时才可出现，不得由
+  app-api 根据 task 名称推断
 - freshness/staleness 是 query service 从 `projected_at` 派生的 read concern，
   不是 task truth
 
@@ -482,7 +486,7 @@ Migration posture:
 
 用途：
 
-- 保存 release task operator projection timeline 的 event-level read model
+- 保存 ingestion task operator projection timeline 的 event-level read model
 - 支持按 task/run 展示状态推进轨迹
 
 最小列：

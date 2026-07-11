@@ -32,7 +32,7 @@
 			"type": "array",
 			"minItems": 1,
 			"items": {
-				"enum": ["supported_go_runtime", "contract_only", "closed_no_runtime"]
+				"const": "supported_go_runtime"
 			}
 		},
 		"forbidden_raw_key_tokens": {
@@ -86,15 +86,7 @@
 					"minLength": 1
 				},
 				"owner_tool_boundary": {
-					"enum": [
-						"knowledge_query",
-						"place_lookup",
-						"transport_schedule_lookup",
-						"campus_notice_discover",
-						"campus_notice_get",
-						"public_web_search",
-						"execution-control"
-					]
+					"enum": ["knowledge_search", "transport_schedule_lookup", "execution-control"]
 				},
 				"producer_tools": {
 					"type": "array",
@@ -110,7 +102,7 @@
 					"enum": ["tool_private", "operator_safe_summary", "finalizer_input"]
 				},
 				"current_projection_support": {
-					"enum": ["supported_go_runtime", "contract_only", "closed_no_runtime"]
+					"const": "supported_go_runtime"
 				},
 				"answer_eligible": {
 					"type": "boolean"
@@ -173,14 +165,7 @@
 					"minLength": 1
 				},
 				"owner_tool_boundary": {
-					"enum": [
-						"knowledge_query",
-						"place_lookup",
-						"transport_schedule_lookup",
-						"campus_notice_discover",
-						"campus_notice_get",
-						"public_web_search"
-					]
+					"enum": ["knowledge_search", "transport_schedule_lookup"]
 				},
 				"tool_name": {
 					"type": "string"

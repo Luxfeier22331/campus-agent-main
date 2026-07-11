@@ -1,10 +1,10 @@
 ---
-doc_type: index
+doc_type: domain
 truth_scope: execution
 owner_boundary: domains/campus-services/transport
 status: active
 created: 2026-06-27
-updated: 2026-06-27
+updated: 2026-07-08
 ---
 # Transport
 
@@ -18,7 +18,7 @@ Current scope is only the published campus shuttle timetable.
 
 In scope:
 
-- `transport_schedule_lookup`, the model-visible read-only typed tool.
+- `transport_schedule_lookup`, the model-visible read-only SDK function tool.
 - The campus-web services/status page transport timetable projection.
 - Published transport schedule release metadata, source URLs, route rows,
   departure rows and row-level temporary changes.

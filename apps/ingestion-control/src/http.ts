@@ -1,5 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { parseIngestionTaskEnvelope } from "ingest-core";
+import {
+	type IngestionTaskRegistryCatalog,
+	parseIngestionTaskEnvelope,
+	parseIngestionWorkflowStatus as parseTaskStatus,
+} from "ingest-core";
 import {
 	OfficialWebControlPlaneError,
 	officialWebErrorEnvelope,
@@ -8,12 +12,31 @@ import type { OfficialWebControlPlaneService } from "./official-web-control-plan
 import type { OfficialWebCollectorPrincipal } from "./official-web-control-plane-types";
 import type { OfficialWebExecutionStatusService } from "./official-web-execution-status-service";
 import type { OfficialWebProjectionProjector } from "./official-web-projection-service";
-import { parseTaskStatus } from "./projection";
-import type { IngestionTaskRegistryCatalog } from "./task-registry";
 import type { IngestionWorkflowStarter } from "./temporal-client";
 import type { IngestionTaskStore } from "./types";
 
 export type IngestionControlHandler = (request: Request) => Promise<Response>;
+
+export interface IngestionControlServiceTokens {
+	adminToken?: string | null;
+	appApiProjectionToken?: string | null;
+	officialWebCollectorToken?: string | null;
+	officialWebExecutionStatusToken?: string | null;
+	officialWebProjectionToken?: string | null;
+}
+
+type IngestionControlPrincipalClass =
+	| "admin"
+	| "app_api_projection_reader"
+	| "official_web_collector"
+	| "official_web_execution_status_writer"
+	| "official_web_projection_worker";
+
+interface IngestionControlPrincipal {
+	kind: "service";
+	serviceClass: IngestionControlPrincipalClass;
+	serviceId: string;
+}
 
 export function createIngestionControlHandler(input: {
 	store: IngestionTaskStore;
@@ -22,13 +45,16 @@ export function createIngestionControlHandler(input: {
 	officialWebControlPlaneService?: OfficialWebControlPlaneService;
 	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
 	officialWebProjectionProjector?: OfficialWebProjectionProjector;
+	serviceTokens?: IngestionControlServiceTokens;
 	workflowStarter?: IngestionWorkflowStarter;
 }): IngestionControlHandler {
+	const serviceTokens = normalizeServiceTokens(input);
 	return async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
 		const pathname = url.pathname;
 		try {
 			if (request.method === "POST" && pathname === "/internal/ingestion/tasks") {
+				requireServicePrincipal(request, serviceTokens, "admin");
 				const task = parseIngestionTaskEnvelope(await request.json());
 				input.registryCatalog.requireTask(task);
 				if (!input.workflowStarter) {
@@ -52,6 +78,7 @@ export function createIngestionControlHandler(input: {
 				request.method === "GET" &&
 				pathname === "/internal/ingestion/operator-projection/tasks"
 			) {
+				requireServicePrincipal(request, serviceTokens, "app_api_projection_reader");
 				return jsonResponse(
 					await input.store.listOperatorTaskProjections({
 						collection: url.searchParams.get("collection"),
@@ -62,8 +89,12 @@ export function createIngestionControlHandler(input: {
 					}),
 				);
 			}
+			if (isRetiredExecutorRoute(request, pathname)) {
+				return jsonResponse({ error: "not_found" }, 404);
+			}
 			const getTaskMatch = pathname.match(/^\/internal\/ingestion\/tasks\/([^/]+)$/u);
 			if (request.method === "GET" && getTaskMatch) {
+				requireServicePrincipal(request, serviceTokens, "admin");
 				const task = await input.store.getTask(getTaskMatch[1]);
 				return task ? jsonResponse(task) : jsonResponse({ error: "not_found" }, 404);
 			}
@@ -74,12 +105,12 @@ export function createIngestionControlHandler(input: {
 				return jsonResponse({ status: "ready" });
 			}
 			const officialWebResponse = await maybeHandleOfficialWebControlPlaneRequest({
-				collectorToken: input.officialWebCollectorToken,
 				executionStatusService: input.officialWebExecutionStatusService,
 				pathname,
 				projectionProjector: input.officialWebProjectionProjector,
 				request,
 				service: input.officialWebControlPlaneService,
+				serviceTokens,
 			});
 			if (officialWebResponse) {
 				return officialWebResponse;
@@ -97,13 +128,22 @@ export function createIngestionControlHandler(input: {
 	};
 }
 
+function isRetiredExecutorRoute(request: Request, pathname: string): boolean {
+	return (
+		(request.method === "GET" && pathname === "/internal/ingestion/tasks/next") ||
+		(request.method === "POST" &&
+			(pathname === "/internal/ingestion/tasks/claim" ||
+				/^\/internal\/ingestion\/tasks\/[^/]+\/(?:heartbeat|complete|fail)$/u.test(pathname)))
+	);
+}
+
 async function maybeHandleOfficialWebControlPlaneRequest(input: {
-	collectorToken?: string | null;
 	executionStatusService?: OfficialWebExecutionStatusService;
 	pathname: string;
 	projectionProjector?: OfficialWebProjectionProjector;
 	request: Request;
 	service?: OfficialWebControlPlaneService;
+	serviceTokens: Required<IngestionControlServiceTokens>;
 }): Promise<Response | null> {
 	if (!input.pathname.startsWith("/internal/ingestion/official-web/")) {
 		return null;
@@ -111,18 +151,40 @@ async function maybeHandleOfficialWebControlPlaneRequest(input: {
 	if (input.request.method !== "POST") {
 		return jsonResponse({ error: "not_found" }, 404);
 	}
-	const principal = requireOfficialWebCollectorPrincipal(input.request, input.collectorToken);
 	if (input.pathname === "/internal/ingestion/official-web/projection:drain") {
+		requireServicePrincipal(input.request, input.serviceTokens, "official_web_projection_worker");
 		if (!input.projectionProjector) {
 			return jsonResponse({ error: "official_web_projection_projector_not_configured" }, 503);
 		}
-		const payload = (await input.request.json().catch(() => ({}))) as Record<string, unknown>;
+		const payload = (await input.request.json()) as Record<string, unknown>;
 		return jsonResponse(
 			await input.projectionProjector.drain({
 				limit: parseOptionalPositiveInteger(payload.limit),
 			}),
 		);
 	}
+	const executionStatusMatch = input.pathname.match(
+		/^\/internal\/ingestion\/official-web\/runs\/([^/]+)\/ingestion-execution$/u,
+	);
+	if (executionStatusMatch) {
+		requireServicePrincipal(
+			input.request,
+			input.serviceTokens,
+			"official_web_execution_status_writer",
+		);
+		if (!input.executionStatusService) {
+			return jsonResponse({ error: "official_web_execution_status_not_configured" }, 503);
+		}
+		return jsonResponse(
+			await input.executionStatusService.updateRunExecutionStatus({
+				payload: (await input.request.json()) as Record<string, unknown>,
+				runId: executionStatusMatch[1],
+			}),
+		);
+	}
+	const principal = toOfficialWebCollectorPrincipal(
+		requireServicePrincipal(input.request, input.serviceTokens, "official_web_collector"),
+	);
 	if (input.pathname === "/internal/ingestion/official-web/runs") {
 		if (!input.service) {
 			return jsonResponse({ error: "official_web_control_plane_not_configured" }, 503);
@@ -142,20 +204,6 @@ async function maybeHandleOfficialWebControlPlaneRequest(input: {
 			await input.service.resolvePlan({
 				payload: (await input.request.json()) as Record<string, unknown>,
 				principal,
-			}),
-		);
-	}
-	const executionStatusMatch = input.pathname.match(
-		/^\/internal\/ingestion\/official-web\/runs\/([^/]+)\/ingestion-execution$/u,
-	);
-	if (executionStatusMatch) {
-		if (!input.executionStatusService) {
-			return jsonResponse({ error: "official_web_execution_status_not_configured" }, 503);
-		}
-		return jsonResponse(
-			await input.executionStatusService.updateRunExecutionStatus({
-				payload: (await input.request.json()) as Record<string, unknown>,
-				runId: executionStatusMatch[1],
 			}),
 		);
 	}
@@ -189,18 +237,62 @@ async function maybeHandleOfficialWebControlPlaneRequest(input: {
 	return jsonResponse({ error: "not_found" }, 404);
 }
 
-function requireOfficialWebCollectorPrincipal(
+function normalizeServiceTokens(input: {
+	officialWebCollectorToken?: string | null;
+	serviceTokens?: IngestionControlServiceTokens;
+}): Required<IngestionControlServiceTokens> {
+	return {
+		adminToken: input.serviceTokens?.adminToken?.trim() || null,
+		appApiProjectionToken: input.serviceTokens?.appApiProjectionToken?.trim() || null,
+		officialWebCollectorToken:
+			input.serviceTokens?.officialWebCollectorToken?.trim() ||
+			input.officialWebCollectorToken?.trim() ||
+			null,
+		officialWebExecutionStatusToken:
+			input.serviceTokens?.officialWebExecutionStatusToken?.trim() || null,
+		officialWebProjectionToken: input.serviceTokens?.officialWebProjectionToken?.trim() || null,
+	};
+}
+
+function requireServicePrincipal(
 	request: Request,
-	collectorToken?: string | null,
-): OfficialWebCollectorPrincipal {
-	const configuredToken = collectorToken?.trim();
+	tokens: Required<IngestionControlServiceTokens>,
+	serviceClass: IngestionControlPrincipalClass,
+): IngestionControlPrincipal {
+	const configuredToken = tokenForServiceClass(tokens, serviceClass);
 	const requestToken = parseBearerToken(request.headers.get("authorization"));
+	if (!configuredToken) {
+		throw new OfficialWebControlPlaneError({
+			code: "service_principal_not_configured",
+			message: `${serviceClass} bearer token is not configured.`,
+			retryable: true,
+			status: 503,
+		});
+	}
 	if (!(configuredToken && requestToken && constantTimeEqual(configuredToken, requestToken))) {
 		throw new OfficialWebControlPlaneError({
 			code: "service_credential_required",
-			message: "Official web collector bearer token is required.",
+			message: `${serviceClass} bearer token is required.`,
 			retryable: false,
 			status: 401,
+		});
+	}
+	return {
+		kind: "service",
+		serviceClass,
+		serviceId: serviceIdForServiceClass(serviceClass),
+	};
+}
+
+function toOfficialWebCollectorPrincipal(
+	principal: IngestionControlPrincipal,
+): OfficialWebCollectorPrincipal {
+	if (principal.serviceClass !== "official_web_collector") {
+		throw new OfficialWebControlPlaneError({
+			code: "forbidden",
+			message: "Official web collector access is not available for this principal.",
+			retryable: false,
+			status: 403,
 		});
 	}
 	return {
@@ -208,6 +300,47 @@ function requireOfficialWebCollectorPrincipal(
 		serviceClass: "official_web_collector",
 		serviceId: "source-collector/official-web",
 	};
+}
+
+function tokenForServiceClass(
+	tokens: Required<IngestionControlServiceTokens>,
+	serviceClass: IngestionControlPrincipalClass,
+): string | null {
+	switch (serviceClass) {
+		case "admin":
+			return tokens.adminToken;
+		case "app_api_projection_reader":
+			return tokens.appApiProjectionToken;
+		case "official_web_collector":
+			return tokens.officialWebCollectorToken;
+		case "official_web_execution_status_writer":
+			return tokens.officialWebExecutionStatusToken;
+		case "official_web_projection_worker":
+			return tokens.officialWebProjectionToken;
+		default:
+			return assertNever(serviceClass);
+	}
+}
+
+function serviceIdForServiceClass(serviceClass: IngestionControlPrincipalClass): string {
+	switch (serviceClass) {
+		case "admin":
+			return "ingestion-control/admin";
+		case "app_api_projection_reader":
+			return "app-api/ingestion-projection";
+		case "official_web_collector":
+			return "source-collector/official-web";
+		case "official_web_execution_status_writer":
+			return "ingestion-control/official-web-execution-status";
+		case "official_web_projection_worker":
+			return "ingestion-control/official-web-projection";
+		default:
+			return assertNever(serviceClass);
+	}
+}
+
+function assertNever(value: never): never {
+	throw new Error(`Unsupported service principal class: ${String(value)}`);
 }
 
 function parseBearerToken(value: string | null): string | null {

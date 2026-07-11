@@ -133,57 +133,9 @@ create table if not exists runtime.agent_runs (
 	completed_at timestamptz,
 	updated_at timestamptz not null,
 	runtime_versions_json jsonb not null default '{}'::jsonb,
-	workflow_plan_ref text not null default '',
 	final_response_ref text not null default '',
 	metadata_json jsonb not null default '{}'::jsonb
-);
-
-do $$
-begin
-	if exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'requested_capability'
-	) and not exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'requested_tool'
-	) then
-		alter table runtime.agent_runs rename column requested_capability to requested_tool;
-	end if;
-	if exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'selected_capability'
-	) and not exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'selected_tool'
-	) then
-		alter table runtime.agent_runs rename column selected_capability to selected_tool;
-	end if;
-	if exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'lane'
-	) and not exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_runs'
-			and column_name = 'task_queue'
-	) then
-		alter table runtime.agent_runs rename column lane to task_queue;
-	end if;
-end $$;
-
-alter table runtime.agent_runs add column if not exists requested_tool text not null default '';
-alter table runtime.agent_runs add column if not exists selected_tool text not null default '';
-alter table runtime.agent_runs add column if not exists task_queue text not null default '';
+		);
 
 create table if not exists runtime.agent_run_events (
 	event_id text primary key,
@@ -196,7 +148,7 @@ create table if not exists runtime.agent_run_events (
 	payload_json jsonb not null,
 	occurred_at timestamptz not null,
 	created_at timestamptz not null default now()
-);
+		);
 
 create table if not exists runtime.agent_run_steps (
 	step_id text not null,
@@ -215,26 +167,9 @@ create table if not exists runtime.agent_run_steps (
 	sanitized_payload_json jsonb not null default '{}'::jsonb,
 	created_at timestamptz not null default now(),
 	primary key (run_id, step_id)
-);
+	);
 
-do $$
-begin
-	if exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_run_steps'
-			and column_name = 'capability'
-	) and not exists (
-		select 1 from information_schema.columns
-		where table_schema = 'runtime'
-			and table_name = 'agent_run_steps'
-			and column_name = 'tool'
-	) then
-		alter table runtime.agent_run_steps rename column capability to tool;
-	end if;
-end $$;
-
-alter table runtime.agent_run_steps add column if not exists tool text not null default '';
+	alter table runtime.agent_run_steps add column if not exists tool text not null default '';
 
 create table if not exists runtime.agent_step_attempts (
 	attempt_id text primary key,
@@ -262,12 +197,10 @@ create table if not exists runtime.agent_step_attempts (
 	output_tokens bigint not null default 0,
 	cached_input_tokens bigint not null default 0,
 	estimated_cost_microusd bigint not null default 0,
-	pricing_version text not null default '',
 	cancel_outcome text not null default '',
 	timeout_outcome text not null default '',
 	late_completion_outcome text not null default 'not_late',
 	fail_close_reason text not null default '',
-	replan_reason text not null default '',
 	terminal_reason text not null default '',
 	updated_at timestamptz not null,
 	payload_schema_version text not null,
@@ -292,12 +225,10 @@ alter table runtime.agent_step_attempts add column if not exists input_tokens bi
 alter table runtime.agent_step_attempts add column if not exists output_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists cached_input_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists estimated_cost_microusd bigint not null default 0;
-alter table runtime.agent_step_attempts add column if not exists pricing_version text not null default '';
 alter table runtime.agent_step_attempts add column if not exists cancel_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists timeout_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists late_completion_outcome text not null default 'not_late';
 alter table runtime.agent_step_attempts add column if not exists fail_close_reason text not null default '';
-alter table runtime.agent_step_attempts add column if not exists replan_reason text not null default '';
 alter table runtime.agent_step_attempts add column if not exists terminal_reason text not null default '';
 
 create table if not exists runtime.agent_step_results (

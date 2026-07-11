@@ -41,8 +41,8 @@ const LLM_IO_FINGERPRINT_FIELDS = new Set([
 	"trace_id",
 	"workflow_artifact_sha256",
 ]);
-const LLM_CALL_SITES = new Set(["agent.primary", "rag.synthesis"]);
-const PRIMARY_ATTESTATION_KINDS = new Set(["primary_admitted_rag_synthesis", "primary_agent_call"]);
+const LLM_CALL_SITES = new Set(["agent.primary"]);
+const PRIMARY_ATTESTATION_KINDS = new Set(["primary_agent_call"]);
 const MODEL_PARAMS_PROJECTION_FIELDS = new Set([
 	"params_schema_version",
 	"params_sha256",

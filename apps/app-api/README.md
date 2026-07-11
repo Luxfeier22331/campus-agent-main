@@ -65,7 +65,8 @@ The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 - app-api contracts: `docs/contracts/app-api/README.md`
 - app-api data: `docs/data/app-api/README.md`
 - operator ownership: `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
-- official-web ownership: `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- official-web ownership: `docs/architecture/domains/official-web/architecture.md`,
+  `docs/data/app-api/official-web.md`
 - dining domain/data ownership: `docs/architecture/domains/dining/architecture.md`,
   `docs/data/dining.md`
 

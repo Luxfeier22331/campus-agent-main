@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-07-04
+updated: 2026-07-11
 ---
 
 # Documentation Standards and Source-of-Truth Mapping
@@ -49,6 +49,20 @@ The primary failure mode this architecture prevents is mixing product chain
 truth, tool readiness, operator/eval diagnostics, release-closeout artifacts,
 deployment validation and active planning into the same paragraph.
 
+When a paragraph mixes lifecycle states, it must label each state explicitly:
+
+- `current fact`: implemented and accepted in the current branch truth.
+- `accepted target`: intended target architecture, not proof of current serving.
+- `reserved / closed capability`: named config, profile or scope that exists but
+  is not open to product traffic.
+- `retired historical artifact`: kept only to explain why it must not be
+  restored.
+- `compatibility name/path`: old naming or route retained by current code; it is
+  not the target vocabulary for new work.
+
+Config, schema, fixture or ToolSpec existence alone does not prove a capability
+is product-visible, query-ready, published or release-ready.
+
 Human documentation must also stay small enough to keep that ownership
 observable:
 
@@ -70,6 +84,45 @@ observable:
 - Documentation governance lives here. Do not add a second tracked inventory,
   cleanup ledger or mirror of the Markdown tree; counts and cleanup history
   belong in tooling output and git history.
+- Root and area README files are route maps, not catalogues. They should point
+  to canonical entry documents and area landing pages instead of listing every
+  related second-level or third-level document.
+
+## Long-Term Governance Loop
+
+Documentation governance is a standing maintenance loop, not a cleanup project.
+Every durable documentation change should follow this order:
+
+1. Identify the owning truth class before adding or moving text.
+2. Update the owning document first. Other documents may route to it or summarize
+   it briefly, but must not redefine it.
+3. Update route-map indexes only when the reader entry point changes.
+4. Update `docs/architecture/flows.md` only for compact cross-owner diagrams;
+   owner-local diagrams stay in the owner document.
+5. If a decision changed, write or update an ADR lifecycle entry instead of
+   editing history into an active architecture page.
+6. If a contract or schema changed, update the executable schema or contract
+   source and then update prose.
+7. Add or tighten a low-false-positive check when the change fixes a repeatable
+   documentation failure mode.
+
+Do not create branch-tip audit inventories, cleanup ledgers or one-off document
+tree snapshots. Use git history for cleanup history and repository checks for
+the current invariant.
+
+The standing verification loop is:
+
+- `pnpm repo:static` for generic Biome, Markdownlint and EditorConfig hygiene
+- the owning app or package checks for executable schema, contract and domain
+  invariants
+- `pnpm ci:repo` as the CI alias for `pnpm repo:static`, not as an additional
+  documentation-governance layer
+
+The generic static check does not validate truth ownership, route-map semantics,
+reference-graph completeness or architecture claims. Those remain review
+responsibilities. When a repeatable invariant can be checked with low false
+positives, add it to the owning app or package test instead of creating a
+parallel repository-wide documentation checker.
 
 ## Mature Standards Mapping
 
@@ -168,6 +221,10 @@ contract shape or RFC requirement wording.
 - Default location: `docs/architecture/system/`.
 - Must not own: workstream progress, release closeout or domain source-channel
   details.
+- Stable cross-owner flow diagrams may be indexed in
+  `docs/architecture/flows.md`. That page visualizes owner-doc facts; it does
+  not create a new truth class or override the owner document. It must stay a
+  compact cross-boundary map, not a complete diagram catalogue.
 
 ### `domain_architecture`
 
@@ -175,6 +232,14 @@ contract shape or RFC requirement wording.
 - Default location: `docs/architecture/domains/`.
 - Must not own: main-chain completion status, operator/release-closeout artifacts or
   cross-domain runtime ownership.
+
+### `domain`
+
+- Owns: canonical human behavior, opening boundary and owner routing for a
+  narrow capability.
+- Default location: `docs/domains/`.
+- Must not own: broad domain hub routing, source-channel architecture, wire
+  schema, data schema, runbook procedure or active work status.
 
 ### `contract_truth`
 
@@ -237,12 +302,13 @@ implementing a plan:
 4. `current_truth` defines what is already accepted at the branch tip.
 5. `supporting_architecture` defines cross-domain system ownership.
 6. `domain_architecture` defines tool-local boundaries.
-7. `contract_truth` and `data_truth` define executable wire/schema truth.
-8. `decision_record` explains why a decision was accepted and how it was
+7. `domain` defines canonical human behavior for a narrow capability.
+8. `contract_truth` and `data_truth` define executable wire/schema truth.
+9. `decision_record` explains why a decision was accepted and how it was
    superseded.
-9. `operational_truth` defines how to operate or verify a system.
-10. `planning_signal` defines what work is currently queued or signaled.
-11. `reference` provides stable lookup material but does not override the owner
+10. `operational_truth` defines how to operate or verify a system.
+11. `planning_signal` defines what work is currently queued or signaled.
+12. `reference` provides stable lookup material but does not override the owner
     classes above.
 
 If the document with lower precedence is more recent, do not silently treat it
@@ -335,6 +401,33 @@ documentation style; write the containing document using the mature standard
 for that document type.
 
 ## Content Ownership Rules
+
+### Index Pages
+
+Index pages own navigation only. They may answer "where should I start?" and
+"which owner document should I read next?" They must not become exhaustive
+inventories of the tree, duplicate owner summaries or permanent cleanup
+ledgers.
+
+Root indexes should link to canonical entry documents and area README files.
+Area indexes may list their direct owner documents when that improves routing,
+but should avoid expanding into every related dependency. If an index needs a
+large topic explanation, move that explanation into the owning document class.
+
+### Flow Diagrams
+
+Flow diagrams follow the same ownership rules as prose:
+
+- local runtime, data, contract, source-channel or runbook flows belong in the
+  owning document
+- cross-owner diagrams belong in `docs/architecture/flows.md` only when the
+  value is seeing several owner classes together
+- `flows.md` is an index and visual overview, not a second source of truth
+- do not copy an owner-local diagram into `flows.md` only to make a complete
+  diagram catalogue
+
+When a diagram conflicts with prose, the owner document wins. Fix the owner
+document first, then update or delete the diagram.
 
 ### Large Documents
 

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-12
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 
 # Providers
@@ -33,55 +33,18 @@ Reading model:
 ### LLM
 
 - Owner: `apps/app-api` provider-config connection/profile.
-- Consumers: `execution-control`, Hindsight and eval runtime through local
-  provider projection artifacts.
-- Required roles: `primary_agent`, `rag_synthesis`, `hindsight_llm`.
+- Consumers: `agent-runtime`, Hindsight and eval runtime through local provider
+  projection artifacts.
+- Required roles: `primary_agent`, `hindsight_llm`.
 - Local seed keys: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, optional
-  `RAG_SYNTHESIS_MODEL`.
+  provider-specific connection settings.
 - Local seed template: `env/commands/provider-config-seed.env.example`.
 - Runtime truth: `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH`.
 - Validation: create, validate and activate profiles through Operator Console;
   raw keys must not return to browser surfaces.
-- Search-provider pricing must not be represented as zero when unknown. Add a
-  `provider-pricing.v1` entry only after the configured provider/model has a
-  real accepted rate; otherwise public-web-search readiness and eval evidence
-  should report provider/model identity without cost projection.
-
-### Search
-
-- Owner: `apps/app-api` provider-config connection/profile.
-- Role: `public_web_search`.
-- Scope: this section is only the admitted provider inventory. Provider class
-  taxonomy, candidate matrix and default-provider bakeoff rules live in
-  `../domains/public-web-search.md` and `../reference/eval.md`.
-- Current admitted provider identities:
-
-| role | provider | kind | transport |
-| --- | --- | --- | --- |
-| `public_web_search` | `perplexity` | `search` | `perplexity_search` |
-| `public_web_search` | `perplexity_compatible` | `search` | `perplexity_search` |
-| `public_web_search` | `openai` | `search` | `openai_responses_web_search` |
-| `public_web_search` | `gemini` | `search` | `gemini_google_search` |
-| `public_web_search` | `linux_do` | `search` | `openai_chat_completions_web_search` |
-
-- `provider` is the real provider identity. `transport` is the wire contract.
-  `perplexity_compatible` must not be recorded as official `perplexity`.
-- Linux.do prompt profiles and Linux.do public-web-search profiles are
-  separate. `public_web_search` with Linux.do must be `kind=search` and
-  `transport=openai_chat_completions_web_search`, not a generic
-  `chat_completions` prompt profile.
-- Provider adoption is an eval decision. Candidate search providers must be
-  configured as explicit provider/transport pairs and scored through the same
-  public-web-search eval pipeline before becoming a default provider profile.
-- Local seed keys: `PUBLIC_WEB_SEARCH_BASE_URL`,
-  `PUBLIC_WEB_SEARCH_API_KEY`, `PUBLIC_WEB_SEARCH_MODEL`,
-  `PUBLIC_WEB_SEARCH_PROVIDER`, `PUBLIC_WEB_SEARCH_TRANSPORT`.
-- Local seed template: `env/commands/provider-config-seed.env.example`.
-- Consumer: `apps/execution-control` `public_web_search` typed tool.
-- Rule: search profile output is sanitized online evidence only; it must not
-  mutate official-web source truth, object storage, Qdrant or release manifests.
-- Rule: no provider fallback chain, provider auto-detection, result merge or
-  model-selected provider routing is admitted for this role.
+- `primary_agent` supplies the complete OpenAI Agents SDK run, including the
+  Knowledge Agent handoff. There is no separate online answer-generation or
+  public-web provider profile.
 
 ### Embeddings
 
@@ -96,7 +59,7 @@ Reading model:
 - Runtime truth: provider projection artifact plus collection serving config.
 - References:
   - `../decisions/adr-0007-phase1-retrieval-baseline-update.md`
-  - `../policies/student-handbook-chunking-and-validation-policy.md`
+  - `../policies/student-rules-chunking.md`
 
 ### Rerank
 
@@ -284,9 +247,8 @@ Reading model:
 - Rule: app runtime secrets stay in app-local Worker secret stores. Retrieval
   data-plane, object-store and execution-control compose env stay in ops-owned
   runtime env.
-- Worker vars/secrets do not own `primary_agent`, `rag_synthesis`,
-  `rag_query_embedding`, `rag_reranker`, `hindsight_*` or
-  `public_web_search` active provider profiles. Those stay in app-api
+- Worker vars/secrets do not own `primary_agent`, `rag_query_embedding`,
+  `rag_reranker` or `hindsight_*` active provider profiles. Those stay in app-api
   provider-config and are projected to runtimes through explicit snapshots.
 
 ### Kubernetes / GitOps Deploy
@@ -321,7 +283,7 @@ Required:
 - `env/commands/provider-config-seed.env`: only when seeding/updating app-api
   provider-config profiles
 - app-api provider-config active profiles:
-  `primary_agent`, `rag_synthesis`, `rag_query_embedding`
+  `primary_agent`, `rag_query_embedding`
 - local runtime lifecycle projection for Qdrant and generated runtime secrets
 - `apps/app-api/.env`: Wrangler / Drizzle process env
 - `apps/app-api/.dev.vars`: app-api Worker runtime env, including auth,

@@ -4,7 +4,7 @@ import type {
 	OfficialWebIngestionExecutionStatus,
 	OfficialWebRunIntent,
 	OfficialWebRunStatus,
-} from "ingestion-contracts";
+} from "./official-web-lifecycle";
 import type {
 	OfficialWebArtifactSummary,
 	OfficialWebProjectionStore,

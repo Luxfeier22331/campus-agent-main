@@ -1,11 +1,10 @@
-import { canonicalJsonString } from "ingest-core";
-import { validateIngestionTaskEnvelope } from "ingestion-contracts";
-
 import {
-	matchesProjectionFilters,
-	normalizeProjectionLimit,
-	toOperatorProjection,
-} from "./projection";
+	canonicalJsonString,
+	matchesIngestionTaskProjectionFilters as matchesProjectionFilters,
+	normalizeIngestionTaskProjectionLimit as normalizeProjectionLimit,
+	toIngestionTaskOperatorProjection as toOperatorProjection,
+} from "ingest-core";
+import { validateIngestionTaskEnvelope } from "ingestion-contracts";
 import type {
 	IngestionArtifactRef,
 	IngestionTaskAdmissionResult,

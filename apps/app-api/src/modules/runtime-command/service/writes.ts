@@ -13,16 +13,12 @@ import type {
 	ToolExecutionPreviousToolResultRef,
 	ToolExecutionResponse,
 } from "../../integration";
-import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
 } from "../../request-observability";
 import type { VersionQuery } from "../../version-query";
-import {
-	buildExecutionSessionProjection,
-	deriveCurriculumSessionSlots,
-} from "../curriculum-session";
+import { buildExecutionSessionProjection } from "../curriculum-session";
 import type { AcceptRequestWrite, FinalizeRequestWrite, RequestExecutionStatus } from "../store";
 import {
 	extractSourceDocIds,
@@ -80,8 +76,7 @@ function buildConversationContextProjection(input: {
 	previousToolResults: ToolExecutionPreviousToolResultRef[];
 	session: ReturnType<typeof buildExecutionSessionProjection>;
 }): ToolExecutionConversationContext {
-	const recentTurnLimit = 6;
-	const priorMessages = input.conversation.messages.slice(-recentTurnLimit);
+	const priorMessages = input.conversation.messages;
 	const parentMessage = priorMessages.at(-1) ?? null;
 	const previousAssistant = [...input.conversation.messages]
 		.reverse()
@@ -91,81 +86,27 @@ function buildConversationContextProjection(input: {
 		: [];
 	const recentTurns: ToolExecutionConversationContext["recentTurns"] = priorMessages.map(
 		(message) => ({
+			content: message.text,
 			createdAt: message.createdAt,
 			messageId: message.id,
 			role: message.role,
-			...(message.role === "assistant"
-				? { summary: previewText(message.text, 240) }
-				: { content: previewText(message.text, 240) }),
 		}),
 	);
-	const tokenEstimate = estimateContextTokens([
-		input.currentUserMessageContent,
-		...recentTurns.map((turn) => turn.content ?? turn.summary ?? ""),
-		previousAssistant?.text ?? "",
-		...previousEvidenceRefs.map((ref) => ref.snippet ?? ""),
-		...input.previousToolResults.map((ref) => ref.summary ?? ""),
-	]);
 
 	return {
-		budget: {
-			recentTurnLimit,
-			tokenEstimate,
-		},
-		contextSummary: input.conversation.contextSummary ?? null,
 		conversationId: input.conversation.id,
 		currentUserMessage: {
 			role: "user",
 			content: input.currentUserMessageContent,
 			createdAt: input.currentUserMessageCreatedAt,
 		},
-		memoryRecall: {
-			gateField: "context.memory.enabled",
-			owner: "execution-control",
-			runtime: "hindsight",
-		},
 		parentMessageId: parentMessage?.id ?? null,
-		previousAnswerSummary: previousAssistant ? previewText(previousAssistant.text, 240) : null,
 		previousToolResults: input.previousToolResults,
 		previousEvidenceRefs,
 		recentTurns,
 		schemaVersion: "conversation_context.v1",
 		sessionState: input.session,
-		sourceAttribution: previousEvidenceRefs
-			.map((_, index) => ({
-				item: `previous_evidence_refs[${index}]`,
-				modelVisible: true,
-				source: "runtime step/result projection",
-			}))
-			.concat(
-				input.previousToolResults.map((_, index) => ({
-					item: `previous_tool_results[${index}]`,
-					modelVisible: true,
-					source: "runtime request projection",
-				})),
-			),
-		truncation: null,
 		userMessageId: input.currentUserMessageId,
-		visibility: {
-			modelVisible: [
-				"current_user_message",
-				"recent_turns",
-				"previous_answer_summary",
-				"previous_evidence_refs",
-				"previous_tool_results",
-				"session_state",
-			],
-			runtimeOnly: [
-				"schema_version",
-				"conversation_id",
-				"user_message_id",
-				"parent_message_id",
-				"memory_recall",
-				"source_attribution",
-				"budget",
-				"truncation",
-			],
-		},
 	};
 }
 
@@ -214,11 +155,6 @@ function readString(record: Record<string, unknown>, ...keys: string[]): string 
 		}
 	}
 	return;
-}
-
-function estimateContextTokens(values: string[]): number {
-	const charCount = values.reduce((total, value) => total + value.trim().length, 0);
-	return Math.ceil(charCount / 4);
 }
 
 export function buildAcceptedWrite(input: {
@@ -303,7 +239,6 @@ export function buildAcceptedWrite(input: {
 			errorCode: null,
 			questionPreview: previewText(input.prompt),
 			answerPreview: null,
-			diagnostics: null,
 			sourceDocIds: [],
 			startedAt: input.now,
 			completedAt: null,
@@ -347,17 +282,8 @@ export function buildAcceptedWrite(input: {
 	};
 }
 
-function resolveFinalizedScope(input: {
-	requestedScope: RequestedScope | null;
-	response: ToolExecutionResponse;
-}): RequestedScope | null {
-	const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
-	const collection = input.response.observability?.resolvedScopeCollection?.trim();
-	if (corpus && collection) {
-		return { collection, corpus };
-	}
-
-	return input.requestedScope;
+function resolveFinalizedScope(input: { response: ToolExecutionResponse }): RequestedScope | null {
+	return input.response.resolvedScope?.trim() || null;
 }
 
 function requireFinalizationRunId(value: string | null): string {
@@ -428,7 +354,6 @@ export function buildFinalizedWrite(input: {
 		...input.response,
 		traceId: normalizedTraceId,
 	} satisfies ToolExecutionResponse;
-	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
 		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
@@ -437,7 +362,6 @@ export function buildFinalizedWrite(input: {
 		status: input.response.status,
 	});
 	const resolvedScope = resolveFinalizedScope({
-		requestedScope: input.requestedScope,
 		response: normalizedExecutionResponse,
 	});
 	let assistantKind: ChatMessage["kind"];
@@ -555,7 +479,6 @@ export function buildFinalizedWrite(input: {
 
 	const write: FinalizeRequestWrite = {
 		assistantMessage,
-		contextSummary: previewText(assistantText, 240),
 		conversationTitle: input.conversationTitle,
 		ownerUserId: input.conversation.ownerUserId,
 		requestExecution: {
@@ -589,7 +512,6 @@ export function buildFinalizedWrite(input: {
 			errorCode,
 			questionPreview: "",
 			answerPreview: previewText(assistantText),
-			diagnostics,
 			sourceDocIds,
 			startedAt: input.startedAt,
 			completedAt: input.completedAt,
@@ -600,7 +522,6 @@ export function buildFinalizedWrite(input: {
 		requestObservabilityFact: buildFinalizedRequestObservabilityFact({
 			completedAt: input.completedAt,
 			conversationId: input.conversation.id,
-			diagnostics,
 			durationMs: input.durationMs,
 			errorCode,
 			principal: input.principal,
@@ -612,7 +533,6 @@ export function buildFinalizedWrite(input: {
 			response: normalizedExecutionResponse,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
-			sourceDocIds,
 			startedAt: input.startedAt,
 			status,
 			streamBrowserTtftMs: input.streamBrowserTtftMs,
@@ -632,7 +552,6 @@ export function buildFinalizedWrite(input: {
 				selectedTool: input.response.selectedTool,
 				answerPreview: previewText(assistantText),
 				errorCode,
-				...(diagnostics ? { diagnostics } : {}),
 				sourceDocIds,
 			},
 			occurredAt: input.completedAt,
@@ -641,12 +560,15 @@ export function buildFinalizedWrite(input: {
 			attemptCount: 0,
 			lastError: null,
 		},
-		sessionSlots: deriveCurriculumSessionSlots({
-			diagnostics,
-			existingSlots: input.conversation.sessionSlots,
-			finalizedAt: input.completedAt,
-			status,
-		}),
+		sessionSlots:
+			status === "completed"
+				? (input.response.sessionUpdate?.upsertSlots ?? []).map((slot) => ({
+						confirmed: slot.confirmed,
+						name: slot.name,
+						updatedAt: input.completedAt,
+						value: slot.value,
+					}))
+				: [],
 	};
 
 	return {

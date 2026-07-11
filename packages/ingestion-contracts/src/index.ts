@@ -13,16 +13,6 @@ import taskRegistrySchema from "../schemas/ingestion-task-registry.v2.schema.jso
 	type: "json",
 };
 
-export type {
-	OfficialWebFetchDisposition,
-	OfficialWebIngestionDispatchStatus,
-	OfficialWebIngestionExecutionStatus,
-	OfficialWebPageChangeStatus,
-	OfficialWebRunIntent,
-	OfficialWebRunStatus,
-	OfficialWebTerminalRunStatus,
-} from "./official-web-lifecycle.ts";
-
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
 
 export interface CanonicalDocumentUnit {
@@ -38,7 +28,7 @@ export interface CanonicalDocumentUnit {
 	[key: string]: unknown;
 }
 
-export type IngestionArtifactRefKind = "object_store" | "local_file" | "postgres_row" | "inline";
+export type IngestionArtifactRefKind = "object_store";
 
 export interface IngestionArtifactRef {
 	kind: IngestionArtifactRefKind;

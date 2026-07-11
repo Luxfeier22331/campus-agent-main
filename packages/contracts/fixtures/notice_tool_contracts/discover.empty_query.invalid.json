@@ -1,9 +1,0 @@
-{
-	"schema_version": "notice_tool_contracts.v1",
-	"tool_name": "campus_notice_discover",
-	"packet_kind": "payload",
-	"payload": {
-		"query_text": " ",
-		"max_results": 5
-	}
-}

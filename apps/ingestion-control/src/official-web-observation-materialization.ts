@@ -1,4 +1,3 @@
-import type { OfficialWebPageChangeStatus } from "ingestion-contracts";
 import type {
 	NormalizedPageObservation,
 	OfficialWebPageChange,
@@ -6,6 +5,7 @@ import type {
 	StoredOfficialWebPageFreshnessState,
 	StoredOfficialWebRun,
 } from "./official-web-control-plane-types";
+import type { OfficialWebPageChangeStatus } from "./official-web-lifecycle";
 
 export function buildPersistedPageObservations(input: {
 	existingStates: Map<string, StoredOfficialWebPageFreshnessState>;
@@ -74,10 +74,19 @@ export function buildPersistedPageObservations(input: {
 				pageFamily: observation.pageFamily,
 				rawAssetId: observation.rawAssetId,
 				rawVersionId: observation.rawVersionId,
+				selectedWriteTarget: primarySelectedWriteTarget(observation),
+				targetMatches: observation.targetMatches,
 			});
 		}
 	}
 	return { observations, pageChanges, summary };
+}
+
+function primarySelectedWriteTarget(observation: {
+	targetMatches: Array<{ selectedWriteTarget: string }>;
+}): string | null {
+	const selectedWriteTarget = observation.targetMatches[0]?.selectedWriteTarget?.trim();
+	return selectedWriteTarget || null;
 }
 
 function incrementSummary(

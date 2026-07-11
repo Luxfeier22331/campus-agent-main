@@ -206,6 +206,7 @@ const surfaceSpecDefinitions = {
 		required_settings: {
 			runtime_config_path: ["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"],
 			execution_control_shared_secret: ["EXECUTION_CONTROL_SHARED_SECRET"],
+			internal_query_shared_secret: ["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
 			metrics_bearer_token: ["EXECUTION_CONTROL_METRICS_BEARER_TOKEN"],
 			run_projection_database_url: ["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"],
 			temporal_address: ["EXECUTION_CONTROL_TEMPORAL_ADDRESS"],
@@ -215,7 +216,6 @@ const surfaceSpecDefinitions = {
 			temporal_workflow_worker_identity: ["EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY"],
 			temporal_core_worker_identity: ["EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY"],
 			temporal_agent_worker_identity: ["EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY"],
-			temporal_knowledge_worker_identity: ["EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY"],
 			temporal_start_timeout_ms: ["EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS"],
 		},
 		optional_settings: {
@@ -226,10 +226,6 @@ const surfaceSpecDefinitions = {
 			audit_queue_capacity: ["AUDIT_QUEUE_CAPACITY"],
 			execution_audit_url: ["EXECUTION_CONTROL_EXECUTION_AUDIT_URL"],
 			execution_audit_shared_secret: ["EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"],
-			internal_query_base_url: ["EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"],
-			internal_query_shared_secret: ["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
-			internal_notice_read_model_database_url: ["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"],
-			internal_notice_read_model_table: ["INTERNAL_NOTICE_READ_MODEL_TABLE"],
 		},
 		files: {},
 	},

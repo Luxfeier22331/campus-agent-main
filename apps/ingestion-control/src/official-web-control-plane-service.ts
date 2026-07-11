@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { OfficialWebRunIntent, OfficialWebRunStatus } from "ingestion-contracts";
 import { OfficialWebControlPlaneError } from "./official-web-control-plane-errors";
 import {
 	assertCanonicalWorkset,
@@ -23,6 +22,7 @@ import type {
 	StoredOfficialWebPageFreshnessState,
 	StoredOfficialWebRun,
 } from "./official-web-control-plane-types";
+import type { OfficialWebRunIntent, OfficialWebRunStatus } from "./official-web-lifecycle";
 import { buildPersistedPageObservations } from "./official-web-observation-materialization";
 
 const HEARTBEAT_INTERVAL_SECONDS = 60;

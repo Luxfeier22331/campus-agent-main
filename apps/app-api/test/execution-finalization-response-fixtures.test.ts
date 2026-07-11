@@ -47,7 +47,7 @@ function llmIoFingerprintFixture(input: {
 		request_id: "req_temporal_finalization",
 		trace_id: "trace-temporal-finalization",
 		runtime_release: "execution-control@test",
-		llm_call_site: input.promptId === "rag_synthesis_answer" ? "rag.synthesis" : "agent.primary",
+		llm_call_site: "agent.primary",
 		provider_profile_revision: input.providerProfileRevision,
 		provider: "openai",
 		model: input.model,
@@ -114,11 +114,8 @@ function llmIoFingerprintFixture(input: {
 		output_schema_id: input.outputSchemaId,
 		primary_attestation: {
 			schema_version: "primary_attestation.v1",
-			attestation_kind:
-				input.promptId === "rag_synthesis_answer"
-					? "primary_admitted_rag_synthesis"
-					: "primary_agent_call",
-			attested_by: "execution-control",
+			attestation_kind: "primary_agent_call",
+			attested_by: "apps/agent-runtime",
 			attestation_sha256: "sha256:7777777777777777777777777777777777777777777777777777777777777777",
 		},
 	};
@@ -158,6 +155,33 @@ function answerEvalFingerprintFixture(
 }
 
 describe("execution finalization canonical response fixtures", () => {
+	it("parses resolved scope and typed session updates from finalization", () => {
+		const payload = loadFixture("response_temporal_finalization.valid.json");
+		payload.resolved_scope = "curriculum";
+		payload.session_update = {
+			upsert_slots: [
+				{
+					confirmed: true,
+					name: "curriculum_program",
+					value: "历史学强基计划",
+				},
+			],
+		};
+
+		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
+			resolvedScope: "curriculum",
+			sessionUpdate: {
+				upsertSlots: [
+					{
+						confirmed: true,
+						name: "curriculum_program",
+						value: "历史学强基计划",
+					},
+				],
+			},
+		});
+	});
+
 	it("parses canonical terminal state fixtures", () => {
 		expect(
 			parseExecutionFinalizationResponsePayload(
@@ -168,10 +192,11 @@ describe("execution finalization canonical response fixtures", () => {
 			status: "completed",
 			traceId: "trace-contract-completed",
 			workflowTraceSummary: {
-				contextProjections: [],
-				directVsDelegateBranch: "delegate",
+				directVsDelegateBranch: "tool",
+				firstDecisionActor: "primary_agent",
 				selectedTool: "knowledge_query",
 				selectedTools: ["knowledge_query"],
+				terminalReason: "answer",
 			},
 		});
 		expect(
@@ -179,7 +204,7 @@ describe("execution finalization canonical response fixtures", () => {
 				loadFixture("response_temporal_finalization.valid.json"),
 			),
 		).toMatchObject({
-			answerText: "示例奖学金按合成评审办法执行。",
+			answerText: "示例奖学金按照现行评审办法执行。",
 			error: null,
 			selectedTool: "knowledge_query",
 			status: "completed",
@@ -225,86 +250,23 @@ describe("execution finalization canonical response fixtures", () => {
 		}
 	});
 
-	it("parses canonical context projection summaries", () => {
-		const payload = loadFixture("response_completed_delegate.valid.json");
-		payload.workflow_trace_summary = {
-			...(payload.workflow_trace_summary as Record<string, unknown>),
-			context_projections: [
-				{
-					projection_id: "projection:notice:001",
-					source_step_id: "tool:notice:campus_notice_get",
-					projection_kind: "notice_context",
-					content_hash: "sha256:test",
-					safety: {
-						truncated: false,
-						redacted: false,
-						max_chars: 1600,
-						fields_present: ["title", "body_excerpt", "source_url"],
-					},
-				},
-			],
-		};
+	it("rejects retired custom observability projections", () => {
+		for (const retiredField of [
+			"prompt_trace",
+			"replay_packet_ref",
+			"semantic_outcome",
+			"usage_summary",
+		]) {
+			const payload = loadFixture("response_temporal_finalization.valid.json");
+			payload.observability = {
+				...(payload.observability as Record<string, unknown>),
+				[retiredField]: {},
+			};
 
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			workflowTraceSummary: {
-				contextProjections: [
-					{
-						projection_id: "projection:notice:001",
-						projection_kind: "notice_context",
-					},
-				],
-			},
-		});
-	});
-
-	it("parses canonical usage summary from finalization observability", () => {
-		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.observability = {
-			...(payload.observability as Record<string, unknown>),
-			usage_summary: {
-				billable_step_count: 2,
-				cached_input_tokens: 12,
-				estimated_cost_microusd: 60920,
-				input_tokens: 18550,
-				model_name: null,
-				model_provider: null,
-				model_usage: [
-					{
-						cached_input_tokens: 0,
-						estimated_cost_microusd: 0,
-						input_tokens: 11268,
-						model_name: "gpt-5.5",
-						model_provider: "openai",
-						output_tokens: 494,
-						step_count: 1,
-					},
-					{
-						cached_input_tokens: 12,
-						estimated_cost_microusd: 60920,
-						input_tokens: 7282,
-						model_name: "gpt-4.1",
-						model_provider: "openai",
-						output_tokens: 817,
-						step_count: 1,
-					},
-				],
-				output_tokens: 1311,
-			},
-		};
-
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			observability: {
-				usageSummary: {
-					billableStepCount: 2,
-					cachedInputTokens: 12,
-					estimatedCostMicrousd: 60920,
-					inputTokens: 18550,
-					modelName: null,
-					modelProvider: null,
-					outputTokens: 1311,
-				},
-			},
-		});
+			expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
+				new RegExp(`observability\\.${retiredField} is not allowed`, "i"),
+			);
+		}
 	});
 
 	it("parses safe llm io fingerprint from finalization observability", () => {
@@ -415,112 +377,6 @@ describe("execution finalization canonical response fixtures", () => {
 
 		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
 			/tool_runtime_fingerprint/i,
-		);
-	});
-
-	it("parses rag synthesis prompt trace and llm io fingerprint from observability root", () => {
-		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.observability = {
-			...(payload.observability as Record<string, unknown>),
-			llm_io_fingerprint: llmIoFingerprintFixture({
-				model: "gpt-5-mini",
-				outputSchemaId: "rag_answer_v2",
-				promptId: "rag_synthesis_answer",
-				promptVariablesSchemaVersion: "rag_synthesis_packet.v1",
-				providerProfileRevision: "rag_synthesis:provider_profile_rag:4",
-			}),
-			prompt_trace: {
-				model_name: "gpt-5-mini",
-				model_provider: "openai",
-				output_schema_version: "v2",
-				prompt_id: "rag_synthesis_answer",
-				prompt_version: "v1",
-				template_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				variables_schema_version: "rag_synthesis_packet.v1",
-			},
-		};
-		(payload.result as Record<string, unknown>).diagnostics = {
-			...((payload.result as Record<string, unknown>).diagnostics as Record<string, unknown>),
-			prompt_trace: {
-				prompt_id: "legacy_wrong_location",
-			},
-		};
-
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			observability: {
-				llmIoFingerprint: {
-					model: "gpt-5-mini",
-					outputSchemaId: "rag_answer_v2",
-					promptId: "rag_synthesis_answer",
-					promptVariablesSchemaVersion: "rag_synthesis_packet.v1",
-					provider: "openai",
-					providerProfileRevision: "rag_synthesis:provider_profile_rag:4",
-				},
-				promptTrace: {
-					modelName: "gpt-5-mini",
-					modelProvider: "openai",
-					outputSchemaVersion: "v2",
-					promptId: "rag_synthesis_answer",
-					promptVersion: "v1",
-					variablesSchemaVersion: "rag_synthesis_packet.v1",
-				},
-			},
-		});
-	});
-
-	it("parses safe replay packet refs from finalization observability", () => {
-		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.observability = {
-			...(payload.observability as Record<string, unknown>),
-			replay_packet_ref: {
-				schema_version: "llm_replay_packet_index_ref.v1",
-				packet_id: "llm_replay_packet_rag_01",
-				object_ref: "s3://llm-replay/llm-replay-packets/2026/07/05/llm_replay_packet_rag_01.json",
-				object_checksum_sha256:
-					"sha256:4444444444444444444444444444444444444444444444444444444444444444",
-				sensitivity_classification: "restricted_llm_io_with_evidence",
-				encryption_key_ref: "kms:local-dev-replay",
-				created_at: "2026-07-05T00:00:00Z",
-				expires_at: "2026-07-12T00:00:00Z",
-				approval_ref: "approval_rag_01",
-				operator_principal: "operator:user_01",
-			},
-		};
-
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			observability: {
-				replayPacketRef: {
-					packetId: "llm_replay_packet_rag_01",
-					objectChecksumSha256:
-						"sha256:4444444444444444444444444444444444444444444444444444444444444444",
-					schemaVersion: "llm_replay_packet_index_ref.v1",
-				},
-			},
-		});
-	});
-
-	it("rejects replay packet refs that include raw packet bodies", () => {
-		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.observability = {
-			...(payload.observability as Record<string, unknown>),
-			replay_packet_ref: {
-				schema_version: "llm_replay_packet_index_ref.v1",
-				packet_id: "llm_replay_packet_rag_01",
-				object_ref: "s3://llm-replay/llm-replay-packets/2026/07/05/llm_replay_packet_rag_01.json",
-				object_checksum_sha256:
-					"sha256:4444444444444444444444444444444444444444444444444444444444444444",
-				sensitivity_classification: "restricted_llm_io_with_evidence",
-				encryption_key_ref: "kms:local-dev-replay",
-				created_at: "2026-07-05T00:00:00Z",
-				expires_at: "2026-07-12T00:00:00Z",
-				provider_request_body: {
-					model: "gpt-5-mini",
-				},
-			},
-		};
-
-		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
-			/execution finalization response contract/i,
 		);
 	});
 

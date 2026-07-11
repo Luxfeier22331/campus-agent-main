@@ -21,7 +21,9 @@
 		"expires_at",
 		"retention",
 		"access_audit",
-		"evidence_replay_index"
+		"evidence_replay_index",
+		"answer_eval_fingerprint",
+		"sink_identity_projection"
 	],
 	"properties": {
 		"schema_version": {
@@ -60,14 +62,7 @@
 			"$ref": "#/$defs/LlmIoFingerprint"
 		},
 		"answer_eval_fingerprint": {
-			"anyOf": [
-				{
-					"type": "null"
-				},
-				{
-					"$ref": "#/$defs/AnswerEvalFingerprint"
-				}
-			]
+			"$ref": "#/$defs/AnswerEvalFingerprint"
 		},
 		"deletion_linkage": {
 			"type": "object",
@@ -121,44 +116,9 @@
 			"$ref": "#/$defs/EvidenceReplayIndex"
 		},
 		"sink_identity_projection": {
-			"anyOf": [
-				{
-					"type": "null"
-				},
-				{
-					"$ref": "#/$defs/SinkIdentityProjection"
-				}
-			]
+			"$ref": "#/$defs/SinkIdentityProjection"
 		}
 	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"llm_io_fingerprint": {
-						"properties": {
-							"llm_call_site": {
-								"const": "rag.synthesis"
-							}
-						},
-						"required": ["llm_call_site"]
-					}
-				},
-				"required": ["llm_io_fingerprint"]
-			},
-			"then": {
-				"required": ["answer_eval_fingerprint", "sink_identity_projection"],
-				"properties": {
-					"answer_eval_fingerprint": {
-						"$ref": "#/$defs/AnswerEvalFingerprint"
-					},
-					"sink_identity_projection": {
-						"$ref": "#/$defs/SinkIdentityProjection"
-					}
-				}
-			}
-		}
-	],
 	"$defs": {
 		"NonEmptyString": {
 			"type": "string",
@@ -328,7 +288,7 @@
 					"$ref": "#/$defs/NonEmptyString"
 				},
 				"llm_call_site": {
-					"enum": ["agent.primary", "rag.synthesis"]
+					"const": "agent.primary"
 				},
 				"provider_profile_revision": {
 					"$ref": "#/$defs/NonEmptyString"
@@ -440,7 +400,7 @@
 					"const": "primary_attestation.v1"
 				},
 				"attestation_kind": {
-					"enum": ["primary_agent_call", "primary_admitted_rag_synthesis"]
+					"const": "primary_agent_call"
 				},
 				"attested_by": {
 					"$ref": "#/$defs/NonEmptyString"
@@ -669,7 +629,7 @@
 					"$ref": "#/$defs/NonEmptyString"
 				},
 				"llm_call_site": {
-					"enum": ["agent.primary", "rag.synthesis"]
+					"const": "agent.primary"
 				},
 				"llm_io_fingerprint_sha256": {
 					"$ref": "#/$defs/Sha256"
@@ -695,7 +655,6 @@
 							"enum": [
 								"direct_no_tool",
 								"tool_routed",
-								"rag_synthesis",
 								"clarification",
 								"policy_refusal",
 								"runtime_error"

@@ -27,11 +27,10 @@ const ANSWER_BRANCH_IDENTITY_FIELDS = new Set([
 	"branch_kind",
 	"workflow_mode",
 ]);
-const LLM_CALL_SITES = new Set(["agent.primary", "rag.synthesis"]);
+const LLM_CALL_SITES = new Set(["agent.primary"]);
 const ANSWER_BRANCH_KINDS = new Set([
 	"direct_no_tool",
 	"tool_routed",
-	"rag_synthesis",
 	"clarification",
 	"policy_refusal",
 	"runtime_error",

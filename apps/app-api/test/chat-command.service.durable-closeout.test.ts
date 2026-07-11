@@ -45,7 +45,6 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		traceId: "trace_0001",
 		turnId: "turn_0001",
 		updatedAt: "2026-06-04T01:02:04Z",
-		workflowPlanRef: "",
 		...overrides,
 	};
 }
@@ -57,19 +56,23 @@ function answerResponsePayload(text = "国家奖学金每学年评审一次。")
 		error: null,
 		follow_up_question: "",
 		observability: {
-			citation_count: 1,
-			citation_expected: true,
-			citation_missing: false,
-			fail_closed: false,
-			retrieval_attempted: true,
-			retrieved_source_count: 1,
+			agent_runtime: "openai_agents_sdk",
+			selected_tools: ["knowledge_query"],
+			terminal_reason: "answer",
 		},
+		resolved_scope: "student_rules",
 		result: {
-			evidence: {
-				sources: [{ doc_id: "student_rules:national-scholarship" }],
-			},
+			sources: [
+				{
+					canonical_url: "/docs/regulations/student_rules/national-scholarship",
+					source_kind: "regulation",
+					source_title: "学生奖学金评审办法",
+					target_kind: "canonical_reader",
+				},
+			],
 		},
 		selected_tool: "knowledge_query",
+		session_update: null,
 		status: "completed",
 		trace_id: "trace_0001",
 	};
@@ -145,10 +148,9 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 			waitUntil: (promise) => {
 				waitUntilPromises.push(promise);
 			},
@@ -247,10 +249,9 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 			waitUntil: (promise) => {
 				waitUntilPromises.push(promise);
 			},
@@ -359,10 +360,9 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 			waitUntil: (promise) => {
 				waitUntilPromises.push(promise);
 			},
@@ -451,10 +451,9 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push(event);
 		}
@@ -536,10 +535,9 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push(event.event);
 		}

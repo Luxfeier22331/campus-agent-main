@@ -169,12 +169,15 @@ the primary user-facing copy.
 
 Accepted profile roles:
 
-- prompt: `primary_agent`, `rag_synthesis`, `hindsight_llm`,
+- prompt: `primary_agent`, `hindsight_llm`,
   `eval_ragas_llm`, `eval_judge_llm`
 - embedding: `rag_query_embedding`, `index_embedding`,
   `hindsight_embedding`, `eval_ragas_embedding`
 - rerank: `rag_reranker`
-- search: `public_web_search`
+
+`primary_agent` supplies the model runtime for the complete OpenAI Agents SDK
+run, including Knowledge Agent handoff. There is no separate online synthesis
+or public-web provider role.
 
 Accepted commands:
 

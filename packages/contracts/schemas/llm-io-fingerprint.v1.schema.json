@@ -50,7 +50,7 @@
 			"$ref": "#/$defs/NonEmptyString"
 		},
 		"llm_call_site": {
-			"enum": ["agent.primary", "rag.synthesis"]
+			"const": "agent.primary"
 		},
 		"provider_profile_revision": {
 			"$ref": "#/$defs/NonEmptyString"
@@ -170,7 +170,7 @@
 					"const": "primary_attestation.v1"
 				},
 				"attestation_kind": {
-					"enum": ["primary_agent_call", "primary_admitted_rag_synthesis"]
+					"const": "primary_agent_call"
 				},
 				"attested_by": {
 					"$ref": "#/$defs/NonEmptyString"

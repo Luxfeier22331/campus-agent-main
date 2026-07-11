@@ -32,7 +32,7 @@ describe("request detail UI", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("renders safe timing, model, tool, retrieval, and external trace references", async () => {
+	it("renders timing, model, tool, trusted sources, and external trace references", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({
@@ -46,27 +46,13 @@ describe("request detail UI", () => {
 							},
 						],
 						model: {
-							billableStepCount: 2,
-							cachedInputTokens: 12,
-							estimatedCostMicrousd: 120,
-							executionDetail: "completed",
-							executionState: "completed",
-							inputTokens: 300,
+							answerEvalFingerprint: null,
+							llmIoFingerprint: null,
 							modelName: "gpt-test",
 							modelProvider: "openai",
-							outputTokens: 80,
 							promptId: "campus-primary-agent",
 							promptVersion: "current",
 							templateSha256: "sha256-template",
-							usageSummary: [],
-						},
-						retrieval: {
-							adequacyReason: "enough_evidence",
-							adequacyVerdict: "adequate",
-							candidateCount: 8,
-							collection: "student_rules",
-							retrievalAttempted: true,
-							retrievedSourceCount: 3,
 						},
 						sinkLinks: {
 							projectionLagMs: 250,
@@ -77,8 +63,7 @@ describe("request detail UI", () => {
 							"stream.browser_ttft_ms": 2700,
 							"agent.primary_ms": 15_200,
 							"memory.recall_ms": 34,
-							"tool.knowledge_query_ms": 760,
-							"rag.lookup_ms": 180,
+							"knowledge.search_ms": 180,
 							"finalization.write_ms": 9,
 							"projection.closeout_ms": 14,
 						},
@@ -105,13 +90,19 @@ describe("request detail UI", () => {
 								warnMs: 7000,
 							},
 						},
+						sources: [
+							{
+								canonicalUrl: "/docs/regulations/student_rules/leave-policy",
+								sourceKind: "regulation",
+								sourceTitle: "学生请假管理规定",
+								targetKind: "canonical_reader",
+								versionId: "student-rules-current",
+							},
+						],
 						tool: {
 							failClosed: false,
-							failCloseReason: null,
-							historicalDowngradeReason: null,
 							requestedTool: "knowledge_query",
 							selectedTool: "knowledge_query",
-							toolBusinessOutcome: "answered",
 						},
 					},
 					request: {
@@ -154,10 +145,9 @@ describe("request detail UI", () => {
 		expect(screen.getByText("首字输出")).toBeInTheDocument();
 		expect(screen.getByText("记忆召回")).toBeInTheDocument();
 		expect(screen.getByText("主智能体")).toBeInTheDocument();
-		expect(screen.getByText("知识工具")).toBeInTheDocument();
-		expect(screen.getByText("检索查询")).toBeInTheDocument();
+		expect(screen.getByText("知识检索")).toBeInTheDocument();
 		expect(screen.getByText("最终投影")).toBeInTheDocument();
-		expect(screen.getByText("投影收口")).toBeInTheDocument();
+		expect(screen.getByText("投影完成")).toBeInTheDocument();
 		expect(screen.getByText("15.2 s")).toBeInTheDocument();
 		expect(screen.getByText("接近预算")).toBeInTheDocument();
 		expect(screen.getByText("超出预算")).toBeInTheDocument();
@@ -166,9 +156,9 @@ describe("request detail UI", () => {
 		expect(screen.getByText("模型与工具")).toBeInTheDocument();
 		expect(screen.getByText("openai / gpt-test")).toBeInTheDocument();
 		expect(screen.getAllByText("knowledge_query").length).toBeGreaterThan(0);
-		expect(screen.getByText("检索")).toBeInTheDocument();
-		expect(screen.getByText("student_rules")).toBeInTheDocument();
-		expect(screen.getByText("3 个来源")).toBeInTheDocument();
+		expect(screen.getByText("回答来源")).toBeInTheDocument();
+		expect(screen.getByText("学生请假管理规定")).toBeInTheDocument();
+		expect(screen.getByText("1 个来源")).toBeInTheDocument();
 		expect(screen.getByText("外部追踪")).toBeInTheDocument();
 		const traceLink = screen.getByRole("link", { name: /langfuse/ });
 		expect(traceLink).toHaveAttribute(

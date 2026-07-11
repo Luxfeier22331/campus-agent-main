@@ -189,68 +189,29 @@ func TestEmitterSamplesOutEvents(t *testing.T) {
 func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	emitter := &Emitter{
-		enabled:     true,
-		sampleRatio: 1,
-		tracer:      provider.Tracer("test"),
-	}
+	emitter := &Emitter{enabled: true, sampleRatio: 1, tracer: provider.Tracer("test")}
 
 	if err := emitter.Emit(context.Background(), Event{
-		ActivityDuration:      25 * time.Millisecond,
-		ContextPreflightState: "not_follow_up",
-		CanonicalIndexTruth:   "true",
-		CandidateCount:        3,
-		Collection:            "student_rules",
-		Decision:              "admitted_immediate",
 		ActivityAttempt:       2,
-		ActivityType:          "WriteFinalization",
+		ActivityType:          "ExecutePrimaryAgentActivity",
+		ConversationID:        "conv-attrs",
+		DeploymentEnvironment: "staging",
 		Duration:              50 * time.Millisecond,
-		EvalAnswer:            "学生应按规定办理请假手续。",
-		EvalCaseID:            "req-attrs",
-		EvalQuestion:          "学生请假手续是什么？",
-		EvalReferenceContextIDs: []string{
-			"student_rules:leave:chunk-1",
-		},
-		EvalReferenceContexts: []string{
-			"学生请假应按规定提交申请。",
-		},
-		EvalRetrievedContextIDs: []string{
-			"student_rules:leave:chunk-1",
-		},
-		EvalRetrievedContexts: []string{
-			"学生请假应按规定提交申请。",
-		},
-		EvalSurfaceKey:        "execution-control.rag",
-		EvalVariantID:         "go-rag",
-		FailureCode:           "timeout",
-		CancelDeliveryStatus:  "accepted",
+		FailCloseReason:       "agent_runtime_timeout",
+		FailureKind:           "agent_runtime_timeout",
 		Name:                  "answer.failed",
-		Outcome:               "execution_timeout",
-		PlanID:                "rag:regulations:student_rules:historical",
-		PlanningOutcome:       "not_preplanned",
-		PolicyGateDecision:    "out_of_scope",
-		ProjectionRef:         "projection://runs/run-attrs/finalization/write",
-		QueueWait:             5 * time.Millisecond,
-		ScheduleToStart:       7 * time.Millisecond,
-		QueryMode:             "historical",
-		ReferenceCount:        2,
-		RetrievalMode:         "indexed",
+		ProjectionRef:         "projection://runs/run-attrs/agent/primary/result",
+		Release:               "release-attrs",
 		RequestID:             "req-attrs",
-		RequestedTool:         "knowledge_query",
 		RunID:                 "run-attrs",
-		RoutingNextAction:     "out_of_scope",
-		ScopeGateDecision:     "out_of_scope",
-		Corpus:                "regulations",
-		Status:                "completed",
-		StepID:                "retrieval.indexed_lookup",
-		StepKind:              "retrieval",
-		TaskQueue:             "campus.execution.activity.finalization",
-		TerminalOutcome:       "no_answer",
-		TerminalState:         "failed_closed",
-		FailCloseReason:       "product_scope_boundary",
-		StatusCode:            504,
-		TargetVersionIDsCount: 1,
+		ScheduleToStart:       7 * time.Millisecond,
+		SelectedTool:          "knowledge_query",
+		Status:                "failed",
+		StepID:                "agent.primary",
+		StepKind:              "agent",
+		TaskQueue:             "campus-agent.activity.agent",
 		TraceID:               "trace-attrs",
+		UserID:                "user-attrs",
 		WorkflowID:            "campus-agent.chat.run-attrs",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
@@ -260,112 +221,55 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	if len(spans) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
-	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
-		"activity_duration_ms":                  true,
-		"cancel_delivery_status":                true,
-		"context_preflight_state":               true,
-		"canonical_index_truth":                 true,
-		"candidate_count":                       true,
-		"scope.collection":                      true,
-		"scope.corpus":                          true,
-		"decision":                              true,
-		"activity_attempt":                      true,
-		"activity_type":                         true,
-		"duration_ms":                           true,
-		"eval.answer":                           true,
-		"eval.case_id":                          true,
-		"eval.question":                         true,
-		"eval.reference_context_ids":            true,
-		"eval.reference_contexts":               true,
-		"eval.retrieved_context_ids":            true,
-		"eval.retrieved_contexts":               true,
-		"eval.surface_key":                      true,
-		"eval.variant_id":                       true,
-		"failure_code":                          true,
-		"failure_kind":                          true,
-		"langfuse.trace.name":                   true,
-		"langfuse.session.id":                   true,
-		"langfuse.user.id":                      true,
-		"langfuse.release":                      true,
-		"langfuse.trace.tags":                   true,
-		"langfuse.observation.type":             true,
-		"langfuse.observation.model.name":       true,
-		"langfuse.observation.usage_details":    true,
-		"langfuse.observation.cost_details":     true,
-		"langfuse.observation.metadata.step_id": true,
-		"deployment.environment":                true,
-		"outcome":                               true,
-		"plan_id":                               true,
-		"planning_outcome":                      true,
-		"policy_gate_decision":                  true,
-		"projection_ref":                        true,
-		"queue_wait_ms":                         true,
-		"schedule_to_start_ms":                  true,
-		"latency_ms":                            true,
-		"query_sha256":                          true,
-		"query_mode":                            true,
-		"reference_count":                       true,
-		"retrieval_mode":                        true,
-		"request_id":                            true,
-		"requested_tool":                        true,
-		"run_id":                                true,
-		"routing_next_action":                   true,
-		"selected_tool":                         true,
-		"scope_gate_decision":                   true,
-		"status":                                true,
-		"step_id":                               true,
-		"step_kind":                             true,
-		"task_queue":                            true,
-		"terminal_outcome":                      true,
-		"terminal_state":                        true,
-		"fail_close_reason":                     true,
-		"status_code":                           true,
-		"target_version_ids_count":              true,
-		"target_document_ids_count":             true,
-		"telemetry.allowed_attributes_version":  true,
-		"trace_id":                              true,
-		"workflow_id":                           true,
+		"activity_attempt":                     true,
+		"activity_type":                        true,
+		"deployment.environment":               true,
+		"duration_ms":                          true,
+		"fail_close_reason":                    true,
+		"failure_kind":                         true,
+		"langfuse.release":                     true,
+		"langfuse.session.id":                  true,
+		"langfuse.trace.name":                  true,
+		"langfuse.trace.tags":                  true,
+		"langfuse.user.id":                     true,
+		"projection_ref":                       true,
+		"request_id":                           true,
+		"run_id":                               true,
+		"schedule_to_start_ms":                 true,
+		"selected_tool":                        true,
+		"status":                               true,
+		"step_id":                              true,
+		"step_kind":                            true,
+		"task_queue":                           true,
+		"telemetry.allowed_attributes_version": true,
+		"trace_id":                             true,
+		"workflow_id":                          true,
 	}
 	found := map[string]string{}
-	for _, attr := range attrs {
+	for _, attr := range spans[0].Attributes() {
 		if !allowed[string(attr.Key)] {
 			t.Fatalf("unexpected telemetry attribute %q", attr.Key)
 		}
 		found[string(attr.Key)] = attr.Value.AsString()
 	}
-	expectedValues := map[string]string{
-		"scope_gate_decision":     "out_of_scope",
-		"policy_gate_decision":    "out_of_scope",
-		"context_preflight_state": "not_follow_up",
-		"routing_next_action":     "out_of_scope",
-		"planning_outcome":        "not_preplanned",
-		"plan_id":                 "rag:regulations:student_rules:historical",
-		"run_id":                  "run-attrs",
-		"terminal_outcome":        "no_answer",
-		"terminal_state":          "failed_closed",
-		"step_id":                 "retrieval.indexed_lookup",
-		"fail_close_reason":       "product_scope_boundary",
-		"cancel_delivery_status":  "accepted",
-		"activity_type":           "WriteFinalization",
-		"projection_ref":          "projection://runs/run-attrs/finalization/write",
-		"eval.answer":             "学生应按规定办理请假手续。",
-		"eval.case_id":            "req-attrs",
-		"eval.question":           "学生请假手续是什么？",
-		"eval.surface_key":        "execution-control.rag",
-		"eval.variant_id":         "go-rag",
-		"status":                  "completed",
-		"step_kind":               "retrieval",
-		"task_queue":              "campus.execution.activity.finalization",
-		"workflow_id":             "campus-agent.chat.run-attrs",
-	}
-	for key, want := range expectedValues {
+	for key, want := range map[string]string{
+		"activity_type":     "ExecutePrimaryAgentActivity",
+		"fail_close_reason": "agent_runtime_timeout",
+		"failure_kind":      "agent_runtime_timeout",
+		"projection_ref":    "projection://runs/run-attrs/agent/primary/result",
+		"run_id":            "run-attrs",
+		"status":            "failed",
+		"step_id":           "agent.primary",
+		"step_kind":         "agent",
+		"task_queue":        "campus-agent.activity.agent",
+		"workflow_id":       "campus-agent.chat.run-attrs",
+	} {
 		if found[key] != want {
 			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
 		}
 	}
-	status := emitter.Status()
-	if status.ExportedCount != 1 {
+	if status := emitter.Status(); status.ExportedCount != 1 {
 		t.Fatalf("exported count = %d, want 1", status.ExportedCount)
 	}
 }
@@ -390,7 +294,7 @@ func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
 		EstimatedCostMicroUSD: 60920,
 		RequestID:             "req-usage",
 		RunID:                 "run-usage",
-		StepID:                "synthesis",
+		StepID:                "agent.primary",
 		TraceID:               "trace-usage",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
@@ -416,8 +320,8 @@ func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
 	if found["langfuse.observation.cost_details"] != `{"total":0.06092}` {
 		t.Fatalf("cost details = %q", found["langfuse.observation.cost_details"])
 	}
-	if found["langfuse.observation.metadata.step_id"] != "synthesis" {
-		t.Fatalf("metadata step id = %q, want synthesis", found["langfuse.observation.metadata.step_id"])
+	if found["langfuse.observation.metadata.step_id"] != "agent.primary" {
+		t.Fatalf("metadata step id = %q, want agent.primary", found["langfuse.observation.metadata.step_id"])
 	}
 }
 
@@ -539,18 +443,15 @@ func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
 	emitter.configureMetrics()
 
 	emitter.recordMetric(Event{
-		ActivityDuration: 25 * time.Millisecond,
-		ActivityType:     "RAGLookup",
-		Decision:         "admitted",
-		FailureKind:      "none",
-		Name:             "temporal.step_observation",
-		Outcome:          "completed",
-		QueueWait:        12 * time.Millisecond,
-		ScheduleToStart:  18 * time.Millisecond,
-		SelectedTool:     "knowledge_query",
-		Status:           "completed",
-		StepKind:         "retrieval",
-		TaskQueue:        "campus.execution.activity.knowledge",
+		ActivityType:    "ExecutePrimaryAgentActivity",
+		Duration:        25 * time.Millisecond,
+		FailureKind:     "none",
+		Name:            "temporal.step_observation",
+		ScheduleToStart: 18 * time.Millisecond,
+		SelectedTool:    "knowledge_query",
+		Status:          "completed",
+		StepKind:        "agent",
+		TaskQueue:       "campus-agent.activity.agent",
 	})
 
 	var rm metricdata.ResourceMetrics
@@ -568,9 +469,7 @@ func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
 	for _, name := range []string{
 		"campus.execution_control.runtime_requests",
 		"campus.execution_control.activity_duration_ms",
-		"campus.execution_control.queue_wait_ms",
 		"campus.execution_control.schedule_to_start_ms",
-		"campus.execution_control.runtime_decisions",
 	} {
 		if !metricNames[name] {
 			t.Fatalf("metric %s missing from %#v", name, metricNames)

@@ -3,18 +3,30 @@ package httpapi
 import "encoding/json"
 
 type ExecutionFinalizationResponseWire struct {
-	AnswerText           string           `json:"answer_text"`
-	Confidence           string           `json:"confidence"`
-	DebugTraceRefs       []map[string]any `json:"debug_trace_refs,omitempty"`
-	Error                any              `json:"error"`
-	FollowUpQuestion     string           `json:"follow_up_question"`
-	Observability        map[string]any   `json:"observability"`
-	Result               map[string]any   `json:"result"`
-	SelectedTool         *string          `json:"selected_tool"`
-	StageTiming          map[string]any   `json:"stage_timing,omitempty"`
-	Status               string           `json:"status"`
-	TraceID              string           `json:"trace_id"`
-	WorkflowTraceSummary map[string]any   `json:"workflow_trace_summary"`
+	AnswerText           string             `json:"answer_text"`
+	Confidence           string             `json:"confidence"`
+	DebugTraceRefs       []map[string]any   `json:"debug_trace_refs,omitempty"`
+	Error                any                `json:"error"`
+	FollowUpQuestion     string             `json:"follow_up_question"`
+	Observability        map[string]any     `json:"observability"`
+	ResolvedScope        *string            `json:"resolved_scope"`
+	Result               map[string]any     `json:"result"`
+	SelectedTool         *string            `json:"selected_tool"`
+	SessionUpdate        *SessionUpdateWire `json:"session_update"`
+	StageTiming          map[string]any     `json:"stage_timing,omitempty"`
+	Status               string             `json:"status"`
+	TraceID              string             `json:"trace_id"`
+	WorkflowTraceSummary map[string]any     `json:"workflow_trace_summary"`
+}
+
+type SessionUpdateWire struct {
+	UpsertSlots []SessionUpdateSlotWire `json:"upsert_slots"`
+}
+
+type SessionUpdateSlotWire struct {
+	Confirmed bool   `json:"confirmed"`
+	Name      string `json:"name"`
+	Value     string `json:"value"`
 }
 
 func executionFinalizationResponseWireMap(response ExecutionFinalizationResponseWire) map[string]any {

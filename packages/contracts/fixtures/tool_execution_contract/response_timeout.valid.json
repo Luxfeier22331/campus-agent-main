@@ -4,6 +4,8 @@
 	"answer_text": "",
 	"follow_up_question": "",
 	"confidence": "low",
+	"resolved_scope": null,
+	"session_update": null,
 	"result": null,
 	"error": {
 		"code": "execution_timeout",
@@ -11,26 +13,18 @@
 		"retryable": true
 	},
 	"workflow_trace_summary": {
-		"routing_frame": {},
-		"context_resolution": {},
+		"workflow_mode": "terminal",
+		"selected_tool": null,
+		"selected_tools": [],
+		"first_decision_actor": "execution_control",
 		"planning_outcome": "timeout",
 		"direct_vs_delegate_branch": "terminal",
-		"workflow_mode": "terminal",
-		"handoff": {},
-		"handoff_chain": [],
-		"tool_invocations": [],
-		"selected_tool": "none",
-		"selected_tools": [],
-		"context_projections": [],
-		"answer_artifact_projection_ids": [],
+		"terminal_reason": "execution_timeout",
 		"answer_artifact_kinds": [],
-		"tool_argument_summary": {},
-		"guardrail_outcomes": {},
-		"fail_close_reason": "execution_timeout",
-		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v4"
-		},
-		"policy_artifact_versions": {}
+		"answer_artifact_refs": [],
+		"trace_steps": [],
+		"tool_call_summaries": [],
+		"runtime_versions": {}
 	},
 	"trace_id": "trace-contract-timeout"
 }

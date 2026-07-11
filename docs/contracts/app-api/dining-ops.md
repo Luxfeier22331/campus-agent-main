@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-08
-updated: 2026-06-14
+updated: 2026-07-08
 ---
 # App API Dining Ops HTTP Contract
 
@@ -23,7 +23,7 @@ Dining operations 是 Operator Console 内的受控 operations domain。当前 r
 
 当前 contract 是 candidate-first release lifecycle。直接发布 current draft 的 route
 不是目标 contract，也不在当前 route inventory 中。Source observation 的
-apply/reject 语义只保留为边界说明，不进入当前计划开发周期的 route inventory。
+apply/reject 语义只保留为 reserved boundary，不进入 accepted route inventory。
 
 ## Accepted Target Endpoints
 
@@ -528,7 +528,7 @@ Blocker examples:
 
 ## Source Observations Reserved Boundary
 
-以下 route 不是当前 implemented endpoint，也不是当前计划开发周期承诺：
+以下 route 不属于 accepted route inventory：
 
 ```http
 GET  /api/ops/dining/source-observations
@@ -539,5 +539,5 @@ POST /api/ops/dining/source-observations/:observationId/reject
 规则：
 
 - source observation 只代表采集或人工观测，不代表线上事实
-- apply/reject 不属于当前 implemented endpoint，也不属于当前计划开发周期承诺
+- apply/reject 不属于 accepted route inventory
 - 如后续重新启用 apply/reject，必须先更新本 contract，再实现显式 operator command

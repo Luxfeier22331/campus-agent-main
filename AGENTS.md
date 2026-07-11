@@ -27,9 +27,13 @@ guidance in `docs/` and link to it from here.
 - `apps/execution-control` is the Go-owned execution-control service. Temporal
   is the execution substrate. PostgreSQL stores sanitized run/event/step
   projections, not raw workflow truth.
-- Online answer flow is primary-agent-first. Ordinary chat stays in the primary
-  agent path; admitted `knowledge_query` uses the Go-owned RAG Temporal graph.
-- Current model-visible tools are controlled by
+- OpenAI Agents SDK is the only online agent and tool-loop owner. The primary
+  agent uses the SDK `handoff()` API to enter the Knowledge Agent, which can
+  call only the internal `knowledge_search` tool.
+- Temporal wraps one complete SDK run in a single Agent Activity. The workflow
+  has four phases: Memory Recall, Agent Activity, Finalization and Memory
+  Append. There is no separate knowledge worker or Go-owned RAG graph.
+- Current model-visible function-tool and handoff surfaces are controlled by
   `configs/runtime/tools.v4.json`,
   `configs/runtime/tool-function-schemas.v1.json` and
   `configs/runtime/workflow-artifacts.v2.json`.
@@ -79,13 +83,18 @@ changing structure or contracts.
 - Do not leak `Agno`, `LlamaIndex`, `Qdrant`, `MinIO` or other infrastructure
   types into `packages/contracts`.
 - Do not mix online query path and offline ingestion/data plane ownership.
+- `official_web` is not query-enabled until its offline publication chain is
+  complete and its scope is explicitly opened. Do not add live web-search or
+  provider fallback to the online knowledge path.
 - Hindsight personal memory is consumed only through execution-control Temporal
   activities and sanitized projection. Do not expose raw memory ids or payloads
   to primary-agent model-visible tools, app-api contracts or browser responses.
 - Campus services model-visible scope currently includes only
   `transport_schedule_lookup`; do not open broader service tools casually.
 - `ToolSpec`, contract or JSON Schema existence does not make a tool
-  model-visible. Runtime tool exposure must be opened in the runtime configs.
+  model-visible. Model-visible exposure is controlled by runtime tool registry
+  and function schema artifacts; runtime config owns dependency, budget and
+  telemetry settings, not a separate tool allowlist.
 - Prefer mature existing libraries and existing repo primitives for UI,
   framework and generic infrastructure work. Add custom code only when repo
   contracts, authz, projections or domain semantics require it.
@@ -171,8 +180,10 @@ pnpm ci:eval
 - `apps/operator-console-web`: controlled operator browser surface.
 - `apps/app-api`: Worker-owned shared browser-facing API and product proxy seam.
 - `apps/execution-control`: Go execution admission, Temporal control, memory
-  recall, RAG activities, finalization and runtime observability.
-- `apps/agent-runtime`: OpenAI Agents SDK primary agent runtime.
+  activities, internal query admission, evidence validation, source projection,
+  finalization and runtime observability.
+- `apps/agent-runtime`: OpenAI Agents SDK primary/Knowledge Agent runtime and
+  the only online agent/tool loop owner.
 - `apps/ingestion-control`: TS ingestion task control plane; owns task
   admission, Temporal workflow start, registry-aware activity dispatch,
   terminal closeout and operator projection.

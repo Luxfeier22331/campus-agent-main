@@ -25,8 +25,10 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		retryable: boolean;
 	};
 	followUpQuestion: string;
+	resolvedScope: null;
 	result: null;
 	selectedTool: null;
+	sessionUpdate: null;
 	status: "error";
 	traceId: string;
 } {
@@ -40,8 +42,10 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
+			resolvedScope: null,
 			result: null,
 			selectedTool: null,
+			sessionUpdate: null,
 			status: "error",
 			traceId: "",
 		};
@@ -55,8 +59,10 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 			retryable: false,
 		},
 		followUpQuestion: "",
+		resolvedScope: null,
 		result: null,
 		selectedTool: null,
+		sessionUpdate: null,
 		status: "error",
 		traceId: "",
 	};
@@ -81,28 +87,15 @@ export function buildAbuseThrottleRejectedResponse(input: {
 		},
 		followUpQuestion: "",
 		observability: {
-			aclAnomalyCode: null,
-			aclDecision: "denied",
-			cachedInputTokens: null,
-			candidateCount: null,
-			citationCount: null,
-			citationExpected: null,
-			citationMissing: null,
-			estimatedCostMicrousd: null,
-			failClosed: true,
-			inputTokens: null,
-			modelName: null,
-			modelProvider: null,
-			outputTokens: null,
-			policyReason: "rate_limit_exceeded",
-			refusalClass: "rejected",
-			retrievedSourceCount: null,
-			retrievalAttempted: false,
-			scopeClass: null,
-			semanticOutcome: "policy_refusal",
+			agentRuntime: null,
+			sdkTraceRef: null,
+			selectedTools: [],
+			terminalReason: "rate_limit_exceeded",
 		},
+		resolvedScope: null,
 		result: null,
 		selectedTool: null,
+		sessionUpdate: null,
 		status: "rejected",
 		traceId: input.traceId,
 	};

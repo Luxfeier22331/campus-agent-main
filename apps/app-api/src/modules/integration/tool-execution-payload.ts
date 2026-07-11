@@ -1,6 +1,5 @@
 import type { ExecutionActorContext } from "../auth";
-import { toToolExecutionVersionQuery } from "../version-query";
-import type { ToolExecutionContextProjection, ToolExecutionInput } from "./tool-execution-types";
+import type { ToolExecutionContextProjection } from "./tool-execution-types";
 
 export function toToolExecutionActor(actor: ExecutionActorContext) {
 	return {
@@ -50,10 +49,8 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 							role: turn.role,
 							message_id: turn.messageId,
 							content: turn.content,
-							summary: turn.summary,
 							created_at: turn.createdAt,
 						})),
-						previous_answer_summary: context.conversation.previousAnswerSummary,
 						previous_evidence_refs: context.conversation.previousEvidenceRefs.map((ref) => ({
 							evidence_id: ref.evidenceId,
 							source_id: ref.sourceId,
@@ -97,26 +94,6 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 								: null,
 							turn_count: context.conversation.sessionState.turnCount,
 						},
-						visibility: {
-							model_visible: context.conversation.visibility.modelVisible,
-							runtime_only: context.conversation.visibility.runtimeOnly,
-						},
-						memory_recall: {
-							gate_field: context.conversation.memoryRecall.gateField,
-							owner: context.conversation.memoryRecall.owner,
-							runtime: context.conversation.memoryRecall.runtime,
-						},
-						source_attribution: context.conversation.sourceAttribution.map((entry) => ({
-							item: entry.item,
-							source: entry.source,
-							model_visible: entry.modelVisible,
-						})),
-						context_summary: context.conversation.contextSummary,
-						budget: {
-							token_estimate: context.conversation.budget.tokenEstimate,
-							recent_turn_limit: context.conversation.budget.recentTurnLimit,
-						},
-						truncation: context.conversation.truncation,
 					},
 				}
 			: {}),
@@ -137,21 +114,5 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 				: null,
 			turn_count: context.session.turnCount,
 		},
-	};
-}
-
-export function toToolExecutionRequestBody(payload: ToolExecutionInput): Record<string, unknown> {
-	return {
-		context: toToolExecutionContext(payload.context),
-		conversation_id: payload.conversationId,
-		request_id: payload.requestId,
-		...(payload.requestedTool ? { requested_tool: payload.requestedTool } : {}),
-		...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
-		...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
-		...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
-		...(payload.versionQuery
-			? { version_query: toToolExecutionVersionQuery(payload.versionQuery) }
-			: {}),
-		user_goal: payload.userGoal,
 	};
 }

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-07-04
+updated: 2026-07-11
 partially_superseded_by:
   - adr-0058-hindsight-self-hosted-personal-memory-plane.md
 ---
@@ -25,11 +25,6 @@ state 不跨边界、个人 memory 不进入 institutional index 等约束。
 本文不再冻结受限文档、学生 / 教职工差异化 tool 权限、approval / HITL 或
 state-changing tools。相关旧口径已由当前产品定位与 account / operator / memory supporting
 architecture 收窄。
-
-本文早期提到的 Python `apps/supervisor-agent-worker` 与旧 Python knowledge runtime package
-已从 active workspace 删除；相关 online execution / memory / retrieval 边界以
-`docs/architecture/current.md` 与
-`docs/architecture/system/python-boundaries.md` 为准。
 
 ## 背景
 
@@ -224,13 +219,13 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 
 - 后续 account / session / memory binding 必须以 `app-api` 为 product
   owner；online memory recall runtime 以 ADR-0058 与 memory-plane architecture 为准
-- Execution Agent Layer 负责 top-level intent framing 时可以参考 typed personal context，但不能把
-  personal context 当作能力开放或 source truth
-- `knowledge` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过
-  admitted source / serving config / evidence constraints
-- retrieval 与 workflow path 消费的 source / tool posture 必须来自 app-layer /
+- Agents SDK primary agent 做 top-level semantic routing 时可以参考 bounded personal
+  context，但不能把 personal context 当作能力开放或 source truth
+- Knowledge Agent 可以利用 bounded personal context 优化 `knowledge_search` query
+  framing / ranking，但不能绕过 admitted source / serving config / evidence constraints
+- retrieval 与 function-tool path 消费的 source / tool posture 必须来自 app-layer /
   execution-control projection，而不是 raw token claims 或 memory 推断
-- memory 系统与 RAG 系统的 join 点必须数据最小化；online path 消费 bounded
+- memory 系统与 institutional knowledge retrieval 的 join 点必须数据最小化；online path 消费 bounded
   `memory.recall` packet，不建设 v1 强审计图谱
 
 ## 相关文档

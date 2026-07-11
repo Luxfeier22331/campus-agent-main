@@ -4,316 +4,303 @@ truth_scope: data
 owner_boundary: domains/official-web
 status: active
 created: 2026-04-02
-updated: 2026-07-07
+updated: 2026-07-10
 ---
 # Official Web Architecture
 
 ## 文档边界
 
-本文冻结 `official_web` source channel 的 repo-level supporting architecture。
+本文冻结 `official_web` source channel 的 supporting architecture 与消费目标模型。
 
-它回答的是：
+它回答：
 
-- collector、`app-api`、object storage、`ingestion-control` 如何分层
-- crawl policy、source-truth contract 与 operator/control-plane surface 各自属于谁
-- `official_web` 如何接入 shared product/runtime architecture
-- `official_web` 如何执行 freshness / incremental crawling
-- 官网稳定参考、时效新闻与历史新闻应如何拆分 serving surface
-
-补充约束：
-
-- 当前 merged truth 与 runtime opening posture 以
-  `docs/architecture/current.md` 与 `.planning/` 为准
-- 本文不维护 `fresh_news` 或 historical-news/archive surface 的当前开放状态、
-  单轮执行进度或 closeout 证据
-
-## Core Topology
-
-`external scheduler -> official-web collector -> object storage +
-ingestion-control official_web collector control plane ->
-ingestion-control Temporal workflow/activity worker ->
-release task state machine -> document/chunk/index / structured projection ->
-app-api operator-safe projection -> Operator Console`
-
-关键边界：
-
-- collector 负责 crawl / fetch / normalize / upload / report
-- `apps/ingestion-control` 负责 collector service admission、crawl-run ledger、
-  artifact refs、target workset resolution、ingestion task admission、Temporal workflow
-  start / activity dispatch / materialize / terminal closeout
-- `apps/app-api` 负责 operator query、stable-reference release gate command ledger
-  与 ingestion-control 上报的 redacted release task projection
-- Python app-level ingestion worker 已移除；official-web lifecycle 不回退到 Python
-  collection CLI
-- Operator Console 通过 `apps/app-api` 消费 `official_web` operator surfaces 与
-  release task projection read model；当前 read-only implementation surface 是
-  `operator-console-web`
-- collector 写入 source bucket 的对象同时包含 page-level
-  `capture/`、`provider/`、`source-truth/` artifacts；source-side projection artifact
-  materialized by this channel must continue writing into the same source prefix under
-  `projection/<projection_name>/...`；此外还会写
-  `official_web/{site_id}/runs/{run_id}/...` run artifacts
-
-## Source Channel Rules
-
-- `official_web` 是一级 `source_channel`，不是某个 collection 私有脚本
-- crawl scope 的长期规则留在 policy 文档
-- page-level source-truth schema 留在 contract 文档
-- recovery 阶段默认使用 repo-tracked consumer denominator 决定 retained
-  source-truth；host/page allowlist 只说明“可以抓”，不等于“应该进入下游消费”
-- downstream serving / retrieval 继续只消费 document / chunk / registry truth
-- downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果
-  downstream 要消费它们，必须进入 shared file asset loader contract
-
-## Consumer-Denominator Recovery
-
-official-web recovery 的当前默认形态是 consumer-driven collection。
-
-配置入口：
-
-- `configs/sources/official_web/muc_public/consumer-denominator.json`
-- `configs/sources/official_web/muc_public/target-source-map.json`
-
-允许的 retained consumer families：
-
-- `academic_calendar_candidate`：只进入 `calendar/academic_calendar` 结构化投影
-  offline-preparation source evidence；官方网页与校历图片只保留 source evidence，必须经
-  人工/OCR 校验后的结构化 records 才可进入 calendar data asset
-- `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
-- `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
-  不再把校级规章候选页混入 `official_web/stable_reference`
-- `student_regulation_candidate`：只进入 `regulations/student_rules` release gate；
-  用于信息公开学生工作栏目下的公开学生规章，不再把这类学生向规则硬塞进
-  `regulations/institutional_rules`
-- `notice_news_candidate`：只保留 inventory-only evidence；不得打开
-  `fresh_news`、未来 historical-news/archive surface 或 notice/news runtime
-
-边界：
-
-- collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
-  downstream read model
-- ingestion candidate workspace 负责 replay、candidate source fact report 与 source fact
-  materialization；
-  app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
-  operator release gate command ledger
-- selected write 必须有 source refs、matched evidence、review verdict 或等价的
-  deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
-  structured projection
-- listing pages 默认只作 discovery；除非自身命中 stable/regulation/calendar/notice
-  denominator，否则不作为 answer-bearing source-truth
-- target-first official-web source pack 不再产出 service-guide 或 contact-directory
-  selected-write candidate；这类 wiki-maintained 内容不进入 repo runtime truth
-
-### Target Source Map
-
-`target-source-map.json` 是 consumer-driven collection 的定点采集地图。
-
-它负责把下游会消费的 target 显式映射到：
-
-- `consumer_family`
-- `owner_surface`
-- `selected_write_target`
-- `source_hosts`
-- `url_hints` / `title_hints`
-- `required_evidence`
-- `optional_evidence`
-- `retention_policy`
-- `review_policy`
-- `materialization_policy`
-- `inventory_only`
-
-边界：
-
-- target source map 是采集准入与运营评审提示，不是 current read model
-- 它必须与 `consumer-denominator.json` 的 family / owner / selected-write target 保持一致
-- `required_evidence` 表示 selected-write release-blocking denominator；
-  `optional_evidence` 表示允许以 `source_not_provided` 暴露给 operator 的 source-backed
-  optional denominator
-- `hosts.json` / `seeds.json` 是 source reachability registry；target source map 才是
-  target-first collection declaration
-- 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、task
-  admission 或 selected-write
-- news / notice 类 target 当前默认保持 inventory-only，不进入 official-web 普通回答面；
-  `fresh_news` 与未来 historical-news/archive surface 只能通过 query-serving scope policy
-  的 intent-scoped admission 单独打开
-- 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
-  包括 `dept.example.edu`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
-  host-wide broad crawl。
-
-### Broad Crawl Boundary
-
-Broad official-web crawl rows do not define current collection scope.
-
-- collector 默认执行必须 fail closed：没有 `ingestion-control` target workset admission 时，不得从
-  `enabled hosts` 或 `hostFilter` 自行推导 collection scope
-- `hostFilter` 只允许缩小已准入 target workset；它不是 target admission
-- 不允许显式 debug collector run 绕过 `ingestion-control` target workset admission
-- `apps/app-api` 不再为 `official_web` 维护独立 run cleanup admission ledger
-- projection drain 直接推进 admitted run 的 operator projection 与 ingestion-control task
-  admission，不读取 historical cleanup decision
-- 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
-  cleanup CLI 自动删除
-
-## Policy And Contract Split
-
-- crawl policy：`docs/policies/official-web-crawl-policy.md`
-- source-truth
-  contract：`docs/data/official-web.md`
-- repo-level data-plane contract：`docs/architecture/system/data-plane.md`
-- shared file asset loader：`docs/architecture/system/file-asset-loader.md`
-- official-web freshness、serving split 与 news retrieval strategy：本文
-
-## Control-Plane Ownership
-
-`apps/ingestion-control` 是 `official_web` collector control-plane owner。
-
-它负责：
-
-- crawl run admission
-- lifecycle / heartbeat / finalize
-- artifact refs
-- target workset resolution
-- ingestion-control task admission dispatch
-- Temporal workflow start、activity dispatch、materialize 与 terminal closeout
-
-`apps/app-api` 负责：
-
-- operator list / detail query
-- stable-reference release gate command ledger
-- release task operator-safe projection ingest/read
+- collector、source bucket、`apps/ingestion-control`、`apps/app-api` 的 owner 边界
+- official-web 从采集到 indexed knowledge/structured projection 消费应分几步
+- 哪些内容是当前已实现链路，哪些只是目标态
+- `stable_reference`、`fresh_news`、regulations、calendar 等 target 如何分流
+- 哪些配置文件只声明 profile / hint，不等于 query-serving 已发布
 
 它不负责：
 
-- collector 内部 frontier / parser 代码结构
-- downstream document splitting / chunking 逻辑
-- collector service admission、run heartbeat/finalize 或 target workset resolution
+- page-level source-truth 字段细节；见 `docs/data/official-web.md`
+- HTTP route DTO；见 `docs/contracts/app-api/official-web.md`
+- shared Postgres 表形态；见 `docs/data/app-api/official-web.md`
+- crawl URL 规则；见 `docs/policies/official-web-crawl-policy.md`
+- chunking 细节；见 `docs/policies/official-web-chunking.md`
+- release、staging 或某次 workstream 的 closeout 证据
 
-## Operator Surface
+## Current Implemented Shape
 
-`official_web` operator domain 当前属于 Operator Console：
+当前 official-web 主链路已经具备：
 
-`operator console surface -> app-api official_web APIs`
+```text
+source-collector official-web adapter
+-> source bucket page/run artifacts
+-> ingestion-control official_web collector control plane
+-> crawl-run ledger / heartbeat / finalize / run outbox
+-> source-truth ref verification task
+-> operator-safe run/site/task projection
+-> app-api operator query
+```
 
-它不是：
+当前还没有完整打通：
 
-- 新的 crawler-intake backend
-- Operator Console 侧自建 aggregation backend
-- 直接暴露 object storage 或 telemetry sink
+```text
+source-truth
+-> canonical document units
+-> chunks
+-> embedding / index build
+-> release manifest
+-> serving alias publish
+```
 
-## Runtime Opening Guardrail
+因此，当前 `source_truth_materialize` 名称只能按“source-truth ref verification /
+handoff”理解。它读取 run-level `source_truth_bundle`，校验 digest 与 page artifact
+refs，并把 refs 作为 task closeout evidence 返回；它不生成 canonical document、
+chunk、index 或 serving alias。
 
-`official_web` source channel 的存在，不等于 `fresh_news` 或未来 historical-news/archive
-surface 已经进入默认产品回答面。
+当前 operator surface 展示的是 crawl/run/freshness/target/release-gate/projection
+状态，不证明 downstream serving 已发布。
+
+Current status labels:
+
+- implemented: capture, run ledger, source-truth ref verification, task closeout
+  evidence and operator-safe projection.
+- compatibility name: `source_truth_materialize` currently means source-truth
+  ref verification / handoff only. Do not copy this name to new target lifecycle
+  steps.
+- accepted target, not implemented: canonical document units, chunk sets, index
+  build, release manifest and serving alias publish.
+- reserved / closed: `stable_reference` and `fresh_news` query-serving profiles
+  exist as target configuration only until the full release path is proven.
+
+## Target Consumption Model
+
+official-web 的目标消费链路必须逐步成立，每一步只消费上一层明确产物：
+
+1. `capture`
+   - collector 抓取页面并写入 `capture/`、`provider/`、`source-truth/` artifacts。
+2. `run_finalize`
+   - `apps/ingestion-control` 持有 crawl-run terminal truth 与 run artifact refs。
+3. `source_truth_verify`
+   - ingestion task 读取 `official_web_source_truth_bundle.v1`，校验 bundle、
+     page manifest 与 content blocks refs。
+4. `target_admit`
+   - 只允许命中 explicit target admission 的 pages 进入下游消费。
+5. `document_materialize`
+   - 按 selected target 生成 canonical document units 或 structured projection。
+6. `document_units_validate`
+   - 用 deterministic validator 校验 document units contract。
+7. `chunk_prepare`
+   - 仅对 query-serving target 生成 chunk set。
+8. `index_build`
+   - 仅对 query-serving target 建立 candidate vector/sparse/hybrid index。
+9. `release_validate`
+   - 校验 release manifest、chunk/index metadata、serving config identity 与必要
+     eval gate。
+10. `release_publish`
+    - 只有 release gate 通过后，才切换 current pointer 或 serving alias。
+11. `operator_project`
+    - app-api 只接收 redacted projection 或读取 ingestion-control operator projection。
+
+缺少任一步时，不能把该 target 描述成 query-ready 或 published。
+
+## Owner Boundaries
+
+### `apps/source-collector`
+
+负责：
+
+- crawl / fetch / parse / normalize
+- source bucket artifact writes
+- run lifecycle report to ingestion-control
+- source-level consumer match metadata and audit counters
+
+不负责：
+
+- task admission
+- source-truth mutation after capture
+- document registry
+- chunking / embedding / indexing
+- Qdrant alias publish
+- app-api operator ledger
+
+### `apps/ingestion-control`
+
+负责：
+
+- collector service admission
+- crawl-run ledger、heartbeat、finalize、artifact refs
+- target workset resolution
+- terminal outbox drain
+- ingestion task admission and Temporal workflow start
+- registry-aware task execution
+- source-truth verification, document materialization, chunk/index/release execution
+  when those handlers exist
+- operator-safe ingestion projection exposed to app-api
+
+不负责：
+
+- browser product ingress
+- Operator Console UI
+- source adapter auth or crawl execution internals
+
+### `apps/app-api`
+
+负责：
+
+- operator list/detail query
+- stable-reference release gate command ledger
+- redacted release task projection ingest/read
+- proxying ingestion-control operator projection where explicitly contracted
+
+不负责：
+
+- collector write routes
+- target workset resolution
+- selected-write admission/task execution
+- release publish execution
+- object storage browser or source-truth replay
+
+### Operator Console
+
+Operator Console 只消费 app-api exposed operator surfaces。它不得直连 object
+storage、Qdrant、Temporal、source bucket 或 ingestion-control admin routes。
+
+## Target Admission
+
+official-web 是 `source_channel`，不是一个默认知识库。是否进入下游消费由 target
+admission 决定。
+
+Target admission 的 canonical source 是 repo-tracked source config：
+
+- `configs/sources/official_web/<site_id>/target-source-map.json`
+- `configs/sources/official_web/<site_id>/consumer-denominator.json`
+- `configs/sources/official_web/<site_id>/target-inventory.json`
+
+这些文件当前有重叠字段。Current fact: 这是 transition state，不是目标设计。设计目标是保留
+一个 canonical target admission truth，其他文件只做 operator 展示、source-pack 或校验输入，
+不再重复定义 owner、selected-write target 和 materialization policy。
 
 固定规则：
 
-- `official_web/stable_reference` 才是默认 institutional reference surface
-- `official_web/fresh_news` 只允许作为 intent-scoped、freshness-sensitive surface 单独开放
-- 未来 historical-news/archive surface 只允许服务显式历史查询、operator、评测或分析用途
-- news surface 的 query opening policy 属于 serving/runtime contract，不属于 collector
+- `hosts.json` / `seeds.json` 只说明 source reachability，不打开 downstream target。
+- `projection-declarations.json` 只能作为 target admission 后的 page-family action
+  hint；它不得独立把 broad crawl 页面 fan out 到 `stable_reference`。
+- listing pages 默认 discovery-only。只有页面本身命中 target denominator 时，才可成为
+  answer-bearing source。
+- 未命中 target-source-map 的 broad crawl evidence 不得进入 projection drain、task
+  admission 或 selected-write。
+- selected write 必须携带 source refs、matched evidence、review verdict 或等价 deterministic
+  extraction evidence。
+
+## Target Surfaces
+
+### `official_web/stable_reference`
+
+用途：
+
+- 长期稳定的学校官网参考信息，例如学校概况、机构设置、长期说明性页面。
+
+边界：
+
+- 目标态可以成为 institutional `knowledge_search` target；当前未完成发布闭环前
+  不得进入 query-serving admission。
+- 不承接正式规章、制度、培养方案；这些进入 `regulations/*` 或 `curriculum/*`。
+- 不承接新闻、通知、活动、讲座类时效问答。
+- query-serving config 存在不等于 index / alias 已发布；发布必须有 document、
+  chunk、index、release manifest 和 alias publish evidence。
+
+### `official_web/fresh_news`
+
+用途：
+
+- 新闻、通知、活动、讲座、媒体报道等 freshness-sensitive content 的候选 target。
+
+当前治理结论：
+
+- source config 中 notice/news target 仍是 `inventory_only`。
+- `fresh_news` 的 serving config / runtime scope 只能视为 reserved profile。
+- 没有 explicit source admission、freshness gate、document/chunk/index/release/publish
+  闭环前，不得描述为 query-ready。
+- “今天 / 最新 / 最近 / 刚刚”类问题不得只凭本地旧 index 回答。
+
+### Regulations / Curriculum / Calendar
+
+官网页面如果承载正式规章、制度、手册、培养方案或校历事实，下游 target 是对应 owner：
+
+- `regulations/institutional_rules`
+- `regulations/student_rules`
+- `curriculum/*`
+- `calendar/academic_calendar`，其 owner 是 `docs/architecture/domains/calendar/architecture.md`
+
+不得为了保留 URL 来源，把这些内容复制成 `official_web/regulation`、
+`official_web/curriculum` 或 `official_web/calendar`。
+
+### Historical News / Archive
+
+historical-news/archive 不是当前 official-web 默认 product surface。它只能在明确的
+historical/operator/eval/analysis target 被设计并完成 release path 后打开。
 
 ## Freshness And Incremental Crawling
 
-`official_web` 的长期目标不是偶发全量 crawl，而是可持续的新鲜度闭环：
+长期运行目标是 lane-aware incremental crawling：
 
-- `baseline` lane：低频广覆盖，发现新栏目、结构变化、迁移、删除与长期静态页面变化。
-- `hot` lane：高频窄范围，覆盖 listing pages、最近新发现 detail pages、
-  feed/sitemap 最近变更信号与高变更页面。
-- `repair` lane：失败恢复和异常复查，覆盖 timeout、5xx、parser failure、中断 run
-  或 audit 要求复抓的页面。
-
-长期运行形态固定为：
-
-```text
-external scheduler
--> collector Docker run
--> object storage + ingestion-control official_web collector control plane
--> ingestion-control incremental execution
--> document registry / structured projection
-```
-
-页面新鲜度与变化判定的 durable truth 归 `apps/ingestion-control` collector control plane
-所有，不归：
-
-- collector 本地缓存
-- object storage 目录扫描
-- `apps/app-api` operator projection
-- ingestion-control generic task 状态
-
-collector 通过 `POST /internal/ingestion/official-web/plans:resolve` 从
-`ingestion-control` materialize lane-aware dynamic workset。`hostFilter` 只允许缩小已准入的
-target workset，不能替代 target admission。
-
-下游 ingestion task admission 只由 terminal run outbox 和
-`source_truth_bundle` artifact refs 驱动。HTTP `304`、仅 body hash 变化、仅 fetch
-metadata 变化或 `fetch_failed` 不触发独立 page-change handoff object。条件请求、
-sitemap/RSS hint 和 listing diff 只服务 discovery / priority / observation，不替代变化真相。
+- `baseline`
+  - 低频广覆盖，发现栏目结构、迁移、删除与静态页面变化。
+- `hot`
+  - 高频窄范围，覆盖 listing pages、最近 detail pages、feed/sitemap 信号与高变更页面。
+- `repair`
+  - 失败恢复，覆盖 timeout、5xx、parser failure、中断 run 或 audit 复抓。
 
 责任边界：
 
 - scheduler 决定 lane、时间与预算；collector 不内置 cron。
-- collector 执行 fetch / normalize / artifact upload，产出 `new / changed / deleted /
-  not_modified / fetch_failed` 摘要。
-- `ingestion-control` 持有 run ledger、page/url freshness state、dynamic planner、
+- collector 执行 fetch / normalize / artifact upload。
+- `apps/ingestion-control` 持有 page/url freshness state、dynamic planner、
   observation truth、terminal outbox 与 task admission。
-- `app-api` 消费 operator-safe projection，不扫描对象存储
-  反推 freshness，也不消费 official-web 专用 terminal handoff wrapper。
-- 少量动态壳页走独立 browser-capable provider lane，不污染主 HTML crawl lane。
+- `hostFilter` 只能缩小已准入 workset，不能替代 target admission。
+- HTTP `304`、仅 fetch metadata 变化、仅 body hash 变化或 `fetch_failed` 不单独
+  触发 page-change handoff object。
 
-## Serving And News Retrieval
+## Config Semantics
 
-`official_web` 是统一 source channel，不是单一默认官网知识库。下游 serving 必须按语义拆分：
+配置文件分层如下：
 
-- `official_web/stable_reference`
-- `official_web/fresh_news`
-- historical-news/archive surface
+- `configs/sources/official_web/*`
+  - source reachability、scheduler、target admission、source-pack、operator inventory。
+- `configs/ingestion/official_web/*`
+  - collection profile、split/chunk profile、task registry、serving config declaration。
+- `configs/runtime/query-serving-scopes.v3.json`
+  - runtime query admission policy。
 
-核心规则：
+这些配置只声明 policy/profile/registry。它们不证明：
 
-- `stable_reference` 可进入默认 institutional knowledge RAG。
-- `fresh_news` 面向新闻、公告、活动、讲座、媒体报道等时效内容，默认通过 owning
-  tool/runtime policy 消费，不作为 `knowledge` 自动升级面。
-- historical-news/archive surface 只服务显式历史查询、operator、评测或分析用途，
-  不参与 recent-news 默认回填。
-- 官网页面如果承载正式规章、制度、手册、培养方案正文或等价规范性事实，下游应进入
-  `regulations/*` 或 `curriculum/*`，不得复制成 `official_web/regulation` /
-  `official_web/curriculum`。
-- contact、办事指南与流程说明当前不提升为 repo-owned service/process/contact runtime；只能作为
-  `stable_reference` 或 wiki 上游来源。
-
-时效 query 的固定策略：
-
-- “今天 / 最新 / 最近 / 刚刚”不能只凭本地 `is_current=true` 回答。
-- 如果 local freshness 满足阈值，可以回答。
-- 如果 local freshness 不满足阈值，应由 owning tool/runtime 执行 bounded live assist 或
-  fail-close。
-- bounded live assist 只能命中 admitted `official_web` source channel；target selection
-  必须显式冻结。
-- 不允许用旧新闻、`latest_url`、listing snippet 或措辞润色伪装成当前事实。
-
-opening guardrails：
-
-- 不把 `official_web/*` 整体开放为默认 query-serving。
-- 不把 `fresh_news` 开成 `knowledge` 默认消费面。
-- 不把 `listing_page` projection 当成正式新闻问答证据。
-- 不用 seed import、单次 qrels、hot-lane crawl 频率或本地回答样例证明 runtime opening。
-- `fresh_news` 需要 article-detail evidence、freshness gate、routing split 与 stale
-  fail-close 共同成立。
-- historical-news/archive surface 必须 `query_enabled_by_default=false`，只服务
-  explicit historical / operator / analysis / eval 场景。
+- source-truth 已 materialize 成 canonical documents
+- chunks 已生成
+- Qdrant collection 已建
+- serving alias 已发布
+- freshness gate 已证明
 
 ## Forbidden Shapes
 
-- 不把 collector 内嵌进 `apps/ingestion-control` 或 Python adapter worker
-- 不把 `official_web` control plane 拆成第二个产品 backend
-- 不让 collector 直接写 document registry、query-serving runtime 或 retrieval index
-- 不把 crawl policy、page schema、collection projection 语义混写成一篇文档
+- 不把 `official_web` 整体打开成默认 query-serving。
+- 不把 config existence 当成 published serving truth。
+- 不让 collector 直接写 document registry、query-serving runtime、Qdrant index 或 alias。
+- 不让 app-api 恢复 collector write routes 或 ingestion executor callback。
+- 不让 `projection-declarations.json` 重新变成 broad crawl fan-out owner。
+- 不把 listing snippets 当成正式 news / notice answer evidence。
+- 不允许在线搜索结果反向写入 source truth、release manifest 或 index。
+- 不恢复 Python app-level ingestion worker 或旧 collection CLI 作为 serving fallback。
 
-## 相关稳定文档
+## Related Documents
 
-- `docs/architecture/current.md`
-- `docs/contracts/app-api/official-web.md`
-- `docs/data/app-api/official-web.md`
-
-- Historical/superseded reference only:
-  `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- Current merged architecture: `docs/architecture/current.md`
+- Data-plane architecture: `docs/architecture/system/data-plane.md`
+- Retrieval serving: `docs/architecture/system/retrieval-serving.md`
+- Source-truth schema: `docs/data/official-web.md`
+- Shared schema: `docs/data/app-api/official-web.md`
+- App-api HTTP contract: `docs/contracts/app-api/official-web.md`
+- Crawl policy: `docs/policies/official-web-crawl-policy.md`
+- Chunking policy: `docs/policies/official-web-chunking.md`
+- Decision record: `docs/decisions/adr-0070-official-web-target-first-consumption.md`

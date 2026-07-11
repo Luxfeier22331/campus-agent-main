@@ -37,14 +37,14 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-registry-v4",
 		"registry_version":"2026-01-01",
 		"tools":[{
-			"name":"knowledge_query",
-			"description":"Knowledge query.",
+			"name":"transport_schedule_lookup",
+			"description":"Transport schedule lookup.",
 			"exposure":"model_visible",
 			"read_only":true,
 			"requires_approval":false,
-			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalPayload",
-			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalResult",
-			"handler":{"type":"workflow_signal"},
+			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload",
+			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult",
+			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
@@ -53,8 +53,8 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-function-schemas-v1",
 		"tools":[{
 			"type":"function",
-			"name":"knowledge_query",
-			"description":"Knowledge query.",
+			"name":"transport_schedule_lookup",
+			"description":"Transport schedule lookup.",
 			"strict":true,
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
 		}]
@@ -66,24 +66,24 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"support_status_values":["supported_go_runtime"],
 		"forbidden_raw_key_tokens":["raw_prompt"],
 		"artifacts":[{
-			"kind":"evidence_bundle",
-			"display_name":"EvidenceBundle",
-			"owner_tool_boundary":"knowledge_query",
-			"producer_tools":["knowledge_query"],
-			"source_truth_owner":"knowledge_query_runtime",
+			"kind":"schedule_baseline",
+			"display_name":"ScheduleBaseline",
+			"owner_tool_boundary":"transport_schedule_lookup",
+			"producer_tools":["transport_schedule_lookup"],
+			"source_truth_owner":"campus_services_transport_schedule_read_model",
 			"visibility":"tool_private",
 			"current_projection_support":"supported_go_runtime",
 			"answer_eligible":true,
 			"requires_grounding":true,
 			"freshness_policy":"query_mode_bound",
-			"allowed_consumers":["knowledge_query"],
+			"allowed_consumers":["execution-control-finalizer"],
 			"forbidden_raw_payload_keys":["raw_prompt"]
 		}],
 		"bindings":[{
-			"binding_id":"knowledge_query.evidence_bundle",
-			"owner_tool_boundary":"knowledge_query",
-			"tool_name":"knowledge_query",
-			"produces":["evidence_bundle"],
+			"binding_id":"transport_schedule_lookup.schedule_baseline.lookup",
+			"owner_tool_boundary":"transport_schedule_lookup",
+			"tool_name":"transport_schedule_lookup",
+			"produces":["schedule_baseline"],
 			"consumes":[],
 			"required_inputs":["request:query_text"],
 			"state_changing":false,
@@ -106,8 +106,8 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-function-schemas-v1",
 		"tools":[{
 			"type":"function",
-			"name":"knowledge_query",
-			"description":"Knowledge query changed.",
+			"name":"transport_schedule_lookup",
+			"description":"Transport schedule lookup changed.",
 			"strict":true,
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"},"intent":{"type":["string","null"]}},"required":["query_text","intent"]}
 		}]
@@ -141,26 +141,26 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		"schema_version":"tool-registry-v4",
 		"registry_version":"2026-01-01",
 		"tools":[{
-			"name":"knowledge_query",
-			"description":"Knowledge query.",
+			"name":"transport_schedule_lookup",
+			"description":"Transport schedule lookup.",
 			"exposure":"model_visible",
 			"read_only":true,
 			"requires_approval":false,
-			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalPayload",
-			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalResult",
-			"handler":{"type":"workflow_signal"},
+			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload",
+			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult",
+			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, compactDir, "tools.v4.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQuerySignalPayload","name":"knowledge_query","handler":{"type":"workflow_signal"},"exposure":"model_visible","description":"Knowledge query."}],"schema_version":"tool-registry-v4","registry_version":"2026-01-01"}`)
+	writeRuntimeFingerprintFixture(t, compactDir, "tools.v4.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload","name":"transport_schedule_lookup","handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v4","registry_version":"2026-01-01"}`)
 	for _, runtimeDir := range []string{prettyDir, compactDir} {
 		writeRuntimeFingerprintFixture(t, runtimeDir, "tool-function-schemas.v1.json", `{
 			"schema_version":"tool-function-schemas-v1",
 			"tools":[{
 				"type":"function",
-				"name":"knowledge_query",
-				"description":"Knowledge query.",
+				"name":"transport_schedule_lookup",
+				"description":"Transport schedule lookup.",
 				"strict":true,
 				"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
 			}]
@@ -172,24 +172,24 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 			"support_status_values":["supported_go_runtime"],
 			"forbidden_raw_key_tokens":["raw_prompt"],
 			"artifacts":[{
-				"kind":"evidence_bundle",
-				"display_name":"EvidenceBundle",
-				"owner_tool_boundary":"knowledge_query",
-				"producer_tools":["knowledge_query"],
-				"source_truth_owner":"knowledge_query_runtime",
+				"kind":"schedule_baseline",
+				"display_name":"ScheduleBaseline",
+				"owner_tool_boundary":"transport_schedule_lookup",
+				"producer_tools":["transport_schedule_lookup"],
+				"source_truth_owner":"campus_services_transport_schedule_read_model",
 				"visibility":"tool_private",
 				"current_projection_support":"supported_go_runtime",
 				"answer_eligible":true,
 				"requires_grounding":true,
 				"freshness_policy":"query_mode_bound",
-				"allowed_consumers":["knowledge_query"],
+				"allowed_consumers":["execution-control-finalizer"],
 				"forbidden_raw_payload_keys":["raw_prompt"]
 			}],
 			"bindings":[{
-				"binding_id":"knowledge_query.evidence_bundle",
-				"owner_tool_boundary":"knowledge_query",
-				"tool_name":"knowledge_query",
-				"produces":["evidence_bundle"],
+				"binding_id":"transport_schedule_lookup.schedule_baseline.lookup",
+				"owner_tool_boundary":"transport_schedule_lookup",
+				"tool_name":"transport_schedule_lookup",
+				"produces":["schedule_baseline"],
 				"consumes":[],
 				"required_inputs":["request:query_text"],
 				"state_changing":false,

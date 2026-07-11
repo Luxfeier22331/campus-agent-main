@@ -56,14 +56,10 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
-	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS", "")
-	t.Setenv("EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED", "")
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL", "")
-	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
@@ -74,13 +70,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX", "")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("EXECUTION_PROMPT_MODEL", "")
@@ -141,9 +130,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.ExecutionAuditEnabled {
 		t.Fatal("execution audit enabled = true, want false by default")
 	}
-	if len(cfg.OpenTools) != 0 {
-		t.Fatalf("open tools = %#v, want empty by default", cfg.OpenTools)
-	}
 	if cfg.ExecutionAuditTimeoutMS != 500 {
 		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
 	}
@@ -153,17 +139,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.OTelAllowedAttributesVersion != "execution-control-otel-attrs-v1" {
 		t.Fatalf("otel allowed attrs version = %q", cfg.OTelAllowedAttributesVersion)
 	}
-	if cfg.NoticeReadModelDatabaseURL != "" {
-		t.Fatalf("notice read model database url = %q, want empty", cfg.NoticeReadModelDatabaseURL)
-	}
-	if cfg.NoticeReadModelTable != "ingestion_projection.internal_notice_read_model" {
-		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
-	}
 	if cfg.StructuredProjectionDatabaseURL != "" {
 		t.Fatalf("structured projection database url = %q, want empty", cfg.StructuredProjectionDatabaseURL)
-	}
-	if cfg.MultiStepWorkflowEnabled {
-		t.Fatal("multi-step workflow must be disabled by default")
 	}
 	if cfg.RunProjectionDatabaseURL != "" {
 		t.Fatalf("run projection database url = %q, want empty", cfg.RunProjectionDatabaseURL)
@@ -178,17 +155,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.TemporalStartTimeoutMS != 5000 {
 		t.Fatalf("unexpected temporal defaults: %#v", cfg)
 	}
-	if cfg.ReplayObjectStoreBucket != "" ||
-		cfg.ReplayObjectStoreEndpoint != "" ||
-		cfg.ReplayObjectStoreAccessKey != "" ||
-		cfg.ReplayObjectStoreSecretKey != "" ||
-		cfg.ReplayObjectStorePrefix != "" ||
-		cfg.ReplayObjectStoreEncryptionKeyRef != "" {
-		t.Fatalf("unexpected replay object store defaults: %#v", cfg)
-	}
-	if cfg.ReplayObjectStoreRegion != "us-east-1" {
-		t.Fatalf("replay object store region = %q, want us-east-1", cfg.ReplayObjectStoreRegion)
-	}
 	if cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryBaseURL != "" ||
 		cfg.PersonalMemoryAPISecret != "" ||
@@ -200,66 +166,14 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
 	}
 	if cfg.RAGTopKMax != 8 ||
-		cfg.RAGSelectedEvidenceMax != 8 ||
-		cfg.RAGRetrievalMaxConcurrent != 4 ||
-		cfg.RAGSynthesisMaxConcurrent != 2 ||
 		cfg.RAGEmbeddingTimeoutMS != 10_000 ||
-		cfg.RAGQdrantTimeoutMS != 10_000 ||
-		cfg.RAGProviderTimeoutMS != 60_000 ||
-		cfg.RAGSynthesisMaxOutputTokens != 900 ||
-		cfg.RAGSynthesisReasoningEffort != "low" ||
-		cfg.RAGSynthesisStoreProviderOutput ||
-		cfg.RAGSynthesisTextVerbosity != "low" {
-		t.Fatalf("unexpected rag budget defaults: %#v", cfg)
+		cfg.RAGQdrantTimeoutMS != 10_000 {
+		t.Fatalf("unexpected knowledge search defaults: %#v", cfg)
 	}
-	if cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 8 ||
+	if len(cfg.WorkerProfiles) != 3 ||
 		cfg.WorkerProfiles["activity-core"].ActivitySlots != 8 ||
 		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 4 {
 		t.Fatalf("unexpected worker profile defaults: %#v", cfg.WorkerProfiles)
-	}
-}
-
-func TestLoadFromEnvUsesDedicatedReplayObjectStoreSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY", "replay-access")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY", "replay-secret")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION", "auto")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET", "llm-replay")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX", "execution-control/replay")
-	t.Setenv("EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF", "kms:replay-dev")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.ReplayObjectStoreEndpoint != "http://minio:9000" ||
-		cfg.ReplayObjectStoreAccessKey != "replay-access" ||
-		cfg.ReplayObjectStoreSecretKey != "replay-secret" ||
-		cfg.ReplayObjectStoreRegion != "auto" ||
-		cfg.ReplayObjectStoreBucket != "llm-replay" ||
-		cfg.ReplayObjectStorePrefix != "execution-control/replay" ||
-		cfg.ReplayObjectStoreEncryptionKeyRef != "kms:replay-dev" {
-		t.Fatalf("unexpected replay object store config: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvDoesNotReuseNoticeObjectStoreForReplayPackets(t *testing.T) {
-	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
-	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
-	t.Setenv("OBJECT_STORE_BUCKET", "generic-bucket")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.ReplayObjectStoreEndpoint != "" ||
-		cfg.ReplayObjectStoreAccessKey != "" ||
-		cfg.ReplayObjectStoreSecretKey != "" ||
-		cfg.ReplayObjectStoreBucket != "" {
-		t.Fatalf("replay object store unexpectedly reused notice config: %#v", cfg)
 	}
 }
 
@@ -335,9 +249,6 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	}
 	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
 		t.Fatalf("agent worker must not require personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
-		t.Fatalf("knowledge worker must not require personal memory config: %v", err)
 	}
 	setStagingPersonalMemoryEnv(t)
 	if _, err := LoadFromEnvForRole("activity-core"); err != nil {
@@ -436,9 +347,9 @@ func TestLoadFromEnvRejectsRetiredDurableRuntimeDatabaseSettings(t *testing.T) {
 
 func TestLoadFromEnvRejectsRetiredDurableWorkerLoopSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "tool:knowledge_query:rag_request")
+	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-legacy-001")
+	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "legacy")
+	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "legacy-step")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
@@ -463,9 +374,9 @@ func TestLoadFromEnvRejectsAnyRetiredDurableLoopSetting(t *testing.T) {
 		name  string
 		value string
 	}{
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "tool:knowledge_query:rag_request"},
+		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-legacy-001"},
+		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "legacy"},
+		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "legacy-step"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000"},
@@ -574,7 +485,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
   "queue_timeout_ms": 2500,
   "request_timeout_ms": 30000,
   "shutdown_grace_ms": 20000,
-  "intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
   "otel": {
     "enabled": true,
     "endpoint": "http://collector:4318/v1/traces",
@@ -593,9 +503,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
     "url": "http://app-api:27031/api/internal/execution/audit-events",
     "shared_secret": "audit-secret",
     "timeout_ms": 250
-  },
-  "open_tools": ["transport_schedule_lookup", "campus_notice_discover"],
-  "multi_step_workflow_enabled": true
+	  }
 }`)
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
@@ -611,7 +519,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.RequestTimeoutMS != 30000 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
-		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
 		cfg.OTelHeaders != "authorization=Bearer test" ||
@@ -626,11 +533,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 250 ||
 		cfg.OTelSampleRatio != 0.25 ||
-		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
-		len(cfg.OpenTools) != 2 ||
-		cfg.OpenTools[0] != "transport_schedule_lookup" ||
-		cfg.OpenTools[1] != "campus_notice_discover" ||
-		!cfg.MultiStepWorkflowEnabled {
+		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }
@@ -730,14 +633,14 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *
 }
 
 func TestLoadFromEnvRejectsRetiredGroupQueueAndInvalidOTelSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY", "-1")
+	t.Setenv("EXECUTION_CONTROL_LANE_LEGACY_QUEUE_CAPACITY", "-1")
 
 	_, err := LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected retired group queue env to fail")
 	}
 
-	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY", "")
+	t.Setenv("EXECUTION_CONTROL_LANE_LEGACY_QUEUE_CAPACITY", "")
 	t.Setenv("EXECUTION_CONTROL_OTEL_ENABLED", "maybe")
 	_, err = LoadFromEnv()
 	if err == nil {

@@ -4,13 +4,13 @@ truth_scope: execution
 owner_boundary: python-boundaries
 status: active
 created: 2026-04-26
-updated: 2026-07-07
+updated: 2026-07-08
 ---
 # Python Boundary
 
 ## 文档边界
 
-本文冻结 Python side retired / adapter boundary。它不改变 Temporal / Go
+本文冻结 Python side adapter boundary。它不改变 Temporal / Go
 execution-control 的 ownership，只说明 Python 不再参与 online answer hot path，
 以及后续只能保留在哪些非热路径场景。
 
@@ -20,47 +20,44 @@ Python 不再拥有 deterministic execution runtime truth。
 
 - `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过 git
   history 追溯
-- Go `apps/execution-control` 拥有 admission、routing frame、tool read model、
-  lifecycle、observability、Temporal memory + RAG graph、provider usage/cost projection、
-  final response shaping 与 fail-close terminal envelope
+- OpenAI Agents SDK in `apps/agent-runtime` owns the only online agent/tool
+  loop；Go `apps/execution-control` 拥有 admission、Temporal lifecycle、memory
+  activities、internal query、evidence/source validation、observability 与
+  fail-close terminal projection
 - Python worker 不消费 online Go canonical bridge envelope，也不作为 Temporal activity backend
 - 新增 Python 只能用于明确隔离的 offline ingestion / eval / tooling；不得恢复旧
   online serving bridge
-- Python 不拥有 online RAG provider cancellation、token / estimated cost accounting、
-  sanitized step projection、workflow step truth 或 top-level semantic orchestration
+- Python 不拥有 online provider cancellation、token / estimated cost accounting、
+  sanitized projection、workflow truth 或 semantic orchestration
 
-## Knowledge / RAG Boundary
+## Knowledge Boundary
 
 旧 Python knowledge runtime package 已从 active workspace 删除。当前
-`knowledge_query` 语义由 Go-owned `apps/execution-control` RAG Temporal
-graph 承接：
+`knowledge_query` 由 primary agent 通过 OpenAI Agents SDK official `handoff()`
+进入同一 SDK run 内的 Knowledge Agent：
 
-- query framing、scope-specific semantic planning、bounded synthesis packet assembly、
-  grounding validation
-- online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`
-- retrieval evidence 到 `ToolResponse` 的 contract 化
+- Knowledge Agent 负责 query framing、bounded evidence consumption、answer
+  synthesis 与 evidence-backed structured output
+- Knowledge Agent 只调用 internal `knowledge_search`
+- execution-control 负责 scope/version admission、embedding/Qdrant/rerank、bounded
+  evidence projection、terminal evidence validation 与 source generation
 
-这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
-不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、
-`retrieval.indexed_lookup`、`evidence.selection`、
-`synthesis`、`grounding.verify` 与 `finalization.write`。
-其中 online `grounding.verify` 当前语义是 evidence-integrity verification，不消费
-Python claim-level validator。
+整个 SDK run 是单个 Temporal Agent Activity。Python 不作为该 activity 的 backend，
+也不拥有独立 knowledge worker、provider-backed answer path 或 evidence validator。
 
 ## Retrieval Boundary
 
-旧 Python retrieval package 已从 active workspace 删除。当前 online retrieval
-kernel 收口到 Go-owned execution-control / repo-owned internal retrieval seam：
+旧 Python `packages/retrieval-core` 已从 active workspace 删除。当前 online retrieval
+归属到 Go-owned execution-control internal `knowledge_search` seam：
 
 - Qdrant backend runtime adapter、embedding query cache、registry lookup、
   evidence shaping
-- retrieval request projection、step validation、step result construction、
-  merge / dedupe
+- retrieval request validation、result construction、merge / dedupe
 - retrieval runtime 不拥有 product tool admission，也不维护 query-enabled scope truth
 
 LlamaIndex 不是架构层，也不得进入 contracts、execution-control、panel/eval canonical
-truth。长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter +
-sanitized query activity projection。
+truth。长期 online retrieval boundary 固定为 repo-owned DTO + Qdrant native adapter +
+sanitized tool-call / evidence projection。
 
 当前 active workspace 中，旧 Python ingestion package 已删除，不再通过 LlamaIndex
 表达 embedding model、mock embedding 或 chunk node payload。ingestion chunk /
@@ -74,11 +71,11 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 
 内部拆分规则：
 
-- Go retrieval activity / query service 保持 backend orchestration facade
+- Go internal query service 保持 backend orchestration facade
 - backend errors、embedding cache、registry lookup、evidence source shaping 继续按 owner
   分文件维护
-- request projection、step execution result、replan validation、merge / trust
-  filtering 属于 repo-owned retrieval runtime seam
+- request projection、tool result、merge / trust filtering 属于 repo-owned
+  retrieval runtime seam
 
 ## Data-Plane Boundary
 
@@ -175,9 +172,9 @@ native rendering dependency.
   `packages/ragas-runner`. TS / Worker / Rust owners must not add
   `pyproject.toml` workspace shells or re-enter `uv.lock`.
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
-- 不把 deterministic Execution Agent Layer admission、routing、structured payload
-  planning 写回 Python
-- 不把 ingestion source-truth / projection logic 拉入 knowledge runtime
+- 不把 deterministic execution admission、evidence validation 或 source generation
+  写回 Python
+- 不把 ingestion source-truth / projection logic 拉入 Agent Activity
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
 - 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略

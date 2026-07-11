@@ -108,7 +108,7 @@ describe("chat durable staging e2e runner", () => {
 									selected_tool: "knowledge_query",
 								},
 								planning: {
-									planned_steps: ["indexed_lookup"],
+									planned_steps: ["agent.primary", "knowledge.search", "finalization.write"],
 								},
 							},
 							attempts: [
@@ -119,9 +119,9 @@ describe("chat durable staging e2e runner", () => {
 							],
 							results: [
 								{
-									resultKind: "agent_plan_result",
+									resultKind: "agent_final_output",
 									sanitizedPayload: {
-										planned_steps: ["indexed_lookup"],
+										selected_tools: ["knowledge_query", "knowledge_search"],
 									},
 								},
 							],
@@ -140,16 +140,16 @@ describe("chat durable staging e2e runner", () => {
 								},
 								{
 									stepId: "agent.primary",
-									status: "completed",
-								},
-								{
-									stepId: "rag.plan",
 									selectedTool: "knowledge_query",
 									status: "completed",
 								},
 								{
-									stepId: "retrieval.indexed_lookup",
-									selectedTool: "knowledge_query",
+									stepId: "knowledge.search.search-1",
+									selectedTool: "knowledge_search",
+									status: "completed",
+								},
+								{
+									stepId: "finalization.write",
 									status: "completed",
 								},
 							],
@@ -233,7 +233,7 @@ describe("chat durable staging e2e runner", () => {
 			agentRuntimeEvalProjection: {
 				schema_version: "agent_runtime_eval_projection.v1",
 				planning: {
-					planned_steps: ["indexed_lookup"],
+					planned_steps: ["agent.primary", "knowledge.search", "finalization.write"],
 				},
 			},
 			langfuseCloseout: {
@@ -252,13 +252,17 @@ describe("chat durable staging e2e runner", () => {
 				selected_tool: "knowledge_query",
 				trace_steps: [
 					{ status: "completed", step_id: "memory.recall" },
-					{ status: "completed", step_id: "agent.primary" },
-					{ selected_tool: "knowledge_query", status: "completed", step_id: "rag.plan" },
 					{
 						selected_tool: "knowledge_query",
 						status: "completed",
-						step_id: "retrieval.indexed_lookup",
+						step_id: "agent.primary",
 					},
+					{
+						selected_tool: "knowledge_search",
+						status: "completed",
+						step_id: "knowledge.search.search-1",
+					},
+					{ status: "completed", step_id: "finalization.write" },
 				],
 			},
 		});
@@ -267,9 +271,9 @@ describe("chat durable staging e2e runner", () => {
 		expect(result.conversation?.hasAssistantMessageForRequest).toBe(true);
 		expect(result.runtimeStepResults).toEqual([
 			{
-				resultKind: "agent_plan_result",
+				resultKind: "agent_final_output",
 				sanitizedPayload: {
-					planned_steps: ["indexed_lookup"],
+					selected_tools: ["knowledge_query", "knowledge_search"],
 				},
 			},
 		]);
@@ -546,9 +550,9 @@ describe("chat durable staging e2e runner", () => {
 							attempts: [{ runId: "run_no_answer", workflowId: "workflow_no_answer" }],
 							results: [
 								{
-									resultKind: "agent_plan_result",
+									resultKind: "agent_final_output",
 									sanitizedPayload: {
-										planned_steps: ["indexed_lookup"],
+										selected_tools: [],
 									},
 								},
 							],
@@ -559,7 +563,7 @@ describe("chat durable staging e2e runner", () => {
 								status: "completed",
 								traceId: "trace_no_answer",
 							},
-							steps: [{ stepId: "rag.plan", status: "completed" }],
+							steps: [{ stepId: "agent.primary", status: "completed" }],
 						} as T);
 					}
 					if (input.url.endsWith("/api/chat/conversations/conv_no_answer")) {
@@ -601,9 +605,9 @@ describe("chat durable staging e2e runner", () => {
 		});
 		expect(result.runtimeStepResults).toEqual([
 			{
-				resultKind: "agent_plan_result",
+				resultKind: "agent_final_output",
 				sanitizedPayload: {
-					planned_steps: ["indexed_lookup"],
+					selected_tools: [],
 				},
 			},
 		]);

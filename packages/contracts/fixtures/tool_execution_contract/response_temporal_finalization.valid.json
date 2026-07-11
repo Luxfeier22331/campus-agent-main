@@ -1,53 +1,89 @@
 {
 	"selected_tool": "knowledge_query",
 	"status": "completed",
-	"answer_text": "示例奖学金按合成评审办法执行。",
+	"answer_text": "示例奖学金按照现行评审办法执行。",
 	"error": null,
 	"follow_up_question": "",
 	"confidence": "high",
+	"resolved_scope": "student_rules",
+	"session_update": null,
 	"result": {
-		"evidence": {
-			"query_text": "示例学生奖学金评审办法",
-			"sources": [
-				{
-					"doc_id": "student_rules:national-scholarship",
-					"chunk_id": "student_rules:national-scholarship:chunk-001",
-					"source_title": "示例学生奖学金评审办法",
-					"snippet": "示例奖学金实行合成评审流程，坚持公开、公平、公正的原则。",
-					"source_ref": "campus-agent://regulations/student_rules/docs/student_rules:national-scholarship",
-					"structural_ref": "span://student_rules:national-scholarship/chunk-001"
-				}
-			]
-		},
-		"diagnostics": {
-			"semantic_outcome": "grounded_answer",
-			"grounding_verdict": "supported",
-			"model_execution_state": "go_provider_synthesis_completed",
-			"model_execution_detail": "provider_execution_summary_v1",
-			"answer_artifact_ref": "provider://requests/run_temporal_finalization/synthesis",
-			"provider_response_ref": "resp_temporal_finalization",
-			"provider_pricing_ref": "provider-pricing-v1",
-			"retrieval_stage_ref": "projection://runs/run_temporal_finalization/retrieval/indexed-lookup",
-			"evidence_selection_ref": "projection://runs/run_temporal_finalization/evidence/selection",
-			"synthesis_step_ref": "projection://runs/run_temporal_finalization/synthesis",
-			"step_projection_schema": "step-result-projection-v1"
-		}
+		"provider_response_id": "resp_temporal_finalization",
+		"selected_tools": ["knowledge_query"],
+		"sources": [
+			{
+				"canonical_url": "/docs/regulations/student_rules/national-scholarship",
+				"snippet": "示例奖学金评审坚持公开、公平、公正的原则。",
+				"source_kind": "regulation",
+				"source_title": "示例学生奖学金评审办法",
+				"target_kind": "canonical_reader",
+				"title": "示例学生奖学金评审办法",
+				"version_id": "student-rules-current"
+			}
+		],
+		"terminal_reason": "answer"
 	},
 	"observability": {
-		"selected_tool": "knowledge_query",
-		"result_outcome": "grounded_answer"
+		"agent_runtime": "openai_agents_sdk",
+		"selected_tools": ["knowledge_query"],
+		"terminal_reason": "answer"
 	},
 	"workflow_trace_summary": {
 		"workflow_mode": "single_step",
 		"selected_tool": "knowledge_query",
 		"selected_tools": ["knowledge_query"],
-		"answer_artifact_kinds": ["provider_execution_summary"],
-		"answer_artifact_refs": ["provider://requests/run_temporal_finalization/synthesis"],
+		"first_decision_actor": "primary_agent",
+		"planning_outcome": "primary_agent_completed",
+		"direct_vs_delegate_branch": "tool",
+		"terminal_reason": "answer",
+		"answer_artifact_kinds": ["agent_final_output"],
+		"answer_artifact_refs": ["projection://runs/run_temporal_finalization/agent/primary/result"],
+		"trace_steps": [
+			{
+				"step_id": "agent.primary",
+				"span_kind": "agent",
+				"parent_step_id": "",
+				"outcome": "answer",
+				"result_status": "completed"
+			},
+			{
+				"step_id": "sdk_tool.execute.knowledge_query.1",
+				"span_kind": "tool_call",
+				"parent_step_id": "agent.primary",
+				"tool_name": "knowledge_query",
+				"tool": "knowledge_query",
+				"outcome": "found",
+				"result_status": "found",
+				"retry_count": 0
+			},
+			{
+				"step_id": "finalization.write",
+				"span_kind": "finalization",
+				"parent_step_id": "sdk_tool.execute.knowledge_query.1",
+				"outcome": "completed",
+				"result_status": "completed"
+			}
+		],
+		"tool_call_summaries": [
+			{
+				"schema_version": "tool-call-summary-v1",
+				"tool_call_id": "projection://runs/run_temporal_finalization/agent/primary/result:sdk_tool.execute.knowledge_search.1",
+				"workflow_run_ref": "projection://runs/run_temporal_finalization/agent/primary/result",
+				"step_id": "sdk_tool.execute.knowledge_search.1",
+				"lifecycle_state": "completed",
+				"result_projection": "bounded_summary",
+				"raw_result_included": false,
+				"tool_name": "knowledge_search",
+				"tool": "",
+				"payload_kind": "knowledge_search",
+				"result_status": "found",
+				"argument_summary": {},
+				"source_ids": [],
+				"business_outcome": "found"
+			}
+		],
 		"runtime_versions": {
-			"provider_summary": "provider_execution_summary_v1"
-		},
-		"policy_artifact_versions": {
-			"provider_pricing": "provider-pricing-v1"
+			"agent_runtime": "openai_agents_sdk"
 		}
 	},
 	"trace_id": "trace-temporal-finalization"

@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-06-26
-updated: 2026-07-03
+updated: 2026-07-09
 ---
 # Eval Map
 
@@ -52,25 +52,11 @@ result contract validity, fail-closed correctness and tool-specific source
 policy checks. It does not score final answer prose, primary model choice or
 RAG answer/evidence quality.
 
-The first internal eval slice is public web search:
-
-`agent-tool-use / public-web-search`
--> repo-authored agent cases in
-   `packages/eval-langfuse/assets/datasets/agent/public_web_search/agent_cases.v1.json`
--> `packages/eval-langfuse` submits each case through the app-api chat stream
--> `packages/eval-langfuse` writes deterministic tool/source scores to Langfuse,
-   or dry-runs locally when score publishing is disabled
-
-The typed tool uses public web sources selected by the model-backed search
-provider; it does not produce RAG retrieved contexts or qrels denominators.
-`required_answer_facts` are retained as review payload instead of automatic
-model-judge scores.
-
-Provider bakeoff uses this same lane. Run one configured `public_web_search`
-provider profile per eval pass and compare the resulting deterministic scores
-plus latency, provider error rate, provider/model identity and accepted cost
-projection. The eval map does not admit provider fallback chains, merged result
-sets or model-selected provider routing.
+Current `agent-tool-use` cases distinguish direct answer,
+`transport_schedule_lookup` and `knowledge_query`. Knowledge cases validate the
+official SDK handoff, strict scope/version arguments, internal
+`knowledge_search` evidence and finalized source integrity. Trusted explicit
+hints remain eval/debug-only and do not define the ordinary product path.
 
 ## Active Supporting Surfaces
 
@@ -84,12 +70,6 @@ sets or model-selected provider routing.
   `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace`
 - Agent tool-use eval canonical lane:
   `agent-tool-use` over `tool_trajectory.v1`
-- Public web search agent asset validation:
-  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts validate-public-web-search-eval`
-- Public web search agent eval through app-api chat:
-  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts run-public-web-search-agent-eval
-  --app-api-base-url <url>`; this is the current public-web-search slice of
-  `agent-tool-use`
 - Learning-loop candidate selector / publisher:
   `jobs/learning-loop-candidates`
 
@@ -117,7 +97,6 @@ The following self-built lanes are no longer active eval package surfaces:
 - artifact `publish-score-report`
 - retired app-api online-answer-path collector aliases
 - app-api Langfuse eval backlink routes
-- Go `cmd/intent-eval-runner`
 - Python `campus_evals` and the retired `packages/evals`
 
 Runtime behavior and agent/workflow regressions should be covered by the
@@ -141,8 +120,6 @@ repo no longer owns custom queue sync/export commands.
 - RAG answer-quality cases that can be synced into Langfuse datasets
 - qrels / golden retrieval truth that can be projected into
   `reference_context_ids`
-- public web search agent cases for routing, source quality and grounded answer
-  review
 
 Old live gate policies, judge rubrics, release-acceptance fixtures, e2e
 profile cases, memory profile cases and public sample score-report artifacts

@@ -32,14 +32,8 @@
 				"agent.runtime_ms",
 				"agent.first_delta_ms",
 				"tool.total_ms",
-				"tool.knowledge_query_ms",
 				"tool.transport_schedule_lookup_ms",
-				"tool.campus_notice_discover_ms",
-				"rag.plan_ms",
-				"rag.lookup_ms",
-				"rag.rerank_ms",
-				"rag.synthesis_ms",
-				"rag.grounding_ms",
+				"knowledge.search_ms",
 				"finalization.write_ms",
 				"projection.closeout_ms"
 			]

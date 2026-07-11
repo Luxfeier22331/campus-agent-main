@@ -4,13 +4,14 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-12
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # Runbooks
 
 `runbooks/` 保存可重复执行的操作步骤、部署流程和验收手册。
 `active` runbook 必须描述当前可执行入口；只剩对照价值的历史流程不得留在
 branch tip 作为默认操作说明。
+稳定 runtime / data flow 图见 `../architecture/flows.md`；runbook 只写可重复执行的操作。
 
 ## Core Deploy / Smoke / Release
 
@@ -19,7 +20,8 @@ branch tip 作为默认操作说明。
     public surfaces、chat、docs、panel、observability、data-plane sanity 与 release
     closeout artifacts。
 - `execution-ops.md`
-  - 当前 execution-control + Temporal staging runtime 运维入口。
+  - execution-control + Temporal staging deploy、ingress、daily operations、
+    recovery 与 triage 入口。
 - `forward-worker-smoke.md`
 - `main-release.md`
 - `ingestion-control-clean-target.md`
@@ -34,8 +36,6 @@ branch tip 作为默认操作说明。
 
 ## Environment-Specific Smoke / Evidence
 
-- `execution-ops.md`
-  - execution-control staging deploy、ingress、daily operations、recovery 与 triage。
 - `gitops-k8s.md`
   - source/environment repository boundary、Argo CD bootstrap、immutable image
     promotion、secret delivery 与 Kubernetes staging 验证入口。

@@ -7,71 +7,70 @@ import (
 )
 
 func projectedPlanningForEval(results []execution.StepResultProjection) map[string]any {
-	explicit := projectedRecordFromResults(results, "planning")
-	if len(explicit) > 0 {
-		return explicit
+	planning := map[string]any{}
+	if plannedSteps := projectedPlanningStepsFromRuntimeResults(results); len(plannedSteps) > 0 {
+		planning["planned_steps"] = stringsToAny(plannedSteps)
 	}
 	for _, result := range results {
-		if result.StepID != "rag.plan" {
+		if !strings.HasPrefix(result.StepID, "knowledge.search.") {
 			continue
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		planning := map[string]any{}
-		queryMode := firstNonEmptyText(payload["query_mode"])
-		if queryMode != "" {
-			planning["freshness_branch"] = queryMode
+		resolvedVersion := optionalMapFromMap(payload, "resolved_version")
+		mode := firstNonEmptyText(resolvedVersion["mode"])
+		if mode != "" {
+			planning["freshness_branch"] = mode
 		}
-		if collection := firstNonEmptyText(payload["collection_alias"]); collection != "" {
-			planning["decomposition"] = stringsToAny(projectedPlanningDecomposition(collection, queryMode, payload))
+		if scope := firstNonEmptyText(payload["resolved_scope"]); scope != "" {
+			planning["decomposition"] = stringsToAny(projectedPlanningDecomposition(scope, mode, resolvedVersion))
 		}
-		plannedSteps := []string{}
-		for _, step := range mapListFromAny(payload["steps"]) {
-			appendUniqueProjectionString(&plannedSteps, firstNonEmptyText(
-				step["stage"],
-				step["step_type"],
-				step["step_id"],
-			))
-		}
-		if len(plannedSteps) == 0 {
-			plannedSteps = projectedPlanningStepsFromRuntimeResults(results)
-		}
-		if len(plannedSteps) > 0 {
-			planning["planned_steps"] = stringsToAny(plannedSteps)
-		}
-		if len(planning) > 0 {
-			return planning
-		}
+		break
 	}
-	return map[string]any{}
+	return planning
 }
 
-func projectedPlanningDecomposition(collection string, queryMode string, payload map[string]any) []string {
-	decomposition := []string{collection}
-	switch queryMode {
+func projectedPlanningDecomposition(scope string, mode string, resolvedVersion map[string]any) []string {
+	decomposition := []string{scope}
+	switch mode {
 	case "current":
-		decomposition = append(decomposition, "current_policy")
+		decomposition = append(decomposition, "current")
 	case "historical":
-		decomposition = append(decomposition, "historical_version")
+		if versionID := firstNonEmptyText(resolvedVersion["version_id"]); versionID != "" {
+			decomposition = append(decomposition, "historical:"+versionID)
+		} else {
+			decomposition = append(decomposition, "historical")
+		}
 	case "as_of":
-		versionQuery := optionalMapFromMap(payload, "version_query")
-		if asOf := firstNonEmptyText(versionQuery["as_of"]); asOf != "" {
+		if asOf := firstNonEmptyText(resolvedVersion["as_of"]); asOf != "" {
 			decomposition = append(decomposition, "as_of:"+asOf)
 		} else {
 			decomposition = append(decomposition, "as_of")
 		}
 	case "compare":
-		decomposition = append(decomposition, "compare")
+		versionID := firstNonEmptyText(resolvedVersion["version_id"])
+		compareTo := firstNonEmptyText(resolvedVersion["compare_to_version_id"])
+		if versionID != "" && compareTo != "" {
+			decomposition = append(decomposition, "compare:"+versionID+":"+compareTo)
+		} else {
+			decomposition = append(decomposition, "compare")
+		}
 	}
 	return decomposition
 }
 
 func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
 	steps := []string{}
-	if hasStepResult(results, "retrieval.indexed_lookup") {
-		appendUniqueProjectionString(&steps, "indexed_lookup")
+	if hasStepResult(results, "agent.primary") {
+		appendUniqueProjectionString(&steps, "agent.primary")
 	}
-	if hasStepResult(results, "evidence.selection") {
-		appendUniqueProjectionString(&steps, "supporting_evidence_selection")
+	for _, result := range results {
+		if strings.HasPrefix(result.StepID, "knowledge.search.") {
+			appendUniqueProjectionString(&steps, "knowledge.search")
+			break
+		}
+	}
+	if hasStepResult(results, "finalization.write") {
+		appendUniqueProjectionString(&steps, "finalization.write")
 	}
 	return steps
 }
@@ -86,10 +85,6 @@ func hasStepResult(results []execution.StepResultProjection, stepID string) bool
 }
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
-	explicit := projectedRecordFromResults(results, "rag")
-	if len(explicit) > 0 {
-		return explicit
-	}
 	rag := map[string]any{}
 	if titles := projectedRAGSourceTitles(results); len(titles) > 0 {
 		rag["source_titles"] = titles
@@ -103,6 +98,9 @@ func projectedRAGForEval(results []execution.StepResultProjection) map[string]an
 func projectedRAGSourceTitles(results []execution.StepResultProjection) []any {
 	values := []string{}
 	for _, result := range results {
+		if result.StepID != "finalization.write" {
+			continue
+		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
 			appendUniqueProjectionString(&values, firstNonEmptyText(
@@ -119,22 +117,23 @@ func projectedRAGSourceRefs(results []execution.StepResultProjection) []any {
 	values := []map[string]any{}
 	seen := map[string]struct{}{}
 	for _, result := range results {
+		if result.StepID != "finalization.write" {
+			continue
+		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
 			ref := map[string]any{}
+			copyProjectionString(ref, source, "canonical_url", "canonical_url")
 			copyProjectionString(ref, source, "canonical_source_title", "canonical_source_title")
 			copyProjectionString(ref, source, "source_title", "source_title")
 			copyProjectionString(ref, source, "title", "title")
-			copyProjectionString(ref, source, "source_ref", "source_ref")
-			copyProjectionString(ref, source, "doc_id", "doc_id")
-			copyProjectionString(ref, source, "document_id", "document_id")
-			copyProjectionString(ref, source, "chunk_id", "chunk_id")
-			copyProjectionString(ref, source, "structural_ref", "structural_ref")
+			copyProjectionString(ref, source, "source_kind", "source_kind")
+			copyProjectionString(ref, source, "target_kind", "target_kind")
+			copyProjectionString(ref, source, "url", "url")
+			copyProjectionString(ref, source, "version_id", "version_id")
 			key := firstNonEmptyText(
-				ref["source_ref"],
-				ref["doc_id"],
-				ref["document_id"],
-				ref["chunk_id"],
+				ref["canonical_url"],
+				ref["url"],
 				ref["source_title"],
 				ref["title"],
 			)
@@ -154,8 +153,7 @@ func projectedRAGSourceRefs(results []execution.StepResultProjection) []any {
 func projectedRAGSourcesFromPayload(payload map[string]any) []map[string]any {
 	finalized := optionalMapFromMap(payload, "finalized_response")
 	result := optionalMapFromMap(finalized, "result")
-	evidence := optionalMapFromMap(result, "evidence")
-	return mapListFromAny(evidence["sources"])
+	return mapListFromAny(result["sources"])
 }
 
 func projectedMemoryForEval(results []execution.StepResultProjection) map[string]any {

@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-23
-updated: 2026-06-29
+updated: 2026-07-11
 ---
 # App API Eval Benchmark HTTP Contract
 
@@ -53,8 +53,8 @@ internal eval ingress caller。
 - 缺少或不匹配时固定返回 `401 service_credential_required`
 - internal eval request 不调度 request projection drain；它只返回 command-path
   correlation truth
-- request `surface` wire literal 仍固定写成 `eval_benchmark`，只作为历史兼容的
-  internal materialization surface marker
+- request `surface` wire literal 固定写成 `eval_benchmark`，只作为 internal
+  materialization surface marker
 
 ## Request Contract
 
@@ -108,10 +108,8 @@ internal eval ingress caller。
 ```json
 {
   "prompt": "图书馆开放到几点？",
-  "requestedScope": {
-    "corpus": "regulations",
-    "collection": "student_rules"
-  },
+  "requestedTool": "knowledge_query",
+  "scope": "student_rules",
   "versionQuery": {
     "mode": "historical",
     "versionId": "v2024-student-rules"
@@ -124,12 +122,18 @@ internal eval ingress caller。
 - `conversationId`
 - `versionQuery`
 
-请求体语义继续复用 `POST /api/chat/requests` 的 command payload；这里只额外固定：
+请求体以 public chat 的 `conversationId?` / `prompt` 为基础，并只在本
+trusted route 增加：
 
 - `surface = eval_benchmark`，作为 internal materialization marker
 - identity 取自 internal eval headers，而不是 session principal
-- 非 `current` 的 eval case 现在通过同一条 `app-api` command path 进入 execution-control，不再走
-  legacy shortcut
+- `requestedTool` 是 trusted internal hint；app-api 只做字段规范化，最终 tool
+  admission 由 execution-control runtime registry 决定
+- `scope` 在 `requestedTool=knowledge_query` 时必填，且不能与其他 requested tool
+  一起出现
+- `versionQuery` 可选；app-api 将其规范化后放入 execution payload
+- 非 `current` 的 eval case 通过同一条 `app-api` command path 进入
+  execution-control
 
 ## Success Response
 
@@ -167,20 +171,26 @@ response body：
     "followUpQuestion": "",
     "error": null,
     "observability": {
-      "retrievalAttempted": true,
-      "retrievedSourceCount": 1,
-      "citationCount": 1,
-      "citationExpected": true,
-      "citationMissing": false,
-      "failClosed": false
+      "agentRuntime": "openai_agents_sdk",
+      "sdkTraceRef": "sdk-trace-eval-01HQ",
+      "selectedTools": ["knowledge_query"],
+      "terminalReason": "answer"
     },
     "result": {
-      "evidence": {
-        "corpus": "regulations",
-        "collection": "student_rules",
-        "query_text": "图书馆开放到几点？",
-        "sources": []
-      }
+      "provider_response_id": "resp_eval_01HQ",
+      "selected_tools": ["knowledge_query"],
+      "sources": [
+        {
+          "canonical_url": "/docs/regulations/student_rules/library-hours",
+          "snippet": "图书馆开放到 22:00。",
+          "source_kind": "regulation",
+          "source_title": "图书馆开放时间",
+          "target_kind": "canonical_reader",
+          "title": "图书馆开放时间",
+          "version_id": "student-rules-current"
+        }
+      ],
+      "terminal_reason": "answer"
     }
   }
 }

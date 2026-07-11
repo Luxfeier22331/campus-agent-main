@@ -32,12 +32,12 @@ Adopt five runtime config classes:
 3. `secret_material`: credentials, tokens, DSNs and shared secrets delivered by
    the owning deploy secret store.
 4. `app_operational_config`: business/operator state mutated through an owning
-   app control plane, including LLM/search/embedding/rerank provider profiles.
+   app control plane, including LLM/embedding/rerank provider profiles.
 5. `generated_runtime_projection`: sanitized artifacts exported from an owner
    service for runtime consumers, including provider-config snapshots.
 
 `apps/app-api` provider-config remains the source of truth for external model,
-embedding, rerank and public web search provider active profiles. K8s
+embedding and rerank provider active profiles. K8s
 ConfigMap/Secret, Helm values, Wrangler vars/secrets and local `.env` files
 must not become provider active-profile truth.
 

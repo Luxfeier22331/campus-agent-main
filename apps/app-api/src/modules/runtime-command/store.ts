@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { and, asc, desc, eq, gte, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -210,8 +210,7 @@ export function createPgChatCommandStore(
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
 					requestedTool: row.requestedTool,
-					requestedScope:
-						row.requestedScopeJson as AcceptedDurableRequestCloseout["requestedScope"],
+					requestedScope: row.requestedScope,
 					runId: row.runId,
 					safetyIdentifier: row.safetyIdentifier,
 					surface: row.surface,
@@ -375,7 +374,6 @@ export function createPgChatCommandStore(
 						activeMessageId: input.assistantMessage.id,
 						activeRunId: input.assistantMessage.runId ?? null,
 						activeTurnSequence: input.requestExecution.turnSequence,
-						contextSummary: input.contextSummary,
 					})
 					.where(
 						and(
@@ -422,10 +420,16 @@ export function createPgChatCommandStore(
 						target: requestObservabilityFact.requestId,
 					});
 
-				if (activeStateAdvanced) {
-					await tx
-						.delete(sessionSlots)
-						.where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
+				if (activeStateAdvanced && input.sessionSlots.length > 0) {
+					await tx.delete(sessionSlots).where(
+						and(
+							eq(sessionSlots.conversationId, input.requestExecution.conversationId),
+							inArray(
+								sessionSlots.name,
+								input.sessionSlots.map((slot) => slot.name),
+							),
+						),
+					);
 				}
 
 				if (activeStateAdvanced && input.sessionSlots.length > 0) {

@@ -22,14 +22,6 @@ const testParameterSchema = {
 	required: ["query_text"],
 };
 
-const knowledgePayloadSchemaRef = schemaRef(
-	"knowledge-tool-contracts.v1",
-	"KnowledgeQuerySignalPayload",
-);
-const knowledgeResultSchemaRef = schemaRef(
-	"knowledge-tool-contracts.v1",
-	"KnowledgeQuerySignalResult",
-);
 const transportPayloadSchemaRef = schemaRef(
 	"campus-services-tool-contracts.v1",
 	"TransportScheduleLookupPayload",
@@ -44,21 +36,6 @@ const catalog: ToolCatalog = {
 	registryVersion: "test",
 	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
-		{
-			name: "knowledge_query",
-			description: "Route this turn to the governed knowledge workflow.",
-			exposure: "model_visible",
-			readOnly: true,
-			requiresApproval: false,
-			payloadSchemaRef: knowledgePayloadSchemaRef,
-			resultSchemaRef: knowledgeResultSchemaRef,
-			handler: {
-				type: "workflow_signal",
-			},
-			timeoutMs: 1000,
-			resultProjectionPolicy: "bounded_json",
-			parameterSchema: testParameterSchema,
-		},
 		{
 			name: "transport_schedule_lookup",
 			description: "Lookup campus shuttle schedule snapshots.",
@@ -223,7 +200,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-memory",
 			input: "之后回答能不能先给结论？",
 			providerConfig,
-			visibleToolNames: ["knowledge_query"],
+			visibleToolNames: ["transport_schedule_lookup"],
 			memoryContext: {
 				contextBlock: "用户记忆:\n- 用户偏好回答先给结论",
 				memoryRef: "projection://runs/run-memory/memory/recall",
@@ -236,6 +213,87 @@ describe("primary agent runtime", () => {
 		expect(observedInstructions).toContain("<personal_memory>");
 		expect(observedInstructions).toContain("用户偏好回答先给结论");
 		expect(observedInstructions).toContain("Personal memory is advisory context");
+	});
+
+	it("injects allowed knowledge scopes into runner instructions", async () => {
+		let observedInstructions = "";
+		const runtime = createPrimaryAgentRuntime({
+			catalog: {
+				...catalog,
+				tools: [
+					...catalog.tools,
+					{
+						name: "knowledge_query",
+						description: "Query admitted campus knowledge.",
+						exposure: "model_visible",
+						readOnly: true,
+						requiresApproval: false,
+						payloadSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQueryPayload"),
+						resultSchemaRef: schemaRef(
+							"knowledge-tool-contracts.v1",
+							"KnowledgeAgentTerminalResult",
+						),
+						handler: {
+							type: "agent_handoff",
+							target: "knowledge_agent",
+						},
+						timeoutMs: 1000,
+						resultProjectionPolicy: "bounded_json",
+						parameterSchema: testParameterSchema,
+					},
+					{
+						name: "knowledge_search",
+						description: "Search admitted campus knowledge.",
+						exposure: "internal_only",
+						readOnly: true,
+						requiresApproval: false,
+						payloadSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeSearchPayload"),
+						resultSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeSearchResult"),
+						handler: {
+							type: "execution_control_internal_query",
+							endpoint: "/internal/query/knowledge/search",
+						},
+						timeoutMs: 12000,
+						resultProjectionPolicy: "bounded_json",
+						parameterSchema: testParameterSchema,
+					},
+				],
+			},
+			runner: async ({ instructions }) => {
+				observedInstructions = instructions;
+				return {
+					finalOutput: "我会查询正式知识库。",
+					terminalEnvelope: { kind: "answer", answerText: "我会查询正式知识库。" },
+					providerResponseId: "resp_allowed_scopes",
+					toolCalls: [],
+					traceRef: "trace_allowed_scopes",
+					usage: { inputTokens: 12, outputTokens: 8 },
+				};
+			},
+		});
+
+		await runtime.run({
+			requestId: "req-allowed-scopes",
+			runId: "run-allowed-scopes",
+			conversationId: "conversation-1",
+			turnId: "turn-allowed-scopes",
+			traceId: "trace-allowed-scopes",
+			input: "转专业条件是什么？",
+			providerConfig,
+			visibleToolNames: ["knowledge_query"],
+			allowedKnowledgeScopes: [
+				{
+					allowedQueryModes: ["current"],
+					description: "学生规则、学籍、奖助处分等正式制度。",
+					scope: "student_rules",
+				},
+			],
+		});
+
+		expect(observedInstructions).toContain("<allowed_knowledge_scopes>");
+		expect(observedInstructions).toContain("student_rules");
+		expect(observedInstructions).toContain("学生规则、学籍、奖助处分等正式制度。");
+		expect(observedInstructions).toContain("Use only these scope values");
 	});
 
 	it("returns a safe prompt trace hashed from the rendered runner instructions", async () => {
@@ -266,7 +324,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-prompt-trace",
 			input: "之后回答能不能先给结论？",
 			providerConfig,
-			visibleToolNames: ["knowledge_query"],
+			visibleToolNames: ["transport_schedule_lookup"],
 			memoryContext: {
 				contextBlock: "用户记忆:\n- 用户偏好回答先给结论",
 				memoryRef: "projection://runs/run-prompt-trace/memory/recall",
@@ -315,7 +373,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-context",
 			input: "那大一能不能申请？",
 			providerConfig,
-			visibleToolNames: ["knowledge_query"],
+			visibleToolNames: ["transport_schedule_lookup"],
 			finalModelContext: {
 				schemaVersion: "final_model_context.v1" as const,
 				currentUserMessage: "那大一能不能申请？",
@@ -328,10 +386,9 @@ describe("primary agent runtime", () => {
 					{
 						messageId: "msg_assistant_002",
 						role: "assistant" as const,
-						summary: "上一轮回答的是转专业申请条件。",
+						content: "上一轮回答的是转专业申请条件。",
 					},
 				],
-				previousAnswerSummary: "上一轮围绕转专业申请条件回答。",
 				previousEvidence: [
 					{
 						accessScope: "public_student_rule",
@@ -356,6 +413,17 @@ describe("primary agent runtime", () => {
 						summary: "上一轮查询了图书馆开放状态。",
 					},
 				],
+				sessionState: {
+					confirmedSlots: [
+						{
+							confirmed: true,
+							name: "curriculum_program",
+							value: "计算机科学与技术",
+						},
+					],
+					selectedNoticeRef: null,
+					turnCount: 2,
+				},
 				usageSummary: {
 					memoryRecallState: "completed" as const,
 					modelVisibleItemCount: 6,
@@ -376,9 +444,8 @@ describe("primary agent runtime", () => {
 
 		expect(observedInput).toBe("那大一能不能申请？");
 		expect(observedInstructions).toContain("<conversation_context>");
-		expect(observedInstructions).toContain(
-			"previous_answer_summary: 上一轮围绕转专业申请条件回答。",
-		);
+		expect(observedInstructions).toContain("- assistant: 上一轮回答的是转专业申请条件。");
+		expect(observedInstructions).toContain("curriculum_program: 计算机科学与技术");
 		expect(observedInstructions).toContain("ev_transfer_rule_01");
 		expect(observedInstructions).toContain("previous_tool_results:");
 		expect(observedInstructions).toContain("projection://runs/run_previous_services/finalization");
@@ -435,6 +502,7 @@ describe("primary agent runtime", () => {
 
 		expect(result.selectedTools).toEqual(["transport_schedule_lookup"]);
 		expect(result.status).toBe("completed");
+		expect(result.terminalReason).toBe("answer_completed");
 		expect(result.toolResults[0]?.resultRef).toBe(
 			"agent-runtime://run-tool/tools/transport_schedule_lookup",
 		);
@@ -445,48 +513,50 @@ describe("primary agent runtime", () => {
 		expect(result.usage.outputTokens).toBe(10);
 	});
 
-	it("projects knowledge workflow-signal selections without requiring a final answer", async () => {
+	it("fails closed when a model-visible typed tool has no executor", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const toolResult = await tools[0]?.execute({ query_text: "学籍管理规定是什么" });
+			const toolResult = await tools[0]?.execute({ query_text: "校车今天几点" });
 			return {
 				finalOutput: "",
-				providerResponseId: "resp_knowledge_signal",
+				providerResponseId: "resp_missing_tool_executor",
 				toolCalls: [
 					{
-						name: "knowledge_query",
-						argumentsSummary: { query_text: "学籍管理规定是什么" },
+						name: "transport_schedule_lookup",
+						argumentsSummary: { query_text: "校车今天几点" },
 						result: toolResult,
 					},
 				],
-				traceRef: "trace_knowledge_signal",
+				traceRef: "trace_missing_tool_executor",
 				usage: { inputTokens: 18, outputTokens: 4 },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
 		const result = await runtime.run({
-			requestId: "req-knowledge-signal",
-			runId: "run-knowledge-signal",
+			requestId: "req-missing-tool-executor",
+			runId: "run-missing-tool-executor",
 			conversationId: "conversation-1",
 			turnId: "turn-4",
 			traceId: "trace-4",
-			input: "学籍管理规定是什么",
+			input: "校车今天几点",
 			providerConfig,
-			visibleToolNames: ["knowledge_query"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
-		expect(result.status).toBe("completed");
+		expect(result.status).toBe("failed");
 		expect(result.finalOutput).toBe("");
-		expect(result.selectedTools).toEqual(["knowledge_query"]);
-		expect(result.terminalReason).toBe("tool_selected");
+		expect(result.selectedTools).toEqual(["transport_schedule_lookup"]);
+		expect(result.terminalReason).toBe("agent_runtime_failed");
 		expect(result.toolResults).toEqual([
 			{
-				status: "completed",
-				toolName: "knowledge_query",
-				payloadKind: "knowledge_query",
-				argumentsJson: { query_text: "学籍管理规定是什么" },
-				result: { workflow_signal: "knowledge_query" },
-				resultRef: "agent-runtime://run-knowledge-signal/tools/knowledge_query",
+				status: "failed",
+				toolName: "transport_schedule_lookup",
+				payloadKind: "transport_schedule_lookup",
+				argumentsJson: { query_text: "校车今天几点" },
+				result: { error: "tool executor is not configured" },
+				resultRef:
+					"agent-runtime://run-missing-tool-executor/tools/transport_schedule_lookup/failed",
+				failCloseReason: "tool_executor_not_configured",
 			},
 		]);
 	});

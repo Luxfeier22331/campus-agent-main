@@ -54,25 +54,19 @@ pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 
 ### Execution Control runtime gate
 
-`execution-control` doctor surface now checks execution runtime inputs separately
-from Worker staging:
+`execution-control` doctor surface checks the current runtime config, Temporal
+connection and worker identities, run projection database, internal query auth
+and service credentials separately from Worker staging.
 
-- shared LLM provider resolution
-- execution / agent prompt model selection
-- execution-control base URL / shared secret
-- prompt HTTP timeout and connection-pool tuning keys
-- async audit queue capacity
-- answer admission and worker-thread tuning keys
-
-Conditional readiness:
+Conditional readiness is limited to config-owned optional features:
 
 - if runtime config `execution_audit.enabled=true`, doctor requires
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-- if runtime config `open_tools` opens concrete campus-services or notice tools,
-  doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
-  `CAMPUS_SHARED_POSTGRES_URL`; current notice-open readiness is read-model
-  backed and does not require notice body object-store credentials
+
+Tool exposure is owned by `configs/runtime/tools.v4.json`, not by an
+`open_tools` field in runtime config. The doctor therefore does not infer tool
+readiness from a retired runtime profile shape.
 
 Runtime `/readyz` is stricter than liveness:
 

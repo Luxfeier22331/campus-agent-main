@@ -17,10 +17,8 @@ This directory holds the repo-tracked config scaffold for the
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`:
   freeze that source-triage notices and regulation-owned documents are different
   collection layers
-- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`:
+- `docs/reference/institutional-rules-promotion.md`:
   target identity and acceptance truth
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
-  `: local-only target acceptance operator path
 
 Current serving truth:
 

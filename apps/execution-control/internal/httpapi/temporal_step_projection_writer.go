@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
@@ -31,12 +30,9 @@ type temporalStepProjection struct {
 	OutputTokens          int64
 	CachedInputTokens     int64
 	Payload               map[string]any
-	PricingVersion        string
 	ProjectionRef         string
 	ProviderRequestRef    string
 	ProviderResponseID    string
-	ProviderSummary       *provider.ExecutionSummary
-	ReplanReason          string
 	ResultKind            string
 	Run                   execution.DurableRun
 	ScheduledAt           time.Time
@@ -64,9 +60,6 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		if !temporalPostFinalizationStepAllowed(projection.StepID) {
 			completionErr = s.ensureTemporalStepCompletionAllowed(ctx, &projection)
 		}
-	}
-	if projection.ProviderSummary != nil {
-		projection = projection.withProviderSummary(*projection.ProviderSummary)
 	}
 	attempt := projection.Attempt
 	if attempt <= 0 {
@@ -125,12 +118,10 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		OutputTokens:          projection.OutputTokens,
 		CachedInputTokens:     projection.CachedInputTokens,
 		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
-		PricingVersion:        projection.PricingVersion,
 		CancelOutcome:         projection.CancelOutcome,
 		TimeoutOutcome:        projection.TimeoutOutcome,
 		LateCompletionOutcome: projection.LateCompletionOutcome,
 		FailCloseReason:       projection.FailCloseReason,
-		ReplanReason:          projection.ReplanReason,
 		TerminalReason:        projection.TerminalReason,
 		UpdatedAt:             updatedAt,
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
@@ -194,6 +185,7 @@ func temporalStepObservationEvent(projection temporalStepProjection) telemetry.E
 		Duration:              time.Duration(projection.DurationMS) * time.Millisecond,
 		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
 		FailCloseReason:       strings.TrimSpace(projection.FailCloseReason),
+		FailureKind:           firstNonEmptyText(projection.Payload["failure_kind"]),
 		InputTokens:           projection.InputTokens,
 		ModelName:             strings.TrimSpace(projection.ModelName),
 		ModelProvider:         strings.TrimSpace(projection.ModelProvider),
@@ -323,38 +315,6 @@ func lateCompletionOutcomeForTerminalRun(status execution.DurableRunStatus) exec
 	}
 }
 
-func (projection temporalStepProjection) withProviderSummary(
-	summary provider.ExecutionSummary,
-) temporalStepProjection {
-	projection.ProviderRequestRef = defaultString(projection.ProviderRequestRef, summary.ProviderRequestRef)
-	projection.ProviderResponseID = defaultString(projection.ProviderResponseID, summary.ProviderResponseID)
-	projection.ModelProvider = defaultString(projection.ModelProvider, summary.ModelProvider)
-	projection.ModelName = defaultString(projection.ModelName, summary.ModelName)
-	if projection.InputTokens == 0 {
-		projection.InputTokens = summary.InputTokens
-	}
-	if projection.OutputTokens == 0 {
-		projection.OutputTokens = summary.OutputTokens
-	}
-	if projection.CachedInputTokens == 0 {
-		projection.CachedInputTokens = summary.CachedInputTokens
-	}
-	if projection.EstimatedCostMicroUSD == 0 {
-		projection.EstimatedCostMicroUSD = summary.EstimatedCostMicroUSD
-	}
-	projection.PricingVersion = defaultString(projection.PricingVersion, summary.PricingVersion)
-	if projection.CancelOutcome == "" {
-		projection.CancelOutcome = execution.CancelOutcome(summary.CancelOutcome)
-	}
-	if projection.TimeoutOutcome == "" {
-		projection.TimeoutOutcome = execution.TimeoutOutcome(summary.TimeoutOutcome)
-	}
-	if projection.LateCompletionOutcome == "" {
-		projection.LateCompletionOutcome = execution.LateCompletionOutcomeNotLate
-	}
-	return projection
-}
-
 func (s *Server) withTemporalActivityEvidence(
 	ctx context.Context,
 	projection temporalStepProjection,
@@ -427,30 +387,25 @@ func (s *Server) withTemporalActivityEvidence(
 }
 
 func temporalActivityTypeForStep(stepID string) string {
-	switch strings.TrimSpace(stepID) {
+	normalized := strings.TrimSpace(stepID)
+	switch normalized {
 	case "memory.recall":
 		return temporalruntime.MemoryRecallActivityName
+	case "memory.append":
+		return temporalruntime.AppendConversationMemoryActivityName
 	case "memory.operation_status":
 		return temporalruntime.MemoryOperationStatusActivityName
 	case "memory.reflect":
 		return temporalruntime.MemoryReflectActivityName
-	case "plan.route":
-		return temporalruntime.PlanRouteActivityName
-	case "rag.plan":
-		return temporalruntime.PlanRAGActivityName
-	case "retrieval.indexed_lookup":
-		return temporalruntime.RetrieveIndexedLookupActivityName
-	case "evidence.selection":
-		return temporalruntime.SelectEvidenceActivityName
-	case "synthesis":
-		return temporalruntime.SynthesizeRAGAnswerActivityName
-	case "grounding.verify":
-		return temporalruntime.VerifyGroundingActivityName
-	case "typed_tool.execute":
-		return temporalruntime.ExecuteTypedToolActivityName
+	case "agent.primary":
+		return temporalruntime.ExecutePrimaryAgentActivityName
 	case "finalization.write":
 		return temporalruntime.WriteFinalizationActivityName
 	default:
+		if strings.HasPrefix(normalized, "knowledge.search.") ||
+			strings.HasPrefix(normalized, "sdk_tool.execute.") {
+			return temporalruntime.ExecutePrimaryAgentActivityName
+		}
 		return ""
 	}
 }

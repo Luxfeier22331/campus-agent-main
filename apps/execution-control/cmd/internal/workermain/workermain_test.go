@@ -46,13 +46,13 @@ func TestWorkerOptionsForRolePreservesProfileAndAppliesTracing(t *testing.T) {
 	options, err := workerOptionsForRole(
 		config.Config{
 			WorkerProfiles: map[string]config.WorkerProfile{
-				string(RoleKnowledge): {
+				string(RoleAgent): {
 					ActivitySlots:       3,
 					ActivityTaskPollers: 2,
 				},
 			},
 		},
-		RoleKnowledge,
+		RoleAgent,
 		tracing,
 	)
 	if err != nil {
@@ -86,7 +86,7 @@ func TestWorkerOptionsForRoleAppliesTracingToUnprofiledWorkers(t *testing.T) {
 func TestCheckRuntimeValidatesRoleConfiguration(t *testing.T) {
 	setWorkerRuntimeEnv(t)
 
-	if err := CheckRuntime(RoleKnowledge); err != nil {
+	if err := CheckRuntime(RoleAgent); err != nil {
 		t.Fatalf("CheckRuntime returned error: %v", err)
 	}
 }
@@ -95,7 +95,7 @@ func TestCheckRuntimeRejectsInvalidTemporalConfiguration(t *testing.T) {
 	setWorkerRuntimeEnv(t)
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
 
-	err := CheckRuntime(RoleKnowledge)
+	err := CheckRuntime(RoleAgent)
 	if err == nil {
 		t.Fatal("expected CheckRuntime to reject missing Temporal address")
 	}
@@ -173,7 +173,9 @@ func setWorkerRuntimeEnv(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:activity-knowledge:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:activity-agent:001")
+	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:8090")
+	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", "agent-runtime-secret")
 	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888")
 	t.Setenv("PERSONAL_MEMORY_API_SECRET", "hindsight-secret")
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "memory-salt")

@@ -73,14 +73,10 @@ Readiness must confirm:
 Required activity task queues:
 
 - `campus-agent.activity.core`
-- `campus-agent.activity.knowledge`
+- `campus-agent.activity.agent`
 
-Tool-gated activity task queues:
-
-- `campus-agent.activity.core`
-
-If runtime config `open_tools` opens a concrete typed tool, the matching task
-queue must have a poller. Missing pollers are a readiness blocker.
+Both activity queues must have recent pollers. Internal SDK tool calls do not
+create per-tool Temporal queues.
 
 ## Worker Identity
 
@@ -284,9 +280,10 @@ kubectl kustomize clusters/<environment>/overlays/execution-runtime >/dev/null
 The K8s staging validation must confirm:
 
 - exactly one Deployment and one KEDA ScaledObject exist for each worker pool
+- worker pools are exactly `workflow-worker`, `activity-worker-core` and
+  `activity-worker-agent`
 - every ScaledObject has `minReplicaCount=1`
-- `activity-worker-knowledge` has `maxReplicaCount=5`; other pools have
-  `maxReplicaCount=3`
+- every worker pool has the current baseline `maxReplicaCount=3`
 - every ScaledObject uses `targetQueueSize="8"`, `pollingInterval=15`,
   `cooldownPeriod=180` and HPA scale-down stabilization `300`
 - `temporal-task-queue-sampler` writes fresh

@@ -48,7 +48,7 @@ func TestParseOptionsBuildsInClusterServerURLAndDefaultTargets(t *testing.T) {
 	if options.kubernetesCAFile != caFile {
 		t.Fatalf("kubernetesCAFile = %q", options.kubernetesCAFile)
 	}
-	if len(options.targets) != 4 {
+	if len(options.targets) != 3 {
 		t.Fatalf("target count = %d", len(options.targets))
 	}
 	if options.targets[0].Name != "workflow-worker" ||
@@ -56,9 +56,9 @@ func TestParseOptionsBuildsInClusterServerURLAndDefaultTargets(t *testing.T) {
 		options.targets[0].TaskQueue != "campus-agent.workflow" {
 		t.Fatalf("workflow target = %#v", options.targets[0])
 	}
-	if options.targets[3].Name != "activity-worker-knowledge" ||
-		options.targets[3].MaxReplicas != 5 {
-		t.Fatalf("knowledge target = %#v", options.targets[3])
+	if options.targets[2].Name != "activity-worker-agent" ||
+		options.targets[2].MaxReplicas != 3 {
+		t.Fatalf("agent target = %#v", options.targets[2])
 	}
 }
 

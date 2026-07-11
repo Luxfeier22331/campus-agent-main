@@ -38,7 +38,7 @@ updated: 2026-07-10
 
 ## Authenticated Notice / Internal Notice Quality Acceptance
 
-- `institutional-regulations-promotion-quality-acceptance.md`
+- `institutional-rules-promotion.md`
 
 ## Navigation / Inventory
 

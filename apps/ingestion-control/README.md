@@ -5,10 +5,10 @@ Internal task control plane for ingestion/data-plane execution.
 This app owns the ingestion Temporal runtime boundary. Runtime-neutral package
 helpers may be reused here, but Temporal workflow/activity execution,
 object-store access, handler registration, registry-aware activity invocation
-and terminal closeout stay in this app boundary. The generic registry-aware
-task dispatcher and stable execution error-code mapping are imported from
-`packages/ingest-core`; this app wires that dispatcher to Temporal activities,
-concrete handlers, object-store access and task closeout storage.
+and terminal closeout stay in this app boundary. The registry-aware task
+dispatcher and stable execution error-code mapping are owned here because they
+bind registry validation to concrete TS handlers, Rust kernels, object-store
+access and task closeout storage.
 
 This package is the first implementation slice of the target ingestion runtime:
 
@@ -33,6 +33,16 @@ Runtime mode is Postgres-backed and fail-closed:
   before storage when the registry entry or output contract is missing
 - `INGESTION_CONTROL_HOST` defaults to `0.0.0.0`
 - `INGESTION_CONTROL_PORT` defaults to `8000`
+- `INGESTION_CONTROL_ADMIN_TOKEN` protects task admission and task detail
+  reads
+- `INGESTION_CONTROL_APP_API_PROJECTION_TOKEN` protects redacted operator task
+  projection reads consumed by `apps/app-api`
+- `INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN` protects official-web run
+  lifecycle writes
+- `INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN` protects
+  official-web ingestion execution status updates
+- `INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN` protects official-web
+  projection drain work
 - `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_SOURCE_ACCESS_KEY`,
   `OBJECT_STORE_SOURCE_SECRET_KEY` and optional `OBJECT_STORE_BUCKET_SOURCE`
   configure source-bucket access for object-store backed task handlers
@@ -60,6 +70,9 @@ Rust binary from `packages/ingestion-kernels-rs`. Without object-store access,
 default Rust kernels are not registered and tasks fail closed with
 `rust_kernel_not_registered`; ingestion-control does not provide JS or Python
 stand-ins for deterministic kernels.
+The bridge treats stdout `error_count > 0` as a failed kernel run even when the
+binary exits with code 0, and it does not write a kernel artifact for reported
+kernel errors.
 `chunk-document-units` resolves collection-specific token budgets from
 `chunk-profile.json` files under `INGESTION_TASK_REGISTRY_ROOT`; the Temporal
 worker parses those profiles in TypeScript and passes resolved numeric CLI
@@ -86,6 +99,11 @@ Local control-plane run:
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
 export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
+export INGESTION_CONTROL_ADMIN_TOKEN=local-admin-token
+export INGESTION_CONTROL_APP_API_PROJECTION_TOKEN=local-app-api-projection-token
+export INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN=local-official-web-token
+export INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN=local-official-web-execution-status-token
+export INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN=local-official-web-projection-token
 pnpm --filter ingestion-control start:api
 ```
 

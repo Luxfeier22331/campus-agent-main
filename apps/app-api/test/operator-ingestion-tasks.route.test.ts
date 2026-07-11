@@ -23,6 +23,7 @@ describe("operator ingestion task route", () => {
 							source_channel: "curriculum_plan",
 							corpus: "curriculum",
 							collection: "curriculum_plan",
+							registry_task_id: "chunk_prepare",
 							task_kind: "chunk_prepare",
 							status: "completed",
 							created_at: "2026-06-11T00:00:00.000Z",
@@ -45,6 +46,7 @@ describe("operator ingestion task route", () => {
 			{
 				...env,
 				INGESTION_CONTROL_BASE_URL: "http://ingestion-control",
+				INGESTION_CONTROL_APP_API_PROJECTION_TOKEN: "app-api-projection-token",
 			},
 			{
 				getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
@@ -70,6 +72,7 @@ describe("operator ingestion task route", () => {
 					source_channel: "curriculum_plan",
 					corpus: "curriculum",
 					collection: "curriculum_plan",
+					registry_task_id: "chunk_prepare",
 					task_kind: "chunk_prepare",
 					status: "completed",
 					created_at: "2026-06-11T00:00:00.000Z",
@@ -87,7 +90,12 @@ describe("operator ingestion task route", () => {
 		});
 		expect(fetchImplementation).toHaveBeenCalledWith(
 			"http://ingestion-control/internal/ingestion/operator-projection/tasks?corpus=curriculum&collection=curriculum_plan&status=completed",
-			{ method: "GET" },
+			{
+				method: "GET",
+				headers: {
+					authorization: "Bearer app-api-projection-token",
+				},
+			},
 		);
 	});
 });

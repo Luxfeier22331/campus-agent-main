@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 
 from campus_ragas_runner.score_batch import (
@@ -13,6 +14,11 @@ from campus_ragas_runner.score_batch import (
     _load_public_id_metric_builders,
     build_ragas_scorer,
     run_ragas_score_batch,
+)
+
+warnings.filterwarnings(
+    "ignore",
+    category=ResourceWarning,
 )
 
 
@@ -235,18 +241,15 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             build_ragas_scorer(settings)
 
     def test_uses_official_no_reference_context_precision_metric(self) -> None:
-        from openai import OpenAI
-        from ragas.embeddings.base import embedding_factory
-        from ragas.llms import llm_factory
+        from ragas.llms.base import InstructorBaseRagasLLM
 
-        client = OpenAI(api_key="sk-test", max_retries=0)
-        llm = llm_factory("gpt-4o-mini", client=client, temperature=0)
-        embeddings = embedding_factory(
-            provider="openai",
-            model="text-embedding-3-small",
-            client=client,
-            interface="modern",
-        )
+        class FakeInstructorLLM(InstructorBaseRagasLLM):
+            def generate(self, prompt, response_model):  # type: ignore[no-untyped-def]
+                raise AssertionError("metric construction must not call generate")
+
+            async def agenerate(self, prompt, response_model):  # type: ignore[no-untyped-def]
+                raise AssertionError("metric construction must not call agenerate")
+
         projection = RagasProjection(
             case_id="case-001",
             user_input="What are the library opening hours?",
@@ -257,8 +260,8 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
 
         metrics = _build_metrics(
             metric_names=("context_precision",),
-            llm=llm,
-            embeddings=embeddings,
+            llm=FakeInstructorLLM(),
+            embeddings=object(),
             projection=projection,
         )
 

@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
+
 SAMPLE_BATCH_SCHEMA_VERSION = "ragas_sample_batch.v1"
 SCORE_BATCH_SCHEMA_VERSION = "ragas_score_batch.v1"
 DEFAULT_RAGAS_METRIC_NAMES = (
@@ -59,6 +61,7 @@ FORBIDDEN_SAMPLE_FIELD_NAMES = frozenset(
         "raw_provider_response",
         "raw_retrieved_snippet",
         "raw_trace",
+        "raw_transcript",
         "source_url",
         "source_body",
         "transcript",

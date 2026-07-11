@@ -486,19 +486,19 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	createRunProjectionForTest(t, store, "run-steps", "conv-steps", now)
 
 	step, err := store.UpsertRunStep(ctx, RunStepProjection{
-		StepID:               "step-planning",
+		StepID:               "agent.primary",
 		RunID:                "run-steps",
 		ConversationID:       "conv-steps",
-		StepKind:             "planning",
-		Tool:                 "structured",
+		StepKind:             "agent",
+		Tool:                 "knowledge_query",
 		Status:               "completed",
-		TaskQueue:            "campus-agent.workflow",
-		WorkerID:             "staging:workflow:001",
+		TaskQueue:            "campus-agent.activity.agent",
+		WorkerID:             "staging:agent:001",
 		StartedAt:            now.Add(time.Second),
 		CompletedAt:          now.Add(2 * time.Second),
 		UpdatedAt:            now.Add(2 * time.Second),
 		PayloadSchemaVersion: "run-step-v1",
-		SanitizedPayload:     map[string]any{"shape": "single_step"},
+		SanitizedPayload:     map[string]any{"shape": "agent_loop"},
 	})
 	if err != nil {
 		t.Fatalf("upsert run step: %v", err)
@@ -506,17 +506,17 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	step.SanitizedPayload["shape"] = "mutated"
 
 	attempt, err := store.UpsertStepAttempt(ctx, StepAttemptProjection{
-		AttemptID:             "attempt-planning-1",
-		StepID:                "step-planning",
+		AttemptID:             "attempt-agent-1",
+		StepID:                "agent.primary",
 		RunID:                 "run-steps",
 		Attempt:               1,
 		Status:                "completed",
-		TaskQueue:             "campus-agent.workflow",
-		WorkerID:              "staging:workflow:001",
+		TaskQueue:             "campus-agent.activity.agent",
+		WorkerID:              "staging:agent:001",
 		WorkflowID:            "campus-agent.chat.run-steps",
 		TemporalRunID:         "temporal-run-001",
-		ActivityID:            "activity-planning-001",
-		ActivityType:          "PlanRouteActivity",
+		ActivityID:            "activity-agent-001",
+		ActivityType:          "ExecutePrimaryAgentActivity",
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(900 * time.Millisecond),
 		StartedAt:             now.Add(time.Second),
@@ -531,12 +531,10 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		OutputTokens:          40,
 		CachedInputTokens:     20,
 		EstimatedCostMicroUSD: 123,
-		PricingVersion:        "provider-pricing-v1",
 		CancelOutcome:         CancelOutcomeNotRequested,
 		TimeoutOutcome:        TimeoutOutcomeNotTimedOut,
 		LateCompletionOutcome: LateCompletionOutcomeIgnoredAfterCancel,
 		FailCloseReason:       "source_conflict",
-		ReplanReason:          "bounded_retry_after_timeout",
 		TerminalReason:        "answer_completed",
 		UpdatedAt:             now.Add(2 * time.Second),
 		PayloadSchemaVersion:  "step-attempt-v1",
@@ -548,16 +546,16 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	attempt.SanitizedPayload["provider"] = "mutated"
 
 	result, err := store.UpsertStepResult(ctx, StepResultProjection{
-		ResultID:             "result-planning-1",
-		StepID:               "step-planning",
+		ResultID:             "result-agent-1",
+		StepID:               "agent.primary",
 		RunID:                "run-steps",
-		AttemptID:            "attempt-planning-1",
+		AttemptID:            "attempt-agent-1",
 		Status:               "completed",
-		ResultKind:           "plan",
-		ProjectionRef:        "runtime.agent_run_steps/step-planning",
+		ResultKind:           "agent_final_output",
+		ProjectionRef:        "runtime.agent_run_steps/agent.primary",
 		CreatedAt:            now.Add(2 * time.Second),
 		PayloadSchemaVersion: "step-result-v1",
-		SanitizedPayload:     map[string]any{"selected_tool": "rag"},
+		SanitizedPayload:     map[string]any{"selected_tool": "knowledge_query"},
 	})
 	if err != nil {
 		t.Fatalf("upsert step result: %v", err)
@@ -568,8 +566,8 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
 	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["shape"] != "single_step" {
-		t.Fatalf("steps = %#v, want defensive persisted planning step", steps)
+	if len(steps) != 1 || steps[0].SanitizedPayload["shape"] != "agent_loop" {
+		t.Fatalf("steps = %#v, want defensive persisted agent step", steps)
 	}
 	attempts, err := store.ListStepAttempts(ctx, "run-steps")
 	if err != nil {
@@ -579,7 +577,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		t.Fatalf("attempts = %#v, want defensive persisted attempt", attempts)
 	}
 	if attempts[0].WorkflowID != "campus-agent.chat.run-steps" ||
-		attempts[0].ActivityType != "PlanRouteActivity" ||
+		attempts[0].ActivityType != "ExecutePrimaryAgentActivity" ||
 		attempts[0].ScheduleToStartMS != 100 ||
 		attempts[0].DurationMS != 1000 ||
 		attempts[0].ProviderResponseID != "resp_001" ||
@@ -590,15 +588,14 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		attempts[0].CancelOutcome != CancelOutcomeNotRequested ||
 		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut ||
 		attempts[0].LateCompletionOutcome != LateCompletionOutcomeIgnoredAfterCancel ||
-		attempts[0].FailCloseReason != "source_conflict" ||
-		attempts[0].ReplanReason != "bounded_retry_after_timeout" {
+		attempts[0].FailCloseReason != "source_conflict" {
 		t.Fatalf("attempt evidence fields = %#v, want first-class temporal/provider evidence", attempts[0])
 	}
 	results, err := store.ListStepResults(ctx, "run-steps")
 	if err != nil {
 		t.Fatalf("list step results: %v", err)
 	}
-	if len(results) != 1 || results[0].SanitizedPayload["selected_tool"] != "rag" {
+	if len(results) != 1 || results[0].SanitizedPayload["selected_tool"] != "knowledge_query" {
 		t.Fatalf("results = %#v, want defensive persisted result", results)
 	}
 }

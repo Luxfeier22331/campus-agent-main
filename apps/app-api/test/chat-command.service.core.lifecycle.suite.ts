@@ -23,7 +23,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 					[
 						'event: execution.queued\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
 						'event: execution.running\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
-						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_tool":"knowledge_query","status":"completed","trace_id":"trace_0001"}}',
+						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","resolved_scope":"student_rules","session_update":null,"result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_tool":"knowledge_query","status":"completed","trace_id":"trace_0001"}}',
 					].join("\n\n"),
 					{
 						headers: {
@@ -54,7 +54,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆开放到几点？",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		})) {
 			events.push(event);
 			if (event.event === "request.completed") {
@@ -157,7 +157,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆开放到几点？",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		})) {
 			events.push(event);
 		}
@@ -186,20 +186,14 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
-				answerText: "图书馆在海淀校区主教学区西侧。",
+				answerText: "学校官网显示图书馆位于海淀校区主教学区西侧。",
 				error: null,
 				followUpQuestion: "",
 				result: {
-					place_card: {
-						location_description: "海淀校区主教学区西侧。",
-						place: {
-							display_name: "图书馆",
-							entity_type: "building",
-							place_id: "muc.haidian.library",
-						},
-					},
+					outcome: "resolved_current",
+					query_text: "图书馆在哪里",
 				},
-				selectedTool: "place_lookup",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -219,7 +213,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
@@ -239,7 +233,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				requestedTool: null,
-				selectedTool: "place_lookup",
+				selectedTool: "knowledge_query",
 			},
 			requestObservabilityFact: {
 				requestedTool: null,

@@ -1,10 +1,10 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: data-plane canonical artifacts / document reader projection
+owner_boundary: data-plane/document-reader
 status: active
 created: 2026-04-21
-updated: 2026-07-05
+updated: 2026-07-08
 ---
 # Canonical Document Reader Model
 
@@ -264,5 +264,5 @@ docs search 与 chat 共享的最小公共子集固定为：
 - `docs/architecture/system/document-site.md`
 - `docs/architecture/system/data-plane.md`
 - `docs/domains/source-card.md`
-- `docs/policies/student-handbook-chunking-and-validation-policy.md`
+- `docs/policies/student-rules-chunking.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

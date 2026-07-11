@@ -39,7 +39,6 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		trace_id: "trace_durable_001",
 		turn_id: "turn_durable_001",
 		updated_at: "2026-06-04T01:02:04Z",
-		workflow_plan_ref: "",
 		...overrides,
 	};
 }
@@ -63,10 +62,10 @@ function durableRunStepsPayload(
 		attempts: [
 			{
 				activity_attempt: 1,
-				activity_id: "activity-planning-1",
-				activity_type: "PlanRouteActivity",
+				activity_id: "activity-agent-1",
+				activity_type: "ExecutePrimaryAgentActivity",
 				attempt: 1,
-				attempt_id: "plan.route:attempt:1",
+				attempt_id: "agent.primary:attempt:1",
 				cached_input_tokens: 10,
 				cancel_outcome: "not_requested",
 				completed_at: "2026-06-04T01:02:04.100Z",
@@ -79,23 +78,21 @@ function durableRunStepsPayload(
 				model_provider: "openai",
 				output_tokens: 42,
 				payload_schema_version: "step-attempt-projection-v1",
-				pricing_version: "provider-pricing-v1",
 				provider_request_ref: "provider://requests/req_001",
 				provider_response_id: "resp_001",
-				replan_reason: "bounded_replan_after_provider_timeout",
 				run_id: "run_durable_001",
 				sanitized_payload: {},
 				schedule_to_start_ms: 25,
 				scheduled_at: "2026-06-04T01:02:03.975Z",
 				started_at: "2026-06-04T01:02:04.000Z",
 				status: "completed",
-				step_id: "plan.route",
-				task_queue: "campus-agent.activity.core",
+				step_id: "agent.primary",
+				task_queue: "campus-agent.activity.agent",
 				temporal_run_id: "temporal-run-001",
 				terminal_reason: "answer_completed",
 				timeout_outcome: "not_timed_out",
 				updated_at: "2026-06-04T01:02:04.100Z",
-				worker_id: "staging:context:worker-1",
+				worker_id: "staging:agent:worker-1",
 				workflow_id: "campus-agent.chat.run_durable_001",
 				...attemptOverrides,
 			},
@@ -112,11 +109,11 @@ function durableRunStepsPayload(
 				sanitized_payload: {},
 				started_at: "2026-06-04T01:02:04.000Z",
 				status: "completed",
-				step_id: "plan.route",
-				step_kind: "planning",
-				task_queue: "campus-agent.activity.core",
+				step_id: "agent.primary",
+				step_kind: "agent",
+				task_queue: "campus-agent.activity.agent",
 				updated_at: "2026-06-04T01:02:04.100Z",
-				worker_id: "staging:context:worker-1",
+				worker_id: "staging:agent:worker-1",
 			},
 		],
 	};
@@ -165,7 +162,6 @@ describe("execution control runtime adapter", () => {
 
 		const result = await client.createRun({
 			conversationId: "conv_durable_001",
-			taskQueue: "campus-agent.workflow",
 			metadata: {
 				execution_payload: {
 					conversation_id: "conv_durable_001",
@@ -175,12 +171,10 @@ describe("execution control runtime adapter", () => {
 			},
 			ownerUserId: "user_001",
 			requestId: "req_durable_001",
-			requestedTool: "knowledge_query",
 			runId: "run_durable_001",
 			runtimeVersions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
-			selectedTool: "knowledge_query",
 			surface: "campus-web",
 			traceId: "trace_durable_001",
 			turnId: "turn_durable_001",
@@ -208,14 +202,11 @@ describe("execution control runtime adapter", () => {
 			},
 			owner_user_id: "user_001",
 			request_id: "req_durable_001",
-			requested_tool: "knowledge_query",
 			run_id: "run_durable_001",
 			runtime_versions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
-			selected_tool: "knowledge_query",
 			surface: "campus-web",
-			task_queue: "campus-agent.workflow",
 			trace_id: "trace_durable_001",
 			turn_id: "turn_durable_001",
 		});
@@ -240,7 +231,6 @@ describe("execution control runtime adapter", () => {
 			traceId: "trace_durable_001",
 			turnId: "turn_durable_001",
 			updatedAt: "2026-06-04T01:02:04Z",
-			workflowPlanRef: "",
 		});
 	});
 
@@ -421,7 +411,6 @@ describe("execution control runtime adapter", () => {
 			expect.objectContaining({
 				failCloseReason: "current_state_unverifiable",
 				lateCompletionOutcome: "ignored_after_timeout",
-				replanReason: "bounded_replan_after_provider_timeout",
 			}),
 		);
 		expect(trajectory.agentRuntimeEvalProjection).toMatchObject({
@@ -726,8 +715,7 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				taskQueue: "campus-agent.workflow",
-				metadata: { execution_payload: {}, handoff: {} },
+				metadata: { execution_payload: {} },
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",
 				runId: "run_durable_001",
@@ -763,8 +751,7 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				taskQueue: "campus-agent.workflow",
-				metadata: { execution_payload: {}, handoff: {} },
+				metadata: { execution_payload: {} },
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",
 				runId: "run_durable_001",

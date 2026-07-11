@@ -26,8 +26,7 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - Langfuse can store `ragas.*` scores published from repo-owned safe
   projections.
 - Agent tool-use cases can be stored as Langfuse datasets / experiments for
-  routing, tool selection, source quality and fail-closed review. Public web
-  search is the first tool-specific slice.
+  routing, tool selection, handoff, evidence quality and fail-closed review.
 - Langfuse datasets can be synced from repo RAG eval assets without fabricating
   answers or retrieved contexts.
 - Langfuse experiments and annotation queues can be used as official platform
@@ -82,8 +81,7 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 
 - Active score names are the names registered in
   `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
-  Current families include `ragas.*`, `agent.*` and tool-specific scores such
-  as `public_web_search.*`.
+  Current families include `ragas.*` and `agent.*`.
 - Every published score must exist in
   `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
 - Unknown score names, invalid target identity or forbidden metadata must fail
@@ -118,22 +116,16 @@ eval evidence while avoiding repo-owned self-built eval frameworks.
 - The retired eval coverage / diagnostic-badcase / Langfuse backlink projection
   paths must not be restored as product requirements.
 
-### 5.6 Public Web Search Agent Eval
+### 5.6 Knowledge Agent Eval
 
-- Public-web-search eval is the first `agent-tool-use` slice: routing/tool
-  selection, source quality and grounded answer review.
-- Its repo eval asset lives under
-  `packages/eval-langfuse/assets/datasets/agent/public_web_search/`.
-- Asset validation is owned by `packages/eval-langfuse`:
-  `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts validate-public-web-search-eval`.
+- `agent-tool-use` distinguishes direct answer, `transport_schedule_lookup` and
+  `knowledge_query` handoff.
+- Knowledge cases validate official SDK handoff, strict scope/version arguments,
+  internal `knowledge_search` evidence and finalized source integrity.
 - Tool-use scoring consumes `tool_trajectory.v1`; it must not infer routing
   from raw prompt, provider response or final answer prose.
-- It must not be scored through RAGAS unless a dedicated case explicitly evaluates
-  RAG answer synthesis over materialized retrieval contexts. The public web
-  typed tool readiness smoke is not an eval run.
-- Default provider selection for this tool is governed by the public-web-search
-  provider bakeoff rules in [Eval Reference](../reference/eval.md), not by this
-  product requirement document.
+- Answer/evidence quality is scored separately from tool selection and contract
+  validity.
 
 ## 6. Data Boundary
 
@@ -182,8 +174,8 @@ own narrower contract and never allow secrets or auth material.
 - Restricted replay-backed eval validates packet TTL, policy mode,
   allowed_raw_fields, RBAC/audit requirements and deletion linkage before
   consuming a packet.
-- `validate-public-web-search-eval` validates public web search agent cases,
-  expected tool labels and public HTTPS MUC URL constraints.
+- Agent-tool-use validation covers current model-visible tools and rejects
+  undeclared tool labels.
 
 ## 8. References
 

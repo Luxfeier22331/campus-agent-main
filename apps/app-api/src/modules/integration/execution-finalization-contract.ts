@@ -24,14 +24,8 @@ export const STAGE_TIMING_FIELDS = [
 	"agent.runtime_ms",
 	"agent.first_delta_ms",
 	"tool.total_ms",
-	"tool.knowledge_query_ms",
 	"tool.transport_schedule_lookup_ms",
-	"tool.campus_notice_discover_ms",
-	"rag.plan_ms",
-	"rag.lookup_ms",
-	"rag.rerank_ms",
-	"rag.synthesis_ms",
-	"rag.grounding_ms",
+	"knowledge.search_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;
@@ -58,8 +52,16 @@ export interface ExecutionFinalizationResponseWire {
 	error: { code: string; message: string; retryable: boolean } | null;
 	follow_up_question: string;
 	observability?: Record<string, unknown> | null;
+	resolved_scope: string | null;
 	result: Record<string, unknown> | null;
 	selected_tool: string | null;
+	session_update: {
+		upsert_slots: Array<{
+			confirmed: true;
+			name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
+			value: string;
+		}>;
+	} | null;
 	stage_timing?: StageTimingWire | null;
 	status: ExecutionFinalizationStatus;
 	trace_id: string;

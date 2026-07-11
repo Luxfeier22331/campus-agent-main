@@ -27,9 +27,9 @@ func TestReadyzDoesNotRequireRetiredPythonHandoffForOnlineRAGRuntime(t *testing.
 	if _, ok := body[retiredKey]; ok {
 		t.Fatalf("readyz must not publish retired runtime state in online path: %#v", body[retiredKey])
 	}
-	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
-	if ragRuntime["healthy"] != true {
-		t.Fatalf("rag_runtime = %#v, want healthy", ragRuntime)
+	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
+	if knowledgeSearchRuntime["healthy"] != true {
+		t.Fatalf("knowledge_search_runtime = %#v, want healthy", knowledgeSearchRuntime)
 	}
 	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
 	if temporalRuntime["healthy"] != true {
@@ -106,9 +106,9 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	if _, ok := body[retiredKey]; ok {
 		t.Fatalf("readyz must not publish retired runtime state in online path")
 	}
-	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
-	if ragRuntime["healthy"] != true {
-		t.Fatalf("rag_runtime = %#v, want healthy", ragRuntime)
+	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
+	if knowledgeSearchRuntime["healthy"] != true {
+		t.Fatalf("knowledge_search_runtime = %#v, want healthy", knowledgeSearchRuntime)
 	}
 	if _, ok := body["prompt_config_gate"]; ok {
 		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
@@ -155,19 +155,7 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
-					Type:    temporalruntime.TaskQueueTypeActivity,
-					Pollers: 1,
-					Healthy: true,
-				},
-				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
-					Type:    temporalruntime.TaskQueueTypeActivity,
-					Pollers: 1,
-					Healthy: true,
-				},
-				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
+					Name:    temporalruntime.ActivityTaskQueueAgent,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
@@ -198,10 +186,8 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 	}
 }
 
-func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"campus_notice_discover"}
-	})
+func TestReadyzDoesNotRequireNoticeActivityPollerForClosedNoticeTool(t *testing.T) {
+	server := newReadyServerForTest(t, func(*config.Config) {})
 	server.temporalStarter = readyTemporalStarter{
 		readiness: temporalruntime.RuntimeReadiness{
 			Healthy: true,
@@ -219,19 +205,7 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
-					Type:    temporalruntime.TaskQueueTypeActivity,
-					Pollers: 1,
-					Healthy: true,
-				},
-				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
-					Type:    temporalruntime.TaskQueueTypeActivity,
-					Pollers: 1,
-					Healthy: true,
-				},
-				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
+					Name:    temporalruntime.ActivityTaskQueueAgent,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
@@ -249,38 +223,25 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
-	required, ok := temporalRuntime["task_queues"].([]any)
-	if !ok {
-		t.Fatalf("temporal_runtime.task_queues = %#v, want array", temporalRuntime["task_queues"])
-	}
-	if !containsStringValue(required, temporalruntime.ActivityTaskQueueCore) {
-		t.Fatalf("required task queues = %#v, want notice activity queue", required)
-	}
-	if temporalRuntime["healthy"] != false {
-		t.Fatalf("temporal_runtime.healthy = %v, want false", temporalRuntime["healthy"])
+	if temporalRuntime["healthy"] != true {
+		t.Fatalf("temporal_runtime.healthy = %v, want true", temporalRuntime["healthy"])
 	}
 }
 
-func TestRequiredTemporalTaskQueuesIncludeOpenedToolWorkers(t *testing.T) {
+func TestRequiredTemporalTaskQueuesIncludeModelVisibleToolWorkers(t *testing.T) {
 	queues := requiredTemporalTaskQueueNames(config.Config{
 		TemporalTaskQueue: "custom.workflow",
-		OpenTools:         []string{"transport_schedule_lookup", "campus_notice_discover"},
 	})
 
 	for _, want := range []string{
 		"custom.workflow",
 		temporalruntime.ActivityTaskQueueCore,
-		temporalruntime.ActivityTaskQueueKnowledge,
-		temporalruntime.ActivityTaskQueueKnowledge,
-		temporalruntime.ActivityTaskQueueKnowledge,
-		temporalruntime.ActivityTaskQueueCore,
-		temporalruntime.ActivityTaskQueueCore,
-		temporalruntime.ActivityTaskQueueCore,
+		temporalruntime.ActivityTaskQueueAgent,
 	} {
 		if !containsStringValue(anySlice(queues), want) {
 			t.Fatalf("required task queues = %#v, missing %s", queues, want)
@@ -293,17 +254,17 @@ func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 		cfg.ProviderConfigSnapshotPath = ""
 	}))
 	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+	markKnowledgeRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	if body["status"] != "ready" {
-		t.Fatalf("status body = %v, want ready", body["status"])
+	if body["status"] != "degraded" {
+		t.Fatalf("status body = %v, want degraded", body["status"])
 	}
 	if _, ok := body["prompt_config_gate"]; ok {
 		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
@@ -333,30 +294,6 @@ func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
 	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
 	if providerConfigGate["configured"] != true || providerConfigGate["reason"] != "" {
 		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
-	}
-}
-
-func TestReadyzDoesNotBlockOverallServiceWhenPublicWebSearchProviderConfigIsMissing(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenTools = []string{"public_web_search"}
-	})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	if body["status"] != "ready" {
-		t.Fatalf("status body = %v, want ready", body["status"])
-	}
-	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
-	if providerConfigGate["configured"] != false {
-		t.Fatalf("provider_config_gate.configured = %v, want false", providerConfigGate["configured"])
-	}
-	if providerConfigGate["reason"] != "provider_config_projection_invalid_for_public_web_search" {
-		t.Fatalf("provider_config_gate.reason = %v", providerConfigGate["reason"])
 	}
 }
 

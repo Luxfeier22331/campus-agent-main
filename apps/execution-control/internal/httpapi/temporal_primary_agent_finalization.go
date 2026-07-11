@@ -10,6 +10,13 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+func (s *Server) WriteFinalizationActivity(
+	ctx context.Context,
+	input temporalruntime.WriteFinalizationActivityInput,
+) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	return s.writePrimaryAgentFinalizationActivity(ctx, input)
+}
+
 func (s *Server) writePrimaryAgentFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
@@ -67,10 +74,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", err)
-	}
-	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
-	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
 		"agent_result_ref": input.AgentResultRef,
@@ -146,7 +149,12 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if !validPrimaryAgentTerminalEnvelope(envelope) {
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
-	selectedTools := stringSliceFromAny(agentResult["selected_tools"])
+	evidenceClosure, err := primaryAgentEvidenceClosureForFinalization(run, agentResult, envelope)
+	if err != nil {
+		return nil, err
+	}
+	runtimeSelectedTools := stringSliceFromAny(agentResult["selected_tools"])
+	selectedTools := primaryAgentPublicSelectedTools(runtimeSelectedTools)
 	selectedTool := primaryAgentSelectedTool(selectedTools)
 	terminalKind := primaryAgentTerminalKind(envelope)
 	answerText := primaryAgentEnvelopeAnswerText(envelope)
@@ -171,7 +179,7 @@ func (s *Server) primaryAgentFinalizedResponse(
 		"selected_tool":             traceSelectedTool,
 		"selected_tools":            selectedTools,
 		"first_decision_actor":      "primary_agent",
-		"planning_outcome":          primaryAgentPlanningOutcome(terminalKind),
+		"planning_outcome":          "primary_agent_completed",
 		"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalKind, selectedTools),
 		"terminal_reason":           terminalKind,
 		"answer_artifact_kinds":     []string{"agent_final_output"},
@@ -197,27 +205,36 @@ func (s *Server) primaryAgentFinalizedResponse(
 		TerminalOutcome:  primaryAgentAnswerTerminalOutcome(status, terminalKind),
 		WorkflowMode:     workflowMode,
 	})
+	result := map[string]any{
+		"provider_response_id": agentResult["provider_response_id"],
+		"selected_tools":       selectedTools,
+		"sources":              evidenceClosure.Sources,
+		"terminal_reason":      terminalKind,
+	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedTool:     primaryAgentResponseSelectedTool(selectedTool),
-		Status:           status,
-		AnswerText:       primaryAgentAnswerText(status, answerText),
-		DebugTraceRefs:   debugTraceRefsFromAgentResult(agentResult),
-		Error:            primaryAgentErrorBody(status, terminalKind),
-		FollowUpQuestion: followUpQuestion,
-		Confidence:       confidence,
-		StageTiming:      stageTiming,
-		Result: map[string]any{
-			"agent_result_ref":     agentResult["agent_result_ref"],
-			"provider_response_id": agentResult["provider_response_id"],
-			"selected_tools":       selectedTools,
-			"terminal_envelope":    envelope,
-			"tool_results":         agentResult["tool_results"],
-			"terminal_reason":      terminalKind,
-		},
+		SelectedTool:         primaryAgentResponseSelectedTool(selectedTool),
+		Status:               status,
+		AnswerText:           primaryAgentAnswerText(status, answerText),
+		DebugTraceRefs:       debugTraceRefsFromAgentResult(agentResult),
+		Error:                primaryAgentErrorBody(status, terminalKind),
+		FollowUpQuestion:     followUpQuestion,
+		Confidence:           confidence,
+		StageTiming:          stageTiming,
+		ResolvedScope:        optionalStringPointer(evidenceClosure.ResolvedScope),
+		Result:               result,
+		SessionUpdate:        evidenceClosure.SessionUpdate,
 		Observability:        observability,
 		WorkflowTraceSummary: workflowTraceSummary,
 		TraceID:              run.TraceID,
 	}), nil
+}
+
+func optionalStringPointer(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func debugTraceRefsFromAgentResult(agentResult map[string]any) []map[string]any {
@@ -335,13 +352,33 @@ func primaryAgentSelectedTool(selectedTools []string) string {
 		switch tool {
 		case "transport_schedule_lookup":
 			return "transport_schedule_lookup"
-		case "campus_notice_discover":
-			return tool
 		case "knowledge_query":
+			return "knowledge_query"
+		case "knowledge_search":
 			return "knowledge_query"
 		}
 	}
 	return ""
+}
+
+func primaryAgentPublicSelectedTools(selectedTools []string) []string {
+	result := make([]string, 0, len(selectedTools))
+	seen := map[string]struct{}{}
+	for _, tool := range selectedTools {
+		publicTool := strings.TrimSpace(tool)
+		if publicTool == "knowledge_search" {
+			publicTool = "knowledge_query"
+		}
+		if publicTool == "" {
+			continue
+		}
+		if _, exists := seen[publicTool]; exists {
+			continue
+		}
+		seen[publicTool] = struct{}{}
+		result = append(result, publicTool)
+	}
+	return result
 }
 
 func primaryAgentResponseSelectedTool(selectedTool string) *string {
@@ -365,13 +402,6 @@ func primaryAgentWorkflowMode(selectedTools []string) string {
 		return "terminal"
 	}
 	return "single_step"
-}
-
-func primaryAgentPlanningOutcome(terminalReason string) string {
-	if strings.TrimSpace(terminalReason) == "tool_selected" {
-		return "primary_agent_tool_selected"
-	}
-	return "primary_agent_completed"
 }
 
 func primaryAgentTraceSteps(

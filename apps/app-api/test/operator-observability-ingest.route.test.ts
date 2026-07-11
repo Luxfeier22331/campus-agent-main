@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
+import { replayPacketIndexPayload } from "./replay-capture.test-support";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -93,7 +94,7 @@ describe("operator observability internal ingest routes", () => {
 					decisionId: "decision_01",
 					fromReplicas: 1,
 					status: "applied",
-					targetService: "activity-worker-knowledge",
+					targetService: "activity-worker-agent",
 					toReplicas: 2,
 				},
 			],
@@ -111,8 +112,8 @@ describe("operator observability internal ingest routes", () => {
 					},
 					reason: "required poller floor is not met",
 					sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-					targetService: "activity-worker-knowledge",
-					taskQueue: "campus-agent.activity.knowledge",
+					targetService: "activity-worker-agent",
+					taskQueue: "campus-agent.activity.agent",
 					taskQueueKind: "activity",
 				},
 			],
@@ -121,8 +122,8 @@ describe("operator observability internal ingest routes", () => {
 					currentReplicas: 1,
 					desiredReplicas: 2,
 					evidence: {
-						hpaName: "keda-hpa-activity-worker-knowledge",
-						kedaScaledObject: "activity-worker-knowledge",
+						hpaName: "keda-hpa-activity-worker-agent",
+						kedaScaledObject: "activity-worker-agent",
 					},
 					lastScaleEventAt: "2026-06-15T10:00:06.000Z",
 					lastScaleEventId: "actuation_01",
@@ -133,9 +134,9 @@ describe("operator observability internal ingest routes", () => {
 					reason: "hpa desired replicas above current replicas",
 					scalerKind: "keda_temporal",
 					scalerStatus: "healthy",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.agent",
 					taskQueueKind: "activity",
-					targetService: "activity-worker-knowledge",
+					targetService: "activity-worker-agent",
 				},
 			],
 			schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
@@ -150,7 +151,7 @@ describe("operator observability internal ingest routes", () => {
 					scheduleToStartLatency: { state: "unsupported_by_source" },
 					snapshotId: "temporal-snapshot-20260615T100000Z",
 					source: "execution-control.temporal-task-queue-sampler",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.agent",
 					taskQueueKind: "activity",
 				},
 			],
@@ -209,7 +210,7 @@ describe("operator observability internal ingest routes", () => {
 					scheduleToStartLatency: { state: "unsupported_by_source" },
 					snapshotId: "temporal-snapshot-proof",
 					source: "execution-control.temporal-task-queue-sampler",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.agent",
 					taskQueueKind: "activity",
 				},
 			],
@@ -327,74 +328,3 @@ describe("operator observability internal ingest routes", () => {
 		expect(service.ingestExecutionAuditEvents).not.toHaveBeenCalled();
 	});
 });
-
-function replayPacketIndexPayload() {
-	return {
-		schema_version: "llm_replay_packet_index.v1",
-		packet_id: "llm_replay_packet_rag_01",
-		run_id: "run_rag_01",
-		request_id: "req_rag_01",
-		trace_id: "trace_rag_01",
-		object_ref: "s3://llm-replay/llm-replay-packets/2026/07/05/llm_replay_packet_rag_01.json",
-		object_checksum_sha256:
-			"sha256:4444444444444444444444444444444444444444444444444444444444444444",
-		sensitivity_classification: "restricted_llm_io_with_evidence",
-		capture_policy: {
-			schema_version: "raw_capture_policy.v1",
-			mode: "manual_run_capture",
-			capture_reason: "operator_approved_badcase_replay",
-			ttl_days: 7,
-			allowed_sinks: ["s3_replay_packet"],
-			allowed_raw_fields: ["rendered_messages", "selected_evidence_packet"],
-			operator_principal: "operator:user_01",
-			approval_ref: "approval_rag_01",
-			request_id: "req_rag_01",
-			run_id: "run_rag_01",
-			trace_id: "trace_rag_01",
-			audit_required: true,
-			dsar_delete_linkage_required: true,
-		},
-		llm_io_fingerprint: {
-			schema_version: "llm_io_fingerprint.v1",
-			run_id: "run_rag_01",
-			request_id: "req_rag_01",
-			trace_id: "trace_rag_01",
-			runtime_release: "execution-control@test",
-			provider_profile_revision: "rag_synthesis:provider_profile_rag:4",
-			provider: "openai",
-			model: "gpt-5-mini",
-			model_params_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			prompt_id: "rag_synthesis_answer",
-			prompt_template_sha256:
-				"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-			prompt_variables_schema_version: "rag_synthesis_packet.v1",
-			rendered_prompt_sha256:
-				"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			tool_catalog_sha256:
-				"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-			tool_schema_sha256: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			workflow_artifact_sha256:
-				"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-			context_envelope_sha256:
-				"sha256:1111111111111111111111111111111111111111111111111111111111111111",
-			memory_selection_sha256:
-				"sha256:2222222222222222222222222222222222222222222222222222222222222222",
-			evidence_packet_sha256:
-				"sha256:3333333333333333333333333333333333333333333333333333333333333333",
-			output_schema_id: "rag_answer_v2",
-		},
-		deletion_linkage: {
-			subject_ref: "user_hash_01",
-			conversation_id: "conv_rag_01",
-			request_id: "req_rag_01",
-			trace_id: "trace_rag_01",
-			memory_ref_count: 0,
-			evidence_ref_count: 1,
-		},
-		encryption_key_ref: "kms:local-dev-replay",
-		approval_ref: "approval_rag_01",
-		operator_principal: "operator:user_01",
-		created_at: "2026-07-05T00:00:00Z",
-		expires_at: "2026-07-12T00:00:00Z",
-	};
-}

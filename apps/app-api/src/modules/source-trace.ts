@@ -1,16 +1,34 @@
 export interface ObservedSourceTraceEntry {
-	docId: string;
-	chunkId: string | null;
-	score: number | null;
-	collection: string | null;
-	sourceTitle: string | null;
-	canonicalSourceId: string | null;
-	canonicalSourceTitle: string | null;
-	sourceUnitKind: string | null;
-	sourceUnitKey: string | null;
+	canonicalUrl: string;
+	sourceKind: string | null;
+	sourceTitle: string;
+	targetKind: string | null;
+	versionId: string | null;
 }
 
 export const REQUEST_SOURCE_TRACE_LIMIT = 10;
+
+export function normalizeDocsReaderPath(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const canonicalUrl = value.trim();
+	if (
+		!canonicalUrl.startsWith("/docs/") ||
+		canonicalUrl.startsWith("//") ||
+		canonicalUrl.includes("://") ||
+		canonicalUrl.includes("..")
+	) {
+		return null;
+	}
+
+	const [withoutHash = ""] = canonicalUrl.split("#", 1);
+	const [path = ""] = withoutHash.split("?", 1);
+	const normalizedPath = path.replace(/\/+$/u, "");
+	return normalizedPath.startsWith("/docs/") && normalizedPath.length > "/docs/".length
+		? normalizedPath
+		: null;
+}
 
 function getRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
@@ -27,15 +45,6 @@ function readString(record: Record<string, unknown>, snake: string, camel: strin
 	return typeof camelValue === "string" && camelValue.trim() ? camelValue : null;
 }
 
-function readNumber(record: Record<string, unknown>, snake: string, camel: string): number | null {
-	const snakeValue = record[snake];
-	if (Number.isFinite(snakeValue)) {
-		return Number(snakeValue);
-	}
-	const camelValue = record[camel];
-	return Number.isFinite(camelValue) ? Number(camelValue) : null;
-}
-
 export function summarizeObservedSources(
 	value: unknown,
 	limit = REQUEST_SOURCE_TRACE_LIMIT,
@@ -50,20 +59,21 @@ export function summarizeObservedSources(
 		if (!record) {
 			continue;
 		}
-		const docId = readString(record, "doc_id", "docId");
-		if (!docId) {
+		const rawCanonicalUrl = readString(record, "canonical_url", "canonicalUrl");
+		const canonicalUrl = rawCanonicalUrl?.startsWith("/docs/")
+			? normalizeDocsReaderPath(rawCanonicalUrl)
+			: rawCanonicalUrl;
+		const sourceTitle =
+			readString(record, "source_title", "sourceTitle") ?? readString(record, "title", "title");
+		if (!(canonicalUrl && sourceTitle)) {
 			continue;
 		}
 		entries.push({
-			docId,
-			chunkId: readString(record, "chunk_id", "chunkId"),
-			score: readNumber(record, "score", "score"),
-			collection: readString(record, "collection", "collection"),
-			sourceTitle: readString(record, "source_title", "sourceTitle"),
-			canonicalSourceId: readString(record, "canonical_source_id", "canonicalSourceId"),
-			canonicalSourceTitle: readString(record, "canonical_source_title", "canonicalSourceTitle"),
-			sourceUnitKind: readString(record, "source_unit_kind", "sourceUnitKind"),
-			sourceUnitKey: readString(record, "source_unit_key", "sourceUnitKey"),
+			canonicalUrl,
+			sourceKind: readString(record, "source_kind", "sourceKind"),
+			sourceTitle,
+			targetKind: readString(record, "target_kind", "targetKind"),
+			versionId: readString(record, "version_id", "versionId"),
 		});
 		if (entries.length >= limit) {
 			break;
@@ -77,6 +87,5 @@ export function extractObservedSourcesFromResult(
 	limit = REQUEST_SOURCE_TRACE_LIMIT,
 ): ObservedSourceTraceEntry[] {
 	const record = getRecord(result);
-	const evidence = record ? getRecord(record.evidence) : null;
-	return summarizeObservedSources(evidence?.sources, limit);
+	return summarizeObservedSources(record?.sources, limit);
 }

@@ -28,26 +28,21 @@ Allowed responsibilities:
 - default executor inventory audit for registry-declared task executability and
   input/output contract alignment, including fail-closed rejection of registry
   tasks that imply alias publication before an `alias_publish` lifecycle exists
-- runtime-neutral registry-aware task dispatch, TS handler registry, Rust kernel
-  handler registry, object-store input-ref enforcement and stable fail-closed
-  execution error codes
 - Node-only registry file loading through `ingest-core/node`
 
 Runtime code remains in `apps/*` or `jobs/*`.
 
 `ingest-core` is the only TS package that should own generic source handoff
 parsing, collection profile payload validation, canonical artifact
-serialization, digest comparison and source-truth key construction. It also
-owns the runtime-neutral executor semantics for choosing a declared
-`ts_control` handler or `rust_kernel` handler from a validated registry task.
-Runtime handlers in `apps/ingestion-control` should call these helpers instead
-of reimplementing local JSON sorting, handoff validators, profile parsers,
-artifact writers or registry-aware dispatch.
+serialization, digest comparison and source-truth key construction. Runtime
+handlers in `apps/ingestion-control` should call these helpers instead of
+reimplementing local JSON sorting, handoff validators, profile parsers or
+artifact writers.
 
-Active default task execution requires `input_ref.kind=object_store`.
-`inline`, `local_file` and `postgres_row` refs may remain in shared contracts
-or narrow tests, but `ingest-core` rejects them before handler dispatch for
-registry-declared runtime tasks.
+Active default task execution and shared task contracts require
+`input_ref.kind=object_store`. `inline`, `local_file` and `postgres_row` are
+retired task input refs and must not be reintroduced into runtime task
+envelopes.
 
 Authenticated notice inventory helpers in this package only transform
 registry-like rows and source-truth payloads into deterministic DTOs. They do
@@ -66,4 +61,6 @@ Forbidden responsibilities:
 - collection profile file discovery, env projection or runtime config loading
 - collection lifecycle, task lease/claim/retry/dead-letter or closeout storage
 - Temporal workflow/activity execution or terminal closeout mutation
+- registry-aware runtime dispatcher, concrete TS handler registry, concrete
+  Rust kernel registry or stable execution error-code mapping
 - source-specific capture runtime code

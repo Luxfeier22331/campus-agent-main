@@ -31,8 +31,8 @@ const LLM_IO_FINGERPRINT_FIELDS = [
 ] as const;
 
 const LLM_IO_FINGERPRINT_FIELD_SET = new Set<string>(LLM_IO_FINGERPRINT_FIELDS);
-const LLM_CALL_SITES = new Set(["agent.primary", "rag.synthesis"]);
-const PRIMARY_ATTESTATION_KINDS = new Set(["primary_admitted_rag_synthesis", "primary_agent_call"]);
+const LLM_CALL_SITES = new Set(["agent.primary"]);
+const PRIMARY_ATTESTATION_KINDS = new Set(["primary_agent_call"]);
 const MODEL_PARAMS_PROJECTION_FIELDS = new Set([
 	"params_schema_version",
 	"params_sha256",

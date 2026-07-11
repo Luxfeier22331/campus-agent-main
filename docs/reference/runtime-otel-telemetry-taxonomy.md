@@ -37,11 +37,11 @@ This taxonomy follows the OpenTelemetry direction that:
 
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
-| `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
+| `apps/execution-control` | yes | Online trace owner for request admission, four-phase Temporal workflow/activity attempts, internal queries, evidence/source validation, finalization, error and telemetry self-health |
 | `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
 | Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
-| Knowledge / RAG runtime | runtime adapter only | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency in contracts |
+| Knowledge search runtime | runtime adapter only | Emit sanitized search observations; no OTel/Sentry/Axiom dependency in contracts |
 | `packages/ingest-core` | no by default | Runtime-neutral ingestion helper logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
@@ -79,18 +79,15 @@ they do not authorize raw replay packet body export through telemetry.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
-| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, legacy tool hint, scope summary, trace/request correlation |
+| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, requested tool, scope summary, trace/request correlation |
 | `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control private upstream transport failure |
-| `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
-| `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
-| `agent.bridge.failed` | `apps/execution-control` | Historical/offline bridge failure code, retryability and circuit-breaker decision |
 | `execution.activity.started` | `apps/execution-control` / Go activity worker | Temporal activity attempt started with task queue, worker identity and request correlation |
 | `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token/cost and cancel/timeout outcome |
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `retrieval.runtime_observation` | `apps/execution-control` / internal `knowledge_search` | Sanitized scope/version, latency, evidence-count and outcome observation |
 | `ingestion.run.started` | `apps/ingestion-control` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-control` | Run count summary, duration, cost estimate, release id and audit result |
 | `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
@@ -126,8 +123,8 @@ they do not authorize raw replay packet body export through telemetry.
 - `surface`
 - `lane`
 - `requested_tool`
-- `requested_scope`
-- `requested_scope_summary`
+- `knowledge_scope`
+- `knowledge_scope_summary`
 - `selected_tool`
 - `status`
 - `outcome`
@@ -334,11 +331,9 @@ Runtime adapters or Collector/backend aggregation may derive these low-cardinali
   - `campus.execution_control.activity_duration_ms`
   - `campus.execution_control.queue_wait_ms`
   - `campus.execution_control.schedule_to_start_ms`
-- execution-control runtime request/error/decision counters:
+- execution-control runtime request/error counters:
   - `campus.execution_control.runtime_requests`
   - `campus.execution_control.runtime_errors`
-  - `campus.execution_control.runtime_decisions`
-- bridge latency and queue wait histogram
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state
 - retrieval no-hit / low-confidence / forbidden-hit count
 - release metadata drift count

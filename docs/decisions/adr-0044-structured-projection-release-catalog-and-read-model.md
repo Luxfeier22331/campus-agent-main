@@ -141,5 +141,5 @@ build structured projection release
 - `docs/architecture/system/data-plane.md`
 - `docs/architecture/target.md`
 - `docs/domains/transport.md`
-- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/decisions/adr-0048-temporal.md`

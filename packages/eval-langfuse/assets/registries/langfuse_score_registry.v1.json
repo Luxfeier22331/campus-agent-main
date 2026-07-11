@@ -58,33 +58,44 @@
 			"description": "RAGAS ID-based context recall score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
 		},
 		{
-			"name": "agent.tool_selection.correct",
-			"data_type": "BOOLEAN",
-			"owner": "packages/eval-langfuse",
-			"eval_kinds": ["public_web_search_agent"],
-			"description": "Deterministic public-web-search agent eval score for expected tool selection."
-		},
-		{
-			"name": "public_web_search.source_policy.valid",
-			"data_type": "BOOLEAN",
-			"owner": "packages/eval-langfuse",
-			"eval_kinds": ["public_web_search_agent"],
-			"description": "Deterministic public-web-search agent eval score for browser-facing source URL policy."
-		},
-		{
-			"name": "public_web_search.required_source.covered",
-			"data_type": "BOOLEAN",
-			"owner": "packages/eval-langfuse",
-			"eval_kinds": ["public_web_search_agent"],
-			"description": "Deterministic public-web-search agent eval score for expected official public web source coverage."
-		},
-		{
-			"name": "public_web_search.source_count",
+			"name": "ragas.tool_call_accuracy.name_only",
 			"data_type": "NUMERIC",
-			"owner": "packages/eval-langfuse",
-			"eval_kinds": ["public_web_search_agent"],
-			"value_range": [0, 5],
-			"description": "Browser-facing public web source item count observed for a public-web-search agent eval case."
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas_agent"],
+			"value_range": [0, 1],
+			"description": "RAGAS agent ToolCallAccuracy score using tool names only; tool args are intentionally empty."
+		},
+		{
+			"name": "ragas.tool_call_f1.name_only",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas_agent"],
+			"value_range": [0, 1],
+			"description": "RAGAS agent ToolCallF1 score using tool names only; tool args are intentionally empty."
+		},
+		{
+			"name": "ragas.tool_call_accuracy.args",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas_agent"],
+			"value_range": [0, 1],
+			"description": "RAGAS agent ToolCallAccuracy score using eval-safe tool arguments."
+		},
+		{
+			"name": "ragas.tool_call_f1.args",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas_agent"],
+			"value_range": [0, 1],
+			"description": "RAGAS agent ToolCallF1 score using eval-safe tool arguments."
+		},
+		{
+			"name": "ragas.agent_goal_accuracy.with_reference",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas_agent"],
+			"value_range": [0, 1],
+			"description": "RAGAS agent goal accuracy score using a reference outcome."
 		}
 	]
 }

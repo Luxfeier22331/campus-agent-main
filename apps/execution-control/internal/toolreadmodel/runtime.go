@@ -25,19 +25,9 @@ func NewRuntime(options Options) *Runtime {
 			},
 		)
 	}
-	noticeReadModelStore := options.NoticeReadModelStore
-	if noticeReadModelStore == nil {
-		noticeReadModelStore = NewPostgresNoticeReadModelStore(NoticePostgresOptions{
-			DatabaseURL: strings.TrimSpace(options.NoticeReadModelDatabaseURL),
-			TableName:   strings.TrimSpace(options.NoticeReadModelTable),
-		})
-	}
-	noticeBodyStore := options.NoticeBodyStore
 	runtime := &Runtime{
 		campusServicesOpsReleaseStore:   campusServicesOpsReleaseStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
-		noticeReadModelStore:            noticeReadModelStore,
-		noticeBodyStore:                 noticeBodyStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
 		parsed, err := time.Parse(time.RFC3339, trustedTime)
@@ -53,9 +43,6 @@ func (r *Runtime) Close() {
 		closer.Close()
 	}
 	if closer, ok := r.transportScheduleReadModelStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 }

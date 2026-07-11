@@ -10,7 +10,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestQdrantRAGLookupHealthCheckUsesCollectionsEndpoint(t *testing.T) {
+func TestQdrantKnowledgeSearchHealthCheckUsesCollectionsEndpoint(t *testing.T) {
 	var path string
 	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		path = request.URL.Path
@@ -20,7 +20,7 @@ func TestQdrantRAGLookupHealthCheckUsesCollectionsEndpoint(t *testing.T) {
 	defer qdrant.Close()
 	caPath := writeTestCACert(t, qdrant)
 
-	executor, err := newQdrantRAGLookupExecutor(config.Config{
+	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
@@ -38,14 +38,14 @@ func TestQdrantRAGLookupHealthCheckUsesCollectionsEndpoint(t *testing.T) {
 	}
 }
 
-func TestQdrantRAGLookupHealthCheckReportsHTTPStatus(t *testing.T) {
+func TestQdrantKnowledgeSearchHealthCheckReportsHTTPStatus(t *testing.T) {
 	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		http.NotFound(response, request)
 	}))
 	defer qdrant.Close()
 	caPath := writeTestCACert(t, qdrant)
 
-	executor, err := newQdrantRAGLookupExecutor(config.Config{
+	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,

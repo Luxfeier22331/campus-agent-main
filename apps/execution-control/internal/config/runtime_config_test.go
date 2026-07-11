@@ -57,26 +57,16 @@ func mergeJSONObjects(base map[string]any, overlay map[string]any) {
 	}
 }
 
-func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
+func TestLoadFromEnvReadsKnowledgeSearchAndWorkerProfiles(t *testing.T) {
 	setRuntimeConfig(t, `{
   "schema_version": "campus_execution_control_runtime_config.v1",
-  "rag": {
+  "knowledge_search": {
     "top_k_max": 6,
-    "selected_evidence_max": 5,
-    "retrieval_max_concurrent": 3,
-    "synthesis_max_concurrent": 1,
     "embedding_timeout_ms": 7000,
-    "qdrant_timeout_ms": 8000,
-    "provider_timeout_ms": 45000,
-    "synthesis_generation": {
-      "max_output_tokens": 720,
-      "reasoning_effort": "minimal",
-      "store_provider_output": false,
-      "text_verbosity": "low"
-    }
+    "qdrant_timeout_ms": 8000
   },
   "worker_profiles": {
-    "activity-knowledge": {"activity_slots": 3, "activity_task_pollers": 2}
+    "activity-agent": {"activity_slots": 3, "activity_task_pollers": 2}
   }
 }`)
 
@@ -85,20 +75,13 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 	if cfg.RAGTopKMax != 6 ||
-		cfg.RAGSelectedEvidenceMax != 5 ||
-		cfg.RAGRetrievalMaxConcurrent != 3 ||
-		cfg.RAGSynthesisMaxConcurrent != 1 ||
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
-		cfg.RAGQdrantTimeoutMS != 8000 ||
-		cfg.RAGProviderTimeoutMS != 45000 ||
-		cfg.RAGSynthesisMaxOutputTokens != 720 ||
-		cfg.RAGSynthesisReasoningEffort != "minimal" ||
-		cfg.RAGSynthesisStoreProviderOutput ||
-		cfg.RAGSynthesisTextVerbosity != "low" {
-		t.Fatalf("unexpected rag budgets: %#v", cfg)
+		cfg.RAGQdrantTimeoutMS != 8000 {
+		t.Fatalf("unexpected knowledge search config: %#v", cfg)
 	}
-	if cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 ||
-		cfg.WorkerProfiles["activity-knowledge"].ActivityTaskPollers != 2 {
+	if len(cfg.WorkerProfiles) != 3 ||
+		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 3 ||
+		cfg.WorkerProfiles["activity-agent"].ActivityTaskPollers != 2 {
 		t.Fatalf("unexpected worker profiles: %#v", cfg.WorkerProfiles)
 	}
 }
@@ -112,9 +95,6 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
   "request_timeout_ms": 31000,
   "request_body_limit_bytes": 2097152,
   "shutdown_grace_ms": 21000,
-  "intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
-  "open_tools": ["transport_schedule_lookup", "campus_notice_discover"],
-  "multi_step_workflow_enabled": true,
   "otel": {
     "enabled": true,
     "endpoint": "http://collector:4318/v1/traces",
@@ -134,20 +114,10 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
     "shared_secret": "audit-secret",
     "timeout_ms": 300
   },
-  "rag": {
+  "knowledge_search": {
     "top_k_max": 7,
-    "selected_evidence_max": 6,
-    "retrieval_max_concurrent": 3,
-    "synthesis_max_concurrent": 1,
     "embedding_timeout_ms": 7000,
-    "qdrant_timeout_ms": 8000,
-    "provider_timeout_ms": 45000,
-    "synthesis_generation": {
-      "max_output_tokens": 960,
-      "reasoning_effort": "low",
-      "store_provider_output": false,
-      "text_verbosity": "medium"
-    }
+    "qdrant_timeout_ms": 8000
   },
   "personal_memory": {
     "runtime": "hindsight",
@@ -157,7 +127,7 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
     "context_char_budget": 900
   },
   "worker_profiles": {
-    "activity-knowledge": {
+    "activity-agent": {
       "activity_slots": 3,
       "activity_task_pollers": 2
     }
@@ -176,11 +146,6 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
 		cfg.RequestTimeoutMS != 31000 ||
 		cfg.RequestBodyLimitBytes != 2_097_152 ||
 		cfg.ShutdownGraceMS != 21000 ||
-		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
-		len(cfg.OpenTools) != 2 ||
-		cfg.OpenTools[0] != "transport_schedule_lookup" ||
-		cfg.OpenTools[1] != "campus_notice_discover" ||
-		!cfg.MultiStepWorkflowEnabled ||
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
 		!cfg.OTelMetricsEnabled ||
@@ -197,35 +162,15 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 300 ||
 		cfg.RAGTopKMax != 7 ||
-		cfg.RAGSelectedEvidenceMax != 6 ||
-		cfg.RAGRetrievalMaxConcurrent != 3 ||
-		cfg.RAGSynthesisMaxConcurrent != 1 ||
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
 		cfg.RAGQdrantTimeoutMS != 8000 ||
-		cfg.RAGProviderTimeoutMS != 45000 ||
-		cfg.RAGSynthesisMaxOutputTokens != 960 ||
-		cfg.RAGSynthesisReasoningEffort != "low" ||
-		cfg.RAGSynthesisStoreProviderOutput ||
-		cfg.RAGSynthesisTextVerbosity != "medium" ||
 		cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryTimeoutSeconds != 7 ||
 		cfg.PersonalMemoryRecallLimit != 4 ||
 		cfg.PersonalMemoryRecallMaxTokens != 900 ||
 		cfg.PersonalMemoryContextCharBudget != 900 ||
-		cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 {
+		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 3 {
 		t.Fatalf("unexpected config from runtime config: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvRejectsRuntimeModeOwnedEnvOverrides(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RAG_TOP_K_MAX", "6")
-
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected runtime config owned env override to fail")
-	}
-	if !strings.Contains(err.Error(), "EXECUTION_CONTROL_RAG_TOP_K_MAX is retired") {
-		t.Fatalf("error = %q, want retired runtime config env diagnostic", err.Error())
 	}
 }
 

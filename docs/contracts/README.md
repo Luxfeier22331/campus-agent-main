@@ -4,31 +4,30 @@ truth_scope: repository
 owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-07-05
+updated: 2026-07-10
 ---
 # Contracts
 
 `contracts/` 保存稳定的 HTTP 与 runtime seam。 它回答“边界上的输入输出长什么样”“状态如何流转”“哪些字段不能从下游倒推”。
+跨 contract 的稳定链路图见 `../architecture/flows.md`；本目录仍只拥有 seam
+shape 与字段语义。
 
-## App API 核心 contract
+## Browser And App API Contracts
 
 - `app-api/README.md`
-  - `app-api/system-auth-memory.md`
-  - `app-api/chat.md`
-  - `app-api/operator.md`
-- `app-api/chat.md`
+  - browser-facing app-api HTTP contract families and split-doc routing
+- `app-api-notice.md`
+  - app-api owned authenticated notice operator-safe processing projection
+    ingest/query seam only; it does not own source-truth or ingestion lifecycle
+- `app-api/campus-services-ops.md`
+- `app-api/observability.md`
+- `app-api/official-web.md`
 - `app-api/eval-benchmark.md`
-- `eval-artifact.md`
-- `app-api/document-reader.md`
 - `document-reader-publish.md`
-- `app-api/error.md`
-- `app-api/request-lifecycle.md`
+
+## Runtime And Diagnostic Contracts
+
 - `tool-execution.md`
-- `app-api/identity.md`
-- `app-api/federation.md`
-- `app-api/operator-ops.md`
-- `app-api/dining.md`
-- `app-api/dining-ops.md`
 - `tool-read-model.md`
 - `tool-trajectory.md`
 - `durable-runtime.md`
@@ -36,37 +35,15 @@ updated: 2026-07-05
 - `langfuse-runtime.md`
 - `stage-timing.md`
 - `replay-capture.md`
+- `eval-artifact.md`
 
-## Operator / Official Web contract
+## Domain Contracts
 
-- `app-api/campus-services-ops.md`
-- `app-api-notice.md`
-  - app-api owned authenticated notice operator-safe processing projection
-    ingest/query seam only; it does not own source-truth or ingestion lifecycle
-- `app-api/observability.md`
-- `stage-timing.md`
-- `app-api/official-web.md`
+- `file-release-export.md`
 
-## Navigation contract
-
-- `place-finding.md`
-
-## Campus services contract
-
-- Human transport domain truth lives in `../domains/transport.md`.
-- Machine-readable transport tool/status schemas live in
-  `../../packages/contracts/schemas/`.
-
-## Notice runtime contract
-
-- `campus-notice-runtime-contract.md`
-  - query-time notice tool/internal-query seam; current model-visible surface is
-    `campus_notice_discover` only
-- `authenticated-notice-file-release-export.md`
-
-## Retrieval internal contract
-
-- `retrieval-plan.md`
+Human transport capability truth lives in `../domains/transport.md`.
+Machine-readable transport tool/status schemas live in
+`../../packages/contracts/schemas/`.
 
 ## Machine-readable schemas
 
@@ -76,16 +53,13 @@ updated: 2026-07-05
   JSON Schema / OpenAPI registry，登记 active schema、runtime JSON artifact、
   language-local helper 与 legacy helper 的边界身份。
 - `../packages/contracts/schemas/campus-services-tool-result.v1.schema.json`
-  是 `campus_services` typed tool result envelope 的 canonical schema。
+  是 `campus_services` function tool result envelope 的 canonical schema。
 - `../packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json`
-  是 `campus_services` typed tool payload / result packet 的 canonical schema。
-- `../packages/contracts/schemas/notice-tool-contracts.v1.schema.json` 是
-  `notice` typed tool payload / result packet 的 canonical schema。
+  是 `campus_services` function tool payload / result packet 的 canonical schema。
 - `../packages/contracts/schemas/runtime-*.schema.json` 校验 execution runtime
   实际读取的 runtime JSON artifacts。
 - `tool-execution.openapi.yaml` 覆盖 app-api -> execution-control durable
-  run create / read / events / steps / cancel，以及 private tool execution
-  wire shape。
+  run create / read / events / steps / cancel 与 finalization wire shape。
 
 ## 使用规则
 
@@ -97,7 +71,7 @@ updated: 2026-07-05
 - 跨语言或跨 runtime 的 contract 默认使用 JSON Schema / OpenAPI 作为 canonical
   source；Python dataclass、Go struct、TS interface / Zod parser 是消费侧 helper、
   runtime parser 或生成物，不单独成为跨语言真相源
-- typed tool payload / result 的 machine-readable schema 应登记在
+- function tool payload / result 的 machine-readable schema 应登记在
   `packages/contracts/schemas/contract-schema-registry.v1.json`，并配套正反
   fixture；不要只把 Python dataclass、Go struct 或 provider function schema 当作
   完整 contract

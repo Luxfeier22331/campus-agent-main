@@ -6,17 +6,14 @@ from dataclasses import asdict, fields
 import campus_contracts
 from campus_contracts import (
     ALLOWED_MODEL_VISIBLE_TOOL_NAMES,
+    ALLOWED_TOOL_NAMES,
     ActorContext,
     EvidenceBundle,
     EvidenceSource,
-    ExecutionRequest,
     SessionSlot,
     SessionSummary,
-    ToolObservability,
-    ToolRequest,
     TransportScheduleLookupPayload,
     VersionQuery,
-    WorkflowToolContext,
 )
 
 
@@ -31,62 +28,37 @@ class PythonContractAdapterSmokeTest(unittest.TestCase):
             ALLOWED_MODEL_VISIBLE_TOOL_NAMES,
             (
                 "knowledge_query",
-                "public_web_search",
                 "transport_schedule_lookup",
-                "campus_notice_discover",
             ),
         )
-
-        request = ToolRequest(
-            tool="transport_schedule_lookup",
-            user_goal="校车下一班几点",
-            payload=TransportScheduleLookupPayload(
-                query_text="校车下一班几点",
-                intent="next_departure",
-            ),
-            allowed_tools=("transport_schedule_lookup",),
+        self.assertEqual(
+            ALLOWED_TOOL_NAMES,
+            ("knowledge_query", "knowledge_search", "transport_schedule_lookup"),
         )
 
-        self.assertEqual(asdict(request)["tool"], "transport_schedule_lookup")
-        self.assertEqual(tuple(asdict(request)["allowed_tools"]), ("transport_schedule_lookup",))
+        payload = TransportScheduleLookupPayload(
+            query_text="校车下一班几点",
+            intent="next_departure",
+        )
+
+        self.assertEqual(asdict(payload)["intent"], "next_departure")
 
     def test_python_adapter_rejects_removed_or_non_canonical_fields(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported requested_tool: availability"):
-            ExecutionRequest(
-                user_goal="官网能打开吗",
-                requested_tool="availability",  # type: ignore[arg-type]
-            )
         with self.assertRaises(TypeError):
             ActorContext(groups=("students",))  # type: ignore[call-arg]
         self.assertNotIn("groups", {field.name for field in fields(ActorContext)})
+        for retired_symbol in (
+            "RagReplanDecisionSummary",
+            "RetrievalPlanSummary",
+            "ToolRequest",
+            "ToolResponse",
+            "WorkflowToolContext",
+        ):
+            self.assertFalse(hasattr(campus_contracts, retired_symbol))
 
     def test_python_adapter_enforces_temporal_and_raw_payload_guardrails(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when version mode is as_of"):
             VersionQuery(mode="as_of")
-
-        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            ToolObservability(
-                selected_tool="transport_schedule_lookup",
-                safe_details={"debug": {"raw_prompt": "secret"}},
-            )
-
-        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            WorkflowToolContext(
-                tool="knowledge_query",
-                workflow_run_ref="workflow:req-test",
-                step_id="tool:knowledge_query:rag_request",
-                tool_id="knowledge_query",
-                projection_refs=(
-                    {
-                        "projection_id": "projection:notice_context:test",
-                        "source_step_id": "handoff:notice:campus_notice_get",
-                        "projection_kind": "notice_context",
-                        "content_hash": "sha256:test",
-                        "safety": {"max_chars": 1600, "fields_present": ["title"]},
-                        "raw_response": "secret",
-                    },
-                ),
-            )
 
     def test_python_adapter_keeps_key_helper_defaults(self) -> None:
         summary = SessionSummary(

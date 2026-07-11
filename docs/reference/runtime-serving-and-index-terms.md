@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-28
-updated: 2026-06-29
+updated: 2026-07-10
 ---
 # Runtime Serving And Index Terms
 
@@ -21,8 +21,7 @@ Owner docs for non-glossary truth:
 - Tool routing: `docs/architecture/system/tool-routing.md`
 - Retrieval serving: `docs/architecture/system/retrieval-serving.md`
 - Data plane: `docs/architecture/system/data-plane.md`
-- Retrieval plan contract: `docs/contracts/retrieval-plan.md`
-- Retrieval activity data model: `docs/data/retrieval-activity.md`
+- Tool execution/evidence contract: `docs/contracts/tool-execution.md`
 - Qdrant retention decision: `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 
 ## Product And Reader Terms
@@ -80,15 +79,14 @@ not this glossary.
 
 ### Tool Read Model Scope
 
-A structured read-model scope consumed by an admitted typed tool instead of the
-generic RAG retrieval path.
+A structured read-model scope consumed by an admitted SDK function tool instead
+of the Knowledge Agent's `knowledge_search` path.
 
 Example: `campus_services/transport_schedule` for the current transport
 schedule tool/status surface.
 
 - 当前 query-enabled scope 是 `regulations/student_rules`、
-  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
-  `official_web/stable_reference`
+  `regulations/institutional_rules` 与 `curriculum/curriculum_plan`
 - `regulations/scoped_rules` 当前仍不属于默认 query-enabled scope，也不得进入默认
   RAG release candidate；它可以作为 `gated_asset` 进入 document-site read-model /
   docs reader release，由 `app-api` 做 reader admission
@@ -120,7 +118,6 @@ schedule tool/status surface.
   - `regulations/student_rules`
   - `regulations/institutional_rules`
   - `curriculum/curriculum_plan`
-  - `official_web/stable_reference`
 - qrels asset 不等于 source truth、registry truth 或 release manifest；它是 eval / release
   gate 的 denominator
 
@@ -171,93 +168,78 @@ Existing wire/projection fields such as `tool`, `requested_tool` and
 `selected_tool`.
 
 These names describe current wire/projection fields. They should not become
-product taxonomy or new conceptual naming.
+product taxonomy or new conceptual naming. A caller-provided `requested_tool`
+is a hint or internal forced route in current contracts; it is not the normal
+target-state owner of primary-agent tool selection.
 
-### Surface Tool Allowlist
+### Runtime Visible Tool Set
 
-The set of tool domains a product surface currently admits.
+The model-visible tools admitted for one execution run.
 
-This gate happens before knowledge scope resolution.
+`execution-control` derives this set from the runtime tool registry and workflow
+state before primary-agent selection. `app-api` does not maintain a parallel
+surface allowlist. A trusted internal forced hint is validated separately and
+does not publish retrieval scopes.
 
 ### Knowledge Tool Scope
 
-A scope hint or resolved scope used after a request has entered the knowledge
-tool path. It may map to `corpus/collection`, but it is not a top-level product
-intent classifier.
+A model-facing scope id used after a request has entered the knowledge tool
+path. Execution-control maps it to internal retrieval ownership; callers do not
+send `corpus/collection`.
 
-### Routing Clarification
-
-Clarification raised before agent-owned execution to decide admission, tool
-route or handoff path.
-
-It solves “which admitted path should this request enter”, not “which collection
-should the user manually pick”.
+Knowledge tool scope comes from the SDK `knowledge_query` handoff arguments or
+a trusted eval/debug hint. In both cases, execution-control resolves admission
+from serving policy, release/current alias truth and visibility projection.
 
 ### Agent Clarification
 
-Clarification raised after route selection for domain-specific missing
-parameters, ambiguity or constraints.
+Clarification produced by the active SDK agent for missing parameters,
+ambiguity or constraints.
 
 ## Retrieval Terms
 
-### Retrieval Plan
+### Knowledge Handoff
 
-A typed plan for planner-first retrieval execution. Contract details live in
-`docs/contracts/retrieval-plan.md`.
+The official OpenAI Agents SDK `handoff()` from the primary agent to the
+Knowledge Agent in the same SDK run.
 
-### Retrieval Step
+### Knowledge Search
 
-A single executable unit inside a retrieval plan. It at least identifies step
-type, target scope, query/filter shape and budget.
+The internal-only SDK function tool available to the Knowledge Agent. It calls
+execution-control for admitted indexed evidence and is not model-visible to the
+primary agent.
 
-### Planner Budget
+### Search Call
 
-The enforced limit for retrieval planning and execution, such as step count,
-latency or live-branch allowance. Budget exhaustion should fail closed.
-
-### Query Activity
-
-A step-level retrieval execution trace summary. Data shape lives in
-`docs/data/retrieval-activity.md`.
+One bounded `knowledge_search` invocation with run identity, scope, version and
+query. Multiple SDK calls remain part of one Agent Activity.
 
 ### Candidate Set
 
-The results produced by retrieval steps before answer-facing evidence selection.
+The internal results produced by indexed lookup before bounded evidence shaping.
 
 Candidate sets are execution truth; they are not automatically supporting
 evidence.
 
-### Supporting Evidence
+### Bounded Evidence
 
-The bounded evidence subset allowed to support the final answer. Citation,
-grounding and answer shaping are based on supporting evidence, not raw candidate
-traces.
+The safe evidence subset returned to the Knowledge Agent. Answer claims and
+final sources must use these evidence refs, not raw candidate traces.
 
-### Freshness Gate
+### Resolved Version
 
-Admission logic for freshness-sensitive queries such as “today”, “latest” or
-“recent”.
-
-If local freshness is insufficient, the request must use an admitted live branch
-or fail closed.
-
-### Live Evidence
-
-Evidence from an admitted live source channel during a retrieval execution.
-
-Live evidence is not general web fallback, does not write canonical index truth
-and must be identified as live-assisted runtime evidence.
+The execution-control projection of admitted `current`, `historical`, `as_of`
+or `compare` version semantics before indexed lookup.
 
 ### Execution Metadata
 
-Sanitized plan, step, merge, rerank and freshness-branch summaries emitted
-during retrieval execution for observability, audit and grading.
+Sanitized search, resolved-version, rerank, evidence and result summaries
+emitted for observability, audit and grading.
 
-### Retrieval Observation Sink
+### Knowledge Search Observation
 
-The runtime callback boundary for emitting sanitized retrieval observations.
-Sink failures and fail-closed behavior are owned by the retrieval/runtime
-architecture docs, not this glossary.
+The sanitized scope/version, latency, evidence-count and result summary emitted
+by execution-control for one internal search call.
 
 ### OTel Bridge
 
@@ -336,7 +318,7 @@ source truth.
 ## Common Confusions
 
 - Serving alias is not a physical collection.
-- `corpus/collection` and `requestedScope` are not tool routing proxies.
+- `corpus/collection` and model-facing `scope` are not tool routing proxies.
 - Routing clarification is not agent clarification.
 - Chunk preparation manifest is not index release manifest.
 - Release manifest is not a chunk store.

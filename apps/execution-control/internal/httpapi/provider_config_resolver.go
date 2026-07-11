@@ -16,8 +16,6 @@ type providerConfigRole string
 const (
 	providerConfigRoleIndexEmbedding    providerConfigRole = "index_embedding"
 	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
-	providerConfigRolePublicWebSearch   providerConfigRole = "public_web_search"
-	providerConfigRoleRAGSynthesis      providerConfigRole = "rag_synthesis"
 	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
 	providerConfigRoleRAGReranker       providerConfigRole = "rag_reranker"
 )
@@ -148,17 +146,6 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 	}
 	if isRerankProviderConfigRole(role) && strings.TrimSpace(snapshot.Kind) != "rerank" {
 		return errors.New("rerank provider config snapshot kind must be rerank")
-	}
-	if role == providerConfigRolePublicWebSearch {
-		if strings.TrimSpace(snapshot.Kind) != "search" {
-			return errors.New("public_web_search provider config snapshot kind must be search")
-		}
-		if !publicWebSearchProviderAdmitted(snapshot.Provider) {
-			return errors.New("public_web_search provider config snapshot provider is not admitted")
-		}
-		if !publicWebSearchProviderTransportAdmitted(snapshot.Provider, snapshot.Transport) {
-			return errors.New("public_web_search provider config snapshot provider/transport pair is not admitted")
-		}
 	}
 	return nil
 }

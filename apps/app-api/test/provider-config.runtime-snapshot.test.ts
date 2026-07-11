@@ -132,69 +132,6 @@ describe("provider config runtime snapshots", () => {
 		});
 	});
 
-	it("resolves public web search active projection snapshots as a dedicated search role", async () => {
-		const service = buildProviderConfigService({
-			decryptSecret: (value) => value,
-			encryptSecret: (value) => value,
-			generateId: (prefix) => `${prefix}_public_web_search`,
-			now: () => new Date("2026-06-16T00:00:00.000Z"),
-			store: createInMemoryProviderConfigStore(),
-			validators: {
-				async validateSearch(input) {
-					expect(input).toMatchObject({
-						model: "sonar",
-						provider: "perplexity",
-						role: "public_web_search",
-						transport: "perplexity_search",
-					});
-					return { message: "search provider validated", ok: true, status: "passed" };
-				},
-			},
-		});
-		const createdConnection = await service.createConnection({
-			payload: {
-				apiKey: "search-key",
-				baseUrl: "https://api.perplexity.ai",
-				features: ["search"],
-				provider: "perplexity",
-			},
-			principal: createOperatorPrincipal(),
-		});
-		const createdProfile = await service.createProfile({
-			payload: {
-				connectionId: createdConnection.connection.connectionId,
-				kind: "search",
-				model: "sonar",
-				role: "public_web_search",
-				timeoutMs: 30000,
-				transport: "perplexity_search",
-			},
-			principal: createOperatorPrincipal(),
-		});
-		await service.validateProfile({
-			principal: createOperatorPrincipal(),
-			profileId: createdProfile.profile.profileId,
-		});
-		await service.activateProfile({
-			principal: createOperatorPrincipal(),
-			profileId: createdProfile.profile.profileId,
-		});
-
-		await expect(
-			service.getActiveRuntimeSnapshot({ role: "public_web_search" }),
-		).resolves.toMatchObject({
-			profile: {
-				api_key: "search-key",
-				base_url: "https://api.perplexity.ai",
-				kind: "search",
-				model: "sonar",
-				provider: "perplexity",
-				role: "public_web_search",
-				transport: "perplexity_search",
-			},
-		});
-	});
-
 	it("removes active prompt profiles from runtime use when revalidation fails", async () => {
 		let validationShouldPass = true;
 		const service = buildProviderConfigService({

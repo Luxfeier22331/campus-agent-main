@@ -1,8 +1,8 @@
 {
 	"schema_version": "workflow-artifact-registry-v2",
-	"registry_version": "2026-05-07",
+	"registry_version": "2026-07-11",
 	"visibility_values": ["tool_private", "operator_safe_summary", "finalizer_input"],
-	"support_status_values": ["supported_go_runtime", "contract_only", "closed_no_runtime"],
+	"support_status_values": ["supported_go_runtime"],
 	"forbidden_raw_key_tokens": [
 		"raw_prompt",
 		"raw_transcript",
@@ -26,21 +26,6 @@
 	],
 	"artifacts": [
 		{
-			"kind": "notice_context",
-			"display_name": "NoticeContext",
-			"owner_tool_boundary": "campus_notice_get",
-			"producer_tools": ["campus_notice_get"],
-			"source_truth_owner": "internal_notice_read_model",
-			"visibility": "tool_private",
-			"current_projection_support": "supported_go_runtime",
-			"answer_eligible": true,
-			"requires_grounding": true,
-			"freshness_policy": "selected_notice_current",
-			"allowed_consumers": ["knowledge_query", "execution-control-finalizer"],
-			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
-			"notes": "Internal selected notice context; campus_notice_get remains tool-internal."
-		},
-		{
 			"kind": "schedule_baseline",
 			"display_name": "ScheduleBaseline",
 			"owner_tool_boundary": "transport_schedule_lookup",
@@ -51,85 +36,27 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_release",
-			"allowed_consumers": ["knowledge_query", "execution-control-finalizer"],
+			"allowed_consumers": ["execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
-			"notes": "Stable route/schedule baseline; operational notice references are represented by the transport schedule read model."
+			"notes": "Stable route and schedule baseline returned by the transport read model."
 		},
 		{
-			"kind": "place_context",
-			"display_name": "PlaceContext",
-			"owner_tool_boundary": "place_lookup",
-			"producer_tools": [],
-			"source_truth_owner": "campus_navigation_place_catalog",
-			"visibility": "tool_private",
-			"current_projection_support": "contract_only",
-			"answer_eligible": true,
-			"requires_grounding": false,
-			"freshness_policy": "current_release",
-			"allowed_consumers": ["transport_schedule_lookup", "execution-control-finalizer"],
-			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
-			"notes": "Navigation tool remains closed for current product runtime; artifact is contract-only."
-		},
-		{
-			"kind": "evidence_bundle",
-			"display_name": "EvidenceBundle",
-			"owner_tool_boundary": "knowledge_query",
-			"producer_tools": ["knowledge_query"],
-			"source_truth_owner": "knowledge_query_runtime",
-			"visibility": "tool_private",
+			"kind": "knowledge_search_result",
+			"display_name": "KnowledgeSearchResult",
+			"owner_tool_boundary": "knowledge_search",
+			"producer_tools": ["knowledge_search"],
+			"source_truth_owner": "knowledge_search_runtime",
+			"visibility": "finalizer_input",
 			"current_projection_support": "supported_go_runtime",
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "query_mode_bound",
-			"allowed_consumers": ["knowledge_query", "execution-control-finalizer"],
+			"allowed_consumers": ["knowledge_agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["retrieval_backend_dump", "raw_response", "object_locator"],
-			"notes": "Bounded evidence summary only; raw snippets and backend dumps remain forbidden."
-		},
-		{
-			"kind": "public_web_evidence",
-			"display_name": "PublicWebEvidence",
-			"owner_tool_boundary": "public_web_search",
-			"producer_tools": ["public_web_search"],
-			"source_truth_owner": "public_web_search_provider_projection",
-			"visibility": "tool_private",
-			"current_projection_support": "supported_go_runtime",
-			"answer_eligible": true,
-			"requires_grounding": true,
-			"freshness_policy": "provider_current_public_web",
-			"allowed_consumers": ["execution-control-finalizer"],
-			"forbidden_raw_payload_keys": ["provider_raw_response", "raw_response", "raw_html"],
-			"notes": "Bounded public official-web URL evidence from the public_web_search tool; raw provider output and page bodies remain forbidden."
-		},
-		{
-			"kind": "grounding_verdict",
-			"display_name": "GroundingVerdict",
-			"owner_tool_boundary": "knowledge_query",
-			"producer_tools": ["knowledge_query"],
-			"source_truth_owner": "knowledge_grounding_validator",
-			"visibility": "finalizer_input",
-			"current_projection_support": "supported_go_runtime",
-			"answer_eligible": false,
-			"requires_grounding": false,
-			"freshness_policy": "derived_from_evidence_bundle",
-			"allowed_consumers": ["execution-control-finalizer"],
-			"forbidden_raw_payload_keys": ["raw_prompt", "raw_transcript", "provider_trace"],
-			"notes": "Verdict controls finalization; it is not answer-bearing evidence by itself."
+			"notes": "Bounded public-safe evidence returned to the knowledge agent and checked by finalization."
 		}
 	],
 	"bindings": [
-		{
-			"binding_id": "campus_notice_get.notice_context.selected_notice_get",
-			"owner_tool_boundary": "campus_notice_get",
-			"tool_name": "campus_notice_get",
-			"produces": ["notice_context"],
-			"consumes": [],
-			"required_inputs": ["request:selected_notice_id"],
-			"state_changing": false,
-			"opening_gate": "open",
-			"eval_denominator": ["workflow_trace", "release_gate"],
-			"priority": 1,
-			"notes": "Internal selected notice resolution stays tool-internal and read-only."
-		},
 		{
 			"binding_id": "transport_schedule_lookup.schedule_baseline.lookup",
 			"owner_tool_boundary": "transport_schedule_lookup",
@@ -139,61 +66,22 @@
 			"required_inputs": ["request:user_query"],
 			"state_changing": false,
 			"opening_gate": "open",
-			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
+			"eval_denominator": ["tool_result_correctness", "workflow_trace"],
 			"priority": 1,
 			"notes": "Stable schedule baseline for route and shuttle lookup."
 		},
 		{
-			"binding_id": "knowledge_query.evidence_bundle.retrieval",
-			"owner_tool_boundary": "knowledge_query",
-			"tool_name": "knowledge_query",
-			"produces": ["evidence_bundle"],
+			"binding_id": "knowledge_search.knowledge_search_result.lookup",
+			"owner_tool_boundary": "knowledge_search",
+			"tool_name": "knowledge_search",
+			"produces": ["knowledge_search_result"],
 			"consumes": [],
 			"required_inputs": ["request:user_query"],
 			"state_changing": false,
 			"opening_gate": "open",
-			"eval_denominator": ["workflow_trace", "deterministic_answer", "release_gate"],
+			"eval_denominator": ["workflow_trace", "context_precision", "context_recall"],
 			"priority": 1,
-			"notes": "Bounded retrieval/evidence step inside the knowledge query tool."
-		},
-		{
-			"binding_id": "knowledge_query.grounding_verdict.derive",
-			"owner_tool_boundary": "knowledge_query",
-			"tool_name": "knowledge_query",
-			"produces": ["grounding_verdict"],
-			"consumes": ["evidence_bundle"],
-			"required_inputs": ["request:user_query", "artifact:evidence_bundle"],
-			"state_changing": false,
-			"opening_gate": "open",
-			"eval_denominator": ["workflow_trace", "deterministic_answer", "release_gate"],
-			"priority": 2,
-			"notes": "Grounding verdict derived from bounded evidence."
-		},
-		{
-			"binding_id": "public_web_search.public_web_evidence.lookup",
-			"owner_tool_boundary": "public_web_search",
-			"tool_name": "public_web_search",
-			"produces": ["public_web_evidence"],
-			"consumes": [],
-			"required_inputs": ["request:user_query"],
-			"state_changing": false,
-			"opening_gate": "open",
-			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
-			"priority": 1,
-			"notes": "Public official-web search emits sanitized URL evidence only."
-		},
-		{
-			"binding_id": "place_lookup.place_context.deferred",
-			"owner_tool_boundary": "place_lookup",
-			"tool_name": "",
-			"produces": ["place_context"],
-			"consumes": [],
-			"required_inputs": ["request:user_query"],
-			"state_changing": false,
-			"opening_gate": "closed",
-			"eval_denominator": ["workflow_trace"],
-			"priority": 1,
-			"notes": "Navigation runtime remains closed; artifact is registered only as a contract residue."
+			"notes": "One bounded search inside the OpenAI Agents SDK knowledge loop."
 		}
 	]
 }

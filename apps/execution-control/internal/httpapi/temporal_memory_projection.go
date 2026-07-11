@@ -8,7 +8,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/temporal"
 )
@@ -119,23 +118,6 @@ func (s *Server) replaceTemporalMemoryMetadata(
 	return s.runProjectionStore.ReplaceRunMetadata(ctx, latest.RunID, metadata)
 }
 
-func temporalMemoryRecallResultFromRun(
-	run execution.DurableRun,
-) (memoryruntime.RecallResult, bool) {
-	raw, ok := run.Metadata["temporal_memory"].(map[string]any)
-	if !ok {
-		return memoryruntime.RecallResult{}, false
-	}
-	result, err := decodeRAGProjection[memoryruntime.RecallResult](raw["recall_result"])
-	if err != nil {
-		return memoryruntime.RecallResult{}, false
-	}
-	if result.RunID != run.RunID {
-		return memoryruntime.RecallResult{}, false
-	}
-	return result, true
-}
-
 func (s *Server) failMemoryRecallActivity(
 	ctx context.Context,
 	run execution.DurableRun,
@@ -197,23 +179,4 @@ func memoryFailureKindIsNonRetryable(failureKind string) bool {
 	default:
 		return false
 	}
-}
-
-func memoryContextForRAG(run execution.DurableRun) ([]ragruntime.MemoryContextItem, string) {
-	result, ok := temporalMemoryRecallResultFromRun(run)
-	if !ok {
-		return nil, ""
-	}
-	items := make([]ragruntime.MemoryContextItem, 0, len(result.Items))
-	for _, item := range result.Items {
-		items = append(items, ragruntime.MemoryContextItem{
-			Tool:        item.Tool,
-			CompactText: item.CompactText,
-			MemoryID:    item.MemoryID,
-			MemoryType:  item.MemoryType,
-			Score:       item.Score,
-			UpdatedAt:   item.UpdatedAt,
-		})
-	}
-	return items, result.MemoryRef
 }

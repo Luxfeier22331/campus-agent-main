@@ -1,13 +1,13 @@
 export function goDecodeHelpers({
+	answerArtifactKinds,
 	debugTraceSinks,
-	projectionKinds,
 	requestedTools,
 	stageTimingFields,
 	toolIds,
 	workflowModes,
 }: {
+	answerArtifactKinds: string[];
 	debugTraceSinks: string[];
-	projectionKinds: string[];
 	requestedTools: string[];
 	stageTimingFields: string[];
 	toolIds: string[];
@@ -20,9 +20,9 @@ export function goDecodeHelpers({
 	const workflowModeCases = workflowModes
 		.map((value) => `WorkflowMode${goConstSuffix(value)}`)
 		.join(", ");
-	const projectionKindCases = projectionKinds
-		.map((value) => `StepOutputProjectionKind${goConstSuffix(value)}`)
-		.join(",\n\t\t");
+	const answerArtifactKindCases = answerArtifactKinds
+		.map((value) => `AnswerArtifactKind${goConstSuffix(value)}`)
+		.join(", ");
 	const stageTimingFieldCases = stageTimingFields
 		.map((value) => `StageTimingField${goConstSuffix(value)}`)
 		.join(",\n\t\t");
@@ -30,8 +30,19 @@ export function goDecodeHelpers({
 		.map((value) => `DebugTraceSink${goConstSuffix(value)}`)
 		.join(", ");
 	const template = `
-func DecodeToolExecutionRequestWireJSON(data []byte) (ToolExecutionRequestWire, error) {
-\tvar wire ToolExecutionRequestWire
+func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
+\tvar wire ExecutionPayloadWire
+\tif err := decodeStrictJSON(data, &wire); err != nil {
+\t\treturn wire, err
+\t}
+\tif err := wire.Validate(); err != nil {
+\t\treturn wire, err
+\t}
+\treturn wire, nil
+}
+
+func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateRequestWire, error) {
+\tvar wire ExecutionRunCreateRequestWire
 \tif err := decodeStrictJSON(data, &wire); err != nil {
 \t\treturn wire, err
 \t}
@@ -43,6 +54,20 @@ func DecodeToolExecutionRequestWireJSON(data []byte) (ToolExecutionRequestWire, 
 
 func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire, error) {
 \tvar wire ToolExecutionResponseWire
+\tif err := requireJSONObjectFields(data, []string{
+\t\t"selected_tool",
+\t\t"status",
+\t\t"answer_text",
+\t\t"follow_up_question",
+\t\t"confidence",
+\t\t"result",
+\t\t"error",
+\t\t"resolved_scope",
+\t\t"session_update",
+\t\t"trace_id",
+\t}); err != nil {
+\t\treturn wire, err
+\t}
 \tif err := decodeStrictJSON(data, &wire); err != nil {
 \t\treturn wire, err
 \t}
@@ -65,7 +90,23 @@ func decodeStrictJSON(data []byte, target any) error {
 \treturn nil
 }
 
-func (wire ToolExecutionRequestWire) Validate() error {
+func requireJSONObjectFields(data []byte, fields []string) error {
+\tvar payload map[string]json.RawMessage
+\tif err := json.Unmarshal(data, &payload); err != nil {
+\t\treturn err
+\t}
+\tif payload == nil {
+\t\treturn fmt.Errorf("expected JSON object")
+\t}
+\tfor _, field := range fields {
+\t\tif _, ok := payload[field]; !ok {
+\t\t\treturn fmt.Errorf("%s is required", field)
+\t\t}
+\t}
+\treturn nil
+}
+
+func (wire ExecutionPayloadWire) Validate() error {
 \tif wire.ExecutionContractVersion != ExecutionContractVersion {
 \t\treturn fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 \t}
@@ -78,20 +119,20 @@ func (wire ToolExecutionRequestWire) Validate() error {
 \tif wire.RequestID == "" {
 \t\treturn fmt.Errorf("request_id is required")
 \t}
-\tif !wire.EffectiveTool.Valid() {
-\t\treturn fmt.Errorf("effective_tool is invalid")
+\tif wire.ConversationID == "" {
+\t\treturn fmt.Errorf("conversation_id is required")
 \t}
-\tif !wire.RequestedTool.Valid() {
+\tif wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
 \t\treturn fmt.Errorf("requested_tool is invalid")
 \t}
-\tif wire.TaskQueue == "" {
-\t\treturn fmt.Errorf("task_queue is required")
+\tif wire.RequestedTool == RequestedToolKnowledgeQuery && wire.Scope == "" {
+\t\treturn fmt.Errorf("scope is required for requested_tool knowledge_query")
 \t}
-\tif len(wire.Trace) == 0 {
-\t\treturn fmt.Errorf("trace is required")
+\tif wire.RequestedTool != RequestedToolKnowledgeQuery && wire.Scope != "" {
+\t\treturn fmt.Errorf("scope requires requested_tool knowledge_query")
 \t}
-\tif wire.Actor == nil {
-\t\treturn fmt.Errorf("actor is required")
+\tif wire.Trace.TraceID == "" {
+\t\treturn fmt.Errorf("trace.trace_id is required")
 \t}
 \tif wire.Context == nil {
 \t\treturn fmt.Errorf("context is required")
@@ -102,104 +143,96 @@ func (wire ToolExecutionRequestWire) Validate() error {
 \tif wire.VersionQuery == nil {
 \t\treturn fmt.Errorf("version_query is required")
 \t}
-\tif wire.RuntimeDecisions != nil {
-\t\tif err := wire.RuntimeDecisions.Validate(); err != nil {
-\t\t\treturn fmt.Errorf("runtime_decisions: %w", err)
-\t\t}
+\tif err := wire.VersionQuery.Validate(); err != nil {
+\t\treturn fmt.Errorf("version_query: %w", err)
 \t}
 \treturn nil
 }
 
-func (wire RuntimeDecisionsWire) Validate() error {
-\tif wire.SchemaVersion != RuntimeDecisionsSchemaVersion {
-\t\treturn fmt.Errorf("schema_version must be %s", RuntimeDecisionsSchemaVersion)
+func (wire VersionQueryWire) Validate() error {
+\tmode := wire.Mode
+\tif mode == "" {
+\t\tmode = "current"
 \t}
-\tif !wire.EffectiveTool.Valid() {
-\t\treturn fmt.Errorf("effective_tool is invalid")
+\tswitch mode {
+\tcase "current", "historical", "as_of", "compare":
+\tdefault:
+\t\treturn fmt.Errorf("mode is invalid")
 \t}
-\tif wire.TaskQueue == "" {
-\t\treturn fmt.Errorf("task_queue is required")
-\t}
-\tif wire.RoutingFrame == nil {
-\t\treturn fmt.Errorf("routing_frame is required")
-\t}
-\tif err := wire.RuntimeDecisionSummary.Validate(); err != nil {
-\t\treturn fmt.Errorf("runtime_decision_summary: %w", err)
-\t}
-\tif wire.WorkflowPlan != nil {
-\t\tif err := wire.WorkflowPlan.Validate(); err != nil {
-\t\t\treturn fmt.Errorf("workflow_plan: %w", err)
+\tif mode == "as_of" {
+\t\tif wire.AsOf == "" {
+\t\t\treturn fmt.Errorf("as_of is required when mode is as_of")
 \t\t}
+\t} else if wire.AsOf != "" {
+\t\treturn fmt.Errorf("as_of is only allowed when mode is as_of")
+\t}
+\tif mode != "historical" && mode != "compare" && wire.VersionID != "" {
+\t\treturn fmt.Errorf("version_id is only allowed for historical or compare mode")
+\t}
+\tif mode != "compare" && wire.CompareToVersionID != "" {
+\t\treturn fmt.Errorf("compare_to_version_id is only allowed when mode is compare")
+\t}
+\tif wire.CompareToVersionID != "" && wire.VersionID == "" {
+\t\treturn fmt.Errorf("version_id is required when compare_to_version_id is set")
 \t}
 \treturn nil
 }
 
-func (wire RuntimeDecisionSummaryWire) Validate() error {
-\tif wire.SchemaVersion != RuntimeDecisionSummarySchemaVersion {
-\t\treturn fmt.Errorf("schema_version must be %s", RuntimeDecisionSummarySchemaVersion)
+func (wire ExecutionRunCreateRequestWire) Validate() error {
+\tif wire.RunID == "" {
+\t\treturn fmt.Errorf("run_id is required")
 \t}
-\tif wire.PlanningOutcome == "" {
-\t\treturn fmt.Errorf("planning_outcome is required")
+\tif wire.ConversationID == "" {
+\t\treturn fmt.Errorf("conversation_id is required")
 \t}
-\treturn nil
-}
-
-func (wire WorkflowPlanWire) Validate() error {
-\tif wire.SchemaVersion != "workflow-plan-v1" {
-\t\treturn fmt.Errorf("schema_version must be workflow-plan-v1")
+\tif wire.TurnID == "" {
+\t\treturn fmt.Errorf("turn_id is required")
 \t}
-\tif wire.PlanID == "" {
-\t\treturn fmt.Errorf("plan_id is required")
+\tif wire.RequestID == "" {
+\t\treturn fmt.Errorf("request_id is required")
 \t}
-\tif !wire.WorkflowMode.Valid() {
-\t\treturn fmt.Errorf("workflow_mode is invalid")
+\tif wire.OwnerUserID == "" {
+\t\treturn fmt.Errorf("owner_user_id is required")
 \t}
-\tif wire.AllowedTools == nil {
-\t\treturn fmt.Errorf("allowed_tools is required")
+\tif wire.Surface == "" {
+\t\treturn fmt.Errorf("surface is required")
 \t}
-\tif wire.Steps == nil {
-\t\treturn fmt.Errorf("steps is required")
+\tif err := wire.Metadata.ExecutionPayload.Validate(); err != nil {
+\t\treturn fmt.Errorf("metadata.execution_payload: %w", err)
 \t}
-\tif wire.Edges == nil {
-\t\treturn fmt.Errorf("edges is required")
+\tif wire.Metadata.ExecutionPayload.RequestID != wire.RequestID {
+\t\treturn fmt.Errorf("metadata.execution_payload.request_id must match request_id")
 \t}
-\tif wire.TerminalPolicy == nil {
-\t\treturn fmt.Errorf("terminal_policy is required")
+\tif wire.Metadata.ExecutionPayload.ConversationID != wire.ConversationID {
+\t\treturn fmt.Errorf("metadata.execution_payload.conversation_id must match conversation_id")
 \t}
-\tif wire.ResumePolicy == nil {
-\t\treturn fmt.Errorf("resume_policy is required")
-\t}
-\tif wire.SemanticRetryPolicy == nil {
-\t\treturn fmt.Errorf("semantic_retry_policy is required")
-\t}
-\tfor index, step := range wire.Steps {
-\t\tif step.StepID == "" {
-\t\t\treturn fmt.Errorf("steps[%d].step_id is required", index)
-\t\t}
-\t\tif step.StepKind == "" {
-\t\t\treturn fmt.Errorf("steps[%d].step_kind is required", index)
-\t\t}
-\t}
-\tfor index, edge := range wire.Edges {
-\t\tif edge.FromStepID == "" {
-\t\t\treturn fmt.Errorf("edges[%d].from_step_id is required", index)
-\t\t}
-\t\tif edge.ToStepID == "" {
-\t\t\treturn fmt.Errorf("edges[%d].to_step_id is required", index)
-\t\t}
-\t\tif edge.Condition == "" {
-\t\t\treturn fmt.Errorf("edges[%d].condition is required", index)
-\t\t}
+\tif wire.TraceID != "" &&
+\t\twire.Metadata.ExecutionPayload.Trace.TraceID != wire.TraceID {
+\t\treturn fmt.Errorf("metadata.execution_payload.trace.trace_id must match trace_id")
 \t}
 \treturn nil
 }
 
 func (wire WorkflowTraceSummaryWire) Validate() error {
-\tif wire.RoutingFrame == nil {
-\t\treturn fmt.Errorf("routing_frame is required")
+\tif wire.WorkflowMode == "" {
+\t\treturn fmt.Errorf("workflow_mode is required")
 \t}
-\tif wire.ContextResolution == nil {
-\t\treturn fmt.Errorf("context_resolution is required")
+\tif !wire.WorkflowMode.Valid() {
+\t\treturn fmt.Errorf("workflow_mode is invalid")
+\t}
+\tif wire.SelectedTool != nil && *wire.SelectedTool != "" && !ToolID(*wire.SelectedTool).Valid() {
+\t\treturn fmt.Errorf("selected_tool is invalid")
+\t}
+\tif wire.SelectedTools == nil {
+\t\treturn fmt.Errorf("selected_tools is required")
+\t}
+\tfor index, tool := range wire.SelectedTools {
+\t\tif tool == "" {
+\t\t\treturn fmt.Errorf("selected_tools[%d] is required", index)
+\t\t}
+\t}
+\tif wire.FirstDecisionActor == "" {
+\t\treturn fmt.Errorf("first_decision_actor is required")
 \t}
 \tif wire.PlanningOutcome == "" {
 \t\treturn fmt.Errorf("planning_outcome is required")
@@ -207,52 +240,28 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \tif wire.DirectVsDelegateBranch == "" {
 \t\treturn fmt.Errorf("direct_vs_delegate_branch is required")
 \t}
-\tif wire.WorkflowMode == "" {
-\t\treturn fmt.Errorf("workflow_mode is required")
+\tif wire.TerminalReason == "" {
+\t\treturn fmt.Errorf("terminal_reason is required")
 \t}
-\tif !wire.WorkflowMode.Valid() {
-\t\treturn fmt.Errorf("workflow_mode is invalid")
+\tif wire.AnswerArtifactKinds == nil {
+\t\treturn fmt.Errorf("answer_artifact_kinds is required")
 \t}
-\tif wire.Handoff == nil {
-\t\treturn fmt.Errorf("handoff is required")
-\t}
-\tif wire.HandoffChain == nil {
-\t\treturn fmt.Errorf("handoff_chain is required")
-\t}
-\tif wire.SelectedTool == nil || *wire.SelectedTool == "" {
-\t\treturn fmt.Errorf("selected_tool is required")
-\t}
-\tif wire.SelectedTools == nil {
-\t\treturn fmt.Errorf("selected_tools is required")
-\t}
-\tif wire.ContextProjections == nil {
-\t\treturn fmt.Errorf("context_projections is required")
-\t}
-\tfor index, projection := range wire.ContextProjections {
-\t\tif projection.ProjectionID == "" {
-\t\t\treturn fmt.Errorf("context_projections[%d].projection_id is required", index)
-\t\t}
-\t\tif projection.SourceStepID == "" {
-\t\t\treturn fmt.Errorf("context_projections[%d].source_step_id is required", index)
-\t\t}
-\t\tif !projection.ProjectionKind.Valid() {
-\t\t\treturn fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
-\t\t}
-\t\tif projection.ContentHash == "" {
-\t\t\treturn fmt.Errorf("context_projections[%d].content_hash is required", index)
+\tfor index, kind := range wire.AnswerArtifactKinds {
+\t\tif !kind.Valid() {
+\t\t\treturn fmt.Errorf("answer_artifact_kinds[%d] is invalid", index)
 \t\t}
 \t}
-\tif wire.ToolArgumentSummary == nil {
-\t\treturn fmt.Errorf("tool_argument_summary is required")
+\tif wire.AnswerArtifactRefs == nil {
+\t\treturn fmt.Errorf("answer_artifact_refs is required")
 \t}
-\tif wire.GuardrailOutcomes == nil {
-\t\treturn fmt.Errorf("guardrail_outcomes is required")
+\tif wire.TraceSteps == nil {
+\t\treturn fmt.Errorf("trace_steps is required")
+\t}
+\tif wire.ToolCallSummaries == nil {
+\t\treturn fmt.Errorf("tool_call_summaries is required")
 \t}
 \tif wire.RuntimeVersions == nil {
 \t\treturn fmt.Errorf("runtime_versions is required")
-\t}
-\tif wire.PolicyArtifactVersions == nil {
-\t\treturn fmt.Errorf("policy_artifact_versions is required")
 \t}
 \treturn nil
 }
@@ -281,6 +290,11 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t\t\treturn fmt.Errorf("error.retryable is required")
 \t\t}
 \t}
+\tif wire.SessionUpdate != nil {
+\t\tif err := wire.SessionUpdate.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("session_update: %w", err)
+\t\t}
+\t}
 \tif wire.WorkflowTraceSummary != nil {
 \t\tif err := wire.WorkflowTraceSummary.Validate(); err != nil {
 \t\t\treturn fmt.Errorf("workflow_trace_summary: %w", err)
@@ -294,6 +308,26 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \tfor index, ref := range wire.DebugTraceRefs {
 \t\tif err := ref.Validate(); err != nil {
 \t\t\treturn fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
+\t\t}
+\t}
+\treturn nil
+}
+
+func (wire SessionUpdateWire) Validate() error {
+\tif wire.UpsertSlots == nil {
+\t\treturn fmt.Errorf("upsert_slots is required")
+\t}
+\tfor index, slot := range wire.UpsertSlots {
+\t\tif !slot.Confirmed {
+\t\t\treturn fmt.Errorf("upsert_slots[%d].confirmed must be true", index)
+\t\t}
+\t\tswitch slot.Name {
+\t\tcase "curriculum_program", "curriculum_program_family", "curriculum_semester":
+\t\tdefault:
+\t\t\treturn fmt.Errorf("upsert_slots[%d].name is invalid", index)
+\t\t}
+\t\tif slot.Value == "" {
+\t\t\treturn fmt.Errorf("upsert_slots[%d].value is required", index)
 \t\t}
 \t}
 \treturn nil
@@ -348,15 +382,6 @@ func (value ConfidenceLevel) Valid() bool {
 \t}
 }
 
-func (value DelegateStatus) Valid() bool {
-\tswitch value {
-\tcase DelegateStatusCompleted, DelegateStatusNeedsClarification, DelegateStatusNoAnswer, DelegateStatusError:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
-
 func (value ExecutionStatus) Valid() bool {
 \tswitch value {
 \tcase ExecutionStatusCompleted, ExecutionStatusNeedsClarification, ExecutionStatusNoAnswer, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
@@ -375,14 +400,9 @@ func (value WorkflowMode) Valid() bool {
 \t}
 }
 
-func (value StepOutputProjectionKind) Valid() bool {
+func (value AnswerArtifactKind) Valid() bool {
 \tswitch value {
-\tcase StepOutputProjectionKindNoticeContext,
-\t\tStepOutputProjectionKindScheduleBaseline,
-\t\tStepOutputProjectionKindServiceGuideFacts,
-\t\tStepOutputProjectionKindPlaceContext,
-\t\tStepOutputProjectionKindEvidenceBundle,
-\t\tStepOutputProjectionKindGroundingVerdict:
+\tcase __ANSWER_ARTIFACT_KIND_CASES__:
 \t\treturn true
 \tdefault:
 \t\treturn false
@@ -407,24 +427,14 @@ func (value DebugTraceSink) Valid() bool {
 \t}
 }
 `;
-	const legacyProjectionKindCases = [
-		"StepOutputProjectionKindNoticeContext,",
-		"\t\tStepOutputProjectionKindScheduleBaseline,",
-		"\t\tStepOutputProjectionKindServiceGuideFacts,",
-		"\t\tStepOutputProjectionKindPlaceContext,",
-		"\t\tStepOutputProjectionKindEvidenceBundle,",
-		"\t\tStepOutputProjectionKindGroundingVerdict",
-	].join("\n");
 	const result = template
 		.replace("__TOOL_ID_CASES__", toolIdCases)
 		.replace("__REQUESTED_TOOL_CASES__", requestedToolCases)
 		.replace("__WORKFLOW_MODE_CASES__", workflowModeCases)
+		.replace("__ANSWER_ARTIFACT_KIND_CASES__", answerArtifactKindCases)
 		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases)
 		.replace("__DEBUG_TRACE_SINK_CASES__", debugTraceSinkCases);
-	if (!result.includes(legacyProjectionKindCases)) {
-		throw new Error("StepOutputProjectionKind Valid template block drifted");
-	}
-	return result.replace(legacyProjectionKindCases, projectionKindCases);
+	return result;
 }
 
 export function goConstSuffix(value: string): string {

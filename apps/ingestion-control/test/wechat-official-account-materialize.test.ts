@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import {
-	type IngestionTaskEnvelope,
-	type IngestionTaskRegistry,
-	InMemoryIngestionTaskStore,
-} from "../src/index.ts";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
+import type { IngestionTaskEnvelope, IngestionTaskRegistry } from "../src/index.ts";
 import {
 	createWeChatOfficialAccountSourceTruthMaterializeHandler,
 	type IngestionObjectStore,

@@ -1,10 +1,10 @@
 ---
-doc_type: index
+doc_type: domain
 truth_scope: product
 owner_boundary: domains/source-card
 status: active
 created: 2026-06-28
-updated: 2026-06-28
+updated: 2026-07-08
 ---
 # Source Card
 
@@ -63,8 +63,10 @@ derived from current chunk ids or vendor result ids.
   `../contracts/app-api/document-reader.md`
 - Canonical reader model:
   `../data/document-reader.md`
-- Retrieval evidence model:
-  `../data/retrieval-activity.md`
+- Knowledge evidence and final source contract:
+  `../contracts/tool-execution.md`
+- Indexed retrieval serving boundary:
+  `../architecture/system/retrieval-serving.md`
 - Docs reader architecture:
   `../architecture/system/document-site.md`
 

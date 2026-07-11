@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-07-03
-updated: 2026-07-05
+updated: 2026-07-11
 ---
 # Runtime Stage Timing Contract
 
@@ -43,7 +43,8 @@ whose values are durations in milliseconds:
   "request.total_ms": 1840,
   "stream.browser_ttft_ms": 920,
   "agent.primary_ms": 1380,
-  "agent.first_delta_ms": 710
+  "agent.first_delta_ms": 710,
+  "knowledge.search_ms": 360
 }
 ```
 
@@ -72,18 +73,12 @@ object-store keys or Temporal raw history.
 | `stream.browser_ttft_ms` | `apps/app-api` | Time from accepted browser-facing request to first answer delta emitted to the browser stream. |
 | `execution.admission_ms` | `apps/execution-control` | Time spent admitting the run into the execution path before productive runtime work starts. |
 | `memory.recall_ms` | `apps/execution-control` | Duration of personal memory recall and safe memory context projection. |
-| `agent.primary_ms` | `apps/execution-control` | End-to-end duration of the primary-agent step as observed by execution-control. |
-| `agent.runtime_ms` | `apps/agent-runtime` | Duration of the agent-runtime primary-agent SDK call boundary. |
-| `agent.first_delta_ms` | `apps/agent-runtime` | Time from agent-runtime request start to first visible answer delta from the primary agent. |
-| `tool.total_ms` | `apps/execution-control` | Total time spent in admitted model-visible typed tool branches for the run. |
-| `tool.knowledge_query_ms` | `apps/execution-control` | Duration of the admitted `knowledge_query` branch when selected. |
+| `agent.primary_ms` | `apps/execution-control` | End-to-end duration of the single Agent Activity, including primary/Knowledge Agent handoff and SDK tools. |
+| `agent.runtime_ms` | `apps/agent-runtime` | Duration of the complete OpenAI Agents SDK run. |
+| `agent.first_delta_ms` | `apps/agent-runtime` | Time from agent-runtime request start to first visible answer delta. |
+| `tool.total_ms` | `apps/execution-control` | Total projected duration of SDK tool calls for the run, including internal `knowledge_search`. |
 | `tool.transport_schedule_lookup_ms` | `apps/execution-control` | Duration of the admitted `transport_schedule_lookup` branch when selected. |
-| `tool.campus_notice_discover_ms` | `apps/execution-control` | Duration of the admitted `campus_notice_discover` branch when selected. |
-| `rag.plan_ms` | `apps/execution-control` | Duration of RAG planning and query preparation inside the admitted knowledge branch. |
-| `rag.lookup_ms` | `apps/execution-control` | Duration of vector / source lookup inside the admitted knowledge branch. |
-| `rag.rerank_ms` | `apps/execution-control` | Duration of reranking inside the admitted knowledge branch. |
-| `rag.synthesis_ms` | `apps/execution-control` | Duration of answer synthesis inside the admitted knowledge branch. |
-| `rag.grounding_ms` | `apps/execution-control` | Duration of grounding / answer support verification inside the admitted knowledge branch. |
+| `knowledge.search_ms` | `apps/execution-control` | Sum of projected durations for internal `knowledge_search` calls in the Agent Activity. |
 | `finalization.write_ms` | `apps/execution-control` | Duration of sanitized finalization projection write. |
 | `projection.closeout_ms` | `apps/app-api` | Duration between execution finalization receipt and app-api observability fact closeout. |
 

@@ -14,8 +14,3 @@ services:
       QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
     labels:
       traefik.enable: "false"
-
-  activity-worker-knowledge:
-    environment:
-      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
-      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}

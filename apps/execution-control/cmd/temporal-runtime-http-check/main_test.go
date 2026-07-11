@@ -89,8 +89,7 @@ func TestHTTPCheckWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 					"task_queues":[
 						"campus-agent.workflow",
 						"campus-agent.activity.core",
-						"campus-agent.activity.agent",
-						"campus-agent.activity.knowledge"
+						"campus-agent.activity.agent"
 					]
 				}
 		}`))

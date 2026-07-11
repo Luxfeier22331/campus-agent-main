@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error) {
+func readWorkerProfilesStrict() (map[string]WorkerProfile, error) {
 	profiles := map[string]WorkerProfile{
 		"workflow": {
 			WorkflowTaskPollers: 2,
@@ -17,10 +17,6 @@ func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error
 		},
 		"activity-agent": {
 			ActivitySlots:       4,
-			ActivityTaskPollers: 2,
-		},
-		"activity-knowledge": {
-			ActivitySlots:       maxInt(8, values.RAGRetrievalMaxConcurrent+values.RAGSynthesisMaxConcurrent+2),
 			ActivityTaskPollers: 2,
 		},
 	}
@@ -38,11 +34,4 @@ func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error
 
 func envRoleName(role string) string {
 	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(role), "-", "_"))
-}
-
-func maxInt(left int, right int) int {
-	if left > right {
-		return left
-	}
-	return right
 }

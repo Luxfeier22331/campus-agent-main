@@ -1,10 +1,11 @@
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
 // @vitest-environment node
 
 import type { IngestionTaskRecord } from "ingest-core";
 import type { IngestionTaskEnvelope } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { createIngestionTaskRegistryCatalog, InMemoryIngestionTaskStore } from "../src/index.ts";
+import { createIngestionTaskRegistryCatalog } from "../src/index.ts";
 import {
 	buildOfficialWebProjectionProjector,
 	type OfficialWebProjectionProjector,
@@ -117,6 +118,21 @@ function createPendingEvent(
 					pageFamily: "article_detail",
 					rawAssetId: "raw_01",
 					rawVersionId: "rawv_01",
+					selectedWriteTarget: "official_web/stable_reference",
+					targetMatches: [
+						{
+							consumerFamily: "stable_reference_candidate",
+							materializationPolicy: "release_gate_required",
+							retentionPolicy: "retain_source_truth",
+							reviewPolicy: "release_gate_required",
+							selectedWriteTarget: "official_web/stable_reference",
+							targetCandidateId: "owcandidate_01",
+							targetDeclarationVersion: "targets.v1",
+							targetId: "official-web-stable-reference",
+							targetJobId: "owtarget_stable_reference",
+							worksetReason: "target_candidate_due",
+						},
+					],
 				},
 			],
 		},
@@ -159,6 +175,21 @@ function createOfficialWebRegistryCatalog() {
 					executor_kind: "ts_control",
 					input_contract: "official_web_source_truth_bundle.v1",
 					output_contract: "official_web_stable_reference_source_truth.v1",
+				},
+			],
+		},
+		{
+			schema_version: "ingestion_task_registry.v2",
+			source_family: "official_web",
+			corpus: "official_web",
+			collection: "fresh_news",
+			tasks: [
+				{
+					registry_task_id: "source_truth_materialize",
+					task_kind: "source_truth_materialize",
+					executor_kind: "ts_control",
+					input_contract: "official_web_source_truth_bundle.v1",
+					output_contract: "official_web_fresh_news_source_truth.v1",
 				},
 			],
 		},
@@ -266,6 +297,58 @@ describe("official web projection projector", () => {
 		);
 	});
 
+	it("admits fresh-news terminal tasks only from explicit official-web selected write targets", async () => {
+		const store = createProjectionStore({
+			listPendingEvents: vi.fn().mockResolvedValue([
+				createPendingEvent({
+					eventId: "owevt_fresh_news_01HQ",
+					payload: {
+						pageChanges: [
+							{
+								changeStatus: "new",
+								normalizedCanonicalUrl: "https://www.example.edu/news/1",
+								observedAt: "2026-03-29T08:17:32.000Z",
+								pageFamily: "article_detail",
+								rawAssetId: "raw_news_01",
+								rawVersionId: "rawv_news_01",
+								selectedWriteTarget: "official_web/fresh_news",
+							},
+						],
+					},
+				}),
+			]),
+		});
+		const taskStore = new InMemoryIngestionTaskStore({
+			now: () => new Date("2026-03-29T08:17:33.000Z"),
+		});
+		const workflowStarter = createWorkflowStarter();
+		const projector = buildProjector({
+			sourceBucket: "campus-agent-source",
+			store,
+			taskStore,
+			workflowStarter,
+		});
+
+		const result = await projector.drain();
+
+		expect(result).toEqual({
+			abandoned: 0,
+			failed: 0,
+			processed: 1,
+			skipped: 0,
+		});
+		const admittedTask = taskStore.getTask("task_official_web_fresh_news_source_truth_owrun_01HQ");
+		expect(admittedTask).toMatchObject({
+			collection: "fresh_news",
+			output_contract: "official_web_fresh_news_source_truth.v1",
+			idempotency_key:
+				"official_web/fresh_news/source_truth_materialize/owrun_01HQ/owevt_fresh_news_01HQ",
+		});
+		expect(workflowStarter.startedTaskIds).toEqual([
+			"task_official_web_fresh_news_source_truth_owrun_01HQ",
+		]);
+	});
+
 	it("materializes accepted run and site projections and marks events processed", async () => {
 		const store = createProjectionStore({
 			getRunProjectionSource: vi.fn().mockResolvedValue(
@@ -341,6 +424,54 @@ describe("official web projection projector", () => {
 			expect.objectContaining({
 				eventId: "owevt_completed_01HQ",
 				lastError: "OBJECT_STORE_BUCKET_SOURCE is required for official web task admission.",
+				processedAt: null,
+			}),
+		);
+	});
+
+	it("fails terminal task admission when terminal events lack explicit official-web target metadata", async () => {
+		const store = createProjectionStore({
+			listPendingEvents: vi.fn().mockResolvedValue([
+				createPendingEvent({
+					payload: {
+						pageChanges: [
+							{
+								changeStatus: "new",
+								normalizedCanonicalUrl: "https://www.example.edu/broad",
+								observedAt: "2026-03-29T08:17:32.000Z",
+								pageFamily: "article_detail",
+								rawAssetId: "raw_broad_01",
+								rawVersionId: "rawv_broad_01",
+							},
+						],
+					},
+				}),
+			]),
+		});
+		const taskStore = new InMemoryIngestionTaskStore();
+		const projector = buildProjector({
+			sourceBucket: "campus-agent-source",
+			store,
+			taskStore,
+			workflowStarter: createWorkflowStarter(),
+		});
+
+		const result = await projector.drain();
+
+		expect(result).toEqual({
+			abandoned: 0,
+			failed: 1,
+			processed: 0,
+			skipped: 0,
+		});
+		expect(
+			taskStore.getTask("task_official_web_stable_reference_source_truth_owrun_01HQ"),
+		).toBeNull();
+		expect(store.markEventFailed).toHaveBeenCalledWith(
+			expect.objectContaining({
+				eventId: "owevt_completed_01HQ",
+				lastError:
+					"Official web terminal event requires an explicit official_web selected_write_target for task admission.",
 				processedAt: null,
 			}),
 		);

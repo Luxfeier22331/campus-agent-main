@@ -5,19 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-06-15
+updated: 2026-07-11
 ---
 # ADR-0016 App API Request Projection And Operator Console Query Ownership
 
 适用范围：operator-facing request list/detail、shared `app-api` request
 projection、Operator Console `Requests` domain 的长期 ownership
-
-## 当前边界说明
-
-本文的 request projection owner 结论仍有效。早期以 `apps/supervisor-agent-worker`
-描述 agent worker 的段落只保留为历史反例；当前 Python supervisor worker 已从 active
-workspace 删除，execution closeout 与 projection 由 `apps/execution-control`、Temporal
-activity workers 和 `app-api` projection boundary 承接。
 
 ## 背景
 
@@ -39,7 +32,7 @@ activity workers 和 `app-api` projection boundary 承接。
 
 - Operator Console 直接读 audit log 或 telemetry sink
 - conversation store 被误当成 request truth
-- `apps/supervisor-agent-worker` 被反向扩成 request read-model host
+- `apps/agent-runtime` 或 Temporal activity worker 被反向扩成 request read-model host
 - `apps/execution-control` 顺手继续长成 Operator Console query backend
 
 ## 决策 1：canonical request facts 与 projection input 一次产出
@@ -81,7 +74,8 @@ activity workers 和 `app-api` projection boundary 承接。
 
 结论：
 
-- `apps/execution-control` 继续负责 answer execution
+- `apps/execution-control` 继续负责 durable workflow、evidence/source validation
+  与 terminal projection
 - 不负责 request projection store、list/detail API 或 Operator Console query serving
 
 原因：
@@ -89,21 +83,21 @@ activity workers 和 `app-api` projection boundary 承接。
 - execution engine 与 operator query 是不同产品边界
 - 否则会重新把 `execution-control` 扩回产品 backend
 
-## 决策 4：semantic execution worker 不拥有 Operator Console read model host
+## 决策 4：Agent Activity 不拥有 Operator Console read model host
 
 结论：
 
-- semantic execution worker / typed activity worker 只返回 execution-internal typed
-  result
+- `apps/agent-runtime` 在单个 Agent Activity 中返回 SDK terminal output 与
+  sanitized trajectory
 - 不拥有 request projection store、list/detail API 或面向 Operator Console 的 read
   model host
-- execution audit summary、response observability projection 与 public
-  finalization 由 `apps/execution-control` 拥有
+- execution audit summary、response observability projection 与 terminal
+  validation 由 `apps/execution-control` 拥有
 
 原因：
 
-- semantic execution worker 的职责是 private semantic execution，而不是产品 surface 数据面
-- 这样可以保持 product-layer、execution runtime 与 agent semantic worker 的边界清晰
+- Agent Activity 的职责是完成 OpenAI Agents SDK run，而不是承载产品 surface 数据面
+- 这样可以保持 product layer、durable execution runtime 与 SDK agent runtime 的边界清晰
 
 ## 决策 5：以下数据面不是 canonical request projection truth
 
@@ -149,7 +143,7 @@ activity workers 和 `app-api` projection boundary 承接。
 
 - 不让 Operator Console 直接读取 JSONL audit
 - 不让 telemetry sink 兼任 Operator Console 主数据面
-- 不把 request projection read-model host 做进 `apps/supervisor-agent-worker`
+- 不把 request projection read-model host 做进 `apps/agent-runtime` 或 activity worker
 - 不让 `apps/execution-control` 顺手扩成 Operator Console 查询后端
 
 ## 相关文档

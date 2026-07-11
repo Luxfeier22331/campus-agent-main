@@ -20,10 +20,7 @@ export interface LearningLoopCandidate {
 		debugTraceRefCount?: number;
 		durationMs?: number;
 		failClosed: boolean | null;
-		modelExecutionState: string | null;
 		reasonCodes: readonly string[];
-		retrievalAttempted: boolean | null;
-		retrievedSourceCount: number | null;
 		selectedTool: string | null;
 		stageField?: string;
 		status: string;
@@ -66,7 +63,7 @@ export function buildLearningLoopCandidateDatasetItem(
 			feedback_id: candidate.feedbackId,
 			feedback_updated_at: candidate.feedbackUpdatedAt,
 			source: candidate.source,
-			source_schema_version: "learning_loop_candidate.v1",
+			source_schema_version: "learning_loop_candidate.v2",
 			...candidate.evidence,
 		},
 	};

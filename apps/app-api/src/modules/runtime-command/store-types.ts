@@ -5,15 +5,8 @@ import type {
 	ToolExecutionAnswerEvalFingerprint,
 	ToolExecutionDebugTraceRef,
 	ToolExecutionLlmIoFingerprint,
-	ToolExecutionModelUsageSummary,
 	ToolExecutionWorkflowTraceSummary,
 } from "../integration/tool-execution-types";
-import type {
-	RequestClaimSupportSummary,
-	RequestDiagnosticsSummary,
-	RequestRemoteContentSuspicionSummary,
-	RequestSourceTrustSummary,
-} from "../request-diagnostics";
 import type { AbuseThrottleReason } from "../safety-ops-policy";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { VersionQuery, VersionQueryMode } from "../version-query";
@@ -71,7 +64,6 @@ export interface RequestExecutionWrite {
 	errorCode: string | null;
 	questionPreview: string;
 	answerPreview: string | null;
-	diagnostics: RequestDiagnosticsSummary | null;
 	sourceDocIds: string[];
 	startedAt: string;
 	completedAt: string | null;
@@ -107,31 +99,19 @@ export interface RequestObservabilityFactWrite {
 	versionQueryMode: VersionQueryMode | null;
 	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
-	collection: string | null;
 	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	startedAt: string;
 	completedAt: string | null;
 	durationMs: number | null;
-	retrievalAttempted: boolean | null;
-	candidateCount: number | null;
-	retrievedSourceCount: number | null;
-	retrievedSources: ObservedSourceTraceEntry[];
 	supportingSources: ObservedSourceTraceEntry[];
-	emptyRecall: boolean | null;
-	citationExpected: boolean | null;
-	citationCount: number | null;
-	citationMissing: boolean | null;
 	refusalClass: string | null;
 	semanticOutcome: string | null;
 	scopeClass: string | null;
 	aclDecision: string | null;
 	aclAnomalyCode: string | null;
 	failClosed: boolean | null;
-	toolBusinessOutcome?: string | null;
-	toolFailCloseReason?: string | null;
-	toolHistoricalDowngradeReason?: string | null;
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	stageTiming?: Record<string, unknown>;
 	debugTraceRefs?: ToolExecutionDebugTraceRef[];
@@ -139,38 +119,9 @@ export interface RequestObservabilityFactWrite {
 	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
 	modelProvider: string | null;
 	modelName: string | null;
-	billableStepCount: number | null;
-	modelUsageSummary: ToolExecutionModelUsageSummary[] | null;
-	intentTool: string | null;
-	intentTaskKind: string | null;
-	intentLaunchState: string | null;
-	intentNextAction: string | null;
-	intentScopeClass: string | null;
-	intentScopeReason: string | null;
-	intentPolicyReason: string | null;
-	intentClassifierVersion: string | null;
-	intentSchemaVersion?: string | null;
-	intentRoutingConfidence?: string | null;
-	intentAmbiguitySignal?: string | null;
-	intentContextResolutionState?: string | null;
-	intentContextReferenceType?: string | null;
-	intentResolvedSlots?: Record<string, string> | null;
-	intentMissingSlots?: string[] | null;
-	intentAmbiguityReason?: string | null;
 	promptId: string | null;
 	promptVersion: string | null;
 	templateSha256: string | null;
-	modelExecutionState: string | null;
-	modelExecutionDetail: string | null;
-	inputTokens: number | null;
-	outputTokens: number | null;
-	cachedInputTokens: number | null;
-	estimatedCostMicrousd: number | null;
-	retrievalAdequacyVerdict: string | null;
-	retrievalAdequacyReason: string | null;
-	claimSupportSummary: RequestClaimSupportSummary | null;
-	remoteContentSuspicionSummary?: RequestRemoteContentSuspicionSummary | null;
-	sourceTrustSummary?: RequestSourceTrustSummary | null;
 	traceAvailable: boolean;
 	projectionLagMs: number | null;
 	measuredAt: string;
@@ -195,7 +146,6 @@ export interface AcceptRequestWrite {
 
 export interface FinalizeRequestWrite {
 	assistantMessage: ChatMessage;
-	contextSummary: string | null;
 	conversationTitle: string;
 	ownerUserId: string;
 	outboxEvent: ProjectionOutboxWrite;

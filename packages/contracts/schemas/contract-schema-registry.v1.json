@@ -1,6 +1,6 @@
 {
 	"schema_version": "contract-schema-registry.v1",
-	"updated": "2026-07-05",
+	"updated": "2026-07-11",
 	"entries": [
 		{
 			"id": "contract-schema-registry.v1",
@@ -18,14 +18,6 @@
 			"owner": "docs/contracts",
 			"status": "active",
 			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by pnpm contracts:check."
-		},
-		{
-			"id": "tool-handoff.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/tool-handoff.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"notes": "Execution Agent Layer -> tool handoff schema."
 		},
 		{
 			"id": "campus-services-tool-result.v1",
@@ -73,35 +65,12 @@
 			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
 		},
 		{
-			"id": "notice-tool-contracts.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/notice-tool-contracts.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/notice_tool_contracts",
-					"valid_glob": "*.valid.json",
-					"invalid_glob": "*.invalid.json"
-				}
-			],
-			"notes": "Canonical JSON Schema for notice typed tool payload/result packets, including public display-policy and fail-close invariants."
-		},
-		{
 			"id": "knowledge-tool-contracts.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/knowledge-tool-contracts.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
-		},
-		{
-			"id": "public-web-tool-contracts.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/public-web-tool-contracts.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"notes": "Canonical JSON Schema for the public_web_search typed tool payload/result packets."
 		},
 		{
 			"id": "runtime-tools.v4",
@@ -144,40 +113,13 @@
 			"notes": "Execution-control runtime config artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
 		},
 		{
-			"id": "query-serving-scopes.v2",
+			"id": "query-serving-scopes.v3",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/query-serving-scopes.v2.schema.json",
+			"path": "packages/contracts/schemas/query-serving-scopes.v3.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/query-serving-scopes.v2.json"],
-			"notes": "Knowledge query-serving scope admission policy consumed by execution-control."
-		},
-		{
-			"id": "intent-policy.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/intent-policy.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/intent-policy.v1.json"],
-			"notes": "Execution-control deterministic intent policy artifact."
-		},
-		{
-			"id": "intent-drift-thresholds.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/intent-drift-thresholds.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/intent-drift-thresholds.v1.json"],
-			"notes": "Intent drift release/eval threshold artifact."
-		},
-		{
-			"id": "provider-pricing.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/provider-pricing.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/provider-pricing.v1.json"],
-			"notes": "Provider usage pricing catalog consumed by execution-control cost projection."
+			"validates": ["configs/runtime/query-serving-scopes.v3.json"],
+			"notes": "Knowledge query-serving scope registry consumed by execution-control."
 		},
 		{
 			"id": "runtime-latency-budgets.v1",

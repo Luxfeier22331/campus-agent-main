@@ -4,18 +4,14 @@ import { repoPath } from "./common.ts";
 import { generateToolExecutionContracts } from "./tool-execution-generate.ts";
 
 const openApiPath = "docs/contracts/schemas/tool-execution.openapi.yaml";
-const toolHandoffSchemaPath = "packages/contracts/schemas/tool-handoff.v1.schema.json";
 const generatedTsPath = "apps/app-api/src/modules/integration/generated/tool-execution-contract.ts";
 const generatedGoPath = "apps/execution-control/internal/contracts/tool_execution_contract.go";
 
 export function runToolExecutionSelfTest(): void {
 	checkOpenApiMetadata();
 	checkWorkflowTraceSummary();
-	checkProjectionSchemas();
-	checkWorkflowContext();
-	checkRuntimeDecisions();
+	checkRetiredRuntimeDecisions();
 	checkExecutionResponseDiagnostics();
-	checkToolHandoffSchema();
 	checkGeneratedArtifacts();
 	checkFixtureMatrix();
 	generateToolExecutionContracts({ check: true });
@@ -35,27 +31,13 @@ function checkOpenApiMetadata(): void {
 		"response contract mismatch",
 	);
 	expect(
-		meta.runtime_decisions_schema_version === "tool-execution-runtime-decisions-v1",
-		"runtime decisions version mismatch",
-	);
-	expect(
-		meta.runtime_decision_summary_schema_version === "runtime-decision-summary-v1",
-		"runtime decision summary version mismatch",
-	);
-	expect(
-		meta.workflow_trace_summary_version === "workflow-trace-summary-v4",
+		meta.workflow_trace_summary_version === "workflow-trace-summary-v5",
 		"workflow trace version mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
 	expectEqualJson(
 		new Set(Object.keys(policy)),
-		new Set([
-			"execution_contract_version",
-			"response_contract",
-			"runtime_decisions_schema_version",
-			"runtime_decision_summary_schema_version",
-			"workflow_trace_summary_version",
-		]),
+		new Set(["execution_contract_version", "response_contract", "workflow_trace_summary_version"]),
 		"version policy keys",
 	);
 }
@@ -63,143 +45,109 @@ function checkOpenApiMetadata(): void {
 function checkWorkflowTraceSummary(): void {
 	const summary = schema("WorkflowTraceSummary");
 	const summaryProperties = properties(summary, "WorkflowTraceSummary");
-	expectIncludes(summary.required, "workflow_mode", "workflow_mode required");
-	expectIncludes(summary.required, "handoff_chain", "handoff_chain required");
-	expectIncludes(summary.required, "context_projections", "context projections required");
-	expectIncludes(
-		summary.required,
-		"answer_artifact_projection_ids",
-		"answer artifact ids required",
-	);
-	expectIncludes(summary.required, "answer_artifact_kinds", "answer artifact kinds required");
+	for (const field of [
+		"workflow_mode",
+		"selected_tool",
+		"selected_tools",
+		"first_decision_actor",
+		"planning_outcome",
+		"direct_vs_delegate_branch",
+		"terminal_reason",
+		"answer_artifact_kinds",
+		"answer_artifact_refs",
+		"trace_steps",
+		"tool_call_summaries",
+		"runtime_versions",
+	]) {
+		expectIncludes(summary.required, field, `${field} required`);
+	}
 	expectEqualJson(
 		summaryProperties.workflow_mode,
 		{ $ref: "#/components/schemas/WorkflowMode" },
 		"workflow mode ref",
 	);
-	expect(
-		asRecord(summaryProperties.handoff_chain, "handoff_chain").type === "array",
-		"handoff_chain array",
+	expectEqualJson(
+		asRecord(summaryProperties.answer_artifact_kinds, "answer_artifact_kinds").items,
+		{ $ref: "#/components/schemas/AnswerArtifactKind" },
+		"answer artifact kind items",
 	);
 	expectEqualJson(
-		asRecord(summaryProperties.context_projections, "context_projections").items,
-		{ $ref: "#/components/schemas/WorkflowContextProjection" },
-		"context projection items",
-	);
-	expectIncludes(summary.required, "tool_invocations", "tool invocations required");
-	expectEqualJson(
-		asRecord(summaryProperties.tool_invocations, "tool_invocations").items,
-		{ $ref: "#/components/schemas/ToolInvocation" },
-		"tool invocation items",
+		schema("AnswerArtifactKind").enum,
+		["agent_final_output"],
+		"answer artifact kind enum",
 	);
 }
 
-function checkProjectionSchemas(): void {
-	const projection = schema("StepOutputProjection");
-	const contextProjection = schema("WorkflowContextProjection");
-	const projectionProperties = properties(projection, "StepOutputProjection");
-	const contextProjectionProperties = properties(contextProjection, "WorkflowContextProjection");
-	expectEqualJson(
-		schema("StepOutputProjectionKind").enum,
-		[
-			"notice_context",
-			"schedule_baseline",
-			"place_context",
-			"evidence_bundle",
-			"grounding_verdict",
-		],
-		"projection kind enum",
-	);
-	for (const required of ["projection_id", "projection_kind", "content_hash", "safety"]) {
-		expectIncludes(projection.required, required, `${required} required`);
-	}
-	expectEqualJson(
-		projectionProperties.projection_kind,
-		{ $ref: "#/components/schemas/StepOutputProjectionKind" },
-		"step projection kind ref",
-	);
-	expectEqualJson(
-		contextProjectionProperties.projection_kind,
-		{ $ref: "#/components/schemas/StepOutputProjectionKind" },
-		"context projection kind ref",
-	);
-}
-
-function checkWorkflowContext(): void {
-	const request = schema("ToolRequest");
-	const workflowContext = schema("WorkflowToolContext");
-	const requestProperties = properties(request, "ToolRequest");
-	const workflowContextProperties = properties(workflowContext, "WorkflowToolContext");
-	expectEqualJson(
-		requestProperties.workflow_context,
-		{ $ref: "#/components/schemas/WorkflowToolContext" },
-		"workflow context ref",
-	);
-	for (const required of [
-		"schema_version",
-		"visibility",
-		"workflow_run_ref",
-		"step_id",
-		"tool_id",
-		"expected_output_artifacts",
-		"projection_refs",
-	]) {
-		expectIncludes(workflowContext.required, required, `${required} required`);
-	}
-	expectEqualJson(
-		workflowContextProperties.tool_id,
-		{ $ref: "#/components/schemas/ToolID" },
-		"tool id ref",
-	);
-	expectEqualJson(
-		asRecord(workflowContextProperties.expected_output_artifacts, "expected_output_artifacts")
-			.items,
-		{ $ref: "#/components/schemas/StepOutputProjectionKind" },
-		"expected artifacts items",
-	);
-	expectEqualJson(
-		asRecord(workflowContextProperties.projection_refs, "projection_refs").items,
-		{ $ref: "#/components/schemas/WorkflowContextProjection" },
-		"projection refs items",
-	);
-}
-
-function checkRuntimeDecisions(): void {
+function checkRetiredRuntimeDecisions(): void {
 	expectEqualJson(
 		schema("WorkflowMode").enum,
 		["terminal", "single_step", "multi_step"],
 		"workflow modes",
 	);
-	const runtimeDecisions = schema("RuntimeDecisions");
-	const workflowPlan = schema("WorkflowPlan");
-	const runtimeDecisionProperties = properties(runtimeDecisions, "RuntimeDecisions");
-	const workflowPlanProperties = properties(workflowPlan, "WorkflowPlan");
+	const openapi = loadOpenApi();
+	const schemaDefinitions = asRecord(asRecord(openapi.components, "components").schemas, "schemas");
+	for (const retired of [
+		"DelegateStatus",
+		"StepOutputProjection",
+		"StepOutputProjectionKind",
+		"ToolRequest",
+		"ToolResponse",
+		"WorkflowContextProjection",
+		"WorkflowToolContext",
+		"RuntimeDecisions",
+		"RuntimeDecisionSummary",
+		"WorkflowPlan",
+		"WorkflowPlanStep",
+		"WorkflowPlanEdge",
+		"ToolExecutionRequest",
+		"ToolExecutionSubmitRequest",
+	]) {
+		expect(!(retired in schemaDefinitions), `${retired} must remain retired`);
+	}
 	expectEqualJson(
-		runtimeDecisionProperties.workflow_plan,
-		{ $ref: "#/components/schemas/WorkflowPlan" },
-		"workflow plan ref",
+		schema("ToolID").enum,
+		["knowledge_query", "knowledge_search", "transport_schedule_lookup"],
+		"tool id enum",
 	);
-	expect(
-		asRecord(workflowPlanProperties.schema_version, "schema_version").const === "workflow-plan-v1",
-		"workflow plan schema version",
-	);
-	expectIncludes(workflowPlan.required, "allowed_tools", "allowed tools required");
-	expectIncludes(workflowPlan.required, "steps", "steps required");
-	expectIncludes(workflowPlan.required, "semantic_retry_policy", "retry policy required");
 	expectEqualJson(
-		asRecord(workflowPlanProperties.allowed_tools, "allowed_tools").items,
-		{ $ref: "#/components/schemas/ToolID" },
-		"allowed tools items",
+		schema("RequestedTool").enum,
+		["knowledge_query", "transport_schedule_lookup"],
+		"requested tool enum",
 	);
-	const request = schema("ToolExecutionRequest");
-	const requestProperties = properties(request, "ToolExecutionRequest");
-	expect(
-		!arrayIncludes(request.required, "runtime_decisions"),
-		"runtime_decisions must not be required",
+	const payload = schema("ExecutionPayload");
+	const payloadProperties = properties(payload, "ExecutionPayload");
+	for (const retiredField of [
+		"actor",
+		"effective_tool",
+		"requested_scope",
+		"runtime_decisions",
+		"task_queue",
+	]) {
+		expect(!(retiredField in payloadProperties), `${retiredField} must not be accepted`);
+	}
+	for (const requiredField of [
+		"conversation_id",
+		"context",
+		"request_id",
+		"trace",
+		"version_query",
+	]) {
+		expectIncludes(payload.required, requiredField, `${requiredField} required`);
+	}
+	const runCreateProperties = properties(
+		schema("ExecutionRunCreateRequest"),
+		"ExecutionRunCreateRequest",
 	);
-	expect(
-		asRecord(requestProperties.runtime_decisions, "runtime_decisions").deprecated === true,
-		"runtime_decisions should be deprecated",
+	for (const callerRoutingField of ["requested_tool", "selected_tool", "task_queue"]) {
+		expect(
+			!(callerRoutingField in runCreateProperties),
+			`${callerRoutingField} must not be caller-owned`,
+		);
+	}
+	expectEqualJson(
+		runCreateProperties.metadata,
+		{ $ref: "#/components/schemas/ExecutionRunMetadata" },
+		"run metadata ref",
 	);
 	expectEqualJson(
 		schema("ExecutionRequestContext").not,
@@ -211,6 +159,15 @@ function checkRuntimeDecisions(): void {
 function checkExecutionResponseDiagnostics(): void {
 	const response = schema("ExecutionFinalizationResponse");
 	const responseProperties = properties(response, "ExecutionFinalizationResponse");
+	expectIncludes(response.required, "resolved_scope", "resolved scope required");
+	expectIncludes(response.required, "session_update", "session update required");
+	expectEqualJson(
+		properties(schema("SessionUpdateSlot"), "SessionUpdateSlot").name,
+		{
+			enum: ["curriculum_program", "curriculum_program_family", "curriculum_semester"],
+		},
+		"session update slot names",
+	);
 	expectEqualJson(
 		asRecord(responseProperties.stage_timing, "stage_timing").oneOf,
 		[{ $ref: "#/components/schemas/StageTiming" }, { type: "null" }],
@@ -230,14 +187,8 @@ function checkExecutionResponseDiagnostics(): void {
 			"agent.runtime_ms",
 			"agent.first_delta_ms",
 			"tool.total_ms",
-			"tool.knowledge_query_ms",
 			"tool.transport_schedule_lookup_ms",
-			"tool.campus_notice_discover_ms",
-			"rag.plan_ms",
-			"rag.lookup_ms",
-			"rag.rerank_ms",
-			"rag.synthesis_ms",
-			"rag.grounding_ms",
+			"knowledge.search_ms",
 			"finalization.write_ms",
 			"projection.closeout_ms",
 		]),
@@ -255,16 +206,6 @@ function checkExecutionResponseDiagnostics(): void {
 	expectIncludes(schema("ExecutionStatus").enum, "cancelled", "cancelled status");
 }
 
-function checkToolHandoffSchema(): void {
-	const schema = readJson(toolHandoffSchemaPath);
-	expect(schema.$schema === "https://json-schema.org/draft/2020-12/schema", "tool handoff dialect");
-	expect("ToolRequest" in asRecord(schema.$defs, "$defs"), "ToolRequest def missing");
-	expect("ToolResponse" in asRecord(schema.$defs, "$defs"), "ToolResponse def missing");
-	const serialized = JSON.stringify(schema);
-	expect(!serialized.includes("runtime_decisions"), "tool handoff leaked runtime_decisions");
-	expect(!serialized.includes("tool_execution_v1"), "tool handoff leaked execution wrapper");
-}
-
 function checkGeneratedArtifacts(): void {
 	const tsContract = readFileSync(repoPath(generatedTsPath), "utf8");
 	const goContract = readFileSync(repoPath(generatedGoPath), "utf8");
@@ -278,6 +219,15 @@ function checkGeneratedArtifacts(): void {
 		tsContract.includes("interface ToolExecutionWorkflowTraceSummaryWire"),
 		"TS workflow summary missing",
 	);
+	for (const requiredType of [
+		"interface TraceContextWire",
+		"interface VersionQueryWire",
+		"interface ExecutionPayloadWire",
+		"interface ExecutionRunCreateRequestWire",
+		"interface SessionUpdateWire",
+	]) {
+		expect(tsContract.includes(requiredType), `TS generated contract missing ${requiredType}`);
+	}
 	expect(
 		tsContract.includes("export type StageTimingWire = Partial<Record<StageTimingField, number>>"),
 		"TS stage timing missing",
@@ -298,10 +248,34 @@ function checkGeneratedArtifacts(): void {
 		goContract.includes("func (wire DebugTraceRefWire) Validate() error"),
 		"Go debug trace validation missing",
 	);
+	for (const requiredSymbol of [
+		"type ExecutionPayloadWire struct",
+		"type ExecutionRunCreateRequestWire struct",
+		"func DecodeExecutionPayloadWireJSON",
+		"func DecodeExecutionRunCreateRequestWireJSON",
+		"func (wire VersionQueryWire) Validate() error",
+		"func (wire SessionUpdateWire) Validate() error",
+	]) {
+		expect(goContract.includes(requiredSymbol), `Go generated contract missing ${requiredSymbol}`);
+	}
+	for (const retired of [
+		"DelegateStatus",
+		"StepOutputProjection",
+		"ToolRequestWire",
+		"ToolResponseWire",
+		"WorkflowToolContext",
+		"RuntimeDecisionsWire",
+		"WorkflowPlanWire",
+		"ToolExecutionRequestWire",
+		"RequestedToolPlaceLookup",
+	]) {
+		expect(!tsContract.includes(retired), `TS generated contract leaked ${retired}`);
+		expect(!goContract.includes(retired), `Go generated contract leaked ${retired}`);
+	}
 }
 
 function checkFixtureMatrix(): void {
-	const delegate = loadFixture("tool_execution_delegate.valid.json");
+	const delegate = loadFixture("execution_payload.valid.json");
 	expect(
 		delegate.execution_contract_version === "tool_execution_v1",
 		"delegate execution contract",
@@ -310,45 +284,12 @@ function checkFixtureMatrix(): void {
 		delegate.response_contract === "execution_finalization_response_v2",
 		"delegate response contract",
 	);
-	const runtimeDecisions = asRecord(delegate.runtime_decisions, "runtime_decisions");
-	expect(
-		runtimeDecisions.schema_version === "tool-execution-runtime-decisions-v1",
-		"runtime decisions schema",
-	);
-	const toolRequest = asRecord(
-		asRecord(runtimeDecisions.handoff, "handoff").tool_request,
-		"tool_request",
-	);
-	expect(toolRequest.tool === "knowledge_query", "tool request target");
-
-	const workflowContext = {
-		schema_version: "workflow-tool-context-v1",
-		visibility: "tool_private",
-		workflow_run_ref: "workflow:req-contract-001",
-		step_id: "tool:knowledge_query:rag_request",
-		tool_id: "knowledge_query",
-		required_projection_kind: "notice_context",
-		expected_output_artifacts: ["evidence_bundle", "grounding_verdict"],
-		projection_refs: [
-			{
-				projection_id: "projection:notice_context:test",
-				source_step_id: "tool:notice:campus_notice_get",
-				projection_kind: "notice_context",
-				content_hash: "sha256:test",
-				safety: { max_chars: 1600, fields_present: ["title"] },
-			},
-		],
-	};
-	expect(
-		!("raw_response" in workflowContext.projection_refs[0]),
-		"projection ref leaked raw response",
-	);
-	expect(!("payload" in workflowContext.projection_refs[0]), "projection ref leaked payload");
+	expect(!("runtime_decisions" in delegate), "delegate fixture leaked runtime_decisions");
 
 	for (const fixtureName of [
-		"tool_execution_extra_field.invalid.json",
-		"tool_execution_invalid_enum.invalid.json",
-		"tool_execution_invalid_version.invalid.json",
+		"execution_payload_extra_field.invalid.json",
+		"execution_payload_invalid_enum.invalid.json",
+		"execution_payload_invalid_version.invalid.json",
 		"response_camel_case.invalid.json",
 		"response_extra_field.invalid.json",
 	]) {

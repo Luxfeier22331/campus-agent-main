@@ -37,10 +37,10 @@ func (s *PostgresRunProjectionStore) CreateRun(
 			requested_tool, selected_tool, task_queue, status, terminal_reason,
 			fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
 			streaming_started_at, completed_at, updated_at, runtime_versions_json,
-			workflow_plan_ref, final_response_ref, metadata_json
+			final_response_ref, metadata_json
 		) values (
 			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-			$22::jsonb,$23,$24,$25::jsonb
+			$22::jsonb,$23,$24::jsonb
 		)`,
 		run.RunID,
 		run.ConversationID,
@@ -64,7 +64,6 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
 		runtimeVersionsJSON,
-		run.WorkflowPlanRef,
 		run.FinalResponseRef,
 		metadataJSON,
 	)
@@ -453,7 +452,6 @@ func scanDurableRun(row pgx.Row) (DurableRun, error) {
 		&completedAt,
 		&run.UpdatedAt,
 		&runtimeVersionsRaw,
-		&run.WorkflowPlanRef,
 		&run.FinalResponseRef,
 		&metadataRaw,
 	); err != nil {
@@ -501,5 +499,5 @@ const durableRunSelectSQL = `select
 	run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
 	requested_tool, selected_tool, task_queue, status, terminal_reason, fail_close_reason,
 	retryable, created_at, queued_at, admitted_at, started_at, streaming_started_at, completed_at,
-	updated_at, runtime_versions_json, workflow_plan_ref, final_response_ref, metadata_json
+	updated_at, runtime_versions_json, final_response_ref, metadata_json
 from runtime.agent_runs`

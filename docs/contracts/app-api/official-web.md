@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-29
-updated: 2026-07-05
+updated: 2026-07-08
 ---
 # App API Official Web Contract
 
@@ -81,9 +81,9 @@ Removed ingestion executor surfaces must return `404`:
 - `POST /api/official-web/runs/:runId/finalize`
 
 Release task claim / retry / executor progress / publish status belongs to
-`apps/ingestion-control` plus TS `packages/ingest-core`. App-api only exposes
-already-ingested official-web projections and the operator command ledger needed
-to record stable-reference approve/reject decisions.
+`apps/ingestion-control` plus runtime-neutral helper packages. App-api only
+exposes already-ingested official-web projections and the operator command
+ledger needed to record stable-reference approve/reject decisions.
 
 ## Crawl Run Lifecycle Boundary
 
@@ -94,8 +94,10 @@ The long-term lifecycle is:
 1. Collector uploads object-storage artifacts and sends heartbeats.
 1. Collector finalizes; `ingestion-control` writes terminal state and artifact
    refs.
-1. `ingestion-control` admits `source_truth_materialize` from the run-level
-   `source_truth_bundle` artifact ref.
+1. `ingestion-control` admits the current official-web source-truth verification
+   task from the run-level `source_truth_bundle` artifact ref. Existing registry
+   names may still say `source_truth_materialize`; app-api contract semantics
+   must treat that as ref verification until a real document materializer exists.
 1. `apps/ingestion-control` claims the admitted task and starts offline
    execution.
 1. Operator reads site/run/detail state through app-owned projections.
@@ -122,11 +124,12 @@ Allowed `official_web.crawl_runs.status` values:
 | `completed` | Crawl finalized with no run-level failures |
 | `completed_with_errors` | Crawl finalized with URL / host / parser failures |
 | `failed` | Crawl could not complete or finalized as failure |
-| `abandoned` | App-api marked the run inactive after heartbeat timeout |
+| `abandoned` | Ingestion-control marked the run inactive after heartbeat timeout |
 
-Ingestion execution may use `pending -> running -> staged -> promoted/failed`.
-`staged` means replay / validator / chunk audit is done, but registry current
-truth has not been explicitly promoted.
+Ingestion execution projection may use `pending -> running -> staged ->
+promoted/failed`. For the current official-web source-truth verification task,
+these statuses describe verification/projection progress only; they do not prove
+canonical document, chunk, index or alias publish completion.
 
 ### Idempotency And Failure Boundary
 
@@ -306,8 +309,9 @@ Rules:
 
 ### `GET /api/operator/official-web/release-tasks`
 
-Returns operator projections for selected-write / stable-reference release task
-progress.
+Returns operator projections for ingestion-produced release or verification task
+progress. A task projection is not proof that its selected target has published a
+serving alias.
 
 Supported first-version filters:
 
@@ -365,4 +369,4 @@ Rules:
 - No general operator write API. Stable-reference release gates are the explicit
   controlled exception.
 - No selected-write admission/task/intervention routes in app-api.
-- No ingestion-control reverse ownership of crawl-run lifecycle truth.
+- No app-api reverse ownership of ingestion-control crawl-run lifecycle truth.

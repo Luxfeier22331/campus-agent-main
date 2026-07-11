@@ -86,44 +86,6 @@ func sortedPersonalMemoryOperationKeys(
 	return keys
 }
 
-func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDecisionKey {
-	keys := make([]runtimeDecisionKey, 0, len(items))
-	for key := range items {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(left int, right int) bool {
-		if keys[left].Target != keys[right].Target {
-			return keys[left].Target < keys[right].Target
-		}
-		if keys[left].TaskQueue != keys[right].TaskQueue {
-			return keys[left].TaskQueue < keys[right].TaskQueue
-		}
-		if keys[left].ScopeGate != keys[right].ScopeGate {
-			return keys[left].ScopeGate < keys[right].ScopeGate
-		}
-		if keys[left].PolicyGate != keys[right].PolicyGate {
-			return keys[left].PolicyGate < keys[right].PolicyGate
-		}
-		if keys[left].ContextPreflightState != keys[right].ContextPreflightState {
-			return keys[left].ContextPreflightState < keys[right].ContextPreflightState
-		}
-		if keys[left].RoutingNextAction != keys[right].RoutingNextAction {
-			return keys[left].RoutingNextAction < keys[right].RoutingNextAction
-		}
-		if keys[left].PlanningOutcome != keys[right].PlanningOutcome {
-			return keys[left].PlanningOutcome < keys[right].PlanningOutcome
-		}
-		if keys[left].SelectedTool != keys[right].SelectedTool {
-			return keys[left].SelectedTool < keys[right].SelectedTool
-		}
-		if keys[left].TerminalOutcome != keys[right].TerminalOutcome {
-			return keys[left].TerminalOutcome < keys[right].TerminalOutcome
-		}
-		return keys[left].FailCloseReason < keys[right].FailCloseReason
-	})
-	return keys
-}
-
 func sortedAdmissionGroupNames(items map[string]AdmissionGroupSnapshot) []string {
 	keys := make([]string, 0, len(items))
 	for key := range items {

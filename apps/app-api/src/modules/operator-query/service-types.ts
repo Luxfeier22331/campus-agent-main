@@ -3,11 +3,10 @@ import type {
 	ToolExecutionAnswerEvalFingerprint,
 	ToolExecutionDebugTraceRef,
 	ToolExecutionLlmIoFingerprint,
-	ToolExecutionModelUsageSummary,
 } from "../integration/tool-execution-types";
 import type { StageTimingBudgetProjection } from "../latency-budget";
-import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
+import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { VersionQuery } from "../version-query";
 
 export type {
@@ -48,15 +47,14 @@ export interface RequestProjectionRecord {
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
 	requestedTool: string | null;
-	requestedScope: Record<string, unknown> | null;
+	requestedScope: string | null;
 	versionQuery?: VersionQuery;
-	resolvedScope: Record<string, unknown> | null;
+	resolvedScope: string | null;
 	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
 	answerPreview: string | null;
-	diagnostics?: RequestDiagnosticsSummary;
 	sourceDocIds: string[];
 	startedAt: string;
 	completedAt: string | null;
@@ -71,36 +69,18 @@ export interface OperatorRequestOpsIndex {
 	model: {
 		modelProvider: string | null;
 		modelName: string | null;
-		billableStepCount: number | null;
-		usageSummary: ToolExecutionModelUsageSummary[];
 		answerEvalFingerprint: ToolExecutionAnswerEvalFingerprint | null;
 		llmIoFingerprint: ToolExecutionLlmIoFingerprint | null;
 		promptId: string | null;
 		promptVersion: string | null;
 		templateSha256: string | null;
-		executionState: string | null;
-		executionDetail: string | null;
-		inputTokens: number | null;
-		outputTokens: number | null;
-		cachedInputTokens: number | null;
-		estimatedCostMicrousd: number | null;
 	};
 	tool: {
 		requestedTool: string | null;
 		selectedTool: string | null;
-		toolBusinessOutcome: string | null;
 		failClosed: boolean | null;
-		failCloseReason: string | null;
-		historicalDowngradeReason: string | null;
 	};
-	retrieval: {
-		retrievalAttempted: boolean | null;
-		candidateCount: number | null;
-		retrievedSourceCount: number | null;
-		collection: string | null;
-		adequacyVerdict: string | null;
-		adequacyReason: string | null;
-	};
+	sources: ObservedSourceTraceEntry[];
 	sinkLinks: {
 		traceAvailable: boolean;
 		projectionLagMs: number | null;

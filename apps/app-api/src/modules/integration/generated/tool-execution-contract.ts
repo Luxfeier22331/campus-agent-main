@@ -3,39 +3,17 @@
 export const TOOL_EXECUTION_CONTRACT = {
 	executionContractVersion: "tool_execution_v1",
 	responseContract: "execution_finalization_response_v2",
-	runtimeDecisionsSchemaVersion: "tool-execution-runtime-decisions-v1",
-	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
+	workflowTraceSummaryVersion: "workflow-trace-summary-v5",
 } as const;
 
 export const TOOL_IDS = [
 	"knowledge_query",
-	"place_lookup",
-	"public_web_search",
+	"knowledge_search",
 	"transport_schedule_lookup",
-	"campus_notice_discover",
-	"campus_notice_get",
 ] as const;
-export const MODEL_VISIBLE_TOOL_NAMES = [
-	"knowledge_query",
-	"public_web_search",
-	"transport_schedule_lookup",
-	"campus_notice_discover",
-] as const;
-export const REQUESTED_TOOLS = [
-	"knowledge_query",
-	"place_lookup",
-	"public_web_search",
-	"transport_schedule_lookup",
-	"campus_notice_discover",
-] as const;
+export const MODEL_VISIBLE_TOOL_NAMES = ["knowledge_query", "transport_schedule_lookup"] as const;
+export const REQUESTED_TOOLS = ["knowledge_query", "transport_schedule_lookup"] as const;
 export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
-export const DELEGATE_STATUSES = [
-	"completed",
-	"needs_clarification",
-	"no_answer",
-	"error",
-] as const;
 export const EXECUTION_STATUSES = [
 	"completed",
 	"needs_clarification",
@@ -46,13 +24,7 @@ export const EXECUTION_STATUSES = [
 	"cancelled",
 ] as const;
 export const WORKFLOW_MODES = ["terminal", "single_step", "multi_step"] as const;
-export const STEP_OUTPUT_PROJECTION_KINDS = [
-	"notice_context",
-	"schedule_baseline",
-	"place_context",
-	"evidence_bundle",
-	"grounding_verdict",
-] as const;
+export const ANSWER_ARTIFACT_KINDS = ["agent_final_output"] as const;
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
 	"stream.browser_ttft_ms",
@@ -62,14 +34,8 @@ export const STAGE_TIMING_FIELDS = [
 	"agent.runtime_ms",
 	"agent.first_delta_ms",
 	"tool.total_ms",
-	"tool.knowledge_query_ms",
 	"tool.transport_schedule_lookup_ms",
-	"tool.campus_notice_discover_ms",
-	"rag.plan_ms",
-	"rag.lookup_ms",
-	"rag.rerank_ms",
-	"rag.synthesis_ms",
-	"rag.grounding_ms",
+	"knowledge.search_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;
@@ -79,11 +45,10 @@ export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
 export type RequestedTool = (typeof REQUESTED_TOOLS)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
-export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
-export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];
+export type AnswerArtifactKind = (typeof ANSWER_ARTIFACT_KINDS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
@@ -98,198 +63,66 @@ export interface ConversationContextWire {
 	parent_message_id?: string | null;
 	current_user_message: { role: "user"; content: string; created_at: string };
 	recent_turns: SafeRecord[];
-	previous_answer_summary?: string | null;
 	previous_evidence_refs: SafeRecord[];
 	previous_tool_results: SafeRecord[];
 	session_state: SafeRecord;
-	visibility: { model_visible: string[]; runtime_only: string[] };
-	memory_recall: {
-		gate_field: "context.memory.enabled";
-		owner: "execution-control";
-		runtime: "hindsight";
-	};
-	source_attribution: SafeRecord[];
-	context_summary: string | null;
-	budget: { token_estimate: number; recent_turn_limit: number };
-	truncation: SafeRecord | null;
 }
 
-export interface RuntimeDecisionSummaryWire {
-	schema_version: typeof TOOL_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;
-	scope_gate_decision?: string;
-	policy_gate_decision?: string;
-	context_preflight_state?: string;
-	routing_next_action?: string;
-	planning_outcome: string;
-	selected_tool?: string;
-	task_queue?: string;
-	terminal_outcome?: string;
-	fail_close_reason?: string;
-	runtime_versions?: SafeRecord;
-	policy_artifact_versions?: SafeRecord;
+export interface TraceContextWire {
+	trace_id: string;
 }
 
-export interface WorkflowPlanStepWire {
-	step_id: string;
-	step_kind: string;
-	tool?: ToolID | string;
-	task_queue?: string;
-	payload_kind?: string;
-	allowed_tools?: string[];
-	selected_tool?: string;
+export interface VersionQueryWire {
+	mode?: "current" | "historical" | "as_of" | "compare";
+	as_of?: string;
+	version_id?: string;
+	compare_to_version_id?: string;
 }
 
-export interface WorkflowPlanEdgeWire {
-	from_step_id: string;
-	to_step_id: string;
-	condition: string;
-	required_projection_kind?: StepOutputProjectionKind;
-}
-
-export interface ProjectionSafetySummaryWire {
-	truncated: boolean;
-	redacted: boolean;
-	max_chars: number;
-	fields_present: string[];
-}
-
-export interface StepOutputProjectionWire {
-	projection_id: string;
-	source_step_id: string;
-	projection_kind: StepOutputProjectionKind;
-	content_hash: string;
-	payload: SafeRecord;
-	safety: ProjectionSafetySummaryWire;
-}
-
-export interface WorkflowContextProjectionWire {
-	projection_id: string;
-	source_step_id: string;
-	projection_kind: StepOutputProjectionKind;
-	content_hash: string;
-	safety: ProjectionSafetySummaryWire;
-}
-
-export interface WorkflowToolContextWire {
-	schema_version: "workflow-tool-context-v1";
-	visibility: "tool_private";
-	workflow_run_ref: string;
-	step_id: string;
-	tool_id: ToolID;
-	task_queue?: string;
-	required_projection_kind?: StepOutputProjectionKind;
-	expected_output_artifacts: StepOutputProjectionKind[];
-	projection_refs: WorkflowContextProjectionWire[];
-}
-
-export interface WorkflowPlanWire {
-	schema_version: "workflow-plan-v1";
-	plan_id: string;
-	workflow_mode: WorkflowMode;
-	allowed_tools: ToolID[];
-	steps: WorkflowPlanStepWire[];
-	edges: WorkflowPlanEdgeWire[];
-	terminal_policy: SafeRecord;
-	resume_policy: SafeRecord;
-	semantic_retry_policy: SafeRecord;
-}
-
-export interface ToolInvocationWire {
-	invocation_id: string;
-	parent_invocation_id?: string;
-	workflow_run_ref: string;
-	step_id: string;
-	tool_id: ToolID;
-	status: string;
-	allowed_tools: string[];
-	used_tools: string[];
-	projection_ids: string[];
-	fail_close_reason?: string;
-}
-
-export interface RuntimeDecisionsWire {
-	schema_version: typeof TOOL_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;
-	effective_tool: RequestedTool;
-	task_queue: string;
-	routing_frame: SafeRecord;
-	runtime_decision_summary: RuntimeDecisionSummaryWire;
-	scope_gate?: SafeRecord;
-	policy_gate?: SafeRecord;
-	context_preflight?: SafeRecord;
-	tool_policy?: SafeRecord;
-	handoff?: SafeRecord;
-	workflow_plan?: WorkflowPlanWire;
-	terminal_envelope?: SafeRecord;
-	[key: string]: unknown;
-}
-
-export interface ToolResponseWire {
-	tool: ToolID;
-	task_queue?: string;
-	status: DelegateStatus;
-	answer_text?: string;
-	follow_up_question?: string;
-	confidence?: ConfidenceLevel;
-	result?: SafeRecord | null;
-	error?: { code: string; message: string; retryable?: boolean } | null;
-	tool_observability?: SafeRecord | null;
-}
-
-export interface ToolExecutionRequestWire {
+export interface ExecutionPayloadWire {
 	execution_contract_version: typeof TOOL_EXECUTION_CONTRACT.executionContractVersion;
 	response_contract: typeof TOOL_EXECUTION_CONTRACT.responseContract;
 	user_goal: string;
-	conversation_id?: string;
+	conversation_id: string;
 	tenant_id?: string;
 	request_id: string;
 	safety_identifier?: string | null;
-	effective_tool: RequestedTool;
-	task_queue: string;
-	requested_tool: RequestedTool;
-	requested_scope?: { corpus: string; collection: string } | null;
-	trace: { trace_id: string };
-	actor: SafeRecord;
+	requested_tool?: RequestedTool;
+	scope?: string | null;
+	trace: TraceContextWire;
 	context: SafeRecord;
-	version_query: SafeRecord;
-	runtime_decisions?: RuntimeDecisionsWire;
+	version_query: VersionQueryWire;
 }
 
-export interface ToolRequestWire {
-	tool: ToolID;
-	task_queue?: string;
-	user_goal: string;
-	conversation_id?: string;
-	request_id?: string;
-	safety_identifier?: string | null;
-	trace?: { trace_id: string };
-	actor?: SafeRecord;
-	context?: SafeRecord;
-	workflow_context?: WorkflowToolContextWire;
-	payload: { kind: string; payload: SafeRecord };
-	allowed_tools: ModelVisibleToolName[];
+export interface ExecutionRunMetadataWire {
+	execution_payload: ExecutionPayloadWire;
+}
+
+export interface ExecutionRunCreateRequestWire {
+	run_id: string;
+	conversation_id: string;
+	turn_id: string;
+	request_id: string;
+	trace_id?: string;
+	owner_user_id: string;
+	surface: string;
+	runtime_versions?: SafeRecord;
+	metadata: ExecutionRunMetadataWire;
 }
 
 export interface ToolExecutionWorkflowTraceSummaryWire {
-	routing_frame: SafeRecord;
-	context_resolution: SafeRecord;
+	workflow_mode: WorkflowMode;
+	selected_tool: ToolID | null;
+	selected_tools: string[];
+	first_decision_actor: string;
 	planning_outcome: string;
 	direct_vs_delegate_branch: string;
-	workflow_mode: WorkflowMode;
-	handoff: SafeRecord;
-	handoff_chain: SafeRecord[];
-	tool_invocations: ToolInvocationWire[];
-	selected_tool: ToolID | string | null;
-	selected_tools: string[];
-	context_projections: WorkflowContextProjectionWire[];
-	answer_artifact_projection_ids: string[];
-	answer_artifact_kinds: StepOutputProjectionKind[];
-	tool_argument_summary: SafeRecord;
-	trace_steps?: SafeRecord[];
-	tool_call_summaries?: SafeRecord[];
-	guardrail_outcomes: SafeRecord;
-	fail_close_reason: string;
+	terminal_reason: string;
+	answer_artifact_kinds: AnswerArtifactKind[];
+	answer_artifact_refs: string[];
+	trace_steps: SafeRecord[];
+	tool_call_summaries: SafeRecord[];
 	runtime_versions: SafeRecord;
-	policy_artifact_versions: SafeRecord;
 }
 
 export interface DebugTraceRefWire {
@@ -299,12 +132,24 @@ export interface DebugTraceRefWire {
 	url?: string;
 }
 
+export interface SessionUpdateSlotWire {
+	confirmed: true;
+	name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
+	value: string;
+}
+
+export interface SessionUpdateWire {
+	upsert_slots: SessionUpdateSlotWire[];
+}
+
 export interface ToolExecutionResponseWire {
 	selected_tool: ToolID | null;
 	status: ExecutionStatus;
 	answer_text: string;
 	follow_up_question: string;
 	confidence: ConfidenceLevel;
+	resolved_scope: string | null;
+	session_update: SessionUpdateWire | null;
 	result: SafeRecord | null;
 	error: { code: string; message: string; retryable: boolean } | null;
 	observability?: SafeRecord | null;

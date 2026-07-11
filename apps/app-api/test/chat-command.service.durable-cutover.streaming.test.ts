@@ -58,10 +58,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
@@ -124,10 +123,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push(event);
 		}
@@ -199,7 +197,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				prompt: "hi 你是谁",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push(event);
 		}
@@ -266,7 +264,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				traceId: "trace_0001",
 				turnId: "turn_0001",
 				updatedAt: "2026-06-04T01:02:04Z",
-				workflowPlanRef: "",
 			}),
 			getRun: vi.fn(),
 			listRunEvents: vi
@@ -307,10 +304,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		});
 
 		expect(executionClient.execute).not.toHaveBeenCalled();
@@ -361,7 +357,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				traceId: "trace_0001",
 				turnId: "turn_0001",
 				updatedAt: "2026-06-04T01:02:04Z",
-				workflowPlanRef: "",
 			}),
 			getRun: vi.fn(),
 			listRunEvents: vi
@@ -426,10 +421,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push({
 				event: event.event,
@@ -548,7 +542,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				traceId: "trace_0001",
 				turnId: "turn_0001",
 				updatedAt: "2026-06-04T01:02:04Z",
-				workflowPlanRef: "",
 			}),
 			getRun: vi.fn(),
 			listRunEvents: vi
@@ -599,10 +592,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
-				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
-			surface: "campus_web",
+			requestKind: "public_chat",
 		}) ?? []) {
 			events.push({
 				event: event.event,

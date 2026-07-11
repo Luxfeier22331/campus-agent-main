@@ -186,7 +186,6 @@ function toChatConversation(
 		activeMessageId: row.activeMessageId ?? null,
 		activeRunId: row.activeRunId ?? null,
 		activeTurnSequence: row.activeTurnSequence ?? 0,
-		contextSummary: row.contextSummary ?? null,
 		sessionSlots: sessionSlotRows.map(
 			(slot): ChatSessionSlot => ({
 				confirmed: slot.confirmed,

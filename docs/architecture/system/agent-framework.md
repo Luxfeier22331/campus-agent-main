@@ -4,117 +4,90 @@ truth_scope: execution
 owner_boundary: agent-runtime
 status: active
 created: 2026-06-13
-updated: 2026-06-28
+updated: 2026-07-11
 ---
 # Agent Framework Boundary Architecture
 
-## Document Boundary
+## Boundary
 
-This document owns the supporting architecture for model-facing agent framework
-usage, including OpenAI Agents SDK participation through `apps/agent-runtime`.
+This document owns the model-facing agent framework boundary for the online
+answer path. OpenAI Agents SDK is the only online agent and tool-loop owner.
 
-It does not own:
+It does not own product auth, durable run truth, Temporal lifecycle, source
+truth, query-serving admission, canonical projection or browser transport.
 
-- durable execution truth
-- surface admission or product auth
-- source truth or tool opening posture
-- panel/eval canonical projection
-- RAG internal retrieval planning
+## Runtime Shape
 
-## Core Boundary
+One Temporal Agent Activity invokes `apps/agent-runtime` once. That single SDK
+run contains:
 
-Agent frameworks are implementation substrate for model-facing loops. They are
-not repo-level orchestration owners.
+1. the primary agent;
+1. model-visible SDK function tools;
+1. the official `handoff()` from the primary agent to the Knowledge Agent;
+1. the Knowledge Agent and its internal-only `knowledge_search` tool;
+1. one structured terminal output.
 
-`apps/agent-runtime` may use OpenAI Agents SDK for:
+The SDK run is not expanded into separate Temporal activities for handoffs or
+tool calls. SDK `maxTurns` is a turn budget for this run, not a Temporal replan
+contract.
 
-- primary agent instructions
-- strict function tool schemas derived from repo-owned artifacts
-- model-facing tool loop execution
-- direct/no-tool final output
-- selected tool summary
-- SDK trace reference normalization
-- usage summary normalization
+## Agent Ownership
 
-It must not own run truth, Temporal lifecycle, source truth, product auth,
-surface policy, tool opening posture, finalization or panel/eval canonical
-projection.
+The primary agent owns the first semantic decision. It may answer directly,
+clarify, refuse, call an admitted model-visible tool or hand off to the
+Knowledge Agent.
 
-## Admission Order
+The Knowledge Agent owns governed knowledge reasoning, use of bounded evidence
+and evidence-backed structured output. It can call only `knowledge_search`.
+It cannot call transport tools, public web search, provider-native web tools,
+remote MCP or ingestion services.
 
-Online model-facing execution follows this order:
+## Tool Admission
 
-1. `app-api` performs product-surface and account/session admission.
-1. `execution-control` admits the durable run and trims visible tools.
-1. Temporal starts an admitted activity for primary agent or tool worker.
-1. `execution-control` resolves the active provider profile snapshot from
-   `app-api` internal provider-config APIs.
-1. The SDK loop receives only the request-scoped provider config and
-   workflow-trimmed tool subset.
-1. Tool calls go through repo-owned internal query services or workflow signals.
-1. SDK output is normalized into sanitized result refs and usage summary.
-1. Go finalization writes the terminal projection.
+`configs/runtime/tools.v4.json` and the matching strict function schemas define
+tool exposure:
 
-The SDK must not receive the global tool list. It only receives tools admitted
-for the current run / step.
+- `model_visible` tools are available to the primary agent;
+- `knowledge_query` is represented as an SDK handoff to `knowledge_agent`;
+- `knowledge_search` is `internal_only` and available only to the Knowledge
+  Agent;
+- schema existence alone never opens a tool.
 
-`apps/agent-runtime` must not own online provider/model/API key selection. For
-online serving it receives `provider_config` in `/internal/agent-runs`; missing
-or malformed provider config fails closed before model execution.
+Execution-control supplies the request-scoped visible tool set and allowed
+knowledge scopes. The SDK cannot widen either set.
 
-## Tool And Trace Semantics
+## Internal Query Boundary
 
-Provider-native function calling and SDK tool loops may improve ergonomics, but
-their schemas must be generated from or checked against repo-owned tool
-artifacts.
+SDK tools call repo-owned execution-control internal query endpoints. For
+`knowledge_search`, execution-control owns scope/version admission, provider
+config resolution for embedding/rerank, Qdrant lookup, bounded evidence shaping
+and sanitized tool-result projection.
 
-SDK trace, run state, raw prompts, raw model output, provider tool payloads and
-handoff graphs are debug inputs. Before anything reaches `app-api`, panel, eval
-or workflow summaries, it must be reduced to repo-owned bounded projection.
+The retrieval backend does not synthesize an answer. The Knowledge Agent
+consumes the bounded result and produces the terminal answer.
 
-OpenAI Agents SDK is the model-facing loop substrate; it is not the memory
-runtime. Hindsight vendor tools are not model-visible by default. Current memory
-context enters the agent as bounded dynamic instructions / model context prepared
-by `execution-control`, not as SDK-native session memory, raw Hindsight payload,
-bank id or direct vendor tool access.
+## Output Boundary
 
-If a product path is admitted for model-visible memory behavior, it must be
-introduced as a repo-owned typed tool or workflow signal, for example
-`personal_memory_recall` or `personal_memory_reflect`, admitted by
-`execution-control` and backed by sanitized projection. Directly attaching
-Hindsight Python `create_hindsight_tools()` to the TypeScript primary agent is
-outside the accepted boundary.
+Agent-runtime returns structured terminal output, SDK tool-call summaries,
+usage and safe trace references. It does not return raw prompts, raw provider
+payloads, raw source bodies or unrestricted evidence text.
+
+Execution-control finalization validates evidence references against projected
+`knowledge_search` results, generates browser-safe sources and writes the
+terminal projection. It does not call a model or rewrite answer text. App-api
+persists and streams that finalized answer and sources without rewriting them.
 
 ## Failure Semantics
 
-Missing provider config, model config, API key, SDK dependency, agent runtime
-config, empty final output or non-completed SDK status must fail closed.
-
-`agent-runtime` errors project as bounded `agent.primary` diagnostics. They must
-not be rewritten as typed tool fail-close reasons unless the failing operation
-was an admitted tool call with a typed outcome.
-
-Internal query fetch failures may be normalized into typed transient outcomes
-only when they happen inside an admitted tool call.
-
-## Not In Default Scope
-
-The following are not default campus answer-path tools:
-
-- hosted web search
-- file search
-- code interpreter
-- remote MCP
-- shell or filesystem tools
-- raw SQL, object store, OCR dump, collector runtime or ingestion write tools
-- SDK-native session memory as product conversation truth
-- direct Hindsight vendor memory tools
-- state-changing tools such as appointment, submission, payment or ticket
-  creation
+Missing provider config, invalid tool exposure, unadmitted scope/version,
+malformed terminal output, forged evidence references, timeout or cancellation
+fails closed. There is no fallback agent loop, live web-search fallback or
+second synthesis path.
 
 ## Related Documents
 
 - `execution-agent-layer.md`
 - `tool-runtime.md`
-- `prompt.md`
+- `tool-routing.md`
 - `durable-runtime.md`
+- `retrieval-serving.md`

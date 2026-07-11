@@ -1,16 +1,27 @@
-import { Agent, type AgentOutputType, type ModelProvider, Runner, tool } from "@openai/agents";
+import {
+	Agent,
+	type AgentOutputType,
+	handoff,
+	type ModelProvider,
+	Runner,
+	tool,
+} from "@openai/agents";
 import { z } from "zod";
 import { beginDebugTrace } from "./debug-trace.ts";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
+	AllowedKnowledgeScope,
+	KnowledgeSelection,
+	KnowledgeVersionQuery,
 	PromptProviderRuntimeConfig,
 	RunnerToolCall,
 	StreamingAgentRunner,
 	ToolExecutionResult,
 } from "./primary-agent.ts";
 import { finalOutputFromTerminalEnvelope, terminalEnvelopeFromUnknown } from "./primary-agent.ts";
+import type { JsonObjectSchema } from "./tool-catalog.ts";
 
 const emptyParametersSchema = {
 	type: "object" as const,
@@ -30,7 +41,28 @@ const primaryAgentTerminalOutputSchema = z.object({
 	answerText: z.string().min(1).optional(),
 	followUpQuestion: z.string().optional(),
 	reason: z.string().optional(),
+	evidenceRefs: z.array(z.string().min(1)).optional(),
+	resolvedScope: z.string().min(1).optional(),
+	sessionUpdate: z
+		.object({
+			upsertSlots: z.array(
+				z.object({
+					confirmed: z.literal(true),
+					name: z.enum(["curriculum_program", "curriculum_program_family", "curriculum_semester"]),
+					value: z.string().min(1),
+				}),
+			),
+		})
+		.optional(),
 });
+
+interface AgentSdkContext {
+	runId: string;
+	requestId: string;
+	traceId: string;
+	allowedKnowledgeScopes: AllowedKnowledgeScope[];
+	knowledge?: KnowledgeSelection;
+}
 
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
@@ -45,9 +77,10 @@ export interface OpenAIAgentsRunnerOptions {
 }
 
 export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
-	agent: Agent<unknown, TOutput>,
+	agent: Agent<AgentSdkContext, TOutput>,
 	input: string,
 	options: {
+		context: AgentSdkContext;
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
@@ -58,9 +91,10 @@ export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
 ) => Promise<OpenAIAgentsRunResultLike>;
 
 export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
-	agent: Agent<unknown, TOutput>,
+	agent: Agent<AgentSdkContext, TOutput>,
 	input: string,
 	options: {
+		context: AgentSdkContext;
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
@@ -72,6 +106,7 @@ export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
 
 interface OpenAIAgentsRunResultLike {
 	finalOutput?: unknown;
+	lastAgent?: { name?: string };
 	lastResponseId?: string;
 	newItems?: unknown[];
 	rawResponses?: unknown[];
@@ -87,6 +122,7 @@ interface OpenAIAgentsRunResultLike {
 
 interface OpenAIAgentsStreamRunResultLike extends OpenAIAgentsRunResultLike {
 	completed: Promise<void>;
+	currentAgent?: { name?: string };
 	toTextStream(): ReadableStream<string>;
 }
 
@@ -107,31 +143,15 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 				model: options.model,
 				modelProvider: options.modelProvider,
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
-		const sdkTools = input.tools.map((runtimeTool) =>
-			tool({
-				name: runtimeTool.name,
-				description: runtimeTool.description,
-				parameters: runtimeTool.parameters ?? emptyParametersSchema,
-				strict: true,
-				async execute(argumentsJson) {
-					return runtimeTool.execute(recordFromToolArguments(argumentsJson));
-				},
-			}),
-		);
-		const agent = new Agent({
-			name: "Campus primary assistant",
-			instructions: input.instructions,
-			model: requestOptions.model?.trim() || undefined,
-			outputType: primaryAgentTerminalOutputSchema,
-			tools: sdkTools,
-		});
+		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
 		const debugTrace = beginDebugTrace({
 			config: input.debugTraceConfig,
 			fetchImplementation: options.fetchImplementation,
 			traceId: input.traceId,
 		});
 		try {
-			const result = await runSdk(agent, input.input, {
+			const result = await runSdk(runtime.agent, input.input, {
+				context: runtime.context,
 				maxTurns,
 				modelProvider: requestOptions.modelProvider,
 				traceId: input.traceId,
@@ -169,31 +189,15 @@ export function createStreamingOpenAIAgentsRunner(
 				model: options.model,
 				modelProvider: options.modelProvider,
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
-		const sdkTools = input.tools.map((runtimeTool) =>
-			tool({
-				name: runtimeTool.name,
-				description: runtimeTool.description,
-				parameters: runtimeTool.parameters ?? emptyParametersSchema,
-				strict: true,
-				async execute(argumentsJson) {
-					return runtimeTool.execute(recordFromToolArguments(argumentsJson));
-				},
-			}),
-		);
-		const agent = new Agent({
-			name: "Campus primary assistant",
-			instructions: input.instructions,
-			model: requestOptions.model?.trim() || undefined,
-			outputType: primaryAgentTerminalOutputSchema,
-			tools: sdkTools,
-		});
+		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
 		const debugTrace = beginDebugTrace({
 			config: input.debugTraceConfig,
 			fetchImplementation: options.fetchImplementation,
 			traceId: input.traceId,
 		});
 		try {
-			const result = await runSdkStream(agent, input.input, {
+			const result = await runSdkStream(runtime.agent, input.input, {
+				context: runtime.context,
 				maxTurns,
 				modelProvider: requestOptions.modelProvider,
 				traceId: input.traceId,
@@ -221,6 +225,9 @@ export function createStreamingOpenAIAgentsRunner(
 				if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
 					continue;
 				}
+				if (isKnowledgeAgent(result.currentAgent)) {
+					continue;
+				}
 				chunkIndex += 1;
 				yield {
 					accumulatedText: accumulatedVisibleText,
@@ -235,7 +242,7 @@ export function createStreamingOpenAIAgentsRunner(
 					throw new Error("streamed answer text drifted from final output");
 				}
 				const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-				if (tail.trim() !== "") {
+				if (tail.trim() !== "" && !isKnowledgeAgent(result.lastAgent ?? result.currentAgent)) {
 					chunkIndex += 1;
 					yield {
 						accumulatedText: finalResult.finalOutput,
@@ -261,6 +268,141 @@ export function createStreamingOpenAIAgentsRunner(
 	};
 }
 
+function isKnowledgeAgent(agent: { name?: string } | undefined): boolean {
+	return agent?.name?.trim() === "Campus knowledge agent";
+}
+
+function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
+	const context: AgentSdkContext = {
+		runId: input.runId,
+		requestId: input.requestId,
+		traceId: input.traceId,
+		allowedKnowledgeScopes: input.allowedKnowledgeScopes ?? [],
+	};
+	const sdkTools = input.tools.map((runtimeTool) => sdkTool(runtimeTool));
+	const knowledgeAgentRuntime = input.knowledgeAgent;
+	const knowledgeHandoff = (() => {
+		if (knowledgeAgentRuntime === undefined) {
+			return;
+		}
+		const knowledgeAgent = new Agent<AgentSdkContext, typeof primaryAgentTerminalOutputSchema>({
+			name: "Campus knowledge agent",
+			handoffDescription: knowledgeAgentRuntime.handoff.description,
+			instructions: (runContext) =>
+				knowledgeInstructions(knowledgeAgentRuntime.instructions, runContext.context.knowledge),
+			model,
+			outputType: primaryAgentTerminalOutputSchema,
+			tools: [sdkTool(knowledgeAgentRuntime.searchTool)],
+		});
+		return handoff(knowledgeAgent, {
+			toolNameOverride: knowledgeAgentRuntime.handoff.name,
+			toolDescriptionOverride: knowledgeAgentRuntime.handoff.description,
+			inputType: knowledgeAgentRuntime.handoff.parameters,
+			onHandoff(runContext, rawInput) {
+				runContext.context.knowledge = admittedKnowledgeSelection(
+					rawInput,
+					runContext.context.allowedKnowledgeScopes,
+				);
+			},
+		});
+	})();
+	const toolChoice = input.toolChoice?.trim();
+	if (toolChoice !== undefined && toolChoice !== "" && toolChoice !== "knowledge_query") {
+		throw new Error(`unsupported primary agent tool choice: ${toolChoice}`);
+	}
+	if (toolChoice === "knowledge_query" && knowledgeHandoff === undefined) {
+		throw new Error("knowledge_query tool choice requires the knowledge handoff");
+	}
+	const agent = new Agent<AgentSdkContext, typeof primaryAgentTerminalOutputSchema>({
+		name: "Campus primary assistant",
+		instructions: input.instructions,
+		model,
+		modelSettings: toolChoice ? { toolChoice } : undefined,
+		outputType: primaryAgentTerminalOutputSchema,
+		tools: sdkTools,
+		handoffs: knowledgeHandoff ? [knowledgeHandoff] : [],
+	});
+	return { agent, context };
+}
+
+function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
+	return tool<JsonObjectSchema, AgentSdkContext>({
+		name: runtimeTool.name,
+		description: runtimeTool.description,
+		parameters: runtimeTool.parameters ?? emptyParametersSchema,
+		strict: true,
+		async execute(argumentsJson, runContext, details) {
+			return runtimeTool.execute(recordFromToolArguments(argumentsJson), {
+				invocationId: details?.toolCall?.callId,
+				knowledge: runContext?.context.knowledge,
+			});
+		},
+	});
+}
+
+function admittedKnowledgeSelection(
+	value: unknown,
+	allowedScopes: AllowedKnowledgeScope[],
+): KnowledgeSelection {
+	const record = recordFromUnknown(value);
+	const queryText = stringFromUnknown(record?.query_text);
+	const scope = stringFromUnknown(record?.scope);
+	if (queryText === "" || scope === "") {
+		throw new Error("knowledge_query requires query_text and scope");
+	}
+	const admittedScope = allowedScopes.find((candidate) => candidate.scope === scope);
+	if (admittedScope === undefined) {
+		throw new Error(`knowledge scope is not admitted: ${scope}`);
+	}
+	const versionQuery = knowledgeVersionQueryFromUnknown(record?.version_query);
+	if (!admittedScope.allowedQueryModes.includes(versionQuery.mode)) {
+		throw new Error(`knowledge version mode ${versionQuery.mode} is not admitted for ${scope}`);
+	}
+	return { queryText, scope, versionQuery };
+}
+
+function knowledgeVersionQueryFromUnknown(value: unknown): KnowledgeVersionQuery {
+	if (value === null || value === undefined) {
+		return {
+			mode: "current",
+			as_of: null,
+			version_id: null,
+			compare_to_version_id: null,
+		};
+	}
+	const record = recordFromUnknown(value);
+	const mode = stringFromUnknown(record?.mode);
+	if (mode !== "current" && mode !== "historical" && mode !== "as_of" && mode !== "compare") {
+		throw new Error("knowledge version_query.mode is invalid");
+	}
+	return {
+		mode,
+		as_of: nullableString(record?.as_of),
+		version_id: nullableString(record?.version_id),
+		compare_to_version_id: nullableString(record?.compare_to_version_id),
+	};
+}
+
+function nullableString(value: unknown): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const text = stringFromUnknown(value);
+	return text === "" ? null : text;
+}
+
+function knowledgeInstructions(base: string, selection: KnowledgeSelection | undefined): string {
+	if (selection === undefined) {
+		throw new Error("knowledge agent requires an admitted handoff context");
+	}
+	return [
+		base,
+		`Admitted scope: ${selection.scope}`,
+		`Version query: ${JSON.stringify(selection.versionQuery)}`,
+		`User knowledge question: ${selection.queryText}`,
+	].join("\n");
+}
+
 function recordFromToolArguments(value: unknown): Record<string, unknown> {
 	const record = recordFromUnknown(value);
 	return record ?? {};
@@ -274,6 +416,7 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
 	return runner.run(agent, input, {
+		context: options.context,
 		maxTurns: options.maxTurns,
 		signal: options.signal,
 	}) as Promise<OpenAIAgentsRunResultLike>;
@@ -287,6 +430,7 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
 	return runner.run(agent, input, {
+		context: options.context,
 		maxTurns: options.maxTurns,
 		signal: options.signal,
 		stream: true,

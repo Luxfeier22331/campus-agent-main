@@ -51,7 +51,7 @@ Feishu/Lark review source + manual collection
 
 campus-web -> app-api /api/dining/* -> latest published release snapshot
 
-dining_lookup typed tool target -> same published projection
+dining_lookup SDK function tool -> same published projection
 ```
 
 `app-api` owns the HTTP reader/writer facade and Worker PG adapter. It does not
@@ -371,7 +371,7 @@ online provider-config or model-visible tool catalogs.
 
 ## Tool Consumption Boundary
 
-The model-visible food tool target should be a read-only typed tool such as
+The model-visible food tool target should be a read-only SDK function tool such as
 `dining_lookup`.
 
 It may read:

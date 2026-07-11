@@ -19,13 +19,11 @@ Current serving truth:
 - collection prefix: `student_rules`
 - release manifests: `regulations/releases/student_rules/{release_id}/...`
 
-Stable handbook-specific policy docs:
+Stable handbook-specific owner docs:
 
-- `docs/architecture/student-handbook-ocr-normalization-strategy.md`:
-  source-level normalization, split, and document identity truth
-- `docs/policies/student-handbook-chunking-and-validation-policy.md`:
-  document-level chunk budgeting, short-text aggregation, header policy, and
-  validation gate truth
+- `docs/policies/student-rules-chunking.md`:
+  source normalization, split, document identity, chunk budgeting, short-text
+  aggregation, header policy, and validation gate truth
 
 The historical handbook input was source-bucket `provider-response.jsonl`.
 `layout-elements.jsonl` remains the source-truth artifact before document

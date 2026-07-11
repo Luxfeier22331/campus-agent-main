@@ -1,73 +1,68 @@
 import { describe, expect, it } from "vitest";
-import type { ProviderConfigConnection } from "../src/panel/operations/provider-config/model";
 import {
 	buildConnectionCreatePayload,
 	buildProfileCreatePayload,
 	type ConnectionFormState,
 	type ProfileFormState,
-	searchTransportForConnection,
 } from "../src/panel/operations/provider-config/view-model";
 
-function connection(overrides: Partial<ProviderConfigConnection> = {}): ProviderConfigConnection {
+function profileForm(overrides: Partial<ProfileFormState> = {}): ProfileFormState {
 	return {
-		baseUrl: "https://provider.example/v1",
-		connectionId: "provider_connection_search",
-		createdAt: "2026-06-16T00:00:00.000Z",
-		featureConfig: {},
-		features: ["search"],
-		provider: "perplexity",
-		revision: 1,
-		secretConfigured: true,
-		secretLast4: "1234",
-		updatedAt: "2026-06-16T00:00:00.000Z",
+		connectionId: "provider_connection_current",
+		dimensions: "2560",
+		model: "gpt-current",
+		role: "primary_agent",
+		timeoutMs: "30000",
+		transport: "responses",
 		...overrides,
 	};
 }
 
-function searchProfileForm(connectionId: string): ProfileFormState {
-	return {
-		connectionId,
-		dimensions: "2560",
-		model: "search-model",
-		role: "public_web_search",
-		timeoutMs: "30000",
-		transport: "perplexity_search",
-	};
-}
-
 describe("provider config view model", () => {
-	it("preserves admitted public web search provider identities in connection payloads", () => {
+	it("builds current provider connection payloads", () => {
 		const form: ConnectionFormState = {
 			apiKey: "provider-key",
-			baseUrl: "https://hub.linux.do",
-			featurePreset: "search",
-			provider: "perplexity_compatible",
+			baseUrl: "https://provider.example/v1",
+			featurePreset: "prompt_embedding",
+			provider: "openai-compatible",
 		};
 
-		expect(buildConnectionCreatePayload(form)).toMatchObject({
-			baseUrl: "https://hub.linux.do",
-			features: ["search"],
-			provider: "perplexity_compatible",
+		expect(buildConnectionCreatePayload(form)).toEqual({
+			apiKey: "provider-key",
+			baseUrl: "https://provider.example/v1",
+			features: ["prompt", "embedding"],
+			provider: "openai-compatible",
 		});
 	});
 
-	it.each([
-		["perplexity", "perplexity_search"],
-		["perplexity_compatible", "perplexity_search"],
-		["openai", "openai_responses_web_search"],
-		["gemini", "gemini_google_search"],
-	])("maps %s public web search profiles to the admitted transport", (provider, transport) => {
-		const selectedConnection = connection({ provider });
-		const payload = buildProfileCreatePayload(searchProfileForm(selectedConnection.connectionId), [
-			selectedConnection,
-		]);
+	it("builds primary agent prompt profiles", () => {
+		expect(buildProfileCreatePayload(profileForm({ transport: "chat_completions" }))).toEqual({
+			connectionId: "provider_connection_current",
+			kind: "prompt",
+			model: "gpt-current",
+			role: "primary_agent",
+			timeoutMs: 30000,
+			transport: "chat_completions",
+		});
+	});
 
-		expect(searchTransportForConnection(selectedConnection)).toBe(transport);
-		expect(payload).toMatchObject({
-			connectionId: selectedConnection.connectionId,
-			kind: "search",
-			role: "public_web_search",
-			transport,
+	it("forces embedding profiles onto the embeddings transport", () => {
+		expect(
+			buildProfileCreatePayload(
+				profileForm({
+					model: "embedding-current",
+					role: "rag_query_embedding",
+					transport: "responses",
+				}),
+			),
+		).toEqual({
+			connectionId: "provider_connection_current",
+			dimensions: 2560,
+			kind: "embedding",
+			model: "embedding-current",
+			role: "rag_query_embedding",
+			timeoutMs: 30000,
+			transport: "embeddings",
 		});
 	});
 });

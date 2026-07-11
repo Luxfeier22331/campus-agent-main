@@ -254,8 +254,10 @@ export function executionFinalizationErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
+		resolvedScope: null,
 		result: null,
 		selectedTool: null,
+		sessionUpdate: null,
 		status: input.status ?? "error",
 		traceId: input.traceId,
 	};

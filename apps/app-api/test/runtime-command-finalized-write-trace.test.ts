@@ -69,6 +69,8 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "completed",
 		traceId: "trace_accepted",
 		...overrides,
+		resolvedScope: overrides.resolvedScope ?? null,
+		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
 

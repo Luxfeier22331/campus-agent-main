@@ -58,7 +58,6 @@ func TestParseOptionsBuildsDefaultServicePolicies(t *testing.T) {
 		"workflow-worker",
 		"activity-worker-core",
 		"activity-worker-agent",
-		"activity-worker-knowledge",
 	} {
 		if _, ok := policies[service]; !ok {
 			t.Fatalf("missing service policy for %s", service)

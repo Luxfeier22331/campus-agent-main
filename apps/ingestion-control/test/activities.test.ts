@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
 import {
 	createIngestionTaskActivities,
 	createIngestionTaskRegistryCatalog,
 	type IngestionTaskEnvelope,
-	InMemoryIngestionTaskStore,
 } from "../src/index.ts";
 import type { OfficialWebExecutionStatusPayload } from "../src/official-web-execution-status-service";
 import { RustKernelRegistry, TsTaskHandlerRegistry } from "../src/task-executor";

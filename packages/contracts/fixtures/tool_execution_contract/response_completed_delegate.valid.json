@@ -4,97 +4,58 @@
 	"answer_text": "请假制度以学生手册当前版本为准。",
 	"follow_up_question": "",
 	"confidence": "high",
+	"resolved_scope": "student_rules",
+	"session_update": null,
 	"result": {
-		"evidence": {
-			"sources": [
-				{
-					"doc_id": "student_rules:leave-policy"
-				}
-			]
-		}
+		"provider_response_id": "resp_contract_completed",
+		"selected_tools": ["knowledge_query"],
+		"sources": [
+			{
+				"canonical_url": "/docs/regulations/student_rules/leave-policy",
+				"snippet": "学生请假应按现行学生手册办理。",
+				"source_kind": "regulation",
+				"source_title": "学生请假管理规定",
+				"target_kind": "canonical_reader",
+				"title": "学生请假管理规定"
+			}
+		],
+		"terminal_reason": "answer"
 	},
 	"error": null,
 	"observability": {
-		"semantic_outcome": "grounded_answer",
-		"retrieval_attempted": true,
-		"retrieved_source_count": 1,
-		"selected_tool": "knowledge_query"
+		"agent_runtime": "openai_agents_sdk",
+		"selected_tools": ["knowledge_query"],
+		"terminal_reason": "answer"
 	},
 	"workflow_trace_summary": {
-		"routing_frame": {
-			"suggested_next_action": "delegate"
-		},
-		"context_resolution": {
-			"state": "not_follow_up"
-		},
-		"planning_outcome": "preplanned",
-		"direct_vs_delegate_branch": "delegate",
 		"workflow_mode": "single_step",
-		"handoff": {
-			"tool": "knowledge_query",
-			"tool_request": {
-				"tool": "knowledge_query"
-			}
-		},
-		"handoff_chain": [
-			{
-				"tool": "knowledge_query",
-				"payload_kind": "rag_request",
-				"selected_tool": "knowledge_query",
-				"task_queue": "campus-agent.activity.knowledge"
-			}
-		],
-		"tool_invocations": [
-			{
-				"invocation_id": "tool-invocation:knowledge_query:1",
-				"workflow_run_ref": "single_step:knowledge_query:knowledge_query",
-				"step_id": "tool:knowledge_query:rag_request",
-				"tool_id": "knowledge_query",
-				"status": "completed",
-				"allowed_tools": [],
-				"used_tools": ["knowledge_query"],
-				"projection_ids": []
-			}
-		],
 		"selected_tool": "knowledge_query",
 		"selected_tools": ["knowledge_query"],
-		"context_projections": [],
-		"answer_artifact_projection_ids": [],
-		"answer_artifact_kinds": [],
-		"tool_argument_summary": {
-			"collection": "student_rules"
-		},
+		"first_decision_actor": "primary_agent",
+		"planning_outcome": "primary_agent_completed",
+		"direct_vs_delegate_branch": "tool",
+		"terminal_reason": "answer",
+		"answer_artifact_kinds": ["agent_final_output"],
+		"answer_artifact_refs": ["projection://runs/run_contract_completed/agent/primary/result"],
 		"trace_steps": [
 			{
-				"step_id": "runtime_policy",
-				"span_kind": "runtime_policy",
+				"step_id": "agent.primary",
+				"span_kind": "agent",
 				"parent_step_id": "",
-				"outcome": "delegate"
+				"outcome": "answer",
+				"result_status": "completed"
 			},
 			{
-				"step_id": "finalization",
+				"step_id": "finalization.write",
 				"span_kind": "finalization",
-				"parent_step_id": "runtime_policy",
-				"outcome": "completed"
+				"parent_step_id": "agent.primary",
+				"outcome": "completed",
+				"result_status": "completed"
 			}
 		],
-		"tool_call_summaries": [
-			{
-				"tool_name": "knowledge_query",
-				"result_status": "completed",
-				"business_outcome": "grounded_answer",
-				"source_ids": ["student_rules:leave-policy"]
-			}
-		],
-		"guardrail_outcomes": {
-			"scope_gate": "allow"
-		},
-		"fail_close_reason": "",
+		"tool_call_summaries": [],
 		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v4"
-		},
-		"policy_artifact_versions": {
-			"intent_policy": "intent-policy.v1"
+			"agent_runtime": "openai_agents_sdk"
 		}
 	},
 	"trace_id": "trace-contract-completed"

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
 import {
 	createIngestionControlHandler,
 	createIngestionTaskRegistryCatalog,
 	type IngestionTaskEnvelope,
-	InMemoryIngestionTaskStore,
 } from "../src/index.ts";
 
 const task: IngestionTaskEnvelope = {
@@ -25,6 +25,14 @@ const task: IngestionTaskEnvelope = {
 	idempotency_key: "curriculum/curriculum_plan/chunk_prepare/document-units-v1",
 	created_by: "operator",
 	created_at: "2026-06-11T00:00:00Z",
+};
+
+const serviceTokens = {
+	adminToken: "admin-token",
+	appApiProjectionToken: "app-api-projection-token",
+	officialWebCollectorToken: "collector-token",
+	officialWebExecutionStatusToken: "execution-status-token",
+	officialWebProjectionToken: "projection-token",
 };
 
 describe("ingestion-control operator projection", () => {
@@ -51,6 +59,7 @@ describe("ingestion-control operator projection", () => {
 					],
 				},
 			]),
+			serviceTokens,
 			store,
 			workflowStarter: {
 				async startTask(admitted) {
@@ -60,7 +69,7 @@ describe("ingestion-control operator projection", () => {
 		});
 
 		const admitResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks", {
+			authorizedRequest("http://ingestion-control/internal/ingestion/tasks", "admin", {
 				method: "POST",
 				body: JSON.stringify(task),
 			}),
@@ -83,8 +92,9 @@ describe("ingestion-control operator projection", () => {
 		});
 
 		const projectionResponse = await handler(
-			new Request(
+			authorizedRequest(
 				"http://ingestion-control/internal/ingestion/operator-projection/tasks?corpus=curriculum&collection=curriculum_plan",
+				"app-api",
 			),
 		);
 		expect(projectionResponse.status).toBeLessThan(400);
@@ -124,4 +134,16 @@ describe("ingestion-control operator projection", () => {
 
 async function json(response: Response): Promise<Record<string, unknown>> {
 	return (await response.json()) as Record<string, unknown>;
+}
+
+function authorizedRequest(url: string, principal: "admin" | "app-api", init: RequestInit = {}) {
+	return new Request(url, {
+		...init,
+		headers: {
+			...(init.headers as Record<string, string> | undefined),
+			authorization: `Bearer ${
+				principal === "admin" ? serviceTokens.adminToken : serviceTokens.appApiProjectionToken
+			}`,
+		},
+	});
 }

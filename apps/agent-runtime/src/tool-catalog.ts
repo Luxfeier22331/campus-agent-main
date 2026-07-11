@@ -10,12 +10,13 @@ const executionControlInternalQueryHandlerSchema = z.object({
 	type: z.literal("execution_control_internal_query"),
 	endpoint: z.string().min(1),
 });
-const workflowSignalHandlerSchema = z.object({
-	type: z.literal("workflow_signal"),
+const agentHandoffHandlerSchema = z.object({
+	type: z.literal("agent_handoff"),
+	target: z.literal("knowledge_agent"),
 });
-const handlerSchema = z.discriminatedUnion("type", [
+const toolCatalogHandlerSchema = z.union([
 	executionControlInternalQueryHandlerSchema,
-	workflowSignalHandlerSchema,
+	agentHandoffHandlerSchema,
 ]);
 const rawToolSchema = z.object({
 	name: z.string().min(1),
@@ -25,7 +26,7 @@ const rawToolSchema = z.object({
 	requires_approval: z.boolean(),
 	payload_schema_ref: z.string().regex(schemaRefPattern),
 	result_schema_ref: z.string().regex(schemaRefPattern),
-	handler: handlerSchema,
+	handler: toolCatalogHandlerSchema,
 	timeout_ms: z.number().int().positive(),
 	result_projection_policy: z.literal("bounded_json"),
 });
@@ -42,11 +43,12 @@ export interface ExecutionControlInternalQueryHandler {
 	endpoint: string;
 }
 
-export interface WorkflowSignalHandler {
-	type: "workflow_signal";
+export interface AgentHandoffHandler {
+	type: "agent_handoff";
+	target: "knowledge_agent";
 }
 
-export type ToolCatalogHandler = ExecutionControlInternalQueryHandler | WorkflowSignalHandler;
+export type ToolCatalogHandler = ExecutionControlInternalQueryHandler | AgentHandoffHandler;
 
 export interface ToolCatalogEntry {
 	name: string;
@@ -148,8 +150,8 @@ export function loadToolCatalogFromObject(
 	const functionSchemas = loadToolFunctionSchemas(options.toolFunctionSchemaPath);
 	const tools = parsed.tools.map((tool): ToolCatalogEntry => {
 		const parameterSchema = functionSchemas.get(tool.name);
-		if (tool.exposure === "model_visible" && parameterSchema === undefined) {
-			throw new Error(`model-visible tool ${tool.name} missing strict function schema`);
+		if (tool.exposure !== "closed" && parameterSchema === undefined) {
+			throw new Error(`${tool.exposure} tool ${tool.name} missing strict function schema`);
 		}
 		return {
 			name: tool.name,
@@ -174,11 +176,22 @@ export function loadToolCatalogFromObject(
 }
 
 export function buildVisibleToolDefinitions(catalog: ToolCatalog): VisibleToolDefinition[] {
+	return buildToolDefinitions(catalog, "model_visible");
+}
+
+export function buildInternalToolDefinitions(catalog: ToolCatalog): VisibleToolDefinition[] {
+	return buildToolDefinitions(catalog, "internal_only");
+}
+
+function buildToolDefinitions(
+	catalog: ToolCatalog,
+	exposure: "model_visible" | "internal_only",
+): VisibleToolDefinition[] {
 	return catalog.tools
-		.filter((tool) => tool.exposure === "model_visible" && tool.readOnly)
+		.filter((tool) => tool.exposure === exposure && tool.readOnly)
 		.map((tool) => {
 			if (tool.parameterSchema === undefined) {
-				throw new Error(`model-visible tool ${tool.name} missing strict function schema`);
+				throw new Error(`${exposure} tool ${tool.name} missing strict function schema`);
 			}
 			return {
 				name: tool.name,

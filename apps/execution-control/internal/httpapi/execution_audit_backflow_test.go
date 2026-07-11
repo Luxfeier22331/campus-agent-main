@@ -13,7 +13,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 )
 
 func TestExecutionRunCancelEmitsSafeExecutionAuditEvents(t *testing.T) {
@@ -131,15 +130,15 @@ func TestFailTemporalRunEmitsActivityFailureAuditEvent(t *testing.T) {
 		context.Background(),
 		run,
 		temporalStepFailureProjection{
-			FailureKind:   "retrieval_lookup_failed",
-			ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
+			FailureKind:   "knowledge_search_failed",
+			ProjectionRef: temporalProjectionRef(run.RunID, "knowledge/search/search-1"),
 			ResultKind:    "activity_failure",
-			StepID:        "retrieval.indexed_lookup",
+			StepID:        "knowledge.search.search-1",
 			StepKind:      "retrieval",
-			TaskQueue:     "campus-agent.knowledge",
-			Tool:          "knowledge_query",
+			TaskQueue:     "campus-agent.activity.agent",
+			Tool:          "knowledge_search",
 			Payload: map[string]any{
-				"failure_kind": "retrieval_lookup_failed",
+				"failure_kind": "knowledge_search_failed",
 				"user_goal":    "raw prompt must stay out",
 			},
 		},
@@ -151,7 +150,7 @@ func TestFailTemporalRunEmitsActivityFailureAuditEvent(t *testing.T) {
 	}
 	event := collectAuditEvents(t, received, 1)[0]
 	if event["event_type"] != "execution.activity_failed" ||
-		event["failure_kind"] != "retrieval_lookup_failed" ||
+		event["failure_kind"] != "knowledge_search_failed" ||
 		event["request_id"] != "req-executor-001" ||
 		event["trace_id"] != "trace-executor-001" ||
 		event["retryable"] != false {
@@ -160,7 +159,7 @@ func TestFailTemporalRunEmitsActivityFailureAuditEvent(t *testing.T) {
 	assertAuditEventDoesNotLeakRawPayload(t, event)
 }
 
-func TestFailTemporalRunEmitsTimedOutAuditEvent(t *testing.T) {
+func TestFailTemporalRunEmitsAgentProviderTimeoutAuditEvent(t *testing.T) {
 	received := make(chan map[string]any, 1)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		var body map[string]any
@@ -199,15 +198,14 @@ func TestFailTemporalRunEmitsTimedOutAuditEvent(t *testing.T) {
 		context.Background(),
 		run,
 		temporalStepFailureProjection{
-			FailureKind:     "rag_synthesis_provider_failed",
-			ProjectionRef:   temporalProjectionRef(run.RunID, "synthesis/provider"),
-			ProviderSummary: &provider.ExecutionSummary{LatencyMS: 1500},
-			ResultKind:      "provider_execution_summary",
-			StepID:          "synthesis",
-			StepKind:        "synthesis",
-			TaskQueue:       "campus-agent.knowledge",
-			TimeoutOutcome:  execution.TimeoutOutcomeProviderTimeout,
-			Tool:            "knowledge_query",
+			FailureKind:    "agent_runtime_failed",
+			ProjectionRef:  temporalProjectionRef(run.RunID, "agent/primary/result"),
+			ResultKind:     "provider_execution_summary",
+			StepID:         "agent.primary",
+			StepKind:       "agent",
+			TaskQueue:      "campus-agent.activity.agent",
+			TimeoutOutcome: execution.TimeoutOutcomeProviderTimeout,
+			Tool:           "knowledge_query",
 		},
 		context.DeadlineExceeded,
 	)
@@ -217,8 +215,7 @@ func TestFailTemporalRunEmitsTimedOutAuditEvent(t *testing.T) {
 	}
 	event := collectAuditEvents(t, received, 1)[0]
 	if event["event_type"] != "execution.timed_out" ||
-		event["failure_kind"] != "rag_synthesis_provider_failed" ||
-		event["activity_duration_ms"] != float64(1500) {
+		event["failure_kind"] != "agent_runtime_failed" {
 		t.Fatalf("unexpected timeout audit event: %#v", event)
 	}
 	assertAuditEventDoesNotLeakRawPayload(t, event)

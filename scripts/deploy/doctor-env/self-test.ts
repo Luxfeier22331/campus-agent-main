@@ -22,7 +22,6 @@ export function runDoctorEnvSelfTest(): number {
 	selfTestExecutionControlReady();
 	selfTestExecutionControlMissing();
 	selfTestExecutionAuditRequired();
-	selfTestNoticeReadModelRequired();
 	selfTestQuerySurface();
 	selfTestWorkerObservabilityLocalSurface();
 	selfTestIngestionBucketScopedCredentials();
@@ -40,7 +39,7 @@ function selfTestExecutionControlReady(): void {
 				"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
 			].join("\n")}\n`,
 		);
-		writeExecutionControlRuntimeProfile(root);
+		writeExecutionControlRuntimeConfig(root);
 		const status = collectEnvDoctorStatus({ env: {}, root, surface: "execution-control" });
 		expectEqual(status.overall_ready, true, "execution-control should be ready");
 		expectEqual(
@@ -67,7 +66,7 @@ function selfTestExecutionControlMissing(): void {
 function selfTestExecutionAuditRequired(): void {
 	withFixture((root) => {
 		writeText(join(root, ".env"), `${executionControlRequiredEnv().join("\n")}\n`);
-		writeExecutionControlRuntimeProfile(root, { executionAuditEnabled: true });
+		writeExecutionControlRuntimeConfig(root, { executionAuditEnabled: true });
 		const status = collectEnvDoctorStatus({ env: {}, root, surface: "execution-control" });
 		expectEqual(status.overall_ready, false, "execution audit missing env should fail");
 		expect(
@@ -75,27 +74,6 @@ function selfTestExecutionAuditRequired(): void {
 				"EXECUTION_CONTROL_EXECUTION_AUDIT_URL",
 			),
 			"execution audit missing URL was not reported",
-		);
-	});
-}
-
-function selfTestNoticeReadModelRequired(): void {
-	withFixture((root) => {
-		writeText(
-			join(root, ".env"),
-			`${[
-				...executionControlRequiredEnv(),
-				"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
-			].join("\n")}\n`,
-		);
-		writeExecutionControlRuntimeProfile(root, { openTools: ["campus_notice_discover"] });
-		const status = collectEnvDoctorStatus({ env: {}, root, surface: "execution-control" });
-		expectEqual(status.overall_ready, false, "notice tool without read model should fail");
-		expect(
-			String(status.conditions.notice_runtime_contract.error).includes(
-				"CAMPUS_SHARED_POSTGRES_URL",
-			),
-			"notice read model missing shared postgres was not reported",
 		);
 	});
 }
@@ -235,7 +213,7 @@ function selfTestWorkerStagingSurface(): void {
 
 function executionControlRequiredEnv(): string[] {
 	return [
-		"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-profile.staging.json",
+		"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-config.staging.json",
 		"EXECUTION_CONTROL_SHARED_SECRET=control-secret",
 		"EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
 		"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime.example/campus_agent",
@@ -246,23 +224,18 @@ function executionControlRequiredEnv(): string[] {
 		"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
 		"EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001",
 		"EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001",
-		"EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
 		"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
 	];
 }
 
-function writeExecutionControlRuntimeProfile(
+function writeExecutionControlRuntimeConfig(
 	root: string,
-	{
-		executionAuditEnabled = false,
-		openTools = [],
-	}: { executionAuditEnabled?: boolean; openTools?: string[] } = {},
+	{ executionAuditEnabled = false }: { executionAuditEnabled?: boolean } = {},
 ): void {
 	writeText(
-		join(root, "configs/runtime/execution-control/runtime-profile.staging.json"),
+		join(root, "configs/runtime/execution-control/runtime-config.staging.json"),
 		`${JSON.stringify({
-			schema_version: "campus_execution_control_runtime_profile.v1",
-			open_tools: openTools,
+			schema_version: "campus_execution_control_runtime_config.v1",
 			execution_audit: { enabled: executionAuditEnabled },
 		})}\n`,
 	);

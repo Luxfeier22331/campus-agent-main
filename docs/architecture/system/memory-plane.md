@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-07-07
+updated: 2026-07-08
 ---
 # Memory Plane Architecture
 
@@ -40,8 +40,9 @@ requirement，也不能授予 operator surface 权限。
   context.profile_memory` full injection。
 - active Python `ContextProjection` contract model 不再定义 `profile_memory`；该字段只作为
   historical residue / schema negative guard 出现，不是后续扩展点。
-- personal memory 与 institutional RAG 完全分离：personal memory 走 Hindsight runtime，
-  institutional RAG 走 Go-owned Qdrant retrieval runtime。
+- personal memory 与 institutional knowledge retrieval 完全分离：personal memory
+  走 Hindsight runtime，institutional retrieval 只通过 execution-control 内部
+  `knowledge_search` 访问 embedding、Qdrant 与 rerank。
 - execution-control 不维护个人记忆向量 schema、collection alias、embedding compatibility
   check、repo-owned extraction prompt 或 extraction threshold。
 - Temporal 不是 memory database；Temporal 只编排 activity / workflow lifecycle。
@@ -72,7 +73,7 @@ PERSONAL_MEMORY_OWNER_SALT
 `personal_memory.recall_limit`、`personal_memory.recall_max_tokens` 与
 `personal_memory.context_char_budget` 由 execution-control runtime config 管理，不再通过
 env 配置。`recall_max_tokens` 只传给 Hindsight recall `max_tokens`；
-`context_char_budget` 只限制本仓库投给 agent / RAG 的本地 context block。
+`context_char_budget` 只限制本仓库投给 Agent Activity 的本地 context block。
 
 Hindsight API 使用 `HINDSIGHT_API_TENANT_EXTENSION` /
 `HINDSIGHT_API_TENANT_API_KEY` 做 service-to-service auth；`PERSONAL_MEMORY_API_SECRET`
@@ -189,22 +190,23 @@ Runtime acceptance rules:
 user request
 -> app-api creates execution run without PG memory full injection
 -> execution-control starts ToolExecutionWorkflow
--> Temporal context.memory_recall activity when context.memory.enabled=true
+-> Memory Recall (`context.memory_recall`, skipped when disabled)
 -> Hindsight recall scoped to actor bank
 -> bounded memory context
--> OpenAI Agents primary loop / planning / RAG / deterministic tools
--> sanitized run step projection
+-> Agent Activity (one complete OpenAI Agents SDK run)
+-> Finalization
+-> Memory Append
 ```
 
-`memory.recall` 是 neutral execution step，不属于 RAG worker 的私有前置逻辑；
-当前 online path 在 `context.memory.enabled=true` 时先执行 bounded recall，再把结果作为
+`memory.recall` 是 neutral core activity；当前 online path 在
+`context.memory.enabled=true` 时先执行 bounded recall，再把结果作为
 advisory instruction context 传给 primary agent。primary agent 不拥有 Hindsight tool，也不
 先决定是否直连 Hindsight。gate 缺失或为 false 时不会 recall；因此不是每个 product
 identity / no-tool direct answer 都必然先做 memory recall。
 
 `context.memory.enabled` 是 recall gate。gate 缺失或为 false 时
 `context.memory_recall` 必须投影为 skipped，不调用 Hindsight，也不向 primary agent /
-RAG graph 传入 `memory_context` 或 `memory_ref`。gate 为 true 时才构造 Hindsight recall
+Knowledge Agent SDK run 传入 `memory_context` 或 `memory_ref`。gate 为 true 时才构造 Hindsight recall
 request。recall query 由 `user_goal` 加确定性排序后的 confirmed `session_slots` 组成。
 
 recall request 必须包含：
@@ -261,8 +263,8 @@ score
 updated_at
 ```
 
-RAG / synthesis 可以消费 bounded memory context 来影响 follow-up、applicability、query
-framing、answer defaults 和 wording。它不得用 memory 打开未开放 tool / collection、
+Primary 或 Knowledge Agent 可以消费 bounded memory context 来影响 follow-up、
+applicability、query framing、answer defaults 和 wording。它不得用 memory 打开未开放 tool / collection、
 放宽 source trust、覆盖 fail-close、伪造 account / session truth，或替代 institutional
 evidence。
 
@@ -291,13 +293,13 @@ admitted internal memory-reflect request
   canonical projection。
 - `based_on` facts 可以进入 sanitized refs / hashes / compact fact snippets；不得保留
   raw chunks、raw transcript 或 private unrestricted notes。
-- 如果未来让模型显式请求 memory reasoning，必须先通过 repo-owned typed tool /
-  workflow admission 暴露，不能直接把 Hindsight vendor tool 注入 model-visible tool
+- 如果未来让模型显式请求 memory reasoning，必须先通过 repo-owned SDK function
+  tool 与 runtime admission 暴露，不能直接把 Hindsight vendor tool 注入 model-visible tool
   set。
 
-## Productization Landing Rule
+## Product Personalization Boundary
 
-后续 memory / personalization productization 的落地顺序固定为：
+memory / personalization 的长期产品边界固定为：
 
 1. `execution-control` / Temporal 拥有 online `memory.recall` step。
 2. Hindsight runtime 承接 personal memory retrieval / extraction / graph
@@ -305,16 +307,14 @@ admitted internal memory-reflect request
    migration source。
 3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
    `context.profile_memory`。
-4. active execution request context 不携带 `profile_memory` 字段；planning / RAG /
-   deterministic tools 只消费 bounded Hindsight personal
-   memory recall packet；不得读取 raw memory、raw transcript、raw auth material
-   或产品层数据库对象。
-5. personalization 可以影响 follow-up、applicability、retrieval planning、ranking /
-   disambiguation、clarification 与 answer wording；不得伪造 source truth、tool
+4. active execution request context 不携带 `profile_memory` 字段；Agents SDK run
+   只消费 bounded Hindsight personal memory recall packet；不得读取 raw memory、
+   raw transcript、raw auth material 或产品层数据库对象。
+5. personalization 可以影响 follow-up、applicability、`knowledge_search` query
+   framing / ranking、disambiguation、clarification 与 answer wording；不得伪造 source truth、tool
    opening truth、account / session truth 或 fail-close override。
 
-这些规则只定义恢复 productization 时的执行入口和验收口径，不表达 memory
-productization rollout state。
+这些规则只定义产品入口、runtime owner 与 projection 边界，不表达 rollout state。
 
 ## Write / Update Flow
 
@@ -455,7 +455,7 @@ agent runtime eval projection 只可从 `memory.recall` / `memory.reflect` step 
 派生 sanitized memory summary，例如 recall / reflect status、selected count、selected chars
 和 based-on fact count。它不得输出 Hindsight bank id、operation id/ref、runtime document
 ref、memory id、raw memory text、raw reflection text 或 compact text。Langfuse-bound
-memory evidence 当前通过 trace evidence verification 与 Ragas score lanes 承接；不得恢复
+memory observation 通过 sanitized trace/event 与 Ragas score lanes 消费；不得恢复
 retired profile score report builder，也不能为缺失 request correlation 的 case 猜 trace id。
 
 ## Data-Plane Boundary
@@ -485,8 +485,8 @@ Hindsight posture：
   model-visible tool catalog、browser response、app-api 或 `packages/contracts`。
   如果 Hindsight deployment 暴露 MCP endpoint，它必须停留在 service 内网 / ops-only
   debug boundary，不得被 app-api、campus-web、agent-runtime 或 OpenAI Agents SDK 注册为工具。
-- `activity-agent` / `activity-knowledge` 不要求 Hindsight 配置；它们消费的是
-  bounded memory context，不拥有 memory substrate。
+- `activity-worker-agent` 只消费 core activity 投影出的 bounded memory context，
+  不要求 Hindsight credential，也不拥有 memory substrate。
 
 Qdrant posture：
 

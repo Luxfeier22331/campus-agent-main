@@ -53,12 +53,10 @@ var llmIOFingerprintFieldAllowlist = stringBoolSet(llmIOFingerprintStringFields.
 
 var llmCallSiteAllowlist = map[string]bool{
 	"agent.primary": true,
-	"rag.synthesis": true,
 }
 
 var primaryAttestationKindAllowlist = map[string]bool{
-	"primary_agent_call":             true,
-	"primary_admitted_rag_synthesis": true,
+	"primary_agent_call": true,
 }
 
 var expectedToolRuntimeAttestationConfigRefs = []string{

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
-import { createIngestionTaskRegistryCatalog, InMemoryIngestionTaskStore } from "../src/index.ts";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
+import { createIngestionTaskRegistryCatalog } from "../src/index.ts";
 import {
 	buildIngestionControlRuntimeConfig,
 	type IngestionControlRuntime,
@@ -29,7 +30,11 @@ describe("ingestion-control runtime", () => {
 			buildIngestionControlRuntimeConfig({
 				INGESTION_CONTROL_DATABASE_URL: "postgresql://postgres:postgres@localhost/campus_agent",
 				INGESTION_TASK_REGISTRY_ROOT: "configs/ingestion",
+				INGESTION_CONTROL_ADMIN_TOKEN: " admin-token ",
+				INGESTION_CONTROL_APP_API_PROJECTION_TOKEN: " app-api-projection-token ",
 				INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN: " official-web-token ",
+				INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN: " execution-status-token ",
+				INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN: " projection-token ",
 				INGESTION_TEMPORAL_ADDRESS: "localhost:7233",
 				INGESTION_CONTROL_HOST: "127.0.0.1",
 				INGESTION_CONTROL_PORT: "27061",
@@ -38,8 +43,14 @@ describe("ingestion-control runtime", () => {
 			databaseUrl: "postgresql://postgres:postgres@localhost/campus_agent",
 			registryRoot: "configs/ingestion",
 			host: "127.0.0.1",
-			officialWebCollectorToken: "official-web-token",
 			port: 27061,
+			serviceTokens: {
+				adminToken: "admin-token",
+				appApiProjectionToken: "app-api-projection-token",
+				officialWebCollectorToken: "official-web-token",
+				officialWebExecutionStatusToken: "execution-status-token",
+				officialWebProjectionToken: "projection-token",
+			},
 			sourceBucket: "campus-agent-source",
 			temporal: {
 				address: "localhost:7233",
@@ -78,9 +89,15 @@ describe("ingestion-control runtime", () => {
 					{
 						databaseUrl: "postgresql://postgres:postgres@localhost/campus_agent",
 						host: "127.0.0.1",
-						officialWebCollectorToken: null,
 						port: address.port,
 						registryRoot: "configs/ingestion",
+						serviceTokens: {
+							adminToken: null,
+							appApiProjectionToken: null,
+							officialWebCollectorToken: null,
+							officialWebExecutionStatusToken: null,
+							officialWebProjectionToken: null,
+						},
 						sourceBucket: "campus-agent-source",
 						temporal: {
 							address: "localhost:7233",

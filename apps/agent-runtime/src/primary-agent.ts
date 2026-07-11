@@ -10,7 +10,7 @@ import type {
 	ToolCatalogEntry,
 	ToolRuntimeFingerprint,
 } from "./tool-catalog.ts";
-import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
+import { buildInternalToolDefinitions, buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
 export interface PrimaryAgentRunInput {
 	runId: string;
@@ -20,6 +20,8 @@ export interface PrimaryAgentRunInput {
 	traceId: string;
 	input: string;
 	visibleToolNames: string[];
+	allowedKnowledgeScopes?: AllowedKnowledgeScope[];
+	toolChoice?: string;
 	providerConfig: PromptProviderRuntimeConfig;
 	debugTraceConfig?: LlmDebugTraceConfig;
 	finalModelContext?: FinalModelContext;
@@ -28,13 +30,32 @@ export interface PrimaryAgentRunInput {
 	signal?: AbortSignal;
 }
 
+export interface AllowedKnowledgeScope {
+	allowedQueryModes: string[];
+	description: string;
+	scope: string;
+}
+
+export interface KnowledgeVersionQuery {
+	mode: "current" | "historical" | "as_of" | "compare";
+	as_of: string | null;
+	version_id: string | null;
+	compare_to_version_id: string | null;
+}
+
+export interface KnowledgeSelection {
+	queryText: string;
+	scope: string;
+	versionQuery: KnowledgeVersionQuery;
+}
+
 export interface FinalModelContext {
 	schemaVersion: "final_model_context.v1";
 	currentUserMessage: string;
 	recentTurns: FinalModelContextTurn[];
-	previousAnswerSummary?: string;
 	previousEvidence: FinalModelContextEvidence[];
 	previousToolResults: FinalModelContextPreviousToolResult[];
+	sessionState?: FinalModelContextSessionState;
 	memoryContext?: PersonalMemoryContext;
 	usageSummary: {
 		memoryRecallState: "completed" | "skipped";
@@ -60,10 +81,24 @@ export interface TruncationSummary {
 }
 
 export interface FinalModelContextTurn {
-	content?: string;
+	content: string;
 	messageId?: string;
 	role: "assistant" | "user";
-	summary?: string;
+}
+
+export interface FinalModelContextSessionState {
+	confirmedSlots: Array<{
+		confirmed: boolean;
+		name: string;
+		value: string;
+	}>;
+	selectedNoticeRef?: {
+		noticeId: string;
+		sourceFamily?: string;
+		targetSurface?: string;
+		title?: string;
+	} | null;
+	turnCount: number;
 }
 
 export interface FinalModelContextEvidence {
@@ -135,6 +170,8 @@ export interface ToolExecutionRequest {
 	argumentsJson: Record<string, unknown>;
 	runId: string;
 	traceId: string;
+	invocationId?: string;
+	knowledge?: KnowledgeSelection;
 	signal?: AbortSignal;
 }
 
@@ -152,7 +189,25 @@ export interface SdkToolRuntime {
 	name: string;
 	description: string;
 	parameters?: JsonObjectSchema;
-	execute(argumentsJson: Record<string, unknown>): Promise<ToolExecutionResult>;
+	execute(
+		argumentsJson: Record<string, unknown>,
+		context?: SdkToolExecutionContext,
+	): Promise<ToolExecutionResult>;
+}
+
+export interface SdkToolExecutionContext {
+	invocationId?: string;
+	knowledge?: KnowledgeSelection;
+}
+
+export interface KnowledgeAgentRuntime {
+	handoff: {
+		name: string;
+		description: string;
+		parameters: JsonObjectSchema;
+	};
+	instructions: string;
+	searchTool: SdkToolRuntime;
 }
 
 export interface RunnerToolCall {
@@ -170,15 +225,27 @@ export type PrimaryAgentTerminalKind =
 
 export interface PrimaryAgentTerminalEnvelope {
 	answerText?: string;
+	evidenceRefs?: string[];
 	followUpQuestion?: string;
 	kind: PrimaryAgentTerminalKind;
 	reason?: string;
+	resolvedScope?: string;
+	sessionUpdate?: {
+		upsertSlots: Array<{
+			confirmed: true;
+			name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
+			value: string;
+		}>;
+	};
 }
 
 export interface AgentRunnerInput {
 	input: string;
 	instructions: string;
 	tools: SdkToolRuntime[];
+	knowledgeAgent?: KnowledgeAgentRuntime;
+	allowedKnowledgeScopes?: AllowedKnowledgeScope[];
+	toolChoice?: string;
 	requestId: string;
 	runId: string;
 	traceId: string;
@@ -224,7 +291,6 @@ export interface PrimaryAgentRunResult {
 		| "clarification_required"
 		| "out_of_scope"
 		| "policy_refusal"
-		| "tool_selected"
 		| "unsupported_by_evidence";
 	usage: UsageSummary;
 }
@@ -334,36 +400,62 @@ function primaryAgentRunnerInput(
 	executor: ToolExecutor,
 	instructions: string,
 ): AgentRunnerInput {
-	const visibleTools = buildVisibleToolDefinitions(catalog)
-		.filter((tool) => input.visibleToolNames.includes(tool.name))
-		.map((tool): SdkToolRuntime => {
-			const catalogEntry = requireCatalogEntry(catalog, tool.name);
-			return {
-				name: tool.name,
-				description: tool.description,
-				parameters: tool.parameterSchema,
-				execute(argumentsJson) {
-					const request: ToolExecutionRequest = {
-						tool: catalogEntry,
-						argumentsJson,
-						runId: input.runId,
-						traceId: input.traceId,
-						signal: input.signal,
-					};
-					if (catalogEntry.handler.type === "workflow_signal") {
-						return defaultToolExecutor(request);
-					}
-					return executor(request).then((result) => ({
-						...result,
-						argumentsJson: result.argumentsJson ?? argumentsJson,
-					}));
+	const visibleDefinitions = buildVisibleToolDefinitions(catalog).filter((tool) =>
+		input.visibleToolNames.includes(tool.name),
+	);
+	const runtimeTool = (toolName: string): SdkToolRuntime => {
+		const definition =
+			visibleDefinitions.find((tool) => tool.name === toolName) ??
+			buildInternalToolDefinitions(catalog).find((tool) => tool.name === toolName);
+		if (definition === undefined) {
+			throw new Error(`runtime tool ${toolName} is not registered`);
+		}
+		const catalogEntry = requireCatalogEntry(catalog, toolName);
+		return {
+			name: definition.name,
+			description: definition.description,
+			parameters: definition.parameterSchema,
+			execute(argumentsJson, context) {
+				const request: ToolExecutionRequest = {
+					tool: catalogEntry,
+					argumentsJson,
+					runId: input.runId,
+					traceId: input.traceId,
+					invocationId: context?.invocationId,
+					knowledge: context?.knowledge,
+					signal: input.signal,
+				};
+				return executor(request).then((result) => ({
+					...result,
+					argumentsJson: result.argumentsJson ?? argumentsJson,
+				}));
+			},
+		};
+	};
+	const tools = visibleDefinitions
+		.filter((tool) => tool.handler.type === "execution_control_internal_query")
+		.map((tool) => runtimeTool(tool.name));
+	const knowledgeHandoff = visibleDefinitions.find(
+		(tool) => tool.handler.type === "agent_handoff" && tool.handler.target === "knowledge_agent",
+	);
+	const knowledgeAgent = knowledgeHandoff
+		? {
+				handoff: {
+					name: knowledgeHandoff.name,
+					description: knowledgeHandoff.description,
+					parameters: knowledgeHandoff.parameterSchema,
 				},
-			};
-		});
+				instructions: knowledgeAgentInstructions,
+				searchTool: runtimeTool("knowledge_search"),
+			}
+		: undefined;
 	return {
 		input: input.input,
 		instructions: instructionsWithModelContext(instructions, input),
-		tools: visibleTools,
+		tools,
+		knowledgeAgent,
+		allowedKnowledgeScopes: input.allowedKnowledgeScopes,
+		toolChoice: input.toolChoice,
 		requestId: input.requestId,
 		runId: input.runId,
 		traceId: input.traceId,
@@ -372,6 +464,14 @@ function primaryAgentRunnerInput(
 		signal: input.signal,
 	};
 }
+
+const knowledgeAgentInstructions = [
+	"You are the campus knowledge specialist.",
+	"Use knowledge_search before answering factual campus knowledge questions.",
+	"Only use evidence returned in this run and include every supporting evidence ref in the terminal output.",
+	"Return unsupported_by_evidence when a successful search does not provide enough evidence.",
+	"Never expose internal locators or invent sources.",
+].join("\n");
 
 function primaryAgentRunResultFromRunnerResult(args: {
 	input: PrimaryAgentRunInput;
@@ -404,12 +504,8 @@ function primaryAgentRunResultFromRunnerResult(args: {
 			usage: result.usage,
 		};
 	}
-	const terminalReason = toolResults.some(
-		(toolResult) => toolResult.result.workflow_signal === toolResult.toolName,
-	)
-		? "tool_selected"
-		: terminalReasonFromEnvelope(result.terminalEnvelope);
-	if (terminalReason !== "tool_selected" && result.terminalEnvelope === undefined) {
+	const terminalReason = terminalReasonFromEnvelope(result.terminalEnvelope);
+	if (result.terminalEnvelope === undefined) {
 		return {
 			status: "failed",
 			runId: input.runId,
@@ -494,7 +590,10 @@ function isAgentRunnerResult(
 function instructionsWithModelContext(instructions: string, input: PrimaryAgentRunInput): string {
 	const context = input.finalModelContext;
 	if (context === undefined) {
-		return instructionsWithMemoryContext(instructions, input.memoryContext);
+		return instructionsWithMemoryContext(
+			instructionsWithAllowedKnowledgeScopes(instructions, input),
+			input.memoryContext,
+		);
 	}
 	const lines = [
 		instructions,
@@ -504,14 +603,21 @@ function instructionsWithModelContext(instructions: string, input: PrimaryAgentR
 	if (context.recentTurns.length > 0) {
 		lines.push("recent_turns:");
 		for (const turn of context.recentTurns) {
-			const text = (turn.content ?? turn.summary ?? "").trim();
+			const text = turn.content.trim();
 			if (text !== "") {
 				lines.push(`- ${turn.role}: ${text}`);
 			}
 		}
 	}
-	if (context.previousAnswerSummary?.trim()) {
-		lines.push(`previous_answer_summary: ${context.previousAnswerSummary.trim()}`);
+	if (context.sessionState && context.sessionState.confirmedSlots.length > 0) {
+		lines.push("session_state:");
+		for (const slot of context.sessionState.confirmedSlots) {
+			lines.push(`- ${slot.name}: ${slot.value}`);
+		}
+		const selectedNotice = context.sessionState.selectedNoticeRef;
+		if (selectedNotice) {
+			lines.push(`- selected_notice: ${selectedNotice.title ?? selectedNotice.noticeId}`);
+		}
 	}
 	if (context.previousEvidence.length > 0) {
 		lines.push("previous_evidence:");
@@ -536,7 +642,35 @@ function instructionsWithModelContext(instructions: string, input: PrimaryAgentR
 	}
 	lines.push("</conversation_context>");
 	const memoryContext = context.memoryContext ?? input.memoryContext;
-	return instructionsWithMemoryContext(lines.join("\n"), memoryContext);
+	return instructionsWithMemoryContext(
+		instructionsWithAllowedKnowledgeScopes(lines.join("\n"), input),
+		memoryContext,
+	);
+}
+
+function instructionsWithAllowedKnowledgeScopes(
+	instructions: string,
+	input: PrimaryAgentRunInput,
+): string {
+	if (!input.visibleToolNames.includes("knowledge_query")) {
+		return instructions;
+	}
+	const scopes = input.allowedKnowledgeScopes ?? [];
+	if (scopes.length === 0) {
+		return instructions;
+	}
+	const lines = [
+		instructions,
+		"<allowed_knowledge_scopes>",
+		"Use only these scope values when calling knowledge_query.scope. If the user request does not identify one scope clearly, ask a clarification question and do not call knowledge_query.",
+	];
+	for (const scope of scopes) {
+		const modes =
+			scope.allowedQueryModes.length > 0 ? scope.allowedQueryModes.join(",") : "current";
+		lines.push(`- ${scope.scope}: ${scope.description} (query_modes=${modes})`);
+	}
+	lines.push("</allowed_knowledge_scopes>");
+	return lines.join("\n");
 }
 
 function instructionsWithMemoryContext(
@@ -588,6 +722,18 @@ export function terminalEnvelopeFromUnknown(
 	if (reason !== "") {
 		envelope.reason = reason;
 	}
+	const evidenceRefs = stringArrayFromUnknown(record.evidenceRefs ?? record.evidence_refs);
+	if (evidenceRefs.length > 0) {
+		envelope.evidenceRefs = evidenceRefs;
+	}
+	const resolvedScope = stringFromUnknown(record.resolvedScope ?? record.resolved_scope);
+	if (resolvedScope !== "") {
+		envelope.resolvedScope = resolvedScope;
+	}
+	const sessionUpdate = sessionUpdateFromUnknown(record.sessionUpdate ?? record.session_update);
+	if (sessionUpdate !== undefined) {
+		envelope.sessionUpdate = sessionUpdate;
+	}
 	if (kind === "answer" && envelope.answerText === undefined) {
 		return;
 	}
@@ -606,6 +752,40 @@ export function terminalEnvelopeFromUnknown(
 		return;
 	}
 	return envelope;
+}
+
+function stringArrayFromUnknown(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.map((item) => stringFromUnknown(item)).filter((item) => item !== "");
+}
+
+function sessionUpdateFromUnknown(
+	value: unknown,
+): PrimaryAgentTerminalEnvelope["sessionUpdate"] | undefined {
+	const record = recordFromUnknown(value);
+	const rawSlots = record?.upsertSlots ?? record?.upsert_slots;
+	if (!Array.isArray(rawSlots)) {
+		return;
+	}
+	const upsertSlots: NonNullable<PrimaryAgentTerminalEnvelope["sessionUpdate"]>["upsertSlots"] = [];
+	for (const rawSlot of rawSlots) {
+		const slot = recordFromUnknown(rawSlot);
+		const name = stringFromUnknown(slot?.name);
+		const valueText = stringFromUnknown(slot?.value);
+		if (
+			slot?.confirmed !== true ||
+			(name !== "curriculum_program" &&
+				name !== "curriculum_program_family" &&
+				name !== "curriculum_semester") ||
+			valueText === ""
+		) {
+			return;
+		}
+		upsertSlots.push({ confirmed: true, name, value: valueText });
+	}
+	return { upsertSlots };
 }
 
 export function finalOutputFromTerminalEnvelope(envelope: PrimaryAgentTerminalEnvelope): string {
@@ -655,18 +835,6 @@ function stringFromUnknown(value: unknown): string {
 }
 
 async function defaultToolExecutor(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
-	if (request.tool.handler.type === "workflow_signal") {
-		return {
-			status: "completed",
-			toolName: request.tool.name,
-			payloadKind: request.tool.name,
-			argumentsJson: request.argumentsJson,
-			result: {
-				workflow_signal: request.tool.name,
-			},
-			resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}`,
-		};
-	}
 	return {
 		status: "failed",
 		toolName: request.tool.name,

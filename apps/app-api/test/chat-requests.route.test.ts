@@ -140,6 +140,7 @@ describe("POST /api/chat/requests", () => {
 					principalId: "user_01HQ",
 				}),
 			}),
+			requestKind: "public_chat",
 			traceHeaders: emptyTraceHeaders,
 			waitUntil: undefined,
 		});
@@ -508,6 +509,7 @@ describe("POST /api/chat/requests/stream", () => {
 					principalId: "user_01HQ",
 				}),
 			}),
+			requestKind: "public_chat",
 			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
 			waitUntil: undefined,
 		});

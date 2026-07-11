@@ -29,14 +29,31 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
 					error: null,
 					followUpQuestion: "",
+					resolvedScope: "curriculum",
+					sessionUpdate: {
+						upsertSlots: [
+							{
+								confirmed: true,
+								name: CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+								value: "民族实验班",
+							},
+							{
+								confirmed: true,
+								name: CURRICULUM_PROGRAM_SLOT_NAME,
+								value: "法学民族实验班",
+							},
+							{
+								confirmed: true,
+								name: CURRICULUM_SEMESTER_SLOT_NAME,
+								value: "第四学期",
+							},
+						],
+					},
 					result: {
 						diagnostics: {
 							resolved_program_family_title: "民族班",
 							resolved_entity_type: "program",
 							rewritten_query: "法学民族实验班培养方案里第四学期有什么课",
-							session_program_family: "民族实验班",
-							session_program: "法学民族实验班",
-							session_semester: "第四学期",
 						},
 						evidence: {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
@@ -50,14 +67,31 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "第二学期有中国法制史。",
 					error: null,
 					followUpQuestion: "",
+					resolvedScope: "curriculum",
+					sessionUpdate: {
+						upsertSlots: [
+							{
+								confirmed: true,
+								name: CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+								value: "民族实验班",
+							},
+							{
+								confirmed: true,
+								name: CURRICULUM_PROGRAM_SLOT_NAME,
+								value: "法学民族实验班",
+							},
+							{
+								confirmed: true,
+								name: CURRICULUM_SEMESTER_SLOT_NAME,
+								value: "第二学期",
+							},
+						],
+					},
 					result: {
 						diagnostics: {
 							resolved_program_family_title: "民族班",
 							resolved_entity_type: "program",
 							rewritten_query: "法学民族实验班培养方案里第二学期有什么课",
-							session_program_family: "民族实验班",
-							session_program: "法学民族实验班",
-							session_semester: "第二学期",
 						},
 						evidence: {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
@@ -80,10 +114,6 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			payload: {
 				conversationId: conversation.id,
 				prompt: "法学民族班培养方案里大二下有什么课",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
 			},
 			principal: createPrincipal(),
 		});
@@ -112,10 +142,6 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			payload: {
 				conversationId: conversation.id,
 				prompt: "那大一下呢",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
 			},
 			principal: createPrincipal(),
 		});
@@ -182,6 +208,16 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "",
 					error: null,
 					followUpQuestion: "你想看哪个民族班？",
+					resolvedScope: "curriculum",
+					sessionUpdate: {
+						upsertSlots: [
+							{
+								confirmed: true,
+								name: CURRICULUM_PROGRAM_SLOT_NAME,
+								value: "不应写入",
+							},
+						],
+					},
 					result: {
 						diagnostics: {
 							clarification_reason: "curriculum_program_conflict",
@@ -202,10 +238,6 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "民族班培养方案里大二下有什么课",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
 			},
 			principal: createPrincipal(),
 		});
@@ -228,6 +260,8 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "民大的民族班有法学、信息与计算科学、计算机科学与技术。",
 					error: null,
 					followUpQuestion: "",
+					resolvedScope: "curriculum",
+					sessionUpdate: null,
 					result: {
 						diagnostics: {
 							resolved_program_family_title: "民族班",
@@ -249,10 +283,6 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "民族班有哪些",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
 			},
 			principal: createPrincipal(),
 		});
@@ -276,6 +306,8 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 						"思想政治理论课包括习近平新时代中国特色社会主义思想概论、马克思主义基本原理、中华民族共同体概论等课程。",
 					error: null,
 					followUpQuestion: "",
+					resolvedScope: "curriculum",
+					sessionUpdate: null,
 					result: {
 						diagnostics: {
 							resolved_course_family_title: "思修课",
@@ -297,10 +329,6 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "思修课包括哪些课",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
 			},
 			principal: createPrincipal(),
 		});

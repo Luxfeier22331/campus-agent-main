@@ -22,12 +22,12 @@ func TestAppAPIClientFetchesInternalTemporalSnapshots(t *testing.T) {
 					"namespace": "default",
 					"oldestTaskAge": {"ms": null, "state": "unsupported_by_source"},
 					"pollerCount": 0,
-					"pollerIdentities": ["activity-worker-knowledge@local"],
+					"pollerIdentities": ["activity-worker-agent@local"],
 					"scheduleToStartLatency": {"ms": null, "state": "unsupported_by_source"},
 					"sampledAt": "2026-06-15T10:00:00Z",
-					"snapshotId": "temporal-snapshot-knowledge",
+					"snapshotId": "temporal-snapshot-agent",
 					"source": "temporal_matching_describe_task_queue",
-					"taskQueue": "campus-agent.activity.knowledge",
+					"taskQueue": "campus-agent.activity.agent",
 					"taskQueueKind": "activity"
 				}
 			]
@@ -54,14 +54,14 @@ func TestAppAPIClientFetchesInternalTemporalSnapshots(t *testing.T) {
 	if len(snapshots) != 1 {
 		t.Fatalf("snapshot count = %d", len(snapshots))
 	}
-	if snapshots[0].TaskQueue != "campus-agent.activity.knowledge" ||
+	if snapshots[0].TaskQueue != "campus-agent.activity.agent" ||
 		snapshots[0].PollerCount != 0 {
 		t.Fatalf("snapshot = %#v", snapshots[0])
 	}
 	if snapshots[0].Namespace != "default" ||
 		snapshots[0].Source != "temporal_matching_describe_task_queue" ||
 		len(snapshots[0].PollerIdentities) != 1 ||
-		snapshots[0].PollerIdentities[0] != "activity-worker-knowledge@local" {
+		snapshots[0].PollerIdentities[0] != "activity-worker-agent@local" {
 		t.Fatalf("snapshot runtime projection fields were not preserved: %#v", snapshots[0])
 	}
 }
@@ -94,12 +94,12 @@ func TestAppAPIClientPublishesAutoscalerRuntimePayload(t *testing.T) {
 			Namespace:              "default",
 			OldestTaskAge:          SourceMetric{State: SourceMetricUnsupported},
 			PollerCount:            0,
-			PollerIdentities:       []string{"activity-worker-knowledge@local"},
+			PollerIdentities:       []string{"activity-worker-agent@local"},
 			SampledAt:              "2026-06-15T10:00:00Z",
 			ScheduleToStartLatency: SourceMetric{State: SourceMetricUnsupported},
 			SnapshotID:             "snapshot-1",
 			Source:                 "temporal_matching_describe_task_queue",
-			TaskQueue:              "campus-agent.activity.knowledge",
+			TaskQueue:              "campus-agent.activity.agent",
 			TaskQueueKind:          TaskQueueKindActivity,
 		}},
 		Decisions: []WorkerAutoscalerDecision{{
@@ -112,8 +112,8 @@ func TestAppAPIClientPublishesAutoscalerRuntimePayload(t *testing.T) {
 			Evidence:         map[string]any{"pollerCount": 0},
 			Reason:           "pollers_missing",
 			SourceSnapshotID: "snapshot-1",
-			TargetService:    "activity-worker-knowledge",
-			TaskQueue:        "campus-agent.activity.knowledge",
+			TargetService:    "activity-worker-agent",
+			TaskQueue:        "campus-agent.activity.agent",
 			TaskQueueKind:    TaskQueueKindActivity,
 		}},
 		Actuations: []Actuation{{
@@ -124,7 +124,7 @@ func TestAppAPIClientPublishesAutoscalerRuntimePayload(t *testing.T) {
 			DecisionID:    "decision-1",
 			FromReplicas:  1,
 			Status:        ActuationStatusApplied,
-			TargetService: "activity-worker-knowledge",
+			TargetService: "activity-worker-agent",
 			ToReplicas:    2,
 		}},
 	})
@@ -147,7 +147,7 @@ func TestAppAPIClientPublishesAutoscalerRuntimePayload(t *testing.T) {
 		t.Fatalf("snapshot runtime projection fields missing from payload: %#v", snapshot)
 	}
 	pollers := snapshot["pollerIdentities"].([]any)
-	if len(pollers) != 1 || pollers[0] != "activity-worker-knowledge@local" {
+	if len(pollers) != 1 || pollers[0] != "activity-worker-agent@local" {
 		t.Fatalf("snapshot poller identities missing from payload: %#v", snapshot)
 	}
 }
@@ -168,7 +168,7 @@ func TestAppAPIClientFetchesInternalAutoscalerActuations(t *testing.T) {
 					"decisionId": "decision-1",
 					"fromReplicas": 1,
 					"status": "applied",
-					"targetService": "activity-worker-knowledge",
+					"targetService": "activity-worker-agent",
 					"toReplicas": 2
 				}
 			],

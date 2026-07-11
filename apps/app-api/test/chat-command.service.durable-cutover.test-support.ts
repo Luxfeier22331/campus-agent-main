@@ -26,7 +26,6 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		traceId: "trace_0001",
 		turnId: "turn_0001",
 		updatedAt: "2026-06-04T01:02:04Z",
-		workflowPlanRef: "",
 		...overrides,
 	};
 }
@@ -45,18 +44,22 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 		confidence: "high",
 		error: null,
 		follow_up_question: "",
+		resolved_scope: "student_rules",
+		session_update: null,
 		observability: {
-			citation_count: 1,
-			citation_expected: true,
-			citation_missing: false,
-			fail_closed: false,
-			retrieval_attempted: true,
-			retrieved_source_count: 1,
+			agent_runtime: "openai_agents_sdk",
+			selected_tools: ["knowledge_query"],
+			terminal_reason: "answer",
 		},
 		result: {
-			evidence: {
-				sources: [{ doc_id: "student_rules:national-scholarship" }],
-			},
+			sources: [
+				{
+					canonical_url: "/docs/regulations/student_rules/national-scholarship",
+					source_kind: "regulation",
+					source_title: "学生奖学金评审办法",
+					target_kind: "canonical_reader",
+				},
+			],
 		},
 		selected_tool: "knowledge_query",
 		status: "completed",

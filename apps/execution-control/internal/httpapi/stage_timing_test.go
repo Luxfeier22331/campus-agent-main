@@ -25,16 +25,9 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	}{
 		{stepID: "memory.recall", durationMS: 110},
 		{stepID: "agent.primary", durationMS: 120},
-		{stepID: "typed_tool.execute", durationMS: 130, sanitizedPayload: map[string]any{"selected_tool": "knowledge_query"}},
-		{stepID: "typed_tool.execute", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "transport_schedule_lookup"}},
-		{stepID: "typed_tool.execute", durationMS: 150, sanitizedPayload: map[string]any{"selected_tool": "campus_notice_discover"}},
-		{stepID: "rag.plan", durationMS: 160},
-		{stepID: "retrieval.indexed_lookup", durationMS: 170},
-		{stepID: "retrieval.live_source_lookup", durationMS: 180},
-		{stepID: "evidence.selection", durationMS: 190},
-		{stepID: "rag.rerank", durationMS: 200},
-		{stepID: "synthesis", durationMS: 210},
-		{stepID: "grounding.verify", durationMS: 220},
+		{stepID: "sdk_tool.execute.transport_schedule_lookup.1", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "transport_schedule_lookup"}},
+		{stepID: "knowledge.search.search-1", durationMS: 170},
+		{stepID: "knowledge.search.search-2", durationMS: 180},
 		{stepID: "finalization.write", durationMS: 230},
 	} {
 		upsertStageTimingAttempt(t, store, run.RunID, index+1, attempt.stepID, attempt.durationMS, attempt.sanitizedPayload, now)
@@ -49,16 +42,21 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	assertStageTimingField(t, timing, "memory.recall_ms", 110)
 	assertStageTimingField(t, timing, "agent.primary_ms", 120)
 	assertStageTimingField(t, timing, "agent.runtime_ms", 321)
-	assertStageTimingField(t, timing, "tool.total_ms", 630)
-	assertStageTimingField(t, timing, "tool.knowledge_query_ms", 340)
+	assertStageTimingField(t, timing, "tool.total_ms", 490)
 	assertStageTimingField(t, timing, "tool.transport_schedule_lookup_ms", 140)
-	assertStageTimingField(t, timing, "tool.campus_notice_discover_ms", 150)
-	assertStageTimingField(t, timing, "rag.plan_ms", 160)
-	assertStageTimingField(t, timing, "rag.lookup_ms", 540)
-	assertStageTimingField(t, timing, "rag.rerank_ms", 200)
-	assertStageTimingField(t, timing, "rag.synthesis_ms", 210)
-	assertStageTimingField(t, timing, "rag.grounding_ms", 220)
+	assertStageTimingField(t, timing, "knowledge.search_ms", 350)
 	assertStageTimingField(t, timing, "finalization.write_ms", 230)
+	for _, retiredField := range []string{
+		"rag.plan_ms",
+		"rag.lookup_ms",
+		"rag.rerank_ms",
+		"rag.synthesis_ms",
+		"rag.grounding_ms",
+	} {
+		if _, ok := timing[retiredField]; ok {
+			t.Fatalf("stage_timing retained retired field %s: %#v", retiredField, timing)
+		}
+	}
 }
 
 func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
@@ -83,14 +81,8 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 		"agent.runtime_ms",
 		"agent.first_delta_ms",
 		"tool.total_ms",
-		"tool.knowledge_query_ms",
 		"tool.transport_schedule_lookup_ms",
-		"tool.campus_notice_discover_ms",
-		"rag.plan_ms",
-		"rag.lookup_ms",
-		"rag.rerank_ms",
-		"rag.synthesis_ms",
-		"rag.grounding_ms",
+		"knowledge.search_ms",
 		"finalization.write_ms",
 	} {
 		if _, ok := timing[field]; ok {

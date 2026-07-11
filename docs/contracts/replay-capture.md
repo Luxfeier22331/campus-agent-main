@@ -50,10 +50,10 @@ Operator Console payload.
 
 ## `llm_io_fingerprint.v1`
 
-Every online provider-backed LLM call should produce a comparable safe
-fingerprint. This includes `agent.primary` and Go-owned `rag.synthesis`. The
-fingerprint identifies what the model saw and which runtime contract produced
-the answer without storing the raw body.
+Every online provider-backed OpenAI Agents SDK run should produce a comparable
+safe fingerprint. The fingerprint identifies what the model saw and which
+runtime contract produced the answer without storing the raw body. Knowledge
+Agent handoff remains part of the same SDK run.
 
 Required fields:
 
@@ -62,7 +62,7 @@ Required fields:
 - `request_id`
 - `trace_id`
 - `runtime_release`
-- `llm_call_site`: `agent.primary` or `rag.synthesis`
+- `llm_call_site`: `agent.primary`
 - `provider_profile_revision`
 - `provider`
 - `model`
@@ -103,15 +103,13 @@ text or prompt variables.
 primary-agent-first topology:
 
 - `schema_version`: `primary_attestation.v1`
-- `attestation_kind`: `primary_agent_call` or `primary_admitted_rag_synthesis`
+- `attestation_kind`: `primary_agent_call`
 - `attested_by`
 - `attestation_sha256`
 
-For `agent.primary`, the attestation proves that the call was produced by
-`apps/agent-runtime` as the primary agent call. For `rag.synthesis`, it proves
-that the call was admitted by the primary agent into the Go-owned
-`knowledge_query` graph; it is not a hidden top-level retrieval tool or
-bootstrap mega-agent.
+The attestation proves that the complete provider-backed run was produced by
+`apps/agent-runtime`. A Knowledge Agent handoff is represented by sanitized SDK
+trajectory/agent identity, not a second execution-control-owned LLM call.
 
 `model_params_projection.v1` is the only safe model-params projection:
 
@@ -411,15 +409,14 @@ changed.
 
 - `apps/app-api` owns policy management, replay index query, safe metadata
   projection, `llm_replay_packet_index.v1` ingest and access audit surfaces.
-- `apps/execution-control` owns fingerprint construction, policy evaluation at
-  the execution boundary and replay packet recording for Go-owned provider and
-  RAG paths. It writes `llm_replay_packet.v1` to encrypted S3-compatible object
-  storage and publishes only `llm_replay_packet_index.v1` safe metadata to
-  app-api. RAG synthesis must resolve observability config before provider call
-  and fail closed if the config projection is unavailable. It must publish safe
-  identity through both `observability.prompt_trace` and
-  `result.diagnostics.prompt_trace`; both projections are safe identity only and
-  must not contain raw prompt text or provider payloads.
+- `apps/agent-runtime` produces SDK trace/fingerprint facts for the complete
+  primary/Knowledge Agent run under the admitted capture policy.
+- `apps/execution-control` owns execution-boundary policy enforcement,
+  correlation and sanitized replay refs; it does not perform a separate LLM
+  call or answer capture path.
+- Any admitted raw packet goes only to encrypted S3-compatible object storage;
+  app-api receives `llm_replay_packet_index.v1` safe metadata. Prompt trace
+  projections must not contain raw prompt text or provider payloads.
 - `apps/agent-runtime` owns SDK trace sensitivity configuration only from the
   request-scoped policy result.
 - `packages/eval-langfuse` may consume replay packets or derived safe samples for

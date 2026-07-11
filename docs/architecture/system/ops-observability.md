@@ -113,9 +113,9 @@ contract、Worker allowlist、UI 实现和验收测试。默认不能因为代�
 这些字段的用途是产品值班和跳转定位，不是复刻外部观测平台。
 
 `diagnostics_json` 只能承载 compact operator summary：reason code、verdict、count、
-latency/status、stable document id/title summary 与 retrieval plan shape。它不承载 query
-rewrite text、retrieval query text、raw filter payload、source snippet 或 raw provider/tool
-diagnostics。
+latency/status、stable document id/title summary 与 `knowledge_search` scope/version /
+evidence shape。它不承载 query rewrite text、retrieval query text、raw filter payload、
+source snippet 或 raw provider/tool diagnostics。
 
 禁止保存：
 

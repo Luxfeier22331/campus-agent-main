@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-09
+updated: 2026-07-10
 ---
 # Account, Operator Access, And Memory Binding Architecture
 
@@ -83,8 +83,8 @@ account / operator / memory supporting architecture 当前已经明确：
 - account / session validity
 - quota / abuse-control posture
 - operator surface access when caller is using protected ops APIs
-- surface tool allowlist
-- tool readiness / opening posture
+- execution-control runtime tool admission
+- tool readiness / opening posture enforced by the owning runtime
 
 普通 chat 用户默认共享同一组成熟 read-only campus tools。当前主问答架构不设计学生 /
 教职工 / 院系之间的 tool 权限差异。

@@ -36,7 +36,7 @@ describe("replay capture service", () => {
 				}),
 				encryptionKeyRef: "kms:local-dev-replay",
 				llmIoFingerprint: expect.objectContaining({
-					llmCallSite: "rag.synthesis",
+					llmCallSite: "agent.primary",
 					modelParamsProjection: expect.objectContaining({
 						paramsSha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 						projectedParams: expect.objectContaining({
@@ -46,10 +46,10 @@ describe("replay capture service", () => {
 						}),
 					}),
 					primaryAttestation: expect.objectContaining({
-						attestationKind: "primary_admitted_rag_synthesis",
+						attestationKind: "primary_agent_call",
 					}),
 					promptRegistryAttestation: expect.objectContaining({
-						promptId: "rag_synthesis_answer",
+						promptId: "primary_agent",
 					}),
 					providerRequestSafeHash: expect.objectContaining({
 						redactionPolicy: "llm_provider_request_safe_projection.v1",
@@ -149,7 +149,7 @@ describe("replay capture service", () => {
 		expect(store.upsertReplayPacketIndex).not.toHaveBeenCalled();
 	});
 
-	it("rejects rag synthesis replay packet index without answer evidence replay hash", async () => {
+	it("rejects replay packet index without answer evidence replay hash", async () => {
 		const store = replayCaptureStoreMock({
 			upsertReplayPacketIndex: vi.fn().mockResolvedValue(undefined),
 		});
@@ -165,7 +165,7 @@ describe("replay capture service", () => {
 		expect(store.upsertReplayPacketIndex).not.toHaveBeenCalled();
 	});
 
-	it("rejects rag synthesis replay packet index without answer eval fingerprint", async () => {
+	it("rejects replay packet index without answer eval fingerprint", async () => {
 		const store = replayCaptureStoreMock({
 			upsertReplayPacketIndex: vi.fn().mockResolvedValue(undefined),
 		});
@@ -178,7 +178,7 @@ describe("replay capture service", () => {
 		expect(store.upsertReplayPacketIndex).not.toHaveBeenCalled();
 	});
 
-	it("rejects rag synthesis replay packet index without sink identity projection", async () => {
+	it("rejects replay packet index without sink identity projection", async () => {
 		const store = replayCaptureStoreMock({
 			upsertReplayPacketIndex: vi.fn().mockResolvedValue(undefined),
 		});

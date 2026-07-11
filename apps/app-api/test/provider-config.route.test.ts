@@ -299,53 +299,6 @@ describe("operator provider config routes", () => {
 		});
 	});
 
-	it("exposes active public web search provider snapshots for projection sync consumers", async () => {
-		const service = buildTestProviderConfigService();
-		const app = createApp(env, {
-			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
-			providerConfigService: service,
-		} as Parameters<typeof createApp>[1]);
-		const searchCreateResponse = await createSearchProfile(app);
-		const searchProfileId = profileIdFromCreateResponse(await readJsonObject(searchCreateResponse));
-		await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${searchProfileId}/validate`,
-				{
-					method: "POST",
-				},
-			),
-		);
-		const activateResponse = await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${searchProfileId}/activate`,
-				{
-					method: "POST",
-				},
-			),
-		);
-		const activeResponse = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/internal/provider-config/active?role=public_web_search",
-				{
-					headers: { "x-app-internal-auth": "provider-config-internal-secret" },
-				},
-			),
-		);
-
-		expect(activateResponse.status).toBe(200);
-		expect(activeResponse.status).toBe(200);
-		await expect(activeResponse.json()).resolves.toMatchObject({
-			profile: {
-				kind: "search",
-				model: "sonar",
-				profile_id: searchProfileId,
-				provider: "perplexity",
-				role: "public_web_search",
-				transport: "perplexity_search",
-			},
-		});
-	});
-
 	it("rejects retired personal memory provider roles", async () => {
 		const service = buildTestProviderConfigService();
 		const app = createApp(env, {
@@ -515,26 +468,6 @@ async function createEmbeddingProfile(
 	);
 }
 
-async function createSearchProfile(app: ReturnType<typeof createApp>) {
-	const connectionResponse = await createConnection(
-		app,
-		connectionPayload({
-			apiKey: "pplx-test-provider-key",
-			baseUrl: "https://api.perplexity.ai",
-			features: ["search"],
-			provider: "perplexity",
-		}),
-	);
-	return createProfile(
-		app,
-		searchProfilePayload({
-			connectionId: connectionIdFromCreateResponse(
-				await readConnectionJsonObject(connectionResponse),
-			),
-		}),
-	);
-}
-
 async function createConnection(
 	app: ReturnType<typeof createApp>,
 	payload: Record<string, unknown>,
@@ -575,9 +508,6 @@ function buildTestProviderConfigService(
 			},
 			async validatePrompt() {
 				return { ok: true, status: "passed", message: "prompt provider validated" };
-			},
-			async validateSearch() {
-				return { ok: true, status: "passed", message: "search provider validated" };
 			},
 			...overrides,
 		},
@@ -665,18 +595,6 @@ function embeddingProfilePayload(overrides: Partial<Record<string, unknown>> = {
 		transport: "embeddings",
 		model: "embedding-test",
 		dimensions: 2560,
-		timeoutMs: 30000,
-		...overrides,
-	};
-}
-
-function searchProfilePayload(overrides: Partial<Record<string, unknown>> = {}) {
-	return {
-		connectionId: "provider_connection_test",
-		kind: "search",
-		role: "public_web_search",
-		transport: "perplexity_search",
-		model: "sonar",
 		timeoutMs: 30000,
 		...overrides,
 	};

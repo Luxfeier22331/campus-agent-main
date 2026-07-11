@@ -49,16 +49,3 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: activity-worker-agent
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-knowledge
-  labels:
-    app.kubernetes.io/name: activity-worker-knowledge
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-knowledge

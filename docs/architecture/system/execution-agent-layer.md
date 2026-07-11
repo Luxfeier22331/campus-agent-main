@@ -1,126 +1,96 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: execution-control
+owner_boundary: execution-agent-layer
 status: active
-created: 2026-06-13
-updated: 2026-06-13
+created: 2026-04-21
+updated: 2026-07-11
 ---
 # Execution Agent Layer Architecture
 
-## Document Boundary
+## Boundary
 
-This document owns the supporting architecture for the Execution Agent Layer.
-It explains the repo-owned execution governance layer that sits between
-`app-api`, Temporal and model-facing tool runtimes.
+Execution Agent Layer is the durable governance boundary implemented by
+`apps/execution-control` and Temporal. It is not a second agent framework and
+does not own semantic tool routing.
 
-It does not own:
+OpenAI Agents SDK in `apps/agent-runtime` is the only online agent/tool loop
+owner.
 
-- product surfaces or browser runtime ownership
-- Temporal object schema, task queues or cancel/resume mechanics
-- model-facing SDK internals
-- typed tool / ToolSpec details
-- RAG-family retrieval planning internals
-- prompt template wording
-
-## Core Shape
-
-The main answer chain is:
+## Canonical Flow
 
 ```text
-app-api
--> execution-control durable run admission
--> ToolExecutionWorkflow
--> optional context.memory_recall
--> agent.primary first model-facing decision
--> direct/no-tool terminal or admitted tool / workflow signal
--> typed tool / RAG graph when tools are needed
--> finalization.write
--> sanitized run / event / step / attempt / result projection
+app-api authenticated request
+-> execution-control run admission
+-> Temporal ToolExecutionWorkflow
+-> Memory Recall
+-> one Agent Activity containing the complete SDK run
+-> Finalization
+-> Memory Append
+-> sanitized projection
+-> app-api persistence / stream
 ```
 
-The Execution Agent Layer is not a hidden mega-agent. It is the repo-owned
-governance layer inside `execution-control` that creates and advances a durable
-run under explicit policy, budget, projection and fail-close rules.
+The Agent Activity includes primary-agent reasoning, model-visible function
+tools, official handoff to the Knowledge Agent, internal `knowledge_search`
+calls and structured terminal output.
 
-## Responsibilities
+## Execution-Control Ownership
 
-Execution Agent Layer owns:
+Execution-control owns:
 
-- durable run admission after product-surface admission
-- visible tool set trimming before model-facing execution
-- first-decision framing for `agent.primary`
-- direct/no-tool terminal semantics for product identity, greetings,
-  clarification, rejection, unsupported and fail-close outcomes
-- selected tool / workflow-signal projection when a campus tool is needed
-- deterministic workflow planning and typed step admission after first decision
-- handoff shaping, bounded context projection and finalization ownership
-- fail-close terminal semantics for policy, contract, admission and runtime
-  failures
+- run admission and identity consistency;
+- request-scoped visible tool and knowledge-scope projection;
+- Temporal start, query, cancel, timeout and retry policy;
+- memory recall and append activities;
+- internal query authentication and admission;
+- scope/version enforcement for `knowledge_search`;
+- embedding, Qdrant lookup, optional rerank and bounded evidence projection;
+- terminal evidence validation, source generation and finalization write;
+- sanitized run/event/step/result projection and runtime observability.
 
-Execution Agent Layer does not own:
+Execution-control does not own:
 
-- product auth, session, account, conversation or browser route truth
-- source truth, ingestion, index build, raw object storage or collection release
-- provider raw trace, SDK-native graph state or SDK session memory as durable
-  execution truth
-- tool-local source-channel readiness
-- Operator Console query ownership
+- the primary or Knowledge Agent semantic loop;
+- SDK function-tool selection;
+- answer synthesis or answer rewriting;
+- a knowledge-specific worker or queue;
+- a fixed retrieval, grounding or replanning graph;
+- product auth, conversation truth or browser transport.
 
-## Boundary With Runtime Components
+## Worker Boundary
 
-- `apps/app-api` owns product ingress, session, request ledger and surface
-  tool policy.
-- `apps/execution-control` owns durable execution admission, Temporal command /
-  query / cancel, visible set trimming, step admission, finalization and
-  sanitized projection.
-- `ToolExecutionWorkflow` owns deterministic execution lifetime and step
-  ordering, but it is not an agent identity.
-- `apps/agent-runtime` owns the model-facing primary agent loop inside an
-  admitted Temporal activity, not durable run truth.
-- Tool activity workers own typed tool or bounded agent-as-tool activity execution
-  after workflow admission.
+The online execution plane has only three worker pools:
 
-## First Decision
+- `workflow-worker` for deterministic workflow execution;
+- `activity-worker-core` for Memory Recall, Finalization and Memory Append;
+- `activity-worker-agent` for one complete OpenAI Agents SDK run.
 
-The first model-facing decision is performed by `agent.primary` over a
-workflow-trimmed visible tool set.
-
-Missing `requested_tool` is treated only as an absent caller hint.
-It must not be silently rewritten to `knowledge`. The model may answer directly
-without tools when the request is product identity, ordinary chat,
-clarification, rejection or out-of-scope handling.
-
-Synthetic branches such as `assistant_intro`, `product_meta`, `product persona`
-or `surface prompt profile` are not separate runtime surfaces or tools.
+SDK handoffs and function-tool calls remain inside the Agent Activity. They do
+not create additional Temporal queues or worker identities.
 
 ## Finalization
 
-Execution Agent Layer keeps finalization ownership. Even when a typed tool,
-RAG graph or bounded agent-as-tool step contributes the result, the final answer
-must pass through repo-owned finalization and sanitized projection.
+Finalization consumes the agent terminal result and projected internal-tool
+evidence. For evidence-backed answers it verifies that every evidence reference
+belongs to an admitted `knowledge_search` result and derives browser-safe source
+items.
 
-Specialist handoff is only valid when an admitted workflow explicitly transfers
-next-response ownership with an admitted target, tool subset, context filter and
-eval denominator.
+Finalization may reject malformed or unsupported output. It must not call a
+model, add unsupported claims, paraphrase the answer or silently drop required
+sources. App-api stores and streams the finalized answer and sources as written.
 
-## Forbidden Shapes
+## Fail-Closed Rules
 
-- Do not restore a Python bridge, bootstrap router or retrieval tool adapter as
-  the online top-level orchestrator.
-- Do not let provider/SDK traces replace repo-owned run and step projection.
-- Do not confuse controlled SDK/provider debug traces with product/operator
-  projection. They may support LLM debugging and eval, but they do not own
-  lifecycle, cancel/retry, terminal reason or finalization truth.
-- Do not expose all tools to the model and ask it to infer policy.
-- Do not route ordinary chat to `knowledge` before the primary agent decision.
-- Do not use operator diagnostics, eval readiness or release_evidence to define
-  main-chain completion.
+The run fails closed when tool exposure, scope/version admission, internal query
+auth, evidence identity, terminal schema or projection truth is missing or
+invalid. Cancellation and timeout propagate through the Agent Activity and
+internal provider calls. No fallback answer path is admitted.
 
 ## Related Documents
 
-- `durable-runtime.md`
-- `tool-routing.md`
-- `tool-runtime.md`
 - `agent-framework.md`
-- `ops-observability.md`
+- `durable-runtime.md`
+- `tool-runtime.md`
+- `retrieval-serving.md`
+- `../../contracts/tool-execution.md`

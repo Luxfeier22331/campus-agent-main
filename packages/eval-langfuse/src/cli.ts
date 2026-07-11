@@ -8,8 +8,6 @@ import {
 import { runLangfuseEvalAuditSelfTest } from "./audit/langfuse-eval-audit/self-test";
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
 import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
-import { runPublicWebSearchAgentEval } from "./public-web-search-agent-runner";
-import { loadPublicWebSearchEvalAsset } from "./public-web-search-eval";
 import { buildRagDatasetManifest } from "./rag-dataset-manifest";
 import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
 import { type JsonObject, settingsFromEnv } from "./shared";
@@ -132,38 +130,6 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			sourceGitHead: optionalArg(args, "source-git-head") ?? currentGitHead(),
 		});
 	}
-	if (command === "validate-public-web-search-eval") {
-		return loadPublicWebSearchEvalAsset(
-			optionalArg(args, "asset") ??
-				resolve(
-					import.meta.dirname,
-					"../assets/datasets/agent/public_web_search/agent_cases.v1.json",
-				),
-		);
-	}
-	if (command === "run-public-web-search-agent-eval") {
-		const publishScores = Boolean(args["publish-scores"]);
-		return runPublicWebSearchAgentEval({
-			assetPath:
-				optionalArg(args, "asset") ??
-				resolve(
-					import.meta.dirname,
-					"../assets/datasets/agent/public_web_search/agent_cases.v1.json",
-				),
-			baseUrl: stringArg(args, "app-api-base-url"),
-			cookieHeader: optionalArg(args, "cookie-header"),
-			dryRun: !publishScores,
-			environment: environmentFromEnv(),
-			limit: numberArg(args, "limit") ?? undefined,
-			model: optionalArg(args, "provider-model"),
-			provider: publicWebSearchProviderArg(args),
-			providerProfileId: optionalArg(args, "provider-profile-id"),
-			settings: settingsForOptionalPublish(publishScores),
-			stagingSmokeAuthSecret: optionalArg(args, "staging-smoke-auth-secret"),
-			stagingSmokeEmail: optionalArg(args, "staging-smoke-email"),
-			validateOnly: Boolean(args["validate-only"]),
-		});
-	}
 	if (command === "check-collector-config") {
 		const validation = checkCollectorConfig(process.env);
 		if (!validation.passed) {
@@ -192,12 +158,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 			throw new Error(`Unexpected argument: ${token}`);
 		}
 		const key = token.slice(2);
-		if (
-			key === "json" ||
-			key === "dry-run" ||
-			key === "validate-only" ||
-			key === "publish-scores"
-		) {
+		if (key === "json" || key === "dry-run" || key === "validate-only") {
 			parsed[key] = true;
 			continue;
 		}
@@ -213,18 +174,6 @@ function parseArgs(argv: string[]): ParsedArgs {
 		index += 1;
 	}
 	return parsed;
-}
-
-function settingsForOptionalPublish(publishScores: boolean) {
-	if (publishScores) {
-		return settingsFromEnv();
-	}
-	return {
-		baseUrl: "",
-		environment: environmentFromEnv(),
-		publicKey: "",
-		secretKey: "",
-	};
 }
 
 function runPythonRagasScoreBatch(input: {
@@ -310,27 +259,6 @@ function numberArg(args: ParsedArgs, key: string): number | null {
 		throw new Error(`${key} must be a positive integer`);
 	}
 	return parsed;
-}
-
-function publicWebSearchProviderArg(
-	args: ParsedArgs,
-): "gemini" | "linux_do" | "openai" | "perplexity" | "perplexity_compatible" | null {
-	const value = optionalArg(args, "provider");
-	if (!value) {
-		return null;
-	}
-	if (
-		value === "gemini" ||
-		value === "linux_do" ||
-		value === "openai" ||
-		value === "perplexity" ||
-		value === "perplexity_compatible"
-	) {
-		return value;
-	}
-	throw new Error(
-		"provider must be gemini, linux_do, openai, perplexity, or perplexity_compatible",
-	);
 }
 
 function required(value: string | null, field: string): string {

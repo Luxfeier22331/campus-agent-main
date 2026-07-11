@@ -10,10 +10,7 @@ const candidate = {
 	category: "retrieval_source_fix",
 	evidence: {
 		failClosed: false,
-		modelExecutionState: "completed",
 		reasonCodes: ["missing_context"],
-		retrievalAttempted: true,
-		retrievedSourceCount: 2,
 		selectedTool: "knowledge_query",
 		status: "completed",
 		traceAvailable: true,

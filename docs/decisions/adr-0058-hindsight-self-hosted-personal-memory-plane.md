@@ -83,8 +83,8 @@ Adopt self-hosted Hindsight as the only personal memory runtime substrate.
   only; execution-control may query it through an internal worker-auth operation
   status endpoint with Hindsight `include_payload=false`.
 - Completed-turn append only sends the user message as Hindsight extractable
-  memory content by default. Assistant answers remain finalization projection,
-  not graph-extraction input.
+  memory content by default. The SDK answer remains a validated terminal
+  projection and is not graph-extraction input.
 - `memory.reflect` is accepted as an internal workflow target for
   memory-grounded reasoning and `based_on` facts; it is not the default
   user-facing final-answer owner.
@@ -166,8 +166,8 @@ PERSONAL_MEMORY_OWNER_SALT
 `recall_max_tokens` is the Hindsight recall token budget; `context_char_budget`
 is the local bounded context block budget.
 
-`activity-knowledge` does not require Hindsight config; it consumes bounded memory
-context after recall.
+`activity-worker-agent` does not require Hindsight config; the complete SDK run
+consumes bounded memory context projected by the core recall activity.
 
 Hindsight service internals, Postgres / pgvector and its LLM / embedding
 providers are deployment internals. `campus-agent` code and contracts do not

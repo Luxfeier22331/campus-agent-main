@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -244,89 +246,51 @@ func readRunEventsWaitBudget(request *http.Request) (time.Duration, error) {
 	return time.Duration(value) * time.Millisecond, nil
 }
 
-func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.DurableRun, error) {
-	payload, err := decodeJSONObject(body)
+func durableRunFromCreateBody(
+	body json.RawMessage,
+	now time.Time,
+	taskQueue string,
+) (execution.DurableRun, error) {
+	wire, err := contracts.DecodeExecutionRunCreateRequestWireJSON(body)
+	if err != nil {
+		return execution.DurableRun{}, fmt.Errorf("invalid execution run create request: %w", err)
+	}
+	metadataPayload, err := executionPayloadMetadataMap(wire.Metadata.ExecutionPayload)
 	if err != nil {
 		return execution.DurableRun{}, err
 	}
-	metadata, ok := payload["metadata"].(map[string]any)
-	if !ok {
-		return execution.DurableRun{}, errors.New("metadata is required")
+	taskQueue = strings.TrimSpace(taskQueue)
+	if taskQueue == "" {
+		return execution.DurableRun{}, errors.New("execution task queue is not configured")
 	}
-	run := execution.DurableRun{
-		RunID:           requiredStringFromMap(payload, "run_id"),
-		ConversationID:  requiredStringFromMap(payload, "conversation_id"),
-		TurnID:          requiredStringFromMap(payload, "turn_id"),
-		RequestID:       requiredStringFromMap(payload, "request_id"),
-		TraceID:         optionalStringFromMap(payload, "trace_id"),
-		OwnerUserID:     requiredStringFromMap(payload, "owner_user_id"),
-		Surface:         requiredStringFromMap(payload, "surface"),
-		RequestedTool:   optionalStringFromMap(payload, "requested_tool"),
-		SelectedTool:    optionalStringFromMap(payload, "selected_tool"),
+	return execution.DurableRun{
+		RunID:           wire.RunID,
+		ConversationID:  wire.ConversationID,
+		TurnID:          wire.TurnID,
+		RequestID:       wire.RequestID,
+		TraceID:         wire.TraceID,
+		OwnerUserID:     wire.OwnerUserID,
+		Surface:         wire.Surface,
+		RequestedTool:   string(wire.Metadata.ExecutionPayload.RequestedTool),
 		Status:          execution.DurableRunStatusCreated,
-		TaskQueue:       requiredStringFromMap(payload, "task_queue"),
+		TaskQueue:       taskQueue,
 		CreatedAt:       now,
 		UpdatedAt:       now,
-		RuntimeVersions: optionalMapFromMap(payload, "runtime_versions"),
-		Metadata:        metadata,
-	}
-	if run.RunID == "" {
-		return execution.DurableRun{}, errors.New("run_id is required")
-	}
-	if run.ConversationID == "" {
-		return execution.DurableRun{}, errors.New("conversation_id is required")
-	}
-	if run.TurnID == "" {
-		return execution.DurableRun{}, errors.New("turn_id is required")
-	}
-	if run.RequestID == "" {
-		return execution.DurableRun{}, errors.New("request_id is required")
-	}
-	if run.OwnerUserID == "" {
-		return execution.DurableRun{}, errors.New("owner_user_id is required")
-	}
-	if run.Surface == "" {
-		return execution.DurableRun{}, errors.New("surface is required")
-	}
-	if run.TaskQueue == "" {
-		return execution.DurableRun{}, errors.New("task_queue is required")
-	}
-	if err := validateDurableRunExecutionPayload(run); err != nil {
-		return execution.DurableRun{}, err
-	}
-	return run, nil
+		RuntimeVersions: wire.RuntimeVersions,
+		Metadata:        map[string]any{"execution_payload": metadataPayload},
+	}, nil
 }
 
-func validateDurableRunExecutionPayload(run execution.DurableRun) error {
-	rawExecutionPayload, ok := run.Metadata["execution_payload"]
-	if !ok {
-		return errors.New("metadata.execution_payload is required")
+func executionPayloadMetadataMap(payload contracts.ExecutionPayloadWire) (map[string]any, error) {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("metadata.execution_payload cannot be encoded: %w", err)
 	}
-	executionPayload, ok := rawExecutionPayload.(map[string]any)
-	if !ok {
-		return errors.New("metadata.execution_payload must be an object")
+	var metadata map[string]any
+	if err := json.Unmarshal(payloadJSON, &metadata); err != nil {
+		return nil, fmt.Errorf("metadata.execution_payload cannot be materialized: %w", err)
 	}
-	if requiredStringFromMap(executionPayload, "request_id") != run.RequestID {
-		return errors.New("metadata.execution_payload.request_id must match request_id")
-	}
-	if requiredStringFromMap(executionPayload, "conversation_id") != run.ConversationID {
-		return errors.New("metadata.execution_payload.conversation_id must match conversation_id")
-	}
-	if run.TraceID != "" && executionPayloadTraceID(executionPayload) != run.TraceID {
-		return errors.New("metadata.execution_payload.trace.trace_id must match trace_id")
-	}
-	if requiredStringFromMap(executionPayload, "user_goal") == "" {
-		return errors.New("metadata.execution_payload.user_goal is required")
-	}
-	return nil
-}
-
-func executionPayloadTraceID(executionPayload map[string]any) string {
-	rawTrace, ok := executionPayload["trace"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	return requiredStringFromMap(rawTrace, "trace_id")
+	return metadata, nil
 }
 
 func durableRunResponse(run execution.DurableRun) map[string]any {
@@ -351,7 +315,6 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"streaming_started_at": formatOptionalTime(run.StreamingStartedAt),
 		"completed_at":         formatOptionalTime(run.CompletedAt),
 		"updated_at":           formatOptionalTime(run.UpdatedAt),
-		"workflow_plan_ref":    run.WorkflowPlanRef,
 		"final_response_ref":   run.FinalResponseRef,
 	}
 }
@@ -416,12 +379,10 @@ func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[
 		"output_tokens":           attempt.OutputTokens,
 		"cached_input_tokens":     attempt.CachedInputTokens,
 		"estimated_cost_microusd": attempt.EstimatedCostMicroUSD,
-		"pricing_version":         attempt.PricingVersion,
 		"cancel_outcome":          string(attempt.CancelOutcome),
 		"timeout_outcome":         string(attempt.TimeoutOutcome),
 		"late_completion_outcome": string(attempt.LateCompletionOutcome),
 		"fail_close_reason":       attempt.FailCloseReason,
-		"replan_reason":           attempt.ReplanReason,
 		"terminal_reason":         attempt.TerminalReason,
 		"updated_at":              formatOptionalTime(attempt.UpdatedAt),
 		"payload_schema_version":  attempt.PayloadSchemaVersion,
@@ -453,7 +414,7 @@ func buildAgentRuntimeEvalProjection(
 	selectedTool := firstNonEmptyText(
 		run.SelectedTool,
 		firstStepTool(steps),
-		firstProjectedStringFromResults(results, "selected_tool"),
+		projectedSelectedTool(results),
 	)
 	return map[string]any{
 		"schema_version": "agent_runtime_eval_projection.v1",
@@ -520,13 +481,16 @@ func projectedAvailableTools(
 ) []string {
 	values := []string{}
 	for _, step := range steps {
-		appendUniqueProjectionString(&values, step.Tool)
+		appendPublicProjectionTool(&values, step.Tool)
+		payload := sanitizeProjectionPayload(step.SanitizedPayload)
+		for _, tool := range stringSliceFromAny(payload["visible_tool_names"]) {
+			appendPublicProjectionTool(&values, tool)
+		}
 	}
 	for _, result := range results {
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		appendUniqueProjectionString(&values, firstNonEmptyText(payload["selected_tool"]))
 		for _, tool := range stringSliceFromAny(payload["selected_tools"]) {
-			appendUniqueProjectionString(&values, tool)
+			appendPublicProjectionTool(&values, tool)
 		}
 	}
 	return values
@@ -541,61 +505,107 @@ func projectedToolTrajectoryCalls(
 	for _, attempt := range attempts {
 		attemptByID[attempt.AttemptID] = attempt
 	}
+	resultAttemptByProjectionRef := map[string]execution.StepAttemptProjection{}
 	for _, result := range results {
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		toolName := firstNonEmptyText(payload["selected_tool"], payload["tool_name"])
-		record := optionalMapFromMap(payload, "tool_call")
-		if recordTool := firstNonEmptyText(record["selected_tool"], record["tool_name"]); recordTool != "" {
-			toolName = recordTool
+		if attempt, ok := attemptByID[result.AttemptID]; ok && strings.TrimSpace(result.ProjectionRef) != "" {
+			resultAttemptByProjectionRef[strings.TrimSpace(result.ProjectionRef)] = attempt
 		}
-		if toolName == "" {
+	}
+	for _, result := range results {
+		if result.StepID != "agent.primary" {
 			continue
 		}
-		call := map[string]any{
-			"tool_name":    toolName,
-			"tool_call_id": firstNonEmptyText(record["tool_call_id"], result.ResultID),
-			"status":       result.Status,
-			"result_kind":  result.ResultKind,
-		}
-		if argumentsShape, ok := record["arguments_shape"]; ok {
-			call["arguments_shape"] = sanitizeProjectionValue(argumentsShape)
-		}
-		if argumentsHash := firstNonEmptyText(record["arguments_hash"], payload["arguments_hash"]); argumentsHash != "" {
-			call["arguments_hash"] = argumentsHash
-		}
-		if reason := firstNonEmptyText(record["fail_close_reason"], payload["fail_close_reason"]); reason != "" {
-			call["fail_close_reason"] = reason
-		}
-		if attempt, ok := attemptByID[result.AttemptID]; ok {
-			if attempt.DurationMS > 0 {
-				call["duration_ms"] = attempt.DurationMS
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		agentAttempt := attemptByID[result.AttemptID]
+		for index, toolResult := range knowledgeEvidenceMaps(payload["tool_results"]) {
+			internalToolName := firstNonEmptyText(toolResult["tool_name"])
+			toolName := publicProjectionToolName(internalToolName)
+			if toolName == "" {
+				continue
 			}
-			if provider := strings.TrimSpace(attempt.ModelProvider); provider != "" {
+			resultRef := firstNonEmptyText(toolResult["result_ref"])
+			call := map[string]any{
+				"tool_name":    toolName,
+				"tool_call_id": firstNonEmptyText(resultRef, fmt.Sprintf("%s:tool-call:%d", result.ResultID, index+1)),
+				"status":       firstNonEmptyText(toolResult["status"], result.Status),
+				"result_kind":  firstNonEmptyText(toolResult["payload_kind"], internalToolName),
+			}
+			if argumentsHash := firstNonEmptyText(toolResult["arguments_json_sha256"]); argumentsHash != "" {
+				call["arguments_hash"] = argumentsHash
+			}
+			if reason := firstNonEmptyText(toolResult["fail_close_reason"]); reason != "" {
+				call["fail_close_reason"] = reason
+			}
+			if evalSafeArgs := projectedEvalSafeToolArgs(internalToolName, toolResult); len(evalSafeArgs) > 0 {
+				call["eval_safe_args"] = evalSafeArgs
+			}
+			if toolAttempt, ok := resultAttemptByProjectionRef[resultRef]; ok && toolAttempt.DurationMS > 0 {
+				call["duration_ms"] = toolAttempt.DurationMS
+			}
+			if provider := strings.TrimSpace(agentAttempt.ModelProvider); provider != "" {
 				call["provider"] = provider
 			}
-			if model := strings.TrimSpace(attempt.ModelName); model != "" {
+			if model := strings.TrimSpace(agentAttempt.ModelName); model != "" {
 				call["model"] = model
 			}
+			calls = append(calls, sanitizeProjectionPayload(call))
 		}
-		calls = append(calls, sanitizeProjectionPayload(call))
 	}
 	return calls
 }
 
-func firstStepTool(steps []execution.RunStepProjection) string {
-	for _, step := range steps {
-		if tool := strings.TrimSpace(step.Tool); tool != "" {
-			return tool
+func projectedEvalSafeToolArgs(toolName string, toolResult map[string]any) map[string]any {
+	if strings.TrimSpace(toolName) != "knowledge_search" {
+		return map[string]any{}
+	}
+	result := optionalMapFromMap(toolResult, "result")
+	args := map[string]any{}
+	if scope := firstNonEmptyText(result["resolved_scope"]); scope != "" {
+		args["scope"] = scope
+	}
+	resolvedVersion := optionalMapFromMap(result, "resolved_version")
+	if mode := firstNonEmptyText(resolvedVersion["mode"]); mode != "" {
+		args["version_mode"] = mode
+	}
+	for _, key := range []string{"as_of", "version_id", "compare_to_version_id"} {
+		if value := firstNonEmptyText(resolvedVersion[key]); value != "" {
+			args[key] = value
+		}
+	}
+	return args
+}
+
+func projectedSelectedTool(results []execution.StepResultProjection) string {
+	for _, result := range results {
+		if result.StepID != "agent.primary" {
+			continue
+		}
+		selectedTools := primaryAgentPublicSelectedTools(
+			stringSliceFromAny(sanitizeProjectionPayload(result.SanitizedPayload)["selected_tools"]),
+		)
+		if selectedTool := primaryAgentSelectedTool(selectedTools); selectedTool != "" {
+			return selectedTool
 		}
 	}
 	return ""
 }
 
-func firstProjectedStringFromResults(results []execution.StepResultProjection, key string) string {
-	for _, result := range results {
-		value := stringFromProjectionPayload(result.SanitizedPayload, key)
-		if value != "" {
-			return value
+func appendPublicProjectionTool(values *[]string, tool string) {
+	appendUniqueProjectionString(values, publicProjectionToolName(tool))
+}
+
+func publicProjectionToolName(tool string) string {
+	tool = strings.TrimSpace(tool)
+	if tool == "knowledge_search" {
+		return "knowledge_query"
+	}
+	return tool
+}
+
+func firstStepTool(steps []execution.RunStepProjection) string {
+	for _, step := range steps {
+		if tool := publicProjectionToolName(step.Tool); tool != "" {
+			return tool
 		}
 	}
 	return ""
@@ -628,17 +638,10 @@ func projectedRecordFromResults(results []execution.StepResultProjection, key st
 
 func projectedToolCalls(results []execution.StepResultProjection) []map[string]any {
 	toolCalls := []map[string]any{}
-	for _, result := range results {
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		if record, ok := payload["tool_call"].(map[string]any); ok {
-			toolCalls = append(toolCalls, sanitizeProjectionPayload(record))
-			continue
-		}
-		if selectedTool, _ := payload["selected_tool"].(string); strings.TrimSpace(selectedTool) != "" {
-			toolCalls = append(toolCalls, map[string]any{
-				"selected_tool": strings.TrimSpace(selectedTool),
-			})
-		}
+	for _, call := range projectedToolTrajectoryCalls(results, nil) {
+		toolCalls = append(toolCalls, map[string]any{
+			"selected_tool": call["tool_name"],
+		})
 	}
 	return toolCalls
 }

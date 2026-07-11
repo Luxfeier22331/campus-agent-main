@@ -25,15 +25,16 @@ Out of repo runtime scope:
 - wiki-maintained office/contact/process pages
 - `calendar/academic_calendar` as a campus-services tool; calendar facts may
   exist as a data asset/prework collection, but not as a model-visible
-  campus-services runtime tool
+  campus-services runtime tool. Calendar ownership lives in
+  `../calendar/architecture.md`.
 
 ## Runtime Shape
 
 Model-visible tool path:
 
 ```text
-app-api -> execution-control -> Temporal activity
--> admitted typed tool -> internal query service
+app-api -> execution-control -> Temporal Agent Activity
+-> Agents SDK primary agent -> admitted function tool -> internal query service
 -> projection-backed structured truth
 ```
 
@@ -55,7 +56,7 @@ Fixed constraints:
 - missing currentness, missing source truth, ambiguous route/date, or conflicting
   sources fail closed
 - `navigation` may consume stop/place refs but does not own timetable truth
-- `notice` owns notice discovery/change-set tools; campus services may consume
+- `notice` owns notice product redesign; campus services may consume
   admitted notice-derived transport overrides only through bounded projections
 
 ## Transport Schedule Boundary
@@ -71,10 +72,11 @@ A campus-services tool is open only when all registries agree:
 
 - `configs/runtime/tools.v4.json` has `exposure: "model_visible"`
 - `configs/runtime/tool-function-schemas.v1.json` has an available strict schema
-- execution-control runtime config `open_tools` includes the tool
+- `configs/runtime/workflow-artifacts.v2.json` binds the tool to bounded
+  runtime artifacts
 - Go readyz/runtime tests and product-path gates pass
 
 As of this document, only `transport_schedule_lookup` satisfies this rule.
 Generic campus service status remains closed. It can reopen only as a newly
-designed surface with its own contract, read model, runtime config opening and
+designed surface with its own contract, read model, registry/schema opening and
 eval denominator; it must not inherit the removed generic status lookup path.

@@ -10,25 +10,21 @@ import (
 const runtimeConfigFileSchemaVersion = "campus_execution_control_runtime_config.v1"
 
 type runtimeConfigFile struct {
-	SchemaVersion            string                       `json:"schema_version"`
-	MaxConcurrentAnswers     *int                         `json:"max_concurrent_answers,omitempty"`
-	QueueCapacity            *int                         `json:"queue_capacity,omitempty"`
-	QueueTimeoutMS           *int                         `json:"queue_timeout_ms,omitempty"`
-	RequestTimeoutMS         *int                         `json:"request_timeout_ms,omitempty"`
-	RequestBodyLimitBytes    *int64                       `json:"request_body_limit_bytes,omitempty"`
-	ShutdownGraceMS          *int                         `json:"shutdown_grace_ms,omitempty"`
-	IntentPolicyPath         *string                      `json:"intent_policy_path,omitempty"`
-	ProviderPricingPath      *string                      `json:"provider_pricing_path,omitempty"`
-	ObservabilityConfigPath  *string                      `json:"observability_config_projection_path,omitempty"`
-	QueryServingScopesPath   *string                      `json:"query_serving_scopes_path,omitempty"`
-	ToolReadModelTimeoutMS   *int                         `json:"tool_read_model_timeout_ms,omitempty"`
-	OpenTools                []string                     `json:"open_tools,omitempty"`
-	MultiStepWorkflowEnabled *bool                        `json:"multi_step_workflow_enabled,omitempty"`
-	OTel                     *runtimeConfigFileOTel       `json:"otel,omitempty"`
-	ExecutionAudit           *runtimeConfigFileAudit      `json:"execution_audit,omitempty"`
-	RAG                      *runtimeConfigFileRAG        `json:"rag,omitempty"`
-	PersonalMemory           *runtimeConfigFileMemory     `json:"personal_memory,omitempty"`
-	WorkerProfiles           map[string]runtimeModeWorker `json:"worker_profiles,omitempty"`
+	SchemaVersion           string                        `json:"schema_version"`
+	MaxConcurrentAnswers    *int                          `json:"max_concurrent_answers,omitempty"`
+	QueueCapacity           *int                          `json:"queue_capacity,omitempty"`
+	QueueTimeoutMS          *int                          `json:"queue_timeout_ms,omitempty"`
+	RequestTimeoutMS        *int                          `json:"request_timeout_ms,omitempty"`
+	RequestBodyLimitBytes   *int64                        `json:"request_body_limit_bytes,omitempty"`
+	ShutdownGraceMS         *int                          `json:"shutdown_grace_ms,omitempty"`
+	ObservabilityConfigPath *string                       `json:"observability_config_projection_path,omitempty"`
+	QueryServingScopesPath  *string                       `json:"query_serving_scopes_path,omitempty"`
+	ToolReadModelTimeoutMS  *int                          `json:"tool_read_model_timeout_ms,omitempty"`
+	OTel                    *runtimeConfigFileOTel        `json:"otel,omitempty"`
+	ExecutionAudit          *runtimeConfigFileAudit       `json:"execution_audit,omitempty"`
+	KnowledgeSearch         *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
+	PersonalMemory          *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
+	WorkerProfiles          map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
 }
 
 type runtimeConfigFileOTel struct {
@@ -52,22 +48,10 @@ type runtimeConfigFileAudit struct {
 	TimeoutMS    *int    `json:"timeout_ms,omitempty"`
 }
 
-type runtimeConfigFileRAG struct {
-	TopKMax                *int                                     `json:"top_k_max,omitempty"`
-	SelectedEvidenceMax    *int                                     `json:"selected_evidence_max,omitempty"`
-	RetrievalMaxConcurrent *int                                     `json:"retrieval_max_concurrent,omitempty"`
-	SynthesisMaxConcurrent *int                                     `json:"synthesis_max_concurrent,omitempty"`
-	EmbeddingTimeoutMS     *int                                     `json:"embedding_timeout_ms,omitempty"`
-	QdrantTimeoutMS        *int                                     `json:"qdrant_timeout_ms,omitempty"`
-	ProviderTimeoutMS      *int                                     `json:"provider_timeout_ms,omitempty"`
-	SynthesisGeneration    *runtimeConfigFileRAGSynthesisGeneration `json:"synthesis_generation,omitempty"`
-}
-
-type runtimeConfigFileRAGSynthesisGeneration struct {
-	MaxOutputTokens     *int    `json:"max_output_tokens,omitempty"`
-	ReasoningEffort     *string `json:"reasoning_effort,omitempty"`
-	StoreProviderOutput *bool   `json:"store_provider_output,omitempty"`
-	TextVerbosity       *string `json:"text_verbosity,omitempty"`
+type runtimeConfigKnowledgeSearch struct {
+	TopKMax            *int `json:"top_k_max,omitempty"`
+	EmbeddingTimeoutMS *int `json:"embedding_timeout_ms,omitempty"`
+	QdrantTimeoutMS    *int `json:"qdrant_timeout_ms,omitempty"`
 }
 
 type runtimeConfigFileMemory struct {
@@ -139,9 +123,7 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 		name  string
 		value *string
 	}{
-		{"intent_policy_path", profile.IntentPolicyPath},
 		{"observability_config_projection_path", profile.ObservabilityConfigPath},
-		{"provider_pricing_path", profile.ProviderPricingPath},
 		{"query_serving_scopes_path", profile.QueryServingScopesPath},
 	}
 	for _, item := range requiredStrings {
@@ -149,19 +131,13 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 			return fmt.Errorf("execution-control runtime config missing required field %s", item.name)
 		}
 	}
-	if profile.OpenTools == nil {
-		return fmt.Errorf("execution-control runtime config missing required field open_tools")
-	}
-	if profile.MultiStepWorkflowEnabled == nil {
-		return fmt.Errorf("execution-control runtime config missing required field multi_step_workflow_enabled")
-	}
 	if err := validateRuntimeConfigOTelCompleteness(profile.OTel); err != nil {
 		return err
 	}
 	if err := validateRuntimeConfigAuditCompleteness(profile.ExecutionAudit); err != nil {
 		return err
 	}
-	if err := validateRuntimeConfigRAGCompleteness(profile.RAG); err != nil {
+	if err := validateRuntimeConfigKnowledgeSearchCompleteness(profile.KnowledgeSearch); err != nil {
 		return err
 	}
 	if err := validateRuntimeConfigMemoryCompleteness(profile.PersonalMemory); err != nil {
@@ -232,50 +208,22 @@ func validateRuntimeConfigAuditCompleteness(value *runtimeConfigFileAudit) error
 	return nil
 }
 
-func validateRuntimeConfigRAGCompleteness(value *runtimeConfigFileRAG) error {
+func validateRuntimeConfigKnowledgeSearchCompleteness(value *runtimeConfigKnowledgeSearch) error {
 	if value == nil {
-		return fmt.Errorf("execution-control runtime config missing required field rag")
+		return fmt.Errorf("execution-control runtime config missing required field knowledge_search")
 	}
 	required := []struct {
 		name  string
 		value *int
 	}{
 		{"top_k_max", value.TopKMax},
-		{"selected_evidence_max", value.SelectedEvidenceMax},
-		{"retrieval_max_concurrent", value.RetrievalMaxConcurrent},
-		{"synthesis_max_concurrent", value.SynthesisMaxConcurrent},
 		{"embedding_timeout_ms", value.EmbeddingTimeoutMS},
 		{"qdrant_timeout_ms", value.QdrantTimeoutMS},
-		{"provider_timeout_ms", value.ProviderTimeoutMS},
 	}
 	for _, item := range required {
 		if item.value == nil {
-			return fmt.Errorf("execution-control runtime config missing required rag.%s", item.name)
+			return fmt.Errorf("execution-control runtime config missing required knowledge_search.%s", item.name)
 		}
-	}
-	if err := validateRuntimeConfigRAGSynthesisGenerationCompleteness(value.SynthesisGeneration); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateRuntimeConfigRAGSynthesisGenerationCompleteness(
-	value *runtimeConfigFileRAGSynthesisGeneration,
-) error {
-	if value == nil {
-		return fmt.Errorf("execution-control runtime config missing required field rag.synthesis_generation")
-	}
-	if value.MaxOutputTokens == nil {
-		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.max_output_tokens")
-	}
-	if value.ReasoningEffort == nil || strings.TrimSpace(*value.ReasoningEffort) == "" {
-		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.reasoning_effort")
-	}
-	if value.StoreProviderOutput == nil {
-		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.store_provider_output")
-	}
-	if value.TextVerbosity == nil || strings.TrimSpace(*value.TextVerbosity) == "" {
-		return fmt.Errorf("execution-control runtime config missing required rag.synthesis_generation.text_verbosity")
 	}
 	return nil
 }
@@ -316,9 +264,7 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 	applyInt(&values.RequestTimeoutMS, profile.RequestTimeoutMS)
 	applyInt64(&values.RequestBodyLimitBytes, profile.RequestBodyLimitBytes)
 	applyInt(&values.ShutdownGraceMS, profile.ShutdownGraceMS)
-	applyString(&values.IntentPolicyPath, profile.IntentPolicyPath)
 	applyString(&values.ObservabilityConfigProjectionPath, profile.ObservabilityConfigPath)
-	applyString(&values.ProviderPricingPath, profile.ProviderPricingPath)
 	applyString(&values.QueryServingScopesPath, profile.QueryServingScopesPath)
 	applyInt(&values.ToolReadModelTimeoutMS, profile.ToolReadModelTimeoutMS)
 	if profile.OTel != nil {
@@ -340,23 +286,10 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 		applyString(&values.ExecutionAuditSharedSecret, profile.ExecutionAudit.SharedSecret)
 		applyInt(&values.ExecutionAuditTimeoutMS, profile.ExecutionAudit.TimeoutMS)
 	}
-	if profile.RAG != nil {
-		applyInt(&values.RAGTopKMax, profile.RAG.TopKMax)
-		applyInt(&values.RAGSelectedEvidenceMax, profile.RAG.SelectedEvidenceMax)
-		applyInt(&values.RAGRetrievalMaxConcurrent, profile.RAG.RetrievalMaxConcurrent)
-		applyInt(&values.RAGSynthesisMaxConcurrent, profile.RAG.SynthesisMaxConcurrent)
-		applyInt(&values.RAGEmbeddingTimeoutMS, profile.RAG.EmbeddingTimeoutMS)
-		applyInt(&values.RAGQdrantTimeoutMS, profile.RAG.QdrantTimeoutMS)
-		applyInt(&values.RAGProviderTimeoutMS, profile.RAG.ProviderTimeoutMS)
-		if profile.RAG.SynthesisGeneration != nil {
-			applyInt(&values.RAGSynthesisMaxOutputTokens, profile.RAG.SynthesisGeneration.MaxOutputTokens)
-			applyString(&values.RAGSynthesisReasoningEffort, profile.RAG.SynthesisGeneration.ReasoningEffort)
-			values.RAGSynthesisStoreProviderOutput = boolFromRuntimeConfig(
-				profile.RAG.SynthesisGeneration.StoreProviderOutput,
-				values.RAGSynthesisStoreProviderOutput,
-			)
-			applyString(&values.RAGSynthesisTextVerbosity, profile.RAG.SynthesisGeneration.TextVerbosity)
-		}
+	if profile.KnowledgeSearch != nil {
+		applyInt(&values.RAGTopKMax, profile.KnowledgeSearch.TopKMax)
+		applyInt(&values.RAGEmbeddingTimeoutMS, profile.KnowledgeSearch.EmbeddingTimeoutMS)
+		applyInt(&values.RAGQdrantTimeoutMS, profile.KnowledgeSearch.QdrantTimeoutMS)
 	}
 	if profile.PersonalMemory != nil {
 		applyString(&values.PersonalMemoryRuntime, profile.PersonalMemory.Runtime)
@@ -427,7 +360,6 @@ func boolFromRuntimeConfig(value *bool, defaultValue bool) bool {
 
 func rejectRuntimeConfigOwnedEnvSettings() error {
 	retired := []string{
-		"EXECUTION_CONTROL_INTENT_POLICY_PATH",
 		"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS",
 		"EXECUTION_CONTROL_QUEUE_CAPACITY",
 		"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS",
@@ -448,14 +380,6 @@ func rejectRuntimeConfigOwnedEnvSettings() error {
 		"EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION",
 		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED",
 		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS",
-		"EXECUTION_CONTROL_PROVIDER_PRICING_PATH",
-		"EXECUTION_CONTROL_RAG_TOP_K_MAX",
-		"EXECUTION_CONTROL_RAG_SELECTED_EVIDENCE_MAX",
-		"EXECUTION_CONTROL_RAG_RETRIEVAL_MAX_CONCURRENT",
-		"EXECUTION_CONTROL_RAG_SYNTHESIS_MAX_CONCURRENT",
-		"EXECUTION_CONTROL_RAG_EMBEDDING_TIMEOUT_MS",
-		"EXECUTION_CONTROL_RAG_QDRANT_TIMEOUT_MS",
-		"EXECUTION_CONTROL_RAG_PROVIDER_TIMEOUT_MS",
 		"PERSONAL_MEMORY_COLLECTION",
 		"PERSONAL_MEMORY_TOP_K",
 		"PERSONAL_MEMORY_MAX_CHARS",
@@ -479,9 +403,6 @@ func rejectRuntimeConfigOwnedEnvSettings() error {
 		"WORKFLOW",
 		"ACTIVITY_CONTEXT",
 		"ACTIVITY_AGENT",
-		"ACTIVITY_KNOWLEDGE_PLAN",
-		"ACTIVITY_KNOWLEDGE_RETRIEVAL",
-		"ACTIVITY_KNOWLEDGE_SYNTHESIS",
 		"ACTIVITY_CAMPUS_SERVICES",
 		"ACTIVITY_NOTICE",
 		"ACTIVITY_NAVIGATION",

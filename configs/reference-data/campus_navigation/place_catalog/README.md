@@ -8,7 +8,8 @@ surface.
 
 Source inventory / admission posture:
 
-- `docs/reference/campus-navigation-authoritative-source-inventory.md`
+- `docs/data/place-catalog.md`
+- `docs/reference/open-source-data.md`
 
 ## 用途
 

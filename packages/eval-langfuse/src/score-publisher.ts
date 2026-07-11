@@ -22,6 +22,7 @@ const DEFAULT_REGISTRY_PATH = resolve(
 );
 const SCORE_DATA_TYPES = new Set(["BOOLEAN", "NUMERIC", "CATEGORICAL", "TEXT"]);
 export const LANGFUSE_SCORE_METADATA_ALLOWLIST = new Set([
+	"argument_mode",
 	"candidate_id",
 	"case_family",
 	"case_id",
@@ -149,6 +150,75 @@ export function buildLangfuseScoresFromRagasScoreBatch(input: {
 				reason,
 				...(sourceKind === "local_artifact"
 					? { source_artifact_ref: input.ragasScoreBatchPath ?? null }
+					: {}),
+				source_result_id: `${caseId}:${metricName}`,
+			});
+		}
+	}
+	return validateLangfuseScorePublishPlan({
+		evalRunId,
+		omittedItems,
+		scoreItems,
+		sourceResultDenominator: scoreItems.length + omittedItems.length,
+	});
+}
+
+export function buildLangfuseScoresFromRagasAgentScoreBatch(input: {
+	ragasAgentScoreBatchPath?: string | null;
+	ragasAgentScoreBatchPayload: JsonObject;
+	sourceKind?: string | null;
+}): LangfuseScorePublishPlan {
+	const sourceKind = optionalString(input.sourceKind) ?? "local_artifact";
+	const schemaVersion = stringField(
+		input.ragasAgentScoreBatchPayload.schema_version,
+		"schema_version",
+	);
+	requireEqual(schemaVersion, "ragas_agent_score_batch.v1", "schema_version");
+	const evalRunId = stringField(input.ragasAgentScoreBatchPayload.eval_run_id, "eval_run_id");
+	const rawItems = mappingList(input.ragasAgentScoreBatchPayload.items, "items");
+	const scoreItems: LangfuseScoreItem[] = [];
+	const omittedItems: LangfuseScoreOmission[] = [];
+	for (const item of rawItems) {
+		const caseId = stringField(item.case_id, "items[].case_id");
+		const traceId = stringField(item.trace_id, `${caseId}.trace_id`);
+		const observationId = optionalString(item.observation_id);
+		const datasetItemId = optionalString(item.dataset_item_id);
+		const datasetRunId = optionalString(item.dataset_run_id);
+		const itemMetadata = mapping(item.metadata ?? {}, `${caseId}.metadata`);
+		const safeMetadata = ragasAgentMetadata({
+			caseId,
+			itemMetadata,
+			ragasAgentScoreBatchPath: input.ragasAgentScoreBatchPath,
+			schemaVersion,
+			sourceKind,
+		});
+		const scores = mapping(item.scores, `${caseId}.scores`);
+		for (const [metricName, value] of Object.entries(scores)) {
+			const name = stringField(metricName, `${caseId}.scores.metric`);
+			scoreItems.push({
+				case_id: caseId,
+				comment: `${name} scored by RAGAS agent metrics`,
+				data_type: "NUMERIC",
+				dataset_item_id: datasetItemId,
+				dataset_run_id: datasetRunId,
+				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
+				metadata: { ...safeMetadata, metric_key: name },
+				name,
+				observation_id: observationId,
+				session_id: null,
+				trace_id: traceId,
+				value,
+			});
+		}
+		for (const error of mappingList(item.errors ?? [], `${caseId}.errors`)) {
+			const metricName = stringField(error.metric_name, `${caseId}.errors[].metric_name`);
+			const reason = stringField(error.reason, `${caseId}.errors[].reason`);
+			omittedItems.push({
+				case_id: caseId,
+				metadata: { ...safeMetadata, metric_key: metricName },
+				reason,
+				...(sourceKind === "local_artifact"
+					? { source_artifact_ref: input.ragasAgentScoreBatchPath ?? null }
 					: {}),
 				source_result_id: `${caseId}:${metricName}`,
 			});
@@ -378,6 +448,33 @@ function ragasMetadata(input: {
 		source_kind: input.sourceKind,
 		...(input.sourceKind === "local_artifact" && input.ragasScoreBatchPath
 			? { source_artifact_path: input.ragasScoreBatchPath }
+			: {}),
+		...(optionalString(input.itemMetadata.surface_key)
+			? { surface_key: optionalString(input.itemMetadata.surface_key) }
+			: {}),
+		...(optionalString(input.itemMetadata.variant_id)
+			? { variant_id: optionalString(input.itemMetadata.variant_id) }
+			: {}),
+	};
+}
+
+function ragasAgentMetadata(input: {
+	caseId: string;
+	itemMetadata: JsonObject;
+	ragasAgentScoreBatchPath?: string | null;
+	schemaVersion: string;
+	sourceKind: string;
+}): JsonObject {
+	return {
+		case_id: input.caseId,
+		eval_kind: "ragas_agent",
+		schema_version: input.schemaVersion,
+		source_kind: input.sourceKind,
+		...(input.sourceKind === "local_artifact" && input.ragasAgentScoreBatchPath
+			? { source_artifact_path: input.ragasAgentScoreBatchPath }
+			: {}),
+		...(optionalString(input.itemMetadata.argument_mode)
+			? { argument_mode: optionalString(input.itemMetadata.argument_mode) }
 			: {}),
 		...(optionalString(input.itemMetadata.surface_key)
 			? { surface_key: optionalString(input.itemMetadata.surface_key) }

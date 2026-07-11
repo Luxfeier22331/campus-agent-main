@@ -9,16 +9,19 @@ import {
 } from "../../version-query";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
-import { resultEvidenceSources } from "./normalize-source-items";
-import { resolveRequestedToolForSurface } from "./tool-policy";
-import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
+import { resultSources } from "./normalize-source-items";
+import type {
+	ChatCommandPayload,
+	ChatCommandRequestKind,
+	InternalEvalChatCommandPayload,
+	ValidatedChatCommandPayload,
+} from "./types";
 
 export { normalizeSourceItemsPart } from "./normalize-source-items";
 
 export {
 	normalizeCampusServiceTracePart,
 	normalizeChatResponseStructuredParts,
-	normalizePlaceCardPart,
 } from "./normalize-structured-parts";
 
 function normalizeString(value: unknown): string {
@@ -53,9 +56,6 @@ export function previewText(text: string, maxLength = 160): string {
 	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 }
 
-const INTERNAL_LOCATOR_BRACKET_PATTERN =
-	/\[[^\]\n]*(?:source-faithful|chunk-[a-z0-9_-]+|(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_rules|service_catalog|campus_services|authenticated_notice|internal_notice|notice):[^\]\n#]*#[^\]\n]*)[^\]\n]*\]/giu;
-
 const INTERNAL_LOCATOR_PATTERNS = [
 	/source-faithful/iu,
 	/\b(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_rules|service_catalog|campus_services|authenticated_notice|internal_notice|notice):/iu,
@@ -66,21 +66,11 @@ const INTERNAL_LOCATOR_PATTERNS = [
 	/\bs3:\/\//iu,
 ];
 
-function collapseAssistantTextWhitespace(text: string): string {
-	return text
-		.replace(/\s{2,}/g, " ")
-		.replace(/[ \t]+([，。；：！？])/g, "$1")
-		.replace(/([（【《“‘])\s+/g, "$1")
-		.replace(/\s+([）】》”’])/g, "$1")
-		.trim();
-}
-
 export function sanitizePublicAssistantText(input: {
 	status: ToolExecutionResponse["status"];
 	text: string;
 }): string {
-	const normalized = normalizeString(input.text);
-	if (!normalized) {
+	if (!input.text.trim()) {
 		throw new AppApiRouteError({
 			code: "execution_invalid_public_response",
 			message: `execution returned an empty public answer text for status ${input.status}.`,
@@ -89,18 +79,7 @@ export function sanitizePublicAssistantText(input: {
 		});
 	}
 
-	const stripped = collapseAssistantTextWhitespace(
-		normalized.replace(INTERNAL_LOCATOR_BRACKET_PATTERN, "").replace(/\s+\]/g, "]"),
-	);
-	if (!stripped) {
-		throw new AppApiRouteError({
-			code: "execution_invalid_public_response",
-			message: "Execution public answer text became empty after locator scrubbing.",
-			retryable: true,
-			status: 502,
-		});
-	}
-	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(stripped))) {
+	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(input.text))) {
 		throw new AppApiRouteError({
 			code: "execution_invalid_public_response",
 			message: "Execution public answer text leaked internal locator content.",
@@ -108,22 +87,40 @@ export function sanitizePublicAssistantText(input: {
 			status: 502,
 		});
 	}
-	return stripped;
+	return input.text;
 }
 
-function normalizeRequestedScope(value: unknown): RequestedScope | null {
-	if (!value || typeof value !== "object") {
-		return null;
-	}
+function normalizeRequestedTool(value: unknown): string | null {
+	const tool = normalizeString(value);
+	return tool || null;
+}
 
-	const scope = value as Record<string, unknown>;
-	const corpus = normalizeString(scope.corpus);
-	const collection = normalizeString(scope.collection);
-	if (!(corpus && collection)) {
-		return null;
+function assertSupportedPayloadFields(
+	payload: ChatCommandPayload | InternalEvalChatCommandPayload,
+	requestKind: ChatCommandRequestKind,
+): void {
+	const supportedFields = new Set(["conversationId", "prompt"]);
+	if (requestKind === "internal_eval") {
+		supportedFields.add("requestedTool");
+		supportedFields.add("scope");
+		supportedFields.add("versionQuery");
 	}
+	for (const field of Object.keys(payload as Record<string, unknown>)) {
+		if (supportedFields.has(field)) {
+			continue;
+		}
+		throw createPreAcceptError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} is not supported.`,
+			status: 422,
+		});
+	}
+}
 
-	return { corpus, collection };
+function normalizeKnowledgeScope(value: unknown): RequestedScope | null {
+	const scope = normalizeString(value);
+	return scope || null;
 }
 
 function resolveSafetyIdentifierSource(principal: ResolvedAppPrincipal): string | null {
@@ -158,7 +155,7 @@ export function extractSourceDocIds(result: unknown): string[] {
 		return [];
 	}
 
-	const sources = resultEvidenceSources(result);
+	const sources = resultSources(result);
 	if (sources.length === 0) {
 		return [];
 	}
@@ -177,9 +174,10 @@ export function extractSourceDocIds(result: unknown): string[] {
 }
 
 export function resolveValidatedPayload(
-	payload: ChatCommandPayload,
-	input: { surface: string },
+	payload: ChatCommandPayload | InternalEvalChatCommandPayload,
+	input: { requestKind: ChatCommandRequestKind },
 ): ValidatedChatCommandPayload {
+	assertSupportedPayloadFields(payload, input.requestKind);
 	const conversationId = normalizeString(payload.conversationId) || null;
 
 	const prompt = normalizeString(payload.prompt);
@@ -192,15 +190,19 @@ export function resolveValidatedPayload(
 		});
 	}
 
-	const requestedTool = resolveRequestedToolForSurface({
-		requestedTool: payload.requestedTool,
-		surface: input.surface,
-	});
-
-	const requestedScope = normalizeRequestedScope(payload.requestedScope);
+	const internalPayload = payload as InternalEvalChatCommandPayload;
+	const requestedTool =
+		input.requestKind === "internal_eval"
+			? normalizeRequestedTool(internalPayload.requestedTool)
+			: null;
+	const requestedScope =
+		input.requestKind === "internal_eval" ? normalizeKnowledgeScope(internalPayload.scope) : null;
 	let versionQuery: VersionQuery | null;
 	try {
-		versionQuery = normalizeVersionQuery(payload.versionQuery);
+		versionQuery =
+			input.requestKind === "internal_eval"
+				? normalizeVersionQuery(internalPayload.versionQuery)
+				: null;
 	} catch (error) {
 		if (error instanceof VersionQueryValidationError) {
 			throw createPreAcceptError({

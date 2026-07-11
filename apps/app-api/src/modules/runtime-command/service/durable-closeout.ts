@@ -20,6 +20,20 @@ type ReconcileDurableCloseoutsInput = NonNullable<
 >;
 
 function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedChatCommandContext {
+	const requestKind = candidate.surface === "eval_benchmark" ? "internal_eval" : "public_chat";
+	const payload =
+		requestKind === "internal_eval"
+			? {
+					conversationId: candidate.conversation.id,
+					prompt: candidate.questionPreview,
+					requestedTool: candidate.requestedTool,
+					scope: candidate.requestedScope,
+					versionQuery: candidate.versionQuery,
+				}
+			: {
+					conversationId: candidate.conversation.id,
+					prompt: candidate.questionPreview,
+				};
 	return {
 		acceptedAt: candidate.acceptedAt,
 		branchId: candidate.conversation.activeBranchId ?? "branch_active",
@@ -27,15 +41,9 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 		conversationTitle: candidate.conversationTitle,
 		idempotencyKey: candidate.idempotencyKey,
 		input: {
-			payload: {
-				conversationId: candidate.conversation.id,
-				prompt: candidate.questionPreview,
-				requestedTool: candidate.requestedTool,
-				requestedScope: candidate.requestedScope,
-				versionQuery: candidate.versionQuery,
-			},
+			payload,
 			principal: candidate.principal,
-			surface: candidate.surface,
+			requestKind,
 		},
 		requestFingerprintSha256: candidate.requestFingerprintSha256,
 		requestId: candidate.requestId,

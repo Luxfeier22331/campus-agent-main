@@ -10,6 +10,8 @@ import (
 const (
 	transportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
 	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
+	knowledgePayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQueryPayload"
+	knowledgeResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeAgentTerminalResult"
 )
 
 func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
@@ -22,10 +24,8 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolRegistrySchemaVersion)
 	}
 	wantVisible := []string{
-		"knowledge_query",
-		"public_web_search",
 		"transport_schedule_lookup",
-		"campus_notice_discover",
+		"knowledge_query",
 	}
 	if got := registry.ModelVisibleToolNames(); !sameStrings(got, wantVisible) {
 		t.Fatalf("model-visible tools = %#v, want %#v", got, wantVisible)
@@ -33,32 +33,17 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/campus-services/transport-schedule"); !sameStrings(got, []string{"transport_schedule_lookup"}) {
 		t.Fatalf("transport endpoint tools = %#v, want transport_schedule_lookup", got)
 	}
-	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/public-web/search"); !sameStrings(got, []string{"public_web_search"}) {
-		t.Fatalf("public web endpoint tools = %#v, want public_web_search", got)
-	}
-	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/notices/discover"); !sameStrings(got, []string{"campus_notice_discover"}) {
-		t.Fatalf("discover endpoint tools = %#v, want campus_notice_discover", got)
-	}
-	noticeGet, ok := registry.ToolByName("campus_notice_get")
-	if !ok {
-		t.Fatal("campus_notice_get missing from tool registry")
-	}
-	if noticeGet.Exposure != "internal_only" || !noticeGet.ReadOnly {
-		t.Fatalf("campus_notice_get exposure/read_only = %q/%t, want internal_only/read_only", noticeGet.Exposure, noticeGet.ReadOnly)
-	}
 	if _, ok := registry.ToolByName("retrieval.query"); ok {
 		t.Fatal("retrieval.query must not be registered as a tool")
 	}
-	if _, ok := registry.ModelVisibleToolByName("campus_notice_get"); ok {
-		t.Fatal("campus_notice_get must not be model-visible")
+	knowledgeTool, ok := registry.ModelVisibleToolByName("knowledge_query")
+	if !ok {
+		t.Fatal("knowledge_query must be model-visible")
 	}
-	for _, removedTool := range []string{"campus_notice_period_summary", "campus_notice_change_set_lookup"} {
-		if _, ok := registry.ToolByName(removedTool); ok {
-			t.Fatalf("%s must not be registered", removedTool)
-		}
-		if _, ok := registry.ModelVisibleToolByName(removedTool); ok {
-			t.Fatalf("%s must not be model-visible", removedTool)
-		}
+	if knowledgeTool.Handler.Type != "agent_handoff" ||
+		knowledgeTool.Handler.Target != "knowledge_agent" ||
+		knowledgeTool.Handler.Endpoint != "" {
+		t.Fatalf("knowledge_query handler = %#v, want handoff without endpoint", knowledgeTool.Handler)
 	}
 }
 
@@ -125,9 +110,14 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			want: "handler.endpoint must be an /internal/ path",
 		},
 		{
-			name: "workflow signal endpoint",
-			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "workflow_signal", "/internal/query/test")),
-			want: "workflow_signal handler must not declare endpoint",
+			name: "handoff endpoint present",
+			body: registryJSON(validKnowledgeHandoffToolJSON("knowledge_query", "/internal/query/knowledge")),
+			want: "handler.endpoint must be empty for agent_handoff",
+		},
+		{
+			name: "unsupported retired internal route handler",
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "workflow_signal", "")),
+			want: "handler.type is unsupported",
 		},
 		{
 			name: "closed requires approval",
@@ -157,6 +147,25 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			}
 		})
 	}
+}
+
+func validKnowledgeHandoffToolJSON(name string, endpoint string) string {
+	handler := `{"type":"agent_handoff","target":"knowledge_agent"}`
+	if endpoint != "" {
+		handler = `{"type":"agent_handoff","target":"knowledge_agent","endpoint":"` + endpoint + `"}`
+	}
+	return `{
+	  "name": "` + name + `",
+	  "description": "Handoff campus knowledge questions to governed RAG.",
+	  "exposure": "model_visible",
+	  "read_only": true,
+	  "requires_approval": false,
+	  "payload_schema_ref": "` + knowledgePayloadSchemaRef + `",
+	  "result_schema_ref": "` + knowledgeResultSchemaRef + `",
+	  "handler": ` + handler + `,
+	  "timeout_ms": 1000,
+	  "result_projection_policy": "bounded_json"
+	}`
 }
 
 func registryJSON(toolJSON string) string {

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0032
 status: accepted
 created: 2026-04-09
-updated: 2026-07-04
+updated: 2026-07-08
 ---
 # ADR-0032 Internal Notice Notice-Family Stratified Admission
 
@@ -227,7 +227,7 @@ portal `notice_type` 只允许作为粗 prior，不允许充当最终 family tru
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
-- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+- `docs/reference/institutional-rules-promotion.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`
 - `configs/ingestion/campus_notices/internal_notice/notice-family-classification

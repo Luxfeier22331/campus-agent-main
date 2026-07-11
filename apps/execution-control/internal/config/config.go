@@ -34,7 +34,6 @@ type Config struct {
 	ExecutionCancelTimeoutMS          int
 	ShutdownGraceMS                   int
 	MetricsBearerToken                string
-	IntentPolicyPath                  string
 	OTelEnabled                       bool
 	OTelEndpoint                      string
 	OTelMetricsEnabled                bool
@@ -50,10 +49,6 @@ type Config struct {
 	ExecutionAuditURL                 string
 	ExecutionAuditSharedSecret        string
 	ExecutionAuditTimeoutMS           int
-	OpenTools                         []string
-	MultiStepWorkflowEnabled          bool
-	WorkflowRunDatabaseURL            string
-	WorkflowRunAutoMigrate            bool
 	RunProjectionDatabaseURL          string
 	RunProjectionAutoMigrate          bool
 	TemporalAddress                   string
@@ -75,31 +70,13 @@ type Config struct {
 	ToolReadModelTrustedTimeRFC3339   string
 	ToolReadModelTimeoutMS            int
 	StructuredProjectionDatabaseURL   string
-	ProviderPricingPath               string
-	NoticeReadModelDatabaseURL        string
-	NoticeReadModelTable              string
-	ReplayObjectStoreEndpoint         string
-	ReplayObjectStoreAccessKey        string
-	ReplayObjectStoreSecretKey        string
-	ReplayObjectStoreRegion           string
-	ReplayObjectStoreBucket           string
-	ReplayObjectStorePrefix           string
-	ReplayObjectStoreEncryptionKeyRef string
 	QdrantURL                         string
 	QdrantQueryAPIKey                 string
 	QdrantTLSCACertPath               string
 	QdrantTimeoutSeconds              float64
 	RAGTopKMax                        int
-	RAGSelectedEvidenceMax            int
-	RAGRetrievalMaxConcurrent         int
-	RAGSynthesisMaxConcurrent         int
 	RAGEmbeddingTimeoutMS             int
 	RAGQdrantTimeoutMS                int
-	RAGProviderTimeoutMS              int
-	RAGSynthesisMaxOutputTokens       int
-	RAGSynthesisReasoningEffort       string
-	RAGSynthesisStoreProviderOutput   bool
-	RAGSynthesisTextVerbosity         string
 	WorkerProfiles                    map[string]WorkerProfile
 	PersonalMemoryRuntime             string
 	PersonalMemoryBaseURL             string
@@ -138,7 +115,6 @@ type envValues struct {
 	RequestBodyLimitBytes             int64
 	ShutdownGraceMS                   int
 	MetricsBearerToken                string `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
-	IntentPolicyPath                  string
 	OTelEndpoint                      string
 	OTelMetricsEndpoint               string
 	OTelHeaders                       string `env:"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"`
@@ -151,7 +127,6 @@ type envValues struct {
 	ExecutionAuditURL                 string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_URL"`
 	ExecutionAuditSharedSecret        string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"`
 	ExecutionAuditTimeoutMS           int
-	WorkflowRunDatabaseURL            string `env:"EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL"`
 	RunProjectionDatabaseURL          string `env:"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"`
 	TemporalAddress                   string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
 	TemporalNamespace                 string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
@@ -171,30 +146,13 @@ type envValues struct {
 	InternalQuerySharedSecret         string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	ToolReadModelTrustedTimeRFC3339   string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
 	ToolReadModelTimeoutMS            int
-	ProviderPricingPath               string
-	NoticeReadModelTable              string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
-	ReplayObjectStoreEndpoint         string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENDPOINT"`
-	ReplayObjectStoreAccessKey        string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ACCESS_KEY"`
-	ReplayObjectStoreSecretKey        string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_SECRET_KEY"`
-	ReplayObjectStoreRegion           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
-	ReplayObjectStoreBucket           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_BUCKET"`
-	ReplayObjectStorePrefix           string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_PREFIX"`
-	ReplayObjectStoreEncryptionKeyRef string  `env:"EXECUTION_CONTROL_REPLAY_OBJECT_STORE_ENCRYPTION_KEY_REF"`
 	QdrantURL                         string  `env:"QDRANT_URL"`
 	QdrantQueryAPIKey                 string  `env:"QDRANT_QUERY_API_KEY"`
 	QdrantTLSCACertPath               string  `env:"QDRANT_TLS_CA_CERT_PATH"`
 	QdrantTimeoutSeconds              float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
 	RAGTopKMax                        int
-	RAGSelectedEvidenceMax            int
-	RAGRetrievalMaxConcurrent         int
-	RAGSynthesisMaxConcurrent         int
 	RAGEmbeddingTimeoutMS             int
 	RAGQdrantTimeoutMS                int
-	RAGProviderTimeoutMS              int
-	RAGSynthesisMaxOutputTokens       int
-	RAGSynthesisReasoningEffort       string
-	RAGSynthesisStoreProviderOutput   bool
-	RAGSynthesisTextVerbosity         string
 	PersonalMemoryRuntime             string
 	PersonalMemoryBaseURL             string `env:"PERSONAL_MEMORY_BASE_URL"`
 	PersonalMemoryAPISecret           string `env:"PERSONAL_MEMORY_API_SECRET"`
@@ -250,26 +208,11 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := validateEnvValues(values, runtimeMode, runtimeRole, otelEnabled); err != nil {
 		return Config{}, err
 	}
-	workerProfiles, err := readWorkerProfilesStrict(values)
+	workerProfiles, err := readWorkerProfilesStrict()
 	if err != nil {
 		return Config{}, err
 	}
 	workerProfiles, err = applyRuntimeConfigWorkerProfiles(workerProfiles, runtimeConfigFile)
-	if err != nil {
-		return Config{}, err
-	}
-	var openTools []string
-	if runtimeConfigFile.OpenTools != nil {
-		openTools, err = validateOpenTools(runtimeConfigFile.OpenTools)
-		if err != nil {
-			return Config{}, err
-		}
-	}
-	multiStepWorkflowEnabled := boolFromRuntimeConfig(
-		runtimeConfigFile.MultiStepWorkflowEnabled,
-		false,
-	)
-	workflowRunAutoMigrate, err := readBoolStrict("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -321,7 +264,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		RequestBodyLimitBytes:             values.RequestBodyLimitBytes,
 		ShutdownGraceMS:                   values.ShutdownGraceMS,
 		MetricsBearerToken:                strings.TrimSpace(values.MetricsBearerToken),
-		IntentPolicyPath:                  strings.TrimSpace(values.IntentPolicyPath),
 		OTelEnabled:                       otelEnabled,
 		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),
 		OTelMetricsEnabled:                otelMetricsEnabled,
@@ -337,10 +279,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ExecutionAuditURL:                 strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:        strings.TrimSpace(values.ExecutionAuditSharedSecret),
 		ExecutionAuditTimeoutMS:           values.ExecutionAuditTimeoutMS,
-		OpenTools:                         openTools,
-		MultiStepWorkflowEnabled:          multiStepWorkflowEnabled,
-		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
-		WorkflowRunAutoMigrate:            workflowRunAutoMigrate,
 		RunProjectionDatabaseURL:          readRunProjectionDatabaseURL(values),
 		RunProjectionAutoMigrate:          runProjectionAutoMigrate,
 		TemporalAddress:                   strings.TrimSpace(values.TemporalAddress),
@@ -362,31 +300,13 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ToolReadModelTrustedTimeRFC3339:   strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
 		ToolReadModelTimeoutMS:            values.ToolReadModelTimeoutMS,
 		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),
-		ProviderPricingPath:               strings.TrimSpace(values.ProviderPricingPath),
-		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
-		NoticeReadModelTable:              defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
-		ReplayObjectStoreEndpoint:         strings.TrimSpace(values.ReplayObjectStoreEndpoint),
-		ReplayObjectStoreAccessKey:        strings.TrimSpace(values.ReplayObjectStoreAccessKey),
-		ReplayObjectStoreSecretKey:        strings.TrimSpace(values.ReplayObjectStoreSecretKey),
-		ReplayObjectStoreRegion:           defaultString(strings.TrimSpace(values.ReplayObjectStoreRegion), "us-east-1"),
-		ReplayObjectStoreBucket:           strings.TrimSpace(values.ReplayObjectStoreBucket),
-		ReplayObjectStorePrefix:           strings.Trim(strings.TrimSpace(values.ReplayObjectStorePrefix), "/"),
-		ReplayObjectStoreEncryptionKeyRef: strings.TrimSpace(values.ReplayObjectStoreEncryptionKeyRef),
 		QdrantURL:                         strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantQueryAPIKey:                 strings.TrimSpace(values.QdrantQueryAPIKey),
 		QdrantTLSCACertPath:               strings.TrimSpace(values.QdrantTLSCACertPath),
 		QdrantTimeoutSeconds:              values.QdrantTimeoutSeconds,
 		RAGTopKMax:                        values.RAGTopKMax,
-		RAGSelectedEvidenceMax:            values.RAGSelectedEvidenceMax,
-		RAGRetrievalMaxConcurrent:         values.RAGRetrievalMaxConcurrent,
-		RAGSynthesisMaxConcurrent:         values.RAGSynthesisMaxConcurrent,
 		RAGEmbeddingTimeoutMS:             values.RAGEmbeddingTimeoutMS,
 		RAGQdrantTimeoutMS:                values.RAGQdrantTimeoutMS,
-		RAGProviderTimeoutMS:              values.RAGProviderTimeoutMS,
-		RAGSynthesisMaxOutputTokens:       values.RAGSynthesisMaxOutputTokens,
-		RAGSynthesisReasoningEffort:       strings.TrimSpace(values.RAGSynthesisReasoningEffort),
-		RAGSynthesisStoreProviderOutput:   values.RAGSynthesisStoreProviderOutput,
-		RAGSynthesisTextVerbosity:         strings.TrimSpace(values.RAGSynthesisTextVerbosity),
 		WorkerProfiles:                    workerProfiles,
 		PersonalMemoryRuntime:             defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "hindsight"),
 		PersonalMemoryBaseURL:             strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
@@ -423,14 +343,9 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		{"runtime config tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},
-		{"runtime config rag.top_k_max", values.RAGTopKMax},
-		{"runtime config rag.selected_evidence_max", values.RAGSelectedEvidenceMax},
-		{"runtime config rag.retrieval_max_concurrent", values.RAGRetrievalMaxConcurrent},
-		{"runtime config rag.synthesis_max_concurrent", values.RAGSynthesisMaxConcurrent},
-		{"runtime config rag.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
-		{"runtime config rag.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
-		{"runtime config rag.provider_timeout_ms", values.RAGProviderTimeoutMS},
-		{"runtime config rag.synthesis_generation.max_output_tokens", values.RAGSynthesisMaxOutputTokens},
+		{"runtime config knowledge_search.top_k_max", values.RAGTopKMax},
+		{"runtime config knowledge_search.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
+		{"runtime config knowledge_search.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
 		{"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", values.AppAPIInternalTimeoutMS},
 	}
 	for _, check := range checks {
@@ -461,16 +376,6 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("runtime config otel.sample_ratio must be a number between 0 and 1")
-	}
-	switch strings.TrimSpace(values.RAGSynthesisReasoningEffort) {
-	case "none", "minimal", "low", "medium", "high", "xhigh":
-	default:
-		return fmt.Errorf("runtime config rag.synthesis_generation.reasoning_effort is unsupported")
-	}
-	switch strings.TrimSpace(values.RAGSynthesisTextVerbosity) {
-	case "low", "medium", "high":
-	default:
-		return fmt.Errorf("runtime config rag.synthesis_generation.text_verbosity is unsupported")
 	}
 	if values.TemporalTracingEnabled && !otelEnabled {
 		return fmt.Errorf("runtime config otel.enabled=true is required when otel.temporal_tracing_enabled=true")
@@ -570,8 +475,7 @@ func validatePersonalMemorySettings(
 	}
 	switch role {
 	case "workflow",
-		"activity-agent",
-		"activity-knowledge":
+		"activity-agent":
 		return nil
 	}
 	if strings.TrimSpace(values.PersonalMemoryRuntime) != "" &&
@@ -600,8 +504,6 @@ func normalizeRuntimeRole(value string) string {
 		return "activity-agent"
 	case "activity-core":
 		return "activity-core"
-	case "activity-knowledge":
-		return "activity-knowledge"
 	case "workflow":
 		return "workflow"
 	case "execution-control":

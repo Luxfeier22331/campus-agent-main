@@ -79,13 +79,13 @@ answer 层长期至少保留以下指标族：
 
 ## 决策 4：Workflow 的核心指标族
 
-对 `Execution Agent Layer -> tool -> retrieval / typed tool` 这类 agentic
+对 `Execution Agent Layer -> OpenAI Agents SDK -> function tool / handoff` 这类 agentic
 workflow，长期至少保留以下指标族：
 
 - `status accuracy` `completed`、`needs_clarification`、`no_answer`、`error` 是否与
   truth 一致
 - `intent-frame accuracy` top-level intent / task framing 是否与 truth 一致
-- `routing accuracy` 是否选择了正确的 tool / typed tool，或在不该委派时正确保持不委派
+- `routing accuracy` 是否选择了正确的 SDK tool / handoff，或在不该委派时正确保持不委派
 - `slot completeness / missing-slot accuracy` 是否识别出 cohort、major、campus、target
   policy 等关键缺失信息
 - `clarification accuracy` 是否在应澄清时澄清，不应澄清时不误触发
@@ -126,7 +126,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - `smoke` 优先关注 `Hit@K`、status accuracy、最小 source locator 完整性
 - `regression_locked` 必须覆盖 retrieval、answer、workflow 三层正式指标
 - `release_gate` 必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新
-  agent、routing、handoff、typed tool 或 personalization / memory projection
+  agent、routing、handoff、SDK function tool 或 personalization / memory projection
   时，必须显式覆盖对应维度
 - `exploratory` 允许试验新指标，但试验指标不自动升级为正式门禁
 

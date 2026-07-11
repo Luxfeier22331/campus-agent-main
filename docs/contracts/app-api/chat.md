@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-10
-updated: 2026-06-21
+updated: 2026-07-08
 ---
 # App API Chat Conversation HTTP Contract
 
@@ -233,7 +233,7 @@ Rules:
 - Existing feedback can still be returned in conversation detail.
 - Using feedback for offline analysis or Langfuse / eval import requires a
   separate explicit contract; it is not an implicit Operator Console quality or
-  release-evidence surface.
+  release verdict surface.
 - Rollback should close the browser UI or worker route proxy first, not remove
   the app-api schema or clear existing feedback rows.
 
@@ -248,17 +248,6 @@ Request:
 type ChatRequest = {
   conversationId?: string;
   prompt: string;
-  requestedTool?: string;
-  requestedScope?: {
-    corpus: string;
-    collection: string;
-  };
-  versionQuery?: {
-    mode: "current" | "historical" | "as_of" | "compare";
-    asOf?: string;
-    versionId?: string;
-    compareToVersionId?: string;
-  };
 };
 ```
 
@@ -267,13 +256,12 @@ Rules:
 - `conversationId` is optional; when absent, app-api may lazy-create the
   canonical conversation in the same command path.
 - `prompt` is required and trimmed server-side.
-- `requestedTool` is an explicit tool hint only. Missing `requestedTool` must
-  not be rewritten to `knowledge_query`; app-api forwards neutral caller context
-  and downstream execution-control lets `agent.primary` decide from the admitted
-  visible tool set.
-- `requestedScope` and `versionQuery` belong to the knowledge path. App-api must
-  not invent a default serving scope when they are absent.
-- `versionQuery` participates in the idempotency fingerprint.
+- Public chat rejects `requestedTool`, `scope`, `versionQuery` and every
+  other routing field. App-api forwards authenticated conversation facts;
+  `execution-control` provides the admitted tool catalog and
+  `agent.primary` decides whether to call a tool.
+- Forced `knowledge_query` execution is available only through the trusted
+  internal eval contract in `eval-benchmark.md`.
 - Post-accept execution failures keep request/run correlation and return a
   chat-visible error result; pre-accept rejections use the shared error envelope.
 

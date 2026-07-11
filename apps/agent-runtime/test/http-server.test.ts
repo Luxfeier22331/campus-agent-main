@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
@@ -76,6 +74,7 @@ describe("agent runtime HTTP handler", () => {
 		let observedMemoryContext: unknown;
 		let observedFinalModelContext: unknown;
 		let observedDebugTraceConfig: unknown;
+		let observedAllowedKnowledgeScopes: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
@@ -84,6 +83,7 @@ describe("agent runtime HTTP handler", () => {
 					observedMemoryContext = input.memoryContext;
 					observedFinalModelContext = input.finalModelContext;
 					observedDebugTraceConfig = input.debugTraceConfig;
+					observedAllowedKnowledgeScopes = input.allowedKnowledgeScopes;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 				stream(input) {
@@ -114,8 +114,12 @@ describe("agent runtime HTTP handler", () => {
 								role: "user",
 								content: "转专业条件是什么？",
 							},
+							{
+								message_id: "msg_assistant_002",
+								role: "assistant",
+								content: "上一轮回答的是转专业申请条件。",
+							},
 						],
-						previous_answer_summary: "上一轮回答的是转专业申请条件。",
 						previous_evidence: [
 							{
 								access_scope: "public_student_rule",
@@ -138,6 +142,13 @@ describe("agent runtime HTTP handler", () => {
 								summary: "上一轮查询了图书馆开放状态。",
 							},
 						],
+						session_state: {
+							confirmed_slots: [
+								{ confirmed: true, name: "curriculum_program", value: "计算机科学与技术" },
+							],
+							selected_notice_ref: null,
+							turn_count: 2,
+						},
 						usage_summary: {
 							memory_recall_state: "completed",
 							model_visible_item_count: 6,
@@ -147,6 +158,13 @@ describe("agent runtime HTTP handler", () => {
 					},
 					provider_config: validPromptProviderConfig(),
 					debug_trace_config: validDebugTraceConfig(),
+					allowed_knowledge_scopes: [
+						{
+							scope: "student_rules",
+							description: "学生规则、学籍、奖助处分等正式制度。",
+							allowed_query_modes: ["current"],
+						},
+					],
 				}),
 			}),
 		);
@@ -203,7 +221,13 @@ describe("agent runtime HTTP handler", () => {
 		expect(observedFinalModelContext).toMatchObject({
 			schemaVersion: "final_model_context.v1",
 			currentUserMessage: "那大一能不能申请？",
-			previousAnswerSummary: "上一轮回答的是转专业申请条件。",
+			recentTurns: [
+				expect.objectContaining({ content: "转专业条件是什么？", role: "user" }),
+				expect.objectContaining({
+					content: "上一轮回答的是转专业申请条件。",
+					role: "assistant",
+				}),
+			],
 			previousEvidence: [
 				expect.objectContaining({
 					evidenceId: "ev_transfer_rule_01",
@@ -215,6 +239,13 @@ describe("agent runtime HTTP handler", () => {
 					projectionRef: "projection://runs/run_previous_services/finalization",
 				}),
 			],
+			sessionState: {
+				confirmedSlots: [
+					{ confirmed: true, name: "curriculum_program", value: "计算机科学与技术" },
+				],
+				selectedNoticeRef: null,
+				turnCount: 2,
+			},
 			usageSummary: {
 				memoryRecallState: "completed",
 				modelVisibleItemCount: 6,
@@ -233,6 +264,13 @@ describe("agent runtime HTTP handler", () => {
 			sampleRatio: 1,
 			schemaVersion: "llm_debug_trace_config.v1",
 		});
+		expect(observedAllowedKnowledgeScopes).toEqual([
+			{
+				allowedQueryModes: ["current"],
+				description: "学生规则、学籍、奖助处分等正式制度。",
+				scope: "student_rules",
+			},
+		]);
 	});
 
 	it("rejects incomplete enabled LLM debug trace config at the HTTP boundary", async () => {
@@ -642,39 +680,6 @@ describe("agent runtime HTTP handler", () => {
 		};
 		expect(body.error?.code).toBe("agent_runtime_failed");
 		expect(body.error?.message).toBe("provider request aborted");
-	});
-});
-
-describe("agent runtime server env contract", () => {
-	it("uses AGENT_RUNTIME-prefixed env names for execution-control internal query config", () => {
-		const source = readFileSync(
-			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
-			"utf8",
-		);
-
-		expect(source).toContain("AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL");
-		expect(source).toContain("AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET");
-		expect(source).not.toContain("process.env.EXECUTION_CONTROL_BASE_URL");
-		expect(source).not.toContain("process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
-	});
-
-	it("does not project root provider env into the OpenAI Agents SDK provider", () => {
-		const source = readFileSync(
-			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
-			"utf8",
-		);
-
-		expect(source).not.toContain("createOpenAIAgentsRunnerFromEnv");
-		expect(source).not.toContain("OPENAI_API_KEY");
-	});
-
-	it("does not use agent-runtime env for LLM debug trace config", () => {
-		const source = readFileSync(
-			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
-			"utf8",
-		);
-
-		expect(source).not.toContain("AGENT_RUNTIME_LLM_DEBUG");
 	});
 });
 

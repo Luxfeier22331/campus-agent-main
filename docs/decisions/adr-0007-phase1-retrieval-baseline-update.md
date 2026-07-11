@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0007
 status: accepted
 created: 2026-03-26
-updated: 2026-06-15
+updated: 2026-07-08
 ---
 # ADR-0007 Retrieval Baseline 更新（phase1 为历史命名）
 
@@ -16,7 +16,7 @@ updated: 2026-06-15
 
 - 本文 supersede 早期 `phase-1` 文档中未显式冻结 retrieval strategy 的旧表述
 - handbook embedding / chunking 的运行真相仍以
-  `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
+  `docs/policies/student-rules-chunking.md` 为准
 - retrieval runtime truth 以
   `docs/architecture/system/retrieval-serving.md` 为准
 - 本文早期对 Python knowledge / retrieval package owner 的表述已由
@@ -76,11 +76,12 @@ updated: 2026-06-15
 
 ## 边界
 
-- Go-owned `apps/execution-control` retrieval seam 负责 retrieval strategy selection、
-  query framing、candidate retrieval、fusion、evidence normalization 与 answer-ready
-  evidence projection
-- RAG synthesis / clarification / no-answer / error 映射继续通过 execution-control 的
-  Temporal-visible typed steps 与 repo-owned DTO 承接
+- Go-owned `apps/execution-control` internal `knowledge_search` seam 负责
+  scope/version enforcement、candidate retrieval、fusion/rerank、evidence
+  normalization 与 bounded evidence projection
+- Knowledge Agent 负责 query framing、clarification、answer generation 与
+  evidence-backed terminal output；execution-control 只做 deterministic
+  evidence/source validation 和 terminal projection
 - `packages/contracts` 继续只冻结 `EvidenceBundle` / `EvidenceSource` 等共享
   contract，不泄漏 retrieval backend 类型
 

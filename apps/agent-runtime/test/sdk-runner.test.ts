@@ -1,3 +1,4 @@
+import { RunContext } from "@openai/agents";
 import { describe, expect, it } from "vitest";
 import type { RawCapturePolicy } from "../src/debug-trace.ts";
 import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
@@ -12,7 +13,160 @@ const providerConfig = {
 	transport: "responses",
 };
 
+function knowledgeQueryParameters() {
+	return {
+		type: "object" as const,
+		additionalProperties: false as const,
+		properties: {
+			query_text: { type: "string" },
+			scope: { type: "string" },
+			version_query: {
+				type: ["object", "null"],
+				additionalProperties: false,
+				properties: {
+					mode: { type: "string", enum: ["current", "historical", "as_of", "compare"] },
+					as_of: { type: ["string", "null"] },
+					version_id: { type: ["string", "null"] },
+					compare_to_version_id: { type: ["string", "null"] },
+				},
+				required: ["mode", "as_of", "version_id", "compare_to_version_id"],
+			},
+		},
+		required: ["query_text", "scope", "version_query"],
+	};
+}
+
+function knowledgeSearchParameters() {
+	return {
+		type: "object" as const,
+		additionalProperties: false as const,
+		properties: { query_text: { type: "string" } },
+		required: ["query_text"],
+	};
+}
+
 describe("OpenAI Agents SDK runner adapter", () => {
+	it("uses an official handoff and binds knowledge_search to the admitted run context", async () => {
+		let observedToolContext: unknown;
+		let observedToolArguments: unknown;
+		let observedToolChoice: unknown;
+		const runner = createOpenAIAgentsRunner({
+			runSdk: async (agent, _input, options) => {
+				observedToolChoice = agent.modelSettings.toolChoice;
+				const knowledgeHandoff = agent.handoffs[0];
+				if (!(knowledgeHandoff && "toolName" in knowledgeHandoff)) {
+					throw new Error("knowledge_query handoff is required");
+				}
+				expect(knowledgeHandoff?.toolName).toBe("knowledge_query");
+				expect(knowledgeHandoff?.agentName).toBe("Campus knowledge agent");
+
+				const runContext = new RunContext(options.context);
+				const knowledgeAgent = await knowledgeHandoff?.onInvokeHandoff(
+					runContext,
+					JSON.stringify({
+						query_text: "2024 版计算机专业培养方案的毕业学分要求",
+						scope: "curriculum",
+						version_query: {
+							mode: "historical",
+							as_of: null,
+							version_id: "2024",
+							compare_to_version_id: null,
+						},
+					}),
+				);
+				expect(runContext.context.knowledge).toEqual({
+					queryText: "2024 版计算机专业培养方案的毕业学分要求",
+					scope: "curriculum",
+					versionQuery: {
+						mode: "historical",
+						as_of: null,
+						version_id: "2024",
+						compare_to_version_id: null,
+					},
+				});
+				expect(knowledgeAgent?.tools.map((item: { name: string }) => item.name)).toEqual([
+					"knowledge_search",
+				]);
+
+				const searchTool = knowledgeAgent?.tools[0];
+				if (searchTool?.type !== "function") {
+					throw new Error("knowledge_search function tool is required");
+				}
+				await searchTool.invoke(runContext, JSON.stringify({ query_text: "毕业学分要求" }), {
+					toolCall: {
+						type: "function_call",
+						callId: "call-knowledge-search-1",
+						name: "knowledge_search",
+						arguments: JSON.stringify({ query_text: "毕业学分要求" }),
+					},
+				});
+				return {
+					finalOutput: {
+						kind: "unsupported_by_evidence",
+						answerText: "当前证据不足，无法确认。",
+						reason: "no_evidence",
+					},
+					lastResponseId: "resp-sdk-handoff",
+					newItems: [],
+				};
+			},
+		});
+
+		await runner({
+			input: "2024 版计算机专业培养方案的毕业学分要求是什么",
+			instructions: "Use the knowledge handoff.",
+			tools: [],
+			knowledgeAgent: {
+				handoff: {
+					name: "knowledge_query",
+					description: "Delegate governed campus knowledge questions.",
+					parameters: knowledgeQueryParameters(),
+				},
+				instructions: "Search admitted evidence before answering.",
+				searchTool: {
+					name: "knowledge_search",
+					description: "Search admitted campus knowledge.",
+					parameters: knowledgeSearchParameters(),
+					execute: async (argumentsJson, context) => {
+						observedToolArguments = argumentsJson;
+						observedToolContext = context;
+						return {
+							status: "completed",
+							toolName: "knowledge_search",
+							payloadKind: "knowledge_search",
+							result: {
+								outcome: "no_evidence",
+								evidence: [],
+							},
+							resultRef: "projection://runs/run-sdk-handoff/knowledge/search/1",
+						};
+					},
+				},
+			},
+			allowedKnowledgeScopes: [
+				{
+					scope: "curriculum",
+					description: "培养方案",
+					allowedQueryModes: ["current", "historical", "as_of", "compare"],
+				},
+			],
+			toolChoice: "knowledge_query",
+			requestId: "req-sdk-handoff",
+			runId: "run-sdk-handoff",
+			traceId: "trace-sdk-handoff",
+			providerConfig,
+		});
+
+		expect(observedToolChoice).toBe("knowledge_query");
+		expect(observedToolArguments).toEqual({ query_text: "毕业学分要求" });
+		expect(observedToolContext).toMatchObject({
+			invocationId: "call-knowledge-search-1",
+			knowledge: {
+				scope: "curriculum",
+				versionQuery: { mode: "historical", version_id: "2024" },
+			},
+		});
+	});
 	it("passes configured model and provider to the SDK runner", async () => {
 		const modelProvider = {
 			async getModel() {
@@ -183,10 +337,10 @@ describe("OpenAI Agents SDK runner adapter", () => {
 	it("matches SDK tool outputs by call ID when output items are interleaved", async () => {
 		const firstResult: ToolExecutionResult = {
 			status: "completed",
-			toolName: "campus_notice_discover",
-			payloadKind: "campus_notice_discover",
+			toolName: "fixture_lookup",
+			payloadKind: "fixture_lookup",
 			result: { outcome: "resolved_current" },
-			resultRef: "agent-runtime://run-sdk/tools/campus_notice_discover",
+			resultRef: "agent-runtime://run-sdk/tools/fixture_lookup",
 		};
 		const secondResult: ToolExecutionResult = {
 			status: "completed",
@@ -203,8 +357,8 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					{
 						type: "tool_call_item",
 						rawItem: {
-							name: "campus_notice_discover",
-							callId: "call-notice",
+							name: "fixture_lookup",
+							callId: "call-fixture",
 							arguments: JSON.stringify({ query_text: "班车通知" }),
 						},
 					},
@@ -226,7 +380,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					{
 						type: "tool_call_output_item",
 						rawItem: {
-							callId: "call-notice",
+							callId: "call-fixture",
 							output: JSON.stringify(firstResult),
 						},
 					},
@@ -550,6 +704,52 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			expect.objectContaining({
 				finalOutput: "国家奖学金每学年评审一次。",
 				providerResponseId: "resp-sdk-stream-whitespace",
+			}),
+		]);
+	});
+
+	it("withholds knowledge-agent output until durable finalization", async () => {
+		const runner = createStreamingOpenAIAgentsRunner({
+			runSdkStream: async () => ({
+				completed: Promise.resolve(),
+				currentAgent: { name: "Campus knowledge agent" },
+				finalOutput: {
+					kind: "answer",
+					answerText: "毕业最低学分要求为 160 学分。",
+					evidenceRefs: ["evidence://sha256/example"],
+					resolvedScope: "curriculum",
+				},
+				lastAgent: { name: "Campus knowledge agent" },
+				lastResponseId: "resp-sdk-knowledge-stream",
+				newItems: [],
+				toTextStream: () =>
+					new ReadableStream<string>({
+						start(controller) {
+							controller.enqueue('{"kind":"answer","answerText":"毕业最低学分要求为 160 学分。"}');
+							controller.close();
+						},
+					}),
+				usage: { inputTokens: 24, outputTokens: 12 },
+			}),
+		});
+
+		const events: unknown[] = [];
+		for await (const event of runner({
+			input: "计算机专业毕业需要多少学分？",
+			instructions: "Use the knowledge handoff.",
+			tools: [],
+			requestId: "req-sdk-knowledge-stream",
+			runId: "run-sdk-knowledge-stream",
+			traceId: "trace-sdk-knowledge-stream",
+			providerConfig,
+		})) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			expect.objectContaining({
+				finalOutput: "毕业最低学分要求为 160 学分。",
+				providerResponseId: "resp-sdk-knowledge-stream",
 			}),
 		]);
 	});

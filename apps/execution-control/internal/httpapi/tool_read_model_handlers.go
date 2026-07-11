@@ -34,10 +34,6 @@ func (s *Server) handleToolReadModel(
 	switch tool {
 	case toolreadmodel.ToolTransportScheduleLookup:
 		result = s.toolReadModel.LookupTransportSchedule(ctx, body)
-	case toolreadmodel.ToolCampusNoticeDiscover:
-		result = s.toolReadModel.LookupCampusNoticeDiscover(ctx, body)
-	case toolreadmodel.ToolCampusNoticeGet:
-		result = s.toolReadModel.LookupCampusNoticeGet(ctx, body)
 	default:
 		result = toolreadmodel.Response{
 			StatusCode: http.StatusNotFound,

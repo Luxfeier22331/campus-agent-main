@@ -31,7 +31,7 @@ function providerConnection(
 		connectionId: "provider_connection_1",
 		createdAt: "2026-06-16T00:00:00.000Z",
 		featureConfig: {},
-		features: ["prompt", "embedding", "search"],
+		features: ["prompt", "embedding", "rerank"],
 		provider: "openai-compatible",
 		revision: 1,
 		secretConfigured: true,
@@ -46,25 +46,24 @@ function providerProfile(
 ): ProviderConfigProfile {
 	const { profileId, role, ...restOverrides } = overrides;
 	const kind =
-		role === "public_web_search" ? "search" : role.endsWith("_embedding") ? "embedding" : "prompt";
+		role === "rag_reranker" ? "rerank" : role.endsWith("_embedding") ? "embedding" : "prompt";
 	return {
 		active: false,
-		baseUrl: kind === "search" ? "https://api.perplexity.ai" : "https://provider.example/v1",
+		baseUrl: "https://provider.example/v1",
 		connectionId: "provider_connection_1",
 		createdAt: "2026-06-16T00:00:00.000Z",
 		dimensions: kind === "embedding" ? 2560 : null,
 		kind,
-		model: kind === "embedding" ? "embedding-test" : kind === "search" ? "sonar" : "gpt-test",
+		model: kind === "embedding" ? "embedding-test" : kind === "rerank" ? "rerank-test" : "gpt-test",
 		profileId,
-		provider: kind === "search" ? "perplexity" : "openai-compatible",
+		provider: "openai-compatible",
 		revision: 1,
 		role,
 		secretConfigured: true,
 		secretLast4: "1234",
 		status: "draft",
 		timeoutMs: 30000,
-		transport:
-			kind === "embedding" ? "embeddings" : kind === "search" ? "perplexity_search" : "responses",
+		transport: kind === "embedding" ? "embeddings" : "responses",
 		updatedAt: "2026-06-16T00:00:00.000Z",
 		validation: null,
 		...restOverrides,
@@ -132,12 +131,8 @@ describe("provider config UI", () => {
 					providerProfile({
 						active: true,
 						profileId: "provider_profile_active",
-						role: "rag_synthesis",
+						role: "rag_reranker",
 						status: "active",
-					}),
-					providerProfile({
-						profileId: "provider_profile_public_web_search",
-						role: "public_web_search",
 					}),
 					providerProfile({
 						profileId: "provider_profile_rag_embedding",
@@ -188,8 +183,6 @@ describe("provider config UI", () => {
 		expect(screen.getByText("超时时间")).toBeInTheDocument();
 		expect(screen.getByText("生成模型不需要向量维度")).toBeInTheDocument();
 		expect(screen.getAllByText("主问答生成").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("知识问答生成").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("公开官网搜索").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("记忆生成").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("知识检索向量化").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("索引构建向量化").length).toBeGreaterThan(0);
@@ -202,7 +195,7 @@ describe("provider config UI", () => {
 		expect(screen.queryByText("Model")).not.toBeInTheDocument();
 		expect(screen.queryByText("Dimensions")).not.toBeInTheDocument();
 		expect(screen.queryByText("Timeout ms")).not.toBeInTheDocument();
-		expect(await screen.findByRole("row", { name: /知识问答生成/ })).toHaveTextContent("已启用");
+		expect(await screen.findByRole("row", { name: /知识检索重排/ })).toHaveTextContent("已启用");
 	});
 
 	it("shows validation failures on the affected profile row", async () => {
@@ -212,7 +205,7 @@ describe("provider config UI", () => {
 				mockProfileList([
 					providerProfile({
 						profileId: "provider_profile_draft",
-						role: "rag_synthesis",
+						role: "primary_agent",
 						status: "draft",
 					}),
 				]),
@@ -231,7 +224,7 @@ describe("provider config UI", () => {
 
 		const { container } = renderWithQueryClient(<ProviderConfigPage />);
 
-		const row = await findProfileRow(container, "知识问答生成");
+		const row = await findProfileRow(container, "主问答生成");
 		fireEvent.click(within(row).getByRole("button", { name: "校验" }));
 
 		await waitFor(() => {
@@ -317,7 +310,7 @@ describe("provider config UI", () => {
 		expect(profilePayload).not.toHaveProperty("baseUrl");
 	});
 
-	it("exposes admitted public web search provider identities in the connection form", async () => {
+	it("exposes current model provider identities in the connection form", async () => {
 		vi.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(mockConnectionList([]))
 			.mockResolvedValueOnce(mockProfileList([]));
@@ -325,38 +318,6 @@ describe("provider config UI", () => {
 		renderWithQueryClient(<ProviderConfigPage />);
 
 		await screen.findByText("暂无模型服务连接");
-		expect(selectOptionsForLabel("服务类型")).toEqual([
-			"OpenAI-compatible",
-			"OpenAI",
-			"Perplexity",
-			"Perplexity-compatible",
-			"Gemini",
-		]);
-	});
-
-	it("shows the admitted public web search transport for configured search profiles", async () => {
-		vi.spyOn(globalThis, "fetch")
-			.mockResolvedValueOnce(mockConnectionList([]))
-			.mockResolvedValueOnce(
-				mockProfileList([
-					providerProfile({
-						profileId: "provider_profile_gemini_search",
-						provider: "gemini",
-						role: "public_web_search",
-						transport: "gemini_google_search",
-					}),
-					providerProfile({
-						profileId: "provider_profile_openai_search",
-						provider: "openai",
-						role: "public_web_search",
-						transport: "openai_responses_web_search",
-					}),
-				]),
-			);
-
-		renderWithQueryClient(<ProviderConfigPage />);
-
-		expect(await screen.findByText("Gemini Google Search")).toBeInTheDocument();
-		expect(screen.getByText("OpenAI Responses Web Search")).toBeInTheDocument();
+		expect(selectOptionsForLabel("服务类型")).toEqual(["OpenAI-compatible", "OpenAI"]);
 	});
 });

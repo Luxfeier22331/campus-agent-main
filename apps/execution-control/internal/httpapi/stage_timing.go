@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -31,29 +32,21 @@ func (s *Server) stageTimingForRun(
 	}
 	for _, attempt := range attempts {
 		duration := stepAttemptDuration(attempt)
-		switch attempt.StepID {
-		case "memory.recall":
-			addStageTimingDuration(timing, "memory.recall_ms", duration)
-		case "agent.primary":
-			addStageTimingDuration(timing, "agent.primary_ms", duration)
-		case "typed_tool.execute":
+		stepID := strings.TrimSpace(attempt.StepID)
+		switch {
+		case strings.HasPrefix(stepID, "knowledge.search."):
+			addStageTimingDuration(timing, "knowledge.search_ms", duration)
+			addStageTimingDuration(timing, "tool.total_ms", duration)
+		case strings.HasPrefix(stepID, "sdk_tool.execute."):
 			addStageTimingDuration(timing, "tool.total_ms", duration)
 			if field := stageTimingToolField(attempt); field != "" {
 				addStageTimingDuration(timing, field, duration)
 			}
-		case "rag.plan":
-			addStageTimingDuration(timing, "rag.plan_ms", duration)
-		case "retrieval.indexed_lookup", "retrieval.live_source_lookup", "evidence.selection":
-			addStageTimingDuration(timing, "rag.lookup_ms", duration)
-		case "rag.rerank":
-			addStageTimingDuration(timing, "rag.rerank_ms", duration)
-		case "synthesis":
-			addStageTimingDuration(timing, "rag.synthesis_ms", duration)
-			addStageTimingDuration(timing, "tool.total_ms", duration)
-			addStageTimingDuration(timing, "tool.knowledge_query_ms", duration)
-		case "grounding.verify":
-			addStageTimingDuration(timing, "rag.grounding_ms", duration)
-		case "finalization.write":
+		case stepID == "memory.recall":
+			addStageTimingDuration(timing, "memory.recall_ms", duration)
+		case stepID == "agent.primary":
+			addStageTimingDuration(timing, "agent.primary_ms", duration)
+		case stepID == "finalization.write":
 			addStageTimingDuration(timing, "finalization.write_ms", duration)
 		}
 	}
@@ -68,13 +61,15 @@ func stageTimingToolField(attempt execution.StepAttemptProjection) string {
 	if tool == "" {
 		tool = stringValue(attempt.SanitizedPayload["tool_name"])
 	}
+	if tool == "" {
+		parts := strings.Split(strings.TrimSpace(attempt.StepID), ".")
+		if len(parts) >= 4 && parts[0] == "sdk_tool" && parts[1] == "execute" {
+			tool = parts[2]
+		}
+	}
 	switch tool {
-	case "knowledge_query":
-		return "tool.knowledge_query_ms"
 	case "transport_schedule_lookup":
 		return "tool.transport_schedule_lookup_ms"
-	case "campus_notice_discover":
-		return "tool.campus_notice_discover_ms"
 	default:
 		return ""
 	}

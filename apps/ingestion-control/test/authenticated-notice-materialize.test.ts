@@ -1,11 +1,8 @@
 import { createHash } from "node:crypto";
 import { parseAuthenticatedNoticeNoticeFamilyConfig } from "ingest-core";
 import { describe, expect, it } from "vitest";
-import {
-	type IngestionTaskEnvelope,
-	type IngestionTaskRegistry,
-	InMemoryIngestionTaskStore,
-} from "../src/index.ts";
+import { InMemoryIngestionTaskStore } from "../src/in-memory-store.ts";
+import type { IngestionTaskEnvelope, IngestionTaskRegistry } from "../src/index.ts";
 import { RustKernelRegistry } from "../src/task-executor";
 import {
 	createAuthenticatedNoticeTsTaskHandlerRegistry,

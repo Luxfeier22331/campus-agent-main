@@ -6,7 +6,7 @@ import type {
 	OfficialWebRunIntent,
 	OfficialWebRunStatus,
 	OfficialWebTerminalRunStatus,
-} from "ingestion-contracts";
+} from "./official-web-lifecycle";
 
 export interface OfficialWebCollectorPrincipal {
 	kind: "service";
@@ -264,6 +264,8 @@ export interface OfficialWebPageChange {
 	pageFamily: string;
 	rawAssetId: string | null;
 	rawVersionId: string | null;
+	selectedWriteTarget?: string | null;
+	targetMatches?: OfficialWebPageTargetMatch[];
 }
 
 export interface OfficialWebRunOutboxWrite {

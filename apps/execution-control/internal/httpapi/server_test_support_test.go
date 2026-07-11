@@ -8,13 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
@@ -35,12 +34,7 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	server := NewServer(config.Config{
-		RAGSelectedEvidenceMax:          8,
-		RAGSynthesisMaxOutputTokens:     900,
-		RAGSynthesisReasoningEffort:     "low",
-		RAGSynthesisStoreProviderOutput: false,
-		RAGSynthesisTextVerbosity:       "low",
-		RAGTopKMax:                      8,
+		RAGTopKMax: 8,
 	})
 	server.observabilityConfigResolver = staticObservabilityConfigResolver{
 		config: llmDebugTraceConfig{
@@ -53,12 +47,6 @@ func newServerForTest() *Server {
 	return server
 }
 
-func newServerForTestWithPublicWebSearchDomains(domains ...string) *Server {
-	server := newServerForTest()
-	server.publicWebSearchDomains = domains
-	return server
-}
-
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
 	server.config.WorkerSharedSecret = "secret"
@@ -68,11 +56,6 @@ func newWorkerAuthServerForTest() *Server {
 func newToolReadModelAuthServerForTest() *Server {
 	return NewServer(config.Config{
 		InternalQuerySharedSecret:       "query-secret",
-		RAGSelectedEvidenceMax:          8,
-		RAGSynthesisMaxOutputTokens:     900,
-		RAGSynthesisReasoningEffort:     "low",
-		RAGSynthesisStoreProviderOutput: false,
-		RAGSynthesisTextVerbosity:       "low",
 		RAGTopKMax:                      8,
 		ToolReadModelTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})
@@ -80,7 +63,7 @@ func newToolReadModelAuthServerForTest() *Server {
 
 func delegateAnswerBody(requestID string) io.Reader {
 	return strings.NewReader(
-		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","requested_scope":{"corpus":"regulations","collection":"student_rules"}}`,
+		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","scope":"student_rules"}`,
 	)
 }
 
@@ -88,7 +71,14 @@ type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
 }
 
-type readyRAGLookupExecutor struct{}
+type readyKnowledgeSearchExecutor struct{}
+
+func publicRetrievalAccessProjectionForTest() retrievalruntime.RetrievalAccess {
+	return retrievalruntime.RetrievalAccess{
+		PolicyProjectionVersion: "phase1-authorization-projection-v1",
+		VisibilityLevel:         "public",
+	}
+}
 
 type readyPersonalMemoryExecutor struct{}
 
@@ -236,28 +226,15 @@ func (readyPersonalMemoryExecutor) DeleteProfileMemoryOwner(
 	})
 }
 
-func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
+func (readyKnowledgeSearchExecutor) HealthCheck(context.Context) error {
 	return nil
 }
 
-func (readyRAGLookupExecutor) Lookup(
+func (readyKnowledgeSearchExecutor) Search(
 	context.Context,
-	ragruntime.PlanProjection,
-) (ragruntime.RetrievalLookupResult, error) {
-	return ragruntime.RetrievalLookupResult{}, nil
-}
-
-type readyRAGSynthesisExecutor struct{}
-
-func (readyRAGSynthesisExecutor) HealthCheck(context.Context) error {
-	return nil
-}
-
-func (readyRAGSynthesisExecutor) ExecuteRAGSynthesis(
-	context.Context,
-	ragSynthesisPacket,
-) (ragSynthesisResult, error) {
-	return ragSynthesisResult{}, nil
+	retrievalruntime.SearchRequest,
+) (retrievalruntime.SearchResult, error) {
+	return retrievalruntime.SearchResult{}, nil
 }
 
 func (readyTemporalStarter) StartToolExecutionWorkflow(
@@ -299,36 +276,6 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Pollers: 1,
 				Healthy: true,
 			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
 		},
 	}
 }
@@ -338,38 +285,11 @@ func markTemporalReadyForTest(server *Server) {
 	server.temporalStarterErr = nil
 }
 
-func markRAGRuntimeReadyForTest(server *Server) {
+func markKnowledgeRuntimeReadyForTest(server *Server) {
 	server.personalMemoryExecutor = readyPersonalMemoryExecutor{}
 	server.personalMemoryErr = nil
-	server.ragLookupExecutor = readyRAGLookupExecutor{}
-	server.ragLookupErr = nil
-	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}
-	server.ragSynthesisErr = nil
-	server.ragVersionResolver = fakeRAGVersionResolver{}
-}
-
-func attachReadyRAGVersionResolverForTest(server *Server) {
-	server.ragVersionResolver = fakeRAGVersionResolver{}
-}
-
-func providerPricingCatalogForTest(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "provider-pricing.v1.json")
-	body := `{
-		"schema_version":"provider-pricing-v1",
-		"currency":"USD",
-		"models":[{
-			"provider":"openai",
-			"model":"gpt-5-mini",
-			"input_microusd_per_1k_tokens":250,
-			"cached_input_microusd_per_1k_tokens":25,
-			"output_microusd_per_1k_tokens":2000
-		}]
-	}`
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("write provider pricing catalog: %v", err)
-	}
-	return path
+	server.knowledgeSearchExecutor = readyKnowledgeSearchExecutor{}
+	server.knowledgeSearchErr = nil
 }
 
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
@@ -378,8 +298,6 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 		AppName:                    "campus-agent",
 		MaxConcurrentAnswers:       8,
 		ProviderConfigSnapshotPath: writeProviderProjectionForTest(t),
-		ProviderPricingPath:        providerPricingCatalogForTest(t),
-		RAGSelectedEvidenceMax:     8,
 		RAGTopKMax:                 8,
 	}
 	for _, mutate := range mutators {
@@ -392,8 +310,30 @@ func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Serv
 	t.Helper()
 	server := NewServer(readyServerConfigForTest(t, mutators...))
 	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+	markKnowledgeRuntimeReadyForTest(server)
+	useReadyTransportReadModelRuntimeFixture(t, server)
 	return server
+}
+
+func useReadyTransportReadModelRuntimeFixture(t *testing.T, server *Server) {
+	t.Helper()
+	useToolReadModelRuntimeFixture(
+		t,
+		server,
+		`{
+			"schema_version":"campus_services_projection_bundle.v1",
+			"transport_schedule_snapshots":[
+				{
+					"snapshot_id":"snapshot:bus:ready-test",
+					"published_at":"2026-04-20T18:00:00+08:00",
+					"effective_from":"2026-04-21T00:00:00+08:00",
+					"source_ref":"ready-test:transport-schedule",
+					"is_current":true
+				}
+			]
+		}`,
+		"2026-04-24T10:30:00+08:00",
+	)
 }
 
 func writeToolReadModelProjectionFixture(t *testing.T, body string) string {

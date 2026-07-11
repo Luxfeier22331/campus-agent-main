@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-07-05
+updated: 2026-07-08
 ---
 # Authenticated Notice Source Architecture
 
@@ -205,9 +205,9 @@ object refs。`run_id`、site id 与 source surface 只用于 idempotency、audi
 operator projection 与 ledger correlation，不能作为 ingestion executor 的隐式 lookup
 input。
 
-历史代码中曾存在的 `inline` collector-run task envelope 已作为 staged migration
-residue 移除。剩余迁移完成判据是 verified internal-portal capture release 通过
-object-store refs 被 `apps/ingestion-control` admit / claim / execute / complete，并产出
+历史代码中曾存在的 `inline` collector-run task envelope 已移除。当前边界要求
+verified internal-portal capture release 通过 object-store refs 被
+`apps/ingestion-control` admit / claim / execute / complete，并产出
 `authenticated_notice_source_truth.v1` artifact closeout。
 
 local bundle / manifest path 只允许作为显式 dev/assertion 输入，不是 Docker mainline 的成功形态。
@@ -341,9 +341,8 @@ canonical document registry，不再通过 Python file-release inventory / expor
   `docs/data/wechat-official.md`
 - authenticated notice processing app-api seam：
   `docs/contracts/app-api-notice.md`
-- notice discover/get runtime seam：`docs/contracts/campus-notice-runtime-contract.md`
 - file-release collector export contract：
-  `docs/contracts/authenticated-notice-file-release-export.md`
+  `docs/contracts/file-release-export.md`
 - shared file asset loader：
   `docs/architecture/system/file-asset-loader.md`
 - shared data-plane invariants：`docs/architecture/system/data-plane.md`

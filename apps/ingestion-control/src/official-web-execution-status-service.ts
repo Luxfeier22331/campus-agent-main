@@ -1,5 +1,5 @@
-import type { OfficialWebIngestionExecutionStatus } from "ingestion-contracts";
 import { OfficialWebControlPlaneError } from "./official-web-control-plane-errors";
+import type { OfficialWebIngestionExecutionStatus } from "./official-web-lifecycle";
 import {
 	toOfficialWebRunProjectionMaterialization,
 	toOfficialWebSiteProjectionMaterialization,

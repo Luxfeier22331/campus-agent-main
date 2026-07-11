@@ -9,7 +9,7 @@ describe("runtime latency budget", () => {
 	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
 		const result = evaluateStageTimingBudget({
 			"agent.runtime_ms": 13_000,
-			"rag.lookup_ms": 2_000,
+			"knowledge.search_ms": 4_000,
 			"request.total_ms": 900,
 		});
 
@@ -25,11 +25,11 @@ describe("runtime latency budget", () => {
 			},
 			{
 				category: "model_provider_or_latency_budget_fix",
-				durationMs: 2_000,
-				field: "rag.lookup_ms",
-				reason: "rag_lookup_too_slow",
+				durationMs: 4_000,
+				field: "knowledge.search_ms",
+				reason: "knowledge_search_too_slow",
 				severity: "warn",
-				thresholdMs: 1_500,
+				thresholdMs: 3_000,
 			},
 		]);
 		expect(result.worstBreach?.field).toBe("agent.runtime_ms");

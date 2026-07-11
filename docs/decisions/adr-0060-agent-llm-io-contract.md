@@ -31,11 +31,10 @@ strict structured output，而不是 prompt 治理产品。
 否则后续实现容易继续把问题误解成“补一份更长的 system prompt”或“新增
 prompt registry / versioning”，而不是修复具体 LLM I/O contract：
 
-- `apps/agent-runtime` primary agent instructions 较薄，且 direct/no-tool final output
-  仍是自由文本终态
-- Go-owned RAG synthesis 已使用 Responses API structured output，但当前 schema 只要求
-  `answer_text`，语义 outcome、confidence 与 grounding refs 仍未成为 provider output
-  contract
+- `apps/agent-runtime` 必须让 primary 与 Knowledge Agent 共用严格 terminal
+  contract，而不是让 handoff 产生另一套自由文本结果
+- Knowledge Agent 的 evidence-backed output 必须显式表达 answer、outcome 与
+  evidence refs；execution-control 不能通过第二次模型调用补齐
 - provider `refusal`、`incomplete`、schema failure 与 invalid structured payload 必须
   fail-close，不能靠消费层默认补齐 semantic outcome 或 confidence
 
@@ -81,7 +80,7 @@ repo-global developer instructions 只表达长期不变量：
 它不承接：
 
 - tool selection protocol
-- retrieval planning details
+- `knowledge_search` scope/version or tool-argument details
 - answer citation rules的字段全集
 - tool opening 或 source-trust 判断
 - provider schema 描述
@@ -116,15 +115,16 @@ primary agent 的 direct/no-tool branch 不得只返回自由文本。模型可�
 - `unsupported_by_evidence`
 - `policy_refusal`
 
-Go finalization 可以把这些语义映射成 product response status、用户可见文案
-与 observability projection，但不得靠空字符串、默认 confidence 或自由文本猜测
-terminal outcome。
+Go finalization 可以校验这些语义并映射 product response status、sources 与
+observability projection，但不得改写 answer text，或靠空字符串、默认 confidence
+猜测 terminal outcome。
 
-### 决策 4：RAG synthesis schema 必须表达 answer 和 grounding 语义
+### 决策 4：Knowledge Agent schema 必须表达 answer 和 evidence 语义
 
-RAG synthesis prompt 不负责重新打开 scope、放宽 source-trust 或执行 retrieval planning。
+Knowledge Agent 不负责重新打开 scope、放宽 source-trust 或绕过 internal
+`knowledge_search`。
 
-RAG synthesis structured output 至少应表达：
+Knowledge Agent structured output 至少应表达：
 
 - `answer_text`
 - `semantic_outcome`
@@ -163,14 +163,9 @@ confidence 或 generic no-answer。
 
 ## 结果
 
-当前在线实现的优先补齐顺序固定为：
-
-1. `apps/agent-runtime` primary agent direct/no-tool terminal envelope。
-2. Go-owned RAG synthesis structured output schema and fail-close parser。
-3. tool descriptions and model-visible schema audit。
-4. offline ingestion prompt consumers 的 confidence / semantic default cleanup。
-
-这些是实现缺口，不是新增 prompt governance 产品。
+当前 online contract 覆盖 primary direct outcome、official Knowledge Agent
+handoff、SDK function tools 与同一 terminal envelope。Execution-control 只执行
+schema/evidence/source validation 和 deterministic projection。
 
 ## 不决定
 
@@ -178,7 +173,6 @@ confidence 或 generic no-answer。
 
 - 新增 prompt versioning / prompt registry / prompt admin UI
 - 把所有 prompt 迁移到 OpenAI hosted prompt template
-- 把 RAG synthesis 迁移到 Agents SDK
 - 让 app-api 或 browser surface 拥有 prompt assembly
 - 用 prompt 替代 tool admission、serving surface、source-trust 或 finalization
 - 任何 eval 平台或 release gate 的上线要求
@@ -190,7 +184,7 @@ confidence 或 generic no-answer。
 - `docs/architecture/system/tool-runtime.md`
 - `docs/architecture/system/execution-agent-layer.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/decisions/adr-0048-temporal.md`
 
 ## 外部参考

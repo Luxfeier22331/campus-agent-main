@@ -4,12 +4,14 @@ truth_scope: data
 owner_boundary: docs/data
 status: active
 created: 2026-04-12
-updated: 2026-06-13
+updated: 2026-07-08
 ---
 # Data
 
 `data/` 保存逻辑 schema、ownership 与数据面边界。它回答“谁拥有哪张表/哪类事实”“哪些字段是
 canonical truth”“哪些只是 projection carrier”。
+跨数据面与运行面流转的稳定流程图见 `../architecture/flows.md`；本目录仍只拥有
+schema / ownership truth。
 
 ## Runtime / App Schema
 
@@ -32,17 +34,13 @@ canonical truth”“哪些只是 projection carrier”。
 - `campus-services-ops.md`
 - `wechat-official.md`
 
-班车时刻表能力的人类 source/update/storage truth 已收口到
+班车时刻表能力的人类 source/update/storage truth 已归属到
 `../domains/transport.md`；机器 schema 仍由 `../../packages/contracts/schemas/`
 承接。
 
 ## Navigation / Entity Data
 
 - `place-catalog.md`
-
-## Retrieval Activity / Evidence Data
-
-- `retrieval-activity.md`
 
 ## Infra Ownership
 

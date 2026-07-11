@@ -82,7 +82,7 @@ ess_denied` 语义继续保持独立。
 
 如果未来确实接受开放域能力，至少需要同时满足以下准入条件：
 
-- 独立 tool boundary 或 explicit agent-as-tool boundary
+- 独立 SDK function-tool boundary 或 official handoff boundary
 - 显式 routing / admission 规则，区分 campus path 与 open-domain path
 - 独立的 policy、prompt、grounding 与 refusal 语义
 - 独立的 eval lane、release gate 与 operator observability 维度

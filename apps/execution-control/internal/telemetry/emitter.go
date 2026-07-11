@@ -23,69 +23,33 @@ import (
 )
 
 type Event struct {
-	ActivityDuration        time.Duration
-	CancelDeliveryStatus    string
-	CanonicalIndexTruth     string
-	CandidateCount          int
-	Collection              string
-	ContextPreflightState   string
-	Corpus                  string
-	CachedInputTokens       int64
-	EstimatedCostMicroUSD   int64
-	EvalAnswer              string
-	EvalCaseID              string
-	EvalQuestion            string
-	EvalReferenceContextIDs []string
-	EvalReferenceContexts   []string
-	EvalRetrievedContextIDs []string
-	EvalRetrievedContexts   []string
-	EvalSurfaceKey          string
-	EvalVariantID           string
-	InputTokens             int64
-	ModelName               string
-	ModelProvider           string
-	Name                    string
-	OutputTokens            int64
-	RequestID               string
-	TraceID                 string
-	ConversationID          string
-	UserID                  string
-	Release                 string
-	DeploymentEnvironment   string
-	RequestedTool           string
-	Outcome                 string
-	Decision                string
-	FailureCode             string
-	FailureKind             string
-	ActivityType            string
-	TaskQueue               string
-	ActivityAttempt         int
-	WorkflowID              string
-	StepKind                string
-	PlanID                  string
-	StatusCode              int
-	Duration                time.Duration
-	QueueWait               time.Duration
-	ScheduleToStart         time.Duration
-	ScopeGateDecision       string
-	PolicyGateDecision      string
-	RoutingNextAction       string
-	PlanningOutcome         string
-	QuerySHA256             string
-	QueryMode               string
-	ReferenceCount          int
-	RetrievalMode           string
-	RunID                   string
-	SelectedTool            string
-	StepID                  string
-	TerminalOutcome         string
-	TerminalState           string
-	FailCloseReason         string
-	Status                  string
-	ProjectionRef           string
-	TargetDocumentIDsCount  int
-	TargetVersionIDsCount   int
-	Latency                 time.Duration
+	ActivityAttempt       int
+	ActivityType          string
+	CachedInputTokens     int64
+	ConversationID        string
+	DeploymentEnvironment string
+	Duration              time.Duration
+	EstimatedCostMicroUSD int64
+	FailCloseReason       string
+	FailureKind           string
+	InputTokens           int64
+	ModelName             string
+	ModelProvider         string
+	Name                  string
+	OutputTokens          int64
+	ProjectionRef         string
+	Release               string
+	RequestID             string
+	RunID                 string
+	ScheduleToStart       time.Duration
+	SelectedTool          string
+	Status                string
+	StepID                string
+	StepKind              string
+	TaskQueue             string
+	TraceID               string
+	UserID                string
+	WorkflowID            string
 }
 type Status struct {
 	Enabled                   bool   `json:"enabled"`
@@ -119,9 +83,7 @@ type Emitter struct {
 	meter                   metric.Meter
 	requestCounter          metric.Int64Counter
 	errorCounter            metric.Int64Counter
-	runtimeDecisionCounter  metric.Int64Counter
 	activityDuration        metric.Float64Histogram
-	queueWaitDuration       metric.Float64Histogram
 	scheduleToStartDuration metric.Float64Histogram
 	logger                  *slog.Logger
 }
@@ -247,52 +209,24 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("langfuse.release", event.Release),
 		attribute.String("langfuse.trace.tags", langfuseTraceTags(event)),
 		attribute.String("deployment.environment", event.DeploymentEnvironment),
-		attribute.Int64("activity_duration_ms", event.ActivityDuration.Milliseconds()),
-		attribute.String("cancel_delivery_status", event.CancelDeliveryStatus),
-		attribute.String("canonical_index_truth", event.CanonicalIndexTruth),
-		attribute.Int("candidate_count", event.CandidateCount),
-		attribute.String("context_preflight_state", event.ContextPreflightState),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),
-		attribute.String("requested_tool", event.RequestedTool),
-		attribute.String("outcome", event.Outcome),
-		attribute.String("plan_id", event.PlanID),
-		attribute.String("planning_outcome", event.PlanningOutcome),
-		attribute.String("query_sha256", event.QuerySHA256),
-		attribute.String("query_mode", event.QueryMode),
-		attribute.Int("reference_count", event.ReferenceCount),
-		attribute.String("retrieval_mode", event.RetrievalMode),
 		attribute.String("run_id", event.RunID),
-		attribute.String("scope.collection", event.Collection),
-		attribute.String("scope.corpus", event.Corpus),
-		attribute.String("policy_gate_decision", event.PolicyGateDecision),
-		attribute.String("decision", event.Decision),
-		attribute.String("failure_code", event.FailureCode),
 		attribute.String("failure_kind", event.FailureKind),
 		attribute.String("activity_type", event.ActivityType),
 		attribute.String("task_queue", event.TaskQueue),
 		attribute.Int("activity_attempt", event.ActivityAttempt),
 		attribute.String("workflow_id", event.WorkflowID),
 		attribute.String("step_kind", event.StepKind),
-		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
 		attribute.Int64("schedule_to_start_ms", event.ScheduleToStart.Milliseconds()),
-		attribute.String("routing_next_action", event.RoutingNextAction),
 		attribute.String("selected_tool", event.SelectedTool),
-		attribute.String("scope_gate_decision", event.ScopeGateDecision),
 		attribute.String("step_id", event.StepID),
-		attribute.String("terminal_outcome", event.TerminalOutcome),
-		attribute.String("terminal_state", event.TerminalState),
 		attribute.String("fail_close_reason", event.FailCloseReason),
 		attribute.String("status", event.Status),
 		attribute.String("projection_ref", event.ProjectionRef),
-		attribute.Int("status_code", event.StatusCode),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
-		attribute.Int64("latency_ms", event.Latency.Milliseconds()),
-		attribute.Int("target_document_ids_count", event.TargetDocumentIDsCount),
-		attribute.Int("target_version_ids_count", event.TargetVersionIDsCount),
 	}
 	attributes = append(attributes, langfuseGenerationAttributes(event)...)
-	attributes = append(attributes, evalProjectionAttributes(event)...)
 	name := strings.TrimSpace(event.Name)
 	if name == "" {
 		name = "execution.event"
@@ -310,41 +244,6 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	}
 	e.recordExport()
 	return nil
-}
-
-func evalProjectionAttributes(event Event) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, 9)
-	appendString := func(key string, value string) {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			attrs = append(attrs, attribute.String(key, trimmed))
-		}
-	}
-	appendStringSlice := func(key string, values []string) {
-		clean := cleanStringSlice(values)
-		if len(clean) > 0 {
-			attrs = append(attrs, attribute.StringSlice(key, clean))
-		}
-	}
-	appendString("eval.answer", event.EvalAnswer)
-	appendString("eval.case_id", event.EvalCaseID)
-	appendString("eval.question", event.EvalQuestion)
-	appendString("eval.surface_key", event.EvalSurfaceKey)
-	appendString("eval.variant_id", event.EvalVariantID)
-	appendStringSlice("eval.reference_context_ids", event.EvalReferenceContextIDs)
-	appendStringSlice("eval.reference_contexts", event.EvalReferenceContexts)
-	appendStringSlice("eval.retrieved_context_ids", event.EvalRetrievedContextIDs)
-	appendStringSlice("eval.retrieved_contexts", event.EvalRetrievedContexts)
-	return attrs
-}
-
-func cleanStringSlice(values []string) []string {
-	clean := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			clean = append(clean, trimmed)
-		}
-	}
-	return clean
 }
 
 func (e *Emitter) Status() Status {
@@ -411,17 +310,9 @@ func (e *Emitter) configureMetrics() {
 	if err == nil {
 		e.activityDuration = activityDuration
 	}
-	queueWaitDuration, err := e.meter.Float64Histogram("campus.execution_control.queue_wait_ms")
-	if err == nil {
-		e.queueWaitDuration = queueWaitDuration
-	}
 	scheduleToStartDuration, err := e.meter.Float64Histogram("campus.execution_control.schedule_to_start_ms")
 	if err == nil {
 		e.scheduleToStartDuration = scheduleToStartDuration
-	}
-	runtimeDecisionCounter, err := e.meter.Int64Counter("campus.execution_control.runtime_decisions")
-	if err == nil {
-		e.runtimeDecisionCounter = runtimeDecisionCounter
 	}
 }
 
@@ -435,7 +326,6 @@ func (e *Emitter) recordMetric(event Event) {
 		attribute.String("activity_type", defaultString(event.ActivityType, "unknown")),
 		attribute.String("selected_tool", defaultString(event.SelectedTool, "unknown")),
 		attribute.String("status", defaultString(event.Status, "unknown")),
-		attribute.String("outcome", defaultString(event.Outcome, "unknown")),
 		attribute.String("failure_kind", defaultString(event.FailureKind, "none")),
 	}
 	if e.requestCounter != nil {
@@ -444,20 +334,10 @@ func (e *Emitter) recordMetric(event Event) {
 	if e.errorCounter != nil && strings.TrimSpace(event.FailureKind) != "" && event.FailureKind != "none" {
 		e.errorCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
 	}
-	if e.runtimeDecisionCounter != nil && strings.TrimSpace(event.Decision) != "" {
-		e.runtimeDecisionCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
-	}
-	if e.activityDuration != nil && event.ActivityDuration > 0 {
+	if e.activityDuration != nil && event.Duration > 0 {
 		e.activityDuration.Record(
 			context.Background(),
-			float64(event.ActivityDuration)/float64(time.Millisecond),
-			metric.WithAttributes(attrs...),
-		)
-	}
-	if e.queueWaitDuration != nil && event.QueueWait > 0 {
-		e.queueWaitDuration.Record(
-			context.Background(),
-			float64(event.QueueWait)/float64(time.Millisecond),
+			float64(event.Duration)/float64(time.Millisecond),
 			metric.WithAttributes(attrs...),
 		)
 	}

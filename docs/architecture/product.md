@@ -83,7 +83,7 @@ surface。
 `campus-agent` 首先应被理解为：
 
 - 一个受控的校园知识问答产品
-- 一个持续扩展到 campus service discovery、notice discovery、place finding 与
+- 一个持续扩展到 campus service discovery、notice product、place finding 与
   wayfinding 的校园助理
 - 一个由 shared control plane 约束多入口体验、tool readiness 与 institution
   truth 的 campus assistant product
@@ -93,8 +93,8 @@ surface。
 
 产品能力扩展方向是：
 
-- 先补 `place_lookup` / `place_finding`
-- 后做 `route_planning` / `wayfinding`
+- 在明确地图产品需求后补 place finding
+- 在具备 route truth 后再做 route planning / wayfinding
 
 因此，不应把 `campus-agent` 描述成单一校园导航产品；更准确的说法是，它是一个以校园问答为起点，
 并明确把地点寻找与导航纳入产品边界的校园助理产品。
@@ -122,7 +122,7 @@ surface。
 - institutional knowledge question answering
 - campus service discovery
 - campus service status / operating-condition lookup
-- campus notice discovery / canonical notice reading
+- campus notice product / canonical notice reading
 - campus place finding
 - campus navigation / wayfinding
 
@@ -133,16 +133,17 @@ surface。
 
 - 稳定制度、材料、流程类问题继续由受控知识面回答
 - 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain tool 承接
-- 用户明确在找通知、讲座、公示或结果原文时，应优先进入 notice discovery / canonical notice reading
-  路径，而不是默认混入 generic RAG
+- 用户明确在找通知、讲座、公示或结果原文时，应优先进入 redesigned notice
+  product / canonical notice reading 路径，而不是默认混入 generic RAG
 - 普通 chat 的第一语义决策长期由 primary agent 在 admitted tool set 内完成，而不是默认把所有请求先压成
   `knowledge_query`
 
 产品助手还必须能在不调用校园 tool 的情况下回答产品身份、能力边界、普通寒暄与澄清类问题。
 这类 direct/no-tool answer 属于 first Execution Agent decision 的 terminal branch，
 不是 `assistant_intro`、`product_meta`、`product persona` 或 `surface prompt profile`。
-当 primary agent 识别到具体校园需求时，才调用对应 typed tool /
-workflow signal 并进入对应 workflow path。
+当 primary agent 识别到具体校园需求时，才调用已开放的 SDK function tool，
+或通过官方 `handoff()` 进入受限 specialist。tool call 与 handoff 都留在同一个
+Temporal Agent Activity 内，不形成额外 workflow routing path。
 
 工具开放口径固定为 readiness-first，而不是身份分层：
 

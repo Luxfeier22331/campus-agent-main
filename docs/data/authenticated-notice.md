@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-07-02
+updated: 2026-07-08
 ---
 # Authenticated Notice Source-Truth Schema
 
@@ -19,7 +19,7 @@ source-truth schema。
 
 `file_release` 当前 export contract 另见：
 
-- `docs/contracts/authenticated-notice-file-release-export.md`
+- `docs/contracts/file-release-export.md`
 
 它回答的是：
 
@@ -41,7 +41,7 @@ source-truth schema。
 - source-channel
   运行边界：`docs/architecture/domains/authenticated-notice/architecture.md`
 - `file_release` collector-owned export
-  contract：`docs/contracts/authenticated-notice-file-release-export.md`
+  contract：`docs/contracts/file-release-export.md`
 - shared replay / rebuild
   boundary：`docs/architecture/system/data-plane.md`
 - `internal_notice` PDF chunking / OCR

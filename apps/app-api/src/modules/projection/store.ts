@@ -3,9 +3,7 @@ import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
-	metricRollup,
 	projectionOutbox,
-	qualityBadcaseProjection,
 	requestAuditProjection,
 	requestExecution,
 	requestObservabilityFact,
@@ -46,27 +44,21 @@ function toExecutionProjectionSource(
 		answerPreview: row.answerPreview ?? null,
 		completedAt: toIsoString(row.completedAt),
 		conversationId: row.conversationId,
-		diagnostics: row.diagnosticsJson ?? null,
 		durationMs: row.durationMs ?? null,
 		errorCode: row.errorCode ?? null,
 		entitlementGroups: row.entitlementGroupsJson ?? [],
 		entitlementSnapshotId: row.entitlementSnapshotId ?? null,
 		failClosed: observability?.failClosed ?? null,
-		citationExpected: observability?.citationExpected ?? null,
-		citationMissing: observability?.citationMissing ?? null,
-		emptyRecall: observability?.emptyRecall ?? null,
-		modelName: observability?.modelName ?? null,
 		policyProjectionVersion: observability?.policyProjectionVersion ?? null,
 		principalId: row.actorPrincipalId,
 		principalLabel: row.principalLabel ?? null,
 		principalType: row.principalType,
 		questionPreview: row.questionPreview,
 		requestId: row.requestId,
-		retrievalAttempted: observability?.retrievalAttempted ?? null,
 		requestedTool: row.requestedTool ?? null,
-		requestedScope: row.requestedScopeJson ?? null,
+		requestedScope: row.requestedScope ?? null,
 		versionQuery: row.versionQueryJson ?? null,
-		resolvedScope: row.resolvedScopeJson ?? null,
+		resolvedScope: row.resolvedScope ?? null,
 		selectedTool: row.selectedTool ?? null,
 		sourceDocIds: row.sourceDocIdsJson ?? [],
 		startedAt: row.startedAt.toISOString(),
@@ -174,60 +166,6 @@ export function createPgProjectionStore(
 				.where(eq(requestObservabilityFact.requestId, input.requestId));
 		},
 
-		async replaceQualityRollups(input) {
-			const db = await getDb();
-			await db.delete(metricRollup).where(eq(metricRollup.requestId, input.requestId));
-			if (input.rollups.length === 0) {
-				return;
-			}
-
-			await db.insert(metricRollup).values(
-				input.rollups.map((rollup) => ({
-					bucketEnd: new Date(rollup.bucketEnd),
-					bucketStart: new Date(rollup.bucketStart),
-					collection: rollup.collection,
-					domain: rollup.domain,
-					granularity: rollup.granularity,
-					metricsJson: rollup.metrics,
-					modelName: rollup.modelName,
-					principalType: rollup.principalType,
-					projectedAt: new Date(rollup.projectedAt),
-					requestId: rollup.requestId,
-					requestedTool: rollup.requestedTool,
-					rollupId: rollup.rollupId,
-					selectedTool: rollup.selectedTool,
-					surface: rollup.surface,
-				})),
-			);
-		},
-
-		async replaceQualityBadcases(input) {
-			const db = await getDb();
-			await db
-				.delete(qualityBadcaseProjection)
-				.where(eq(qualityBadcaseProjection.requestId, input.requestId));
-			if (input.badcases.length === 0) {
-				return;
-			}
-
-			await db.insert(qualityBadcaseProjection).values(
-				input.badcases.map((badcase) => ({
-					badcaseId: badcase.badcaseId,
-					causeClass: badcase.causeClass,
-					detectedBy: badcase.detectedBy,
-					gradeJson: badcase.grade,
-					openedAt: new Date(badcase.openedAt),
-					projectedAt: new Date(badcase.projectedAt),
-					requestId: badcase.requestId,
-					selectedTool: badcase.selectedTool,
-					status: badcase.status,
-					summary: badcase.summary,
-					surface: badcase.surface,
-					traceId: badcase.traceId,
-				})),
-			);
-		},
-
 		async upsertAuditProjection(projection) {
 			const db = await getDb();
 			await db
@@ -291,11 +229,10 @@ export function createPgProjectionStore(
 					questionPreview: projection.questionPreview,
 					requestId: projection.requestId,
 					requestedTool: projection.requestedTool,
-					requestedScopeJson: projection.requestedScope,
+					requestedScope: projection.requestedScope,
 					versionQueryJson: projection.versionQuery,
-					resolvedScopeJson: projection.resolvedScope,
+					resolvedScope: projection.resolvedScope,
 					selectedTool: projection.selectedTool,
-					diagnosticsJson: projection.diagnostics,
 					sourceDocIdsJson: projection.sourceDocIds,
 					startedAt: new Date(projection.startedAt),
 					status: projection.status,
@@ -319,11 +256,10 @@ export function createPgProjectionStore(
 						projectedAt: new Date(projection.projectedAt),
 						questionPreview: projection.questionPreview,
 						requestedTool: projection.requestedTool,
-						requestedScopeJson: projection.requestedScope,
+						requestedScope: projection.requestedScope,
 						versionQueryJson: projection.versionQuery,
-						resolvedScopeJson: projection.resolvedScope,
+						resolvedScope: projection.resolvedScope,
 						selectedTool: projection.selectedTool,
-						diagnosticsJson: projection.diagnostics,
 						sourceDocIdsJson: projection.sourceDocIds,
 						startedAt: new Date(projection.startedAt),
 						status: projection.status,

@@ -1,8 +1,3 @@
-import type {
-	OfficialWebFetchDisposition,
-	OfficialWebRunIntent,
-	OfficialWebTerminalRunStatus,
-} from "ingestion-contracts";
 import { OfficialWebControlPlaneError } from "./official-web-control-plane-errors";
 import type {
 	NormalizedFinalizePayload,
@@ -18,6 +13,11 @@ import type {
 	OfficialWebPlannerResolvePayload,
 	OfficialWebStartPayload,
 } from "./official-web-control-plane-types";
+import type {
+	OfficialWebFetchDisposition,
+	OfficialWebRunIntent,
+	OfficialWebTerminalRunStatus,
+} from "./official-web-lifecycle";
 
 const FINALIZEABLE_TERMINAL_STATUSES = new Set<OfficialWebTerminalRunStatus>([
 	"completed",

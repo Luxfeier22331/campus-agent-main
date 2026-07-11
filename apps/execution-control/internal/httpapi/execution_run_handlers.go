@@ -13,6 +13,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -48,7 +49,11 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	if !ok {
 		return
 	}
-	run, err := durableRunFromCreateBody(body, time.Now().UTC())
+	run, err := durableRunFromCreateBody(
+		body,
+		time.Now().UTC(),
+		defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
+	)
 	if err != nil {
 		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
@@ -56,8 +61,8 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	}
 	visibleToolNames, err := s.visibleToolNamesForRun(run.RequestedTool)
 	if err != nil {
-		setOutcome(response, "tool_not_open")
-		writeError(response, http.StatusConflict, "tool_not_open", err.Error(), false)
+		setOutcome(response, "unsupported_tool_hint")
+		writeError(response, http.StatusBadRequest, "unsupported_tool_hint", err.Error(), false)
 		return
 	}
 	created, err := s.runProjectionStore.CreateRun(request.Context(), run)
@@ -165,7 +170,8 @@ func (s *Server) workflowInputForQueuedRun(
 		Namespace:      s.config.TemporalNamespace,
 		PayloadSHA256:  hex.EncodeToString(payloadHash[:]),
 		PolicyVersions: map[string]string{
-			"intent_policy": strings.TrimSpace(s.config.IntentPolicyPath),
+			"knowledge_scope_registry": "query-serving-scopes-v3",
+			"tool_registry":            "tools.v4",
 		},
 		PersonalMemoryTimeoutSeconds: s.config.PersonalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,
@@ -183,38 +189,14 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 	normalized := strings.TrimSpace(requestedTool)
 	switch normalized {
 	case "":
-		tools := []string{"knowledge_query"}
-		for _, toolName := range []string{
-			"public_web_search",
-			"transport_schedule_lookup",
-			"campus_notice_discover",
-		} {
-			if s.config.ToolOpen(toolName) {
-				tools = append(tools, toolName)
-			}
-		}
-		return tools, nil
+		return runtimepolicy.ModelVisibleToolNames(), nil
 	case "knowledge_query":
 		return []string{"knowledge_query"}, nil
-	case "public_web_search":
-		if !s.config.ToolOpen("public_web_search") {
-			return nil, fmt.Errorf("tool public_web_search is not open in runtime config")
-		}
-		return []string{"public_web_search"}, nil
-	case "transport_schedule_lookup":
-		if !s.config.ToolOpen("transport_schedule_lookup") {
-			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime config")
-		}
-		return []string{"transport_schedule_lookup"}, nil
-	case "campus_notice_discover":
-		if !s.config.ToolOpen("campus_notice_discover") {
-			return nil, fmt.Errorf("tool campus_notice_discover is not open in runtime config")
-		}
-		return []string{"campus_notice_discover"}, nil
-	case "place_lookup":
-		return nil, fmt.Errorf("navigation tools are not admitted by execution-control")
 	default:
-		return nil, fmt.Errorf("requested tool %s is not admitted by execution-control", normalized)
+		if _, ok := runtimepolicy.ModelVisibleToolByName(normalized); ok {
+			return []string{normalized}, nil
+		}
+		return nil, fmt.Errorf("requested tool %s is not supported by the model-visible tool registry", normalized)
 	}
 }
 

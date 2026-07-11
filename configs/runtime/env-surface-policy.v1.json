@@ -20,7 +20,7 @@
 		"apps/source-collector/adapters/internal-portal/.env.example": 45,
 		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39,
-		"env/commands/ingestion-control-runtime.env.example": 13,
+		"env/commands/ingestion-control-runtime.env.example": 18,
 		"env/commands/provider-config-seed.env.example": 18
 	},
 	"keys": {
@@ -32,12 +32,6 @@
 		},
 		"SPECIALIST_PROMPT_MODEL": {
 			"owner": "retired",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
-		"EXECUTION_CONTROL_INTENT_POLICY_PATH": {
-			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
 			"retired": true
@@ -270,11 +264,6 @@
 			"secret": false,
 			"retired": true
 		},
-		"RAG_SYNTHESIS_MODEL": {
-			"owner": "local-provider-seed",
-			"scopes": ["command"],
-			"secret": false
-		},
 		"RERANK_BASE_URL": {
 			"owner": "local-provider-seed",
 			"scopes": ["command"],
@@ -314,6 +303,31 @@
 			"owner": "ingestion-control-task-admission",
 			"scopes": ["app-api"],
 			"secret": false
+		},
+		"INGESTION_CONTROL_ADMIN_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"INGESTION_CONTROL_APP_API_PROJECTION_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["app-api", "command"],
+			"secret": true
+		},
+		"INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["command", "source-collector"],
+			"secret": true
+		},
+		"INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["command"],
+			"secret": true
+		},
+		"INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["command"],
+			"secret": true
 		},
 		"INGESTION_CONTROL_DATABASE_URL": {
 			"owner": "ingestion-control-runtime-secret",

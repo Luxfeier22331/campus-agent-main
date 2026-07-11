@@ -4,20 +4,19 @@ truth_scope: repository
 owner_boundary: docs/domains
 status: active
 created: 2026-04-12
-updated: 2026-06-11
+updated: 2026-07-08
 ---
 # Domains
 
 `domains/` 只保留真正有独立 human truth 的窄能力文档。宽领域不再用纯转发 hub
 占据默认阅读路径；直接进入对应 architecture、contract、data、runbook 或 reference owner。
+跨领域链路图统一见 `../architecture/flows.md`；领域文档只保留自己的 human
+capability truth。
 
 ## 当前窄能力入口
 
 - `place.md`
-  - `place_lookup` / `place_finding` 窄能力、place catalog 消费与 opening gate
-- `public-web-search.md`
-  - `public_web_search` typed tool、公开官网搜索 provider adapter 与
-    public official-web evidence boundary
+  - place catalog、campus-map 读取与未来 navigation 能力边界
 - `source-card.md`
   - Q&A source-card、docs reader permalink、anchor 与 highlight 语义
 - `transport.md`
@@ -30,11 +29,9 @@ updated: 2026-06-11
 
 - authenticated-notice：
   - `../architecture/domains/authenticated-notice/architecture.md`
-  - `../contracts/campus-notice-runtime-contract.md`
   - `../data/authenticated-notice.md`
 - docs reader：
   - `../architecture/system/document-site.md`
-  - `source-card.md`
   - `../contracts/app-api/document-reader.md`
 - execution：
   - `../architecture/system/execution-agent-layer.md`
@@ -46,7 +43,6 @@ updated: 2026-06-11
   - `../architecture/system/memory-plane.md`
 - navigation：
   - `../architecture/domains/navigation/architecture.md`
-  - `place.md`
   - `../data/place-catalog.md`
 - operator observability：
   - `../architecture/system/ops-observability.md`
@@ -56,7 +52,6 @@ updated: 2026-06-11
   - `../architecture/system/execution-agent-layer.md`
   - `../architecture/system/tool-routing.md`
   - `../contracts/app-api/chat.md`
-  - `source-card.md`
 - official-web：
   - `../architecture/domains/official-web/architecture.md`
   - `../contracts/app-api/official-web.md`

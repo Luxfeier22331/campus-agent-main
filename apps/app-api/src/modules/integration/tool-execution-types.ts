@@ -1,44 +1,9 @@
 import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../auth";
-import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import type { VersionQuery } from "../version-query";
 import type { ExecutionFinalizationStatus } from "./execution-finalization-contract";
 
-export interface RequestedScope {
-	corpus: string;
-	collection: string;
-}
-
-export interface ToolExecutionPromptTrace {
-	modelName: string | null;
-	modelProvider: string | null;
-	outputSchemaVersion: string | null;
-	promptId: string | null;
-	promptVersion: string | null;
-	templateSha256: string | null;
-	variablesSchemaVersion: string | null;
-}
-
-export interface ToolExecutionModelUsageSummary {
-	cachedInputTokens: number;
-	estimatedCostMicrousd: number;
-	inputTokens: number;
-	modelName: string | null;
-	modelProvider: string | null;
-	outputTokens: number;
-	stepCount: number;
-}
-
-export interface ToolExecutionUsageSummary {
-	billableStepCount: number;
-	cachedInputTokens: number;
-	estimatedCostMicrousd: number;
-	inputTokens: number;
-	modelName: string | null;
-	modelProvider: string | null;
-	modelUsage: ToolExecutionModelUsageSummary[];
-	outputTokens: number;
-}
+export type RequestedScope = string;
 
 export interface ToolRuntimeFingerprint {
 	combinedSha256: string;
@@ -101,7 +66,7 @@ export interface ToolExecutionToolRuntimeAttestation {
 }
 
 export interface ToolExecutionPrimaryAttestation {
-	attestationKind: "primary_admitted_rag_synthesis" | "primary_agent_call";
+	attestationKind: "primary_agent_call";
 	attestationSha256: string;
 	attestedBy: string;
 	schemaVersion: "primary_attestation.v1";
@@ -110,7 +75,7 @@ export interface ToolExecutionPrimaryAttestation {
 export interface ToolExecutionLlmIoFingerprint {
 	contextEnvelopeSha256: string;
 	evidencePacketSha256: string;
-	llmCallSite: "agent.primary" | "rag.synthesis";
+	llmCallSite: "agent.primary";
 	memorySelectionSha256: string;
 	model: string;
 	modelParamsHash: string;
@@ -144,7 +109,6 @@ export interface ToolExecutionAnswerEvalFingerprint {
 			| "clarification"
 			| "direct_no_tool"
 			| "policy_refusal"
-			| "rag_synthesis"
 			| "runtime_error"
 			| "tool_routed";
 		promptId: string;
@@ -152,7 +116,7 @@ export interface ToolExecutionAnswerEvalFingerprint {
 		workflowMode: string;
 	};
 	evidenceReplayIndexSha256?: string | null;
-	llmCallSite: "agent.primary" | "rag.synthesis";
+	llmCallSite: "agent.primary";
 	llmIoFingerprintSha256: string;
 	outputSchemaId: string;
 	providerProfileRevision: string;
@@ -175,23 +139,18 @@ export interface ToolExecutionDebugTraceRef {
 	url?: string;
 }
 
-export interface ToolExecutionReplayPacketRef {
-	approvalRef?: string | null;
-	createdAt: string;
-	encryptionKeyRef: string;
-	expiresAt: string;
-	objectChecksumSha256: string;
-	objectRef: string;
-	operatorPrincipal?: string | null;
-	packetId: string;
-	schemaVersion: "llm_replay_packet_index_ref.v1";
-	sensitivityClassification: string;
-}
-
 export interface ToolExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
 	value: string;
+}
+
+export interface ToolExecutionSessionUpdate {
+	upsertSlots: Array<{
+		confirmed: true;
+		name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
+		value: string;
+	}>;
 }
 
 export interface ToolExecutionSelectedNoticeRef {
@@ -212,11 +171,10 @@ export interface ToolExecutionMemorySummary {
 }
 
 export interface ToolExecutionConversationMessage {
-	content?: string;
-	createdAt?: string;
-	messageId?: string;
+	content: string;
+	createdAt: string;
+	messageId: string;
 	role: "assistant" | "user";
-	summary?: string;
 }
 
 export interface ToolExecutionPreviousEvidenceRef {
@@ -247,40 +205,19 @@ export interface ToolExecutionPreviousToolResultRef {
 }
 
 export interface ToolExecutionConversationContext {
-	budget: {
-		recentTurnLimit: number;
-		tokenEstimate: number;
-	};
-	contextSummary: string | null;
 	conversationId: string;
 	currentUserMessage: {
 		content: string;
 		createdAt: string;
 		role: "user";
 	};
-	memoryRecall: {
-		gateField: "context.memory.enabled";
-		owner: "execution-control";
-		runtime: "hindsight";
-	};
 	parentMessageId: string | null;
-	previousAnswerSummary: string | null;
 	previousToolResults: ToolExecutionPreviousToolResultRef[];
 	previousEvidenceRefs: ToolExecutionPreviousEvidenceRef[];
 	recentTurns: ToolExecutionConversationMessage[];
 	schemaVersion: "conversation_context.v1";
 	sessionState: ToolExecutionSessionSummary;
-	sourceAttribution: Array<{
-		item: string;
-		modelVisible: boolean;
-		source: string;
-	}>;
-	truncation: { reason: string } | null;
 	userMessageId: string;
-	visibility: {
-		modelVisible: string[];
-		runtimeOnly: string[];
-	};
 }
 
 export interface ToolExecutionContextProjection {
@@ -292,7 +229,6 @@ export interface ToolExecutionContextProjection {
 }
 
 export interface ToolExecutionInput {
-	actor?: ExecutionActorContext;
 	context: ToolExecutionContextProjection;
 	conversationId: string;
 	requestId: string;
@@ -308,72 +244,24 @@ export interface ToolExecutionInput {
 }
 
 export interface ToolExecutionObservability {
-	aclAnomalyCode: string | null;
-	aclDecision: string | null;
-	cachedInputTokens: number | null;
-	candidateCount: number | null;
-	citationCount: number | null;
-	citationExpected: boolean | null;
-	citationMissing: boolean | null;
-	estimatedCostMicrousd: number | null;
-	failClosed: boolean | null;
-	inputTokens: number | null;
-	intentAmbiguityReason?: string | null;
-	intentAmbiguitySignal?: string | null;
-	intentTool?: string | null;
-	intentClassifierVersion?: string | null;
-	intentContextReferenceType?: string | null;
-	intentContextResolutionState?: string | null;
-	intentLaunchState?: string | null;
-	intentMissingSlots?: string[] | null;
-	intentNextAction?: string | null;
-	intentPolicyReason?: string | null;
-	intentResolvedSlots?: Record<string, string> | null;
-	intentRoutingConfidence?: string | null;
-	intentSchemaVersion?: string | null;
-	intentScopeClass?: string | null;
-	intentScopeReason?: string | null;
-	intentTaskKind?: string | null;
+	agentRuntime: string | null;
 	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
 	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
-	modelName: string | null;
-	modelProvider: string | null;
-	outputTokens: number | null;
-	policyReason?: string | null;
-	modelExecutionDetail?: string | null;
-	modelExecutionState?: string | null;
-	promptTrace?: ToolExecutionPromptTrace | null;
-	replayPacketRef?: ToolExecutionReplayPacketRef | null;
-	resolvedScopeCollection?: string | null;
-	resolvedScopeCorpus?: string | null;
-	refusalClass: string | null;
-	retrievedSourceCount: number | null;
-	retrievedSources?: ObservedSourceTraceEntry[] | null;
-	retrievalAttempted: boolean | null;
-	scopeClass?: string | null;
-	semanticOutcome?: string | null;
-	selectedTool?: string | null;
-	toolBusinessOutcome?: string | null;
-	toolFailCloseReason?: string | null;
-	toolHistoricalDowngradeReason?: string | null;
-	usageSummary?: ToolExecutionUsageSummary | null;
+	sdkTraceRef: string | null;
+	selectedTools: string[];
+	terminalReason: string | null;
 }
 
 export interface ToolExecutionWorkflowTraceSummary {
-	contextResolution: Record<string, unknown>;
+	answerArtifactKinds: string[];
+	answerArtifactRefs: string[];
 	directVsDelegateBranch: string | null;
-	failCloseReason: string | null;
-	guardrailOutcomes: Record<string, unknown>;
-	handoff: Record<string, unknown>;
-	handoffChain: Record<string, unknown>[];
-	contextProjections: Record<string, unknown>[];
+	firstDecisionActor: string | null;
 	planningOutcome: string | null;
-	policyArtifactVersions: Record<string, unknown>;
-	routingFrame: Record<string, unknown>;
 	runtimeVersions: Record<string, unknown>;
 	selectedTool: string | null;
 	selectedTools: string[];
-	toolArgumentSummary: Record<string, unknown>;
+	terminalReason: string | null;
 	traceSteps?: Record<string, unknown>[];
 	toolCallSummaries?: Record<string, unknown>[];
 	workflowMode: string | null;
@@ -389,8 +277,10 @@ export interface ToolExecutionResponse {
 	} | null;
 	followUpQuestion: string;
 	observability?: ToolExecutionObservability | null;
+	resolvedScope: RequestedScope | null;
 	result: unknown;
 	selectedTool: string | null;
+	sessionUpdate: ToolExecutionSessionUpdate | null;
 	stageTiming?: Record<string, unknown>;
 	status: ExecutionFinalizationStatus;
 	traceId: string;

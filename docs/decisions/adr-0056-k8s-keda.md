@@ -103,7 +103,6 @@ Docker Compose `worker-autoscaler` 控制同一 worker pool。
 - `workflow-worker`
 - `activity-worker-core`
 - `activity-worker-agent`
-- `activity-worker-knowledge`
 
 每个 ScaledObject 必须显式配置：
 

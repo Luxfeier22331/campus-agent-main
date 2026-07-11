@@ -299,7 +299,7 @@ export function isAdmittedNavigationRequest(input: {
  * Kept for focused unit tests that assert admission behavior independent of
  * Crawlee's Cheerio context-aware enqueueLinks implementation.
  */
-export function buildLegacyNavigationRequestsForTest(input: {
+export function buildNavigationRequestsForTest(input: {
 	bundle: OfficialWebConfigBundle;
 	hostPolicy: OfficialWebHostPolicy;
 	plannerPageLookup: Map<string, OfficialWebPlannerPageCandidate>;

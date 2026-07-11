@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-07-11
 ---
 
 # App API Operator Schema
@@ -37,15 +37,14 @@ truth or release closeout.
 - `visibility_scope` nullable
 - `applicability_scope` nullable
 - `requested_tool` nullable
-- `requested_scope_json` nullable
+- `requested_scope` nullable
 - `version_query_json` nullable
-- `resolved_scope_json` nullable
+- `resolved_scope` nullable
 - `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
 - `answer_preview` nullable
-- `diagnostics_json` nullable
 - `source_doc_ids_json`
 - `started_at`
 - `completed_at` nullable
@@ -62,15 +61,13 @@ truth or release closeout.
 
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - 这是 panel-facing materialized view，不要求与 command-side 列完全相同
-- `requested_scope_json` 用于展示调用方显式约束；`resolved_scope_json` 用于展示 agent 最终解析的
-  serving scope
-- `version_query_json` 用于展示 raw caller-supplied version query；operator surface
+- `requested_scope` 用于展示 trusted internal caller 显式约束；`resolved_scope` 用于展示
+  execution-control 最终准入的 model-facing scope id
+- `version_query_json` 用于展示已规范化的 caller version query；operator surface
   如需友好文案应改读 `runtime.request_observability_fact.version_query_summary`
 - 不从 `chat.messages` 反推生成
 - 这层允许展示 app-layer 已物化的最小授权摘要，但不承担 canonical authz store，也不回放 provider/session
   原始材料
-- `diagnostics_json` 只承载 panel 可直接消费的 summary-level explanation，不承载 retrieval
-  internals
 
 ## `operator.request_audit_projection`
 
@@ -326,99 +323,6 @@ truth or release closeout.
   source file path、object-store locator、backup path、OCR/provider payload 或 raw stack
 - event projection 只解释 run-level operator timeline，不作为 ingestion retry /
   cancellation command source
-
-## `operator.metric_rollup`
-
-用途：
-
-- operator aggregate / timeseries read-model family
-- 当前第一版支撑 `Overview` / `Quality` / `Safety` / `Cost` 中可由 app-owned rollup 提供的聚合面
-- 当前已冻结的第一版 schema 已先落地 `Quality` timeseries bucket
-
-最小列：
-
-- `rollup_id`
-- `request_id`
-- `domain`
-- `granularity`
-- `bucket_start`
-- `bucket_end`
-- `surface`
-- `selected_tool` nullable
-- `requested_tool` nullable
-- `principal_type`
-- `collection` nullable
-- `model_name` nullable
-- `metrics_json`
-- `projected_at`
-
-最小索引：
-
-- `(domain, granularity, bucket_start)`
-- `(request_id, granularity, bucket_start)`
-- `(domain, surface, bucket_start)`
-- `(domain, selected_tool, bucket_start)`
-
-规则：
-
-- 这是 app-owned aggregate contribution family，不是不可逆 counter table
-- projector 采用“每 request / 每 bucket / 每 granularity 一条可重算贡献行”的物化语义，允许按
-  `request_id` 全量替换后重放
-- `rollup_id` 必须包含 `request_id` 与 bucket/filter 维度，避免不同 request 落在同一 bucket
-  时发生主键冲突
-- 当前已冻结的第一版 schema 仅冻结 `domain=quality` 的 rollup shape
-- `metrics_json` 只保存受控聚合贡献，不保存 raw request payload、raw sink blob 或 grader 原始结果
-- 当前 feedback quality summary / timeseries 直接由 app-api query service 用
-  `chat.message_feedback.request_id` join `runtime.request_observability_fact.request_id`
-  得到；它不是 raw sink query，也暂不写入 `operator.metric_rollup.metrics_json`
-
-## `operator.quality_badcase_projection`
-
-用途：
-
-- current-code residue for the old operator `Quality` badcase queue
-- not part of the target Ops Index architecture
-
-最小列：
-
-- `badcase_id`
-- `request_id`
-- `trace_id`
-- `surface`
-- `selected_tool` nullable
-- `status`
-- `cause_class`
-- `detected_by`
-- `opened_at`
-- `summary`
-- `grade_json` nullable
-- `projected_at`
-
-最小索引：
-
-- `(status, opened_at desc)`
-- `(cause_class, opened_at desc)`
-- `(detected_by, opened_at desc)`
-- `(request_id, opened_at desc)`
-
-规则：
-
-- 该表不再作为目标态数据模型扩展；badcase/eval workflow 默认进入
-  Langfuse/eval-owned workflow 或新的 allowlisted curated-summary contract
-- 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
-- 当前已冻结的第一版 schema 仅由 runtime monitor 生成 badcase，`detected_by` 固定为
-  `runtime_monitor`
-- 当前已冻结的第一版 schema 已开放以下 app-owned runtime monitor
-  `cause_class`：
-  `citation_missing`、`empty_recall`、`grounding_failed`、
-  `unsupported_by_evidence`、`policy_failed`、`authz_suspected` 与
-  `freshness_fail_close`
-- `badcase_id` 采用 request-scoped stable id，保证 projector 重放时幂等替换
-- `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前已冻结的第一版 schema 允许为 `null`
-- `summary` 必须是 panel-safe 安全摘要，不得回放 raw prompt、raw answer、raw retrieval payload
-- 旧 `GET /api/operator/quality/eval-candidates` 不再是目标态 contract；future
-  eval/review intake 必须通过新的 explicit curated-summary contract 重新准入，不得从这些
-  residue 表继续派生 active product surface
 
 ## `operator.quality_grade_projection`
 

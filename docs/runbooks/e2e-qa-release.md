@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-03
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # E2E QA Release Runbook
 
@@ -142,10 +142,11 @@ pnpm smoke:app-api -- chat-memory-staging \
   | tee "$E2E_QA_CLOSEOUT_DIR/chat-memory-recall.json"
 ```
 
-Hindsight personal memory 与 public web search 不再通过 app-api package script 直连
-execution-control internal endpoint。相关能力必须通过 app-api chat stream、
-operator read model 或 execution-control K8s readiness 间接证明；需要内部 endpoint
-诊断时按环境仓 runbook 在受控集群网络内临时执行，不进入 release closeout 默认命令。
+Hindsight personal memory 与 Knowledge Agent internal `knowledge_search` 不通过
+app-api package script 直连 execution-control endpoint。相关能力必须通过 app-api
+chat stream、sanitized trajectory、operator read model 或 execution-control K8s
+readiness 证明；需要内部 endpoint 诊断时按环境仓 runbook 在受控集群网络内临时
+执行，不进入 release closeout 默认命令。
 
 通过标准：
 
@@ -379,13 +380,9 @@ Eval diagnostic release closeout 必须从 app-api operator observability detail
 
 ## 10. Data Plane Sanity
 
-只读检查 Argo CD Applications、Kubernetes workload 与数据面：
-
-```bash
-argocd app list | tee "$E2E_QA_CLOSEOUT_DIR/argocd-applications.txt"
-kubectl -n campus-agent-staging get pods,svc,networkpolicy \
-  | tee "$E2E_QA_CLOSEOUT_DIR/k8s-data-plane.txt"
-```
+按私有环境仓的 data-plane readiness runbook 采集 Argo CD Applications、
+Kubernetes workload、network policy 与数据面状态，并将摘要保存到
+`$E2E_QA_CLOSEOUT_DIR/k8s-data-plane.txt`。
 
 检查项：
 
@@ -394,7 +391,7 @@ kubectl -n campus-agent-staging get pods,svc,networkpolicy \
 - 数据面 Service 不通过 host bridge 或手工 EndpointSlice 补齐
 - query-enabled aliases 仍为当前 accepted surfaces
 - runtime release manifest 可被 guard 读取
-- Qdrant snapshot 不存入 staging R2
+- Qdrant backup target 与 retention 符合环境仓策略
 
 ## Closeout Rules
 

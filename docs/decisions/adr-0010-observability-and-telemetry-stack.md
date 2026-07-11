@@ -25,8 +25,9 @@ activity workers 产出。
 
 - `apps/execution-control` 入口边界
 - `apps/execution-control` execution runtime、runtime policy、finalization 与审计投影
-- `agent-runtime` / typed activity workers 的 semantic execution surfaces
-- `apps/execution-control` 内部 retrieval seam / Go RAG Temporal graph 的在线回答链路
+- `agent-runtime` OpenAI Agents SDK primary/Knowledge Agent execution surface
+- `apps/execution-control` internal `knowledge_search`、evidence/source validation
+  与 four-phase Temporal projection chain
 - `apps/ingestion-control` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 

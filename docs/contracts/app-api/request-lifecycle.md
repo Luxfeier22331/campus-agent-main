@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-15
+updated: 2026-07-08
 ---
 # App API Request Lifecycle
 
@@ -38,6 +38,27 @@ updated: 2026-06-15
 1. 写回最终 execution outcome，并追加最终 `runtime.projection_outbox` 事件
 1. projector 在同一 `app-api` boundary 内物化 `operator.request_projection`
 1. panel 只通过 `GET /api/operator/requests*` 读取 projection
+
+```mermaid
+sequenceDiagram
+  participant Browser as browser / campus-web
+  participant AppAPI as app-api command path
+  participant DB as app-api Postgres
+  participant Exec as execution-control
+  participant Projector as app-api projector
+  participant Panel as operator console
+
+  Browser->>AppAPI: POST /api/chat/requests or stream
+  AppAPI->>AppAPI: session, conversation and idempotency admission
+  AppAPI->>DB: commit conversation, user message, request_execution accepted and outbox
+  AppAPI->>Exec: create durable execution run
+  Exec-->>AppAPI: sanitized finalization / run projection
+  AppAPI->>DB: atomically finalize request_execution and append final outbox
+  Projector->>DB: materialize operator.request_projection from outbox
+  Panel->>AppAPI: GET /api/operator/requests*
+  AppAPI->>DB: read projection only
+  AppAPI-->>Panel: operator-safe request projection
+```
 
 这里冻结的重点是：
 
@@ -205,9 +226,9 @@ fail-close checks。
 - 不把 execution-control / Temporal raw event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
-- execution origin 必须指向 Go `apps/execution-control`，而不是 Python private handoff
-  worker；Docker Compose 只保留 local diagnostics harness，production target
-  substrate 由 K8s + KEDA 承接
+- deployed execution upstream 必须通过 private service binding 指向 Go
+  `apps/execution-control`；Docker Compose 只保留 local diagnostics harness，
+  production target substrate 由 K8s + KEDA 承接
 
 ### Step 4: Finalize
 
@@ -373,7 +394,7 @@ operator.request_projection`
   fingerprint 计算
 - 第一版 discriminator 固定为 `__new__`
 - 这样同一首轮请求在首次提交完成前后都能稳定重放，而不要求客户端先显式创建 conversation
-- 对 knowledge tool request，`requestedScope` 与 `versionQuery` 都属于 fingerprint
+- 对 knowledge tool request，`scope` 与 `versionQuery` 都属于 fingerprint
   输入；同一 prompt 但不同历史版本锚点不得命中同一个幂等结果
 
 `requestId` 不是幂等键。

@@ -128,10 +128,8 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["provider-config:seed-local-model"]).toBeUndefined();
 		expect(packageJson.scripts["local:providers:seed"]).toBeUndefined();
 		expect(scriptSource).toContain("primary_agent");
-		expect(scriptSource).toContain("rag_synthesis");
 		expect(scriptSource).toContain("LLM_API_KEY");
 		expect(scriptSource).toContain("LLM_MODEL");
-		expect(scriptSource).toContain("RAG_SYNTHESIS_MODEL");
 		expect(scriptSource).toContain("Qwen3-Embedding-4B");
 		expect(scriptSource).toContain("EMBEDDING_API_KEY");
 		expect(scriptSource).toContain("RERANK_API_KEY");

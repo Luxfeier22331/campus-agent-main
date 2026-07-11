@@ -97,8 +97,8 @@ browser UX, execution runtime contracts or runbook procedures.
 - `role=user` 的消息不写 `kind`
 - `request_id` 只在 assistant-side message 上出现
 - `trace_id` 不强制冗余写进 `chat.messages`
-- `structured_parts_json` 用于持久化 typed assistant structured parts；repo 当前已预留
-  `place_card` 形态，但由于校内导航在地图实际上线前暂不支持，当前产品路径不会写入该类型
+- `structured_parts_json` 用于持久化当前已实现的 typed assistant structured parts；
+  不为尚未实现的 tool 预留 browser payload
 - `structured_parts_json` 由 `app-api` 负责把 execution-side `snake_case` payload
   归一化成 browser-facing `camelCase` shape；它不保存 provider response blob 或
   provider-specific IDs

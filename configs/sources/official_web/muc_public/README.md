@@ -23,9 +23,9 @@ historical-news/archive surface, or any college-specific query-serving surface.
 - `credentials.schema.json`
   - anonymous public crawl posture
 - `projection-declarations.json`
-  - page-family source-truth fan-out declarations
+  - page-family action hints used only after target admission
 - `projection-routing.json`
-  - retained legacy downstream scope override config; current routes stay empty
+  - reserved projection routing config; current routes stay empty
 - `consumer-denominator.json`
   - downstream consumer denominator for retained source-truth candidates
 - `target-source-map.json`
@@ -64,9 +64,14 @@ explicit source-pack or target workset inputs.
 - public regulation candidates route to `regulations/institutional_rules` or
   `regulations/student_rules`
 
-`projection-declarations.json` owns baseline `page_family -> action /
-document_kind / default target scope`. `projection-routing.json` must not
-independently open official-web serving surfaces.
+`projection-declarations.json` does not own target admission and must not
+independently fan out broad crawl pages to `stable_reference`. It may only guide
+the action/document kind after a page has matched an explicit target. Target
+admission is owned by `target-source-map.json` and its consumer/inventory
+companions until those files are consolidated.
+
+`projection-routing.json` must not independently open official-web serving
+surfaces.
 
 ## References
 

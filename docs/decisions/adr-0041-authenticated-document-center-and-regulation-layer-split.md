@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0041
 status: superseded
 created: 2026-04-14
-updated: 2026-07-04
+updated: 2026-07-08
 superseded_by:
   - docs/architecture/product.md
   - docs/architecture/system/identity-authz.md
@@ -260,4 +260,4 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - historical background summary: old authenticated-notice archive bodies are
   available through git history; current source truth lives in
   `docs/data/authenticated-notice.md`
-- `docs/contracts/authenticated-notice-file-release-export.md`
+- `docs/contracts/file-release-export.md`

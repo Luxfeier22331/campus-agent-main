@@ -11,19 +11,19 @@ func TestBuildAppAPIRuntimePayloadKeepsSchemaAndSafeEvidence(t *testing.T) {
 	input := TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 0, 5, 0, time.UTC),
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge": 1,
+			"activity-worker-agent": 1,
 		},
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge": {
+			"activity-worker-agent": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge",
+				TaskQueue:   "campus-agent.activity.agent",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{{
 			Backlog:       SourceMetric{State: SourceMetricUnsupported},
 			SnapshotID:    "snapshot-1",
-			TaskQueue:     "campus-agent.activity.knowledge",
+			TaskQueue:     "campus-agent.activity.agent",
 			TaskQueueKind: TaskQueueKindActivity,
 		}},
 	}
@@ -52,7 +52,7 @@ func TestAppAPIRuntimePayloadCarriesWorkerAutoscalerPostures(t *testing.T) {
 		Postures: []WorkerAutoscalerPosture{{
 			CurrentReplicas:  1,
 			DesiredReplicas:  2,
-			Evidence:         map[string]any{"hpaName": "keda-hpa-activity-worker-knowledge"},
+			Evidence:         map[string]any{"hpaName": "keda-hpa-activity-worker-agent"},
 			LastScaleEventAt: ptrString("2026-06-15T10:00:06Z"),
 			LastScaleEventID: ptrString("hpa-scale-event-1"),
 			MaxReplicas:      5,
@@ -62,8 +62,8 @@ func TestAppAPIRuntimePayloadCarriesWorkerAutoscalerPostures(t *testing.T) {
 			Reason:           "hpa_desired_replicas_above_current",
 			ScalerKind:       ScalerKindKEDATemporal,
 			ScalerStatus:     ScalerStatusHealthy,
-			TargetService:    "activity-worker-knowledge",
-			TaskQueue:        "campus-agent.activity.knowledge",
+			TargetService:    "activity-worker-agent",
+			TaskQueue:        "campus-agent.activity.agent",
 			TaskQueueKind:    TaskQueueKindActivity,
 		}},
 		SchemaVersion: SchemaVersion,

@@ -31,16 +31,22 @@ func (s *Server) callAgentRuntime(
 	requestCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	payload := map[string]any{
-		"run_id":                 input.RunID,
-		"request_id":             run.RequestID,
-		"conversation_id":        input.ConversationID,
-		"turn_id":                input.TurnID,
-		"trace_id":               input.TraceID,
-		"input":                  primaryAgentInputText(run),
-		"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
+		"run_id":             input.RunID,
+		"request_id":         run.RequestID,
+		"conversation_id":    input.ConversationID,
+		"turn_id":            input.TurnID,
+		"trace_id":           input.TraceID,
+		"input":              primaryAgentInputText(run),
+		"visible_tool_names": append([]string{}, input.VisibleToolNames...),
+		"allowed_knowledge_scopes": allowedKnowledgeScopesProjectionPayload(
+			input.AllowedKnowledgeScopes,
+		),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
 		"debug_trace_config":     debugTraceConfig,
+	}
+	if strings.TrimSpace(input.ToolChoice) != "" {
+		payload["tool_choice"] = strings.TrimSpace(input.ToolChoice)
 	}
 	if len(finalModelContext) > 0 {
 		payload["final_model_context"] = finalModelContext

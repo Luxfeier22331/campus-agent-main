@@ -204,7 +204,6 @@ func defaultTargets(workflowTaskQueue string) []kedaposture.Target {
 		workerTarget("workflow-worker", workflowQueue, autoscaler.TaskQueueKindWorkflow, 3),
 		workerTarget("activity-worker-core", temporalruntime.ActivityTaskQueueCore, autoscaler.TaskQueueKindActivity, 3),
 		workerTarget("activity-worker-agent", temporalruntime.ActivityTaskQueueAgent, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-knowledge", temporalruntime.ActivityTaskQueueKnowledge, autoscaler.TaskQueueKindActivity, 5),
 	}
 }
 

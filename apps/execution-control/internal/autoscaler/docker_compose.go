@@ -11,10 +11,9 @@ import (
 )
 
 var allowlistedComposeServices = map[string]struct{}{
-	"workflow-worker":           {},
-	"activity-worker-core":      {},
-	"activity-worker-agent":     {},
-	"activity-worker-knowledge": {},
+	"workflow-worker":       {},
+	"activity-worker-core":  {},
+	"activity-worker-agent": {},
 }
 
 type ReplicaSource interface {

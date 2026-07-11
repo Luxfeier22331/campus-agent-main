@@ -1,26 +1,20 @@
 import type { ResolvedAppPrincipal } from "../auth";
 
-export type ProviderConfigKind = "embedding" | "prompt" | "rerank" | "search";
+export type ProviderConfigKind = "embedding" | "prompt" | "rerank";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type PromptProviderRole =
 	| "eval_judge_llm"
 	| "eval_ragas_llm"
 	| "hindsight_llm"
-	| "primary_agent"
-	| "rag_synthesis";
+	| "primary_agent";
 export type EmbeddingProviderRole =
 	| "eval_ragas_embedding"
 	| "hindsight_embedding"
 	| "index_embedding"
 	| "rag_query_embedding";
 export type RerankProviderRole = "rag_reranker";
-export type SearchProviderRole = "public_web_search";
-export type ProviderConfigRole =
-	| EmbeddingProviderRole
-	| PromptProviderRole
-	| RerankProviderRole
-	| SearchProviderRole;
-export type ProviderConfigFeature = "embedding" | "prompt" | "rerank" | "search";
+export type ProviderConfigRole = EmbeddingProviderRole | PromptProviderRole | RerankProviderRole;
+export type ProviderConfigFeature = "embedding" | "prompt" | "rerank";
 
 export type ProviderConfigFeatureConfig = Record<string, unknown>;
 
@@ -176,7 +170,6 @@ export interface ProviderConfigValidators {
 	validateEmbedding(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
 	validatePrompt(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
 	validateRerank(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
-	validateSearch(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
 }
 
 export interface ProviderConfigConnectionCreatePayload {

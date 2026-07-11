@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-02
-updated: 2026-07-07
+updated: 2026-07-09
 ---
 # Data Plane Architecture
 
@@ -53,6 +53,32 @@ source-channel collector
 -> app-api / execution-control / operator-safe projection consumers
 ```
 
+```mermaid
+flowchart LR
+  Collector["source-channel collector"]
+  SourceBucket["S3-compatible source bucket\nartifact pack + run ledger + task input refs"]
+  AppAPI["app-api\noptional product/operator seam"]
+  IngestionAPI["ingestion-control-api\nadmission + registry validation"]
+  Temporal["Temporal\nworkflow command + task queues"]
+  Worker["ingestion-control-temporal-worker\nregistry-aware activity execution"]
+  TSHandlers["ts_control handlers\ncollection-specific materialization"]
+  RustKernels["rust_kernel bridge\nfile validation + chunk prep"]
+  Artifacts["source truth / projections /\ndocument / release artifacts"]
+  Consumers["app-api / execution-control /\noperator-safe projections"]
+
+  Collector --> SourceBucket
+  SourceBucket --> AppAPI
+  SourceBucket --> IngestionAPI
+  AppAPI --> IngestionAPI
+  IngestionAPI --> Temporal
+  Temporal --> Worker
+  Worker --> TSHandlers
+  Worker --> RustKernels
+  TSHandlers --> Artifacts
+  RustKernels --> Artifacts
+  Artifacts --> Consumers
+```
+
 collector 只能把外部 source 转换成可审计 artifact pack、run ledger 与
 source-channel input refs。需要 capture-release handoff object 的来源必须把它建模成
 typed object-store task input；不需要 handoff object 的来源（例如
@@ -65,6 +91,12 @@ ingestion executor。
 `apps/ingestion-control` 的两个 runtime role。前者是 HTTP control-plane service；
 后者是 Temporal workflow/activity worker process。这里的 worker 不表示 Cloudflare Worker，也不得
 把 ingestion lifecycle 藏进 `apps/app-api` 或 collector 进程。
+`ingestion-control-api` 的 internal HTTP routes 按调用者能力使用 scoped service
+token：task admission/detail 属于 admin token，operator projection 读取属于
+app-api projection token，official-web collector lifecycle、projection drain 与
+ingestion execution status write 分别使用各自 token。`apps/app-api` 只能读取
+ingestion-control 返回的 redacted operator projection，不得消费 raw task input refs、
+artifact payloads 或 source-bucket details。
 
 学校或来源差异必须停在 source adapter 层。repo 当前目标是 fork-friendly source adapter
 boundary，而不是 plugin 平台：自部署 fork 可以替换自己的 collector adapter，但应保持
@@ -103,6 +135,17 @@ scheduled or workflow-invoked source-collector
 has an external source lifecycle. `apps/ingestion-control` remains a self-hosted
 control-plane service because task admission, workflow start and terminal
 closeout need stable internal state, diagnostics and failure semantics.
+
+Official-web source-channel projection preserves selected write target metadata
+from collector observations into terminal run events. Ingestion-control admits
+`official_web/stable_reference` or `official_web/fresh_news`
+tasks only from an explicit `official_web/<collection>` target. The current
+registry task name `source_truth_materialize` is a compatibility name: the
+implemented official-web behavior is source-truth ref verification/handoff until
+a real document materializer exists. It must fail closed when terminal metadata
+has no official-web target, has multiple official-web collection targets, or
+names an unsupported collection; terminal official-web runs must not default
+implicitly to `stable_reference`.
 
 ## Qdrant Private Data-Plane Posture
 
@@ -149,24 +192,18 @@ personal memory projection 只允许保存 compact text、routing metadata 和 i
 `episode_uuid` ref；不得保存 raw transcript、raw profile DB row、raw provider response、
 auth material 或 unrestricted private notes。
 
-## Relation To Agentic Retrieval Target
+## Relation To Online Knowledge Retrieval
 
-长期如果推进 planner-first / live-assisted retrieval，repo 的 canonical data-plane chain
-仍不改变。
+Online `knowledge_search` 只读取已发布的 canonical index，不改变 data-plane chain：
 
-固定解释：
-
-- planner / executor / query activity 属于 online retrieval architecture，不重写
-  canonical chain
-- canonical document truth 仍沿 `source truth -> document artifacts ->
+- canonical document truth 始终沿 `source truth -> document artifacts ->
   document-units -> chunks -> index`
-- live-assisted retrieval 如果被 admission，也只是这条 canonical chain 外围的一条 bounded
-  query-time adjunct
-
-因此：
-
-- agentic retrieval 不等于“把 online plan state 写回 source truth”
-- planner 不能因为需要 live/fresh branch，就跳过 canonical document/source-truth boundary
+- execution-control 在 admitted scope/version 内执行 embedding、Qdrant lookup、
+  rerank、bounded evidence validation 与 source generation
+- query-time state 不写回 source truth，也不能跳过 canonical document、release
+  acceptance 或 serving alias boundary
+- 未完成离线发布并加入 scope registry 的 source channel 不得通过 live query 或
+  provider fallback 进入在线链路
 
 ## Source-Truth Rules
 
@@ -232,8 +269,10 @@ admit
   fail closed。
 - `ts_control` handler 是默认 source-truth materialization owner；source-specific
   artifact resolver 与 source-truth materialization 只有在真实 handler 已存在时才进入
-  registry。缺少真实 handler / kernel 的生命周期步骤不得进入 active registry；默认
-  closeout skeleton 不代表 collection migration complete。
+  registry。`source_truth_materialize` 作为当前 compatibility task name 不得被复制为新
+  target lifecycle 命名；后续 document / chunk / index / release 步骤必须用真实 lifecycle
+  handler 和清晰 task kind 表达。缺少真实 handler / kernel 的生命周期步骤不得进入 active
+  registry；默认 closeout skeleton 不代表 collection migration complete。
 - task kind contract 只保留当前 active runtime 能执行或能 fail-closed 诊断的
   data-plane lifecycle 语义。当前 active task kind 分层为：
   `source_truth_materialize` 交给 TS control handler；
@@ -256,8 +295,10 @@ admit
   source-channel handoff DTO、Zod-backed TS boundary parsers、canonical JSON /
   JSONL artifact writer、纯 validation / parser / materialization helper、default
   executor inventory audit 与 collection-local domain helpers；不能承载 Temporal、
-  Crawlee、S3 / Postgres / Qdrant concrete client、provider HTTP client 或 executor
-  fallback。active task execution 必须拒绝非 `object_store` input ref；`inline` /
+  Crawlee、S3 / Postgres / Qdrant concrete client、provider HTTP client、
+  registry-aware runtime dispatcher、concrete handler registry、execution error-code
+  mapping 或 executor fallback。active task execution 必须拒绝非 `object_store`
+  input ref；`inline` /
   `local_file` / `postgres_row` 只允许留在 contract / test / explicit dev assertion
   语境，不得作为 source-truth materialization 主链路。
 - `packages/ingestion-contracts` 继续拥有 ingestion task envelope、task registry 与
@@ -310,7 +351,25 @@ rebuild / replay 的主路径必须从 canonical source truth、
 canonical document artifacts 或 `document-units` 继续，不得把 provider response
 或 raw asset replay 提升为 canonical rebuild owner。
 
-## Execution Admission Rules
+## Ingestion Execution Rules
+
+repo 级 ingestion 清理边界固定为：
+
+- Source unit、source bucket layout、input/output contracts、operator projection
+  boundary 与 forbidden shapes 必须先冻结；task registry 只声明 default runtime 已能执行的
+  handler / kernel。
+- 每个 admitted collection 必须有真实 `ts_control` handler 或 Rust kernel bridge，读取
+  object-store input，产出 contract artifact，并由 ingestion-control Temporal
+  workflow/activity worker 完成 terminal closeout。
+- deterministic file-level work 只有在 output equivalence 与 profiling 都满足 adoption
+  gate 时才下沉到 Rust。
+- Python 仅作为 MinerU / OCR / ML / legacy Office / domain extraction adapter；adapter
+  输出必须回到 source-truth、document artifact 或 projection contract。
+- 旧 Python import / closeout / replay / repair / smoke CLI 与 runbook executable path
+  不是 active ingestion lifecycle；仍需要的能力必须按 TS/Rust target runtime 或 Python
+  adapter 重新建模。
+
+固定门槛：
 
 - collection task registry 必须对应 default runtime 已实现的 handler / kernel bridge；
   registry 存在本身不能证明 collection rollout complete。
@@ -339,7 +398,7 @@ artifacts`
 固定规则：
 
 - 这条 subchain 不改变 repo 的 canonical chain，只是把 file-like asset handling 从
-  source-specific path 收口成 shared contract
+  source-specific path 统一为 shared contract
 - source unit 继续由 source channel 定义；`official_web` 仍是 page-level
   source-truth，`internal_portal` 仍是 notice-level source-truth
 - shared file asset loader 当前只保留 architecture boundary。后续若在 TS ingest core
@@ -349,25 +408,6 @@ artifacts`
   posture 固定看 `docs/architecture/system/file-asset-loader.md`
 - remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的
   data-plane layer
-
-## Live-Assisted Evidence Boundary
-
-对已经 admission 的 source channel，repo 级 data plane 长期允许存在一条 bounded query-time
-adjunct：
-
-`source channel live fetch or remote observation -> bounded normalization ->
-live evidence record -> query-time candidate`
-
-固定规则：
-
-- 这条 adjunct 不替代 canonical chain
-- 它默认不直接写入 canonical source truth、document registry、release manifest 或 serving
-  alias
-- 只有被 repo admission 的 source channel 才允许产出 live evidence
-- live evidence 是否能成为 answer-bearing evidence，仍取决于 freshness gate、source-trust
-  gate 与 tool policy
-- 若后续要把 live evidence 升格为 canonical content，必须重新回到 source-truth /
-  document-materialization 路径，而不是把 query-time record 原地改写成 canonical truth
 
 ## Regulation Canonical Cleaning Boundary
 
@@ -461,7 +501,7 @@ artifacts 派生一条 product-delivery 子链：
 reader asset package / object key / deploy sync 细节统一看
 `docs/contracts/document-reader-publish.md`。
 
-## RAG Release Candidate Lane
+## RAG Release Candidate Boundary
 
 对已 admission 的 retrieval-backed canonical scope，repo 级 data plane 允许从 canonical
 document artifacts 派生一条独立 RAG release 子链：
@@ -471,14 +511,14 @@ retrieval acceptance -> serving alias publish`
 
 固定规则：
 
-- RAG release lane 属于 chunk/index/retrieval serving truth，不改变 source-truth 或
+- RAG release boundary 属于 chunk/index/retrieval serving truth，不改变 source-truth 或
   document registry truth
 - canonical document materialization 只能产生 `rag_release_candidate`；candidate 不是
   query-serving alias，也不表示 runtime 已可检索
 - `rag_release_candidate` 持久 store 是 ingestion data-plane owned operator store；
   production materialization 只有在显式注入 store 或配置 candidate store Postgres URL 时
   才入队，避免无 operator store 的本地/assertion replay 被隐式升级为发布流程
-- reader publish lane 与 RAG release lane 可以共享 canonical document provenance，但必须保留
+- reader publish boundary 与 RAG release boundary 可以共享 canonical document provenance，但必须保留
   独立 status、artifact、manifest 与 verification truth
 - periodic worker 可以批量处理 pending candidates；worker 只能读取 canonical document
   artifacts / document-units 与 release profile，不回扫 raw/source bucket
@@ -526,18 +566,6 @@ retrieval acceptance -> serving alias publish`
 - chunk metadata
 - vector / sparse index
 - serving-side evidence carrier
-
-### Live Evidence Adjunct
-
-- admitted live source observations
-- bounded normalized live evidence records
-- query-time candidate input
-
-补充约束：
-
-- 它不是 canonical source-truth layer
-- 它也不是 document/index release truth
-- 它只为 query-time freshness-sensitive / live-assisted branch 服务
 
 ## Registry And Release Model
 
@@ -602,7 +630,7 @@ registry / control-plane database 与对象存储长期分层。
 
 这些分别以：
 
-- `docs/policies/student-handbook-chunking-and-validation-policy.md`
+- `docs/policies/student-rules-chunking.md`
 - `configs/ingestion/*`
 - `docs/data/official-web.md`
 - `docs/data/authenticated-notice.md`
@@ -638,8 +666,7 @@ active registry，直到 collection-specific handler 与 contract artifact 同�
 - 不让新增下游 collection 在 source truth 已存在时返回 raw 重新消费
 - 不把 source-truth contract 污染成 document truth 或 retrieval truth
 - 不把 online query logic 混回 data-plane layer
-- 不把 query-time live evidence 误写成 canonical current-version document truth
-- 不让 planner/executor 直接修改 canonical document scope 或 release truth
+- 不让 online `knowledge_search` 修改 canonical document scope 或 release truth
 
 ## 相关稳定文档
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 )
 
 func TestProviderConfigCompatibilityEndpointRequiresWorkerAuth(t *testing.T) {
@@ -26,8 +26,8 @@ func TestProviderConfigCompatibilityEndpointRequiresWorkerAuth(t *testing.T) {
 func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 	checker := &fakeRAGCompatibilityChecker{}
 	server := newWorkerAuthServerForTest()
-	server.ragLookupExecutor = checker
-	server.ragLookupErr = nil
+	server.knowledgeSearchExecutor = checker
+	server.knowledgeSearchErr = nil
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
@@ -52,8 +52,8 @@ func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 
 func TestProviderConfigCompatibilityEndpointReportsRAGDrift(t *testing.T) {
 	server := newWorkerAuthServerForTest()
-	server.ragLookupExecutor = &fakeRAGCompatibilityChecker{err: errProviderCompatibilityDriftForTest{}}
-	server.ragLookupErr = nil
+	server.knowledgeSearchExecutor = &fakeRAGCompatibilityChecker{err: errProviderCompatibilityDriftForTest{}}
+	server.knowledgeSearchErr = nil
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
@@ -82,11 +82,11 @@ func (f *fakeRAGCompatibilityChecker) HealthCheck(context.Context) error {
 	return nil
 }
 
-func (f *fakeRAGCompatibilityChecker) Lookup(
+func (f *fakeRAGCompatibilityChecker) Search(
 	context.Context,
-	ragruntime.PlanProjection,
-) (ragruntime.RetrievalLookupResult, error) {
-	return ragruntime.RetrievalLookupResult{}, nil
+	retrievalruntime.SearchRequest,
+) (retrievalruntime.SearchResult, error) {
+	return retrievalruntime.SearchResult{}, nil
 }
 
 func (f *fakeRAGCompatibilityChecker) CheckEmbeddingCompatibility(

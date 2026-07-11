@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-03-31
-updated: 2026-06-29
+updated: 2026-07-08
 ---
 # Eval Gold Truth Model
 
@@ -32,10 +32,10 @@ candidate review manifest，不能直接写入 golden truth。
 5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 Operator Console 只能消费
    artifact 或 backlink，不改写 canonical truth。
 
-旧 intent observed-regression CLI fixture 已随 Go `cmd/intent-eval-runner` 删除。
-当前 intent/routing 回归应由 `apps/execution-control/internal/execution` 等 owning
-runtime tests 覆盖；恢复 observed-regression admission 时必须在 TS eval lane 或
-owning runtime 中实现，不能恢复旧 runner。
+当前 routing、official handoff 与 tool-call 回归由 `apps/agent-runtime` 的 SDK
+trajectory tests、Langfuse datasets / experiments 覆盖。Execution-control tests
+只覆盖 deterministic admission、evidence validation、source generation 与 terminal
+projection；不得建立第二套 semantic routing oracle。
 
 ## 四层 Truth
 
@@ -246,7 +246,7 @@ owning runtime tests，不能恢复 `packages/evals`。
 
 ## RAGAS Projection 规则
 
-ADR-0062 将 RAGAS 目标链路收口为：
+ADR-0062 将 RAGAS 目标链路固定为：
 
 `Langfuse traces / datasets -> safe RAG eval projection -> Ragas -> Langfuse scores`
 

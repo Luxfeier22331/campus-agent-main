@@ -21,10 +21,9 @@ import (
 type Role string
 
 const (
-	RoleWorkflow  Role = "workflow"
-	RoleCore      Role = "activity-core"
-	RoleAgent     Role = "activity-agent"
-	RoleKnowledge Role = "activity-knowledge"
+	RoleWorkflow Role = "workflow"
+	RoleCore     Role = "activity-core"
+	RoleAgent    Role = "activity-agent"
 )
 
 func Run(role Role) {
@@ -126,7 +125,6 @@ func buildWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueCore,
 			server.TemporalContextActivities(),
-			server.TemporalTypedToolActivities(),
 			server.TemporalFinalizationActivities(),
 			options,
 		), nil
@@ -136,14 +134,6 @@ func buildWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueAgent,
 			server.TemporalAgentActivities(),
-			options,
-		), nil
-	case RoleKnowledge:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewKnowledgeActivityWorkerWithOptions(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueKnowledge,
-			server.TemporalKnowledgeActivities(),
 			options,
 		), nil
 	default:
@@ -182,8 +172,6 @@ func taskQueueForRole(cfg config.Config, role Role) (string, error) {
 		return temporalruntime.ActivityTaskQueueCore, nil
 	case RoleAgent:
 		return temporalruntime.ActivityTaskQueueAgent, nil
-	case RoleKnowledge:
-		return temporalruntime.ActivityTaskQueueKnowledge, nil
 	default:
 		return "", fmt.Errorf("unsupported worker target %q", role)
 	}

@@ -12,6 +12,47 @@ const transportResultSchemaRef = schemaRef(
 );
 
 describe("execution-control tool executor", () => {
+	it("does not execute agent handoffs through the internal query client", async () => {
+		let fetchCalled = false;
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "",
+			sharedSecret: "",
+			fetchImpl: async () => {
+				fetchCalled = true;
+				throw new Error("fetch must not be called for handoff");
+			},
+		});
+		const argumentsJson = {
+			query_text: "学籍管理规定是什么",
+			scope: "student_rules",
+			version_query: null,
+		};
+
+		const result = await executor({
+			...toolRequest(),
+			argumentsJson,
+			tool: {
+				...toolRequest().tool,
+				name: "knowledge_query",
+				description: "Handoff this turn to governed RAG.",
+				payloadSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQueryPayload"),
+				resultSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeAgentTerminalResult"),
+				handler: {
+					type: "agent_handoff",
+					target: "knowledge_agent",
+				},
+				timeoutMs: 1000,
+			},
+		});
+
+		expect(fetchCalled).toBe(false);
+		expect(result).toMatchObject({
+			status: "failed",
+			toolName: "knowledge_query",
+			failCloseReason: "tool_handler_not_supported",
+		});
+	});
+
 	it("fails closed when execution-control query config is missing", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "",

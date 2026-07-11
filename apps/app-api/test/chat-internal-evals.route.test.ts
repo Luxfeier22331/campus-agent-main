@@ -54,46 +54,26 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					error: null,
 					followUpQuestion: "",
 					observability: {
-						aclAnomalyCode: null,
-						aclDecision: null,
-						cachedInputTokens: null,
-						candidateCount: 3,
-						citationCount: 1,
-						citationExpected: true,
-						citationMissing: false,
-						estimatedCostMicrousd: 1234,
-						failClosed: false,
-						inputTokens: 120,
-						modelName: "gpt-5.4",
-						modelProvider: "openai",
-						outputTokens: 42,
-						refusalClass: null,
-						retrievedSourceCount: 1,
-						retrievalAttempted: true,
+						agentRuntime: "openai_agents_sdk",
+						sdkTraceRef: "sdk-trace-eval-01HQ",
+						selectedTools: ["knowledge_query"],
+						terminalReason: "answer",
 					},
 					result: {
-						evidence: {
-							collection: "student_rules",
-							corpus: "regulations",
-							query_text: "图书馆开放到几点？",
-							sources: [
-								{
-									anchor: { page: 1 },
-									canonical_url: "https://example.edu/library-hours",
-									chunk_id: "chunk-1",
-									collection: "student_rules",
-									doc_id: "handbook:library-hours",
-									is_current: true,
-									latest_url: "https://example.edu/library-hours",
-									revision_track: "source-faithful",
-									score: 0.98,
-									snippet: "图书馆开放到 22:00。",
-									source_channel: "pdf_ocr",
-									source_title: "图书馆开放时间",
-									version_id: "v1",
-								},
-							],
-						},
+						provider_response_id: "resp_eval_01HQ",
+						selected_tools: ["knowledge_query"],
+						sources: [
+							{
+								canonical_url: "/docs/regulations/student_rules/library-hours",
+								snippet: "图书馆开放到 22:00。",
+								source_kind: "regulation",
+								source_title: "图书馆开放时间",
+								target_kind: "canonical_reader",
+								title: "图书馆开放时间",
+								version_id: "student-rules-current",
+							},
+						],
+						terminal_reason: "answer",
 					},
 					selectedTool: "knowledge_query",
 					status: "completed",
@@ -118,10 +98,8 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			new Request("https://app-api.internal/api/internal/evals/chat/requests", {
 				body: JSON.stringify({
 					prompt: "图书馆开放到几点？",
-					requestedScope: {
-						collection: "student_rules",
-						corpus: "regulations",
-					},
+					requestedTool: "knowledge_query",
+					scope: "student_rules",
 					versionQuery: {
 						compareToVersionId: "v2025-student-rules",
 						mode: "compare",
@@ -166,46 +144,26 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				error: null,
 				followUpQuestion: "",
 				observability: {
-					aclAnomalyCode: null,
-					aclDecision: null,
-					cachedInputTokens: null,
-					candidateCount: 3,
-					citationCount: 1,
-					citationExpected: true,
-					citationMissing: false,
-					estimatedCostMicrousd: 1234,
-					failClosed: false,
-					inputTokens: 120,
-					modelName: "gpt-5.4",
-					modelProvider: "openai",
-					outputTokens: 42,
-					refusalClass: null,
-					retrievedSourceCount: 1,
-					retrievalAttempted: true,
+					agentRuntime: "openai_agents_sdk",
+					sdkTraceRef: "sdk-trace-eval-01HQ",
+					selectedTools: ["knowledge_query"],
+					terminalReason: "answer",
 				},
 				result: {
-					evidence: {
-						collection: "student_rules",
-						corpus: "regulations",
-						query_text: "图书馆开放到几点？",
-						sources: [
-							{
-								anchor: { page: 1 },
-								canonical_url: "https://example.edu/library-hours",
-								chunk_id: "chunk-1",
-								collection: "student_rules",
-								doc_id: "handbook:library-hours",
-								is_current: true,
-								latest_url: "https://example.edu/library-hours",
-								revision_track: "source-faithful",
-								score: 0.98,
-								snippet: "图书馆开放到 22:00。",
-								source_channel: "pdf_ocr",
-								source_title: "图书馆开放时间",
-								version_id: "v1",
-							},
-						],
-					},
+					provider_response_id: "resp_eval_01HQ",
+					selected_tools: ["knowledge_query"],
+					sources: [
+						{
+							canonical_url: "/docs/regulations/student_rules/library-hours",
+							snippet: "图书馆开放到 22:00。",
+							source_kind: "regulation",
+							source_title: "图书馆开放时间",
+							target_kind: "canonical_reader",
+							title: "图书馆开放时间",
+							version_id: "student-rules-current",
+						},
+					],
+					terminal_reason: "answer",
 				},
 				selectedTool: "knowledge_query",
 				status: "completed",
@@ -216,10 +174,8 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			idempotencyKey: null,
 			payload: {
 				prompt: "图书馆开放到几点？",
-				requestedScope: {
-					collection: "student_rules",
-					corpus: "regulations",
-				},
+				requestedTool: "knowledge_query",
+				scope: "student_rules",
 				versionQuery: {
 					compareToVersionId: "v2025-student-rules",
 					mode: "compare",
@@ -246,8 +202,9 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					type: "campus_member",
 				}),
 			}),
-			surface: "eval_benchmark",
+			requestKind: "internal_eval",
 			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
+			waitUntil: undefined,
 		});
 	});
 
@@ -287,10 +244,8 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			new Request("https://app-api.internal/api/internal/evals/chat/requests", {
 				body: JSON.stringify({
 					prompt: "我这个专业的基地班大二下有什么课",
-					requestedScope: {
-						collection: "curriculum_plan",
-						corpus: "curriculum",
-					},
+					requestedTool: "knowledge_query",
+					scope: "curriculum",
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -311,10 +266,8 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			idempotencyKey: null,
 			payload: {
 				prompt: "我这个专业的基地班大二下有什么课",
-				requestedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
+				requestedTool: "knowledge_query",
+				scope: "curriculum",
 			},
 			principal: expect.objectContaining({
 				actor: {
@@ -328,7 +281,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					userId: "eval_user_01HQ",
 				},
 			}),
-			surface: "eval_benchmark",
+			requestKind: "internal_eval",
 			traceHeaders: emptyTraceHeaders,
 			waitUntil: undefined,
 		});

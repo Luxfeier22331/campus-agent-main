@@ -68,8 +68,10 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					answerText: currentCase.answerText,
 					error: null,
 					followUpQuestion: "",
+					resolvedScope: null,
 					result: currentCase.result,
 					selectedTool: "transport_schedule_lookup",
+					sessionUpdate: null,
 					status: "completed",
 					traceId: "trace_0001",
 				} as const;
@@ -90,7 +92,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					prompt: currentCase.prompt,
 				},
 				principal: createPrincipal(),
-				surface: "campus_web",
+				requestKind: "public_chat",
 			});
 			expect(response.answer.result.kind).toBe("answer");
 			if (response.answer.result.kind !== "answer") {

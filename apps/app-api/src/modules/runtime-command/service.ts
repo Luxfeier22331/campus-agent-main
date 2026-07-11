@@ -77,8 +77,9 @@ export function buildChatCommandService(
 			});
 		}
 
-		const surface = input.surface?.trim() || "campus_web";
-		const validatedPayload = resolveValidatedPayload(input.payload, { surface });
+		const requestKind = input.requestKind ?? "public_chat";
+		const surface = requestKind === "internal_eval" ? "eval_benchmark" : "campus_web";
+		const validatedPayload = resolveValidatedPayload(input.payload, { requestKind });
 		if (
 			dependencies.requireExecutionRuntime &&
 			!(dependencies.executionRuntime && dependencies.isExecutionRuntimeConfigured !== false)
@@ -183,7 +184,6 @@ export function buildChatCommandService(
 				activeMessageId: null,
 				activeRunId: null,
 				activeTurnSequence: 0,
-				contextSummary: null,
 				sessionSlots: [],
 				messages: [],
 			};
@@ -357,22 +357,16 @@ export function buildChatCommandService(
 		const executionInput = await buildExecutionInput(context);
 		try {
 			const durableMetadata = buildToolExecutionRunMetadata(executionInput);
-			const executionPayload = durableMetadata.execution_payload as Record<string, unknown>;
-			const taskQueue = stringOrThrow(executionPayload.task_queue, "durable execution task queue");
-			const selectedTool = optionalString(executionPayload.effective_tool);
 			const run = await dependencies.executionRuntime.createRun({
 				conversationId: context.conversation.id,
 				metadata: durableMetadata,
 				ownerUserId: context.input.principal.actor.userId,
 				requestId: context.requestId,
-				requestedTool: context.validatedPayload.requestedTool,
 				runId: context.runId,
 				runtimeVersions: {
 					contract: "durable-agent-runtime-contract-v1",
 				},
-				selectedTool,
 				surface: context.surface,
-				taskQueue,
 				traceHeaders: executionInput.traceHeaders,
 				traceId: context.traceId,
 				turnId: context.turnId,
@@ -740,24 +734,4 @@ export function buildChatCommandService(
 			});
 		},
 	};
-}
-
-function stringOrThrow(value: unknown, fieldName: string): string {
-	if (typeof value !== "string" || value.trim() === "") {
-		throw new ExecutionControlTransportError({
-			code: "runtime_invariant_failed",
-			message: `${fieldName} is missing from durable execution metadata.`,
-			retryable: false,
-			status: 500,
-		});
-	}
-	return value;
-}
-
-function optionalString(value: unknown): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed ? trimmed : null;
 }

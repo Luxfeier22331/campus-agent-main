@@ -10,32 +10,6 @@ export type ChatMessageFeedbackReasonCode =
 	| "other";
 export const DRAFT_CONVERSATION_TITLE = "New conversation";
 
-export interface ChatPlacePointGeometry {
-	latitude: number;
-	longitude: number;
-}
-
-export interface ChatPlaceCard {
-	placeId: string;
-	entityType: string;
-	displayName: string;
-	campusScope: string | null;
-	campusArea: string | null;
-	locationDescription: string | null;
-	landmarkHint: string | null;
-	accessNote: string | null;
-	openingNote: string | null;
-	serviceTags: string[];
-	pointGeometry: ChatPlacePointGeometry | null;
-	coordinateReferenceSystem: string | null;
-	sourceRefs: string[];
-}
-
-export interface ChatPlaceCardStructuredPart {
-	type: "place_card";
-	placeCard: ChatPlaceCard;
-}
-
 export type ChatSourceTargetKind =
 	| "canonical_reader"
 	| "notice_reader"
@@ -99,7 +73,6 @@ export interface ChatCampusServiceTraceCardsStructuredPart {
 }
 
 export type ChatMessageStructuredPart =
-	| ChatPlaceCardStructuredPart
 	| ChatSourceItemsStructuredPart
 	| ChatCampusServiceTraceCardsStructuredPart;
 
@@ -147,7 +120,6 @@ export interface ChatConversation {
 	activeMessageId?: string | null;
 	activeRunId?: string | null;
 	activeTurnSequence?: number;
-	contextSummary?: string | null;
 	sessionSlots: ChatSessionSlot[];
 	messages: ChatMessage[];
 }
@@ -239,49 +211,6 @@ function normalizeStringArray(value: unknown): string[] {
 	return value
 		.map((item) => normalizeOptionalString(item))
 		.filter((item): item is string => item !== null);
-}
-
-function normalizePointGeometry(value: unknown): ChatPlacePointGeometry | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const longitude = typeof value.longitude === "number" ? value.longitude : null;
-	const latitude = typeof value.latitude === "number" ? value.latitude : null;
-	if (longitude === null || latitude === null) {
-		return null;
-	}
-
-	return { latitude, longitude };
-}
-
-function normalizePlaceCard(value: unknown): ChatPlaceCard | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const placeId = normalizeOptionalString(value.placeId);
-	const entityType = normalizeOptionalString(value.entityType);
-	const displayName = normalizeOptionalString(value.displayName);
-	if (!(placeId && entityType && displayName)) {
-		return null;
-	}
-
-	return {
-		placeId,
-		entityType,
-		displayName,
-		campusScope: normalizeOptionalString(value.campusScope),
-		campusArea: normalizeOptionalString(value.campusArea),
-		locationDescription: normalizeOptionalString(value.locationDescription),
-		landmarkHint: normalizeOptionalString(value.landmarkHint),
-		accessNote: normalizeOptionalString(value.accessNote),
-		openingNote: normalizeOptionalString(value.openingNote),
-		serviceTags: normalizeStringArray(value.serviceTags),
-		pointGeometry: normalizePointGeometry(value.pointGeometry),
-		coordinateReferenceSystem: normalizeOptionalString(value.coordinateReferenceSystem),
-		sourceRefs: normalizeStringArray(value.sourceRefs),
-	};
 }
 
 function isBrowserSafeDocsHref(value: string): boolean {
@@ -560,18 +489,6 @@ function normalizeCampusServiceTraceCards(value: unknown): ChatCampusServiceTrac
 function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | null {
 	if (!isRecord(value)) {
 		return null;
-	}
-
-	if (value.type === "place_card") {
-		const placeCard = normalizePlaceCard(value.placeCard);
-		if (!placeCard) {
-			return null;
-		}
-
-		return {
-			type: "place_card",
-			placeCard,
-		};
 	}
 
 	if (value.type === "source_items") {

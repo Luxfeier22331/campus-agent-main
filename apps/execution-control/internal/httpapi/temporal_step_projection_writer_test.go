@@ -29,7 +29,6 @@ func TestProjectTemporalStepEmitsLangfuseObservationTelemetry(t *testing.T) {
 		OTelEndpoint:                 collector.URL() + "/v1/traces",
 		OTelExportTimeoutMS:          500,
 		OTelSampleRatio:              1,
-		RAGSelectedEvidenceMax:       8,
 		RAGTopKMax:                   8,
 		RuntimeRelease:               "execution-control@langfuse-test",
 	})
@@ -152,13 +151,13 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		t.Fatalf("admit run: %v", err)
 	}
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "synthesis",
+		StepID:               "agent.primary",
 		RunID:                "run-step-terminal-late",
 		ConversationID:       "conv-step-terminal-late",
-		StepKind:             "synthesis",
+		StepKind:             "agent",
 		Tool:                 "knowledge_query",
 		Status:               "failed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
 		WorkerID:             "worker-1",
 		StartedAt:            now.Add(2 * time.Second),
 		CompletedAt:          now.Add(3 * time.Second),
@@ -178,18 +177,18 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
-		StepID:        "synthesis",
-		StepKind:      "synthesis",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		StepID:        "agent.primary",
+		StepKind:      "agent",
+		TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
 		WorkerID:      "worker-1",
 		StartedAt:     now.Add(4 * time.Second),
 		CompletedAt:   now.Add(5 * time.Second),
 		UpdatedAt:     now.Add(5 * time.Second),
-		ResultKind:    "provider_execution_summary",
-		ProjectionRef: temporalProjectionRef(run.RunID, "synthesis/provider"),
+		ResultKind:    "agent_final_output",
+		ProjectionRef: temporalProjectionRef(run.RunID, "agent/primary/result"),
 		Payload:       map[string]any{"provider_response": "late"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "already terminal before synthesis completion projection") {
+	if err == nil || !strings.Contains(err.Error(), "already terminal before agent.primary completion projection") {
 		t.Fatalf("late completion error = %v", err)
 	}
 

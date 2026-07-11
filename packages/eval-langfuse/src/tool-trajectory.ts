@@ -1,12 +1,13 @@
 import { isRecord, type JsonObject, mapping, optionalString, stringField } from "./shared";
 
 export type ToolDecisionKind = "direct_answer" | "fail_closed" | "tool_call";
-export type ExpectedTool = "direct_answer" | "knowledge_query" | "public_web_search";
+export type ExpectedTool = "direct_answer" | "knowledge_query" | "transport_schedule_lookup";
 export type ObservedTool = ExpectedTool | "fail_closed" | "unknown_tool";
 
 export interface ToolTrajectoryCall {
 	arguments_hash?: string;
 	arguments_shape?: JsonObject;
+	eval_safe_args?: JsonObject;
 	fail_close_reason?: string;
 	result_kind: string;
 	status: string;
@@ -58,11 +59,11 @@ export function expectedToolFromTrajectory(trajectory: ToolTrajectory): Observed
 	if (trajectory.decision_kind === "fail_closed") {
 		return "fail_closed";
 	}
-	if (trajectory.selected_tool === "public_web_search") {
-		return "public_web_search";
-	}
 	if (trajectory.selected_tool === "knowledge_query") {
 		return "knowledge_query";
+	}
+	if (trajectory.selected_tool === "transport_schedule_lookup") {
+		return "transport_schedule_lookup";
 	}
 	return "unknown_tool";
 }
@@ -91,6 +92,7 @@ function parseToolCalls(value: unknown): ToolTrajectoryCall[] {
 		return {
 			arguments_hash: optionalString(call.arguments_hash) ?? undefined,
 			arguments_shape: isRecord(call.arguments_shape) ? { ...call.arguments_shape } : undefined,
+			eval_safe_args: isRecord(call.eval_safe_args) ? { ...call.eval_safe_args } : undefined,
 			fail_close_reason: optionalString(call.fail_close_reason) ?? undefined,
 			result_kind: stringField(
 				call.result_kind,

@@ -31,7 +31,13 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				},
 				body: JSON.stringify({
 					payload: request.argumentsJson,
-					access_context: {},
+					access_context: {
+						run_id: request.runId,
+						trace_id: request.traceId,
+						invocation_id: request.invocationId,
+						knowledge_scope: request.knowledge?.scope,
+						version_query: request.knowledge?.versionQuery,
+					},
 				}),
 				signal: composedAbortSignal([request.signal, AbortSignal.timeout(request.tool.timeoutMs)]),
 			});
@@ -58,7 +64,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 			payloadKind: request.tool.name,
 			argumentsJson: request.argumentsJson,
 			result,
-			resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}`,
+			resultRef: toolResultRef(request),
 		};
 	};
 }
@@ -74,9 +80,16 @@ function failedToolResult(
 		payloadKind: request.tool.name,
 		argumentsJson: request.argumentsJson,
 		result,
-		resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}/failed`,
+		resultRef: `${toolResultRef(request)}/failed`,
 		failCloseReason,
 	};
+}
+
+function toolResultRef(request: ToolExecutionRequest): string {
+	const invocation = request.invocationId?.trim();
+	return invocation
+		? `agent-runtime://${request.runId}/tools/${request.tool.name}/${encodeURIComponent(invocation)}`
+		: `agent-runtime://${request.runId}/tools/${request.tool.name}`;
 }
 
 function errorMessage(error: unknown): string {

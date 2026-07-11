@@ -41,11 +41,9 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 			ActivityTaskQueueCore,
 			activities,
 			activities,
-			activities,
 			worker.Options{},
 		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
-		NewKnowledgeActivityWorkerWithOptions(temporalClient, ActivityTaskQueueKnowledge, activities, worker.Options{}),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -55,7 +53,7 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 	}
 
 	runID := "run-temporal-devserver-e2e"
-	input := workflowTestInput(runID)
+	input := devServerWorkflowInput(runID)
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
@@ -98,7 +96,7 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 	}
 }
 
-func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) {
+func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
@@ -114,24 +112,17 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 		}
 	}()
 	temporalClient := server.Client()
-	activities := &knowledgeBranchActivities{}
+	activities := &Activities{}
 	workers := []worker.Worker{
 		NewWorkflowWorker(temporalClient, WorkflowTaskQueue),
 		NewCoreActivityWorkerWithOptions(
 			temporalClient,
 			ActivityTaskQueueCore,
-			&activities.Activities,
-			&activities.Activities,
-			&activities.Activities,
+			activities,
+			activities,
 			worker.Options{},
 		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
-		NewKnowledgeActivityWorkerWithOptions(
-			temporalClient,
-			ActivityTaskQueueKnowledge,
-			&activities.Activities,
-			worker.Options{},
-		),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -141,7 +132,7 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 	}
 
 	runID := "run-temporal-devserver-rag"
-	input := workflowTestInput(runID)
+	input := devServerWorkflowInput(runID)
 	input.RequestedTool = "knowledge_query"
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
@@ -166,11 +157,6 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 	for _, activityName := range []string{
 		MemoryRecallActivityName,
 		ExecutePrimaryAgentActivityName,
-		PlanRAGActivityName,
-		RetrieveIndexedLookupActivityName,
-		SelectEvidenceActivityName,
-		SynthesizeRAGAnswerActivityName,
-		VerifyGroundingActivityName,
 		WriteFinalizationActivityName,
 		AppendConversationMemoryActivityName,
 	} {
@@ -204,7 +190,6 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 			ActivityTaskQueueCore,
 			&activities.Activities,
 			&activities.Activities,
-			&activities.Activities,
 			worker.Options{},
 		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, &activities),
@@ -216,7 +201,8 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 		defer runtimeWorker.Stop()
 	}
 	runID := "run-temporal-devserver-cancel"
-	input := workflowTestInput(runID)
+	input := devServerWorkflowInput(runID)
+	input.RequestedTool = ""
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
@@ -262,31 +248,18 @@ type blockingAgentActivities struct {
 	once    sync.Once
 }
 
-type knowledgeBranchActivities struct {
-	Activities
-}
-
-func (a *knowledgeBranchActivities) ExecutePrimaryAgentActivity(
-	_ context.Context,
-	input ExecutePrimaryAgentActivityInput,
-) (ExecutePrimaryAgentActivityOutput, error) {
-	return ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
-		FinalOutput:    "需要查询知识库。",
-		RunID:          input.RunID,
-		SelectedTools:  []string{"knowledge_query"},
-		Status:         "completed",
-		TerminalReason: "tool_selected",
-		ToolResults: []AgentToolResult{{
-			PayloadKind: "rag_request",
-			Result: map[string]any{
-				"workflow_signal": "knowledge_query",
-			},
-			ResultRef: "projection://runs/" + input.RunID + "/agent/primary/tools/knowledge_query",
-			Status:    "completed",
-			ToolName:  "knowledge_query",
-		}},
-	}, nil
+func devServerWorkflowInput(runID string) ToolExecutionWorkflowInput {
+	return ToolExecutionWorkflowInput{
+		ConversationID: "conversation-" + runID,
+		RequestID:      "request-" + runID,
+		RunID:          runID,
+		TraceID:        "trace-" + runID,
+		TurnID:         "turn-" + runID,
+		VisibleToolNames: []string{
+			"knowledge_query",
+			"transport_schedule_lookup",
+		},
+	}
 }
 
 func (a *blockingAgentActivities) ExecutePrimaryAgentActivity(

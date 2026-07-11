@@ -1,6 +1,9 @@
 import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
-
+import {
+	loadCollectionChunkProfilesFromRoot,
+	loadIngestionTaskRegistryCatalogFromRoot,
+} from "ingest-core/node";
 import { createIngestionTaskActivities } from "./activities";
 import { loadAuthenticatedNoticeFamilyConfigFromRegistryRoot } from "./authenticated-notice-config";
 import {
@@ -19,10 +22,6 @@ import {
 } from "./postgres-store";
 import { buildIngestionControlRuntimeConfig } from "./runtime";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
-import {
-	loadCollectionChunkProfilesFromRoot,
-	loadIngestionTaskRegistryCatalogFromRoot,
-} from "./task-registry";
 import { buildIngestionTemporalConfig } from "./temporal-config";
 import { createDefaultTsTaskHandlerRegistry } from "./ts-task-handlers";
 

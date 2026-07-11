@@ -53,13 +53,41 @@ The API and Temporal worker roles may share the same package or container
 image, but they must be deployed as different runtime processes. Collector
 processes and `apps/app-api` must not own workflow / activity / closeout truth.
 
+Operational task flow:
+
+```mermaid
+sequenceDiagram
+  participant Collector as source collector / app-api seam
+  participant API as ingestion-control-api
+  participant Registry as task registry catalog
+  participant Store as Postgres task store
+  participant Temporal as Temporal service
+  participant Worker as ingestion-control-temporal-worker
+  participant ObjectStore as source bucket
+
+  Collector->>API: POST /internal/ingestion/tasks with scoped token
+  API->>Registry: validate collection, task kind and output contract
+  API->>Store: admit task idempotently
+  API->>Temporal: start ingestion workflow
+  Temporal->>Worker: dispatch registry-aware activity
+  Worker->>ObjectStore: read object_store input_ref
+  Worker->>Worker: run ts_control handler or rust_kernel bridge
+  Worker->>ObjectStore: write validated artifacts on success
+  Worker->>Store: terminal closeout completed / failed / canceled
+  API-->>Collector: 202 accepted or fail-closed error
+```
+
 ## Local Control Plane
 
 ```bash
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
 export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
+export INGESTION_CONTROL_ADMIN_TOKEN=local-admin-token
+export INGESTION_CONTROL_APP_API_PROJECTION_TOKEN=local-app-api-projection-token
 export INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN=local-official-web-token
+export INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN=local-official-web-execution-status-token
+export INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN=local-official-web-projection-token
 pnpm --filter ingestion-control start:api
 ```
 
@@ -70,6 +98,25 @@ curl -fsS http://127.0.0.1:8000/readyz
 ```
 
 The local command starts only the HTTP control-plane surface.
+
+Internal routes are service-token scoped:
+
+- `POST /internal/ingestion/tasks` and
+  `GET /internal/ingestion/tasks/:taskId` require
+  `INGESTION_CONTROL_ADMIN_TOKEN`.
+- `GET /internal/ingestion/operator-projection/tasks` requires
+  `INGESTION_CONTROL_APP_API_PROJECTION_TOKEN`; `apps/app-api` calls it with
+  `Authorization: Bearer <token>` and consumes only the redacted projection
+  response.
+- official-web run creation, plan resolution, heartbeat and finalize routes
+  require `INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN`.
+- `POST /internal/ingestion/official-web/projection:drain` requires
+  `INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN`.
+- `POST /internal/ingestion/official-web/runs/:runId/ingestion-execution`
+  requires `INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN`.
+
+`/healthz` and `/readyz` remain unauthenticated health probes. Missing or wrong
+service credentials must fail closed.
 
 ## Local Temporal Worker
 
@@ -168,6 +215,15 @@ missing/invalid credentials must fail closed. Do not add an app-api proxy or
 compatibility route for the removed `/api/official-web/*` collector POST
 surface.
 
+Official-web terminal run projection must carry an explicit
+`official_web/<collection>` selected write target, either on the terminal event
+payload or preserved page-change / target-match metadata. The projection worker
+admits `official_web/stable_reference` or `official_web/fresh_news`
+`source_truth_materialize` tasks from that explicit target. It must fail closed
+when no official-web target is present, when more than one official-web
+collection is present, or when the target collection is unsupported. It must
+not default every terminal official-web run to `stable_reference`.
+
 Authenticated internal notice materialization uses
 `authenticated_notice_capture_release.v1` as the `source_truth_materialize`
 input contract. Admit the task with an `input_ref.kind=object_store` `s3://...`
@@ -245,10 +301,13 @@ access and `ingestion-kernel-runner` are configured. The bridge reads the task
 `schema_version` against the task `output_contract`, then parses the stdout
 through the `packages/ingest-core` Zod-backed parser for that contract. The
 bridge writes the validated kernel artifact back to the source bucket and
-returns an object-store closeout ref. It must fail closed on missing
-object-store access, missing binary, non-zero runner exit, unsupported kernel
-id, contract mismatch, unknown output contract, invalid stdout JSON or invalid
-stdout contract shape; do not add inline JS or Python stand-ins.
+returns an object-store closeout ref only when the kernel reports success. A
+zero process exit with stdout `error_count > 0` is a failed kernel run: the
+Temporal activity fails the task and must not write a kernel artifact. The
+bridge must also fail closed on missing object-store access, missing binary,
+non-zero runner exit, unsupported kernel id, contract mismatch, unknown output
+contract, invalid stdout JSON or invalid stdout contract shape; do not add
+inline JS or Python stand-ins.
 
 Source-bucket task handlers use SDK-backed S3-compatible object-store access
 configured by:

@@ -174,6 +174,7 @@ export function registerChatRoutes(input: {
 				idempotencyKey: c.req.header("idempotency-key") ?? null,
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: resolved.principal,
+				requestKind: "public_chat",
 				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});
@@ -233,6 +234,7 @@ export function registerChatRoutes(input: {
 					idempotencyKey: c.req.header("idempotency-key") ?? null,
 					payload: await readJsonRequestBody(c.req.raw),
 					principal: resolved.principal,
+					requestKind: "public_chat",
 					traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 					waitUntil: resolveWaitUntil(c),
 				})
@@ -278,7 +280,7 @@ export function registerChatRoutes(input: {
 				idempotencyKey: c.req.header("idempotency-key") ?? null,
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
-				surface: "eval_benchmark",
+				requestKind: "internal_eval",
 				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});

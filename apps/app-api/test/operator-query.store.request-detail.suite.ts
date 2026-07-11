@@ -19,7 +19,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 				applicabilityScope: null,
 				completedAt: new Date("2026-03-28T08:00:01.000Z"),
 				conversationId: "conv_01HQ",
-				diagnosticsJson: null,
 				durationMs: 842,
 				errorCode: null,
 				entitlementGroupsJson: ["students"],
@@ -30,9 +29,9 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 				projectedAt: new Date("2026-03-28T08:00:02.000Z"),
 				questionPreview: "图书馆开放到几点？",
 				requestedTool: "knowledge_query",
-				requestedScopeJson: null,
+				requestedScope: null,
 				requestId: "req_01HQ",
-				resolvedScopeJson: null,
+				resolvedScope: null,
 				selectedTool: "knowledge_query",
 				sourceDocIdsJson: ["handbook:library-hours"],
 				startedAt: new Date("2026-03-28T08:00:00.000Z"),
@@ -73,10 +72,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 						"sha256:1515151515151515151515151515151515151515151515151515151515151515",
 					traceId: "trace_01HQ",
 				},
-				billableStepCount: 2,
-				cachedInputTokens: 12,
-				candidateCount: 8,
-				collection: "student_rules",
 				debugTraceRefsJson: [
 					{
 						sink: "langfuse",
@@ -85,9 +80,7 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 						url: "https://langfuse.example/project/traces/lf_trace_01HQ",
 					},
 				],
-				estimatedCostMicrousd: 120,
 				failClosed: false,
-				inputTokens: 300,
 				llmIoFingerprintJson: {
 					contextEnvelopeSha256:
 						"sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -119,30 +112,28 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 					workflowArtifactSha256:
 						"sha256:9999999999999999999999999999999999999999999999999999999999999999",
 				},
-				modelExecutionDetail: "completed",
-				modelExecutionState: "completed",
 				modelName: "gpt-test",
 				modelProvider: "openai",
-				modelUsageSummaryJson: [],
-				outputTokens: 80,
 				projectionLagMs: 250,
 				promptId: "campus-primary-agent",
 				promptVersion: "current",
 				requestedTool: "knowledge_query",
-				retrievalAdequacyReason: "enough_evidence",
-				retrievalAdequacyVerdict: "adequate",
-				retrievalAttempted: true,
-				retrievedSourceCount: 3,
 				selectedTool: "knowledge_query",
 				stageTimingJson: {
 					"agent.primary_ms": 8_200,
 					"memory.recall_ms": 34,
 					"provider.queue_ms": 900,
 				},
+				supportingSourcesJson: [
+					{
+						canonicalUrl: "/docs/regulations/student_rules/leave-policy",
+						sourceKind: "regulation",
+						sourceTitle: "学生请假管理规定",
+						targetKind: "canonical_reader",
+						versionId: "student-rules-current",
+					},
+				],
 				templateSha256: "sha256-template",
-				toolBusinessOutcome: "answered",
-				toolFailCloseReason: null,
-				toolHistoricalDowngradeReason: null,
 				traceAvailable: true,
 			},
 		]);
@@ -176,7 +167,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 						schemaVersion: "answer_eval_fingerprint.v1",
 						terminalOutcome: "grounded_answer",
 					},
-					billableStepCount: 2,
 					llmIoFingerprint: {
 						runId: "run_01HQ",
 						schemaVersion: "llm_io_fingerprint.v1",
@@ -184,13 +174,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 					},
 					modelName: "gpt-test",
 					modelProvider: "openai",
-				},
-				retrieval: {
-					adequacyVerdict: "adequate",
-					candidateCount: 8,
-					collection: "student_rules",
-					retrievalAttempted: true,
-					retrievedSourceCount: 3,
 				},
 				sinkLinks: {
 					projectionLagMs: 250,
@@ -216,11 +199,16 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 						warnMs: 800,
 					},
 				},
+				sources: [
+					{
+						canonicalUrl: "/docs/regulations/student_rules/leave-policy",
+						sourceTitle: "学生请假管理规定",
+					},
+				],
 				tool: {
 					failClosed: false,
 					requestedTool: "knowledge_query",
 					selectedTool: "knowledge_query",
-					toolBusinessOutcome: "answered",
 				},
 			},
 			request: {

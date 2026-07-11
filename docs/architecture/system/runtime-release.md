@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-14
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # Runtime Delivery And Release Hardening Architecture
 
@@ -29,7 +29,6 @@ updated: 2026-07-10
 执行级 runbook 统一看：
 
 - `docs/runbooks/execution-ops.md`
-- `docs/runbooks/execution-ops.md`
 - `docs/runbooks/execution-smoke.md`
 - `docs/runbooks/worker-observability-smoke.md`
 
@@ -50,20 +49,19 @@ identity injection -> post-deploy smoke -> release closeout artifact`
   Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local
   diagnostics runtime projection；production target deploy substrate 已由 ADR-0056
-  收口为 Kubernetes + KEDA。live staging/production substrate 必须由 applied resources、
+  固定为 Kubernetes + KEDA。live staging/production substrate 必须由 applied resources、
   runtime env、operator projection 与 release closeout artifact 共同确认。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
 - repo-owned local diagnostics execution runtime shape 固定为
   `execution-control + Temporal + workflow-worker + activity-worker-core +
-  activity-worker-agent + agent-runtime + activity-worker-knowledge +
-  worker-autoscaler`；
+  activity-worker-agent + agent-runtime + worker-autoscaler`；
   不允许新增第二条 dev-backed serving fallback path
 - production target runtime 使用 KEDA Temporal scaler + Kubernetes HPA；
   Docker Compose autoscaler 只保留 local diagnostics projection
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
-  projection / RAG runtime unhealthy 才进入 degraded posture
+  projection / agent-runtime / knowledge-search dependency unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与
   release closeout artifacts 共同决定
 
@@ -100,7 +98,7 @@ release identity 的长期规则固定为：
 这意味着：
 
 - release naming 是 deploy-time concern，不是静态配置文件事实
-- observability、artifact 命名与 deploy 审计必须围绕同一 release identity 收口
+- observability、artifact 命名与 deploy 审计必须围绕同一 release identity 关联
 
 ## Staging Deployment Sequence
 
@@ -135,7 +133,7 @@ not valid post-promotion evidence.
 - public/docs/panel 的 `app-api` staging origin 是 `APP_API` Service Binding +
   `https://app-api.internal`，不是 public custom domain fetch
 - internal shared secret、operator allowlist、campus-web origin allowlist 必须按跨 app
-  invariant 收口
+  invariant 统一
 - `AUTH_SHELL_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
   `OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal` 不能漂移
 
@@ -232,7 +230,7 @@ release closeout artifact 的长期 closure 固定为：
 - `Sentry` / `Axiom` 是 verification sink，不是 canonical operator read model
 - release hardening 的关闭条件是“真实请求和真实 runtime event 已进入 sink 并留存
   closeout artifact”，不是“SDK 已接入”
-- closeout artifact 必须以 timestamp + release identity + environment 收口，供回归和发布审计复用
+- closeout artifact 必须以 timestamp + release identity + environment 关联，供回归和发布审计复用
 
 ## Out Of Scope
 

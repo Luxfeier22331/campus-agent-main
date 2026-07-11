@@ -50,10 +50,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "llm_debug_trace_policy_scope_invalid", err)
 	}
-	input.VisibleToolNames = s.primaryAgentVisibleToolNames(run, input)
+	input.AllowedKnowledgeScopes, err = s.allowedKnowledgeScopesForPrimaryAgent(input.VisibleToolNames)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "knowledge_scope_policy_unavailable", err)
+	}
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
-	attempt := primaryAgentAttempt(input.Attempt)
-	replanReason := strings.TrimSpace(input.ReplanReason)
+	attempt := 1
 	finalModelContext := primaryAgentFinalModelContextForRun(run, input)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       attempt,
@@ -67,12 +69,13 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
-		ReplanReason:  replanReason,
 		Payload: map[string]any{
-			"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
+			"context_usage": primaryAgentContextUsageSummary(finalModelContext),
+			"allowed_knowledge_scopes": allowedKnowledgeScopesProjectionPayload(
+				input.AllowedKnowledgeScopes,
+			),
 			"memory_context_summary": temporalMemoryContextProjectionPayload(input.MemoryContext),
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
-			"replan_reason":          replanReason,
 			"requested_tool":         input.RequestedTool,
 			"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
 		},
@@ -93,7 +96,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			startedAt,
 			completedAt,
 			attempt,
-			replanReason,
 			input.VisibleToolNames,
 			output,
 		); err != nil {
@@ -116,13 +118,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		startedAt,
 		completedAt,
 		attempt,
-		replanReason,
 		input.VisibleToolNames,
 		output,
 	); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	if !primaryAgentOutputIsWorkflowSignal(output) && !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
+	if !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
 		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
@@ -168,7 +169,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		OutputTokens:          output.Usage.OutputTokens,
 		CachedInputTokens:     output.Usage.CachedInputTokens,
 		EstimatedCostMicroUSD: output.Usage.EstimatedCostMicroUSD,
-		ReplanReason:          replanReason,
 		Payload:               withPrimaryAgentContextUsage(payload, finalModelContext),
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -196,19 +196,47 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	return output, nil
 }
 
-func (s *Server) primaryAgentVisibleToolNames(
-	run execution.DurableRun,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) []string {
-	if s == nil || s.intentPolicyErr != nil {
-		return append([]string{}, input.VisibleToolNames...)
+func (s *Server) allowedKnowledgeScopesForPrimaryAgent(visibleToolNames []string) ([]temporalruntime.AllowedKnowledgeScope, error) {
+	if !containsPrimaryAgentVisibleTool(visibleToolNames, "knowledge_query") {
+		return nil, nil
 	}
-	return runtimepolicy.PrimaryAgentVisibleToolNames(
-		input.VisibleToolNames,
-		input.RequestedTool,
-		primaryAgentInputText(run),
-		s.intentPolicy,
-	)
+	policies, err := runtimepolicy.AllowedKnowledgeScopes(strings.TrimSpace(s.config.QueryServingScopesPath))
+	if err != nil {
+		return nil, err
+	}
+	scopes := make([]temporalruntime.AllowedKnowledgeScope, 0, len(policies))
+	for _, policy := range policies {
+		scopes = append(scopes, temporalruntime.AllowedKnowledgeScope{
+			AllowedQueryModes: append([]string{}, policy.AllowedQueryModes...),
+			Description:       policy.Description,
+			Scope:             policy.Scope,
+		})
+	}
+	return scopes, nil
+}
+
+func allowedKnowledgeScopesProjectionPayload(scopes []temporalruntime.AllowedKnowledgeScope) []map[string]any {
+	if len(scopes) == 0 {
+		return nil
+	}
+	payload := make([]map[string]any, 0, len(scopes))
+	for _, scope := range scopes {
+		payload = append(payload, map[string]any{
+			"allowed_query_modes": append([]string{}, scope.AllowedQueryModes...),
+			"description":         scope.Description,
+			"scope":               scope.Scope,
+		})
+	}
+	return payload
+}
+
+func containsPrimaryAgentVisibleTool(values []string, want string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) beginPrimaryAgentRun(
@@ -285,7 +313,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 	startedAt time.Time,
 	completedAt time.Time,
 	attempt int,
-	replanReason string,
 	visibleToolNames []string,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) error {
@@ -307,7 +334,9 @@ func (s *Server) projectPrimaryAgentToolResults(
 		if err := validatePrimaryAgentSDKToolResult(toolName, payloadKind); err != nil {
 			return err
 		}
-		if _, ok := visible[toolName]; !ok {
+		_, modelVisible := visible[toolName]
+		_, knowledgeHandoffVisible := visible["knowledge_query"]
+		if !modelVisible && (toolName != "knowledge_search" || !knowledgeHandoffVisible) {
 			return fmt.Errorf(
 				"agent runtime tool %s was not visible for this turn",
 				toolName,
@@ -325,7 +354,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
 				"fail_close_reason":        "schema_contract_drift",
 				"payload_kind":             payloadKind,
-				"replan_reason":            strings.TrimSpace(replanReason),
 				"result":                   cloneAnyMapFromMetadata(result.Result),
 				"runtime_surface":          "openai_agents_sdk_tool",
 				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
@@ -347,20 +375,19 @@ func (s *Server) projectPrimaryAgentToolResults(
 				ResultKind:      "activity_failure",
 				ProjectionRef:   resultRef,
 				FailCloseReason: "schema_contract_drift",
-				ReplanReason:    strings.TrimSpace(replanReason),
 				Payload:         payload,
 			}); err != nil {
 				return err
 			}
 			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
 		}
-		if toolName == "knowledge_query" {
-			if err := s.projectKnowledgeQueryArguments(ctx, run, result.ArgumentsJSON); err != nil {
-				return err
+		resultPayload := cloneAnyMapFromMetadata(result.Result)
+		if toolName == "knowledge_search" {
+			if status != "completed" {
+				return fmt.Errorf("knowledge_search must complete inside the agent activity")
 			}
 			continue
 		}
-		resultPayload := cloneAnyMapFromMetadata(result.Result)
 		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
 			toolName,
 			payloadKind,
@@ -375,7 +402,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
 				"fail_close_reason":        "result_contract_drift",
 				"payload_kind":             payloadKind,
-				"replan_reason":            strings.TrimSpace(replanReason),
 				"result":                   resultPayload,
 				"runtime_surface":          "openai_agents_sdk_tool",
 				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
@@ -397,7 +423,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 				ResultKind:      "activity_failure",
 				ProjectionRef:   resultRef,
 				FailCloseReason: "result_contract_drift",
-				ReplanReason:    strings.TrimSpace(replanReason),
 				Payload:         payload,
 			}); err != nil {
 				return err
@@ -411,7 +436,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 			"fail_close_reason":        strings.TrimSpace(result.FailCloseReason),
 			"outcome":                  resultPayload["outcome"],
 			"payload_kind":             payloadKind,
-			"replan_reason":            strings.TrimSpace(replanReason),
 			"result":                   resultPayload,
 			"runtime_surface":          "openai_agents_sdk_tool",
 			"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
@@ -436,67 +460,12 @@ func (s *Server) projectPrimaryAgentToolResults(
 			ResultKind:      temporalSDKToolResultKind(status),
 			ProjectionRef:   resultRef,
 			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
-			ReplanReason:    strings.TrimSpace(replanReason),
 			Payload:         payload,
 		}); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (s *Server) projectKnowledgeQueryArguments(
-	ctx context.Context,
-	run execution.DurableRun,
-	arguments map[string]any,
-) error {
-	if len(arguments) == 0 {
-		return nil
-	}
-	queryText := strings.TrimSpace(stringValue(arguments["query_text"]))
-	intent := strings.TrimSpace(stringValue(arguments["intent"]))
-	requestedScope := cloneAnyMapFromMetadata(arguments["requested_scope"])
-	queryMode := strings.TrimSpace(stringValue(arguments["query_mode"]))
-	versionQuery := cloneAnyMapFromMetadata(arguments["version_query"])
-	freshnessIntent := strings.TrimSpace(stringValue(arguments["freshness_intent"]))
-	constraints := cloneAnyMapFromMetadata(arguments["constraints"])
-	if queryMode != "" {
-		if len(versionQuery) == 0 {
-			versionQuery = map[string]any{}
-		}
-		versionQuery["mode"] = queryMode
-	}
-	if len(requestedScope) > 0 {
-		corpus := strings.TrimSpace(stringValue(requestedScope["corpus"]))
-		collection := strings.TrimSpace(stringValue(requestedScope["collection"]))
-		if corpus == "" || collection == "" {
-			return fmt.Errorf("knowledge_query requested_scope corpus and collection are required")
-		}
-	}
-	return s.replaceExecutionPayloadMetadata(ctx, run, func(payload map[string]any) {
-		if queryText != "" {
-			payload["user_goal"] = queryText
-		}
-		if intent != "" {
-			payload["intent"] = intent
-		}
-		if len(requestedScope) > 0 {
-			payload["requested_scope"] = requestedScope
-		}
-		if queryMode != "" {
-			payload["query_mode"] = queryMode
-		}
-		if len(versionQuery) > 0 {
-			payload["version_query"] = versionQuery
-		}
-		if freshnessIntent != "" {
-			payload["freshness_intent"] = freshnessIntent
-		}
-		if len(constraints) > 0 {
-			payload["constraints"] = constraints
-		}
-		payload["knowledge_query_args"] = cloneAnyMapFromMetadata(arguments)
-	})
 }
 
 func stringSet(values []string) map[string]struct{} {
@@ -521,10 +490,10 @@ func projectionClassForToolName(toolName string) string {
 	switch strings.TrimSpace(toolName) {
 	case "transport_schedule_lookup":
 		return "transport_schedule_lookup"
-	case "campus_notice_discover", "campus_notice_get":
-		return strings.TrimSpace(toolName)
 	case "knowledge_query":
 		return "knowledge_query"
+	case "knowledge_search":
+		return "knowledge_search"
 	default:
 		return "tool"
 	}
@@ -535,8 +504,10 @@ func validatePrimaryAgentSDKToolResult(toolName string, payloadKind string) erro
 	if !ok {
 		return fmt.Errorf("tool registry is not available")
 	}
-	tool, ok := registry.ModelVisibleToolByName(toolName)
-	if !ok {
+	tool, ok := registry.ToolByName(toolName)
+	if !ok || !tool.ReadOnly ||
+		(tool.Exposure != "model_visible" &&
+			(toolName != "knowledge_search" || tool.Exposure != "internal_only")) {
 		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
 	}
 	if tool.Name != payloadKind {
@@ -659,28 +630,7 @@ func validPrimaryAgentTerminalEnvelope(envelope map[string]any) bool {
 	}
 }
 
-func primaryAgentOutputIsWorkflowSignal(output temporalruntime.ExecutePrimaryAgentActivityOutput) bool {
-	for _, tool := range output.SelectedTools {
-		if strings.TrimSpace(tool) == "knowledge_query" {
-			return true
-		}
-	}
-	for _, result := range output.ToolResults {
-		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
-			return true
-		}
-		if signal, ok := result.Result["workflow_signal"].(string); ok &&
-			strings.TrimSpace(signal) == "knowledge_query" {
-			return true
-		}
-	}
-	return false
-}
-
 func primaryAgentActivityTerminalReason(output temporalruntime.ExecutePrimaryAgentActivityOutput) string {
-	if primaryAgentOutputIsWorkflowSignal(output) {
-		return "tool_selected"
-	}
 	switch primaryAgentTerminalKind(output.TerminalEnvelope) {
 	case "clarification_required":
 		return "clarification_required"

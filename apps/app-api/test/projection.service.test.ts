@@ -13,46 +13,34 @@ function createExecutionSource(
 	overrides: Partial<RequestExecutionProjectionSource> = {},
 ): RequestExecutionProjectionSource {
 	return {
-		answerPreview: "图书馆开放到 22:00。",
 		aclAnomalyCode: null,
 		aclDecision: "allowed",
+		answerPreview: "图书馆开放到 22:00。",
 		applicabilityScope: "undergraduate",
 		completedAt: "2026-03-28T08:00:01.000Z",
 		conversationId: "conv_01HQ",
-		diagnostics: null,
 		durationMs: 842,
-		errorCode: null,
 		entitlementGroups: ["students"],
 		entitlementSnapshotId: "entitlements-2026-03-29",
-		citationExpected: false,
-		citationMissing: false,
-		emptyRecall: false,
+		errorCode: null,
 		failClosed: false,
-		modelName: null,
 		policyProjectionVersion: "2026-03-29",
 		principalId: "user_01HQ",
 		principalLabel: "Jane Doe",
 		principalType: "student",
 		projectedAtHint: "2026-03-28T08:00:02.000Z",
 		questionPreview: "图书馆开放到几点？",
-		requestId: "req_01HQ",
-		retrievalAttempted: false,
+		requestedScope: "student_rules",
 		requestedTool: "knowledge_query",
-		requestedScope: {
-			collection: "student_rules",
-			corpus: "regulations",
-		},
-		versionQuery: null,
-		resolvedScope: {
-			collection: "student_rules",
-			corpus: "regulations",
-		},
+		requestId: "req_01HQ",
+		resolvedScope: "student_rules",
 		selectedTool: "knowledge_query",
 		sourceDocIds: ["handbook:library-hours"],
 		startedAt: "2026-03-28T08:00:00.000Z",
 		status: "completed",
 		surface: "campus_web",
 		traceId: "trace_01HQ",
+		versionQuery: null,
 		visibilityScope: "main",
 		...overrides,
 	};
@@ -62,7 +50,7 @@ function createPendingEvent(overrides: Partial<ProjectionOutboxEvent> = {}): Pro
 	return {
 		attemptCount: 0,
 		availableAt: "2026-03-28T08:00:02.000Z",
-		eventId: "evt_accepted",
+		eventId: "evt_completed",
 		eventType: "request.completed",
 		occurredAt: "2026-03-28T08:00:02.000Z",
 		payload: {},
@@ -72,9 +60,25 @@ function createPendingEvent(overrides: Partial<ProjectionOutboxEvent> = {}): Pro
 	};
 }
 
+function createStore(
+	overrides: Partial<RequestProjectionProjectorStore> = {},
+): RequestProjectionProjectorStore {
+	return {
+		getRequestExecution: vi.fn().mockResolvedValue(createExecutionSource()),
+		listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+		listPendingEventsForRequest: vi.fn().mockResolvedValue([createPendingEvent()]),
+		markEventFailed: vi.fn(),
+		markEventProcessed: vi.fn(),
+		markObservabilityProjected: vi.fn(),
+		upsertAuditProjection: vi.fn(),
+		upsertProjection: vi.fn(),
+		...overrides,
+	};
+}
+
 describe("request projection projector", () => {
-	it("materializes request_execution truth into operator.request_projection and marks events processed", async () => {
-		const store: RequestProjectionProjectorStore = {
+	it("materializes request truth and marks the outbox event processed", async () => {
+		const store = createStore({
 			getRequestExecution: vi.fn().mockResolvedValue(
 				createExecutionSource({
 					versionQuery: {
@@ -84,203 +88,43 @@ describe("request projection projector", () => {
 					},
 				}),
 			),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			listPendingEventsForRequest: vi.fn(),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
+		});
 		const projector = buildRequestProjectionProjector({
 			now: () => new Date("2026-03-28T08:00:03.000Z"),
 			store,
 		});
 
-		const result = await projector.drain();
-
-		expect(result).toEqual({
-			failed: 0,
-			processed: 1,
-		});
+		await expect(projector.drain()).resolves.toEqual({ failed: 0, processed: 1 });
 		expect(store.upsertProjection).toHaveBeenCalledWith({
 			answerPreview: "图书馆开放到 22:00。",
 			applicabilityScope: "undergraduate",
 			completedAt: "2026-03-28T08:00:01.000Z",
 			conversationId: "conv_01HQ",
-			diagnostics: null,
 			durationMs: 842,
-			errorCode: null,
 			entitlementGroups: ["students"],
 			entitlementSnapshotId: "entitlements-2026-03-29",
+			errorCode: null,
 			principalId: "user_01HQ",
 			principalLabel: "Jane Doe",
 			principalType: "student",
 			projectedAt: "2026-03-28T08:00:03.000Z",
 			questionPreview: "图书馆开放到几点？",
-			requestId: "req_01HQ",
+			requestedScope: "student_rules",
 			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			versionQuery: {
-				compareToVersionId: "v2025-student-rules",
-				mode: "compare",
-				versionId: "v2024-student-rules",
-			},
-			resolvedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
+			requestId: "req_01HQ",
+			resolvedScope: "student_rules",
 			selectedTool: "knowledge_query",
 			sourceDocIds: ["handbook:library-hours"],
 			startedAt: "2026-03-28T08:00:00.000Z",
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
-			visibilityScope: "main",
-		});
-		expect(store.upsertAuditProjection).toHaveBeenCalledWith({
-			auditEventId: "evt_accepted",
-			diagnostics: {
-				aclAnomalyCode: null,
-				failClosed: false,
-				sourceDocIds: ["handbook:library-hours"],
+			versionQuery: {
+				compareToVersionId: "v2025-student-rules",
+				mode: "compare",
+				versionId: "v2024-student-rules",
 			},
-			entitlementSnapshotId: "entitlements-2026-03-29",
-			eventType: "request.completed",
-			occurredAt: "2026-03-28T08:00:02.000Z",
-			policyProjectionVersion: "2026-03-29",
-			principalType: "student",
-			projectedAt: "2026-03-28T08:00:03.000Z",
-			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
-			selectedTool: "knowledge_query",
-			status: "completed",
-			summary: "Knowledge request completed via knowledge tool.",
-			surface: "campus_web",
-			terminalCode: "completed",
-			traceId: "trace_01HQ",
-		});
-		expect(store.replaceQualityRollups).toHaveBeenCalledWith({
-			requestId: "req_01HQ",
-			rollups: [
-				{
-					bucketEnd: "2026-03-28T08:05:00.000Z",
-					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_rules",
-					domain: "quality",
-					granularity: "5m",
-					metrics: {
-						approvalRequiredCount: 0,
-						citationEligibleCount: 0,
-						citationMissCount: 0,
-						emptyRecallCount: 0,
-						needsClarificationCount: 0,
-						noAnswerCount: 0,
-						rejectedCount: 0,
-						requestCount: 1,
-						retrievalEligibleCount: 0,
-					},
-					modelName: null,
-					principalType: "student",
-					projectedAt: "2026-03-28T08:00:03.000Z",
-					requestId: "req_01HQ",
-					requestedTool: "knowledge_query",
-					rollupId:
-						"quality|5m|2026-03-28T08:00:00.000Z|campus_web|knowledge_query|knowledge_query|student|student_rules|_|req_01HQ",
-					selectedTool: "knowledge_query",
-					surface: "campus_web",
-				},
-				{
-					bucketEnd: "2026-03-28T08:15:00.000Z",
-					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_rules",
-					domain: "quality",
-					granularity: "15m",
-					metrics: {
-						approvalRequiredCount: 0,
-						citationEligibleCount: 0,
-						citationMissCount: 0,
-						emptyRecallCount: 0,
-						needsClarificationCount: 0,
-						noAnswerCount: 0,
-						rejectedCount: 0,
-						requestCount: 1,
-						retrievalEligibleCount: 0,
-					},
-					modelName: null,
-					principalType: "student",
-					projectedAt: "2026-03-28T08:00:03.000Z",
-					requestId: "req_01HQ",
-					requestedTool: "knowledge_query",
-					rollupId:
-						"quality|15m|2026-03-28T08:00:00.000Z|campus_web|knowledge_query|knowledge_query|student|student_rules|_|req_01HQ",
-					selectedTool: "knowledge_query",
-					surface: "campus_web",
-				},
-				{
-					bucketEnd: "2026-03-28T09:00:00.000Z",
-					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_rules",
-					domain: "quality",
-					granularity: "1h",
-					metrics: {
-						approvalRequiredCount: 0,
-						citationEligibleCount: 0,
-						citationMissCount: 0,
-						emptyRecallCount: 0,
-						needsClarificationCount: 0,
-						noAnswerCount: 0,
-						rejectedCount: 0,
-						requestCount: 1,
-						retrievalEligibleCount: 0,
-					},
-					modelName: null,
-					principalType: "student",
-					projectedAt: "2026-03-28T08:00:03.000Z",
-					requestId: "req_01HQ",
-					requestedTool: "knowledge_query",
-					rollupId:
-						"quality|1h|2026-03-28T08:00:00.000Z|campus_web|knowledge_query|knowledge_query|student|student_rules|_|req_01HQ",
-					selectedTool: "knowledge_query",
-					surface: "campus_web",
-				},
-				{
-					bucketEnd: "2026-03-29T00:00:00.000Z",
-					bucketStart: "2026-03-28T00:00:00.000Z",
-					collection: "student_rules",
-					domain: "quality",
-					granularity: "1d",
-					metrics: {
-						approvalRequiredCount: 0,
-						citationEligibleCount: 0,
-						citationMissCount: 0,
-						emptyRecallCount: 0,
-						needsClarificationCount: 0,
-						noAnswerCount: 0,
-						rejectedCount: 0,
-						requestCount: 1,
-						retrievalEligibleCount: 0,
-					},
-					modelName: null,
-					principalType: "student",
-					projectedAt: "2026-03-28T08:00:03.000Z",
-					requestId: "req_01HQ",
-					requestedTool: "knowledge_query",
-					rollupId:
-						"quality|1d|2026-03-28T00:00:00.000Z|campus_web|knowledge_query|knowledge_query|student|student_rules|_|req_01HQ",
-					selectedTool: "knowledge_query",
-					surface: "campus_web",
-				},
-			],
-		});
-		expect(store.replaceQualityBadcases).toHaveBeenCalledWith({
-			badcases: [],
-			requestId: "req_01HQ",
+			visibilityScope: "main",
 		});
 		expect(store.markObservabilityProjected).toHaveBeenCalledWith({
 			measuredAt: "2026-03-28T08:00:03.000Z",
@@ -288,326 +132,38 @@ describe("request projection projector", () => {
 			requestId: "req_01HQ",
 		});
 		expect(store.markEventProcessed).toHaveBeenCalledWith({
-			eventId: "evt_accepted",
+			eventId: "evt_completed",
 			processedAt: "2026-03-28T08:00:03.000Z",
 		});
-		expect(store.markEventFailed).not.toHaveBeenCalled();
 	});
 
-	it("drains pending events for a single request without scanning the global backlog", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(createExecutionSource()),
-			listPendingEvents: vi
-				.fn()
-				.mockResolvedValue([createPendingEvent({ requestId: "req_other" })]),
-			listPendingEventsForRequest: vi
-				.fn()
-				.mockResolvedValue([
-					createPendingEvent({ eventId: "evt_target", requestId: "req_target" }),
-				]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
+	it("drains one request through the dedicated request lookup", async () => {
+		const store = createStore();
 		const projector = buildRequestProjectionProjector({
 			now: () => new Date("2026-03-28T08:00:03.000Z"),
 			store,
 		});
 
-		const result = await projector.drainRequest("req_target");
-
-		expect(result).toEqual({
+		await expect(projector.drainRequest("req_01HQ")).resolves.toEqual({
 			failed: 0,
 			processed: 1,
 		});
 		expect(store.listPendingEventsForRequest).toHaveBeenCalledWith(
-			"req_target",
+			"req_01HQ",
 			new Date("2026-03-28T08:00:03.000Z"),
 		);
 		expect(store.listPendingEvents).not.toHaveBeenCalled();
-		expect(store.markEventProcessed).toHaveBeenCalledWith({
-			eventId: "evt_target",
-			processedAt: "2026-03-28T08:00:03.000Z",
-		});
 	});
 
-	it("uses resolved serving scope for operator projection and quality rollups when request scope was unresolved at accept time", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(
-				createExecutionSource({
-					requestedScope: null,
-					resolvedScope: {
-						collection: "curriculum_plan",
-						corpus: "curriculum",
-					},
-				}),
-			),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
-		const projector = buildRequestProjectionProjector({
-			now: () => new Date("2026-03-28T08:00:03.000Z"),
-			store,
-		});
-
-		await projector.drain();
-
-		expect(store.upsertProjection).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestedScope: null,
-				resolvedScope: {
-					collection: "curriculum_plan",
-					corpus: "curriculum",
-				},
-			}),
-		);
-		expect(store.replaceQualityRollups).toHaveBeenCalledWith({
-			requestId: "req_01HQ",
-			rollups: expect.arrayContaining([
-				expect.objectContaining({
-					collection: "curriculum_plan",
-				}),
-			]),
-		});
-	});
-
-	it("classifies answer-quality badcases from app-owned diagnostics and observability summaries", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(
-				createExecutionSource({
-					aclAnomalyCode: "fail_open_suspicion",
-					citationExpected: true,
-					citationMissing: true,
-					diagnostics: {
-						claimSupportSummary: {
-							supportedClaims: 1,
-							totalClaims: 3,
-							unsupportedClaimTypes: ["offering_unit"],
-							unsupportedClaims: 2,
-							unsupportedFields: ["offering_unit_claims"],
-						},
-						clarificationReason: null,
-						freshnessFailClosed: true,
-						groundingDowngraded: true,
-						groundingVerdict: "failed",
-						noAnswerReason: null,
-						policyReason: "provider_content_filter",
-						remoteContentSuspicionSummary: null,
-						resolvedEntityType: null,
-						resolvedPolicyDocumentId: null,
-						resolvedPolicyTitle: null,
-						resolvedProgramFamilyTitle: null,
-						retrievalAdequacyReason: "insufficient supporting evidence",
-						retrievalAdequacyVerdict: "insufficient",
-						retrievalPlanSummary: null,
-						retrievedTitleSummary: ["本科人才培养方案"],
-						scopeClass: null,
-						semanticOutcome: "unsupported_by_evidence",
-						sessionProgram: null,
-						sessionProgramFamily: null,
-						sessionSemester: null,
-						sourceTrustSummary: {
-							answerBearingTiers: ["restricted_reference"],
-							authorizationClaimBlocked: true,
-							blockedClaimTypes: ["authorization_sensitive"],
-							freshnessClaimBlocked: true,
-							observedTiers: ["restricted_reference"],
-						},
-						unsupportedFields: ["offering_unit_claims"],
-					},
-					emptyRecall: true,
-					failClosed: true,
-					retrievalAttempted: true,
-					status: "no_answer",
-				}),
-			),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
-		const projector = buildRequestProjectionProjector({
-			now: () => new Date("2026-03-28T08:00:03.000Z"),
-			store,
-		});
-
-		await projector.drain();
-
-		const call = vi.mocked(store.replaceQualityBadcases).mock.calls[0]?.[0];
-		expect(call?.requestId).toBe("req_01HQ");
-		expect(call?.badcases.map((badcase) => badcase.causeClass).sort()).toEqual([
-			"authz_suspected",
-			"citation_missing",
-			"empty_recall",
-			"freshness_fail_close",
-			"grounding_failed",
-			"policy_failed",
-			"unsupported_by_evidence",
-		]);
-		expect(call?.badcases).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					badcaseId: "req_01HQ:unsupported_by_evidence",
-					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-					traceId: "trace_01HQ",
-				}),
-				expect.objectContaining({
-					badcaseId: "req_01HQ:authz_suspected",
-					summary: "authorization / ACL 观测存在异常或敏感声明被阻断",
-				}),
-			]),
-		);
-	});
-
-	it("records a retryable projector failure when request_execution is missing", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(null),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
-		const projector = buildRequestProjectionProjector({
-			now: () => new Date("2026-03-28T08:00:03.000Z"),
-			store,
-		});
-
-		const result = await projector.drain();
-
-		expect(result).toEqual({
-			failed: 1,
-			processed: 0,
-		});
-		expect(store.markEventFailed).toHaveBeenCalledWith({
-			attemptCount: 1,
-			availableAt: "2026-03-28T08:00:08.000Z",
-			eventId: "evt_accepted",
-			lastError: "Missing request_execution for req_01HQ.",
-			processedAt: null,
-		});
-		expect(store.upsertProjection).not.toHaveBeenCalled();
-		expect(store.upsertAuditProjection).not.toHaveBeenCalled();
-		expect(store.markObservabilityProjected).not.toHaveBeenCalled();
-		expect(store.markEventProcessed).not.toHaveBeenCalled();
-	});
-
-	it("carries summary diagnostics from request_execution into operator.request_projection", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(
-				createExecutionSource({
-					diagnostics: {
-						claimSupportSummary: null,
-						clarificationReason: "policy_object_conflict",
-						freshnessFailClosed: null,
-						groundingDowngraded: null,
-						groundingVerdict: null,
-						noAnswerReason: null,
-						policyReason: null,
-						retrievalAdequacyReason: null,
-						retrievalAdequacyVerdict: null,
-						resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-						resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
-						resolvedEntityType: null,
-						resolvedProgramFamilyTitle: null,
-						retrievedTitleSummary: [
-							"示例大学本科学生国家奖学金评审办法",
-							"示例大学本科学生综合素质测评办法",
-						],
-						scopeClass: null,
-						semanticOutcome: null,
-						sessionProgramFamily: null,
-						sessionProgram: null,
-						sessionSemester: null,
-						unsupportedFields: [],
-					},
-				}),
-			),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
-		const projector = buildRequestProjectionProjector({
-			now: () => new Date("2026-03-28T08:00:03.000Z"),
-			store,
-		});
-
-		await projector.drain();
-
-		expect(store.upsertProjection).toHaveBeenCalledWith(
-			expect.objectContaining({
-				diagnostics: expect.objectContaining({
-					claimSupportSummary: null,
-					clarificationReason: "policy_object_conflict",
-					freshnessFailClosed: null,
-					groundingDowngraded: null,
-					groundingVerdict: null,
-					noAnswerReason: null,
-					policyReason: null,
-					retrievalAdequacyReason: null,
-					retrievalAdequacyVerdict: null,
-					resolvedPolicyDocumentId: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-					resolvedPolicyTitle: "示例大学本科学生国家奖学金评审办法",
-					resolvedEntityType: null,
-					resolvedProgramFamilyTitle: null,
-					retrievedTitleSummary: [
-						"示例大学本科学生国家奖学金评审办法",
-						"示例大学本科学生综合素质测评办法",
-					],
-					scopeClass: null,
-					semanticOutcome: null,
-					sessionProgram: null,
-					sessionProgramFamily: null,
-					sessionSemester: null,
-					unsupportedFields: [],
-				}),
-			}),
-		);
-	});
-
-	it("keeps audit event status aligned with the outbox event type instead of the latest request row", async () => {
-		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(
-				createExecutionSource({
-					status: "completed",
-				}),
-			),
+	it("keeps audit status aligned with the outbox event", async () => {
+		const store = createStore({
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
 					eventId: "evt_accept",
 					eventType: "request.accepted",
 				}),
 			]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
+		});
 		const projector = buildRequestProjectionProjector({
 			now: () => new Date("2026-03-28T08:00:03.000Z"),
 			store,
@@ -625,8 +181,8 @@ describe("request projection projector", () => {
 		);
 	});
 
-	it("materializes execution audit payload into operator audit diagnostics and summary", async () => {
-		const store: RequestProjectionProjectorStore = {
+	it("projects sanitized execution audit diagnostics", async () => {
+		const store = createStore({
 			getRequestExecution: vi.fn().mockResolvedValue(
 				createExecutionSource({
 					errorCode: "execution_timeout",
@@ -643,22 +199,13 @@ describe("request projection projector", () => {
 						durationMs: 35012,
 						failureKind: "timeout",
 						httpStatus: 504,
-						taskQueue: "campus-agent.workflow",
 						queueWaitMs: 12,
-						requestedTool: "knowledge_query",
 						retryable: true,
-						traceId: "trace_01HQ",
+						taskQueue: "campus-agent.workflow",
 					},
 				}),
 			]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
+		});
 		const projector = buildRequestProjectionProjector({
 			now: () => new Date("2026-03-28T08:00:03.000Z"),
 			store,
@@ -677,54 +224,56 @@ describe("request projection projector", () => {
 					failClosed: false,
 					failureKind: "timeout",
 					httpStatus: 504,
-					taskQueue: "campus-agent.workflow",
 					queueWaitMs: 12,
 					retryable: true,
 					sourceDocIds: ["handbook:library-hours"],
+					taskQueue: "campus-agent.workflow",
 				},
 				eventType: "execution.activity_failed",
 				status: "error",
 				summary: "Execution activity failed: timeout.",
-				terminalCode: "error",
 			}),
 		);
 	});
 
-	it("marks terminal projector failures as processed after the retry budget is exhausted", async () => {
-		const store: RequestProjectionProjectorStore = {
+	it("retries missing request truth and closes the event after the retry budget", async () => {
+		const now = vi
+			.fn<() => Date>()
+			.mockReturnValueOnce(new Date("2026-03-28T08:00:03.000Z"))
+			.mockReturnValueOnce(new Date("2026-03-28T08:00:03.000Z"))
+			.mockReturnValueOnce(new Date("2026-03-28T08:00:03.000Z"));
+		const retryStore = createStore({
 			getRequestExecution: vi.fn().mockResolvedValue(null),
-			listPendingEvents: vi.fn().mockResolvedValue([
-				createPendingEvent({
-					attemptCount: 4,
-					eventId: "evt_terminal",
-				}),
-			]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markObservabilityProjected: vi.fn(),
-			replaceQualityBadcases: vi.fn(),
-			replaceQualityRollups: vi.fn(),
-			upsertAuditProjection: vi.fn(),
-			upsertProjection: vi.fn(),
-		};
-		const projector = buildRequestProjectionProjector({
+		});
+		const retryProjector = buildRequestProjectionProjector({ now, store: retryStore });
+
+		await expect(retryProjector.drain()).resolves.toEqual({ failed: 1, processed: 0 });
+		expect(retryStore.markEventFailed).toHaveBeenCalledWith({
+			attemptCount: 1,
+			availableAt: "2026-03-28T08:00:08.000Z",
+			eventId: "evt_completed",
+			lastError: "Missing request_execution for req_01HQ.",
+			processedAt: null,
+		});
+
+		const terminalStore = createStore({
+			getRequestExecution: vi.fn().mockResolvedValue(null),
+			listPendingEvents: vi
+				.fn()
+				.mockResolvedValue([createPendingEvent({ attemptCount: 4, eventId: "evt_terminal" })]),
+		});
+		const terminalProjector = buildRequestProjectionProjector({
 			now: () => new Date("2026-03-28T08:00:03.000Z"),
-			store,
+			store: terminalStore,
 		});
 
-		const result = await projector.drain();
-
-		expect(result).toEqual({
-			failed: 1,
-			processed: 0,
-		});
-		expect(store.markEventFailed).toHaveBeenCalledWith({
+		await expect(terminalProjector.drain()).resolves.toEqual({ failed: 1, processed: 0 });
+		expect(terminalStore.markEventFailed).toHaveBeenCalledWith({
 			attemptCount: 5,
 			availableAt: "2026-03-28T08:00:03.000Z",
 			eventId: "evt_terminal",
 			lastError: "Missing request_execution for req_01HQ.",
 			processedAt: "2026-03-28T08:00:03.000Z",
 		});
-		expect(store.markEventProcessed).not.toHaveBeenCalled();
 	});
 });

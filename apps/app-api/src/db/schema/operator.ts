@@ -1,5 +1,4 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
 const operator = pgSchema("operator");
@@ -55,24 +54,6 @@ interface RequestAuditDiagnosticsJson {
 	sourceDocIds: string[];
 }
 
-interface MetricRollupMetricsJson {
-	approvalRequiredCount: number;
-	citationEligibleCount: number;
-	citationMissCount: number;
-	emptyRecallCount: number;
-	needsClarificationCount: number;
-	noAnswerCount: number;
-	rejectedCount: number;
-	requestCount: number;
-	retrievalEligibleCount: number;
-}
-
-interface QualityBadcaseGradeJson {
-	graderVersion: string;
-	result: string;
-	score: number | null;
-}
-
 export const requestProjection = operator.table(
 	"request_projection",
 	{
@@ -88,15 +69,14 @@ export const requestProjection = operator.table(
 		visibilityScope: text("visibility_scope"),
 		applicabilityScope: text("applicability_scope"),
 		requestedTool: text("requested_tool"),
-		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
+		requestedScope: text("requested_scope"),
 		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
-		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
+		resolvedScope: text("resolved_scope"),
 		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		questionPreview: text("question_preview").notNull(),
 		answerPreview: text("answer_preview"),
-		diagnosticsJson: jsonb("diagnostics_json").$type<RequestDiagnosticsSummary | null>(),
 		sourceDocIdsJson: jsonb("source_doc_ids_json").$type<string[] | null>(),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -150,79 +130,6 @@ export const requestAuditProjection = operator.table(
 		statusOccurredAtIndex: index("operator_request_audit_projection_status_occurred_at_idx").on(
 			table.status,
 			table.occurredAt,
-		),
-	}),
-);
-
-export const metricRollup = operator.table(
-	"metric_rollup",
-	{
-		rollupId: text("rollup_id").primaryKey(),
-		requestId: text("request_id").notNull(),
-		domain: text("domain").notNull(),
-		granularity: text("granularity").notNull(),
-		bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
-		bucketEnd: timestamp("bucket_end", { withTimezone: true }).notNull(),
-		surface: text("surface").notNull(),
-		selectedTool: text("selected_tool"),
-		requestedTool: text("requested_tool"),
-		principalType: text("principal_type").notNull(),
-		collection: text("collection"),
-		modelName: text("model_name"),
-		metricsJson: jsonb("metrics_json").$type<MetricRollupMetricsJson>().notNull(),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		domainGranularityBucketStartIndex: index(
-			"operator_metric_rollup_domain_granularity_bucket_idx",
-		).on(table.domain, table.granularity, table.bucketStart),
-		requestGranularityBucketStartIndex: index(
-			"operator_metric_rollup_request_granularity_bucket_idx",
-		).on(table.requestId, table.granularity, table.bucketStart),
-		domainSurfaceBucketStartIndex: index("operator_metric_rollup_domain_surface_bucket_idx").on(
-			table.domain,
-			table.surface,
-			table.bucketStart,
-		),
-		domainTargetBucketStartIndex: index("operator_metric_rollup_domain_tool_bucket_idx").on(
-			table.domain,
-			table.selectedTool,
-			table.bucketStart,
-		),
-	}),
-);
-
-export const qualityBadcaseProjection = operator.table(
-	"quality_badcase_projection",
-	{
-		badcaseId: text("badcase_id").primaryKey(),
-		requestId: text("request_id").notNull(),
-		traceId: text("trace_id").notNull(),
-		surface: text("surface").notNull(),
-		selectedTool: text("selected_tool"),
-		status: text("status").notNull(),
-		causeClass: text("cause_class").notNull(),
-		detectedBy: text("detected_by").notNull(),
-		openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
-		summary: text("summary").notNull(),
-		gradeJson: jsonb("grade_json").$type<QualityBadcaseGradeJson | null>(),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		statusOpenedAtIndex: index("operator_quality_badcase_projection_status_opened_at_idx").on(
-			table.status,
-			table.openedAt,
-		),
-		causeClassOpenedAtIndex: index("operator_quality_badcase_projection_cause_opened_at_idx").on(
-			table.causeClass,
-			table.openedAt,
-		),
-		detectedByOpenedAtIndex: index(
-			"operator_quality_badcase_projection_detected_by_opened_at_idx",
-		).on(table.detectedBy, table.openedAt),
-		requestOpenedAtIndex: index("operator_quality_badcase_projection_request_opened_at_idx").on(
-			table.requestId,
-			table.openedAt,
 		),
 	}),
 );

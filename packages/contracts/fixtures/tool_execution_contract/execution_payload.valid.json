@@ -1,0 +1,35 @@
+{
+	"execution_contract_version": "tool_execution_v1",
+	"response_contract": "execution_finalization_response_v2",
+	"user_goal": "学生手册请假制度怎么规定？",
+	"conversation_id": "conv-contract-001",
+	"request_id": "req-contract-001",
+	"safety_identifier": null,
+	"trace": {
+		"trace_id": "trace-contract-001"
+	},
+	"context": {
+		"actor": {
+			"user_id": "student@example.edu",
+			"principal_id": "principal-contract-001",
+			"principal_type": "student",
+			"roles": ["student"],
+			"departments": []
+		},
+		"authorization": {
+			"principal_id": "principal-contract-001",
+			"entitlement_groups": ["students"],
+			"retrieval_filter": {
+				"entitlement_groups": ["students"],
+				"visibility_level": "public",
+				"visibility_scope": "main",
+				"policy_projection_version": "phase1-authorization-projection-v1"
+			}
+		}
+	},
+	"requested_tool": "knowledge_query",
+	"scope": "student_rules",
+	"version_query": {
+		"mode": "current"
+	}
+}

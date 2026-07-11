@@ -43,28 +43,15 @@ const (
 	DurableRunEventTypeRunQueued             DurableRunEventType = "run.queued"
 	DurableRunEventTypeRunAdmitted           DurableRunEventType = "run.admitted"
 	DurableRunEventTypeRunStarted            DurableRunEventType = "run.started"
-	DurableRunEventTypeRunStreamingStarted   DurableRunEventType = "run.streaming_started"
-	DurableRunEventTypeRunOutputDelta        DurableRunEventType = "run.output_delta"
 	DurableRunEventTypeRunAnswerStarted      DurableRunEventType = "run.answer_started"
 	DurableRunEventTypeRunAnswerDelta        DurableRunEventType = "run.answer_delta"
 	DurableRunEventTypeRunAnswerCompleted    DurableRunEventType = "run.answer_completed"
 	DurableRunEventTypeRunCompleted          DurableRunEventType = "run.completed"
 	DurableRunEventTypeRunFailed             DurableRunEventType = "run.failed"
 	DurableRunEventTypeRunCanceled           DurableRunEventType = "run.canceled"
-	DurableRunEventTypeRunExpired            DurableRunEventType = "run.expired"
 	DurableRunEventTypeWorkflowStarted       DurableRunEventType = "workflow.started"
-	DurableRunEventTypeWorkflowPlanned       DurableRunEventType = "workflow.planned"
-	DurableRunEventTypeActivityStarted       DurableRunEventType = "activity.started"
-	DurableRunEventTypeActivityCompleted     DurableRunEventType = "activity.completed"
 	DurableRunEventTypeActivityFailed        DurableRunEventType = "activity.failed"
-	DurableRunEventTypeAgentStarted          DurableRunEventType = "agent.started"
 	DurableRunEventTypeAgentCompleted        DurableRunEventType = "agent.completed"
-	DurableRunEventTypeAgentFailed           DurableRunEventType = "agent.failed"
-	DurableRunEventTypeToolStarted           DurableRunEventType = "tool.started"
-	DurableRunEventTypeToolCompleted         DurableRunEventType = "tool.completed"
-	DurableRunEventTypeToolFailed            DurableRunEventType = "tool.failed"
-	DurableRunEventTypeRetrievalPlanned      DurableRunEventType = "retrieval.planned"
-	DurableRunEventTypeRetrievalCompleted    DurableRunEventType = "retrieval.completed"
 	DurableRunEventTypeFinalizationCompleted DurableRunEventType = "finalization.completed"
 )
 
@@ -100,7 +87,6 @@ type DurableRun struct {
 	CompletedAt        time.Time
 	UpdatedAt          time.Time
 	RuntimeVersions    map[string]any
-	WorkflowPlanRef    string
 	FinalResponseRef   string
 	Metadata           map[string]any
 }
@@ -160,12 +146,10 @@ type StepAttemptProjection struct {
 	OutputTokens          int64
 	CachedInputTokens     int64
 	EstimatedCostMicroUSD int64
-	PricingVersion        string
 	CancelOutcome         CancelOutcome
 	TimeoutOutcome        TimeoutOutcome
 	LateCompletionOutcome LateCompletionOutcome
 	FailCloseReason       string
-	ReplanReason          string
 	TerminalReason        string
 	UpdatedAt             time.Time
 	PayloadSchemaVersion  string

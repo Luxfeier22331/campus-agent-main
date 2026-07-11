@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	buildInternalToolDefinitions,
 	buildVisibleToolDefinitions,
 	loadToolCatalog,
 	loadToolCatalogFromObject,
@@ -16,26 +17,6 @@ describe("tool catalog", () => {
 				schema_version: "tool-registry-v4",
 				registry_version: "test",
 				tools: [
-					{
-						name: "knowledge_query",
-						description: "Route this turn to the governed knowledge workflow.",
-						exposure: "model_visible",
-						read_only: true,
-						requires_approval: false,
-						payload_schema_ref: schemaRef(
-							"knowledge-tool-contracts.v1",
-							"KnowledgeQuerySignalPayload",
-						),
-						result_schema_ref: schemaRef(
-							"knowledge-tool-contracts.v1",
-							"KnowledgeQuerySignalResult",
-						),
-						handler: {
-							type: "workflow_signal",
-						},
-						timeout_ms: 1000,
-						result_projection_policy: "bounded_json",
-					},
 					{
 						name: "transport_schedule_lookup",
 						description: "Lookup campus shuttle schedule snapshots.",
@@ -58,16 +39,22 @@ describe("tool catalog", () => {
 						result_projection_policy: "bounded_json",
 					},
 					{
-						name: "campus_notice_get",
-						description: "Internal selected notice resolution.",
+						name: "internal_fixture_tool",
+						description: "Internal fixture tool.",
 						exposure: "internal_only",
 						read_only: true,
 						requires_approval: false,
-						payload_schema_ref: schemaRef("notice-tool-contracts.v1", "CampusNoticeGetPayload"),
-						result_schema_ref: schemaRef("notice-tool-contracts.v1", "CampusNoticeGetResult"),
+						payload_schema_ref: schemaRef(
+							"campus-services-tool-contracts.v1",
+							"TransportScheduleLookupPayload",
+						),
+						result_schema_ref: schemaRef(
+							"campus-services-tool-contracts.v1",
+							"TransportScheduleLookupResult",
+						),
 						handler: {
 							type: "execution_control_internal_query",
-							endpoint: "/internal/query/notices/get",
+							endpoint: "/internal/query/fixture/internal",
 						},
 						timeout_ms: 1000,
 						result_projection_policy: "bounded_json",
@@ -76,12 +63,14 @@ describe("tool catalog", () => {
 			},
 			{
 				runtimeFingerprint: testToolRuntimeFingerprint(),
-				toolFunctionSchemaPath: testSchemaPath("knowledge_query", "transport_schedule_lookup"),
+				toolFunctionSchemaPath: testSchemaPath(
+					"transport_schedule_lookup",
+					"internal_fixture_tool",
+				),
 			},
 		);
 
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
-			"knowledge_query",
 			"transport_schedule_lookup",
 		]);
 	});
@@ -123,7 +112,7 @@ describe("tool catalog", () => {
 			loadToolCatalogFromObject({
 				schema_version: "tool-registry-v4",
 				registry_version: "test",
-				tools: [rawKnowledgeQueryTool()],
+				tools: [rawTransportScheduleTool()],
 			}),
 		).toThrow("tool function schema path is required");
 	});
@@ -134,11 +123,24 @@ describe("tool catalog", () => {
 				{
 					schema_version: "tool-registry-v4",
 					registry_version: "test",
-					tools: [rawKnowledgeQueryTool()],
+					tools: [rawTransportScheduleTool()],
 				},
-				{ toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup") },
+				{ toolFunctionSchemaPath: testSchemaPath("unrelated_fixture_tool") },
 			),
-		).toThrow("model-visible tool knowledge_query missing strict function schema");
+		).toThrow("model_visible tool transport_schedule_lookup missing strict function schema");
+	});
+
+	it("rejects retired internal route handlers", () => {
+		expect(() =>
+			loadToolCatalogFromObject(
+				{
+					schema_version: "tool-registry-v4",
+					registry_version: "test",
+					tools: [rawUnsupportedWorkflowSignalTool()],
+				},
+				{ toolFunctionSchemaPath: testSchemaPath("knowledge_query") },
+			),
+		).toThrow();
 	});
 
 	it("requires explicit runtime attestation when loading a catalog from an object", () => {
@@ -147,9 +149,9 @@ describe("tool catalog", () => {
 				{
 					schema_version: "tool-registry-v4",
 					registry_version: "test",
-					tools: [rawKnowledgeQueryTool()],
+					tools: [rawTransportScheduleTool()],
 				},
-				{ toolFunctionSchemaPath: testSchemaPath("knowledge_query") },
+				{ toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup") },
 			),
 		).toThrow("tool runtime fingerprint is required");
 	});
@@ -158,21 +160,43 @@ describe("tool catalog", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
-			"knowledge_query",
-			"public_web_search",
 			"transport_schedule_lookup",
-			"campus_notice_discover",
+			"knowledge_query",
 		]);
 	});
 
-	it("keeps institutional account questions on the knowledge tool contract", () => {
+	it("exposes knowledge_query as a handoff-only model-visible tool", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
-		const tools = buildVisibleToolDefinitions(catalog);
+		const visibleTools = buildVisibleToolDefinitions(catalog);
 
-		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
+		const knowledge = catalog.tools.find((tool) => tool.name === "knowledge_query");
 
-		expect(knowledge?.description).toContain("account/network/auth/portal");
-		expect(tools.some((tool) => tool.name === "service_guide_lookup")).toBe(false);
+		expect(knowledge).toMatchObject({
+			name: "knowledge_query",
+			exposure: "model_visible",
+			readOnly: true,
+			requiresApproval: false,
+			handler: { type: "agent_handoff", target: "knowledge_agent" },
+		});
+		expect(visibleTools.some((tool) => tool.name === "knowledge_query")).toBe(true);
+		expect(visibleTools.some((tool) => tool.name === "service_guide_lookup")).toBe(false);
+	});
+
+	it("keeps knowledge_search internal to specialist agents", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
+
+		expect(
+			buildVisibleToolDefinitions(catalog).some((tool) => tool.name === "knowledge_search"),
+		).toBe(false);
+		expect(
+			buildInternalToolDefinitions(catalog).find((tool) => tool.name === "knowledge_search"),
+		).toMatchObject({
+			name: "knowledge_search",
+			handler: {
+				type: "execution_control_internal_query",
+				endpoint: "/internal/query/knowledge/search",
+			},
+		});
 	});
 
 	it("exposes strict SDK parameter schemas with explicit required fields", () => {
@@ -191,20 +215,7 @@ describe("tool catalog", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 		const tools = buildVisibleToolDefinitions(catalog);
 
-		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
 		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
-
-		expect(knowledge?.parameterSchema.required).toEqual([
-			"query_text",
-			"intent",
-			"requested_scope",
-			"query_mode",
-			"version_query",
-			"freshness_intent",
-			"constraints",
-		]);
-		expect(knowledge?.parameterSchema.properties).toHaveProperty("requested_scope");
-		expect(knowledge?.parameterSchema.properties).toHaveProperty("version_query");
 
 		expect(transport?.parameterSchema.required).toEqual([
 			"query_text",
@@ -216,6 +227,19 @@ describe("tool catalog", () => {
 		]);
 		expect(transport?.parameterSchema.properties).toHaveProperty("route_selector");
 		expect(transport?.parameterSchema.properties).not.toHaveProperty("route_query");
+
+		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
+		expect(knowledge?.parameterSchema.required).toEqual(["query_text", "scope", "version_query"]);
+		expect(knowledge?.parameterSchema.properties).toHaveProperty("scope");
+		expect(knowledge?.parameterSchema.properties).toHaveProperty("version_query");
+
+		const knowledgeSearch = buildInternalToolDefinitions(catalog).find(
+			(tool) => tool.name === "knowledge_search",
+		);
+		expect(knowledgeSearch?.parameterSchema.required).toEqual(["query_text"]);
+		expect(knowledgeSearch?.parameterSchema.properties).toEqual({
+			query_text: expect.objectContaining({ type: "string" }),
+		});
 	});
 
 	it("attests the actual registry, function schema, and workflow artifact files loaded at runtime", () => {
@@ -226,9 +250,9 @@ describe("tool catalog", () => {
 		const toolRegistry = {
 			schema_version: "tool-registry-v4",
 			registry_version: "attestation-test",
-			tools: [rawKnowledgeQueryTool()],
+			tools: [rawTransportScheduleTool()],
 		};
-		const functionSchemas = strictFunctionSchemaConfig("knowledge_query");
+		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
 		const workflowArtifacts = {
 			schema_version: "workflow-artifact-registry-v2",
 			registry_version: "artifact-test",
@@ -294,9 +318,9 @@ describe("tool catalog", () => {
 		const toolRegistry = {
 			schema_version: "tool-registry-v4",
 			registry_version: "attestation-test",
-			tools: [rawKnowledgeQueryTool()],
+			tools: [rawTransportScheduleTool()],
 		};
-		const functionSchemas = strictFunctionSchemaConfig("knowledge_query");
+		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
 		const workflowArtifacts = {
 			schema_version: "workflow-artifact-registry-v2",
 			registry_version: "artifact-test",
@@ -323,15 +347,39 @@ describe("tool catalog", () => {
 	});
 });
 
-function rawKnowledgeQueryTool() {
+function rawTransportScheduleTool() {
 	return {
-		name: "knowledge_query",
-		description: "Route this turn to the governed knowledge workflow.",
+		name: "transport_schedule_lookup",
+		description: "Lookup campus shuttle schedule snapshots.",
 		exposure: "model_visible",
 		read_only: true,
 		requires_approval: false,
-		payload_schema_ref: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQuerySignalPayload"),
-		result_schema_ref: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQuerySignalResult"),
+		payload_schema_ref: schemaRef(
+			"campus-services-tool-contracts.v1",
+			"TransportScheduleLookupPayload",
+		),
+		result_schema_ref: schemaRef(
+			"campus-services-tool-contracts.v1",
+			"TransportScheduleLookupResult",
+		),
+		handler: {
+			type: "execution_control_internal_query",
+			endpoint: "/internal/query/campus-services/transport-schedule",
+		},
+		timeout_ms: 1000,
+		result_projection_policy: "bounded_json",
+	};
+}
+
+function rawUnsupportedWorkflowSignalTool() {
+	return {
+		name: "knowledge_query",
+		description: "Route this turn to the governed knowledge workflow.",
+		exposure: "internal_only",
+		read_only: true,
+		requires_approval: false,
+		payload_schema_ref: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQueryPayload"),
+		result_schema_ref: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQueryPayload"),
 		handler: {
 			type: "workflow_signal",
 		},

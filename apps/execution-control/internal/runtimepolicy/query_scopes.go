@@ -8,220 +8,214 @@ import (
 	"strings"
 )
 
-const defaultQueryServingScopesPath = "configs/runtime/query-serving-scopes.v2.json"
-const queryServingScopesPolicyVersion = "query-serving-scopes-v2"
+const defaultQueryServingScopesPath = "configs/runtime/query-serving-scopes.v3.json"
+const queryServingScopesSchemaVersion = "query-serving-scopes-v3"
+
+type Scope struct {
+	Corpus     string
+	Collection string
+}
 
 type queryServingScopesDocument struct {
-	PolicyVersion string                    `json:"policy_version"`
-	DefaultOpen   []queryServingScopePolicy `json:"default_open"`
-	IntentScoped  []queryServingScopePolicy `json:"intent_scoped"`
+	SchemaVersion string                    `json:"schema_version"`
+	Scopes        []queryServingScopePolicy `json:"scopes"`
 }
 
 type queryServingScopePolicy struct {
-	AdmissionIntents  []string `json:"admission_intents,omitempty"`
-	AllowedQueryModes []string `json:"allowed_query_modes"`
-	Collection        string   `json:"collection"`
-	Corpus            string   `json:"corpus"`
-	FreshnessIntents  []string `json:"freshness_intents,omitempty"`
+	AllowedVersionModes []string `json:"allowed_version_modes"`
+	Collection          string   `json:"collection"`
+	Corpus              string   `json:"corpus"`
+	Description         string   `json:"description"`
+	Scope               string   `json:"scope"`
 }
 
-type QueryScopeAdmissionRequest struct {
-	AdmissionIntent string
-	Collection      string
-	Corpus          string
-	FreshnessIntent string
-	QueryMode       string
+type KnowledgeScopePolicy struct {
+	AllowedQueryModes []string
+	Description       string
+	InternalScope     Scope
+	Scope             string
 }
 
-type QueryScopeAdmission struct {
-	Allowed    bool
-	Reason     string
-	ScopeClass string
+type KnowledgeScopeAdmissionRequest struct {
+	QueryMode string
+	Scope     string
 }
 
-func QueryScopeAllowed(corpus string, collection string, policyPath string) (bool, error) {
-	admission, err := AdmitQueryScope(QueryScopeAdmissionRequest{
-		Collection: collection,
-		Corpus:     corpus,
-		QueryMode:  "current",
-	}, policyPath)
-	if err != nil {
-		return false, err
-	}
-	return admission.Allowed, nil
+type KnowledgeScopeAdmission struct {
+	Allowed       bool
+	InternalScope Scope
+	Reason        string
+	Scope         string
 }
 
-func QueryServingPolicyScopes(policyPath string) ([]Scope, error) {
-	document, err := loadQueryServingScopes(policyPath)
+func InternalScopesForAllowedKnowledgeScopes(policyPath string) ([]Scope, error) {
+	policies, err := AllowedKnowledgeScopes(policyPath)
 	if err != nil {
 		return nil, err
 	}
-	seen := map[string]bool{}
-	scopes := make([]Scope, 0, len(document.DefaultOpen)+len(document.IntentScoped))
-	for _, group := range [][]queryServingScopePolicy{document.DefaultOpen, document.IntentScoped} {
-		for _, policy := range group {
-			key := policy.Corpus + "/" + policy.Collection
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			scopes = append(scopes, Scope{
-				Corpus:     policy.Corpus,
-				Collection: policy.Collection,
-			})
-		}
+	scopes := make([]Scope, 0, len(policies))
+	for _, policy := range policies {
+		scopes = append(scopes, policy.InternalScope)
 	}
 	return scopes, nil
 }
 
-func AdmitQueryScope(request QueryScopeAdmissionRequest, policyPath string) (QueryScopeAdmission, error) {
+func AllowedKnowledgeScopes(policyPath string) ([]KnowledgeScopePolicy, error) {
 	document, err := loadQueryServingScopes(policyPath)
 	if err != nil {
-		return QueryScopeAdmission{}, err
+		return nil, err
 	}
-	corpus := strings.TrimSpace(request.Corpus)
-	collection := strings.TrimSpace(request.Collection)
-	if corpus == "" || collection == "" {
-		return QueryScopeAdmission{}, fmt.Errorf("query-serving scope admission requires corpus and collection")
+	scopes := make([]KnowledgeScopePolicy, 0, len(document.Scopes))
+	for _, policy := range document.Scopes {
+		scopes = append(scopes, KnowledgeScopePolicy{
+			AllowedQueryModes: append([]string{}, policy.AllowedVersionModes...),
+			Description:       policy.Description,
+			InternalScope: Scope{
+				Collection: policy.Collection,
+				Corpus:     policy.Corpus,
+			},
+			Scope: policy.Scope,
+		})
 	}
-	queryMode := defaultString(strings.TrimSpace(request.QueryMode), "current")
-	for _, candidate := range []struct {
-		class  string
-		scopes []queryServingScopePolicy
-	}{
-		{class: "default_open", scopes: document.DefaultOpen},
-		{class: "intent_scoped", scopes: document.IntentScoped},
-	} {
-		for _, scope := range candidate.scopes {
-			if scope.Corpus != corpus || scope.Collection != collection {
-				continue
-			}
-			if !containsString(scope.AllowedQueryModes, queryMode) {
-				return QueryScopeAdmission{
-					Allowed:    false,
-					Reason:     "query_mode_not_admitted",
-					ScopeClass: candidate.class,
-				}, nil
-			}
-			if !intentAdmitted(request, candidate.class, scope) {
-				return QueryScopeAdmission{
-					Allowed:    false,
-					Reason:     "intent_not_admitted",
-					ScopeClass: candidate.class,
-				}, nil
-			}
-			return QueryScopeAdmission{
-				Allowed:    true,
-				Reason:     "scope_admitted",
-				ScopeClass: candidate.class,
-			}, nil
+	return scopes, nil
+}
+
+func ResolveKnowledgeScope(scope string, policyPath string) (Scope, error) {
+	document, err := loadQueryServingScopes(policyPath)
+	if err != nil {
+		return Scope{}, err
+	}
+	normalizedScope := strings.TrimSpace(scope)
+	if normalizedScope == "" {
+		return Scope{}, fmt.Errorf("knowledge scope is required")
+	}
+	for _, policy := range document.Scopes {
+		if policy.Scope == normalizedScope {
+			return Scope{Corpus: policy.Corpus, Collection: policy.Collection}, nil
 		}
 	}
-	return QueryScopeAdmission{Allowed: false, Reason: "scope_not_admitted"}, nil
+	return Scope{}, fmt.Errorf("knowledge scope %s is not query-enabled", normalizedScope)
+}
+
+func AdmitKnowledgeScope(request KnowledgeScopeAdmissionRequest, policyPath string) (KnowledgeScopeAdmission, error) {
+	document, err := loadQueryServingScopes(policyPath)
+	if err != nil {
+		return KnowledgeScopeAdmission{}, err
+	}
+	normalizedScope := strings.TrimSpace(request.Scope)
+	if normalizedScope == "" {
+		return KnowledgeScopeAdmission{}, fmt.Errorf("knowledge scope admission requires scope")
+	}
+	queryMode := strings.TrimSpace(request.QueryMode)
+	if queryMode == "" {
+		queryMode = "current"
+	}
+	for _, policy := range document.Scopes {
+		if policy.Scope != normalizedScope {
+			continue
+		}
+		internalScope := Scope{Corpus: policy.Corpus, Collection: policy.Collection}
+		if !containsString(policy.AllowedVersionModes, queryMode) {
+			return KnowledgeScopeAdmission{
+				Allowed:       false,
+				InternalScope: internalScope,
+				Reason:        "version_mode_not_admitted",
+				Scope:         policy.Scope,
+			}, nil
+		}
+		return KnowledgeScopeAdmission{
+			Allowed:       true,
+			InternalScope: internalScope,
+			Reason:        "scope_admitted",
+			Scope:         policy.Scope,
+		}, nil
+	}
+	return KnowledgeScopeAdmission{
+		Allowed: false,
+		Reason:  "scope_not_admitted",
+		Scope:   normalizedScope,
+	}, nil
 }
 
 func loadQueryServingScopes(policyPath string) (queryServingScopesDocument, error) {
 	resolvedPath := resolveQueryServingScopesPath(policyPath)
 	if resolvedPath == "" {
-		return queryServingScopesDocument{}, fmt.Errorf("query-serving scope policy path is not configured and %s was not found", defaultQueryServingScopesPath)
+		return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry is not configured and %s was not found", defaultQueryServingScopesPath)
 	}
 	raw, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return queryServingScopesDocument{}, fmt.Errorf("read query-serving scope policy: %w", err)
+		return queryServingScopesDocument{}, fmt.Errorf("read query-serving scope registry: %w", err)
 	}
 	var document queryServingScopesDocument
 	if err := json.Unmarshal(raw, &document); err != nil {
-		return queryServingScopesDocument{}, fmt.Errorf("parse query-serving scope policy: %w", err)
+		return queryServingScopesDocument{}, fmt.Errorf("parse query-serving scope registry: %w", err)
 	}
-	if strings.TrimSpace(document.PolicyVersion) == "" {
-		return queryServingScopesDocument{}, fmt.Errorf("query-serving scope policy policy_version must not be empty")
-	}
-	if document.PolicyVersion != queryServingScopesPolicyVersion {
+	if document.SchemaVersion != queryServingScopesSchemaVersion {
 		return queryServingScopesDocument{}, fmt.Errorf(
-			"query-serving scope policy policy_version = %q, want %q",
-			document.PolicyVersion,
-			queryServingScopesPolicyVersion,
+			"query-serving scope registry schema_version = %q, want %q",
+			document.SchemaVersion,
+			queryServingScopesSchemaVersion,
 		)
 	}
-	for _, group := range []struct {
-		name   string
-		scopes []queryServingScopePolicy
-	}{
-		{name: "default_open", scopes: document.DefaultOpen},
-		{name: "intent_scoped", scopes: document.IntentScoped},
-	} {
-		for _, scope := range group.scopes {
-			if strings.TrimSpace(scope.Corpus) == "" || strings.TrimSpace(scope.Collection) == "" {
-				return queryServingScopesDocument{}, fmt.Errorf("query-serving scope policy %s contains an empty scope", group.name)
-			}
-			if len(normalizeStringSlice(scope.AllowedQueryModes)) == 0 {
-				return queryServingScopesDocument{}, fmt.Errorf("query-serving scope policy %s/%s allowed_query_modes is required", scope.Corpus, scope.Collection)
+	if len(document.Scopes) == 0 {
+		return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry scopes must not be empty")
+	}
+	seenScopeIDs := map[string]string{}
+	seenInternalScopes := map[string]string{}
+	for index, scope := range document.Scopes {
+		scope = normalizeScopePolicy(scope)
+		if scope.Scope == "" || scope.Corpus == "" || scope.Collection == "" || scope.Description == "" {
+			return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry scopes[%d] is incomplete", index)
+		}
+		if len(scope.AllowedVersionModes) == 0 {
+			return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry %s allowed_version_modes is required", scope.Scope)
+		}
+		for _, mode := range scope.AllowedVersionModes {
+			if !isAllowedKnowledgeVersionMode(mode) {
+				return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry %s contains unsupported version mode %s", scope.Scope, mode)
 			}
 		}
+		internalScope := scope.Corpus + "/" + scope.Collection
+		if previous, ok := seenScopeIDs[scope.Scope]; ok {
+			return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry duplicates scope %s for %s and %s", scope.Scope, previous, internalScope)
+		}
+		if previous, ok := seenInternalScopes[internalScope]; ok {
+			return queryServingScopesDocument{}, fmt.Errorf("query-serving scope registry duplicates internal scope %s for %s and %s", internalScope, previous, scope.Scope)
+		}
+		seenScopeIDs[scope.Scope] = internalScope
+		seenInternalScopes[internalScope] = scope.Scope
+		document.Scopes[index] = scope
 	}
-	document.DefaultOpen = normalizeScopePolicies(document.DefaultOpen)
-	document.IntentScoped = normalizeScopePolicies(document.IntentScoped)
 	return document, nil
 }
 
-func normalizeScopePolicies(scopes []queryServingScopePolicy) []queryServingScopePolicy {
-	normalized := make([]queryServingScopePolicy, 0, len(scopes))
-	for _, scope := range scopes {
-		normalized = append(normalized, queryServingScopePolicy{
-			AdmissionIntents:  normalizeStringSlice(scope.AdmissionIntents),
-			AllowedQueryModes: normalizeStringSlice(scope.AllowedQueryModes),
-			Collection:        strings.TrimSpace(scope.Collection),
-			Corpus:            strings.TrimSpace(scope.Corpus),
-			FreshnessIntents:  normalizeStringSlice(scope.FreshnessIntents),
-		})
+func normalizeScopePolicy(scope queryServingScopePolicy) queryServingScopePolicy {
+	return queryServingScopePolicy{
+		AllowedVersionModes: normalizeStringSlice(scope.AllowedVersionModes),
+		Collection:          strings.TrimSpace(scope.Collection),
+		Corpus:              strings.TrimSpace(scope.Corpus),
+		Description:         strings.TrimSpace(scope.Description),
+		Scope:               strings.TrimSpace(scope.Scope),
 	}
-	return normalized
 }
 
-func intentAdmitted(
-	request QueryScopeAdmissionRequest,
-	scopeClass string,
-	scope queryServingScopePolicy,
-) bool {
-	switch scopeClass {
-	case "default_open":
+func isAllowedKnowledgeVersionMode(mode string) bool {
+	switch strings.TrimSpace(mode) {
+	case "current", "historical", "as_of", "compare":
 		return true
-	case "intent_scoped":
-		freshnessIntent := strings.TrimSpace(request.FreshnessIntent)
-		return queryIntentAdmitted(scope.AdmissionIntents, request) ||
-			containsString(scope.FreshnessIntents, freshnessIntent)
 	default:
 		return false
 	}
 }
 
-func queryIntentAdmitted(allowedIntents []string, request QueryScopeAdmissionRequest) bool {
-	for _, signal := range []string{
-		strings.TrimSpace(request.AdmissionIntent),
-		admissionIntentFromQueryMode(request.QueryMode),
-	} {
-		if containsString(allowedIntents, signal) {
-			return true
-		}
-	}
-	return false
-}
-
-func admissionIntentFromQueryMode(queryMode string) string {
-	switch strings.TrimSpace(queryMode) {
-	case "historical", "as_of":
-		return "historical"
-	default:
-		return ""
-	}
-}
-
 func normalizeStringSlice(values []string) []string {
 	normalized := make([]string, 0, len(values))
+	seen := map[string]bool{}
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
+		if trimmed != "" && !seen[trimmed] {
 			normalized = append(normalized, trimmed)
+			seen[trimmed] = true
 		}
 	}
 	return normalized

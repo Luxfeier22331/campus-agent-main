@@ -132,7 +132,6 @@ Allowed services are:
 - `workflow-worker`
 - `activity-worker-core`
 - `activity-worker-agent`
-- `activity-worker-knowledge`
 
 Actuation fields:
 

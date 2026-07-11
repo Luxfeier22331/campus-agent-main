@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-18
-updated: 2026-06-23
+updated: 2026-07-08
 ---
 
 # Product Requirements
@@ -26,7 +26,7 @@ HTTP contracts, data schemas, operational procedures or active work status.
   - Langfuse eval platform completion for trace evidence, score publishing,
     datasets, experiments and RAG parameter evals
 - [run-context.md](./run-context.md)
-  - run context envelope, RAG follow-up resolution, previous evidence verification
+  - run context envelope, RAG follow-up resolution, previous evidence ref
     reuse and context-quality evals
 - [operator-diagnosis.md](./operator-diagnosis.md)
   - observability orchestration repair across OTel Collector, Sentry, Axiom,

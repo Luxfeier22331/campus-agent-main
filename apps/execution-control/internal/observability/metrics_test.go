@@ -17,17 +17,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics.RecordToolGate("transport_schedule_lookup", "tool_read_model_runtime", "closed")
 	metrics.RecordPersonalMemoryOperation("recall", "completed", "none", 34*time.Millisecond, 2, 128)
 	metrics.RecordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", 42*time.Millisecond, 0, 0)
-	metrics.RecordRuntimeDecision(RuntimeDecisionLabels{
-		Target:                "knowledge_query",
-		TaskQueue:             "campus-agent.activity.knowledge",
-		ScopeGate:             "out_of_scope",
-		PolicyGate:            "out_of_scope",
-		ContextPreflightState: "not_follow_up",
-		RoutingNextAction:     "out_of_scope",
-		PlanningOutcome:       "not_preplanned",
-		TerminalOutcome:       "no_answer",
-		FailCloseReason:       "product_scope_boundary",
-	})
 
 	output := string(metrics.Prometheus(AdmissionSnapshot{
 		Lifecycle: LifecycleSnapshot{
@@ -68,7 +57,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_personal_memory_operation_duration_ms_count{operation="recall"} 1`,
 		`campus_execution_control_personal_memory_selected_items_count_bucket{operation="recall",le="5.000"} 1`,
 		`campus_execution_control_personal_memory_selected_chars_count_bucket{operation="recall",le="250.000"} 1`,
-		`campus_execution_control_runtime_policy_decisions_total{target="knowledge_query",task_queue="campus-agent.activity.knowledge",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="completed"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="failed"} 1`,
 		`campus_execution_control_telemetry_exported_total 5`,

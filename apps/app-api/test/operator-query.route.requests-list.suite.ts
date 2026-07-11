@@ -35,10 +35,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 							requestId: "req_01HQ",
 							runId: "run_01HQ",
 							requestedTool: "knowledge_query",
-							requestedScope: {
-								collection: "student_rules",
-								corpus: "regulations",
-							},
+							requestedScope: "student_rules",
 							selectedTool: "knowledge_query",
 							sourceDocIds: ["handbook:library-hours"],
 							startedAt: "2026-03-28T08:00:00.000Z",
@@ -85,10 +82,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 						requestId: "req_01HQ",
 						runId: "run_01HQ",
 						requestedTool: "knowledge_query",
-						requestedScope: {
-							collection: "student_rules",
-							corpus: "regulations",
-						},
+						requestedScope: "student_rules",
 						selectedTool: "knowledge_query",
 						sourceDocIds: ["handbook:library-hours"],
 						startedAt: "2026-03-28T08:00:00.000Z",

@@ -26,8 +26,8 @@ var supportedToolExposures = map[string]struct{}{
 }
 
 var supportedToolHandlerTypes = map[string]struct{}{
+	"agent_handoff":                    {},
 	"execution_control_internal_query": {},
-	"workflow_signal":                  {},
 }
 
 type ToolSpec struct {
@@ -46,6 +46,7 @@ type ToolSpec struct {
 type ToolSpecHandler struct {
 	Type     string `json:"type"`
 	Endpoint string `json:"endpoint,omitempty"`
+	Target   string `json:"target,omitempty"`
 }
 
 type ToolSpecRegistry struct {
@@ -115,12 +116,21 @@ func (t ToolSpec) Validate() error {
 	if _, ok := supportedToolHandlerTypes[t.Handler.Type]; !ok {
 		return fmt.Errorf("%s handler.type is unsupported: %s", t.Name, t.Handler.Type)
 	}
-	if t.Handler.Type == "execution_control_internal_query" {
+	switch t.Handler.Type {
+	case "execution_control_internal_query":
 		if !strings.HasPrefix(strings.TrimSpace(t.Handler.Endpoint), "/internal/") {
 			return fmt.Errorf("%s handler.endpoint must be an /internal/ path", t.Name)
 		}
-	} else if strings.TrimSpace(t.Handler.Endpoint) != "" {
-		return fmt.Errorf("%s workflow_signal handler must not declare endpoint", t.Name)
+		if strings.TrimSpace(t.Handler.Target) != "" {
+			return fmt.Errorf("%s handler.target must be empty for execution_control_internal_query", t.Name)
+		}
+	case "agent_handoff":
+		if strings.TrimSpace(t.Handler.Endpoint) != "" {
+			return fmt.Errorf("%s handler.endpoint must be empty for agent_handoff", t.Name)
+		}
+		if strings.TrimSpace(t.Handler.Target) != "knowledge_agent" {
+			return fmt.Errorf("%s handler.target must be knowledge_agent for agent_handoff", t.Name)
+		}
 	}
 	if t.Exposure == "model_visible" && !t.ReadOnly {
 		return fmt.Errorf("%s model-visible tools must be read_only", t.Name)

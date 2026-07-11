@@ -16,8 +16,6 @@ const (
 
 var supportedArtifactProjectionStatuses = map[string]struct{}{
 	"supported_go_runtime": {},
-	"contract_only":        {},
-	"closed_no_runtime":    {},
 }
 
 var supportedArtifactVisibilities = map[string]struct{}{
@@ -194,9 +192,6 @@ func (a WorkflowArtifact) Validate(globalRawTokens map[string]struct{}) error {
 			return fmt.Errorf("%s forbidden raw key is outside global tokens: %s", a.Kind, key)
 		}
 	}
-	if a.Kind == "grounding_verdict" && a.AnswerEligible {
-		return fmt.Errorf("grounding_verdict must not be answer eligible")
-	}
 	return nil
 }
 
@@ -226,12 +221,8 @@ func ValidateToolSpecProducerToolsAgainstArtifacts(
 ) error {
 	for _, artifact := range artifactRegistry.Artifacts {
 		for _, toolName := range artifact.ProducerTools {
-			tool, ok := toolRegistry.ToolByName(toolName)
-			if !ok {
-				return fmt.Errorf("%s producer tool is missing from ToolSpec: %s", artifact.Kind, toolName)
-			}
-			if !tool.ReadOnly {
-				return fmt.Errorf("%s producer tool %s must be read_only", artifact.Kind, toolName)
+			if !registeredToolOrRouteReadOnly(toolRegistry, toolName) {
+				return fmt.Errorf("%s producer tool is not an admitted read-only tool or route: %s", artifact.Kind, toolName)
 			}
 		}
 	}
@@ -267,17 +258,9 @@ func ValidateWorkflowArtifactBindings(
 			return fmt.Errorf("%s open binding must declare tool_name", binding.BindingID)
 		}
 		if strings.TrimSpace(binding.ToolName) != "" {
-			tool, ok := toolRegistry.ToolByName(binding.ToolName)
-			if !ok {
+			if !registeredToolOrRouteReadOnly(toolRegistry, binding.ToolName) {
 				return fmt.Errorf(
-					"%s tool is missing from ToolSpec: %s",
-					binding.BindingID,
-					binding.ToolName,
-				)
-			}
-			if !tool.ReadOnly {
-				return fmt.Errorf(
-					"%s tool %s must be read_only",
+					"%s tool is not an admitted read-only tool or route: %s",
 					binding.BindingID,
 					binding.ToolName,
 				)
@@ -335,6 +318,18 @@ func ValidateWorkflowArtifactBindings(
 		}
 	}
 	return nil
+}
+
+func registeredToolOrRouteReadOnly(toolRegistry ToolSpecRegistry, name string) bool {
+	name = strings.TrimSpace(name)
+	switch name {
+	case "":
+		return false
+	case "knowledge_query":
+		return true
+	}
+	tool, ok := toolRegistry.ToolByName(name)
+	return ok && tool.ReadOnly
 }
 
 func ValidateModelVisibleToolArtifactGate(

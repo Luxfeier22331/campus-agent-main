@@ -145,7 +145,7 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 - 新 agent
 - 新 routing rule
 - 新 handoff 路径
-- 新 typed tool / tool branch
+- 新 SDK function tool / tool exposure
 
 至少需要覆盖：
 

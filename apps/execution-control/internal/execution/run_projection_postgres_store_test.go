@@ -64,12 +64,10 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"output_tokens bigint not null default 0",
 		"cached_input_tokens bigint not null default 0",
 		"estimated_cost_microusd bigint not null default 0",
-		"pricing_version text not null default ''",
 		"cancel_outcome text not null default ''",
 		"timeout_outcome text not null default ''",
 		"late_completion_outcome text not null default 'not_late'",
 		"fail_close_reason text not null default ''",
-		"replan_reason text not null default ''",
 		"terminal_reason text not null default ''",
 		"unique index if not exists agent_runs_active_conversation_idx",
 		"unique index if not exists agent_run_events_run_sequence_idx",
@@ -84,28 +82,14 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"runtime.lane_budgets",
 		"runtime.worker_heartbeats",
 		"execution_leases_active_run_step_idx",
+		"requested_capability",
+		"selected_capability",
+		"column_name = 'lane'",
+		"rename column capability to tool",
 	}
 	for _, snippet := range forbiddenSnippets {
 		if strings.Contains(runProjectionSchemaSQL, snippet) {
-			t.Fatalf("run projection schema must not include retired PG lease artifact %q", snippet)
-		}
-	}
-}
-
-func TestPostgresRunProjectionStoreSchemaMigratesLegacyCapabilityColumns(t *testing.T) {
-	requiredSnippets := []string{
-		"requested_capability",
-		"requested_tool",
-		"selected_capability",
-		"selected_tool",
-		"column_name = 'lane'",
-		"rename column lane to task_queue",
-		"column_name = 'capability'",
-		"rename column capability to tool",
-	}
-	for _, snippet := range requiredSnippets {
-		if !strings.Contains(runProjectionSchemaSQL, snippet) {
-			t.Fatalf("run projection schema legacy migration missing %q", snippet)
+			t.Fatalf("run projection schema must not include retired artifact %q", snippet)
 		}
 	}
 }
@@ -127,10 +111,10 @@ func TestPostgresStepAttemptInsertPlaceholdersMatchArguments(t *testing.T) {
 			maxPlaceholder = value
 		}
 	}
-	if maxPlaceholder != 35 {
-		t.Fatalf("step attempt insert placeholders max = %d, want 35 store arguments", maxPlaceholder)
+	if maxPlaceholder != 33 {
+		t.Fatalf("step attempt insert placeholders max = %d, want 33 store arguments", maxPlaceholder)
 	}
-	if strings.Contains(insertSQL, "$36") {
+	if strings.Contains(insertSQL, "$34") {
 		t.Fatal("step attempt insert SQL must not reference placeholders beyond store arguments")
 	}
 }

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture/domains
 status: active
 created: 2026-04-23
-updated: 2026-06-12
+updated: 2026-07-08
 ---
 # Domain Architecture
 
@@ -21,8 +21,11 @@ owner、runtime shape 与 forbidden shapes。
   - authenticated notice source channel、source/data plane 与 regulation downstream
 - `campus-services/architecture.md`
   - campus services tool read model、projection-backed query seam 与 opening gate
+- `calendar/architecture.md`
+  - academic calendar/date facts domain owner, source-input split and future
+    structured calendar tool boundary
 
-食堂地图、菜单与评价真相已收口到
+食堂地图、菜单与评价真相已归属到
 `dining/architecture.md` 与 `../../data/dining.md`。
 
 ## 与 `docs/domains/` 的关系

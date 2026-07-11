@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/official-web
 status: active
 created: 2026-03-28
-updated: 2026-05-01
+updated: 2026-07-08
 ---
 # Official Web Source-Truth Schema
 
@@ -77,11 +77,6 @@ source-truth pipeline:
 - retained page snapshot
 - parser-specific provider output
 - web source-truth
-- declared projections
-- canonical document artifacts
-- document-units
-- chunks
-- index
 
 补充说明：
 
@@ -89,6 +84,24 @@ source-truth pipeline:
   source-owned artifacts
 - 如果后续有持久化 source-side projection artifact，它们落在同一 source prefix 下的 sibling
   `projection/<projection_name>/...`，但不属于本文的 source-truth schema 本体
+- 下游 `declared projections -> canonical document artifacts -> document-units ->
+  chunks -> index -> release` 属于 target consumption / document / retrieval truth，
+  由 `docs/architecture/domains/official-web/architecture.md` 和对应 collection
+  policy 承接；本文不把这些步骤描述成 source-truth schema 的一部分
+
+## Current Implementation Boundary
+
+当前 official-web ingestion task 的已实现语义是 source-truth ref verification：
+
+- 读取 run-level `source_truth_bundle`
+- 校验 bundle digest、`sourceChannel` 与 `crawlRunId`
+- 读取每个 page manifest 与 content blocks object ref
+- 返回 artifact refs 作为 closeout evidence
+
+它不写 canonical document units、chunk set、index build output、release manifest 或
+serving alias publish record。因此，文档、配置或 operator projection 中出现
+`source_truth_materialize` 名称时，不能据此推断 official-web 已经完成 downstream
+materialization。
 
 ## Artifact 分层
 

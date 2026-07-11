@@ -34,7 +34,6 @@ import {
 	defaultValidateEmbeddingProvider,
 	defaultValidatePromptProvider,
 	defaultValidateRerankProvider,
-	defaultValidateSearchProvider,
 	validateByKind,
 } from "./validators";
 
@@ -48,7 +47,7 @@ export interface ProviderConfigServiceDependencies {
 	validators?: Partial<ProviderConfigValidators>;
 }
 
-const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank", "search"]);
+const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function buildProviderConfigService(
@@ -70,7 +69,6 @@ export function buildProviderConfigService(
 			dependencies.validators?.validateEmbedding ?? defaultValidateEmbeddingProvider,
 		validatePrompt: dependencies.validators?.validatePrompt ?? defaultValidatePromptProvider,
 		validateRerank: dependencies.validators?.validateRerank ?? defaultValidateRerankProvider,
-		validateSearch: dependencies.validators?.validateSearch ?? defaultValidateSearchProvider,
 	};
 
 	return {
@@ -511,12 +509,7 @@ async function normalizeUpdatePayload(
 
 function normalizeKind(value: unknown): ProviderConfigKind {
 	const normalized = normalizeRequiredString(value, "kind");
-	if (
-		normalized !== "prompt" &&
-		normalized !== "embedding" &&
-		normalized !== "rerank" &&
-		normalized !== "search"
-	) {
+	if (normalized !== "prompt" && normalized !== "embedding" && normalized !== "rerank") {
 		throw validationError("kind is not supported.", { field: "kind" });
 	}
 	return normalized;
@@ -585,25 +578,11 @@ function normalizeTransport(value: unknown, kind: ProviderConfigKind): string {
 	if (kind === "embedding" && transport !== "embeddings" && transport !== "openai_embeddings") {
 		throw validationError("transport must be embeddings.", { field: "transport" });
 	}
-	if (
-		kind === "search" &&
-		transport !== "perplexity_search" &&
-		transport !== "openai_responses_web_search" &&
-		transport !== "openai_chat_completions_web_search" &&
-		transport !== "gemini_google_search"
-	) {
-		throw validationError(
-			"transport must be perplexity_search, openai_responses_web_search, openai_chat_completions_web_search, or gemini_google_search.",
-			{
-				field: "transport",
-			},
-		);
-	}
 	return transport;
 }
 
 function normalizeDimensions(value: unknown, kind: ProviderConfigKind): number | null {
-	if (kind === "prompt" || kind === "rerank" || kind === "search") {
+	if (kind === "prompt" || kind === "rerank") {
 		return null;
 	}
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {

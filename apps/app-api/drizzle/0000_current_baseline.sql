@@ -565,23 +565,6 @@ CREATE TABLE "observability_config"."llm_debug_trace_config" (
 	"updated_by_json" jsonb NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "operator"."metric_rollup" (
-	"rollup_id" text PRIMARY KEY NOT NULL,
-	"request_id" text NOT NULL,
-	"domain" text NOT NULL,
-	"granularity" text NOT NULL,
-	"bucket_start" timestamp with time zone NOT NULL,
-	"bucket_end" timestamp with time zone NOT NULL,
-	"surface" text NOT NULL,
-	"selected_tool" text,
-	"requested_tool" text,
-	"principal_type" text NOT NULL,
-	"collection" text,
-	"model_name" text,
-	"metrics_json" jsonb NOT NULL,
-	"projected_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "operator"."official_web_release_task_event_projection" (
 	"event_id" text PRIMARY KEY NOT NULL,
 	"task_id" text NOT NULL,
@@ -891,21 +874,6 @@ CREATE TABLE "provider_config"."profiles" (
 	"updated_by_json" jsonb NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "operator"."quality_badcase_projection" (
-	"badcase_id" text PRIMARY KEY NOT NULL,
-	"request_id" text NOT NULL,
-	"trace_id" text NOT NULL,
-	"surface" text NOT NULL,
-	"selected_tool" text,
-	"status" text NOT NULL,
-	"cause_class" text NOT NULL,
-	"detected_by" text NOT NULL,
-	"opened_at" timestamp with time zone NOT NULL,
-	"summary" text NOT NULL,
-	"grade_json" jsonb,
-	"projected_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "operator"."quality_grade_projection" (
 	"grade_id" text PRIMARY KEY NOT NULL,
 	"request_id" text NOT NULL,
@@ -1006,15 +974,14 @@ CREATE TABLE "runtime"."request_execution" (
 	"run_id" text,
 	"safety_identifier" text,
 	"requested_tool" text,
-	"requested_scope_json" jsonb,
+	"requested_scope" text,
 	"version_query_json" jsonb,
-	"resolved_scope_json" jsonb,
+	"resolved_scope" text,
 	"selected_tool" text,
 	"status" text NOT NULL,
 	"error_code" text,
 	"question_preview" text NOT NULL,
 	"answer_preview" text,
-	"diagnostics_json" jsonb,
 	"source_doc_ids_json" jsonb,
 	"started_at" timestamp with time zone NOT NULL,
 	"completed_at" timestamp with time zone,
@@ -1038,70 +1005,29 @@ CREATE TABLE "runtime"."request_observability_fact" (
 	"version_query_mode" text,
 	"version_query_summary" text,
 	"resolved_scope_summary" text,
-	"collection" text,
 	"selected_tool" text,
 	"status" text NOT NULL,
 	"error_code" text,
 	"started_at" timestamp with time zone NOT NULL,
 	"completed_at" timestamp with time zone,
 	"duration_ms" integer,
-	"retrieval_attempted" boolean,
-	"candidate_count" integer,
-	"retrieved_source_count" integer,
-	"retrieved_sources_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"supporting_sources_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"empty_recall" boolean,
-	"citation_expected" boolean,
-	"citation_count" integer,
-	"citation_missing" boolean,
 	"refusal_class" text,
 	"semantic_outcome" text,
 	"scope_class" text,
 	"acl_decision" text,
 	"acl_anomaly_code" text,
 	"fail_closed" boolean,
-	"tool_business_outcome" text,
-	"tool_fail_close_reason" text,
-	"tool_historical_downgrade_reason" text,
 	"workflow_trace_summary_json" jsonb,
 	"stage_timing_json" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"debug_trace_refs_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"answer_eval_fingerprint_json" jsonb,
 	"llm_io_fingerprint_json" jsonb,
-	"intent_tool" text,
-	"intent_task_kind" text,
-	"intent_launch_state" text,
-	"intent_next_action" text,
-	"intent_scope_class" text,
-	"intent_scope_reason" text,
-	"intent_policy_reason" text,
-	"intent_classifier_version" text,
-	"intent_schema_version" text,
-	"intent_routing_confidence" text,
-	"intent_ambiguity_signal" text,
-	"intent_context_resolution_state" text,
-	"intent_context_reference_type" text,
-	"intent_resolved_slots_json" jsonb,
-	"intent_missing_slots_json" jsonb,
-	"intent_ambiguity_reason" text,
 	"model_provider" text,
 	"model_name" text,
-	"billable_step_count" integer,
-	"model_usage_summary_json" jsonb,
 	"prompt_id" text,
 	"prompt_version" text,
 	"template_sha256" text,
-	"model_execution_state" text,
-	"model_execution_detail" text,
-	"input_tokens" integer,
-	"output_tokens" integer,
-	"cached_input_tokens" integer,
-	"estimated_cost_microusd" integer,
-	"retrieval_adequacy_verdict" text,
-	"retrieval_adequacy_reason" text,
-	"claim_support_summary_json" jsonb,
-	"remote_content_suspicion_summary_json" jsonb,
-	"source_trust_summary_json" jsonb,
 	"trace_available" boolean DEFAULT false NOT NULL,
 	"projection_lag_ms" integer,
 	"measured_at" timestamp with time zone NOT NULL,
@@ -1121,15 +1047,14 @@ CREATE TABLE "operator"."request_projection" (
 	"visibility_scope" text,
 	"applicability_scope" text,
 	"requested_tool" text,
-	"requested_scope_json" jsonb,
+	"requested_scope" text,
 	"version_query_json" jsonb,
-	"resolved_scope_json" jsonb,
+	"resolved_scope" text,
 	"selected_tool" text,
 	"status" text NOT NULL,
 	"error_code" text,
 	"question_preview" text NOT NULL,
 	"answer_preview" text,
-	"diagnostics_json" jsonb,
 	"source_doc_ids_json" jsonb,
 	"started_at" timestamp with time zone NOT NULL,
 	"completed_at" timestamp with time zone,
@@ -1414,10 +1339,6 @@ CREATE INDEX "identity_federation_user_grants_account_client_idx" ON "identity".
 CREATE INDEX "identity_federation_user_grants_client_idx" ON "identity"."federation_user_grants" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "identity_profiles_principal_idx" ON "identity"."identity_profiles" USING btree ("principal_id");--> statement-breakpoint
 CREATE INDEX "identity_profiles_verification_status_idx" ON "identity"."identity_profiles" USING btree ("verification_status");--> statement-breakpoint
-CREATE INDEX "operator_metric_rollup_domain_granularity_bucket_idx" ON "operator"."metric_rollup" USING btree ("domain","granularity","bucket_start");--> statement-breakpoint
-CREATE INDEX "operator_metric_rollup_request_granularity_bucket_idx" ON "operator"."metric_rollup" USING btree ("request_id","granularity","bucket_start");--> statement-breakpoint
-CREATE INDEX "operator_metric_rollup_domain_surface_bucket_idx" ON "operator"."metric_rollup" USING btree ("domain","surface","bucket_start");--> statement-breakpoint
-CREATE INDEX "operator_metric_rollup_domain_tool_bucket_idx" ON "operator"."metric_rollup" USING btree ("domain","selected_tool","bucket_start");--> statement-breakpoint
 CREATE INDEX "operator_ow_release_task_event_task_occurred_idx" ON "operator"."official_web_release_task_event_projection" USING btree ("task_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "operator_ow_release_task_event_run_occurred_idx" ON "operator"."official_web_release_task_event_projection" USING btree ("run_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "operator_ow_release_task_inventory_projected_idx" ON "operator"."official_web_release_task_projection" USING btree ("inventory_id","projected_at");--> statement-breakpoint
@@ -1455,10 +1376,6 @@ CREATE INDEX "runtime_projection_outbox_request_occurred_idx" ON "runtime"."proj
 CREATE INDEX "provider_config_connections_provider_updated_idx" ON "provider_config"."connections" USING btree ("provider","updated_at");--> statement-breakpoint
 CREATE INDEX "provider_config_profiles_active_role_idx" ON "provider_config"."profiles" USING btree ("role","active","updated_at");--> statement-breakpoint
 CREATE INDEX "provider_config_profiles_kind_role_updated_idx" ON "provider_config"."profiles" USING btree ("kind","role","updated_at");--> statement-breakpoint
-CREATE INDEX "operator_quality_badcase_projection_status_opened_at_idx" ON "operator"."quality_badcase_projection" USING btree ("status","opened_at");--> statement-breakpoint
-CREATE INDEX "operator_quality_badcase_projection_cause_opened_at_idx" ON "operator"."quality_badcase_projection" USING btree ("cause_class","opened_at");--> statement-breakpoint
-CREATE INDEX "operator_quality_badcase_projection_detected_by_opened_at_idx" ON "operator"."quality_badcase_projection" USING btree ("detected_by","opened_at");--> statement-breakpoint
-CREATE INDEX "operator_quality_badcase_projection_request_opened_at_idx" ON "operator"."quality_badcase_projection" USING btree ("request_id","opened_at");--> statement-breakpoint
 CREATE INDEX "operator_quality_grade_projection_request_started_at_idx" ON "operator"."quality_grade_projection" USING btree ("request_started_at");--> statement-breakpoint
 CREATE INDEX "operator_quality_grade_projection_domain_started_at_idx" ON "operator"."quality_grade_projection" USING btree ("grade_domain","request_started_at");--> statement-breakpoint
 CREATE INDEX "operator_quality_grade_projection_request_sampled_at_idx" ON "operator"."quality_grade_projection" USING btree ("request_id","sampled_at");--> statement-breakpoint
@@ -1486,7 +1403,6 @@ CREATE INDEX "runtime_request_observability_surface_started_at_idx" ON "runtime"
 CREATE INDEX "runtime_request_observability_selected_tool_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("selected_tool","started_at");--> statement-breakpoint
 CREATE INDEX "runtime_request_observability_principal_type_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("principal_type","started_at");--> statement-breakpoint
 CREATE INDEX "runtime_request_observability_model_name_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("model_name","started_at");--> statement-breakpoint
-CREATE INDEX "runtime_request_observability_collection_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("collection","started_at");--> statement-breakpoint
 CREATE INDEX "runtime_request_observability_safety_identifier_started_at_idx" ON "runtime"."request_observability_fact" USING btree ("safety_identifier","started_at");--> statement-breakpoint
 CREATE INDEX "operator_request_projection_status_started_at_idx" ON "operator"."request_projection" USING btree ("status","started_at");--> statement-breakpoint
 CREATE INDEX "operator_request_projection_conversation_started_at_idx" ON "operator"."request_projection" USING btree ("conversation_id","started_at");--> statement-breakpoint

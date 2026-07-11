@@ -64,7 +64,7 @@ pnpm install
 
 本地提交前 hygiene 统一使用 `pre-commit`，不使用 Husky / lint-staged / lefthook
 双轨 hook。`pre-commit` 只承担轻量文件卫生检查，不替代 typecheck、test、build、
-runtime smoke 或 release proof。当前 hook 包含 Gitleaks staged secret scan。
+runtime smoke 或 release closeout validation。当前 hook 包含 Gitleaks staged secret scan。
 
 ```bash
 pre-commit install

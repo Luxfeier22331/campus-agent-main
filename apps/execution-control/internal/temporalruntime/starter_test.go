@@ -31,17 +31,14 @@ func TestNewStarterDefersConnectivityToReadiness(t *testing.T) {
 
 func TestNormalizeActivityTaskQueuesDeduplicatesWorkloadQueues(t *testing.T) {
 	queues := normalizeActivityTaskQueues([]string{
-		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueCore,
 		ActivityTaskQueueCore,
-		ActivityTaskQueueCore,
-		ActivityTaskQueueCore,
+		ActivityTaskQueueAgent,
 	})
 
 	want := []string{
 		ActivityTaskQueueCore,
 		ActivityTaskQueueAgent,
-		ActivityTaskQueueKnowledge,
 	}
 	if len(queues) != len(want) {
 		t.Fatalf("queues = %#v, want %#v", queues, want)

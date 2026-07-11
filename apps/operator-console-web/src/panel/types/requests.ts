@@ -3,7 +3,6 @@ export interface RawRequestProjectionRecord {
 	applicabilityScope: string | null;
 	completedAt: string | null;
 	conversationId: string;
-	diagnostics?: RequestProjectionDiagnostics;
 	durationMs: number | null;
 	errorCode: string | null;
 	entitlementGroups: string[];
@@ -48,46 +47,28 @@ export interface RawRequestOpsIndex {
 	model: {
 		modelProvider: string | null;
 		modelName: string | null;
-		billableStepCount: number | null;
-		usageSummary: Record<string, unknown>[];
+		answerEvalFingerprint: Record<string, unknown> | null;
+		llmIoFingerprint: Record<string, unknown> | null;
 		promptId: string | null;
 		promptVersion: string | null;
 		templateSha256: string | null;
-		executionState: string | null;
-		executionDetail: string | null;
-		inputTokens: number | null;
-		outputTokens: number | null;
-		cachedInputTokens: number | null;
-		estimatedCostMicrousd: number | null;
 	};
 	tool: {
 		requestedTool: string | null;
 		selectedTool: string | null;
-		toolBusinessOutcome: string | null;
 		failClosed: boolean | null;
-		failCloseReason: string | null;
-		historicalDowngradeReason: string | null;
 	};
-	retrieval: {
-		retrievalAttempted: boolean | null;
-		candidateCount: number | null;
-		retrievedSourceCount: number | null;
-		collection: string | null;
-		adequacyVerdict: string | null;
-		adequacyReason: string | null;
-	};
+	sources: Array<{
+		canonicalUrl: string;
+		sourceKind: string | null;
+		sourceTitle: string;
+		targetKind: string | null;
+		versionId: string | null;
+	}>;
 	sinkLinks: {
 		traceAvailable: boolean;
 		projectionLagMs: number | null;
 	};
-}
-
-export interface RequestProjectionDiagnostics {
-	clarificationReason: string | null;
-	noAnswerReason: string | null;
-	resolvedPolicyDocumentId: string | null;
-	resolvedPolicyTitle: string | null;
-	retrievedTitleSummary: string[];
 }
 
 export interface RequestProjectionRecord extends RawRequestProjectionRecord {

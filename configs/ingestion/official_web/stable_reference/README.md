@@ -5,14 +5,14 @@ collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
   `configs/sources/official_web/muc_public/`
-- this collection is the future stable-reference serving scope for public-web
-  content derived from `official_web` source truth
+- this collection profile describes the stable-reference serving scope for
+  public-web content derived from `official_web` source truth
 
-Current serving truth:
+Profile declaration:
 
 - serving stage: `query_serving`
 - serving surface: `stable_reference`
-- query enabled: `true`
+- query policy: default-open in runtime scope when a published alias exists
 - freshness-sensitive queries supported: `false`
 - live-search expansion allowed: `false`
 - required metadata fields: `none`
@@ -35,10 +35,14 @@ Boundary notes:
   honor pages are not part of the default stable-reference answer denominator;
   keep them in source/inventory audit truth unless a dedicated brand-history
   surface is admitted
-- it is now the first query-enabled `official_web/*` surface and should be
-  consumed through the published alias `official_web_stable_reference`
+- config declares the intended alias `official_web_stable_reference`; a target is
+  query-ready only after document units, chunks, index, release manifest and
+  alias publish evidence exist
 - it is the only default query-enabled official-web surface; `fresh_news`
   remains explicitly out of the default online answer path
 - it is not a mirror for formal regulations or formal curriculum documents;
   those continue to belong to `regulations/*` and `curriculum/*`
 - replay and QC now target explicit active collections
+- current `source_truth_materialize` tasks only verify source-truth refs; they
+  do not by themselves create stable-reference documents, chunks, indexes or a
+  published alias

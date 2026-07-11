@@ -56,14 +56,8 @@ updated: 2026-06-13
     "conversationId": "conv_01HQ...",
     "status": "completed",
     "requestedTool": "knowledge_query",
-    "requestedScope": {
-      "corpus": "regulations",
-      "collection": "student_rules"
-    },
-    "resolvedScope": {
-      "corpus": "regulations",
-      "collection": "student_rules"
-    },
+    "requestedScope": "student_rules",
+    "resolvedScope": "student_rules",
     "selectedTool": "knowledge_query",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
@@ -80,7 +74,8 @@ updated: 2026-06-13
 规则：
 
 - 这是 projection detail，不是 raw execution dump
-- `requestedScope` 表示调用方显式请求的 knowledge tool scope，可为 `null`
-- `resolvedScope` 表示 agent 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
+- `requestedScope` 表示调用方显式请求的 model-facing knowledge scope id，可为 `null`
+- `resolvedScope` 表示 agent 最终解析并执行的 model-facing serving scope id，是
+  operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
 - v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 agent-internal payload

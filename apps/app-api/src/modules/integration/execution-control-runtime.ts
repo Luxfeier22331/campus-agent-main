@@ -27,12 +27,9 @@ export interface ExecutionControlRunCreateInput {
 	metadata: JsonRecord;
 	ownerUserId: string;
 	requestId: string;
-	requestedTool?: string | null;
 	runId: string;
 	runtimeVersions?: JsonRecord | null;
-	selectedTool?: string | null;
 	surface: string;
-	taskQueue: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	turnId: string;
@@ -117,7 +114,6 @@ export interface ExecutionControlRun {
 	traceId: string;
 	turnId: string;
 	updatedAt: string;
-	workflowPlanRef: string;
 }
 
 export interface ExecutionControlRunEvent {
@@ -167,7 +163,6 @@ export interface ExecutionControlStepAttempt {
 	modelProvider: string;
 	outputTokens: number;
 	payloadSchemaVersion: string;
-	pricingVersion: string;
 	providerRequestRef: string;
 	providerResponseId: string;
 	runId: string;
@@ -182,7 +177,6 @@ export interface ExecutionControlStepAttempt {
 	terminalReason: string;
 	timeoutOutcome: string;
 	updatedAt: string;
-	replanReason: string;
 	workerId: string;
 	workflowId: string;
 }
@@ -558,12 +552,9 @@ function toDurableRunCreateBody(input: ExecutionControlRunCreateInput): JsonReco
 		metadata: input.metadata,
 		owner_user_id: input.ownerUserId,
 		request_id: input.requestId,
-		requested_tool: input.requestedTool ?? "",
 		run_id: input.runId,
 		runtime_versions: input.runtimeVersions ?? {},
-		selected_tool: input.selectedTool ?? "",
 		surface: input.surface,
-		task_queue: input.taskQueue,
 		trace_id: input.traceId ?? "",
 		turn_id: input.turnId,
 	};
@@ -591,7 +582,6 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		traceId: readRequiredString(payload, "trace_id"),
 		turnId: readRequiredString(payload, "turn_id"),
 		updatedAt: readRequiredString(payload, "updated_at"),
-		workflowPlanRef: readRequiredString(payload, "workflow_plan_ref"),
 	};
 }
 
@@ -682,7 +672,6 @@ function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAt
 		modelProvider: readRequiredString(record, "model_provider"),
 		outputTokens: readRequiredNumber(record, "output_tokens"),
 		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-		pricingVersion: readRequiredString(record, "pricing_version"),
 		providerRequestRef: readRequiredString(record, "provider_request_ref"),
 		providerResponseId: readRequiredString(record, "provider_response_id"),
 		runId: readRequiredString(record, "run_id"),
@@ -697,7 +686,6 @@ function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAt
 		terminalReason: readRequiredString(record, "terminal_reason"),
 		timeoutOutcome: readRequiredString(record, "timeout_outcome"),
 		updatedAt: readRequiredString(record, "updated_at"),
-		replanReason: readRequiredString(record, "replan_reason"),
 		workerId: readRequiredString(record, "worker_id"),
 		workflowId: readRequiredString(record, "workflow_id"),
 	};

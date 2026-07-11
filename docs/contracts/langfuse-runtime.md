@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-07-03
+updated: 2026-07-08
 ---
 # Langfuse Runtime Observability Contract
 
@@ -129,7 +129,7 @@ RAG follow-up observations may additionally provide:
 - `selected_evidence_count`
 
 Memory-enabled online traces must include the repo-owned `memory.recall`
-observation when `context.memory.enabled=true`. Product-path closeout evidence
+observation when `context.memory.enabled=true`. Product-path closeout artifacts
 may additionally require `memory.append`, `memory.operation_status` or
 `memory.reflect` observations when the evaluated flow exercises those runtime
 operations.

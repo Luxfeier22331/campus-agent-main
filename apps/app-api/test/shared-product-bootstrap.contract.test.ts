@@ -75,6 +75,24 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(Object.keys(appApiSchema)).toEqual(expect.arrayContaining(["messageFeedback"]));
 	});
 
+	it("keeps the current baseline free of retired routing state", () => {
+		const baseline = readAppFile("drizzle/0000_current_baseline.sql");
+		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
+
+		for (const retiredField of [
+			"intent_classifier_version",
+			"intent_schema_version",
+			"intent_tool",
+			"requested_scope_json",
+			"resolved_scope_json",
+		]) {
+			expect(baseline).not.toContain(retiredField);
+			expect(snapshot).not.toContain(retiredField);
+		}
+		expect(baseline).toContain('"requested_scope" text');
+		expect(baseline).toContain('"resolved_scope" text');
+	});
+
 	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
 			expect.arrayContaining([

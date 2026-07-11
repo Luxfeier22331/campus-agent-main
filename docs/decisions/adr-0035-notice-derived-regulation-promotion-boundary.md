@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0035
 status: accepted
 created: 2026-04-10
-updated: 2026-07-04
+updated: 2026-07-08
 ---
 # ADR-0035 Notice-Derived Regulation Promotion Boundary
 
@@ -177,7 +177,7 @@ release/index。
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+- `docs/reference/institutional-rules-promotion.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `git history authenticated-notice regulation consumption workstream`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`

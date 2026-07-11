@@ -4610,212 +4610,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "operator.metric_rollup": {
-      "name": "metric_rollup",
-      "schema": "operator",
-      "columns": {
-        "rollup_id": {
-          "name": "rollup_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "domain": {
-          "name": "domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "granularity": {
-          "name": "granularity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bucket_start": {
-          "name": "bucket_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bucket_end": {
-          "name": "bucket_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "surface": {
-          "name": "surface",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "selected_tool": {
-          "name": "selected_tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_tool": {
-          "name": "requested_tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "principal_type": {
-          "name": "principal_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "collection": {
-          "name": "collection",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_name": {
-          "name": "model_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "metrics_json": {
-          "name": "metrics_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "projected_at": {
-          "name": "projected_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "operator_metric_rollup_domain_granularity_bucket_idx": {
-          "name": "operator_metric_rollup_domain_granularity_bucket_idx",
-          "columns": [
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "granularity",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "bucket_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_metric_rollup_request_granularity_bucket_idx": {
-          "name": "operator_metric_rollup_request_granularity_bucket_idx",
-          "columns": [
-            {
-              "expression": "request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "granularity",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "bucket_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_metric_rollup_domain_surface_bucket_idx": {
-          "name": "operator_metric_rollup_domain_surface_bucket_idx",
-          "columns": [
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "surface",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "bucket_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_metric_rollup_domain_tool_bucket_idx": {
-          "name": "operator_metric_rollup_domain_tool_bucket_idx",
-          "columns": [
-            {
-              "expression": "domain",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "selected_tool",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "bucket_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "operator.official_web_release_task_event_projection": {
       "name": "official_web_release_task_event_projection",
       "schema": "operator",
@@ -7615,176 +7409,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "operator.quality_badcase_projection": {
-      "name": "quality_badcase_projection",
-      "schema": "operator",
-      "columns": {
-        "badcase_id": {
-          "name": "badcase_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trace_id": {
-          "name": "trace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "surface": {
-          "name": "surface",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "selected_tool": {
-          "name": "selected_tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cause_class": {
-          "name": "cause_class",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "detected_by": {
-          "name": "detected_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "opened_at": {
-          "name": "opened_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grade_json": {
-          "name": "grade_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "projected_at": {
-          "name": "projected_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "operator_quality_badcase_projection_status_opened_at_idx": {
-          "name": "operator_quality_badcase_projection_status_opened_at_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "opened_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_quality_badcase_projection_cause_opened_at_idx": {
-          "name": "operator_quality_badcase_projection_cause_opened_at_idx",
-          "columns": [
-            {
-              "expression": "cause_class",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "opened_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_quality_badcase_projection_detected_by_opened_at_idx": {
-          "name": "operator_quality_badcase_projection_detected_by_opened_at_idx",
-          "columns": [
-            {
-              "expression": "detected_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "opened_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "operator_quality_badcase_projection_request_opened_at_idx": {
-          "name": "operator_quality_badcase_projection_request_opened_at_idx",
-          "columns": [
-            {
-              "expression": "request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "opened_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "operator.quality_grade_projection": {
       "name": "quality_grade_projection",
       "schema": "operator",
@@ -8660,20 +8284,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_scope_json": {
-          "name": "requested_scope_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "version_query_json": {
           "name": "version_query_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_scope_json": {
-          "name": "resolved_scope_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -8705,12 +8317,6 @@
         "answer_preview": {
           "name": "answer_preview",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "diagnostics_json": {
-          "name": "diagnostics_json",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -8749,6 +8355,18 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "requested_scope": {
+          "name": "requested_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_scope": {
+          "name": "resolved_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8974,12 +8592,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "collection": {
-          "name": "collection",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "selected_tool": {
           "name": "selected_tool",
           "type": "text",
@@ -9016,61 +8628,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "retrieval_attempted": {
-          "name": "retrieval_attempted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "candidate_count": {
-          "name": "candidate_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retrieved_source_count": {
-          "name": "retrieved_source_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retrieved_sources_json": {
-          "name": "retrieved_sources_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
         "supporting_sources_json": {
           "name": "supporting_sources_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
-        },
-        "empty_recall": {
-          "name": "empty_recall",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "citation_expected": {
-          "name": "citation_expected",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "citation_count": {
-          "name": "citation_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "citation_missing": {
-          "name": "citation_missing",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
         },
         "refusal_class": {
           "name": "refusal_class",
@@ -9108,24 +8671,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tool_business_outcome": {
-          "name": "tool_business_outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tool_fail_close_reason": {
-          "name": "tool_fail_close_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tool_historical_downgrade_reason": {
-          "name": "tool_historical_downgrade_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "workflow_trace_summary_json": {
           "name": "workflow_trace_summary_json",
           "type": "jsonb",
@@ -9158,102 +8703,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "intent_tool": {
-          "name": "intent_tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_task_kind": {
-          "name": "intent_task_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_launch_state": {
-          "name": "intent_launch_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_next_action": {
-          "name": "intent_next_action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_scope_class": {
-          "name": "intent_scope_class",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_scope_reason": {
-          "name": "intent_scope_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_policy_reason": {
-          "name": "intent_policy_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_classifier_version": {
-          "name": "intent_classifier_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_schema_version": {
-          "name": "intent_schema_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_routing_confidence": {
-          "name": "intent_routing_confidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_ambiguity_signal": {
-          "name": "intent_ambiguity_signal",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_context_resolution_state": {
-          "name": "intent_context_resolution_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_context_reference_type": {
-          "name": "intent_context_reference_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_resolved_slots_json": {
-          "name": "intent_resolved_slots_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_missing_slots_json": {
-          "name": "intent_missing_slots_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intent_ambiguity_reason": {
-          "name": "intent_ambiguity_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "model_provider": {
           "name": "model_provider",
           "type": "text",
@@ -9263,18 +8712,6 @@
         "model_name": {
           "name": "model_name",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billable_step_count": {
-          "name": "billable_step_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_usage_summary_json": {
-          "name": "model_usage_summary_json",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -9293,72 +8730,6 @@
         "template_sha256": {
           "name": "template_sha256",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_execution_state": {
-          "name": "model_execution_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_execution_detail": {
-          "name": "model_execution_detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "input_tokens": {
-          "name": "input_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output_tokens": {
-          "name": "output_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cached_input_tokens": {
-          "name": "cached_input_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "estimated_cost_microusd": {
-          "name": "estimated_cost_microusd",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retrieval_adequacy_verdict": {
-          "name": "retrieval_adequacy_verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retrieval_adequacy_reason": {
-          "name": "retrieval_adequacy_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "claim_support_summary_json": {
-          "name": "claim_support_summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "remote_content_suspicion_summary_json": {
-          "name": "remote_content_suspicion_summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_trust_summary_json": {
-          "name": "source_trust_summary_json",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -9509,27 +8880,6 @@
           "method": "btree",
           "with": {}
         },
-        "runtime_request_observability_collection_started_at_idx": {
-          "name": "runtime_request_observability_collection_started_at_idx",
-          "columns": [
-            {
-              "expression": "collection",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "runtime_request_observability_safety_identifier_started_at_idx": {
           "name": "runtime_request_observability_safety_identifier_started_at_idx",
           "columns": [
@@ -9636,20 +8986,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_scope_json": {
-          "name": "requested_scope_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "version_query_json": {
           "name": "version_query_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_scope_json": {
-          "name": "resolved_scope_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -9684,12 +9022,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "diagnostics_json": {
-          "name": "diagnostics_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "source_doc_ids_json": {
           "name": "source_doc_ids_json",
           "type": "jsonb",
@@ -9719,6 +9051,18 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "requested_scope": {
+          "name": "requested_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_scope": {
+          "name": "resolved_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

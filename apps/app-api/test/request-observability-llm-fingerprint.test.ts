@@ -58,6 +58,8 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
+		resolvedScope: overrides.resolvedScope ?? null,
+		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
 
@@ -190,50 +192,50 @@ function createAnswerEvalFingerprint() {
 	};
 }
 
+function createObservability(
+	overrides: Partial<NonNullable<ToolExecutionResponse["observability"]>> = {},
+): NonNullable<ToolExecutionResponse["observability"]> {
+	return {
+		agentRuntime: "openai_agents_sdk",
+		sdkTraceRef: "sdk-trace-01HQ",
+		selectedTools: ["knowledge_query"],
+		terminalReason: "answer",
+		...overrides,
+	};
+}
+
+function buildFact(observability: NonNullable<ToolExecutionResponse["observability"]>) {
+	return buildFinalizedRequestObservabilityFact({
+		completedAt: "2026-04-12T08:00:01.000Z",
+		conversationId: "conv_01HQ",
+		durationMs: 420,
+		errorCode: null,
+		principal: createPrincipal(),
+		requestId: "req_01HQ",
+		requestedTool: null,
+		requestedScope: null,
+		resolvedScope: null,
+		response: createResponse({ observability }),
+		startedAt: "2026-04-12T08:00:00.000Z",
+		status: "completed",
+		surface: "campus_web",
+		traceId: "trace_01HQ",
+		runId: "run_01HQ",
+	});
+}
+
 describe("request observability llm io fingerprint", () => {
 	it("projects llm io fingerprint as safe observability metadata", () => {
 		const llmIoFingerprint = createLlmIoFingerprint();
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-12T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: null,
-			durationMs: 420,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: null,
-			requestedScope: null,
-			resolvedScope: null,
-			response: createResponse({
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					cachedInputTokens: null,
-					candidateCount: null,
-					citationCount: null,
-					citationExpected: null,
-					citationMissing: null,
-					estimatedCostMicrousd: null,
-					failClosed: false,
-					inputTokens: null,
-					llmIoFingerprint,
-					modelName: "gpt-4.1",
-					modelProvider: "openai",
-					outputTokens: null,
-					refusalClass: null,
-					retrievedSourceCount: null,
-					retrievalAttempted: null,
-				},
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-12T08:00:00.000Z",
-			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
-		});
+		const fact = buildFact(createObservability({ llmIoFingerprint }));
 
-		expect(fact.llmIoFingerprint).toEqual(llmIoFingerprint);
+		expect(fact).toMatchObject({
+			llmIoFingerprint,
+			modelName: "gpt-4.1",
+			modelProvider: "openai",
+			promptId: "primary_agent_direct_answer",
+			templateSha256: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+		});
 		expect(JSON.stringify(fact.llmIoFingerprint)).not.toContain("provider_request_body");
 		expect(JSON.stringify(fact.llmIoFingerprint)).not.toContain("raw_prompt");
 	});
@@ -241,46 +243,7 @@ describe("request observability llm io fingerprint", () => {
 	it("projects answer eval fingerprint as safe observability metadata", () => {
 		const llmIoFingerprint = createLlmIoFingerprint();
 		const answerEvalFingerprint = createAnswerEvalFingerprint();
-		const fact = buildFinalizedRequestObservabilityFact({
-			completedAt: "2026-04-12T08:00:01.000Z",
-			conversationId: "conv_01HQ",
-			diagnostics: null,
-			durationMs: 420,
-			errorCode: null,
-			principal: createPrincipal(),
-			requestId: "req_01HQ",
-			requestedTool: null,
-			requestedScope: null,
-			resolvedScope: null,
-			response: createResponse({
-				observability: {
-					aclAnomalyCode: null,
-					aclDecision: "allowed",
-					answerEvalFingerprint,
-					cachedInputTokens: null,
-					candidateCount: null,
-					citationCount: null,
-					citationExpected: null,
-					citationMissing: null,
-					estimatedCostMicrousd: null,
-					failClosed: false,
-					inputTokens: null,
-					llmIoFingerprint,
-					modelName: "gpt-4.1",
-					modelProvider: "openai",
-					outputTokens: null,
-					refusalClass: null,
-					retrievedSourceCount: null,
-					retrievalAttempted: null,
-				},
-			}),
-			sourceDocIds: [],
-			startedAt: "2026-04-12T08:00:00.000Z",
-			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
-			runId: "run_01HQ",
-		});
+		const fact = buildFact(createObservability({ answerEvalFingerprint, llmIoFingerprint }));
 
 		expect(fact.answerEvalFingerprint).toEqual(answerEvalFingerprint);
 		expect(JSON.stringify(fact.answerEvalFingerprint)).not.toContain("raw_answer");
@@ -288,7 +251,6 @@ describe("request observability llm io fingerprint", () => {
 	});
 
 	it("rejects answer eval and llm io fingerprint drift before persistence", () => {
-		const llmIoFingerprint = createLlmIoFingerprint();
 		const answerEvalFingerprint = {
 			...createAnswerEvalFingerprint(),
 			toolRuntimeCombinedSha256:
@@ -296,51 +258,16 @@ describe("request observability llm io fingerprint", () => {
 		};
 
 		expect(() =>
-			buildFinalizedRequestObservabilityFact({
-				completedAt: "2026-04-12T08:00:01.000Z",
-				conversationId: "conv_01HQ",
-				diagnostics: null,
-				durationMs: 420,
-				errorCode: null,
-				principal: createPrincipal(),
-				requestId: "req_01HQ",
-				requestedTool: null,
-				requestedScope: null,
-				resolvedScope: null,
-				response: createResponse({
-					observability: {
-						aclAnomalyCode: null,
-						aclDecision: "allowed",
-						answerEvalFingerprint,
-						cachedInputTokens: null,
-						candidateCount: null,
-						citationCount: null,
-						citationExpected: null,
-						citationMissing: null,
-						estimatedCostMicrousd: null,
-						failClosed: false,
-						inputTokens: null,
-						llmIoFingerprint,
-						modelName: "gpt-4.1",
-						modelProvider: "openai",
-						outputTokens: null,
-						refusalClass: null,
-						retrievedSourceCount: null,
-						retrievalAttempted: null,
-					},
+			buildFact(
+				createObservability({
+					answerEvalFingerprint,
+					llmIoFingerprint: createLlmIoFingerprint(),
 				}),
-				sourceDocIds: [],
-				startedAt: "2026-04-12T08:00:00.000Z",
-				status: "completed",
-				surface: "campus_web",
-				traceId: "trace_01HQ",
-				runId: "run_01HQ",
-			}),
+			),
 		).toThrow(/answer_eval_fingerprint\.tool_runtime_combined_sha256/);
 	});
 
 	it("rejects answer eval self hash drift before persistence", () => {
-		const llmIoFingerprint = createLlmIoFingerprint();
 		const answerEvalFingerprint = {
 			...createAnswerEvalFingerprint(),
 			answerFingerprintSha256:
@@ -348,46 +275,12 @@ describe("request observability llm io fingerprint", () => {
 		};
 
 		expect(() =>
-			buildFinalizedRequestObservabilityFact({
-				completedAt: "2026-04-12T08:00:01.000Z",
-				conversationId: "conv_01HQ",
-				diagnostics: null,
-				durationMs: 420,
-				errorCode: null,
-				principal: createPrincipal(),
-				requestId: "req_01HQ",
-				requestedTool: null,
-				requestedScope: null,
-				resolvedScope: null,
-				response: createResponse({
-					observability: {
-						aclAnomalyCode: null,
-						aclDecision: "allowed",
-						answerEvalFingerprint,
-						cachedInputTokens: null,
-						candidateCount: null,
-						citationCount: null,
-						citationExpected: null,
-						citationMissing: null,
-						estimatedCostMicrousd: null,
-						failClosed: false,
-						inputTokens: null,
-						llmIoFingerprint,
-						modelName: "gpt-4.1",
-						modelProvider: "openai",
-						outputTokens: null,
-						refusalClass: null,
-						retrievedSourceCount: null,
-						retrievalAttempted: null,
-					},
+			buildFact(
+				createObservability({
+					answerEvalFingerprint,
+					llmIoFingerprint: createLlmIoFingerprint(),
 				}),
-				sourceDocIds: [],
-				startedAt: "2026-04-12T08:00:00.000Z",
-				status: "completed",
-				surface: "campus_web",
-				traceId: "trace_01HQ",
-				runId: "run_01HQ",
-			}),
+			),
 		).toThrow(/answer_eval_fingerprint\.answer_fingerprint_sha256/);
 	});
 
@@ -397,51 +290,12 @@ describe("request observability llm io fingerprint", () => {
 			requestId: "req_other",
 		};
 
-		expect(() =>
-			buildFinalizedRequestObservabilityFact({
-				completedAt: "2026-04-12T08:00:01.000Z",
-				conversationId: "conv_01HQ",
-				diagnostics: null,
-				durationMs: 420,
-				errorCode: null,
-				principal: createPrincipal(),
-				requestId: "req_01HQ",
-				requestedTool: null,
-				requestedScope: null,
-				resolvedScope: null,
-				response: createResponse({
-					observability: {
-						aclAnomalyCode: null,
-						aclDecision: "allowed",
-						cachedInputTokens: null,
-						candidateCount: null,
-						citationCount: null,
-						citationExpected: null,
-						citationMissing: null,
-						estimatedCostMicrousd: null,
-						failClosed: false,
-						inputTokens: null,
-						llmIoFingerprint,
-						modelName: "gpt-4.1",
-						modelProvider: "openai",
-						outputTokens: null,
-						refusalClass: null,
-						retrievedSourceCount: null,
-						retrievalAttempted: null,
-					},
-				}),
-				sourceDocIds: [],
-				startedAt: "2026-04-12T08:00:00.000Z",
-				status: "completed",
-				surface: "campus_web",
-				traceId: "trace_01HQ",
-				runId: "run_01HQ",
-			}),
-		).toThrow(/llm_io_fingerprint\.request_id/);
+		expect(() => buildFact(createObservability({ llmIoFingerprint }))).toThrow(
+			/llm_io_fingerprint\.request_id/,
+		);
 	});
 
 	it("rejects answer eval that points at a different llm io fingerprint hash", () => {
-		const llmIoFingerprint = createLlmIoFingerprint();
 		const answerEvalFingerprint = {
 			...createAnswerEvalFingerprint(),
 			llmIoFingerprintSha256:
@@ -449,92 +303,22 @@ describe("request observability llm io fingerprint", () => {
 		};
 
 		expect(() =>
-			buildFinalizedRequestObservabilityFact({
-				completedAt: "2026-04-12T08:00:01.000Z",
-				conversationId: "conv_01HQ",
-				diagnostics: null,
-				durationMs: 420,
-				errorCode: null,
-				principal: createPrincipal(),
-				requestId: "req_01HQ",
-				requestedTool: null,
-				requestedScope: null,
-				resolvedScope: null,
-				response: createResponse({
-					observability: {
-						aclAnomalyCode: null,
-						aclDecision: "allowed",
-						answerEvalFingerprint,
-						cachedInputTokens: null,
-						candidateCount: null,
-						citationCount: null,
-						citationExpected: null,
-						citationMissing: null,
-						estimatedCostMicrousd: null,
-						failClosed: false,
-						inputTokens: null,
-						llmIoFingerprint,
-						modelName: "gpt-4.1",
-						modelProvider: "openai",
-						outputTokens: null,
-						refusalClass: null,
-						retrievedSourceCount: null,
-						retrievalAttempted: null,
-					},
+			buildFact(
+				createObservability({
+					answerEvalFingerprint,
+					llmIoFingerprint: createLlmIoFingerprint(),
 				}),
-				sourceDocIds: [],
-				startedAt: "2026-04-12T08:00:00.000Z",
-				status: "completed",
-				surface: "campus_web",
-				traceId: "trace_01HQ",
-				runId: "run_01HQ",
-			}),
+			),
 		).toThrow(/answer_eval_fingerprint\.llm_io_fingerprint_sha256/);
 	});
 
-	it("rejects answer eval without llm io fingerprint as a route contract error", () => {
-		const answerEvalFingerprint = createAnswerEvalFingerprint();
-
+	it("rejects answer eval without llm io fingerprint", () => {
 		expect(() =>
-			buildFinalizedRequestObservabilityFact({
-				completedAt: "2026-04-12T08:00:01.000Z",
-				conversationId: "conv_01HQ",
-				diagnostics: null,
-				durationMs: 420,
-				errorCode: null,
-				principal: createPrincipal(),
-				requestId: "req_01HQ",
-				requestedTool: null,
-				requestedScope: null,
-				resolvedScope: null,
-				response: createResponse({
-					observability: {
-						aclAnomalyCode: null,
-						aclDecision: "allowed",
-						answerEvalFingerprint,
-						cachedInputTokens: null,
-						candidateCount: null,
-						citationCount: null,
-						citationExpected: null,
-						citationMissing: null,
-						estimatedCostMicrousd: null,
-						failClosed: false,
-						inputTokens: null,
-						modelName: "gpt-4.1",
-						modelProvider: "openai",
-						outputTokens: null,
-						refusalClass: null,
-						retrievedSourceCount: null,
-						retrievalAttempted: null,
-					},
+			buildFact(
+				createObservability({
+					answerEvalFingerprint: createAnswerEvalFingerprint(),
 				}),
-				sourceDocIds: [],
-				startedAt: "2026-04-12T08:00:00.000Z",
-				status: "completed",
-				surface: "campus_web",
-				traceId: "trace_01HQ",
-				runId: "run_01HQ",
-			}),
+			),
 		).toThrowError(
 			expect.objectContaining({
 				code: "validation_failed",

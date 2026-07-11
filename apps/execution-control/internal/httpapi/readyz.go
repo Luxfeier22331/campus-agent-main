@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
@@ -19,11 +20,11 @@ type providerConfigGate struct {
 }
 
 func providerConfigGateRequiredRoles(cfg config.Config) []providerConfigRole {
-	roles := []providerConfigRole{}
-	if cfg.ToolOpen("public_web_search") {
-		roles = append(roles, providerConfigRolePublicWebSearch)
+	_ = cfg
+	return []providerConfigRole{
+		providerConfigRolePrimaryAgent,
+		providerConfigRoleRAGQueryEmbedding,
 	}
-	return roles
 }
 
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
@@ -44,7 +45,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	providerConfigGate := s.evaluateProviderConfigGate()
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
-	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
+	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	toolReadModelRuntimeHealthy := s.openToolReadModelRuntimeHealthy(toolReadModelStatus)
@@ -56,7 +57,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		personalMemoryStatus["healthy"] == true &&
-		ragRuntimeStatus["healthy"] == true
+		knowledgeSearchStatus["healthy"] == true
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -65,19 +66,19 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	responseBody := map[string]any{
-		"status":                  statusText,
-		"runtime_release":         strings.TrimSpace(s.config.RuntimeRelease),
-		"transport_runtime":       transportStatus,
-		"lifecycle_runtime":       s.lifecycle.Snapshot(),
-		"telemetry_runtime":       telemetryStatus,
-		"execution_audit_runtime": executionAuditStatus,
-		"tool_read_model_runtime": toolReadModelStatus,
-		"run_projection_store":    runProjectionStoreStatus,
-		"temporal_runtime":        temporalRuntimeStatus,
-		"personal_memory_runtime": personalMemoryStatus,
-		"rag_runtime":             ragRuntimeStatus,
-		"tool_gates":              s.toolGateStatus(),
-		"provider_config_gate":    providerConfigGate,
+		"status":                   statusText,
+		"runtime_release":          strings.TrimSpace(s.config.RuntimeRelease),
+		"transport_runtime":        transportStatus,
+		"lifecycle_runtime":        s.lifecycle.Snapshot(),
+		"telemetry_runtime":        telemetryStatus,
+		"execution_audit_runtime":  executionAuditStatus,
+		"tool_read_model_runtime":  toolReadModelStatus,
+		"run_projection_store":     runProjectionStoreStatus,
+		"temporal_runtime":         temporalRuntimeStatus,
+		"personal_memory_runtime":  personalMemoryStatus,
+		"knowledge_search_runtime": knowledgeSearchStatus,
+		"tool_gates":               s.toolGateStatus(),
+		"provider_config_gate":     providerConfigGate,
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -124,45 +125,28 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	return status
 }
 
-func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
+func (s *Server) knowledgeSearchRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"healthy":                  false,
-		"lookup_configured":        s.ragLookupExecutor != nil,
-		"lookup_healthy":           false,
-		"lookup_last_error":        "",
-		"synthesis_configured":     s.ragSynthesisExecutor != nil,
-		"synthesis_healthy":        false,
-		"synthesis_last_error":     "",
-		"provider_execution_owner": "go",
-		"retrieval_adapter":        "qdrant_native",
+		"configured":        s.knowledgeSearchExecutor != nil,
+		"healthy":           false,
+		"last_error":        "",
+		"retrieval_adapter": "qdrant_native",
 	}
-	if s.ragLookupErr != nil {
-		status["lookup_last_error"] = "rag lookup executor could not be initialized"
-	} else if s.ragLookupExecutor == nil {
-		status["lookup_last_error"] = "rag lookup executor is not configured"
-	} else {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
-		defer cancel()
-		if err := s.ragLookupExecutor.HealthCheck(checkCtx); err != nil {
-			status["lookup_last_error"] = "rag lookup health check failed: " + err.Error()
-		} else {
-			status["lookup_healthy"] = true
-		}
+	if s.knowledgeSearchErr != nil {
+		status["last_error"] = "knowledge search executor could not be initialized"
+		return status
 	}
-	if s.ragSynthesisErr != nil {
-		status["synthesis_last_error"] = "rag synthesis executor could not be initialized"
-	} else if s.ragSynthesisExecutor == nil {
-		status["synthesis_last_error"] = "rag synthesis executor is not configured"
-	} else {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
-		defer cancel()
-		if err := s.ragSynthesisExecutor.HealthCheck(checkCtx); err != nil {
-			status["synthesis_last_error"] = "rag synthesis health check failed"
-		} else {
-			status["synthesis_healthy"] = true
-		}
+	if s.knowledgeSearchExecutor == nil {
+		status["last_error"] = "knowledge search executor is not configured"
+		return status
 	}
-	status["healthy"] = status["lookup_healthy"] == true && status["synthesis_healthy"] == true
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
+	defer cancel()
+	if err := s.knowledgeSearchExecutor.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "knowledge search health check failed: " + err.Error()
+		return status
+	}
+	status["healthy"] = true
 	return status
 }
 
@@ -206,31 +190,12 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 }
 
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
+	_ = cfg
 	required := []string{
 		temporalruntime.ActivityTaskQueueCore,
 		temporalruntime.ActivityTaskQueueAgent,
-		temporalruntime.ActivityTaskQueueKnowledge,
-	}
-	toolQueues := map[string]string{
-		"transport_schedule_lookup": temporalruntime.ActivityTaskQueueCore,
-		"campus_notice_discover":    temporalruntime.ActivityTaskQueueCore,
-	}
-	for _, toolName := range cfg.OpenTools {
-		queue := toolQueues[strings.TrimSpace(toolName)]
-		if queue != "" {
-			required = appendUniqueString(required, queue)
-		}
 	}
 	return required
-}
-
-func appendUniqueString(values []string, value string) []string {
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
 }
 
 func containsRequiredTemporalTaskQueues(
@@ -319,34 +284,27 @@ func (s *Server) toolGateStatus() map[string]any {
 	return map[string]any{
 		"knowledge_query": map[string]any{
 			"open": true,
-			"gate": "always_open",
-		},
-		"place_lookup": map[string]any{
-			"open": false,
-			"gate": "deferred_until_map_rollout",
+			"gate": "openai_agents_handoff",
 		},
 		"transport_schedule_lookup": map[string]any{
-			"open": s.config.ToolOpen("transport_schedule_lookup"),
-			"gate": "tool_read_model_runtime_and_activity_worker",
-		},
-		"campus_notice_discover": map[string]any{
-			"open": s.config.ToolOpen("campus_notice_discover"),
+			"open": modelVisibleToolConfigured("transport_schedule_lookup"),
 			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
 	}
 }
 
 func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bool {
-	if s.config.ToolOpen("transport_schedule_lookup") &&
+	if modelVisibleToolConfigured("transport_schedule_lookup") &&
 		(!status.Configured ||
 			!status.TransportScheduleReadModelConfigured ||
 			!status.TransportScheduleReadModelHealthy ||
 			!status.TransportScheduleImplemented) {
 		return false
 	}
-	if s.config.ToolOpen("campus_notice_discover") &&
-		(!status.NoticeReadModelConfigured || !status.NoticeReadModelHealthy) {
-		return false
-	}
 	return true
+}
+
+func modelVisibleToolConfigured(toolName string) bool {
+	_, ok := runtimepolicy.ModelVisibleToolByName(toolName)
+	return ok
 }

@@ -4,60 +4,16 @@
 
 ## Overview
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
-Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
-受保护运营面、共享 `app-api`、内部 `execution-control`、按 manual /
-scheduled runtime 拆分的 jobs，以及按 tool / retrieval / ingestion boundary 拆分的
-packages。
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、
+`campus-web first`、Execution Agent Layer-led 的校园助理系统。
 
-当前 merged truth 的主路径为：
+根 README 只做仓库入口路由。当前 merged truth、长期目标约束和项目级
+planning signals 分别见：
 
-```text
-browser -> campus-web -> student experience / account shell
-
-campus-web same-origin allowlisted /api/* -> app-api
-
-browser -> campus-web Q&A -> app-api assistant-ui chat routes
--> execution-control -> Temporal -> workflow-worker / activity-worker-core /
-activity-worker-agent / activity-worker-knowledge
--> memory recall / OpenAI Agents SDK primary agent loop / typed tool
-branch / Go RAG DTO/runtime
--> Qdrant / provider / tool read models -> sanitized projection
-
-browser -> campus-web /docs/* -> Rspress-powered canonical reader
-
-browser -> operator console surface -> app-api
--> request projection / operator read/write model
-```
-
-当前正式 docs surface 为 `campus-web /docs/*`；`/api/docs/*` 通过
-campus-web same-origin Worker seam 进入 `app-api` docs control plane。
-
-该仓库当前的核心约束包括：
-
-- 当前 query-enabled surface 是 `regulations/student_rules`、
-  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
-  `official_web/stable_reference`
-- `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端；
-  Docker Compose 只保留 local diagnostics harness，长期 production
-  target substrate 是 K8s + KEDA
-- 当前 online answer path 已硬切为 Go/Temporal durable envelope +
-  OpenAI Agents SDK primary agent loop；ordinary chat 由 primary agent 在
-  admitted tool catalog 内决定 direct/no-tool、`campus_notice_discover`、
-  `transport_schedule_lookup` 或 `knowledge_query`；knowledge 请求由 primary agent
-  选择 `knowledge_query` workflow signal 后进入 Go-owned RAG graph；旧 Python
-  semantic worker 已从 active workspace 删除，旧实现只可通过 git history 追溯
-- online query path 与 offline data plane 持续分层
-- `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
-  shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
-  仍是 auth/session/identity/federation truth owner
-- Operator Console 是长期受控运维后台概念；当前 implementation surface 是
-  `operator-console-web`，仅承载请求与运行值班台和模型服务配置
-
-## Status
-
-当前项目处于验收收口与上线前硬化阶段。
+- [当前架构](./docs/architecture/current.md)
+- [目标架构](./docs/architecture/target.md)
+- [.planning/PROJECT.md](./.planning/PROJECT.md)
+- [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
 
 ## Public Repository Boundary
 
@@ -78,17 +34,6 @@ See:
 - [open-source data inventory](./docs/reference/open-source-data.md)
 - [SECURITY.md](./SECURITY.md)
 - [SUPPORT.md](./SUPPORT.md)
-
-项目级 planning signals 与 pending work signals 见：
-
-- [.planning/PROJECT.md](./.planning/PROJECT.md)
-- [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
-
-当前接受的产品定位、merged truth 与长期架构分别见：
-
-- [产品定位](./docs/architecture/product.md)
-- [当前架构](./docs/architecture/current.md)
-- [目标架构](./docs/architecture/target.md)
 
 ## Repository Layout
 
@@ -111,22 +56,9 @@ See:
 - [`.planning/`](./.planning/)
   - 当前项目级 planning signal surface；历史 phase/archive material 通过 git history
     恢复
-- [`tests/`](./tests/)
-  - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
-
-主链路相关目录：
-
-- [`apps/campus-web`](./apps/campus-web/)
-- [`apps/app-api`](./apps/app-api/)
-- [`apps/execution-control`](./apps/execution-control/)
-- [`apps/agent-runtime`](./apps/agent-runtime/)
-- [`apps/ingestion-control`](./apps/ingestion-control/)
-- [`apps/source-collector`](./apps/source-collector/)
-- [`jobs/dining-sync`](./jobs/dining-sync/)
-- [`jobs/learning-loop-candidates`](./jobs/learning-loop-candidates/)
-- [`packages/ingest-core`](./packages/ingest-core/)
-- [`packages/ingestion-contracts`](./packages/ingestion-contracts/)
-- [`packages/ingestion-kernels-rs`](./packages/ingestion-kernels-rs/)
+具体 runtime、job 与 package ownership 以
+[`docs/architecture/system/code-organization.md`](./docs/architecture/system/code-organization.md)
+和各 area README 为准；根 README 只保留仓库入口路由。
 
 ## Documentation
 
@@ -134,11 +66,6 @@ See:
 
 - [docs/documentation-architecture.md](./docs/documentation-architecture.md)
 - [docs/README.md](./docs/README.md)
-- [docs/architecture/README.md](./docs/architecture/README.md)
-- [docs/architecture/system/README.md](./docs/architecture/system/README.md)
-- [docs/architecture/domains/README.md](./docs/architecture/domains/README.md)
-- [docs/contracts/README.md](./docs/contracts/README.md)
-- [docs/data/README.md](./docs/data/README.md)
 
 文档与 planning 的分工：
 
@@ -198,19 +125,18 @@ pnpm ci:web:full
   docs read-model sync manifest，或可访问 app-api operator database 的
   `APP_API_OPERATOR_DATABASE_URL` 等内部配置。
 
-## Seed Data Handoff
+## Docs Reader Data
 
-文档站 seed 数据不通过重新运行采集器交付。当前交付口径是：
+文档站 seed 数据、reader asset 交付和 docs read-model 规则由 owner 文档维护：
 
-```text
-canonical artifacts / reader assets in object storage
--> docs-read-model manifest
--> app-api docs read model
--> campus-web Rspress docs source/build
--> campus-web /docs/* delivery
-```
+- [document-site architecture](./docs/architecture/system/document-site.md)
+- [document-reader data](./docs/data/document-reader.md)
+- [document-reader publish contract](./docs/contracts/document-reader-publish.md)
+- [forward-worker smoke runbook](./docs/runbooks/forward-worker-smoke.md)
 
-接手者需要拿到：
+根 README 不维护对象存储 manifest、构建产物或导入流程细节。本地生成产物仍不得提交到
+repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
+或 `apps/campus-web/public/static/`。
 
 - `var/docs-read-model-manifest.json`
 - sync manifest 指向的对象存储 reader assets
@@ -254,9 +180,7 @@ gsd-sdk query workstream.progress --raw --cwd "$PWD"
 
 tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`；
 repo 不再维护 tracked phase tree、本地 lease、heartbeat、hook 注入或 terminal-result
-artifact。详细流程见
-[workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md) 和
-[CONTRIBUTING.md](./CONTRIBUTING.md)。
+artifact。详细流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## License
 

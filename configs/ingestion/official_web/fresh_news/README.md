@@ -5,18 +5,20 @@ collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
   `configs/sources/official_web/muc_public/`
-- this collection is the intent-scoped freshness-sensitive news serving scope for
-  `official_web`
+- this collection profile is the reserved intent-scoped freshness-sensitive news
+  serving scope for `official_web`
 
-Current serving truth:
+Reserved profile declaration:
 
-- serving stage: `query_serving`
+- serving stage: reserved `query_serving` profile; not query-ready without a
+  full publish path
 - serving surface: `fresh_news`
-- retrieval enabled: `true`
+- retrieval policy: intended profile only until source admission and release
+  path exist
 - query enabled by default: `false`
 - freshness-sensitive queries supported: `true`
-- live-search expansion allowed: `true`, only through query-serving scope
-  admission and `public_web_search` official-domain filtering
+- online serving: disabled; this offline collection has no live-search fallback
+  and is absent from the active query-serving scopes
 - split manifest required: `true`
 - required metadata fields: `published_at`, `crawled_at`, `last_seen_at`,
   `host`, `page_family`, `section`, `news_kind`
@@ -44,7 +46,9 @@ Boundary notes:
   is not driven by broad projection routing
 - declaring this profile and baseline does not mean the collection is already
   query-ready
+- current `muc_public` notice/news target is `inventory_only`; this profile must
+  not be read as an opened `fresh_news` ingestion or runtime surface
 - listing pages remain discovery/freshness-trigger/navigation-only hints; they
   are not primary news evidence
 - opening semantics now follow `docs/architecture/system/retrieval-serving.md`
-  and `configs/runtime/query-serving-scopes.v2.json`
+  and `configs/runtime/query-serving-scopes.v3.json`

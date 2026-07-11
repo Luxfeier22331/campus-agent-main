@@ -20,7 +20,7 @@ export interface Status {
 	postgres: { shared: Record<string, unknown> };
 	provider_projection: Record<string, unknown>;
 	providers: Record<string, Record<string, unknown>>;
-	runtime_profile: Record<string, unknown>;
+	runtime_config: Record<string, unknown>;
 	settings: {
 		optional: Record<string, Record<string, unknown>>;
 		required: Record<string, Record<string, unknown>>;
@@ -92,15 +92,14 @@ export function collectEnvDoctorStatus({
 			originalEnv,
 		}),
 	};
-	const runtimeProfile = collectExecutionControlRuntimeProfileStatus(
+	const runtimeConfig = collectExecutionControlRuntimeConfigStatus(
 		resolvedRoot,
 		currentEnv,
 		normalizedSurface,
 	);
 	const conditions = collectSurfaceConditions({
 		env: currentEnv,
-		postgres,
-		runtimeProfile,
+		runtimeConfig,
 		settings: { optional: optionalSettings, required: requiredSettings },
 		surface: normalizedSurface,
 	});
@@ -118,7 +117,7 @@ export function collectEnvDoctorStatus({
 		provider_projection: {},
 		settings: { required: requiredSettings, optional: optionalSettings },
 		conditions,
-		runtime_profile: runtimeProfile,
+		runtime_config: runtimeConfig,
 		postgres,
 		files,
 	};
@@ -279,8 +278,7 @@ function collectPostgresConnectivity(
 
 function collectSurfaceConditions(input: {
 	env: Env;
-	postgres: { shared: Record<string, unknown> };
-	runtimeProfile: Record<string, unknown>;
+	runtimeConfig: Record<string, unknown>;
 	settings: Status["settings"];
 	surface: string;
 }): Record<string, Record<string, unknown>> {
@@ -288,24 +286,22 @@ function collectSurfaceConditions(input: {
 		return {};
 	}
 	return {
-		runtime_profile_contract: {
+		runtime_config_contract: {
 			required: true,
-			ready: input.runtimeProfile.ready === true,
-			error: input.runtimeProfile.error ?? null,
+			ready: input.runtimeConfig.ready === true,
+			error: input.runtimeConfig.error ?? null,
 		},
-		execution_audit_contract: executionAuditContract(input.runtimeProfile, input.settings.optional),
-		tool_read_model_runtime_contract: toolReadModelContract(input.runtimeProfile, input),
-		notice_runtime_contract: noticeRuntimeContract(input.runtimeProfile, input),
+		execution_audit_contract: executionAuditContract(input.runtimeConfig, input.settings.optional),
 		otel_axiom_collector_endpoint_contract: axiomCollectorEndpointContract(input.env),
 	};
 }
 
 function executionAuditContract(
-	runtimeProfile: Record<string, unknown>,
+	runtimeConfig: Record<string, unknown>,
 	optionalSettings: Record<string, Record<string, unknown>>,
 ): Record<string, unknown> {
-	const profile = isRecord(runtimeProfile.profile) ? runtimeProfile.profile : {};
-	const executionAudit = isRecord(profile.execution_audit) ? profile.execution_audit : {};
+	const config = isRecord(runtimeConfig.config) ? runtimeConfig.config : {};
+	const executionAudit = isRecord(config.execution_audit) ? config.execution_audit : {};
 	const required = executionAudit.enabled === true;
 	const missing = required
 		? [
@@ -321,55 +317,6 @@ function executionAuditContract(
 		error: missing.length > 0 ? `execution audit enabled but missing ${missing.join(" / ")}` : null,
 	};
 }
-
-function toolReadModelContract(
-	runtimeProfile: Record<string, unknown>,
-	input: {
-		postgres: { shared: Record<string, unknown> };
-		settings: Status["settings"];
-	},
-): Record<string, unknown> {
-	const openedTools = runtimeProfileOpenTools(runtimeProfile);
-	const required = toolReadModelTools(openedTools).length > 0;
-	const missing: string[] = [];
-	if (required && !settingPresent(input.settings.optional, "internal_query_shared_secret")) {
-		missing.push("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
-	}
-	if (required && input.postgres.shared.present !== true) {
-		missing.push("CAMPUS_SHARED_POSTGRES_URL");
-	}
-	return {
-		required,
-		open_tools: [...openedTools].sort(),
-		ready: missing.length === 0,
-		error:
-			missing.length > 0 ? `tool read model tools opened but missing ${missing.join(" / ")}` : null,
-	};
-}
-
-function noticeRuntimeContract(
-	runtimeProfile: Record<string, unknown>,
-	input: {
-		postgres: { shared: Record<string, unknown> };
-		settings: Status["settings"];
-	},
-): Record<string, unknown> {
-	const openTools = noticeTools(runtimeProfileOpenTools(runtimeProfile));
-	const readModelPresent =
-		settingPresent(input.settings.optional, "internal_notice_read_model_database_url") ||
-		input.postgres.shared.present === true;
-	const missing =
-		openTools.length > 0 && !readModelPresent
-			? ["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"]
-			: [];
-	return {
-		required: openTools.length > 0,
-		open_tools: openTools,
-		ready: missing.length === 0,
-		error: missing.length > 0 ? `notice tools opened but missing ${missing.join(" / ")}` : null,
-	};
-}
-
 function axiomCollectorEndpointContract(env: Env): Record<string, unknown> {
 	const endpoint = env.OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT?.trim() ?? "";
 	const endpointWithoutProtocol = endpoint.replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -385,7 +332,7 @@ function axiomCollectorEndpointContract(env: Env): Record<string, unknown> {
 	};
 }
 
-function collectExecutionControlRuntimeProfileStatus(
+function collectExecutionControlRuntimeConfigStatus(
 	root: string,
 	env: Env,
 	surface: string,
@@ -400,53 +347,34 @@ function collectExecutionControlRuntimeProfileStatus(
 			present: false,
 			ready: false,
 			path: null,
-			profile: null,
+			config: null,
 			error: "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH is required",
 		};
 	}
 	const path = isAbsolute(rawPath) ? rawPath : join(root, rawPath);
 	try {
-		const profile = JSON.parse(readFileSync(path, "utf8"));
-		if (profile.schema_version !== "campus_execution_control_runtime_profile.v1") {
+		const config = JSON.parse(readFileSync(path, "utf8"));
+		if (config.schema_version !== "campus_execution_control_runtime_config.v1") {
 			return {
 				required: true,
 				present: true,
 				ready: false,
 				path,
-				profile: null,
-				error: "runtime profile schema_version must be campus_execution_control_runtime_profile.v1",
+				config: null,
+				error: "runtime config schema_version must be campus_execution_control_runtime_config.v1",
 			};
 		}
-		return { required: true, present: true, ready: true, path, profile, error: null };
+		return { required: true, present: true, ready: true, path, config, error: null };
 	} catch (error) {
 		return {
 			required: true,
 			present: true,
 			ready: false,
 			path,
-			profile: null,
-			error: `runtime profile is not readable: ${error instanceof Error ? error.message : String(error)}`,
+			config: null,
+			error: `runtime config is not readable: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
-}
-
-function runtimeProfileOpenTools(runtimeProfile: Record<string, unknown>): string[] {
-	const profile = isRecord(runtimeProfile.profile) ? runtimeProfile.profile : runtimeProfile;
-	return Array.isArray(profile.open_tools)
-		? profile.open_tools.filter(
-				(item): item is string => typeof item === "string" && item.trim() !== "",
-			)
-		: [];
-}
-
-function toolReadModelTools(openTools: string[]): string[] {
-	return openTools.filter(
-		(tool) => tool.startsWith("campus_notice_") || tool === "transport_schedule_lookup",
-	);
-}
-
-function noticeTools(openTools: string[]): string[] {
-	return openTools.filter((tool) => tool.startsWith("campus_notice_")).sort();
 }
 
 function settingPresent(

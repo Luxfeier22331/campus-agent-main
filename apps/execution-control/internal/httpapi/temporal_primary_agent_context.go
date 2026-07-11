@@ -8,6 +8,19 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+const (
+	primaryAgentRecentTurnLimit = 6
+	primaryAgentTurnCharLimit   = 240
+)
+
+type primaryAgentContextPolicyStats struct {
+	DroppedCategoryCounts   map[string]any
+	ModelVisibleAfterCount  int
+	ModelVisibleBeforeCount int
+	TokenEstimateAfter      int
+	TokenEstimateBefore     int
+}
+
 func temporalMemoryContextPayload(context *temporalruntime.MemoryContext) map[string]any {
 	if context == nil || strings.TrimSpace(context.ContextBlock) == "" || strings.TrimSpace(context.MemoryRef) == "" {
 		return nil
@@ -49,17 +62,14 @@ func primaryAgentFinalModelContextForRun(
 		return nil
 	}
 	currentUserMessage := cloneAnyMapFromMetadata(conversation["current_user_message"])
-	usageSummary := primaryAgentFinalModelUsageSummary(conversation, input)
+	rawRecentTurns := primaryAgentNormalizedRecentTurns(conversation)
+	recentTurns, droppedCategoryCounts := primaryAgentBoundRecentTurns(rawRecentTurns)
 	context := map[string]any{
 		"schema_version":        "final_model_context.v1",
 		"current_user_message":  strings.TrimSpace(firstNonEmptyText(currentUserMessage["content"], executionPayload["user_goal"])),
-		"recent_turns":          primaryAgentRecentTurns(conversation),
+		"recent_turns":          recentTurns,
 		"previous_evidence":     primaryAgentPreviousEvidence(conversation),
 		"previous_tool_results": primaryAgentPreviousToolResults(conversation),
-		"usage_summary":         usageSummary,
-	}
-	if summary := firstNonEmptyText(conversation["previous_answer_summary"]); summary != "" {
-		context["previous_answer_summary"] = summary
 	}
 	if sessionState := cloneAnyMapFromMetadata(conversation["session_state"]); len(sessionState) > 0 {
 		context["session_state"] = sessionState
@@ -67,54 +77,56 @@ func primaryAgentFinalModelContextForRun(
 	if memoryContext := temporalMemoryContextPayload(input.MemoryContext); memoryContext != nil {
 		context["memory_context"] = memoryContext
 	}
+	beforeContext := cloneAnyMapFromMetadata(context)
+	beforeContext["recent_turns"] = rawRecentTurns
+	stats := primaryAgentContextPolicyStats{
+		DroppedCategoryCounts:   droppedCategoryCounts,
+		ModelVisibleAfterCount:  primaryAgentModelVisibleItemCount(context),
+		ModelVisibleBeforeCount: primaryAgentModelVisibleItemCount(beforeContext),
+		TokenEstimateAfter:      primaryAgentContextTokenEstimate(context),
+		TokenEstimateBefore:     primaryAgentContextTokenEstimate(beforeContext),
+	}
+	context["usage_summary"] = primaryAgentFinalModelUsageSummary(input, stats)
 	return context
 }
 
 func primaryAgentFinalModelUsageSummary(
-	conversation map[string]any,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
+	stats primaryAgentContextPolicyStats,
 ) map[string]any {
-	visibility := cloneAnyMapFromMetadata(conversation["visibility"])
-	budget := cloneAnyMapFromMetadata(conversation["budget"])
-	truncation := cloneAnyMapFromMetadata(conversation["truncation"])
 	memoryRecallState := "skipped"
 	if temporalMemoryContextPayload(input.MemoryContext) != nil {
 		memoryRecallState = "completed"
 	}
 	usage := map[string]any{
 		"memory_recall_state":      memoryRecallState,
-		"model_visible_item_count": len(anyListFromAny(visibility["model_visible"])),
-		"runtime_only_item_count":  len(anyListFromAny(visibility["runtime_only"])),
-		"token_estimate":           intFromAny(budget["token_estimate"]),
+		"model_visible_item_count": stats.ModelVisibleAfterCount,
+		"runtime_only_item_count":  0,
+		"token_estimate":           stats.TokenEstimateAfter,
 	}
-	if reason := firstNonEmptyText(truncation["reason"]); reason != "" {
-		usage["truncation_reason"] = reason
-		usage["truncation_summary"] = primaryAgentTruncationSummary(conversation, reason)
+	if len(stats.DroppedCategoryCounts) > 0 {
+		usage["truncation_reason"] = "context_policy_limit"
+		usage["truncation_summary"] = primaryAgentTruncationSummary(stats)
 	}
 	return usage
 }
 
-func primaryAgentTruncationSummary(conversation map[string]any, reason string) map[string]any {
-	visibility := cloneAnyMapFromMetadata(conversation["visibility"])
-	budget := cloneAnyMapFromMetadata(conversation["budget"])
-	modelVisibleCount := len(anyListFromAny(visibility["model_visible"]))
-	runtimeOnlyCount := len(anyListFromAny(visibility["runtime_only"]))
-	tokenEstimate := intFromAny(budget["token_estimate"])
+func primaryAgentTruncationSummary(stats primaryAgentContextPolicyStats) map[string]any {
 	return map[string]any{
 		"schema_version":             "truncation_summary.v1",
-		"policy_version":             "conversation_context.v1",
-		"reason":                     strings.TrimSpace(reason),
-		"model_visible_before_count": modelVisibleCount,
-		"model_visible_after_count":  modelVisibleCount,
-		"runtime_only_before_count":  runtimeOnlyCount,
-		"runtime_only_after_count":   runtimeOnlyCount,
-		"token_estimate_before":      tokenEstimate,
-		"token_estimate_after":       tokenEstimate,
-		"dropped_category_counts":    map[string]any{},
+		"policy_version":             "primary_agent_context.v1",
+		"reason":                     "context_policy_limit",
+		"model_visible_before_count": stats.ModelVisibleBeforeCount,
+		"model_visible_after_count":  stats.ModelVisibleAfterCount,
+		"runtime_only_before_count":  0,
+		"runtime_only_after_count":   0,
+		"token_estimate_before":      stats.TokenEstimateBefore,
+		"token_estimate_after":       stats.TokenEstimateAfter,
+		"dropped_category_counts":    stats.DroppedCategoryCounts,
 	}
 }
 
-func primaryAgentRecentTurns(conversation map[string]any) []any {
+func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
 	turns := anyListFromAny(conversation["recent_turns"])
 	result := make([]any, 0, len(turns))
 	for _, raw := range turns {
@@ -127,15 +139,95 @@ func primaryAgentRecentTurns(conversation map[string]any) []any {
 		if messageID := firstNonEmptyText(turn["message_id"]); messageID != "" {
 			item["message_id"] = messageID
 		}
-		if content := firstNonEmptyText(turn["content"]); content != "" {
-			item["content"] = content
+		content := firstNonEmptyText(turn["content"])
+		if content == "" {
+			continue
 		}
-		if summary := firstNonEmptyText(turn["summary"]); summary != "" {
-			item["summary"] = summary
-		}
+		item["content"] = content
 		result = append(result, item)
 	}
 	return result
+}
+
+func primaryAgentBoundRecentTurns(turns []any) ([]any, map[string]any) {
+	dropped := map[string]any{}
+	start := 0
+	if len(turns) > primaryAgentRecentTurnLimit {
+		start = len(turns) - primaryAgentRecentTurnLimit
+		dropped["recent_turns"] = start
+	}
+	result := make([]any, 0, len(turns)-start)
+	droppedCharacters := 0
+	for _, raw := range turns[start:] {
+		turn := cloneAnyMapFromMetadata(raw)
+		content, removed := primaryAgentBoundTurnContent(firstNonEmptyText(turn["content"]))
+		turn["content"] = content
+		droppedCharacters += removed
+		result = append(result, turn)
+	}
+	if droppedCharacters > 0 {
+		dropped["recent_turn_characters"] = droppedCharacters
+	}
+	return result, dropped
+}
+
+func primaryAgentBoundTurnContent(value string) (string, int) {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) <= primaryAgentTurnCharLimit {
+		return value, 0
+	}
+	keptRuneCount := primaryAgentTurnCharLimit - 3
+	return string(runes[:keptRuneCount]) + "...", len(runes) - keptRuneCount
+}
+
+func primaryAgentModelVisibleItemCount(context map[string]any) int {
+	count := 0
+	if firstNonEmptyText(context["current_user_message"]) != "" {
+		count++
+	}
+	count += len(anyListFromAny(context["recent_turns"]))
+	count += len(anyListFromAny(context["previous_evidence"]))
+	count += len(anyListFromAny(context["previous_tool_results"]))
+	if len(cloneAnyMapFromMetadata(context["session_state"])) > 0 {
+		count++
+	}
+	if len(cloneAnyMapFromMetadata(context["memory_context"])) > 0 {
+		count++
+	}
+	return count
+}
+
+func primaryAgentContextTokenEstimate(context map[string]any) int {
+	runeCount := primaryAgentContextRuneCount(context)
+	return (runeCount + 3) / 4
+}
+
+func primaryAgentContextRuneCount(value any) int {
+	switch typed := value.(type) {
+	case string:
+		return len([]rune(strings.TrimSpace(typed)))
+	case map[string]any:
+		total := 0
+		for _, item := range typed {
+			total += primaryAgentContextRuneCount(item)
+		}
+		return total
+	case []any:
+		total := 0
+		for _, item := range typed {
+			total += primaryAgentContextRuneCount(item)
+		}
+		return total
+	case []string:
+		total := 0
+		for _, item := range typed {
+			total += primaryAgentContextRuneCount(item)
+		}
+		return total
+	default:
+		return 0
+	}
 }
 
 func primaryAgentPreviousEvidence(conversation map[string]any) []any {

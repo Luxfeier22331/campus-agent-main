@@ -13,7 +13,6 @@ func TestAuthSecretComparisonsUseConstantTime(t *testing.T) {
 	}{
 		{path: "auth.go", forbidden: "== token"},
 		{path: "auth.go", forbidden: "!= token"},
-		{path: "../execution/request.go", forbidden: "!= sharedSecret"},
 	}
 	for _, check := range checks {
 		t.Run(check.path+" "+check.forbidden, func(t *testing.T) {

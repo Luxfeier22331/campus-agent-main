@@ -80,7 +80,7 @@ func (s *Server) checkProviderConfigCompatibility(
 ) providerConfigCompatibilityResult {
 	switch role {
 	case providerConfigRoleRAGQueryEmbedding, providerConfigRoleIndexEmbedding:
-		if err := s.checkRAGEmbeddingCompatibility(ctx, snapshot); err != nil {
+		if err := s.checkKnowledgeSearchEmbeddingCompatibility(ctx, snapshot); err != nil {
 			return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
 		}
 		return providerConfigCompatibilityResult{ok: true}
@@ -92,18 +92,18 @@ func (s *Server) checkProviderConfigCompatibility(
 	}
 }
 
-func (s *Server) checkRAGEmbeddingCompatibility(
+func (s *Server) checkKnowledgeSearchEmbeddingCompatibility(
 	ctx context.Context,
 	snapshot providerConfigSnapshot,
 ) error {
-	if s.ragLookupErr != nil {
-		return s.ragLookupErr
+	if s.knowledgeSearchErr != nil {
+		return s.knowledgeSearchErr
 	}
-	executor, ok := s.ragLookupExecutor.(interface {
+	executor, ok := s.knowledgeSearchExecutor.(interface {
 		CheckEmbeddingCompatibility(context.Context, providerConfigSnapshot) error
 	})
 	if !ok {
-		return fmt.Errorf("rag lookup executor does not support provider compatibility checks")
+		return fmt.Errorf("knowledge search executor does not support provider compatibility checks")
 	}
 	return executor.CheckEmbeddingCompatibility(ctx, snapshot)
 }

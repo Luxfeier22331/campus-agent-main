@@ -193,18 +193,18 @@ function replayPacketIndexWrite(): ReplayPacketIndexWrite {
 			answerFingerprintSha256:
 				"sha256:abababababababababababababababababababababababababababababababab",
 			branchIdentity: {
-				branchKind: "rag_synthesis",
+				branchKind: "tool_routed",
 				promptId: "primary_agent",
 				schemaVersion: "answer_branch_identity.v1",
 				workflowMode: "single_step",
 			},
 			evidenceReplayIndexSha256:
 				"sha256:dcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdc",
-			llmCallSite: "rag.synthesis",
+			llmCallSite: "agent.primary",
 			llmIoFingerprintSha256:
 				"sha256:babababababababababababababababababababababababababababababababa",
-			outputSchemaId: "rag_answer_v2",
-			providerProfileRevision: "rag_synthesis:provider_profile_rag:4",
+			outputSchemaId: "primary_agent_terminal_output.v1",
+			providerProfileRevision: "primary_agent:provider_profile_primary:4",
 			requestId: "req_rag_01",
 			runId: "run_rag_01",
 			runtimeRelease: "execution-control@test",
@@ -265,7 +265,7 @@ function replayPacketIndexWrite(): ReplayPacketIndexWrite {
 				"sha256:1111111111111111111111111111111111111111111111111111111111111111",
 			evidencePacketSha256:
 				"sha256:3333333333333333333333333333333333333333333333333333333333333333",
-			llmCallSite: "rag.synthesis",
+			llmCallSite: "agent.primary",
 			memorySelectionSha256:
 				"sha256:2222222222222222222222222222222222222222222222222222222222222222",
 			model: "gpt-5-mini",
@@ -283,31 +283,31 @@ function replayPacketIndexWrite(): ReplayPacketIndexWrite {
 				},
 				schemaVersion: "model_params_projection.v1",
 			},
-			outputSchemaId: "rag_answer_v2",
+			outputSchemaId: "primary_agent_terminal_output.v1",
 			primaryAttestation: {
-				attestationKind: "primary_admitted_rag_synthesis",
+				attestationKind: "primary_agent_call",
 				attestationSha256:
 					"sha256:7777777777777777777777777777777777777777777777777777777777777777",
-				attestedBy: "execution-control",
+				attestedBy: "apps/agent-runtime",
 				schemaVersion: "primary_attestation.v1",
 			},
-			promptId: "rag_synthesis_answer",
+			promptId: "primary_agent",
 			promptRegistryAttestation: {
 				attestationSha256:
 					"sha256:5555555555555555555555555555555555555555555555555555555555555555",
-				outputSchemaId: "rag_answer_v2",
-				promptId: "rag_synthesis_answer",
+				outputSchemaId: "primary_agent_terminal_output.v1",
+				promptId: "primary_agent",
 				promptRegistryVersion: "2026-07-05",
 				promptTemplateSha256:
 					"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				promptVariablesSchemaVersion: "rag_synthesis_packet.v1",
+				promptVariablesSchemaVersion: "final_model_context.v1",
 				schemaVersion: "prompt_registry_attestation.v1",
 			},
 			promptTemplateSha256:
 				"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-			promptVariablesSchemaVersion: "rag_synthesis_packet.v1",
+			promptVariablesSchemaVersion: "final_model_context.v1",
 			provider: "openai",
-			providerProfileRevision: "rag_synthesis:provider_profile_rag:4",
+			providerProfileRevision: "primary_agent:provider_profile_primary:4",
 			providerRequestSafeHash: {
 				canonicalization: "canonical_json_redacted_v1",
 				redactionPolicy: "llm_provider_request_safe_projection.v1",

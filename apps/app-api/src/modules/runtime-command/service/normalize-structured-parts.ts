@@ -1,14 +1,8 @@
-import type {
-	ChatCampusServiceTraceCard,
-	ChatMessageStructuredPart,
-	ChatPlaceCard,
-} from "../../chat";
+import type { ChatCampusServiceTraceCard, ChatMessageStructuredPart } from "../../chat";
 import type { ToolExecutionResponse } from "../../integration";
 import {
 	dedupeStable,
 	isRecord,
-	normalizeOptionalString,
-	normalizeStringArray,
 	recordObjectArray,
 	recordString,
 	recordStringArray,
@@ -16,89 +10,6 @@ import {
 import { normalizeSourceItemsPart } from "./normalize-source-items";
 
 export { normalizeSourceItemsPart } from "./normalize-source-items";
-
-function normalizePointGeometry(value: unknown): ChatPlaceCard["pointGeometry"] {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const longitude = typeof value.longitude === "number" ? value.longitude : null;
-	const latitude = typeof value.latitude === "number" ? value.latitude : null;
-	if (longitude === null || latitude === null) {
-		return null;
-	}
-
-	return { latitude, longitude };
-}
-
-function normalizePlaceRef(
-	value: unknown,
-): Pick<
-	ChatPlaceCard,
-	"campusArea" | "campusScope" | "displayName" | "entityType" | "placeId"
-> | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const placeId = normalizeOptionalString(value.place_id);
-	const entityType = normalizeOptionalString(value.entity_type);
-	const displayName = normalizeOptionalString(value.display_name);
-	if (!(placeId && entityType && displayName)) {
-		return null;
-	}
-
-	return {
-		placeId,
-		entityType,
-		displayName,
-		campusScope: normalizeOptionalString(value.campus_scope),
-		campusArea: normalizeOptionalString(value.campus_area),
-	};
-}
-
-export function normalizePlaceCardPart(input: {
-	selectedTool: string | null;
-	status: ToolExecutionResponse["status"];
-	result: unknown;
-}): ChatMessageStructuredPart[] {
-	if (input.selectedTool !== "place_lookup" || input.status !== "completed") {
-		return [];
-	}
-
-	if (!isRecord(input.result)) {
-		return [];
-	}
-
-	const placeCard = isRecord(input.result.place_card) ? input.result.place_card : null;
-	if (!placeCard) {
-		return [];
-	}
-
-	const place = normalizePlaceRef(placeCard.place);
-	if (!place) {
-		return [];
-	}
-
-	return [
-		{
-			type: "place_card",
-			placeCard: {
-				...place,
-				locationDescription: normalizeOptionalString(
-					placeCard.location_description ?? placeCard.address,
-				),
-				landmarkHint: normalizeOptionalString(placeCard.landmark_hint),
-				accessNote: normalizeOptionalString(placeCard.access_note ?? placeCard.directions),
-				openingNote: normalizeOptionalString(placeCard.opening_note ?? placeCard.hours),
-				serviceTags: normalizeStringArray(placeCard.service_tags ?? placeCard.tags),
-				pointGeometry: normalizePointGeometry(placeCard.point_geometry),
-				coordinateReferenceSystem: normalizeOptionalString(placeCard.coordinate_reference_system),
-				sourceRefs: normalizeStringArray(placeCard.source_refs),
-			},
-		},
-	];
-}
 
 const UNSAFE_CAMPUS_SERVICE_TRACE_TOKEN_PATTERN =
 	/(?:release[_-]?id|ingestion_projection|table_parser_state|debug[_-]?only|postgres|s3:\/\/)/iu;
@@ -286,7 +197,6 @@ export function normalizeChatResponseStructuredParts(input: {
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	return [
-		...normalizePlaceCardPart(input),
 		...normalizeSourceItemsPart({
 			...input,
 			allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,

@@ -14,8 +14,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
@@ -30,32 +28,20 @@ type Server struct {
 	telemetry                   *telemetry.Emitter
 	executionAudit              *executionaudit.Emitter
 	toolReadModel               *toolreadmodel.Runtime
-	workflowRuns                execution.WorkflowRunStore
-	workflowRunsErr             error
 	runProjectionStore          execution.RunProjectionStore
 	runProjectionStoreErr       error
 	personalMemoryExecutor      personalMemoryExecutor
 	personalMemoryErr           error
-	ragLookupExecutor           ragLookupExecutor
-	ragLookupErr                error
-	ragSynthesisExecutor        ragSynthesisExecutor
-	ragSynthesisErr             error
-	ragReplayPacketRecorder     ragReplayPacketRecorder
-	ragVersionResolver          ragVersionResolver
+	knowledgeSearchExecutor     knowledgeSearchExecutor
+	knowledgeSearchErr          error
+	knowledgeVersionResolver    knowledgeVersionResolver
 	providerConfigResolver      providerConfigResolver
 	providerConfigErr           error
 	observabilityConfigResolver observabilityConfigResolver
 	observabilityConfigErr      error
-	publicWebSearchDomains      []string
 	temporalStarter             temporalruntime.ChatWorkflowStarter
 	temporalStarterErr          error
 	temporalWorkersStarted      bool
-	intentPolicy                runtimepolicy.IntentPolicyArtifact
-	intentPolicyErr             error
-}
-
-func (s *Server) TemporalWorkerActivities() any {
-	return s
 }
 
 type TemporalContextActivities struct {
@@ -94,20 +80,6 @@ func (a TemporalContextActivities) MemoryReflectActivity(
 	return a.server.MemoryReflectActivity(ctx, input)
 }
 
-func (a TemporalContextActivities) PlanRouteActivity(
-	ctx context.Context,
-	input temporalruntime.PlanRouteActivityInput,
-) (temporalruntime.PlanRouteActivityOutput, error) {
-	return a.server.PlanRouteActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) PlanReplanActivity(
-	ctx context.Context,
-	input temporalruntime.PlanReplanActivityInput,
-) (temporalruntime.PlanReplanActivityOutput, error) {
-	return a.server.PlanReplanActivity(ctx, input)
-}
-
 type TemporalAgentActivities struct {
 	server *Server
 }
@@ -121,78 +93,6 @@ func (a TemporalAgentActivities) ExecutePrimaryAgentActivity(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	return a.server.ExecutePrimaryAgentActivity(ctx, input)
-}
-
-type TemporalKnowledgeActivities struct {
-	server *Server
-}
-
-func (s *Server) TemporalKnowledgeActivities() TemporalKnowledgeActivities {
-	return TemporalKnowledgeActivities{server: s}
-}
-
-func (a TemporalKnowledgeActivities) PlanRAGActivity(
-	ctx context.Context,
-	input temporalruntime.PlanRAGActivityInput,
-) (temporalruntime.PlanRAGActivityOutput, error) {
-	return a.server.PlanRAGActivity(ctx, input)
-}
-
-func (a TemporalKnowledgeActivities) RetrieveIndexedLookupActivity(
-	ctx context.Context,
-	input temporalruntime.RetrieveIndexedLookupActivityInput,
-) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
-	return a.server.RetrieveIndexedLookupActivity(ctx, input)
-}
-
-func (a TemporalKnowledgeActivities) LiveSourceLookupActivity(
-	ctx context.Context,
-	input temporalruntime.LiveSourceLookupActivityInput,
-) (temporalruntime.LiveSourceLookupActivityOutput, error) {
-	return a.server.LiveSourceLookupActivity(ctx, input)
-}
-
-func (a TemporalKnowledgeActivities) SelectEvidenceActivity(
-	ctx context.Context,
-	input temporalruntime.SelectEvidenceActivityInput,
-) (temporalruntime.SelectEvidenceActivityOutput, error) {
-	return a.server.SelectEvidenceActivity(ctx, input)
-}
-
-func (a TemporalKnowledgeActivities) SynthesizeRAGAnswerActivity(
-	ctx context.Context,
-	input temporalruntime.SynthesizeRAGAnswerActivityInput,
-) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
-	return a.server.SynthesizeRAGAnswerActivity(ctx, input)
-}
-
-func (a TemporalKnowledgeActivities) VerifyGroundingActivity(
-	ctx context.Context,
-	input temporalruntime.VerifyGroundingActivityInput,
-) (temporalruntime.VerifyGroundingActivityOutput, error) {
-	return a.server.VerifyGroundingActivity(ctx, input)
-}
-
-type TemporalTypedToolActivities struct {
-	server *Server
-}
-
-func (s *Server) TemporalTypedToolActivities() TemporalTypedToolActivities {
-	return TemporalTypedToolActivities{server: s}
-}
-
-func (a TemporalTypedToolActivities) ExecuteTypedToolActivity(
-	ctx context.Context,
-	input temporalruntime.ExecuteTypedToolActivityInput,
-) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
-	return a.server.ExecuteTypedToolActivity(ctx, input)
-}
-
-func (a TemporalTypedToolActivities) ExecuteAgentAsToolActivity(
-	ctx context.Context,
-	input temporalruntime.ExecuteAgentAsToolActivityInput,
-) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
-	return a.server.ExecuteAgentAsToolActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {
@@ -259,21 +159,15 @@ func NewServerWithDependencies(
 	registry := lifecycle.NewRegistry()
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
-	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
 		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
-		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
-		NoticeReadModelTable:            cfg.NoticeReadModelTable,
 	})
-	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
 	observabilityConfigResolver, observabilityConfigErr := newObservabilityConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
-	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
-	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
-	ragReplayPacketRecorder := newRAGReplayPacketRecorder(cfg)
+	knowledgeSearchExecutor, knowledgeSearchErr := newKnowledgeSearchExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -285,62 +179,28 @@ func NewServerWithDependencies(
 		telemetry:                   telemetryEmitter,
 		executionAudit:              executionAuditEmitter,
 		toolReadModel:               toolReadModelRuntime,
-		workflowRuns:                workflowRuns,
-		workflowRunsErr:             workflowRunsErr,
 		runProjectionStore:          runProjectionStore,
 		runProjectionStoreErr:       runProjectionStoreErr,
 		personalMemoryExecutor:      personalMemoryExecutor,
 		personalMemoryErr:           personalMemoryErr,
-		ragLookupExecutor:           ragLookupExecutor,
-		ragLookupErr:                ragLookupErr,
-		ragSynthesisExecutor:        ragSynthesisExecutor,
-		ragSynthesisErr:             ragSynthesisErr,
-		ragReplayPacketRecorder:     ragReplayPacketRecorder,
-		ragVersionResolver:          newQdrantMetadataVersionResolver(cfg),
+		knowledgeSearchExecutor:     knowledgeSearchExecutor,
+		knowledgeSearchErr:          knowledgeSearchErr,
+		knowledgeVersionResolver:    newQdrantMetadataVersionResolver(cfg),
 		providerConfigResolver:      providerConfigResolver,
 		providerConfigErr:           providerConfigErr,
 		observabilityConfigResolver: observabilityConfigResolver,
 		observabilityConfigErr:      observabilityConfigErr,
 		temporalStarter:             temporalStarter,
 		temporalStarterErr:          temporalStarterErr,
-		intentPolicy:                intentPolicy,
-		intentPolicyErr:             intentPolicyErr,
 	}
 	return server
 }
 
-func newRAGSynthesisExecutor(
+func newKnowledgeSearchExecutor(
 	cfg config.Config,
 	configResolver providerConfigResolver,
-) (ragSynthesisExecutor, error) {
-	catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
-	if err != nil {
-		return nil, err
-	}
-	providerTimeout := time.Duration(cfg.RAGProviderTimeoutMS) * time.Millisecond
-	if providerTimeout <= 0 {
-		providerTimeout = 60 * time.Second
-	}
-	storeProviderOutput := cfg.RAGSynthesisStoreProviderOutput
-	return providerBackedRAGSynthesisExecutor{
-		configResolver: configResolver,
-		generationControls: provider.ResponsesGenerationControls{
-			MaxOutputTokens: cfg.RAGSynthesisMaxOutputTokens,
-			ReasoningEffort: cfg.RAGSynthesisReasoningEffort,
-			Store:           &storeProviderOutput,
-			TextVerbosity:   cfg.RAGSynthesisTextVerbosity,
-		},
-		pricing:         catalog,
-		providerTimeout: providerTimeout,
-		runtimeRelease:  strings.TrimSpace(cfg.RuntimeRelease),
-	}, nil
-}
-
-func newRAGLookupExecutor(
-	cfg config.Config,
-	configResolver providerConfigResolver,
-) (ragLookupExecutor, error) {
-	return newQdrantRAGLookupExecutor(cfg, configResolver)
+) (knowledgeSearchExecutor, error) {
+	return newQdrantKnowledgeSearchExecutor(cfg, configResolver)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -361,18 +221,6 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 		},
 		WorkerID:     cfg.TemporalWorkerIdentity,
 		StartTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
-	})
-}
-
-func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) {
-	if strings.TrimSpace(cfg.WorkflowRunDatabaseURL) == "" {
-		return nil, nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return execution.NewPostgresWorkflowRunStore(ctx, execution.PostgresWorkflowRunStoreOptions{
-		DatabaseURL: strings.TrimSpace(cfg.WorkflowRunDatabaseURL),
-		AutoMigrate: cfg.WorkflowRunAutoMigrate,
 	})
 }
 
@@ -423,9 +271,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.toolReadModel != nil {
 		s.toolReadModel.Close()
-	}
-	if closer, ok := s.workflowRuns.(interface{ Close() }); ok {
-		closer.Close()
 	}
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()
@@ -513,14 +358,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
-	case request.Method == http.MethodPost && path == "/internal/query/public-web/search":
-		s.handlePublicWebSearch(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/query/knowledge/search":
+		s.handleKnowledgeSearch(writer, request)
 	case request.Method == http.MethodGet && path == "/internal/projections/campus-services/transport-schedule/status":
 		s.handleTransportStatusProjection(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
-		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeDiscover)
-	case request.Method == http.MethodPost && path == "/internal/query/notices/get":
-		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeGet)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(

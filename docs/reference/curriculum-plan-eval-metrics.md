@@ -40,8 +40,9 @@ updated: 2026-06-29
 
 长期实现约束：
 
-- corpus-specific Python live runner 已删除；fresh release acceptance artifact
-  由当前 TS/Go runtime owner 产出，再输入 Langfuse/Ragas tooling
+- fresh release acceptance artifact 由 execution-control `knowledge_search`
+  的 sanitized evidence projection 与 Agents SDK run projection 产出，再输入
+  Langfuse/Ragas tooling
 - Ragas / judge policy assets 已从 active eval package 删除；当前 supplemental
   scoring 通过 Langfuse traces / datasets -> Ragas -> Langfuse scores 进入。
   当前 Ragas metric set：
@@ -159,16 +160,11 @@ baseline interpretation, not as current file paths.
 
 ## Verification Notes
 
-旧 Python `campus_evals` verification commands 已退役。当前稳定 truth 是
-`packages/eval-langfuse/assets` 中的 source-clean synthetic qrels /
-answer-quality assets；fresh runtime evidence 和真实 gold truth 由 Go/TS
-runtime owner 产出 sanitized artifact 或私有 Langfuse dataset 后，再进入
-Langfuse / Ragas scoring。
-
-旧 Go first-stage candidate runner 已退役。Retrieval / RAG 评价应从 Langfuse /
-OTel safe projection 取得 retrieved context ids，并把 qrels / golden truth 投影为
-`reference_context_ids` 后交给 Ragas context / ID metrics；不得恢复 `campus_evals`
-或旧 runner。
+当前稳定 truth 是 `packages/eval-langfuse/assets` 中的 source-clean synthetic
+qrels / answer-quality assets。Fresh runtime evidence 和真实 gold truth 从
+execution-control 与 Agents SDK 的 sanitized projection 进入私有 Langfuse dataset；
+retrieved context ids 与 qrels / golden truth 投影为 `reference_context_ids` 后，
+交给 Ragas context / ID metrics。
 
 ## 维护规则
 

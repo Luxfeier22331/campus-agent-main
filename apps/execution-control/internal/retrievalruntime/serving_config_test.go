@@ -59,24 +59,14 @@ func TestLoadServingConfigReadsInstitutionalServingPolicy(t *testing.T) {
 	}
 }
 
-func TestLoadServingConfigAllowsIntentScopedQueryableCollections(t *testing.T) {
-	config, err := LoadServingConfig(
+func TestLoadServingConfigRejectsUnpublishedOfficialWebCollections(t *testing.T) {
+	_, err := LoadServingConfig(
 		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
 		"official_web",
 		"fresh_news",
 	)
-	if err != nil {
-		t.Fatalf("load serving config: %v", err)
-	}
-
-	if !config.RetrievalEnabled {
-		t.Fatal("fresh_news must remain retrieval-enabled for policy-admitted live lookup")
-	}
-	if config.QueryEnabledByDefault {
-		t.Fatal("fresh_news must not be a default query scope")
-	}
-	if config.QdrantAliasName != "official_web_fresh_news" {
-		t.Fatalf("alias = %q, want official_web_fresh_news", config.QdrantAliasName)
+	if err == nil {
+		t.Fatal("fresh_news must not load as query-serving before official-web RAG publish is complete")
 	}
 }
 

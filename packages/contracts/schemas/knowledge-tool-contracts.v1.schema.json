@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json",
-	"title": "campus-agent knowledge query tool contract",
+	"title": "campus-agent knowledge agent tool contracts",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["schema_version", "tool_name", "packet_kind"],
@@ -10,7 +10,7 @@
 			"const": "knowledge_tool_contracts.v1"
 		},
 		"tool_name": {
-			"const": "knowledge_query"
+			"enum": ["knowledge_query", "knowledge_search"]
 		},
 		"packet_kind": {
 			"enum": ["payload", "result"]
@@ -70,7 +70,7 @@
 			"then": {
 				"properties": {
 					"payload": {
-						"$ref": "#/$defs/KnowledgeQuerySignalPayload"
+						"$ref": "#/$defs/KnowledgeQueryPayload"
 					}
 				}
 			}
@@ -90,7 +90,47 @@
 			"then": {
 				"properties": {
 					"result": {
-						"$ref": "#/$defs/KnowledgeQuerySignalResult"
+						"$ref": "#/$defs/KnowledgeAgentTerminalResult"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_search"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/KnowledgeSearchPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_search"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/KnowledgeSearchResult"
 					}
 				}
 			}
@@ -102,45 +142,38 @@
 			"minLength": 1,
 			"pattern": "\\S"
 		},
-		"KnowledgeQuerySignalPayload": {
+		"NullableString": {
+			"type": ["string", "null"]
+		},
+		"VersionQuery": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"query_text",
-				"intent",
-				"requested_scope",
-				"query_mode",
-				"version_query",
-				"freshness_intent",
-				"constraints"
-			],
+			"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
+			"properties": {
+				"mode": {
+					"enum": ["current", "historical", "as_of", "compare"]
+				},
+				"as_of": {
+					"$ref": "#/$defs/NullableString"
+				},
+				"version_id": {
+					"$ref": "#/$defs/NullableString"
+				},
+				"compare_to_version_id": {
+					"$ref": "#/$defs/NullableString"
+				}
+			}
+		},
+		"KnowledgeQueryPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text", "scope", "version_query"],
 			"properties": {
 				"query_text": {
 					"$ref": "#/$defs/NonEmptyString"
 				},
-				"intent": {
-					"enum": ["answer_question", "compare_rules", "clarify_scope", null]
-				},
-				"requested_scope": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/KnowledgeScope"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"query_mode": {
-					"enum": [
-						"current",
-						"historical",
-						"as_of",
-						"compare",
-						"freshness_sensitive",
-						"live_assisted",
-						null
-					]
+				"scope": {
+					"$ref": "#/$defs/NonEmptyString"
 				},
 				"version_query": {
 					"anyOf": [
@@ -151,14 +184,188 @@
 							"type": "null"
 						}
 					]
+				}
+			}
+		},
+		"KnowledgeSearchPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"KnowledgeEvidence": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["evidence_ref", "title", "snippet", "canonical_url", "version_id"],
+			"properties": {
+				"evidence_ref": {
+					"$ref": "#/$defs/NonEmptyString"
 				},
-				"freshness_intent": {
-					"enum": ["latest", "recent", "fresh", null]
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 300
 				},
-				"constraints": {
+				"snippet": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 1200
+				},
+				"canonical_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"version_id": {
+					"$ref": "#/$defs/NullableString"
+				}
+			}
+		},
+		"KnowledgeSearchResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["outcome", "search_ref", "resolved_scope", "resolved_version", "evidence"],
+			"properties": {
+				"outcome": {
+					"enum": ["found", "no_evidence"]
+				},
+				"search_ref": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"resolved_scope": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"resolved_version": {
+					"$ref": "#/$defs/VersionQuery"
+				},
+				"evidence": {
+					"type": "array",
+					"maxItems": 20,
+					"items": {
+						"$ref": "#/$defs/KnowledgeEvidence"
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"const": "found"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"evidence": {
+								"minItems": 1
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"const": "no_evidence"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"evidence": {
+								"maxItems": 0
+							}
+						}
+					}
+				}
+			]
+		},
+		"SessionUpdateSlot": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["confirmed", "name", "value"],
+			"properties": {
+				"confirmed": {
+					"const": true
+				},
+				"name": {
+					"enum": ["curriculum_program", "curriculum_program_family", "curriculum_semester"]
+				},
+				"value": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"SessionUpdate": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["upsert_slots"],
+			"properties": {
+				"upsert_slots": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/SessionUpdateSlot"
+					}
+				}
+			}
+		},
+		"KnowledgeAgentTerminalResult": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/KnowledgeAnswerResult"
+				},
+				{
+					"$ref": "#/$defs/KnowledgeClarificationResult"
+				},
+				{
+					"$ref": "#/$defs/KnowledgeUnsupportedResult"
+				}
+			]
+		},
+		"KnowledgeAnswerResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"answer_text",
+				"follow_up_question",
+				"reason",
+				"evidence_refs",
+				"resolved_scope",
+				"session_update"
+			],
+			"properties": {
+				"kind": {
+					"const": "answer"
+				},
+				"answer_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"follow_up_question": {
+					"type": "null"
+				},
+				"reason": {
+					"$ref": "#/$defs/NullableString"
+				},
+				"evidence_refs": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/NonEmptyString"
+					}
+				},
+				"resolved_scope": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"session_update": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/KnowledgeQueryConstraints"
+							"$ref": "#/$defs/SessionUpdate"
 						},
 						{
 							"type": "null"
@@ -167,67 +374,77 @@
 				}
 			}
 		},
-		"KnowledgeScope": {
+		"KnowledgeClarificationResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["corpus", "collection"],
+			"required": [
+				"kind",
+				"answer_text",
+				"follow_up_question",
+				"reason",
+				"evidence_refs",
+				"resolved_scope",
+				"session_update"
+			],
 			"properties": {
-				"corpus": {
+				"kind": {
+					"const": "clarification_required"
+				},
+				"answer_text": {
+					"type": "null"
+				},
+				"follow_up_question": {
 					"$ref": "#/$defs/NonEmptyString"
 				},
-				"collection": {
+				"reason": {
+					"$ref": "#/$defs/NullableString"
+				},
+				"evidence_refs": {
+					"type": "array",
+					"maxItems": 0
+				},
+				"resolved_scope": {
+					"$ref": "#/$defs/NullableString"
+				},
+				"session_update": {
+					"type": "null"
+				}
+			}
+		},
+		"KnowledgeUnsupportedResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"answer_text",
+				"follow_up_question",
+				"reason",
+				"evidence_refs",
+				"resolved_scope",
+				"session_update"
+			],
+			"properties": {
+				"kind": {
+					"const": "unsupported_by_evidence"
+				},
+				"answer_text": {
 					"$ref": "#/$defs/NonEmptyString"
-				}
-			}
-		},
-		"VersionQuery": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["mode", "as_of", "version_id", "compare_to_version_id"],
-			"properties": {
-				"mode": {
-					"enum": [
-						"current",
-						"historical",
-						"as_of",
-						"compare",
-						"freshness_sensitive",
-						"live_assisted",
-						null
-					]
 				},
-				"as_of": {
-					"type": ["string", "null"]
+				"follow_up_question": {
+					"type": "null"
 				},
-				"version_id": {
-					"type": ["string", "null"]
+				"reason": {
+					"$ref": "#/$defs/NonEmptyString"
 				},
-				"compare_to_version_id": {
-					"type": ["string", "null"]
-				}
-			}
-		},
-		"KnowledgeQueryConstraints": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["max_age_hours", "official_sources_only"],
-			"properties": {
-				"max_age_hours": {
-					"type": ["integer", "null"],
-					"minimum": 1
+				"evidence_refs": {
+					"type": "array",
+					"maxItems": 0
 				},
-				"official_sources_only": {
-					"type": ["boolean", "null"]
-				}
-			}
-		},
-		"KnowledgeQuerySignalResult": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["workflow_signal"],
-			"properties": {
-				"workflow_signal": {
-					"const": "knowledge_query"
+				"resolved_scope": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"session_update": {
+					"type": "null"
 				}
 			}
 		}

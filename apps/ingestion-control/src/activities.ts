@@ -1,4 +1,4 @@
-import { RegistryAdmissionError } from "ingest-core";
+import { type IngestionTaskRegistryCatalog, RegistryAdmissionError } from "ingest-core";
 import type { OfficialWebExecutionStatusService } from "./official-web-execution-status-service";
 import {
 	ingestionTaskExecutionErrorCode,
@@ -13,7 +13,6 @@ import {
 	TsTaskHandlerNotRegisteredError,
 	type TsTaskHandlerRegistry,
 } from "./task-executor";
-import type { IngestionTaskRegistryCatalog } from "./task-registry";
 import type { IngestionArtifactRef, IngestionTaskRecord, IngestionTaskStore } from "./types";
 
 export interface MarkIngestionTaskRunningInput {

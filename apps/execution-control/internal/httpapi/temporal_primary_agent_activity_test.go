@@ -114,7 +114,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		RunID:                "run-primary-agent-001",
 		TraceID:              "trace-executor-001",
 		TurnID:               "turn-primary-agent-001",
-		VisibleToolNames:     []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
+		VisibleToolNames:     []string{"knowledge_query", "transport_schedule_lookup"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -282,7 +282,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 		RunID:            "run-primary-agent-streaming",
 		TraceID:          "trace-executor-001",
 		TurnID:           "turn-primary-agent-streaming",
-		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
+		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -405,7 +405,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 			RunID:            "run-primary-agent-live-streaming",
 			TraceID:          "trace-executor-001",
 			TurnID:           "turn-primary-agent-live-streaming",
-			VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
+			VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup"},
 		})
 		done <- err
 	}()
@@ -508,7 +508,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 		RunID:            "run-primary-agent-empty-memory",
 		TraceID:          "trace-executor-001",
 		TurnID:           "turn-primary-agent-empty-memory",
-		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
+		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)

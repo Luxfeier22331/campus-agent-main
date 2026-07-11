@@ -1,5 +1,4 @@
 import { formatOperatorToolSummaryLabel } from "../operator-target-labels";
-import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
 import type { VersionQuery } from "../version-query";
 
@@ -29,22 +28,16 @@ export interface RequestExecutionProjectionSource {
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
 	requestedTool: string | null;
-	requestedScope: Record<string, unknown> | null;
+	requestedScope: string | null;
 	versionQuery: VersionQuery | null;
-	resolvedScope: Record<string, unknown> | null;
+	resolvedScope: string | null;
 	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
 	answerPreview: string | null;
-	diagnostics: RequestDiagnosticsSummary | null;
 	failClosed: boolean | null;
-	citationExpected: boolean | null;
-	citationMissing: boolean | null;
-	emptyRecall: boolean | null;
-	modelName: string | null;
 	policyProjectionVersion: string | null;
-	retrievalAttempted: boolean | null;
 	sourceDocIds: string[];
 	startedAt: string;
 	completedAt: string | null;
@@ -65,15 +58,14 @@ export interface RequestProjectionMaterialization {
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
 	requestedTool: string | null;
-	requestedScope: Record<string, unknown> | null;
+	requestedScope: string | null;
 	versionQuery: VersionQuery | null;
-	resolvedScope: Record<string, unknown> | null;
+	resolvedScope: string | null;
 	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
 	answerPreview: string | null;
-	diagnostics: RequestDiagnosticsSummary | null;
 	sourceDocIds: string[];
 	startedAt: string;
 	completedAt: string | null;
@@ -112,48 +104,6 @@ export interface RequestAuditProjectionMaterialization {
 	projectedAt: string;
 }
 
-export interface MetricRollupMaterialization {
-	rollupId: string;
-	requestId: string;
-	domain: "quality";
-	granularity: "5m" | "15m" | "1h" | "1d";
-	bucketStart: string;
-	bucketEnd: string;
-	surface: string;
-	selectedTool: string | null;
-	requestedTool: string | null;
-	principalType: string;
-	collection: string | null;
-	modelName: string | null;
-	metrics: {
-		approvalRequiredCount: number;
-		citationEligibleCount: number;
-		citationMissCount: number;
-		emptyRecallCount: number;
-		needsClarificationCount: number;
-		noAnswerCount: number;
-		rejectedCount: number;
-		requestCount: number;
-		retrievalEligibleCount: number;
-	};
-	projectedAt: string;
-}
-
-export interface QualityBadcaseProjectionMaterialization {
-	badcaseId: string;
-	requestId: string;
-	traceId: string;
-	surface: string;
-	selectedTool: string | null;
-	status: "open";
-	causeClass: string;
-	detectedBy: "runtime_monitor";
-	openedAt: string;
-	summary: string;
-	grade: null;
-	projectedAt: string;
-}
-
 export interface RequestProjectionProjectorStore {
 	getRequestExecution(requestId: string): Promise<RequestExecutionProjectionSource | null>;
 	listPendingEvents(limit: number, now: Date): Promise<ProjectionOutboxEvent[]>;
@@ -170,14 +120,6 @@ export interface RequestProjectionProjectorStore {
 		requestId: string;
 		projectionLagMs: number | null;
 		measuredAt: string;
-	}): Promise<void>;
-	replaceQualityRollups(input: {
-		requestId: string;
-		rollups: MetricRollupMaterialization[];
-	}): Promise<void>;
-	replaceQualityBadcases(input: {
-		requestId: string;
-		badcases: QualityBadcaseProjectionMaterialization[];
 	}): Promise<void>;
 	upsertAuditProjection(projection: RequestAuditProjectionMaterialization): Promise<void>;
 	upsertProjection(projection: RequestProjectionMaterialization): Promise<void>;
@@ -329,199 +271,6 @@ function buildAuditDiagnostics(input: {
 	return diagnostics;
 }
 
-function parseScopeCollection(scope: Record<string, unknown> | null): string | null {
-	const collection = scope?.collection;
-	return typeof collection === "string" && collection ? collection : null;
-}
-
-function resolveBucketStart(
-	timestamp: string,
-	granularity: MetricRollupMaterialization["granularity"],
-): Date {
-	const value = new Date(timestamp);
-	if (granularity === "5m") {
-		value.setUTCMinutes(Math.floor(value.getUTCMinutes() / 5) * 5, 0, 0);
-		return value;
-	}
-	if (granularity === "15m") {
-		value.setUTCMinutes(Math.floor(value.getUTCMinutes() / 15) * 15, 0, 0);
-		return value;
-	}
-	if (granularity === "1h") {
-		value.setUTCMinutes(0, 0, 0);
-		return value;
-	}
-	value.setUTCHours(0, 0, 0, 0);
-	return value;
-}
-
-function addGranularity(
-	bucketStart: Date,
-	granularity: MetricRollupMaterialization["granularity"],
-): Date {
-	const next = new Date(bucketStart);
-	if (granularity === "5m") {
-		next.setUTCMinutes(next.getUTCMinutes() + 5);
-		return next;
-	}
-	if (granularity === "15m") {
-		next.setUTCMinutes(next.getUTCMinutes() + 15);
-		return next;
-	}
-	if (granularity === "1h") {
-		next.setUTCHours(next.getUTCHours() + 1);
-		return next;
-	}
-	next.setUTCDate(next.getUTCDate() + 1);
-	return next;
-}
-
-function buildMetricRollupId(input: {
-	domain: "quality";
-	granularity: MetricRollupMaterialization["granularity"];
-	bucketStart: string;
-	surface: string;
-	selectedTool: string | null;
-	requestedTool: string | null;
-	principalType: string;
-	collection: string | null;
-	modelName: string | null;
-	requestId: string;
-}): string {
-	return [
-		input.domain,
-		input.granularity,
-		input.bucketStart,
-		input.surface,
-		input.selectedTool ?? "_",
-		input.requestedTool ?? "_",
-		input.principalType,
-		input.collection ?? "_",
-		input.modelName ?? "_",
-		input.requestId,
-	].join("|");
-}
-
-function buildQualityRollups(input: {
-	execution: RequestExecutionProjectionSource;
-	projectedAt: string;
-}): MetricRollupMaterialization[] {
-	const metrics = {
-		approvalRequiredCount: input.execution.status === "approval_required" ? 1 : 0,
-		citationEligibleCount: input.execution.citationExpected === true ? 1 : 0,
-		citationMissCount: input.execution.citationMissing === true ? 1 : 0,
-		emptyRecallCount: input.execution.emptyRecall === true ? 1 : 0,
-		needsClarificationCount: input.execution.status === "needs_clarification" ? 1 : 0,
-		noAnswerCount: input.execution.status === "no_answer" ? 1 : 0,
-		rejectedCount: input.execution.status === "rejected" ? 1 : 0,
-		requestCount: 1,
-		retrievalEligibleCount: input.execution.retrievalAttempted === true ? 1 : 0,
-	};
-
-	return (["5m", "15m", "1h", "1d"] as const).map((granularity) => {
-		const bucketStart = resolveBucketStart(input.execution.startedAt, granularity);
-		const bucketStartIso = bucketStart.toISOString();
-		return {
-			bucketEnd: addGranularity(bucketStart, granularity).toISOString(),
-			bucketStart: bucketStartIso,
-			collection: parseScopeCollection(input.execution.resolvedScope),
-			domain: "quality",
-			granularity,
-			metrics,
-			modelName: input.execution.modelName ?? null,
-			principalType: input.execution.principalType,
-			projectedAt: input.projectedAt,
-			requestId: input.execution.requestId,
-			requestedTool: input.execution.requestedTool,
-			rollupId: buildMetricRollupId({
-				bucketStart: bucketStartIso,
-				collection: parseScopeCollection(input.execution.resolvedScope),
-				domain: "quality",
-				granularity,
-				modelName: input.execution.modelName ?? null,
-				principalType: input.execution.principalType,
-				requestId: input.execution.requestId,
-				requestedTool: input.execution.requestedTool,
-				selectedTool: input.execution.selectedTool,
-				surface: input.execution.surface,
-			}),
-			selectedTool: input.execution.selectedTool,
-			surface: input.execution.surface,
-		};
-	});
-}
-
-function buildQualityBadcases(input: {
-	execution: RequestExecutionProjectionSource;
-	projectedAt: string;
-}): QualityBadcaseProjectionMaterialization[] {
-	const badcases: Array<{ causeClass: string; summary: string }> = [];
-	const addBadcase = (causeClass: string, summary: string) => {
-		if (badcases.some((badcase) => badcase.causeClass === causeClass)) {
-			return;
-		}
-		badcases.push({ causeClass, summary });
-	};
-	const diagnostics = input.execution.diagnostics;
-
-	if (input.execution.citationExpected === true && input.execution.citationMissing === true) {
-		addBadcase("citation_missing", "citationExpected=true 但 citationCount=0");
-	}
-	if (input.execution.retrievalAttempted === true && input.execution.emptyRecall === true) {
-		addBadcase("empty_recall", "retrievalAttempted=true 但 retrievedSourceCount=0");
-	}
-	if (diagnostics?.groundingVerdict === "failed" || diagnostics?.groundingDowngraded === true) {
-		addBadcase("grounding_failed", "groundingVerdict=failed 或 groundingDowngraded=true");
-	}
-	if (
-		diagnostics?.semanticOutcome === "unsupported_by_evidence" ||
-		(diagnostics?.claimSupportSummary?.unsupportedClaims ?? 0) > 0
-	) {
-		addBadcase(
-			"unsupported_by_evidence",
-			"semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-		);
-	}
-	if (
-		diagnostics?.policyReason ||
-		diagnostics?.semanticOutcome === "policy_refusal" ||
-		diagnostics?.remoteContentSuspicionSummary?.generationBlocked === true
-	) {
-		addBadcase("policy_failed", "policyReason / provider guardrail 触发回答失败");
-	}
-	if (
-		input.execution.aclAnomalyCode ||
-		input.execution.aclDecision === "denied" ||
-		input.execution.aclDecision === "approval_required" ||
-		diagnostics?.sourceTrustSummary?.authorizationClaimBlocked === true
-	) {
-		addBadcase("authz_suspected", "authorization / ACL 观测存在异常或敏感声明被阻断");
-	}
-	if (
-		input.execution.failClosed === true &&
-		(diagnostics?.freshnessFailClosed === true ||
-			diagnostics?.semanticOutcome === "freshness_fail_close" ||
-			diagnostics?.sourceTrustSummary?.freshnessClaimBlocked === true)
-	) {
-		addBadcase("freshness_fail_close", "freshness guardrail fail-closed");
-	}
-
-	return badcases.map((badcase) => ({
-		badcaseId: `${input.execution.requestId}:${badcase.causeClass}`,
-		causeClass: badcase.causeClass,
-		detectedBy: "runtime_monitor",
-		grade: null,
-		openedAt: input.execution.completedAt ?? input.execution.startedAt,
-		projectedAt: input.projectedAt,
-		requestId: input.execution.requestId,
-		selectedTool: input.execution.selectedTool,
-		status: "open",
-		summary: badcase.summary,
-		surface: input.execution.surface,
-		traceId: input.execution.traceId,
-	}));
-}
-
 export function toRequestProjectionMaterialization(input: {
 	execution: RequestExecutionProjectionSource;
 	projectedAt: string;
@@ -547,7 +296,6 @@ export function toRequestProjectionMaterialization(input: {
 		versionQuery: input.execution.versionQuery,
 		resolvedScope: input.execution.resolvedScope,
 		selectedTool: input.execution.selectedTool,
-		diagnostics: input.execution.diagnostics,
 		sourceDocIds: input.execution.sourceDocIds,
 		startedAt: input.execution.startedAt,
 		status: input.execution.status,
@@ -619,20 +367,6 @@ export function buildRequestProjectionProjector(
 						projectedAt,
 					}),
 				);
-				await dependencies.store.replaceQualityRollups({
-					requestId: execution.requestId,
-					rollups: buildQualityRollups({
-						execution,
-						projectedAt,
-					}),
-				});
-				await dependencies.store.replaceQualityBadcases({
-					badcases: buildQualityBadcases({
-						execution,
-						projectedAt,
-					}),
-					requestId: execution.requestId,
-				});
 				await dependencies.store.markObservabilityProjected({
 					measuredAt: projectedAt,
 					projectionLagMs: computeProjectionLagMs({

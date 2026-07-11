@@ -11,41 +11,31 @@ import (
 )
 
 const (
-	ExecutionContractVersion            = "tool_execution_v1"
-	ResponseContract                    = "execution_finalization_response_v2"
-	RuntimeDecisionsSchemaVersion       = "tool-execution-runtime-decisions-v1"
-	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
+	ExecutionContractVersion    = "tool_execution_v1"
+	ResponseContract            = "execution_finalization_response_v2"
+	WorkflowTraceSummaryVersion = "workflow-trace-summary-v5"
 )
 
 type ToolID string
 
 const (
 	ToolIDKnowledgeQuery          ToolID = "knowledge_query"
-	ToolIDPlaceLookup             ToolID = "place_lookup"
-	ToolIDPublicWebSearch         ToolID = "public_web_search"
+	ToolIDKnowledgeSearch         ToolID = "knowledge_search"
 	ToolIDTransportScheduleLookup ToolID = "transport_schedule_lookup"
-	ToolIDCampusNoticeDiscover    ToolID = "campus_notice_discover"
-	ToolIDCampusNoticeGet         ToolID = "campus_notice_get"
 )
 
 type ModelVisibleToolName string
 
 const (
 	ModelVisibleToolNameKnowledgeQuery          ModelVisibleToolName = "knowledge_query"
-	ModelVisibleToolNamePublicWebSearch         ModelVisibleToolName = "public_web_search"
 	ModelVisibleToolNameTransportScheduleLookup ModelVisibleToolName = "transport_schedule_lookup"
-	ModelVisibleToolNameCampusNoticeDiscover    ModelVisibleToolName = "campus_notice_discover"
 )
 
 type RequestedTool string
 
 const (
 	RequestedToolKnowledgeQuery          RequestedTool = "knowledge_query"
-	RequestedToolPlaceLookup             RequestedTool = "place_lookup"
-	RequestedToolPublicWebSearch         RequestedTool = "public_web_search"
 	RequestedToolTransportScheduleLookup RequestedTool = "transport_schedule_lookup"
-	RequestedToolCampusNoticeDiscover    RequestedTool = "campus_notice_discover"
 )
 
 type ConfidenceLevel string
@@ -54,15 +44,6 @@ const (
 	ConfidenceLevelHigh   ConfidenceLevel = "high"
 	ConfidenceLevelMedium ConfidenceLevel = "medium"
 	ConfidenceLevelLow    ConfidenceLevel = "low"
-)
-
-type DelegateStatus string
-
-const (
-	DelegateStatusCompleted          DelegateStatus = "completed"
-	DelegateStatusNeedsClarification DelegateStatus = "needs_clarification"
-	DelegateStatusNoAnswer           DelegateStatus = "no_answer"
-	DelegateStatusError              DelegateStatus = "error"
 )
 
 type ExecutionStatus string
@@ -85,14 +66,10 @@ const (
 	WorkflowModeMultiStep  WorkflowMode = "multi_step"
 )
 
-type StepOutputProjectionKind string
+type AnswerArtifactKind string
 
 const (
-	StepOutputProjectionKindNoticeContext    StepOutputProjectionKind = "notice_context"
-	StepOutputProjectionKindScheduleBaseline StepOutputProjectionKind = "schedule_baseline"
-	StepOutputProjectionKindPlaceContext     StepOutputProjectionKind = "place_context"
-	StepOutputProjectionKindEvidenceBundle   StepOutputProjectionKind = "evidence_bundle"
-	StepOutputProjectionKindGroundingVerdict StepOutputProjectionKind = "grounding_verdict"
+	AnswerArtifactKindAgentFinalOutput AnswerArtifactKind = "agent_final_output"
 )
 
 type StageTimingField string
@@ -106,14 +83,8 @@ const (
 	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
 	StageTimingFieldAgentFirstDeltaMs             StageTimingField = "agent.first_delta_ms"
 	StageTimingFieldToolTotalMs                   StageTimingField = "tool.total_ms"
-	StageTimingFieldToolKnowledgeQueryMs          StageTimingField = "tool.knowledge_query_ms"
 	StageTimingFieldToolTransportScheduleLookupMs StageTimingField = "tool.transport_schedule_lookup_ms"
-	StageTimingFieldToolCampusNoticeDiscoverMs    StageTimingField = "tool.campus_notice_discover_ms"
-	StageTimingFieldRagPlanMs                     StageTimingField = "rag.plan_ms"
-	StageTimingFieldRagLookupMs                   StageTimingField = "rag.lookup_ms"
-	StageTimingFieldRagRerankMs                   StageTimingField = "rag.rerank_ms"
-	StageTimingFieldRagSynthesisMs                StageTimingField = "rag.synthesis_ms"
-	StageTimingFieldRagGroundingMs                StageTimingField = "rag.grounding_ms"
+	StageTimingFieldKnowledgeSearchMs             StageTimingField = "knowledge.search_ms"
 	StageTimingFieldFinalizationWriteMs           StageTimingField = "finalization.write_ms"
 	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
 )
@@ -125,187 +96,72 @@ const (
 )
 
 type ConversationContextWire struct {
-	SchemaVersion         string           `json:"schema_version"`
-	ConversationID        string           `json:"conversation_id"`
-	UserMessageID         string           `json:"user_message_id"`
-	ParentMessageID       *string          `json:"parent_message_id,omitempty"`
-	CurrentUserMessage    map[string]any   `json:"current_user_message"`
-	RecentTurns           []map[string]any `json:"recent_turns"`
-	PreviousAnswerSummary *string          `json:"previous_answer_summary,omitempty"`
-	PreviousEvidenceRefs  []map[string]any `json:"previous_evidence_refs"`
-	PreviousToolResults   []map[string]any `json:"previous_tool_results"`
-	SessionState          map[string]any   `json:"session_state"`
-	Visibility            map[string]any   `json:"visibility"`
-	MemoryRecall          map[string]any   `json:"memory_recall"`
-	SourceAttribution     []map[string]any `json:"source_attribution"`
-	ContextSummary        *string          `json:"context_summary"`
-	Budget                map[string]any   `json:"budget"`
-	Truncation            map[string]any   `json:"truncation"`
+	SchemaVersion        string           `json:"schema_version"`
+	ConversationID       string           `json:"conversation_id"`
+	UserMessageID        string           `json:"user_message_id"`
+	ParentMessageID      *string          `json:"parent_message_id,omitempty"`
+	CurrentUserMessage   map[string]any   `json:"current_user_message"`
+	RecentTurns          []map[string]any `json:"recent_turns"`
+	PreviousEvidenceRefs []map[string]any `json:"previous_evidence_refs"`
+	PreviousToolResults  []map[string]any `json:"previous_tool_results"`
+	SessionState         map[string]any   `json:"session_state"`
 }
 
-type RuntimeDecisionSummaryWire struct {
-	SchemaVersion          string         `json:"schema_version"`
-	ScopeGateDecision      string         `json:"scope_gate_decision,omitempty"`
-	PolicyGateDecision     string         `json:"policy_gate_decision,omitempty"`
-	ContextPreflightState  string         `json:"context_preflight_state,omitempty"`
-	RoutingNextAction      string         `json:"routing_next_action,omitempty"`
-	PlanningOutcome        string         `json:"planning_outcome"`
-	SelectedTool           string         `json:"selected_tool,omitempty"`
-	TaskQueue              string         `json:"task_queue,omitempty"`
-	TerminalOutcome        string         `json:"terminal_outcome,omitempty"`
-	FailCloseReason        string         `json:"fail_close_reason,omitempty"`
-	RuntimeVersions        map[string]any `json:"runtime_versions,omitempty"`
-	PolicyArtifactVersions map[string]any `json:"policy_artifact_versions,omitempty"`
+type TraceContextWire struct {
+	TraceID string `json:"trace_id"`
 }
 
-type WorkflowPlanStepWire struct {
-	StepID       string   `json:"step_id"`
-	StepKind     string   `json:"step_kind"`
-	Tool         string   `json:"tool,omitempty"`
-	TaskQueue    string   `json:"task_queue,omitempty"`
-	PayloadKind  string   `json:"payload_kind,omitempty"`
-	AllowedTools []string `json:"allowed_tools,omitempty"`
-	SelectedTool string   `json:"selected_tool,omitempty"`
+type VersionQueryWire struct {
+	Mode               string `json:"mode,omitempty"`
+	AsOf               string `json:"as_of,omitempty"`
+	VersionID          string `json:"version_id,omitempty"`
+	CompareToVersionID string `json:"compare_to_version_id,omitempty"`
 }
 
-type WorkflowPlanEdgeWire struct {
-	FromStepID             string `json:"from_step_id"`
-	ToStepID               string `json:"to_step_id"`
-	Condition              string `json:"condition"`
-	RequiredProjectionKind string `json:"required_projection_kind,omitempty"`
+type ExecutionPayloadWire struct {
+	ExecutionContractVersion string            `json:"execution_contract_version"`
+	ResponseContract         string            `json:"response_contract"`
+	UserGoal                 string            `json:"user_goal"`
+	ConversationID           string            `json:"conversation_id"`
+	TenantID                 string            `json:"tenant_id,omitempty"`
+	RequestID                string            `json:"request_id"`
+	SafetyIdentifier         *string           `json:"safety_identifier,omitempty"`
+	RequestedTool            RequestedTool     `json:"requested_tool,omitempty"`
+	Scope                    string            `json:"scope,omitempty"`
+	Trace                    TraceContextWire  `json:"trace"`
+	Context                  map[string]any    `json:"context"`
+	VersionQuery             *VersionQueryWire `json:"version_query"`
 }
 
-type ProjectionSafetySummaryWire struct {
-	Truncated     bool     `json:"truncated"`
-	Redacted      bool     `json:"redacted"`
-	MaxChars      int      `json:"max_chars"`
-	FieldsPresent []string `json:"fields_present"`
+type ExecutionRunMetadataWire struct {
+	ExecutionPayload ExecutionPayloadWire `json:"execution_payload"`
 }
 
-type StepOutputProjectionWire struct {
-	ProjectionID   string                      `json:"projection_id"`
-	SourceStepID   string                      `json:"source_step_id"`
-	ProjectionKind string                      `json:"projection_kind"`
-	ContentHash    string                      `json:"content_hash"`
-	Payload        map[string]any              `json:"payload"`
-	Safety         ProjectionSafetySummaryWire `json:"safety"`
-}
-
-type WorkflowContextProjectionWire struct {
-	ProjectionID   string                      `json:"projection_id"`
-	SourceStepID   string                      `json:"source_step_id"`
-	ProjectionKind StepOutputProjectionKind    `json:"projection_kind"`
-	ContentHash    string                      `json:"content_hash"`
-	Safety         ProjectionSafetySummaryWire `json:"safety"`
-}
-
-type WorkflowToolContextWire struct {
-	SchemaVersion           string                          `json:"schema_version"`
-	Visibility              string                          `json:"visibility"`
-	WorkflowRunRef          string                          `json:"workflow_run_ref"`
-	StepID                  string                          `json:"step_id"`
-	ToolID                  ToolID                          `json:"tool_id"`
-	TaskQueue               string                          `json:"task_queue,omitempty"`
-	RequiredProjectionKind  StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
-	ExpectedOutputArtifacts []StepOutputProjectionKind      `json:"expected_output_artifacts"`
-	ProjectionRefs          []WorkflowContextProjectionWire `json:"projection_refs"`
-}
-
-type WorkflowPlanWire struct {
-	SchemaVersion       string                 `json:"schema_version"`
-	PlanID              string                 `json:"plan_id"`
-	WorkflowMode        WorkflowMode           `json:"workflow_mode"`
-	AllowedTools        []ToolID               `json:"allowed_tools"`
-	Steps               []WorkflowPlanStepWire `json:"steps"`
-	Edges               []WorkflowPlanEdgeWire `json:"edges"`
-	TerminalPolicy      map[string]any         `json:"terminal_policy"`
-	ResumePolicy        map[string]any         `json:"resume_policy"`
-	SemanticRetryPolicy map[string]any         `json:"semantic_retry_policy"`
-}
-
-type ToolInvocationWire struct {
-	InvocationID       string   `json:"invocation_id"`
-	ParentInvocationID string   `json:"parent_invocation_id,omitempty"`
-	WorkflowRunRef     string   `json:"workflow_run_ref"`
-	StepID             string   `json:"step_id"`
-	ToolID             ToolID   `json:"tool_id"`
-	Status             string   `json:"status"`
-	AllowedTools       []string `json:"allowed_tools"`
-	UsedTools          []string `json:"used_tools"`
-	ProjectionIDs      []string `json:"projection_ids"`
-	FailCloseReason    string   `json:"fail_close_reason,omitempty"`
-}
-
-type RuntimeDecisionsWire struct {
-	SchemaVersion          string                     `json:"schema_version"`
-	EffectiveTool          RequestedTool              `json:"effective_tool"`
-	TaskQueue              string                     `json:"task_queue"`
-	RoutingFrame           map[string]any             `json:"routing_frame"`
-	RuntimeDecisionSummary RuntimeDecisionSummaryWire `json:"runtime_decision_summary"`
-	ScopeGate              map[string]any             `json:"scope_gate,omitempty"`
-	PolicyGate             map[string]any             `json:"policy_gate,omitempty"`
-	ContextPreflight       map[string]any             `json:"context_preflight,omitempty"`
-	ToolPolicy             map[string]any             `json:"tool_policy,omitempty"`
-	Handoff                map[string]any             `json:"handoff,omitempty"`
-	WorkflowPlan           *WorkflowPlanWire          `json:"workflow_plan,omitempty"`
-	TerminalEnvelope       map[string]any             `json:"terminal_envelope,omitempty"`
-}
-
-type ToolExecutionRequestWire struct {
-	ExecutionContractVersion string                `json:"execution_contract_version"`
-	ResponseContract         string                `json:"response_contract"`
-	UserGoal                 string                `json:"user_goal"`
-	ConversationID           string                `json:"conversation_id,omitempty"`
-	TenantID                 string                `json:"tenant_id,omitempty"`
-	RequestID                string                `json:"request_id"`
-	SafetyIdentifier         *string               `json:"safety_identifier,omitempty"`
-	EffectiveTool            RequestedTool         `json:"effective_tool"`
-	TaskQueue                string                `json:"task_queue"`
-	RequestedTool            RequestedTool         `json:"requested_tool"`
-	RequestedScope           map[string]any        `json:"requested_scope,omitempty"`
-	Trace                    map[string]any        `json:"trace"`
-	Actor                    map[string]any        `json:"actor"`
-	Context                  map[string]any        `json:"context"`
-	VersionQuery             map[string]any        `json:"version_query"`
-	RuntimeDecisions         *RuntimeDecisionsWire `json:"runtime_decisions,omitempty"`
-}
-
-type ToolRequestWire struct {
-	Tool             ToolID                   `json:"tool"`
-	TaskQueue        string                   `json:"task_queue,omitempty"`
-	UserGoal         string                   `json:"user_goal"`
-	ConversationID   string                   `json:"conversation_id,omitempty"`
-	RequestID        string                   `json:"request_id,omitempty"`
-	SafetyIdentifier *string                  `json:"safety_identifier,omitempty"`
-	Trace            map[string]any           `json:"trace,omitempty"`
-	Actor            map[string]any           `json:"actor,omitempty"`
-	Context          map[string]any           `json:"context,omitempty"`
-	WorkflowContext  *WorkflowToolContextWire `json:"workflow_context,omitempty"`
-	Payload          map[string]any           `json:"payload"`
-	AllowedTools     []ModelVisibleToolName   `json:"allowed_tools"`
+type ExecutionRunCreateRequestWire struct {
+	RunID           string                   `json:"run_id"`
+	ConversationID  string                   `json:"conversation_id"`
+	TurnID          string                   `json:"turn_id"`
+	RequestID       string                   `json:"request_id"`
+	TraceID         string                   `json:"trace_id,omitempty"`
+	OwnerUserID     string                   `json:"owner_user_id"`
+	Surface         string                   `json:"surface"`
+	RuntimeVersions map[string]any           `json:"runtime_versions,omitempty"`
+	Metadata        ExecutionRunMetadataWire `json:"metadata"`
 }
 
 type WorkflowTraceSummaryWire struct {
-	RoutingFrame                map[string]any                  `json:"routing_frame"`
-	ContextResolution           map[string]any                  `json:"context_resolution"`
-	PlanningOutcome             string                          `json:"planning_outcome"`
-	DirectVsDelegateBranch      string                          `json:"direct_vs_delegate_branch"`
-	WorkflowMode                WorkflowMode                    `json:"workflow_mode"`
-	Handoff                     map[string]any                  `json:"handoff"`
-	HandoffChain                []map[string]any                `json:"handoff_chain"`
-	ToolInvocations             []ToolInvocationWire            `json:"tool_invocations"`
-	SelectedTool                *string                         `json:"selected_tool"`
-	SelectedTools               []string                        `json:"selected_tools"`
-	ContextProjections          []WorkflowContextProjectionWire `json:"context_projections"`
-	AnswerArtifactProjectionIDs []string                        `json:"answer_artifact_projection_ids"`
-	AnswerArtifactKinds         []StepOutputProjectionKind      `json:"answer_artifact_kinds"`
-	ToolArgumentSummary         map[string]any                  `json:"tool_argument_summary"`
-	TraceSteps                  []map[string]any                `json:"trace_steps,omitempty"`
-	ToolCallSummaries           []map[string]any                `json:"tool_call_summaries,omitempty"`
-	GuardrailOutcomes           map[string]any                  `json:"guardrail_outcomes"`
-	FailCloseReason             string                          `json:"fail_close_reason"`
-	RuntimeVersions             map[string]any                  `json:"runtime_versions"`
-	PolicyArtifactVersions      map[string]any                  `json:"policy_artifact_versions"`
+	WorkflowMode           WorkflowMode         `json:"workflow_mode"`
+	SelectedTool           *string              `json:"selected_tool"`
+	SelectedTools          []string             `json:"selected_tools"`
+	FirstDecisionActor     string               `json:"first_decision_actor"`
+	PlanningOutcome        string               `json:"planning_outcome"`
+	DirectVsDelegateBranch string               `json:"direct_vs_delegate_branch"`
+	TerminalReason         string               `json:"terminal_reason"`
+	AnswerArtifactKinds    []AnswerArtifactKind `json:"answer_artifact_kinds"`
+	AnswerArtifactRefs     []string             `json:"answer_artifact_refs"`
+	TraceSteps             []map[string]any     `json:"trace_steps"`
+	ToolCallSummaries      []map[string]any     `json:"tool_call_summaries"`
+	RuntimeVersions        map[string]any       `json:"runtime_versions"`
 }
 
 type StageTimingWire map[StageTimingField]float64
@@ -317,12 +173,24 @@ type DebugTraceRefWire struct {
 	URL      string         `json:"url,omitempty"`
 }
 
+type SessionUpdateSlotWire struct {
+	Confirmed bool   `json:"confirmed"`
+	Name      string `json:"name"`
+	Value     string `json:"value"`
+}
+
+type SessionUpdateWire struct {
+	UpsertSlots []SessionUpdateSlotWire `json:"upsert_slots"`
+}
+
 type ToolExecutionResponseWire struct {
 	SelectedTool         *ToolID                   `json:"selected_tool"`
 	Status               ExecutionStatus           `json:"status"`
 	AnswerText           string                    `json:"answer_text"`
 	FollowUpQuestion     string                    `json:"follow_up_question"`
 	Confidence           ConfidenceLevel           `json:"confidence"`
+	ResolvedScope        *string                   `json:"resolved_scope"`
+	SessionUpdate        *SessionUpdateWire        `json:"session_update"`
 	Result               map[string]any            `json:"result"`
 	Error                map[string]any            `json:"error"`
 	Observability        map[string]any            `json:"observability,omitempty"`
@@ -332,8 +200,19 @@ type ToolExecutionResponseWire struct {
 	TraceID              string                    `json:"trace_id"`
 }
 
-func DecodeToolExecutionRequestWireJSON(data []byte) (ToolExecutionRequestWire, error) {
-	var wire ToolExecutionRequestWire
+func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
+	var wire ExecutionPayloadWire
+	if err := decodeStrictJSON(data, &wire); err != nil {
+		return wire, err
+	}
+	if err := wire.Validate(); err != nil {
+		return wire, err
+	}
+	return wire, nil
+}
+
+func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateRequestWire, error) {
+	var wire ExecutionRunCreateRequestWire
 	if err := decodeStrictJSON(data, &wire); err != nil {
 		return wire, err
 	}
@@ -345,6 +224,20 @@ func DecodeToolExecutionRequestWireJSON(data []byte) (ToolExecutionRequestWire, 
 
 func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire, error) {
 	var wire ToolExecutionResponseWire
+	if err := requireJSONObjectFields(data, []string{
+		"selected_tool",
+		"status",
+		"answer_text",
+		"follow_up_question",
+		"confidence",
+		"result",
+		"error",
+		"resolved_scope",
+		"session_update",
+		"trace_id",
+	}); err != nil {
+		return wire, err
+	}
 	if err := decodeStrictJSON(data, &wire); err != nil {
 		return wire, err
 	}
@@ -367,7 +260,23 @@ func decodeStrictJSON(data []byte, target any) error {
 	return nil
 }
 
-func (wire ToolExecutionRequestWire) Validate() error {
+func requireJSONObjectFields(data []byte, fields []string) error {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+	if payload == nil {
+		return fmt.Errorf("expected JSON object")
+	}
+	for _, field := range fields {
+		if _, ok := payload[field]; !ok {
+			return fmt.Errorf("%s is required", field)
+		}
+	}
+	return nil
+}
+
+func (wire ExecutionPayloadWire) Validate() error {
 	if wire.ExecutionContractVersion != ExecutionContractVersion {
 		return fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 	}
@@ -380,20 +289,20 @@ func (wire ToolExecutionRequestWire) Validate() error {
 	if wire.RequestID == "" {
 		return fmt.Errorf("request_id is required")
 	}
-	if !wire.EffectiveTool.Valid() {
-		return fmt.Errorf("effective_tool is invalid")
+	if wire.ConversationID == "" {
+		return fmt.Errorf("conversation_id is required")
 	}
-	if !wire.RequestedTool.Valid() {
+	if wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
 		return fmt.Errorf("requested_tool is invalid")
 	}
-	if wire.TaskQueue == "" {
-		return fmt.Errorf("task_queue is required")
+	if wire.RequestedTool == RequestedToolKnowledgeQuery && wire.Scope == "" {
+		return fmt.Errorf("scope is required for requested_tool knowledge_query")
 	}
-	if len(wire.Trace) == 0 {
-		return fmt.Errorf("trace is required")
+	if wire.RequestedTool != RequestedToolKnowledgeQuery && wire.Scope != "" {
+		return fmt.Errorf("scope requires requested_tool knowledge_query")
 	}
-	if wire.Actor == nil {
-		return fmt.Errorf("actor is required")
+	if wire.Trace.TraceID == "" {
+		return fmt.Errorf("trace.trace_id is required")
 	}
 	if wire.Context == nil {
 		return fmt.Errorf("context is required")
@@ -404,104 +313,96 @@ func (wire ToolExecutionRequestWire) Validate() error {
 	if wire.VersionQuery == nil {
 		return fmt.Errorf("version_query is required")
 	}
-	if wire.RuntimeDecisions != nil {
-		if err := wire.RuntimeDecisions.Validate(); err != nil {
-			return fmt.Errorf("runtime_decisions: %w", err)
-		}
+	if err := wire.VersionQuery.Validate(); err != nil {
+		return fmt.Errorf("version_query: %w", err)
 	}
 	return nil
 }
 
-func (wire RuntimeDecisionsWire) Validate() error {
-	if wire.SchemaVersion != RuntimeDecisionsSchemaVersion {
-		return fmt.Errorf("schema_version must be %s", RuntimeDecisionsSchemaVersion)
+func (wire VersionQueryWire) Validate() error {
+	mode := wire.Mode
+	if mode == "" {
+		mode = "current"
 	}
-	if !wire.EffectiveTool.Valid() {
-		return fmt.Errorf("effective_tool is invalid")
+	switch mode {
+	case "current", "historical", "as_of", "compare":
+	default:
+		return fmt.Errorf("mode is invalid")
 	}
-	if wire.TaskQueue == "" {
-		return fmt.Errorf("task_queue is required")
-	}
-	if wire.RoutingFrame == nil {
-		return fmt.Errorf("routing_frame is required")
-	}
-	if err := wire.RuntimeDecisionSummary.Validate(); err != nil {
-		return fmt.Errorf("runtime_decision_summary: %w", err)
-	}
-	if wire.WorkflowPlan != nil {
-		if err := wire.WorkflowPlan.Validate(); err != nil {
-			return fmt.Errorf("workflow_plan: %w", err)
+	if mode == "as_of" {
+		if wire.AsOf == "" {
+			return fmt.Errorf("as_of is required when mode is as_of")
 		}
+	} else if wire.AsOf != "" {
+		return fmt.Errorf("as_of is only allowed when mode is as_of")
+	}
+	if mode != "historical" && mode != "compare" && wire.VersionID != "" {
+		return fmt.Errorf("version_id is only allowed for historical or compare mode")
+	}
+	if mode != "compare" && wire.CompareToVersionID != "" {
+		return fmt.Errorf("compare_to_version_id is only allowed when mode is compare")
+	}
+	if wire.CompareToVersionID != "" && wire.VersionID == "" {
+		return fmt.Errorf("version_id is required when compare_to_version_id is set")
 	}
 	return nil
 }
 
-func (wire RuntimeDecisionSummaryWire) Validate() error {
-	if wire.SchemaVersion != RuntimeDecisionSummarySchemaVersion {
-		return fmt.Errorf("schema_version must be %s", RuntimeDecisionSummarySchemaVersion)
+func (wire ExecutionRunCreateRequestWire) Validate() error {
+	if wire.RunID == "" {
+		return fmt.Errorf("run_id is required")
 	}
-	if wire.PlanningOutcome == "" {
-		return fmt.Errorf("planning_outcome is required")
+	if wire.ConversationID == "" {
+		return fmt.Errorf("conversation_id is required")
 	}
-	return nil
-}
-
-func (wire WorkflowPlanWire) Validate() error {
-	if wire.SchemaVersion != "workflow-plan-v1" {
-		return fmt.Errorf("schema_version must be workflow-plan-v1")
+	if wire.TurnID == "" {
+		return fmt.Errorf("turn_id is required")
 	}
-	if wire.PlanID == "" {
-		return fmt.Errorf("plan_id is required")
+	if wire.RequestID == "" {
+		return fmt.Errorf("request_id is required")
 	}
-	if !wire.WorkflowMode.Valid() {
-		return fmt.Errorf("workflow_mode is invalid")
+	if wire.OwnerUserID == "" {
+		return fmt.Errorf("owner_user_id is required")
 	}
-	if wire.AllowedTools == nil {
-		return fmt.Errorf("allowed_tools is required")
+	if wire.Surface == "" {
+		return fmt.Errorf("surface is required")
 	}
-	if wire.Steps == nil {
-		return fmt.Errorf("steps is required")
+	if err := wire.Metadata.ExecutionPayload.Validate(); err != nil {
+		return fmt.Errorf("metadata.execution_payload: %w", err)
 	}
-	if wire.Edges == nil {
-		return fmt.Errorf("edges is required")
+	if wire.Metadata.ExecutionPayload.RequestID != wire.RequestID {
+		return fmt.Errorf("metadata.execution_payload.request_id must match request_id")
 	}
-	if wire.TerminalPolicy == nil {
-		return fmt.Errorf("terminal_policy is required")
+	if wire.Metadata.ExecutionPayload.ConversationID != wire.ConversationID {
+		return fmt.Errorf("metadata.execution_payload.conversation_id must match conversation_id")
 	}
-	if wire.ResumePolicy == nil {
-		return fmt.Errorf("resume_policy is required")
-	}
-	if wire.SemanticRetryPolicy == nil {
-		return fmt.Errorf("semantic_retry_policy is required")
-	}
-	for index, step := range wire.Steps {
-		if step.StepID == "" {
-			return fmt.Errorf("steps[%d].step_id is required", index)
-		}
-		if step.StepKind == "" {
-			return fmt.Errorf("steps[%d].step_kind is required", index)
-		}
-	}
-	for index, edge := range wire.Edges {
-		if edge.FromStepID == "" {
-			return fmt.Errorf("edges[%d].from_step_id is required", index)
-		}
-		if edge.ToStepID == "" {
-			return fmt.Errorf("edges[%d].to_step_id is required", index)
-		}
-		if edge.Condition == "" {
-			return fmt.Errorf("edges[%d].condition is required", index)
-		}
+	if wire.TraceID != "" &&
+		wire.Metadata.ExecutionPayload.Trace.TraceID != wire.TraceID {
+		return fmt.Errorf("metadata.execution_payload.trace.trace_id must match trace_id")
 	}
 	return nil
 }
 
 func (wire WorkflowTraceSummaryWire) Validate() error {
-	if wire.RoutingFrame == nil {
-		return fmt.Errorf("routing_frame is required")
+	if wire.WorkflowMode == "" {
+		return fmt.Errorf("workflow_mode is required")
 	}
-	if wire.ContextResolution == nil {
-		return fmt.Errorf("context_resolution is required")
+	if !wire.WorkflowMode.Valid() {
+		return fmt.Errorf("workflow_mode is invalid")
+	}
+	if wire.SelectedTool != nil && *wire.SelectedTool != "" && !ToolID(*wire.SelectedTool).Valid() {
+		return fmt.Errorf("selected_tool is invalid")
+	}
+	if wire.SelectedTools == nil {
+		return fmt.Errorf("selected_tools is required")
+	}
+	for index, tool := range wire.SelectedTools {
+		if tool == "" {
+			return fmt.Errorf("selected_tools[%d] is required", index)
+		}
+	}
+	if wire.FirstDecisionActor == "" {
+		return fmt.Errorf("first_decision_actor is required")
 	}
 	if wire.PlanningOutcome == "" {
 		return fmt.Errorf("planning_outcome is required")
@@ -509,52 +410,28 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 	if wire.DirectVsDelegateBranch == "" {
 		return fmt.Errorf("direct_vs_delegate_branch is required")
 	}
-	if wire.WorkflowMode == "" {
-		return fmt.Errorf("workflow_mode is required")
+	if wire.TerminalReason == "" {
+		return fmt.Errorf("terminal_reason is required")
 	}
-	if !wire.WorkflowMode.Valid() {
-		return fmt.Errorf("workflow_mode is invalid")
+	if wire.AnswerArtifactKinds == nil {
+		return fmt.Errorf("answer_artifact_kinds is required")
 	}
-	if wire.Handoff == nil {
-		return fmt.Errorf("handoff is required")
-	}
-	if wire.HandoffChain == nil {
-		return fmt.Errorf("handoff_chain is required")
-	}
-	if wire.SelectedTool == nil || *wire.SelectedTool == "" {
-		return fmt.Errorf("selected_tool is required")
-	}
-	if wire.SelectedTools == nil {
-		return fmt.Errorf("selected_tools is required")
-	}
-	if wire.ContextProjections == nil {
-		return fmt.Errorf("context_projections is required")
-	}
-	for index, projection := range wire.ContextProjections {
-		if projection.ProjectionID == "" {
-			return fmt.Errorf("context_projections[%d].projection_id is required", index)
-		}
-		if projection.SourceStepID == "" {
-			return fmt.Errorf("context_projections[%d].source_step_id is required", index)
-		}
-		if !projection.ProjectionKind.Valid() {
-			return fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
-		}
-		if projection.ContentHash == "" {
-			return fmt.Errorf("context_projections[%d].content_hash is required", index)
+	for index, kind := range wire.AnswerArtifactKinds {
+		if !kind.Valid() {
+			return fmt.Errorf("answer_artifact_kinds[%d] is invalid", index)
 		}
 	}
-	if wire.ToolArgumentSummary == nil {
-		return fmt.Errorf("tool_argument_summary is required")
+	if wire.AnswerArtifactRefs == nil {
+		return fmt.Errorf("answer_artifact_refs is required")
 	}
-	if wire.GuardrailOutcomes == nil {
-		return fmt.Errorf("guardrail_outcomes is required")
+	if wire.TraceSteps == nil {
+		return fmt.Errorf("trace_steps is required")
+	}
+	if wire.ToolCallSummaries == nil {
+		return fmt.Errorf("tool_call_summaries is required")
 	}
 	if wire.RuntimeVersions == nil {
 		return fmt.Errorf("runtime_versions is required")
-	}
-	if wire.PolicyArtifactVersions == nil {
-		return fmt.Errorf("policy_artifact_versions is required")
 	}
 	return nil
 }
@@ -583,6 +460,11 @@ func (wire ToolExecutionResponseWire) Validate() error {
 			return fmt.Errorf("error.retryable is required")
 		}
 	}
+	if wire.SessionUpdate != nil {
+		if err := wire.SessionUpdate.Validate(); err != nil {
+			return fmt.Errorf("session_update: %w", err)
+		}
+	}
 	if wire.WorkflowTraceSummary != nil {
 		if err := wire.WorkflowTraceSummary.Validate(); err != nil {
 			return fmt.Errorf("workflow_trace_summary: %w", err)
@@ -596,6 +478,26 @@ func (wire ToolExecutionResponseWire) Validate() error {
 	for index, ref := range wire.DebugTraceRefs {
 		if err := ref.Validate(); err != nil {
 			return fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
+		}
+	}
+	return nil
+}
+
+func (wire SessionUpdateWire) Validate() error {
+	if wire.UpsertSlots == nil {
+		return fmt.Errorf("upsert_slots is required")
+	}
+	for index, slot := range wire.UpsertSlots {
+		if !slot.Confirmed {
+			return fmt.Errorf("upsert_slots[%d].confirmed must be true", index)
+		}
+		switch slot.Name {
+		case "curriculum_program", "curriculum_program_family", "curriculum_semester":
+		default:
+			return fmt.Errorf("upsert_slots[%d].name is invalid", index)
+		}
+		if slot.Value == "" {
+			return fmt.Errorf("upsert_slots[%d].value is required", index)
 		}
 	}
 	return nil
@@ -625,7 +527,7 @@ func (wire DebugTraceRefWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDKnowledgeQuery, ToolIDPlaceLookup, ToolIDPublicWebSearch, ToolIDTransportScheduleLookup, ToolIDCampusNoticeDiscover, ToolIDCampusNoticeGet:
+	case ToolIDKnowledgeQuery, ToolIDKnowledgeSearch, ToolIDTransportScheduleLookup:
 		return true
 	default:
 		return false
@@ -634,7 +536,7 @@ func (value ToolID) Valid() bool {
 
 func (value RequestedTool) Valid() bool {
 	switch value {
-	case RequestedToolKnowledgeQuery, RequestedToolPlaceLookup, RequestedToolPublicWebSearch, RequestedToolTransportScheduleLookup, RequestedToolCampusNoticeDiscover:
+	case RequestedToolKnowledgeQuery, RequestedToolTransportScheduleLookup:
 		return true
 	default:
 		return false
@@ -644,15 +546,6 @@ func (value RequestedTool) Valid() bool {
 func (value ConfidenceLevel) Valid() bool {
 	switch value {
 	case ConfidenceLevelHigh, ConfidenceLevelMedium, ConfidenceLevelLow:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value DelegateStatus) Valid() bool {
-	switch value {
-	case DelegateStatusCompleted, DelegateStatusNeedsClarification, DelegateStatusNoAnswer, DelegateStatusError:
 		return true
 	default:
 		return false
@@ -677,13 +570,9 @@ func (value WorkflowMode) Valid() bool {
 	}
 }
 
-func (value StepOutputProjectionKind) Valid() bool {
+func (value AnswerArtifactKind) Valid() bool {
 	switch value {
-	case StepOutputProjectionKindNoticeContext,
-		StepOutputProjectionKindScheduleBaseline,
-		StepOutputProjectionKindPlaceContext,
-		StepOutputProjectionKindEvidenceBundle,
-		StepOutputProjectionKindGroundingVerdict:
+	case AnswerArtifactKindAgentFinalOutput:
 		return true
 	default:
 		return false
@@ -700,14 +589,8 @@ func (value StageTimingField) Valid() bool {
 		StageTimingFieldAgentRuntimeMs,
 		StageTimingFieldAgentFirstDeltaMs,
 		StageTimingFieldToolTotalMs,
-		StageTimingFieldToolKnowledgeQueryMs,
 		StageTimingFieldToolTransportScheduleLookupMs,
-		StageTimingFieldToolCampusNoticeDiscoverMs,
-		StageTimingFieldRagPlanMs,
-		StageTimingFieldRagLookupMs,
-		StageTimingFieldRagRerankMs,
-		StageTimingFieldRagSynthesisMs,
-		StageTimingFieldRagGroundingMs,
+		StageTimingFieldKnowledgeSearchMs,
 		StageTimingFieldFinalizationWriteMs,
 		StageTimingFieldProjectionCloseoutMs:
 		return true

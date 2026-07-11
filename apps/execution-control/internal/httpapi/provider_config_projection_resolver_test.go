@@ -92,6 +92,19 @@ func writeProviderProjectionForTest(t *testing.T) string {
 				"role": "primary_agent",
 				"timeout_ms": 30000,
 				"transport": "responses"
+			},
+			"rag_query_embedding": {
+				"api_key": "embedding-key",
+				"base_url": "https://embedding.example/v1",
+				"dimensions": 2560,
+				"kind": "embedding",
+				"model": "Qwen3-Embedding-4B",
+				"profile_id": "provider_profile_rag_query_embedding",
+				"provider": "openai-compatible",
+				"revision": 2,
+				"role": "rag_query_embedding",
+				"timeout_ms": 12000,
+				"transport": "embeddings"
 			}
 		}
 	}`

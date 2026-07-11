@@ -26,7 +26,6 @@ var requiredTemporalTaskQueues = []string{
 	temporalruntime.WorkflowTaskQueue,
 	temporalruntime.ActivityTaskQueueCore,
 	temporalruntime.ActivityTaskQueueAgent,
-	temporalruntime.ActivityTaskQueueKnowledge,
 }
 
 type checkOptions struct {

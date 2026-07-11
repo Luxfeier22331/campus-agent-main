@@ -1,5 +1,5 @@
-import type { OfficialWebFetchDisposition } from "ingestion-contracts";
 import type { PersistedOfficialWebPageObservation } from "./official-web-control-plane-types";
+import type { OfficialWebFetchDisposition } from "./official-web-lifecycle";
 import type { PgQueryable } from "./postgres-store";
 
 export async function insertTargetAttempts(

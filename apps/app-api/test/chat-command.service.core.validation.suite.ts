@@ -11,6 +11,39 @@ import {
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreValidationSuite(): void {
+	it("rejects retired requested scope fields before request acceptance", async () => {
+		const { store } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime: createExecutionRuntimeFromToolClient({
+				execute: vi.fn(),
+			}),
+		});
+		const retiredRequestedScopePayload = {
+			conversationId: "conv_01HQ",
+			prompt: "学生手册请假制度怎么规定？",
+			requestedScope: {
+				collection: "student_rules",
+				corpus: "regulations",
+			},
+		} as unknown as Parameters<typeof service.submit>[0]["payload"];
+
+		await expect(
+			service.submit({
+				payload: retiredRequestedScopePayload,
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			details: { field: "requestedScope" },
+			status: 422,
+		});
+	});
+
 	it("passes explicit versionQuery through validation, tool execution, and request writes", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
@@ -41,16 +74,15 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "2024 版学生手册里的图书馆开放到几点？",
-				requestedScope: {
-					collection: "student_rules",
-					corpus: "regulations",
-				},
+				requestedTool: "knowledge_query",
+				scope: "student_rules",
 				versionQuery: {
 					mode: "historical",
 					versionId: "v2024-student-rules",
 				},
 			},
 			principal: createPrincipal(),
+			requestKind: "internal_eval",
 		});
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
@@ -109,12 +141,15 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 				payload: {
 					conversationId: "conv_01HQ",
 					prompt: "比较 2024 和 2025 版学生手册",
+					requestedTool: "knowledge_query",
+					scope: "student_rules",
 					versionQuery: {
 						compareToVersionId: "v2025-student-rules",
 						mode: "compare",
 					},
 				},
 				principal: createPrincipal(),
+				requestKind: "internal_eval",
 			}),
 		).rejects.toMatchObject({
 			code: "validation_failed",

@@ -11,7 +11,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/temporal"
 )
@@ -34,70 +33,6 @@ func (s *Server) temporalActivityRun(
 			traceID,
 			run.TraceID,
 		)
-	}
-	if temporalRunTerminal(run.Status) {
-		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
-	}
-	return run, nil
-}
-
-func (s *Server) temporalActivityRunAllowCompletedFinalization(
-	ctx context.Context,
-	runID string,
-	traceID string,
-	synthesisRef string,
-) (execution.DurableRun, error) {
-	if s == nil || s.runProjectionStore == nil {
-		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
-	}
-	run, err := s.runProjectionStore.GetRun(ctx, runID)
-	if err != nil {
-		return execution.DurableRun{}, err
-	}
-	if run.TraceID != traceID {
-		return execution.DurableRun{}, fmt.Errorf(
-			"activity trace_id %s does not match run trace_id %s",
-			traceID,
-			run.TraceID,
-		)
-	}
-	if run.Status == execution.DurableRunStatusCompleted {
-		if _, err := temporalFinalizedResponseFromRun(run, synthesisRef); err != nil {
-			return execution.DurableRun{}, err
-		}
-		return run, nil
-	}
-	if temporalRunTerminal(run.Status) {
-		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
-	}
-	return run, nil
-}
-
-func (s *Server) temporalActivityRunAllowCompletedToolFinalization(
-	ctx context.Context,
-	runID string,
-	traceID string,
-	toolResultRef string,
-) (execution.DurableRun, error) {
-	if s == nil || s.runProjectionStore == nil {
-		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
-	}
-	run, err := s.runProjectionStore.GetRun(ctx, runID)
-	if err != nil {
-		return execution.DurableRun{}, err
-	}
-	if run.TraceID != traceID {
-		return execution.DurableRun{}, fmt.Errorf(
-			"activity trace_id %s does not match run trace_id %s",
-			traceID,
-			run.TraceID,
-		)
-	}
-	if run.Status == execution.DurableRunStatusCompleted {
-		if _, err := temporalToolResultFromRun(run, toolResultRef, ""); err != nil {
-			return execution.DurableRun{}, err
-		}
-		return run, nil
 	}
 	if temporalRunTerminal(run.Status) {
 		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
@@ -149,138 +84,6 @@ func temporalRunTerminal(status execution.DurableRunStatus) bool {
 	}
 }
 
-func (s *Server) failTemporalPlanning(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.PlanRouteActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "plan/route"),
-		ResultKind:    "activity_failure",
-		StepID:        "plan.route",
-		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.PlanRouteActivityOutput{}, err
-}
-
-func (s *Server) failRAGPlanActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.PlanRAGActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
-		ResultKind:    "activity_failure",
-		StepID:        "rag.plan",
-		StepKind:      "planning",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.PlanRAGActivityName),
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.PlanRAGActivityOutput{}, err
-}
-
-func (s *Server) failRetrieveIndexedLookupActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
-		ResultKind:    "activity_failure",
-		StepID:        "retrieval.indexed_lookup",
-		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.RetrieveIndexedLookupActivityName),
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
-}
-
-func (s *Server) failLiveSourceLookupActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.LiveSourceLookupActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/live-source-lookup"),
-		ResultKind:    "activity_failure",
-		StepID:        "retrieval.live_source_lookup",
-		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.LiveSourceLookupActivityName),
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.LiveSourceLookupActivityOutput{}, err
-}
-
-func (s *Server) failSelectEvidenceActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.SelectEvidenceActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "evidence/selection"),
-		ResultKind:    "activity_failure",
-		StepID:        "evidence.selection",
-		StepKind:      "selection",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SelectEvidenceActivityName),
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.SelectEvidenceActivityOutput{}, err
-}
-
-func (s *Server) failVerifyGroundingActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.VerifyGroundingActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          "knowledge_query",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "grounding/verify"),
-		ResultKind:    "activity_failure",
-		StepID:        "grounding.verify",
-		StepKind:      "grounding",
-		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.VerifyGroundingActivityName),
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	}, cause)
-	return temporalruntime.VerifyGroundingActivityOutput{}, err
-}
-
 func (s *Server) failFinalizationActivity(
 	ctx context.Context,
 	run execution.DurableRun,
@@ -311,7 +114,6 @@ type temporalStepFailureProjection struct {
 	FailCloseReason string
 	Payload         map[string]any
 	ProjectionRef   string
-	ProviderSummary *provider.ExecutionSummary
 	ResultKind      string
 	StepID          string
 	StepKind        string
@@ -349,7 +151,6 @@ func (s *Server) failTemporalRunStep(
 		UpdatedAt:       now,
 		ResultKind:      projection.ResultKind,
 		ProjectionRef:   projection.ProjectionRef,
-		ProviderSummary: projection.ProviderSummary,
 		TimeoutOutcome:  temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
 		Payload:         payload,
 	}); err != nil {
@@ -452,11 +253,10 @@ func (s *Server) failTemporalRun(
 		return execution.DurableRun{}, transitionErr
 	}
 	s.emitExecutionRunAuditEvent(failedRun, executionaudit.Event{
-		ActivityDuration: temporalFailureActivityDuration(projection),
-		EventType:        executionAuditEventTypeForFailure(ctx, projection, cause),
-		FailureKind:      failureKind,
-		OccurredAt:       failedAt,
-		Retryable:        failedRun.Retryable,
+		EventType:   executionAuditEventTypeForFailure(ctx, projection, cause),
+		FailureKind: failureKind,
+		OccurredAt:  failedAt,
+		Retryable:   failedRun.Retryable,
 	})
 	_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":run-failed",
@@ -478,13 +278,6 @@ func (s *Server) failTemporalRun(
 	return failedRun, nonRetryableTerminalProjectionError(failureKind, cause)
 }
 
-func temporalFailureActivityDuration(projection temporalStepFailureProjection) time.Duration {
-	if projection.ProviderSummary != nil && projection.ProviderSummary.LatencyMS > 0 {
-		return time.Duration(projection.ProviderSummary.LatencyMS) * time.Millisecond
-	}
-	return 0
-}
-
 func temporalFailureTerminalReason(
 	projection temporalStepFailureProjection,
 	failureKind string,
@@ -496,12 +289,9 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "rag_synthesis_provider_failed",
-		"rag_synthesis_provider_not_configured",
-		"agent_runtime_failed":
+	case "agent_runtime_failed", "provider_profile_missing":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "retrieval_lookup_failed",
-		"rag_lookup_unavailable":
+	case "knowledge_search_failed", "retrieval_lookup_failed":
 		return execution.DurableTerminalReasonRetrievalUnavailable
 	default:
 		return execution.DurableTerminalReasonWorkerUnavailable
@@ -537,39 +327,6 @@ func temporalRunFailureErrorPayload(failureKind string, cause error) map[string]
 		"message":   message,
 		"retryable": true,
 	}
-}
-
-func temporalFinalizedResponseFromRun(
-	run execution.DurableRun,
-	synthesisRef string,
-) (map[string]any, error) {
-	raw, ok := run.Metadata["temporal_rag"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("run metadata.temporal_rag is required")
-	}
-	if strings.TrimSpace(fmt.Sprint(raw["synthesis_ref"])) != synthesisRef {
-		return nil, fmt.Errorf("rag synthesis ref drift")
-	}
-	rawResponse, exists := raw["finalized_response"]
-	if !exists {
-		return nil, fmt.Errorf("run metadata.temporal_rag.finalized_response is required")
-	}
-	response, ok := rawResponse.(map[string]any)
-	if ok {
-		return response, nil
-	}
-	encoded, err := json.Marshal(rawResponse)
-	if err != nil {
-		return nil, fmt.Errorf("encode finalized response projection: %w", err)
-	}
-	decoded := map[string]any{}
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		return nil, fmt.Errorf("decode finalized response projection: %w", err)
-	}
-	if decoded == nil {
-		return nil, fmt.Errorf("run metadata.temporal_rag.finalized_response must be an object")
-	}
-	return decoded, nil
 }
 
 func temporalAgentResultFromRun(
@@ -643,20 +400,4 @@ func cloneAnyMapFromMetadata(value any) map[string]any {
 		cloned[key] = item
 	}
 	return cloned
-}
-
-func (s *Server) replaceTemporalRAGMetadata(
-	ctx context.Context,
-	run execution.DurableRun,
-	mutate func(map[string]any),
-) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	metadata := cloneTemporalMetadata(latest.Metadata)
-	ragMetadata := cloneAnyMapFromMetadata(metadata["temporal_rag"])
-	mutate(ragMetadata)
-	metadata["temporal_rag"] = ragMetadata
-	return s.runProjectionStore.ReplaceRunMetadata(ctx, latest.RunID, metadata)
 }

@@ -6,14 +6,10 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
   execution_contract_version: tool_execution_v1
   response_contract: execution_finalization_response_v2
-  runtime_decisions_schema_version: tool-execution-runtime-decisions-v1
-  runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v4
+  workflow_trace_summary_version: workflow-trace-summary-v5
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
-    runtime_decisions_schema_version: runtime_decisions shape changes must bump runtime_decisions_schema_version
-    runtime_decision_summary_schema_version: runtime decision summary shape changes must bump runtime_decision_summary_schema_version
     workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
 paths:
   /internal/execution/runs:
@@ -110,22 +106,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/execution/tool:
-    post:
-      summary: Private tool execution request.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ToolExecutionRequest"
-      responses:
-        "200":
-          description: Execution finalization response.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ExecutionFinalizationResponse"
 components:
   parameters:
     RunId:
@@ -154,7 +134,6 @@ components:
         - request_id
         - owner_user_id
         - surface
-        - task_queue
         - metadata
       properties:
         run_id:
@@ -171,16 +150,18 @@ components:
           type: string
         surface:
           type: string
-        requested_tool:
-          type: string
-        selected_tool:
-          type: string
-        task_queue:
-          type: string
         runtime_versions:
           $ref: "#/components/schemas/SafeObject"
         metadata:
-          $ref: "#/components/schemas/SafeObject"
+          $ref: "#/components/schemas/ExecutionRunMetadata"
+    ExecutionRunMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_payload
+      properties:
+        execution_payload:
+          $ref: "#/components/schemas/ExecutionPayload"
     ExecutionRunResponse:
       type: object
       additionalProperties: false
@@ -233,8 +214,6 @@ components:
         completed_at:
           type: string
         updated_at:
-          type: string
-        workflow_plan_ref:
           type: string
         final_response_ref:
           type: string
@@ -358,7 +337,6 @@ components:
         - model_provider
         - output_tokens
         - payload_schema_version
-        - pricing_version
         - provider_request_ref
         - provider_response_id
         - run_id
@@ -373,7 +351,6 @@ components:
         - terminal_reason
         - timeout_outcome
         - updated_at
-        - replan_reason
         - worker_id
         - workflow_id
       properties:
@@ -418,8 +395,6 @@ components:
           minimum: 0
         payload_schema_version:
           type: string
-        pricing_version:
-          type: string
         provider_request_ref:
           type: string
         provider_response_id:
@@ -448,8 +423,6 @@ components:
         timeout_outcome:
           type: string
         updated_at:
-          type: string
-        replan_reason:
           type: string
         worker_id:
           type: string
@@ -494,39 +467,24 @@ components:
       type: string
       enum:
         - knowledge_query
-        - place_lookup
-        - public_web_search
+        - knowledge_search
         - transport_schedule_lookup
-        - campus_notice_discover
-        - campus_notice_get
     ModelVisibleToolName:
       type: string
       enum:
         - knowledge_query
-        - public_web_search
         - transport_schedule_lookup
-        - campus_notice_discover
     RequestedTool:
       type: string
       enum:
         - knowledge_query
-        - place_lookup
-        - public_web_search
         - transport_schedule_lookup
-        - campus_notice_discover
     ConfidenceLevel:
       type: string
       enum:
         - high
         - medium
         - low
-    DelegateStatus:
-      type: string
-      enum:
-        - completed
-        - needs_clarification
-        - no_answer
-        - error
     ExecutionStatus:
       type: string
       enum:
@@ -543,245 +501,10 @@ components:
         - terminal
         - single_step
         - multi_step
-    StepOutputProjectionKind:
+    AnswerArtifactKind:
       type: string
       enum:
-        - notice_context
-        - schedule_baseline
-        - place_context
-        - evidence_bundle
-        - grounding_verdict
-    ProjectionSafetySummary:
-      type: object
-      additionalProperties: false
-      required:
-        - truncated
-        - redacted
-        - max_chars
-        - fields_present
-      properties:
-        truncated:
-          type: boolean
-        redacted:
-          type: boolean
-        max_chars:
-          type: integer
-          minimum: 0
-        fields_present:
-          type: array
-          items:
-            type: string
-    NoticeContextProjection:
-      type: object
-      additionalProperties: false
-      required:
-        - title
-        - body_excerpt
-        - source_url
-      properties:
-        title:
-          type: string
-        body_excerpt:
-          type: string
-        source_url:
-          type: string
-    StepOutputProjection:
-      type: object
-      additionalProperties: false
-      required:
-        - projection_id
-        - source_step_id
-        - projection_kind
-        - content_hash
-        - payload
-        - safety
-      properties:
-        projection_id:
-          type: string
-        source_step_id:
-          type: string
-        projection_kind:
-          $ref: "#/components/schemas/StepOutputProjectionKind"
-        content_hash:
-          type: string
-        payload:
-          oneOf:
-            - $ref: "#/components/schemas/NoticeContextProjection"
-            - $ref: "#/components/schemas/SafeObject"
-        safety:
-          $ref: "#/components/schemas/ProjectionSafetySummary"
-    WorkflowContextProjection:
-      type: object
-      additionalProperties: false
-      required:
-        - projection_id
-        - source_step_id
-        - projection_kind
-        - content_hash
-        - safety
-      properties:
-        projection_id:
-          type: string
-        source_step_id:
-          type: string
-        projection_kind:
-          $ref: "#/components/schemas/StepOutputProjectionKind"
-        content_hash:
-          type: string
-        safety:
-          $ref: "#/components/schemas/ProjectionSafetySummary"
-    WorkflowToolContext:
-      type: object
-      additionalProperties: false
-      required:
-        - schema_version
-        - visibility
-        - workflow_run_ref
-        - step_id
-        - tool_id
-        - expected_output_artifacts
-        - projection_refs
-      properties:
-        schema_version:
-          const: workflow-tool-context-v1
-        visibility:
-          const: tool_private
-        workflow_run_ref:
-          type: string
-        step_id:
-          type: string
-        tool_id:
-          $ref: "#/components/schemas/ToolID"
-        task_queue:
-          type: string
-        required_projection_kind:
-          $ref: "#/components/schemas/StepOutputProjectionKind"
-        expected_output_artifacts:
-          type: array
-          items:
-            $ref: "#/components/schemas/StepOutputProjectionKind"
-        projection_refs:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkflowContextProjection"
-    ToolInvocation:
-      type: object
-      additionalProperties: false
-      required:
-        - invocation_id
-        - workflow_run_ref
-        - step_id
-        - tool_id
-        - status
-        - allowed_tools
-        - used_tools
-        - projection_ids
-      properties:
-        invocation_id:
-          type: string
-        parent_invocation_id:
-          type: string
-        workflow_run_ref:
-          type: string
-        step_id:
-          type: string
-        tool_id:
-          $ref: "#/components/schemas/ToolID"
-        status:
-          type: string
-        allowed_tools:
-          type: array
-          items:
-            type: string
-        used_tools:
-          type: array
-          items:
-            type: string
-        projection_ids:
-          type: array
-          items:
-            type: string
-        fail_close_reason:
-          type: string
-    WorkflowPlanStep:
-      type: object
-      additionalProperties: false
-      required:
-        - step_id
-        - step_kind
-      properties:
-        step_id:
-          type: string
-        step_kind:
-          type: string
-        tool:
-          oneOf:
-            - $ref: "#/components/schemas/ToolID"
-            - type: string
-        task_queue:
-          type: string
-        payload_kind:
-          type: string
-        allowed_tools:
-          type: array
-          items:
-            type: string
-        selected_tool:
-          type: string
-    WorkflowPlanEdge:
-      type: object
-      additionalProperties: false
-      required:
-        - from_step_id
-        - to_step_id
-        - condition
-      properties:
-        from_step_id:
-          type: string
-        to_step_id:
-          type: string
-        condition:
-          type: string
-        required_projection_kind:
-          $ref: "#/components/schemas/StepOutputProjectionKind"
-    WorkflowPlan:
-      type: object
-      additionalProperties: false
-      required:
-        - schema_version
-        - plan_id
-        - workflow_mode
-        - allowed_tools
-        - steps
-        - edges
-        - terminal_policy
-        - resume_policy
-        - semantic_retry_policy
-      properties:
-        schema_version:
-          const: workflow-plan-v1
-        plan_id:
-          type: string
-        workflow_mode:
-          $ref: "#/components/schemas/WorkflowMode"
-        allowed_tools:
-          type: array
-          items:
-            $ref: "#/components/schemas/ToolID"
-        steps:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkflowPlanStep"
-        edges:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkflowPlanEdge"
-        terminal_policy:
-          $ref: "#/components/schemas/SafeObject"
-        resume_policy:
-          $ref: "#/components/schemas/SafeObject"
-        semantic_retry_policy:
-          $ref: "#/components/schemas/SafeObject"
+        - agent_final_output
     SafeObject:
       type: object
       additionalProperties: true
@@ -847,28 +570,10 @@ components:
         tool.total_ms:
           type: number
           minimum: 0
-        tool.knowledge_query_ms:
-          type: number
-          minimum: 0
         tool.transport_schedule_lookup_ms:
           type: number
           minimum: 0
-        tool.campus_notice_discover_ms:
-          type: number
-          minimum: 0
-        rag.plan_ms:
-          type: number
-          minimum: 0
-        rag.lookup_ms:
-          type: number
-          minimum: 0
-        rag.rerank_ms:
-          type: number
-          minimum: 0
-        rag.synthesis_ms:
-          type: number
-          minimum: 0
-        rag.grounding_ms:
+        knowledge.search_ms:
           type: number
           minimum: 0
         finalization.write_ms:
@@ -909,6 +614,8 @@ components:
       required:
         - role
         - message_id
+        - content
+        - created_at
       properties:
         role:
           enum:
@@ -918,10 +625,9 @@ components:
           type: string
         content:
           type: string
-        summary:
-          type: string
         created_at:
           type: string
+          format: date-time
     ConversationPreviousEvidenceRef:
       type: object
       additionalProperties: false
@@ -1002,12 +708,6 @@ components:
         - previous_evidence_refs
         - previous_tool_results
         - session_state
-        - visibility
-        - memory_recall
-        - source_attribution
-        - context_summary
-        - budget
-        - truncation
       properties:
         schema_version:
           const: conversation_context.v1
@@ -1038,10 +738,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConversationContextMessage"
-        previous_answer_summary:
-          oneOf:
-            - type: string
-            - type: "null"
         previous_evidence_refs:
           type: array
           items:
@@ -1052,287 +748,65 @@ components:
             $ref: "#/components/schemas/ConversationPreviousToolResultRef"
         session_state:
           $ref: "#/components/schemas/SafeObject"
-        visibility:
-          type: object
-          additionalProperties: false
-          required:
-            - model_visible
-            - runtime_only
-          properties:
-            model_visible:
-              type: array
-              items:
-                type: string
-            runtime_only:
-              type: array
-              items:
-                type: string
-        memory_recall:
-          type: object
-          additionalProperties: false
-          required:
-            - gate_field
-            - owner
-            - runtime
-          properties:
-            gate_field:
-              const: context.memory.enabled
-            owner:
-              const: execution-control
-            runtime:
-              const: hindsight
-        source_attribution:
-          type: array
-          items:
-            type: object
-            additionalProperties: false
-            required:
-              - item
-              - source
-              - model_visible
-            properties:
-              item:
-                type: string
-              source:
-                type: string
-              model_visible:
-                type: boolean
-        context_summary:
-          oneOf:
-            - type: string
-            - type: "null"
-        budget:
-          type: object
-          additionalProperties: false
-          required:
-            - token_estimate
-            - recent_turn_limit
-          properties:
-            token_estimate:
-              type: integer
-              minimum: 0
-            recent_turn_limit:
-              type: integer
-              minimum: 1
-        truncation:
-          oneOf:
-            - type: object
-              additionalProperties: true
-            - type: "null"
-    RequestedScope:
+    KnowledgeScopeID:
       type:
-        - object
+        - string
         - "null"
+      description: Model-facing knowledge scope id admitted by execution-control.
+    SessionUpdateSlot:
+      type: object
       additionalProperties: false
       required:
-        - corpus
-        - collection
+        - confirmed
+        - name
+        - value
       properties:
-        corpus:
+        confirmed:
+          const: true
+        name:
+          enum:
+            - curriculum_program
+            - curriculum_program_family
+            - curriculum_semester
+        value:
           type: string
-        collection:
-          type: string
+          minLength: 1
+    SessionUpdate:
+      type: object
+      additionalProperties: false
+      required:
+        - upsert_slots
+      properties:
+        upsert_slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionUpdateSlot"
     VersionQuery:
       type: object
       additionalProperties: false
       properties:
         mode:
-          type: string
+          enum:
+            - current
+            - historical
+            - as_of
+            - compare
         as_of:
           type: string
         version_id:
           type: string
         compare_to_version_id:
           type: string
-    ToolExecutionSubmitRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - request_id
-        - user_goal
-        - context
-      properties:
-        request_id:
-          type: string
-        conversation_id:
-          type: string
-        user_goal:
-          type: string
-        safety_identifier:
-          oneOf:
-            - type: string
-            - type: "null"
-        trace:
-          $ref: "#/components/schemas/TraceContext"
-        actor:
-          $ref: "#/components/schemas/ActorContext"
-        context:
-          $ref: "#/components/schemas/SafeObject"
-        requested_tool:
-          oneOf:
-            - $ref: "#/components/schemas/RequestedTool"
-            - type: "null"
-        requested_scope:
-          $ref: "#/components/schemas/RequestedScope"
-        version_query:
-          $ref: "#/components/schemas/VersionQuery"
-    RuntimeDecisionSummary:
-      type: object
-      additionalProperties: false
-      required:
-        - schema_version
-        - planning_outcome
-      properties:
-        schema_version:
-          const: runtime-decision-summary-v1
-        scope_gate_decision:
-          type: string
-        policy_gate_decision:
-          type: string
-        context_preflight_state:
-          type: string
-        routing_next_action:
-          type: string
-        planning_outcome:
-          type: string
-        selected_tool:
-          type: string
-        task_queue:
-          type: string
-        terminal_outcome:
-          type: string
-        fail_close_reason:
-          type: string
-        runtime_versions:
-          $ref: "#/components/schemas/SafeObject"
-        policy_artifact_versions:
-          $ref: "#/components/schemas/SafeObject"
-    RuntimeDecisions:
-      type: object
-      additionalProperties: true
-      required:
-        - schema_version
-        - effective_tool
-        - task_queue
-        - routing_frame
-        - runtime_decision_summary
-      properties:
-        schema_version:
-          const: tool-execution-runtime-decisions-v1
-        effective_tool:
-          $ref: "#/components/schemas/RequestedTool"
-        task_queue:
-          type: string
-        scope_gate:
-          $ref: "#/components/schemas/SafeObject"
-        policy_gate:
-          $ref: "#/components/schemas/SafeObject"
-        context_preflight:
-          $ref: "#/components/schemas/SafeObject"
-        tool_policy:
-          $ref: "#/components/schemas/SafeObject"
-        routing_frame:
-          $ref: "#/components/schemas/SafeObject"
-        handoff:
-          $ref: "#/components/schemas/SafeObject"
-        workflow_plan:
-          $ref: "#/components/schemas/WorkflowPlan"
-        terminal_envelope:
-          $ref: "#/components/schemas/SafeObject"
-        runtime_decision_summary:
-          $ref: "#/components/schemas/RuntimeDecisionSummary"
-    ToolRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - tool
-        - user_goal
-        - payload
-        - allowed_tools
-      properties:
-        tool:
-          $ref: "#/components/schemas/ToolID"
-        task_queue:
-          type: string
-        user_goal:
-          type: string
-        conversation_id:
-          type: string
-        tenant_id:
-          type: string
-        request_id:
-          type: string
-        safety_identifier:
-          oneOf:
-            - type: string
-            - type: "null"
-        trace:
-          $ref: "#/components/schemas/TraceContext"
-        actor:
-          $ref: "#/components/schemas/ActorContext"
-        context:
-          $ref: "#/components/schemas/SafeObject"
-        workflow_context:
-          $ref: "#/components/schemas/WorkflowToolContext"
-        payload:
-          type: object
-          additionalProperties: false
-          required:
-            - kind
-            - payload
-          properties:
-            kind:
-              type: string
-            payload:
-              $ref: "#/components/schemas/SafeObject"
-        allowed_tools:
-          type: array
-          items:
-            $ref: "#/components/schemas/ModelVisibleToolName"
-    ToolResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - tool
-        - status
-      properties:
-        tool:
-          $ref: "#/components/schemas/ToolID"
-        task_queue:
-          type: string
-        status:
-          $ref: "#/components/schemas/DelegateStatus"
-        answer_text:
-          type: string
-        follow_up_question:
-          type: string
-        confidence:
-          $ref: "#/components/schemas/ConfidenceLevel"
-        result:
-          oneOf:
-            - $ref: "#/components/schemas/SafeObject"
-            - type: "null"
-        error:
-          oneOf:
-            - $ref: "#/components/schemas/ErrorInfo"
-            - type: "null"
-        tool_observability:
-          oneOf:
-            - $ref: "#/components/schemas/SafeObject"
-            - type: "null"
-    ToolExecutionRequest:
+    ExecutionPayload:
       type: object
       additionalProperties: false
       required:
         - execution_contract_version
         - response_contract
         - user_goal
+        - conversation_id
         - request_id
-        - effective_tool
-        - task_queue
-        - requested_tool
         - trace
-        - actor
         - context
         - version_query
       properties:
@@ -1350,26 +824,16 @@ components:
           oneOf:
             - type: string
             - type: "null"
-        effective_tool:
-          $ref: "#/components/schemas/RequestedTool"
-        task_queue:
-          type: string
         requested_tool:
           $ref: "#/components/schemas/RequestedTool"
-        requested_scope:
-          $ref: "#/components/schemas/RequestedScope"
+        scope:
+          $ref: "#/components/schemas/KnowledgeScopeID"
         trace:
           $ref: "#/components/schemas/TraceContext"
-        actor:
-          $ref: "#/components/schemas/ActorContext"
         context:
           $ref: "#/components/schemas/ExecutionRequestContext"
         version_query:
           $ref: "#/components/schemas/VersionQuery"
-        runtime_decisions:
-          $ref: "#/components/schemas/RuntimeDecisions"
-          deprecated: true
-          description: Historical handoff planning artifact. Active plan.route does not consume this as planning input.
     ExecutionRequestContext:
       type: object
       additionalProperties: true
@@ -1383,68 +847,45 @@ components:
       type: object
       additionalProperties: false
       required:
-        - routing_frame
-        - context_resolution
-        - planning_outcome
-        - direct_vs_delegate_branch
         - workflow_mode
-        - handoff
-        - handoff_chain
-        - tool_invocations
         - selected_tool
         - selected_tools
-        - context_projections
-        - answer_artifact_projection_ids
+        - first_decision_actor
+        - planning_outcome
+        - direct_vs_delegate_branch
+        - terminal_reason
         - answer_artifact_kinds
-        - tool_argument_summary
-        - guardrail_outcomes
-        - fail_close_reason
+        - answer_artifact_refs
+        - trace_steps
+        - tool_call_summaries
         - runtime_versions
-        - policy_artifact_versions
       properties:
-        routing_frame:
-          $ref: "#/components/schemas/SafeObject"
-        context_resolution:
-          $ref: "#/components/schemas/SafeObject"
-        planning_outcome:
-          type: string
-        direct_vs_delegate_branch:
-          type: string
         workflow_mode:
           $ref: "#/components/schemas/WorkflowMode"
-        handoff:
-          $ref: "#/components/schemas/SafeObject"
-        handoff_chain:
-          type: array
-          items:
-            $ref: "#/components/schemas/SafeObject"
-        tool_invocations:
-          type: array
-          items:
-            $ref: "#/components/schemas/ToolInvocation"
         selected_tool:
           oneOf:
             - $ref: "#/components/schemas/ToolID"
-            - type: string
             - type: "null"
         selected_tools:
           type: array
           items:
             type: string
-        context_projections:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkflowContextProjection"
-        answer_artifact_projection_ids:
-          type: array
-          items:
-            type: string
+        first_decision_actor:
+          type: string
+        planning_outcome:
+          type: string
+        direct_vs_delegate_branch:
+          type: string
+        terminal_reason:
+          type: string
         answer_artifact_kinds:
           type: array
           items:
-            $ref: "#/components/schemas/StepOutputProjectionKind"
-        tool_argument_summary:
-          $ref: "#/components/schemas/SafeObject"
+            $ref: "#/components/schemas/AnswerArtifactKind"
+        answer_artifact_refs:
+          type: array
+          items:
+            type: string
         trace_steps:
           type: array
           items:
@@ -1453,13 +894,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SafeObject"
-        guardrail_outcomes:
-          $ref: "#/components/schemas/SafeObject"
-        fail_close_reason:
-          type: string
         runtime_versions:
-          $ref: "#/components/schemas/SafeObject"
-        policy_artifact_versions:
           $ref: "#/components/schemas/SafeObject"
     ExecutionFinalizationResponse:
       type: object
@@ -1472,6 +907,8 @@ components:
         - confidence
         - result
         - error
+        - resolved_scope
+        - session_update
         - trace_id
       properties:
         selected_tool:
@@ -1497,6 +934,12 @@ components:
         observability:
           oneOf:
             - $ref: "#/components/schemas/SafeObject"
+            - type: "null"
+        resolved_scope:
+          $ref: "#/components/schemas/KnowledgeScopeID"
+        session_update:
+          oneOf:
+            - $ref: "#/components/schemas/SessionUpdate"
             - type: "null"
         workflow_trace_summary:
           oneOf:

@@ -34,8 +34,10 @@ describe("contract schema registry", () => {
 
 	it("keeps model-visible runtime tool schemas on registered JSON Schema refs", () => {
 		const registry = readJson("packages/contracts/schemas/contract-schema-registry.v1.json");
+		const registryEntries = (registry.entries as Record<string, unknown>[] | undefined) ?? [];
+		expect(registryEntries.map((entry) => entry.id)).not.toContain("public-web-tool-contracts.v1");
 		const schemaIds = new Set(
-			((registry.entries as Record<string, unknown>[] | undefined) ?? [])
+			registryEntries
 				.map((entry) => entry.path)
 				.filter((path): path is string => typeof path === "string" && path.endsWith(".schema.json"))
 				.map((path) => readJson(path).$id)
@@ -72,13 +74,17 @@ describe("contract schema registry", () => {
 			.map((tool) => String(tool.name))
 			.sort();
 		const requestableNames = tools
-			.filter((tool) => tool.exposure !== "internal_only")
+			.filter((tool) => tool.exposure === "model_visible")
 			.map((tool) => String(tool.name));
+		const functionSchemaNames = functionSchemas.map((tool) => String(tool.name)).sort();
 
 		expect(toolIds).toEqual(expect.arrayContaining(catalogNames));
 		expect(requestedTools).toEqual(expect.arrayContaining(requestableNames));
 		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
-		expect(functionSchemas.map((tool) => String(tool.name)).sort()).toEqual(modelVisibleNames);
+		expect(functionSchemaNames).toEqual(expect.arrayContaining(modelVisibleNames));
+		expect(functionSchemaNames).toContain("knowledge_search");
+		expect(modelVisibleNames).not.toContain("knowledge_search");
+		expect(modelVisibleNames).not.toContain("public_web_search");
 	});
 
 	it("rejects raw replay sections when the capture policy does not admit them", () => {
@@ -101,5 +107,27 @@ describe("contract schema registry", () => {
 		expect(() =>
 			validateJsonArtifactInvariants("llm-replay-packet.v1", "test-fixture.json", packet),
 		).toThrow(/forbidden raw replay key/u);
+	});
+
+	it("rejects replay index identity drift", () => {
+		const index = readJson(
+			"packages/contracts/fixtures/replay_capture/llm-replay-packet-index.v1.agent_primary.valid.json",
+		);
+		(index.llm_io_fingerprint as Record<string, unknown>).request_id = "req_other";
+
+		expect(() =>
+			validateJsonArtifactInvariants("llm-replay-packet-index.v1", "test-fixture.json", index),
+		).toThrow(/index request_id must match llm_io_fingerprint/u);
+	});
+
+	it("rejects raw sections in replay indexes", () => {
+		const index = readJson(
+			"packages/contracts/fixtures/replay_capture/llm-replay-packet-index.v1.agent_primary.valid.json",
+		);
+		index.provider_response_body = { output: "forbidden" };
+
+		expect(() =>
+			validateJsonArtifactInvariants("llm-replay-packet-index.v1", "test-fixture.json", index),
+		).toThrow(/forbidden replay index key/u);
 	});
 });

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-07-10
+updated: 2026-07-11
 ---
 # 当前架构
 
@@ -38,10 +38,10 @@ updated: 2026-07-10
 `browser -> campus-web Q&A -> app-api durable chat lifecycle SSE
 (/api/chat/requests/stream, /api/chat/runs/:runId/events/stream) ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-core / activity-worker-agent /
-activity-worker-knowledge -> memory recall / typed
-tool branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
-models -> sanitized projection`
+workflow-worker / activity-worker-core / activity-worker-agent ->
+Memory Recall -> one Agent Activity running the complete OpenAI Agents SDK
+primary/Knowledge Agent loop -> Finalization -> Memory Append -> sanitized
+projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -83,8 +83,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   ingress，不是 browser surface upstream
 - `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端
 - `apps/execution-control` 负责 internal workflow command/query、admission/policy gate、
-  Temporal start/cancel/query seam、memory recall + RAG activity execution 与
-  sanitized projection writeback
+  Temporal start/cancel/query seam、memory activities、internal query admission、
+  evidence/source validation 与 sanitized projection writeback
 - Docker Compose execution runtime 只保留 local diagnostics；长期 production
   target substrate 已由 ADR-0056 与 Kubernetes execution runtime architecture
   收口为 K8s + KEDA。应用仓只保留 namespace-neutral Kustomize base；
@@ -97,23 +97,25 @@ dining.review_projections -> app-api /api/dining/* reader`
   启动 / 取消 `ToolExecutionWorkflow`，Temporal task queue 承担 execution substrate
 - PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
   tables 是 app-api / Operator Console / eval 消费的 sanitized run projection store
-- 当前在线主问答路径已进入 first Execution Agent decision / direct no-tool terminal
-  branch：`ToolExecutionWorkflow` 执行
-  `context.memory_recall -> agent.primary -> finalization.write`。
-  `agent.primary` 由 `activity-worker-agent` 调用 `apps/agent-runtime`，后者使用
-  OpenAI Agents SDK 承接模型-facing instructions、tool loop 与 direct/no-tool
-  final output；Go `execution-control` 保留 durable envelope、Temporal timeout /
-  cancel、memory projection refs、visible tool allowlist、sanitized
-  `agent.primary` step projection 与 finalization ownership。
+- 当前在线主问答路径固定为四阶段：`Memory Recall -> Agent Activity ->
+  Finalization -> Memory Append`。`activity-worker-agent` 在单个 Agent Activity
+  中调用 `apps/agent-runtime`，一次 OpenAI Agents SDK run 完成 primary agent、
+  official `handoff()`、Knowledge Agent 与 SDK function tool loop。Go
+  `execution-control` 保留 durable envelope、Temporal timeout/cancel、memory
+  projection refs、runtime admission、sanitized projection 与 finalization ownership。
 - 当前 ordinary chat 缺失 explicit tool hint 时保持 primary-agent-first：
-  `app-api` 允许 `requestedTool=null`，Go `execution-control` 不再把缺失
-  `requested_tool` 写成 `knowledge_query`，而是把 admitted visible tool set
-  交给 `agent.primary` 决策。neutral memory recall 使用 `any` tool filter，
+  public app-api body 只接受 `conversationId?` 与 `prompt`，Go
+  `execution-control` 根据 runtime registry 生成 admitted visible tool set 并交给
+  `agent.primary` 决策。neutral memory recall 使用 `any` tool filter，
   direct/no-tool finalization 归因到 `primary_agent`。
-- `plan.route -> tool branch` 不再是主问答链路的第一模型决策。知识分支 RAG graph
-  为 `rag.plan -> retrieval.indexed_lookup|retrieval.live_source_lookup ->
-  evidence.selection -> synthesis -> grounding.verify`。fresh/live 只在 query-serving
-  scope policy admit 后进入 `retrieval.live_source_lookup`，不是普通查询默认路径。
+- 当前代码事实中，`knowledge_query` 是 model-visible SDK handoff。Primary
+  agent 选择它后通过官方 `handoff()` 进入同一 SDK run 内的 Knowledge Agent；
+  Knowledge Agent 只可调用 internal-only `knowledge_search`。`knowledge_search`
+  由 execution-control 执行 scope/version admission、embedding、Qdrant lookup、
+  optional rerank 与 bounded evidence projection。
+- Temporal 不把 SDK handoff、function-tool call 或 Knowledge Agent 执行展开为
+  额外 activity/queue。SDK `maxTurns` 只限制单次 SDK run 的 turn 数，不改变
+  四阶段 workflow。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Hindsight self-host runtime；
   app-api chat submit 不再读取 PG `profile.memory_items` 并全量注入
   `context.profile_memory`。Qdrant 只承载 institutional RAG。
@@ -121,13 +123,12 @@ dining.review_projections -> app-api /api/dining/* reader`
   execution-control `/steps`、app-api operator summary 与 Operator Console
   trajectory 已承载 activity metadata、queue wait、duration、provider/model、
   token/cost、cancel/timeout outcome 字段。`provider_execution_summary_v1` 与
-  provider pricing readiness contract 已存在；activity timeout / context cancel
-  可以投影为 first-class `activity_timeout` / `activity_context_canceled` outcome。
-- 当前 online RAG lookup 由 Go Qdrant native adapter 执行，Qdrant 仍是
-  self-hosted authenticated private data-plane；embedding/provider 调用使用 Go
-  cancellable HTTP context，synthesis provider execution 由
-  `SynthesizeRAGAnswerActivity` 记录 `provider_execution_summary_v1`、usage、
-  estimated cost 与 cancel / timeout outcome。
+  activity timeout / context cancel 可以投影为 first-class
+  `activity_timeout` / `activity_context_canceled` outcome。
+- 当前 `knowledge_search` 由 Go Qdrant native adapter 执行，Qdrant 仍是
+  self-hosted authenticated private data-plane；embedding 与 rerank provider 调用
+  使用 Go cancellable HTTP context。语义答案与 evidence-backed structured output
+  由 Knowledge Agent 生成。
 - 当前 cancel / timeout / late-completion 证据由 Temporal activity context、Go
   lookup/provider adapter、user cancel projection closeout 和 sanitized step attempt
   projection 承接；repo-local projection path 已能记录
@@ -135,9 +136,8 @@ dining.review_projections -> app-api /api/dining/* reader`
   `provider_connection_aborted`、provider timeout 与 late completion ignored。
 - Python `apps/supervisor-agent-worker` 不属于当前 serving workspace，不得作为
   readiness dependency、online fallback 或 active workflow branch 恢复。
-- opened deterministic structured tool 必须作为 Go-owned typed Temporal
-  activity 执行并写入 sanitized projection；未完成 worker contract 的 tool
-  fail closed，不走 Python serving shortcut。
+- model-visible 与 internal tools 都只在 OpenAI Agents SDK tool loop 内执行；
+  internal query 仍由 owning service fail closed，不走 Python serving shortcut。
 - online query path 与 offline data plane 持续分层
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
   Temporal workflow start、registry-aware activity dispatch、materialize、publish、
@@ -160,12 +160,15 @@ dining.review_projections -> app-api /api/dining/* reader`
 - `regulations/student_rules`
 - `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
-- `official_web/stable_reference`
+
+这里的 query-enabled surface 是 runtime admission / policy truth。`official_web`
+当前仍未完成 source-truth -> canonical documents -> chunks -> index -> release
+manifest -> alias publish 闭环，因此不进入 online `knowledge_search` scope
+admission，也没有 live web-search fallback。
+official-web 的消费链路边界以
+`docs/architecture/domains/official-web/architecture.md` 为准。
 
 当前非默认公开查询面：
-
-- `official_web/fresh_news` 仅面向 freshness intent / `freshness_sensitive` /
-  `live_assisted` admission，不是默认 query-enabled surface。
 
 - `campus_notices/internal_notice` authenticated notice source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
@@ -270,74 +273,67 @@ dining.review_projections -> app-api /api/dining/* reader`
   `GET /internal/execution/runs/:runId/steps`、
   `POST /internal/execution/runs/:runId/cancel`
 - 拥有 request body limit、caller auth、strict env parsing、request projection、
-  Temporal workflow command/cancel、memory recall + RAG activity execution、
-  sanitized projection writeback、timeout、readiness、metrics、OTel telemetry
-  seam 与 graceful drain
+  Temporal workflow command/cancel、memory activities、internal query admission、
+  evidence/source validation、sanitized projection writeback、timeout、readiness、
+  metrics、OTel telemetry seam 与 graceful drain
 - 当前 execution plane 已切为 self-hosted Temporal：`app-api` accepted chat
   request 调用 `execution-control` 创建 Temporal-backed run，Temporal
   workflow/activity worker 负责执行编排，PG `runtime.agent_runs` / events /
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
   projection truth。
-- 当前 `ToolExecutionWorkflow` 主干已切为 `context.memory_recall ->
-  agent.primary -> finalization.write` 或 `context.memory_recall ->
-  agent.primary -> knowledge RAG graph -> finalization.write`。`agent.primary`
-  通过 OpenAI Agents SDK 暴露 model-visible read-only tool catalog，由模型在
-  agent loop 内决定是否调用工具；无工具请求可直接产出 final output。knowledge
-  请求只向模型暴露 `knowledge_query` workflow-signal tool，实际 RAG 仍进入
-  Go-owned Temporal graph；`retrieval.query` 不作为 model-visible tool 暴露。
+- 当前 `ToolExecutionWorkflow` 只有四阶段：`Memory Recall -> Agent Activity ->
+  Finalization -> Memory Append`。Agent Activity 内的一次 OpenAI Agents SDK run
+  拥有全部 agent/tool loop；无工具请求直接形成 terminal output，知识请求由
+  primary agent 通过官方 `handoff()` 进入 Knowledge Agent。
+- `knowledge_query` 是 model-visible handoff，`knowledge_search` 是 Knowledge
+  Agent 唯一可调用的 internal-only tool。Raw retrieval endpoint、collection、top-k
+  与 provider-specific tool 均不对 primary agent 或 browser 暴露。
   runtime catalog 的 tool payload/result schema ref 只允许指向已登记 JSON
   Schema `$id#/$defs/...`；Python `campus_contracts.*` dataclass 只是
   language-local helper，不是 active runtime schema truth。
-  当前 projection-backed 且 runtime-supported 的 campus-services / notice read-only
-  tools 通过 `tools.v4` 与 runtime config `open_tools` 暴露给
-  `agent.primary`，并由 execution-control internal query endpoint 执行；Go runtime
-  通过 tool registry / function schema / endpoint drift test 约束可调用性。存在
-  ToolSpec 或 contract 不等于 model-visible，未被 profile 打开的工具必须保持
-  closed。
+  当前 runtime-supported tools 通过 `tools.v4`、`tool-function-schemas.v1` 与
+  `workflow-artifacts.v2` 暴露给 `agent.primary`，并由 execution-control internal
+  query endpoint 执行；Go runtime 通过 tool registry / function schema / endpoint
+  drift test 约束可调用性。存在 ToolSpec 或 contract 不等于 model-visible；
+  runtime config 不再承担独立工具 allowlist，只配置依赖、预算与观测。
   每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
 - 当前 public durable chat path 已具备 primary-agent-first metadata、primary agent
-  direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
-  与 `notice` 已有 typed tool/internal-query 基底；只有 `tools.v4`
-  中 model-visible 且被 runtime config 打开的工具会进入 primary agent 可见工具集。
-  `navigation` 仍默认 closed，必须 fail closed。`campus_services` 当前 model-visible 范围只包含
-  `transport_schedule_lookup`；generic service status、service guide、contact
-  directory 与 academic calendar 不属于当前打开工具面。
+  direct/no-tool terminal branch、model-selected `knowledge_query` handoff
+  和 agent-result finalization。`campus_services` 已有 internal-query 基底；
+  只有 runtime tool registry 中
+  model-visible 且拥有严格 function schema 的工具会进入 primary agent 可见工具集。
+  `navigation` 仍默认 closed，必须 fail closed。当前 model-visible surfaces
+  是 function tool `transport_schedule_lookup` 与 official handoff target
+  `knowledge_query`；
+  generic service status、service guide、contact directory、notice product
+  tools 与 academic calendar 不属于当前打开工具面。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。
-- 当前 ordinary chat first decision 由 `agent.primary` 在已裁剪的 visible tool set
-  内完成；RAG graph 与 typed tools 保留各自内部 deterministic projection /
-  validation support path。
-- `ToolExecutionWorkflow` 的当前主干由 primary agent SDK loop 承接工具选择
-  与 direct answer；当 primary agent 选择 `knowledge_query` 时，workflow 使用
-  agent result projection ref 作为 plan/dependency input 进入 Go RAG graph。
-  保留的 resolved branch plan 仍可执行：knowledge step 进入 Go RAG graph；
-  `campus_services` / `notice` step 进入 typed tool activity；
-  selected-notice follow-through 可由 resolver 编译为 typed tool step + knowledge
-  step。workflow trace / projection 只记录 bounded result refs、step metadata 与 safe
-  summaries，不携带 raw projection payload。
-- 拥有 deterministic runtime policy；当前实现位于
-  `apps/execution-control/internal/runtimepolicy`，负责 product scope gate、
-  readiness / reject gate、context follow-up preflight、query-enabled scope
-  admission 与 tool policy version；intent signal taxonomy、reason
-  code 与 case-set version 当前由 `configs/runtime/intent-policy.v1.json`
-  持有，Go runtime policy 加载该 artifact，并在缺失或 version drift 时
-  fail-closed
-- 拥有 runtime decision summary 与 typed activity projection；terminal response 由
-  `app-api` 从 sanitized projection / run events closeout，不再由 execution-control
-  同步 answer endpoint 返回
+- 当前 ordinary chat first decision、handoff 与 function tool execution 都由同一
+  OpenAI Agents SDK run 完成。workflow trace / projection 只记录 bounded result
+  refs、step metadata 与 safe
+  summaries，不携带 raw projection payload。execution payload 只承载 request facts
+  与可选 trusted hint，不承载第二套 planner decision object。
+- 拥有 runtime tool registry 与 query-serving scope registry admission；
+  当前实现位于 `apps/execution-control/internal/runtimepolicy`，缺失、版本漂移或
+  未发布 scope 必须 fail closed。工具选择由 primary-agent tool loop 完成，不存在
+  平行 intent policy 或 classifier。
+- finalization 校验 terminal output、已投影 evidence refs 与 source identity，生成
+  browser-safe sources 后写入终态；它不调用模型，也不改写 answer text
+- `app-api` 从 sanitized projection / run events closeout，原样持久化并流式返回
+  finalized answer 与 sources，不执行第二次答案改写
 - 拥有 online runtime OTel trace owner 责任：`execution-control` 接收 trace context，
   发出 sanitized OTLP trace signal 到 Collector seam，并在 Collector/exporter 不可用时保持
   answer path fail-safe
-- 拥有 Go-owned finalization 与 response-level observability projection
-- 对已打开的 deterministic structured payload，只有具备 typed Temporal
-  activity contract、projection contract 与 task queue poller 的 tool 才允许
-  serving；缺 worker/config/poller 时 fail closed
-- 不拥有 product-layer auth/session/conversation、browser-facing tool
-  policy 或 agent semantic reasoning
+- 拥有 execution-control finalization validation 与 response-level observability
+  projection
+- worker pool 只包含 workflow、core 与 agent；不存在按 tool、knowledge 或
+  specialist 拆分的 Temporal worker/queue
+- 不拥有 product-layer auth/session/conversation 或 agent semantic reasoning
 
 ### `apps/ingestion-control`
 
@@ -389,39 +385,43 @@ dining.review_projections -> app-api /api/dining/* reader`
 
 ## 当前 Package / Runtime 边界
 
-- `apps/execution-control` 当前拥有 Go-owned knowledge / RAG Temporal activity graph，
-  负责 retrieval-specific planning、evidence selection、grounded synthesis 与
-  fail-close finalization runtime
-- 产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线。
-  deterministic place / point reads 必须先表现为 typed tool 或 internal query
-  service；重新开放前必须在 TS/Go owner 中建立 runtime
+- `apps/agent-runtime` 当前拥有唯一 OpenAI Agents SDK agent/tool loop；primary
+  agent 与 Knowledge Agent 在同一次 SDK run 内通过 official handoff 连接
+- `apps/execution-control` 当前拥有 Temporal durable envelope、scope/version
+  admission、`knowledge_search` retrieval、bounded evidence/source validation 与
+  fail-close finalization projection
+- 当前没有 model-visible place tool 或 execution contract。place catalog 仅由
+  campus-map read surface 消费；未来 place finding 必须建立新的 TS/Go runtime、
+  ToolSpec 与 browser projection contract
 - `campus_services` 当前由 `apps/execution-control` 拥有 Go tool read model runtime。
-  model-visible opened tool 只有 `transport_schedule_lookup`。generic service status、
+  model-visible tool 只有 `transport_schedule_lookup`。generic service status、
   service guide、contact directory、process guide 与 academic calendar 不属于当前
   campus-services runtime surface。
-- repo-owned internal retrieval seam / Go RAG runtime 负责 retrieval abstraction、
-  metadata pre-filter、evidence shaping
+- repo-owned internal `knowledge_search` seam 负责 metadata pre-filter、embedding、
+  Qdrant lookup、optional rerank 与 bounded evidence shaping
 - `apps/ingestion-control` ingestion task control plane and Temporal worker
   runtime；TS `packages/ingest-core` 提供 runtime-neutral ingestion helpers；
   未来 OCR / file extraction 需重新 admission 为 explicit adapter boundary
-- `packages/contracts` tool handoff 与 shared typed seam
+- `packages/contracts` execution wire、tool payload/result 与 runtime artifact
+  shared schema seam
 
 ## 当前术语真相
 
-- Active product/routing concept is `tool`.
-- Model-visible opened tools are concrete tool ids such as
-  `knowledge_query`, `transport_schedule_lookup` and `campus_notice_discover`.
+- Model-visible agent surfaces are SDK function tools and official handoffs.
+- The current set is function tool `transport_schedule_lookup` and handoff
+  target `knowledge_query`.
+- `knowledge_query` is selected by `agent.primary` through the OpenAI Agents SDK
+  `handoff()` API. It is not a function tool or agent-as-tool wrapper.
+  `knowledge_search` is internal-only and visible only to the Knowledge Agent.
 - `knowledge`, `campus_services`, `notice` and `navigation` may still appear as
-  runtime labels, package names, queue names, projection labels or semantic
-  specialist labels. They are not product-level tool abstractions and do
-  not replace concrete ToolSpec entries.
-- `ToolRequest` / `ToolResponse`, `requested_tool` and
-  `selected_tool` are current wire/projection fields.
-  New active runtime descriptions should say tool handoff, tool dispatch and
-  selected tool unless referring to the exact field or file name.
+  runtime labels, package names or projection labels. They do not name worker
+  pools, task queues or a second semantic routing layer.
+- `requested_tool` and `selected_tool` are current wire/projection fields.
+  New active runtime descriptions should distinguish SDK handoff, function-tool
+  call and selected tool unless referring to the exact field or file name.
 - Serving expansion is opened only by adding concrete ToolSpec entries,
-  runtime config `open_tools`, contracts, workers/read models and eval
-  denominators. Product routing vocabulary remains concrete tool id only.
+  model-visible registry/schema entries, contracts, internal query owners and
+  eval denominators. Product routing vocabulary remains concrete tool id only.
 
 ## 当前文档地图
 

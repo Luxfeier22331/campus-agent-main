@@ -1,7 +1,9 @@
-import { canonicalJsonString } from "ingest-core";
+import {
+	canonicalJsonString,
+	normalizeIngestionTaskProjectionLimit as normalizeProjectionLimit,
+	toIngestionTaskOperatorProjection as toOperatorProjection,
+} from "ingest-core";
 import { validateIngestionTaskEnvelope } from "ingestion-contracts";
-
-import { normalizeProjectionLimit, toOperatorProjection } from "./projection";
 import type {
 	IngestionArtifactRef,
 	IngestionTaskAdmissionResult,

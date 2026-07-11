@@ -1,5 +1,6 @@
 import type { ChatMessageStructuredPart, ChatSourceItem } from "../../chat";
 import type { ToolExecutionResponse } from "../../integration";
+import { normalizeDocsReaderPath } from "../../source-trace";
 import {
 	isRecord,
 	normalizeOptionalString,
@@ -11,25 +12,6 @@ import {
 	normalizedAllowedPublicNoticeHosts,
 	normalizePublicNoticeUrl,
 } from "./public-notice-url-policy";
-
-function normalizeDocsReaderPath(value: unknown): string | null {
-	const canonicalUrl = normalizeOptionalString(value);
-	if (
-		!canonicalUrl?.startsWith("/docs/") ||
-		canonicalUrl.startsWith("//") ||
-		canonicalUrl.includes("://") ||
-		canonicalUrl.includes("..")
-	) {
-		return null;
-	}
-
-	const [withoutHash = ""] = canonicalUrl.split("#", 1);
-	const [path = ""] = withoutHash.split("?", 1);
-	const normalizedPath = path.replace(/\/+$/u, "");
-	return normalizedPath.startsWith("/docs/") && normalizedPath.length > "/docs/".length
-		? normalizedPath
-		: null;
-}
 
 function normalizeAnchor(value: unknown): Record<string, unknown> {
 	return isRecord(value) ? value : {};
@@ -106,7 +88,6 @@ function normalizeSourceKind(source: Record<string, unknown>): ChatSourceItem["s
 		explicit === "curriculum" ||
 		explicit === "document" ||
 		explicit === "notice" ||
-		explicit === "public_web" ||
 		explicit === "regulation"
 	) {
 		return explicit;
@@ -156,7 +137,7 @@ function normalizeSourceTargetKind(
 	return null;
 }
 
-function normalizePublicWebUrl(value: unknown): string | null {
+function normalizeExternalSourceUrl(value: unknown): string | null {
 	const rawUrl = normalizeOptionalString(value);
 	if (!rawUrl) {
 		return null;
@@ -193,8 +174,15 @@ function sourceOriginalNoticeUrl(
 	);
 }
 
-function sourcePublicWebUrl(source: Record<string, unknown>): string | null {
-	return normalizePublicWebUrl(source.url ?? source.href ?? source.source_url ?? source.sourceUrl);
+function sourceExternalUrl(source: Record<string, unknown>): string | null {
+	return normalizeExternalSourceUrl(
+		source.canonical_url ??
+			source.canonicalUrl ??
+			source.url ??
+			source.href ??
+			source.source_url ??
+			source.sourceUrl,
+	);
 }
 
 function sourcePublisherLabel(source: Record<string, unknown>): string {
@@ -318,7 +306,7 @@ function buildRestrictedNoticeSourceItem(input: {
 	};
 }
 
-function buildPublicWebSourceItem(input: {
+function buildExternalSourceItem(input: {
 	source: Record<string, unknown>;
 	title: string;
 	snippet: string | null;
@@ -326,7 +314,7 @@ function buildPublicWebSourceItem(input: {
 }): ChatSourceItem {
 	return {
 		targetKind: "public_web_url",
-		sourceKind: "public_web",
+		sourceKind: normalizeSourceKind(input.source),
 		title: input.title,
 		snippet: input.snippet,
 		primaryAction: {
@@ -337,7 +325,7 @@ function buildPublicWebSourceItem(input: {
 		},
 		secondaryActions: [],
 		sectionTitle: "",
-		collectionLabel: "公开网页",
+		collectionLabel: collectionLabel(recordString(input.source, "collection", "collection")),
 		publisherLabel: sourcePublisherLabel(input.source),
 		publishedAt: sourcePublishedAt(input.source),
 		versionLabel: "",
@@ -365,15 +353,13 @@ function normalizeSourceItem(
 		recordString(source, "title", "title");
 	const snippet = normalizeSnippet(source.snippet);
 	const originalNoticeUrl = sourceOriginalNoticeUrl(source, allowedPublicNoticeHosts);
-	const publicWebUrl = sourcePublicWebUrl(source);
+	const externalUrl = sourceExternalUrl(source);
 	const targetKind = normalizeSourceTargetKind(
 		source,
 		Boolean(basePath),
 		Boolean(originalNoticeUrl),
 	);
-	const normalizedTargetKind =
-		targetKind ??
-		(normalizeSourceKind(source) === "public_web" && publicWebUrl ? "public_web_url" : null);
+	const normalizedTargetKind = targetKind;
 	if (!(normalizedTargetKind && title)) {
 		return null;
 	}
@@ -386,9 +372,9 @@ function normalizeSourceItem(
 	}
 
 	if (normalizedTargetKind === "public_web_url") {
-		return publicWebUrl
+		return externalUrl
 			? withSourceProofMetadata(
-					buildPublicWebSourceItem({ source, title, snippet, url: publicWebUrl }),
+					buildExternalSourceItem({ source, title, snippet, url: externalUrl }),
 					source,
 				)
 			: null;
@@ -424,53 +410,10 @@ function normalizeSourceItem(
 function withSourceProofMetadata(sourceItem: ChatSourceItem, source: Record<string, unknown>) {
 	return {
 		...sourceItem,
-		...derivedSourceProofMetadata(source),
 		...optionalRecordStrings(source, {
-			accessScope: ["access_scope", "accessScope"],
-			collection: ["collection"],
-			contentHash: ["content_hash", "contentHash"],
-			documentId: ["document_id", "documentId"],
-			evidenceId: ["evidence_id", "evidenceId"],
-			evidenceRole: ["evidence_role", "evidenceRole"],
-			sourceId: ["source_id", "sourceId", "canonical_source_id", "canonicalSourceId"],
-			snapshotId: ["snapshot_id", "snapshotId"],
 			versionId: ["version_id", "versionId"],
 		}),
 	};
-}
-
-function derivedSourceProofMetadata(source: Record<string, unknown>): Partial<ChatSourceItem> {
-	const sourceRef = recordString(source, "source_ref", "sourceRef");
-	const docId = recordString(source, "doc_id", "docId");
-	const structuralRef = recordString(source, "structural_ref", "structuralRef");
-	const chunkId = recordString(source, "chunk_id", "chunkId");
-	const collection =
-		recordString(source, "collection", "collection") ?? collectionFromSourceRef(sourceRef);
-	const sourceId = sourceRef ?? docId ?? undefined;
-	const versionId = structuralRef ?? chunkId ?? undefined;
-	const contentHash = chunkId ? `sha256:${chunkId}` : undefined;
-	const hasProof = Boolean(sourceId && versionId && contentHash);
-	return {
-		...(collection ? { collection } : {}),
-		...(contentHash ? { contentHash } : {}),
-		...(docId ? { documentId: docId } : {}),
-		...(chunkId ? { evidenceId: chunkId } : {}),
-		...(sourceId ? { sourceId } : {}),
-		...(versionId ? { versionId } : {}),
-		...(hasProof ? { accessScope: "public" } : {}),
-	};
-}
-
-function collectionFromSourceRef(sourceRef: string | null): string | null {
-	if (!sourceRef) {
-		return null;
-	}
-	const marker = "campus-agent://";
-	if (!sourceRef.startsWith(marker)) {
-		return null;
-	}
-	const [corpus, collection] = sourceRef.slice(marker.length).split("/");
-	return corpus && collection ? `${corpus}/${collection}` : null;
 }
 
 function optionalRecordStrings(
@@ -497,18 +440,12 @@ function sourceItemDedupeKey(sourceItem: ChatSourceItem): string {
 		: `${sourceItem.targetKind}:${sourceItem.title}`;
 }
 
-export function resultEvidenceSources(result: unknown): unknown[] {
+export function resultSources(result: unknown): unknown[] {
 	if (!isRecord(result)) {
 		return [];
 	}
 
-	if (Array.isArray(result.sources)) {
-		return result.sources;
-	}
-
-	return isRecord(result.evidence) && Array.isArray(result.evidence.sources)
-		? result.evidence.sources
-		: [];
+	return Array.isArray(result.sources) ? result.sources : [];
 }
 
 export function normalizeSourceItemsPart(input: {
@@ -517,10 +454,7 @@ export function normalizeSourceItemsPart(input: {
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (
-		(input.selectedTool !== "knowledge_query" && input.selectedTool !== "public_web_search") ||
-		input.status !== "completed"
-	) {
+	if (input.selectedTool !== "knowledge_query" || input.status !== "completed") {
 		return [];
 	}
 
@@ -529,7 +463,7 @@ export function normalizeSourceItemsPart(input: {
 	const allowedPublicNoticeHosts = normalizedAllowedPublicNoticeHosts(
 		input.allowedPublicNoticeHosts,
 	);
-	for (const source of resultEvidenceSources(input.result)) {
+	for (const source of resultSources(input.result)) {
 		const sourceItem = normalizeSourceItem(source, allowedPublicNoticeHosts);
 		if (!sourceItem) {
 			continue;

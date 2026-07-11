@@ -27,7 +27,6 @@ export const conversations = chat.table(
 		activeMessageId: text("active_message_id"),
 		activeRunId: text("active_run_id"),
 		activeTurnSequence: integer("active_turn_sequence").notNull().default(0),
-		contextSummary: text("context_summary"),
 	},
 	(table) => ({
 		ownerArchivedUpdatedAtIndex: index("chat_conversations_owner_archived_updated_at_idx").on(

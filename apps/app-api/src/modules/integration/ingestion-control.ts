@@ -1,7 +1,51 @@
+import { z } from "zod";
 import type { Env } from "../../config";
 import { AppApiRouteError } from "../../http";
 
 export type { IngestionTaskEnvelope } from "ingestion-contracts";
+
+const IngestionTaskStatusSchema = z.enum([
+	"accepted",
+	"running",
+	"completed",
+	"failed",
+	"canceled",
+]);
+
+const IngestionTaskOperatorProjectionSchema = z
+	.object({
+		schema_version: z.literal("ingestion_task_operator_projection.v1"),
+		task_id: z.string(),
+		run_id: z.string(),
+		source_family: z.string(),
+		source_channel: z.string(),
+		corpus: z.string(),
+		collection: z.string(),
+		registry_task_id: z.string(),
+		task_kind: z.string(),
+		status: IngestionTaskStatusSchema,
+		created_at: z.string(),
+		updated_at: z.string(),
+		terminal_status: IngestionTaskStatusSchema.nullable(),
+		outcome_kind: z.enum(["success", "error"]).nullable(),
+		artifact_count: z.number().int().nonnegative(),
+		last_error_code: z.string().nullable(),
+		last_error_message: z.string().nullable(),
+		workflow_id: z.string(),
+		workflow_run_id: z.string().nullable(),
+	})
+	.strict();
+
+const IngestionTaskOperatorProjectionListSchema = z
+	.object({
+		page: z
+			.object({
+				next_cursor: z.string().nullable(),
+			})
+			.strict(),
+		tasks: z.array(IngestionTaskOperatorProjectionSchema),
+	})
+	.strict();
 
 export interface IngestionTaskProjectionClient {
 	listTasks(input: { query: URLSearchParams }): Promise<Record<string, unknown>>;
@@ -10,7 +54,7 @@ export interface IngestionTaskProjectionClient {
 export type IngestionTaskProjectionFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 export function createIngestionTaskProjectionClient(
-	env: Pick<Env, "INGESTION_CONTROL_BASE_URL">,
+	env: Pick<Env, "INGESTION_CONTROL_BASE_URL" | "INGESTION_CONTROL_APP_API_PROJECTION_TOKEN">,
 	input: {
 		fetchImplementation?: IngestionTaskProjectionFetch;
 	} = {},
@@ -24,6 +68,15 @@ export function createIngestionTaskProjectionClient(
 			status: 503,
 		});
 	}
+	const token = env.INGESTION_CONTROL_APP_API_PROJECTION_TOKEN?.trim();
+	if (!token) {
+		throw new AppApiRouteError({
+			code: "dependency_not_ready",
+			message: "Ingestion control projection token is not configured.",
+			retryable: true,
+			status: 503,
+		});
+	}
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 
 	return {
@@ -32,7 +85,12 @@ export function createIngestionTaskProjectionClient(
 			for (const [key, value] of input.query.entries()) {
 				url.searchParams.append(key, value);
 			}
-			const response = await fetchImplementation(url.toString(), { method: "GET" });
+			const response = await fetchImplementation(url.toString(), {
+				method: "GET",
+				headers: {
+					authorization: `Bearer ${token}`,
+				},
+			});
 			if (!response.ok) {
 				throw new AppApiRouteError({
 					code: "ingestion_control_projection_unavailable",
@@ -41,7 +99,17 @@ export function createIngestionTaskProjectionClient(
 					status: response.status >= 500 ? 502 : response.status,
 				});
 			}
-			return (await response.json()) as Record<string, unknown>;
+			const payload = await response.json();
+			const parsed = IngestionTaskOperatorProjectionListSchema.safeParse(payload);
+			if (!parsed.success) {
+				throw new AppApiRouteError({
+					code: "ingestion_control_projection_invalid",
+					message: "Ingestion control projection response is invalid.",
+					retryable: true,
+					status: 502,
+				});
+			}
+			return parsed.data;
 		},
 	};
 }

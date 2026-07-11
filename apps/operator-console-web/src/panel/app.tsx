@@ -55,7 +55,7 @@ const stageTimingGroups = [
 		fields: [
 			{ key: "request.total_ms", label: "请求总耗时" },
 			{ key: "stream.browser_ttft_ms", label: "首字输出" },
-			{ key: "projection.closeout_ms", label: "投影收口" },
+			{ key: "projection.closeout_ms", label: "投影完成" },
 		],
 		label: "请求体验",
 	},
@@ -74,25 +74,17 @@ const stageTimingGroups = [
 	{
 		fields: [
 			{ key: "tool.total_ms", label: "工具总耗时" },
-			{ key: "tool.knowledge_query_ms", label: "知识工具" },
 			{ key: "tool.transport_schedule_lookup_ms", label: "班车工具" },
-			{ key: "tool.campus_notice_discover_ms", label: "通知工具" },
 		],
 		label: "工具",
 	},
 	{
-		fields: [
-			{ key: "rag.plan_ms", label: "检索规划" },
-			{ key: "rag.lookup_ms", label: "检索查询" },
-			{ key: "rag.rerank_ms", label: "重排" },
-			{ key: "rag.synthesis_ms", label: "答案生成" },
-			{ key: "rag.grounding_ms", label: "证据校验" },
-		],
-		label: "RAG",
+		fields: [{ key: "knowledge.search_ms", label: "知识检索" }],
+		label: "知识",
 	},
 	{
 		fields: [{ key: "finalization.write_ms", label: "最终投影" }],
-		label: "收口",
+		label: "完成",
 	},
 ] as const;
 
@@ -268,8 +260,8 @@ export function RequestsPage() {
 									value: stageLatency["agent.runtime_ms"]?.p95Ms,
 								},
 								{
-									label: "RAG 查询 P95",
-									value: stageLatency["rag.lookup_ms"]?.p95Ms,
+									label: "知识检索 P95",
+									value: stageLatency["knowledge.search_ms"]?.p95Ms,
 								},
 							].map((metric) => (
 								<div className="rounded-md border border-slate-200 p-3" key={metric.label}>
@@ -586,20 +578,15 @@ function RequestOpsIndexPanel({
 			<Card>
 				<CardHeader>
 					<CardTitle>模型与工具</CardTitle>
-					<CardDescription>展示本次请求实际使用的模型和工具结果。</CardDescription>
+					<CardDescription>本次请求实际使用的模型与工具。</CardDescription>
 				</CardHeader>
 				<CardContent className="grid gap-3 sm:grid-cols-2">
 					<Fact label="模型" value={modelLabel} />
-					<Fact label="模型状态" value={opsIndex.model.executionState || "未上报"} />
-					<Fact
-						label="Token"
-						value={`${opsIndex.model.inputTokens ?? 0} in / ${opsIndex.model.outputTokens ?? 0} out`}
-					/>
+					<Fact label="Prompt" value={opsIndex.model.promptId || "未上报"} />
 					<Fact
 						label="工具"
 						value={opsIndex.tool.selectedTool || opsIndex.tool.requestedTool || "无"}
 					/>
-					<Fact label="工具结果" value={opsIndex.tool.toolBusinessOutcome || "未上报"} />
 					<Fact
 						label="Fail closed"
 						value={
@@ -610,39 +597,23 @@ function RequestOpsIndexPanel({
 			</Card>
 			<Card>
 				<CardHeader>
-					<CardTitle>检索</CardTitle>
-					<CardDescription>展示检索是否发生和证据数量。</CardDescription>
+					<CardTitle>回答来源</CardTitle>
+					<CardDescription>本次回答采用的可信来源。</CardDescription>
 				</CardHeader>
-				<CardContent className="grid gap-3 sm:grid-cols-2">
-					<Fact label="集合" value={opsIndex.retrieval.collection || "未上报"} />
-					<Fact
-						label="是否检索"
-						value={
-							opsIndex.retrieval.retrievalAttempted === null
-								? "未上报"
-								: opsIndex.retrieval.retrievalAttempted
-									? "是"
-									: "否"
-						}
-					/>
-					<Fact
-						label="候选"
-						value={
-							typeof opsIndex.retrieval.candidateCount === "number"
-								? `${opsIndex.retrieval.candidateCount} 个候选`
-								: "未上报"
-						}
-					/>
-					<Fact
-						label="来源"
-						value={
-							typeof opsIndex.retrieval.retrievedSourceCount === "number"
-								? `${opsIndex.retrieval.retrievedSourceCount} 个来源`
-								: "未上报"
-						}
-					/>
-					<Fact label="证据判断" value={opsIndex.retrieval.adequacyVerdict || "未上报"} />
-					<Fact label="判断原因" value={opsIndex.retrieval.adequacyReason || "未上报"} />
+				<CardContent className="space-y-3">
+					<Fact label="数量" value={`${opsIndex.sources.length} 个来源`} />
+					{opsIndex.sources.length > 0 ? (
+						<ul className="space-y-3">
+							{opsIndex.sources.map((source) => (
+								<li key={`${source.canonicalUrl}:${source.sourceTitle}`}>
+									<p className="font-medium text-sm">{source.sourceTitle}</p>
+									<p className="break-all text-slate-500 text-xs">{source.canonicalUrl}</p>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-slate-500 text-sm">没有来源。</p>
+					)}
 				</CardContent>
 			</Card>
 			<Card>

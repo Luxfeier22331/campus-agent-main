@@ -13,77 +13,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-type fakeTemporalStarter struct {
-	cancelRunID  string
-	cancelReason string
-	cancelErr    error
-	ctx          context.Context
-	input        temporalruntime.ToolExecutionWorkflowInput
-	err          error
-}
-
-func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
-	ctx context.Context,
-	input temporalruntime.ToolExecutionWorkflowInput,
-) error {
-	f.ctx = ctx
-	f.input = input
-	return f.err
-}
-
-func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
-	_ context.Context,
-	input temporalruntime.ToolExecutionWorkflowCancelInput,
-) error {
-	f.cancelRunID = input.RunID
-	f.cancelReason = input.Reason
-	return f.cancelErr
-}
-
-func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
-	return temporalruntime.RuntimeReadiness{
-		Healthy: true,
-		TaskQueues: []temporalruntime.TaskQueueReadiness{
-			{
-				Name:    temporalruntime.WorkflowTaskQueue,
-				Type:    temporalruntime.TaskQueueTypeWorkflow,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
-				Pollers: 1,
-				Healthy: true,
-			},
-		},
-	}
-}
-
 func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
@@ -96,34 +25,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/execution/runs",
-		strings.NewReader(`{
-			"run_id":"run-temporal-001",
-			"conversation_id":"conv-temporal-001",
-			"turn_id":"turn-temporal-001",
-			"request_id":"req-temporal-001",
-			"trace_id":"trace-temporal-001",
-			"owner_user_id":"user-temporal-001",
-			"surface":"campus-web",
-			"requested_tool":"knowledge_query",
-			"selected_tool":"knowledge_query",
-			"task_queue":"campus-agent.workflow",
-			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
-			"metadata":{
-				"execution_payload":{
-					"user_goal":"hello",
-					"request_id":"req-temporal-001",
-					"conversation_id":"conv-temporal-001",
-					"trace":{"trace_id":"trace-temporal-001"},
-					"runtime_decisions":{"runtime_decision_summary":{}}
-				},
-				"handoff":{
-					"tool":"rag-tool",
-					"payload_kind":"rag_request",
-					"allowed_tools":["knowledge_query"],
-					"payload":{"query_text":"hello"}
-				}
-			}
-		}`),
+		strings.NewReader(durableRunCreateBodyForTest("run-temporal-001", "conv-temporal-001")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 
@@ -155,52 +57,97 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
 	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "knowledge_query" {
-		t.Fatalf("visible tools = %#v, want knowledge_query only", starter.input.VisibleToolNames)
+		t.Fatalf("visible tools = %#v, want knowledge_query handoff", starter.input.VisibleToolNames)
 	}
 }
 
-func TestExecutionRunCreateFailsClosedForProfileClosedTool(t *testing.T) {
+func TestExecutionRunCreateRejectsUnknownMetadataField(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
-	server.temporalStarter = starter
-
-	body := strings.ReplaceAll(
-		durableRunCreateBodyForTest("run-campus-closed", "conv-campus-closed"),
-		`"requested_tool":"knowledge_query"`,
-		`"requested_tool":"transport_schedule_lookup"`,
+	server.temporalStarter = &fakeTemporalStarter{}
+	body := strings.Replace(
+		durableRunCreateBodyForTest("run-unknown-metadata", "conv-unknown-metadata"),
+		`"metadata":{`,
+		`"metadata":{"unexpected":true,`,
+		1,
 	)
-	body = strings.ReplaceAll(body, `"selected_tool":"knowledge_query"`, `"selected_tool":"transport_schedule_lookup"`)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusConflict, "tool_not_open")
-	if starter.input.RunID != "" {
-		t.Fatalf("closed tool must not start workflow: %#v", starter.input)
-	}
-	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
-		t.Fatal("closed tool must not create a run projection")
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+	if _, err := store.GetRun(context.Background(), "run-unknown-metadata"); err == nil {
+		t.Fatal("unknown metadata must not create a run projection")
 	}
 }
 
-func TestExecutionRunCreateStartsProfileOpenToolWithBoundedVisibleSet(t *testing.T) {
+func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = &fakeTemporalStarter{}
+	body := strings.Replace(
+		durableRunCreateBodyForTest("run-unknown-payload", "conv-unknown-payload"),
+		`"user_goal":"hello",`,
+		`"user_goal":"hello","unexpected":true,`,
+		1,
+	)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+	if _, err := store.GetRun(context.Background(), "run-unknown-payload"); err == nil {
+		t.Fatal("unknown execution payload must not create a run projection")
+	}
+}
+
+func TestExecutionRunCreateRejectsUnknownExplicitToolHint(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
-	server.config.OpenTools = []string{"transport_schedule_lookup"}
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
-	body := strings.ReplaceAll(
-		durableRunCreateBodyForTest("run-campus-open", "conv-campus-open"),
-		`"requested_tool":"knowledge_query"`,
-		`"requested_tool":"transport_schedule_lookup"`,
+	body := durableRunCreateBodyWithToolForTest(
+		"run-campus-closed",
+		"conv-campus-closed",
+		"unpublished_tool",
+		"",
 	)
-	body = strings.ReplaceAll(body, `"selected_tool":"knowledge_query"`, `"selected_tool":"transport_schedule_lookup"`)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+	if starter.input.RunID != "" {
+		t.Fatalf("unsupported tool hint must not start workflow: %#v", starter.input)
+	}
+	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
+		t.Fatal("unsupported tool hint must not create a run projection")
+	}
+}
+
+func TestExecutionRunCreateStartsExplicitModelVisibleToolWithBoundedVisibleSet(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	body := durableRunCreateBodyWithToolForTest(
+		"run-campus-open",
+		"conv-campus-open",
+		"transport_schedule_lookup",
+		"",
+	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -268,20 +215,20 @@ func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T)
 			"trace_id":"trace-temporal-neutral",
 			"owner_user_id":"user-temporal-neutral",
 			"surface":"campus-web",
-			"task_queue":"campus-agent.workflow",
 			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 			"metadata":{
 				"execution_payload":{
+					"execution_contract_version":"tool_execution_v1",
+					"response_contract":"execution_finalization_response_v2",
 					"user_goal":"hi 你是谁",
 					"request_id":"req-temporal-neutral",
 					"conversation_id":"conv-temporal-neutral",
 					"trace":{"trace_id":"trace-temporal-neutral"},
-					"actor":{"user_id":"user-temporal-neutral"},
 					"context":{"actor":{"user_id":"user-temporal-neutral"}},
-					"runtime_decisions":{"runtime_decision_summary":{}}
+					"version_query":{}
+					}
 				}
-			}
-		}`),
+			}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 
@@ -296,8 +243,13 @@ func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T)
 			starter.input.RequestedTool,
 		)
 	}
-	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "knowledge_query" {
-		t.Fatalf("visible tools = %#v, want knowledge_query only", starter.input.VisibleToolNames)
+	if len(starter.input.VisibleToolNames) != 2 ||
+		starter.input.VisibleToolNames[0] != "transport_schedule_lookup" ||
+		starter.input.VisibleToolNames[1] != "knowledge_query" {
+		t.Fatalf(
+			"visible tools = %#v, want registry model-visible tools",
+			starter.input.VisibleToolNames,
+		)
 	}
 	run, err := store.GetRun(context.Background(), "run-temporal-neutral")
 	if err != nil {
@@ -502,7 +454,7 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 		now.Add(3500*time.Millisecond),
 	)
 	seedCancelProjectionStep("agent.primary", "running", now.Add(4*time.Second), time.Time{})
-	seedCancelProjectionStep("synthesis", "scheduled", time.Time{}, time.Time{})
+	seedCancelProjectionStep("finalization.write", "scheduled", time.Time{}, time.Time{})
 
 	response := httptest.NewRecorder()
 	request := newTestRequest(
@@ -529,7 +481,7 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 		t.Fatalf("completed step changed after cancel: %#v", stepByID["memory.recall"])
 	}
 	if stepByID["agent.primary"].Status != "canceled" ||
-		stepByID["synthesis"].Status != "canceled" {
+		stepByID["finalization.write"].Status != "canceled" {
 		t.Fatalf("incomplete steps were not canceled: %#v", stepByID)
 	}
 	attempts, err := store.ListStepAttempts(context.Background(), runID)
@@ -549,10 +501,10 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 		attemptByStep["agent.primary"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
 		t.Fatalf("started attempt cancel evidence = %#v", attemptByStep["agent.primary"])
 	}
-	if attemptByStep["synthesis"].Status != "canceled" ||
-		attemptByStep["synthesis"].CancelOutcome != execution.CancelOutcomeRequestedBeforeStart ||
-		attemptByStep["synthesis"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
-		t.Fatalf("scheduled attempt cancel evidence = %#v", attemptByStep["synthesis"])
+	if attemptByStep["finalization.write"].Status != "canceled" ||
+		attemptByStep["finalization.write"].CancelOutcome != execution.CancelOutcomeRequestedBeforeStart ||
+		attemptByStep["finalization.write"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
+		t.Fatalf("scheduled attempt cancel evidence = %#v", attemptByStep["finalization.write"])
 	}
 }
 
@@ -570,37 +522,37 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		ragHandoffForDurableWorkerTest("hello"),
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "plan.route",
+		StepID:               "agent.primary",
 		RunID:                "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
-		StepKind:             "planning",
-		Tool:                 "knowledge_query",
+		StepKind:             "agent",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueCore,
+		TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
 		WorkerID:             "staging:context:worker-1",
 		StartedAt:            now,
 		CompletedAt:          now.Add(100 * time.Millisecond),
 		UpdatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"payload_ref": "projection://runs/run-temporal-trajectory/planning/input",
-			"raw_prompt":  "must not leak",
+			"payload_ref":        "projection://runs/run-temporal-trajectory/agent/primary/input",
+			"raw_prompt":         "must not leak",
+			"visible_tool_names": []any{"knowledge_query"},
 		},
 	}); err != nil {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:             "plan.route:attempt:1",
-		StepID:                "plan.route",
+		AttemptID:             "agent.primary:attempt:1",
+		StepID:                "agent.primary",
 		RunID:                 "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
-		TaskQueue:             temporalruntime.ActivityTaskQueueCore,
+		TaskQueue:             temporalruntime.ActivityTaskQueueAgent,
 		WorkerID:              "staging:context:worker-1",
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
-		ActivityID:            "activity-planning-1",
-		ActivityType:          "PlanRouteActivity",
+		ActivityID:            "activity-agent-1",
+		ActivityType:          temporalruntime.ExecutePrimaryAgentActivityName,
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(-25 * time.Millisecond),
 		StartedAt:             now,
@@ -615,58 +567,49 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		OutputTokens:          42,
 		CachedInputTokens:     10,
 		EstimatedCostMicroUSD: 321,
-		PricingVersion:        "provider-pricing-v1",
 		CancelOutcome:         execution.CancelOutcomeNotRequested,
 		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
 		LateCompletionOutcome: execution.LateCompletionOutcomeIgnoredAfterTimeout,
 		FailCloseReason:       "current_state_unverifiable",
-		ReplanReason:          "bounded_replan_after_provider_timeout",
 		TerminalReason:        "answer_completed",
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": "PlanRouteActivity",
+			"activity_type": temporalruntime.ExecutePrimaryAgentActivityName,
 			"raw_answer":    "must not leak",
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "plan.route:result:1",
-		StepID:               "plan.route",
+		ResultID:             "agent.primary:result:1",
+		StepID:               "agent.primary",
 		RunID:                "run-temporal-trajectory",
-		AttemptID:            "plan.route:attempt:1",
+		AttemptID:            "agent.primary:attempt:1",
 		Status:               "completed",
-		ResultKind:           "route_plan",
-		ProjectionRef:        "projection://runs/run-temporal-trajectory/plan/route",
+		ResultKind:           "agent_final_output",
+		ProjectionRef:        "projection://runs/run-temporal-trajectory/agent/primary/result",
 		CreatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"result_ref":          "projection://runs/run-temporal-trajectory/plan/route/result",
+			"result_ref":          "projection://runs/run-temporal-trajectory/agent/primary/result",
 			"raw_provider_result": "must not leak",
-			"rag": map[string]any{
-				"required_facts": []any{"学习成绩"},
-				"source_refs": []any{
-					map[string]any{
-						"source_title": "本科生国家奖学金评审办法",
-						"source_body":  "nested source body must not leak",
+			"selected_tools":      []any{"knowledge_query", "knowledge_search"},
+			"tool_results": []any{
+				map[string]any{
+					"arguments_json_sha256": "sha256:knowledge-search",
+					"authorization":         "nested authorization must not leak",
+					"payload_kind":          "knowledge_search",
+					"result": map[string]any{
+						"outcome":        "found",
+						"resolved_scope": "student_rules",
+						"source_body":    "nested source body must not leak",
 					},
+					"result_ref": "projection://runs/run-temporal-trajectory/knowledge/search/search-1",
+					"status":     "completed",
+					"tool_name":  "knowledge_search",
 				},
 			},
-			"planning": map[string]any{
-				"planned_steps": []any{"indexed_lookup"},
-				"raw_source":    "nested raw source must not leak",
-			},
-			"tool_call": map[string]any{
-				"authorization": "nested authorization must not leak",
-				"selected_tool": "knowledge_query",
-			},
-			"memory": map[string]any{
-				"behavior": "previous_evidence_reuse",
-				"secret":   "nested secret must not leak",
-			},
-			"selected_tool":       "knowledge_query",
-			"selected_task_queue": temporalruntime.ActivityTaskQueueCore,
 		},
 	}); err != nil {
 		t.Fatalf("upsert result: %v", err)
@@ -691,7 +634,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("steps = %#v, want one step", body["steps"])
 	}
 	step := expectRecord(t, steps[0], "steps[0]")
-	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueCore {
+	if step["step_kind"] != "agent" || step["task_queue"] != temporalruntime.ActivityTaskQueueAgent {
 		t.Fatalf("step = %#v", step)
 	}
 	attempts, ok := body["attempts"].([]any)
@@ -702,8 +645,8 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	for key, want := range map[string]any{
 		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
 		"temporal_run_id":         "temporal-run-trajectory",
-		"activity_id":             "activity-planning-1",
-		"activity_type":           "PlanRouteActivity",
+		"activity_id":             "activity-agent-1",
+		"activity_type":           temporalruntime.ExecutePrimaryAgentActivityName,
 		"activity_attempt":        float64(1),
 		"schedule_to_start_ms":    float64(25),
 		"duration_ms":             float64(100),
@@ -715,12 +658,10 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"output_tokens":           float64(42),
 		"cached_input_tokens":     float64(10),
 		"estimated_cost_microusd": float64(321),
-		"pricing_version":         "provider-pricing-v1",
 		"cancel_outcome":          string(execution.CancelOutcomeNotRequested),
 		"timeout_outcome":         string(execution.TimeoutOutcomeNotTimedOut),
 		"late_completion_outcome": string(execution.LateCompletionOutcomeIgnoredAfterTimeout),
 		"fail_close_reason":       "current_state_unverifiable",
-		"replan_reason":           "bounded_replan_after_provider_timeout",
 		"terminal_reason":         "answer_completed",
 	} {
 		if attempt[key] != want {
@@ -753,15 +694,6 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	if toolCall["selected_tool"] != "knowledge_query" {
 		t.Fatalf("eval tool call = %#v", toolCall)
 	}
-	evalRAG := expectRecord(t, evalProjection["rag"], "agent_runtime_eval_projection.rag")
-	sourceRefs, ok := evalRAG["source_refs"].([]any)
-	if !ok || len(sourceRefs) != 1 {
-		t.Fatalf("eval rag source_refs = %#v, want one source ref", evalRAG["source_refs"])
-	}
-	sourceRef := expectRecord(t, sourceRefs[0], "agent_runtime_eval_projection.rag.source_refs[0]")
-	if sourceRef["source_title"] != "本科生国家奖学金评审办法" {
-		t.Fatalf("eval rag source ref = %#v", sourceRef)
-	}
 	serialized := response.Body.String()
 	for _, forbidden := range []string{
 		"must not leak",
@@ -769,9 +701,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"raw_answer",
 		"raw_provider_result",
 		"source_body",
-		"raw_source",
 		"authorization",
-		"secret",
 	} {
 		if strings.Contains(serialized, forbidden) {
 			t.Fatalf("step trajectory leaked forbidden payload %q: %s", forbidden, serialized)

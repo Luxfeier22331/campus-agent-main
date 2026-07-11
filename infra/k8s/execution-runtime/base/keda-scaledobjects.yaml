@@ -99,34 +99,3 @@ spec:
         activationTargetQueueSize: "0"
       authenticationRef:
         name: temporal-worker-scaler-auth
----
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
-metadata:
-  name: activity-worker-knowledge
-  labels:
-    app.kubernetes.io/name: activity-worker-knowledge
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  scaleTargetRef:
-    name: activity-worker-knowledge
-  pollingInterval: 15
-  cooldownPeriod: 180
-  minReplicaCount: 1
-  maxReplicaCount: 5
-  advanced:
-    horizontalPodAutoscalerConfig:
-      behavior:
-        scaleDown:
-          stabilizationWindowSeconds: 300
-  triggers:
-    - type: temporal
-      metadata:
-        endpoint: temporal.default.svc.cluster.local:7233
-        namespace: default
-        taskQueue: campus-agent.activity.knowledge
-        queueTypes: activity
-        targetQueueSize: "8"
-        activationTargetQueueSize: "0"
-      authenticationRef:
-        name: temporal-worker-scaler-auth

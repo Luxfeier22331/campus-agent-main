@@ -18,17 +18,9 @@ export interface CandidateSourceRow {
 	errorCode: string | null;
 	selectedTool: string | null;
 	requestedTool: string | null;
-	toolFailCloseReason: string | null;
-	toolBusinessOutcome: string | null;
 	failClosed: boolean | null;
-	retrievalAttempted: boolean | null;
-	retrievedSourceCount: number | null;
-	retrievalAdequacyVerdict: string | null;
-	retrievalAdequacyReason: string | null;
 	modelProvider: string | null;
 	modelName: string | null;
-	modelExecutionState: string | null;
-	modelExecutionDetail: string | null;
 	durationMs: number | null;
 	stageTiming?: Record<string, unknown> | null;
 	traceAvailable: boolean;

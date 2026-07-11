@@ -1,8 +1,10 @@
 import type { IngestionTaskEnvelope } from "ingestion-contracts";
 import { describe, expect, it } from "vitest";
 import {
+	assertIngestionKernelOutputSucceeded,
 	buildIngestionKernelArtifactKey,
 	INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE,
+	IngestionKernelReportedErrorsError,
 	parseIngestionKernelJsonOutput,
 } from "../src/index.ts";
 
@@ -58,6 +60,35 @@ describe("ingestion kernel artifacts", () => {
 			error_count: 0,
 			errors: [],
 		});
+		expect(output.errorCount).toBe(0);
+		expect(output.errors).toEqual([]);
+		expect(() =>
+			assertIngestionKernelOutputSucceeded({
+				errorCount: output.errorCount,
+				errors: output.errors,
+				kernelId: "validate-document-units",
+			}),
+		).not.toThrow();
+	});
+
+	it("classifies kernel-reported validation errors as failed execution results", () => {
+		const output = parseIngestionKernelJsonOutput({
+			expectedSchemaVersion: "document_units_validation_report.v1",
+			kernelId: "validate-document-units",
+			stdout: new TextEncoder().encode(
+				'{"schema_version":"document_units_validation_report.v1","unit_count":1,"error_count":1,"errors":["line 1 doc_id is required"]}\n',
+			),
+		});
+
+		expect(output.errorCount).toBe(1);
+		expect(output.errors).toEqual(["line 1 doc_id is required"]);
+		expect(() =>
+			assertIngestionKernelOutputSucceeded({
+				errorCount: output.errorCount,
+				errors: output.errors,
+				kernelId: "validate-document-units",
+			}),
+		).toThrow(IngestionKernelReportedErrorsError);
 	});
 
 	it("fails closed when kernel output is missing required contract fields", () => {

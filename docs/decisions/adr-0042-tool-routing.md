@@ -3,15 +3,21 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0042
-status: accepted
+status: superseded
 created: 2026-04-23
-updated: 2026-06-12
+updated: 2026-07-10
+superseded_by: ADR-0071
 ---
 # ADR-0042 Tool-Routed Execution And Surface Tool Policy
 
 ## 状态
 
-Accepted on 2026-04-23.
+Accepted on 2026-04-23. Superseded by ADR-0071 on 2026-07-10.
+
+ADR-0071 retains the primary-agent-first and tool-first/scope-second direction,
+but replaces this ADR's app-api-owned surface tool policy and custom routing
+intent governance with execution-control-owned runtime admission and standard
+tool trajectory evidence.
 
 ## 背景
 
@@ -21,21 +27,22 @@ Accepted on 2026-04-23.
 - `apps/app-api -> apps/execution-control -> Temporal -> activity workers ->
   apps/agent-runtime primary agent loop / Go RAG graph / typed tools` 是当前
   执行主链
-- `knowledge_query`、`place_lookup`、`transport_schedule_lookup` 与
-  `campus_notice_discover` 等具体 tool id 已作为当前或前向 tool domain 落盘
+- `knowledge_query`、`place_lookup`、`public_web_search` 与
+  `transport_schedule_lookup` 等具体 tool id 已作为当前 contract/runtime
+  labels 落盘；退役 tool id 不再作为前向 tool domain
 - 当前公开产品能力最成熟的主路径仍是 knowledge question answering
 
 但 repo 仍缺一条更高层的正式决策：
 
 - 顶层执行路径是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
-- `requested_scope` 是否仍应被默认理解成所有请求共享的顶层入口字段
+- `knowledge_query.scope` 是否应被默认理解成所有请求共享的顶层入口字段
 - `online answer` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
 - clarification、approval、out-of-scope 与 tool routing 之间应如何分层
 
 如果这条边界不冻结，后续实现很容易继续退化为：
 
 - 所有请求先进入 `knowledge`，再在 knowledge path 内临时补 notice/service/navigation 分叉
-- 用 `requested_scope` 代替 tool routing
+- 用 `scope` 代替 tool routing
 - 把 `online answer` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
 - 把 routing clarification 与 agent clarification 混成一个模糊 clarification 桶
 
@@ -52,7 +59,7 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 
 - `knowledge` 仍是核心 tool domain，但不再等于整个产品入口语义
 - notice、service、navigation 与 future admitted tools 必须作为并列 tool domain 被治理
-- selected tool / workflow signal 必须进入 repo-owned sanitized projection，
+- selected tool / internal route 必须进入 repo-owned sanitized projection，
   不能只作为 prompt 内部临时推理副作用
 
 ### 决策 2：`admission` 与 `routing` 必须显式分层
@@ -82,15 +89,15 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 - `apps/execution-control` 与 agent 都不拥有 browser-facing tool allowlist
   truth
 
-### 决策 4：`requested_scope` 只属于 knowledge tool path
+### 决策 4：`knowledge_query.scope` 只属于 knowledge tool path
 
-长期上，`requested_scope` 不再被视为所有请求共享的顶层默认入口字段。
+长期上，`scope` 不被视为所有请求共享的顶层默认入口字段。
 
 固定规则：
 
 - 顶层先判 tool domain
 - 只有进入 knowledge tool path 后，才解析 retrieval `scope`
-- `requested_scope` 不能代替 tool domain 判断
+- `scope` 不能代替 tool domain 判断
 
 直接含义：
 
@@ -148,12 +155,12 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 
 - 后续 architecture 文档必须把 tool-routed execution 与 knowledge tool retrieval
   分开书写
-- `requested_scope` 的长期语义必须收窄为 knowledge-tool-specific field
+- `scope` 的长期语义必须收窄为 knowledge-tool-specific field
 - `apps/app-api`、`apps/execution-control`、`apps/agent-runtime` 与 tool
   workers 的边界说明必须围绕 `surface policy -> durable admission ->
   primary agent decision -> admitted tool / RAG graph -> finalization` 收口
-- 当前 browser-facing / internal execution contract 若还保留 `requested_tool +
-  requested_scope`，必须显式区分 current truth 与 forward evolution
+- browser-facing / internal execution contract 使用 `requested_tool + optional scope`
+  时，必须显式区分 caller hint、model-facing knowledge scope 与最终 selected tool
 
 ## Complementary Decisions
 

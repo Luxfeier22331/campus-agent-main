@@ -103,7 +103,6 @@ export function createConversation(): ChatConversation {
 		activeMessageId: null,
 		activeRunId: null,
 		activeTurnSequence: 0,
-		contextSummary: null,
 		sessionSlots: [] as Array<{
 			confirmed: boolean;
 			name: string;
@@ -203,20 +202,17 @@ export function createCommandStore(input?: {
 				conversation.activeMessageId = input.assistantMessage.id;
 				conversation.activeRunId = input.assistantMessage.runId ?? null;
 				conversation.activeTurnSequence = input.requestExecution.turnSequence;
-				conversation.contextSummary = input.contextSummary;
 				for (const message of conversation.messages) {
 					if (message.branchId === conversation.activeBranchId) {
 						message.isActiveBranchHead = false;
 					}
 				}
 			}
-			if (isActiveRun && input.sessionSlots) {
-				const nextSlots = input.sessionSlots.map(
-					(slot: FinalizeRequestWrite["sessionSlots"][number]) => ({
-						...slot,
-					}),
-				);
-				conversation.sessionSlots = nextSlots;
+			if (isActiveRun && input.sessionSlots.length > 0) {
+				const updatedNames = new Set(input.sessionSlots.map((slot) => slot.name));
+				conversation.sessionSlots = conversation.sessionSlots
+					.filter((slot) => !updatedNames.has(slot.name))
+					.concat(input.sessionSlots.map((slot) => ({ ...slot })));
 			}
 			conversation.messages.push({
 				...input.assistantMessage,
@@ -344,7 +340,7 @@ function toolExecutionInputFromRunCreate(
 		conversationId: getString(payload.conversation_id) ?? input.conversationId,
 		requestId: getString(payload.request_id) ?? input.requestId,
 		requestedTool: getString(payload.requested_tool),
-		requestedScope: getRecord(payload.requested_scope) as ToolExecutionInput["requestedScope"],
+		requestedScope: getString(payload.scope),
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
@@ -424,6 +420,8 @@ function internalActorFromWire(
 
 function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
 	const now = "2026-06-04T01:02:03.000Z";
+	const metadata = getRecordOrThrow(input.metadata, "run metadata");
+	const payload = getRecordOrThrow(metadata.execution_payload, "execution payload");
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -433,19 +431,18 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		finalResponseRef: "",
 		ownerUserId: input.ownerUserId,
 		requestId: input.requestId,
-		requestedTool: input.requestedTool ?? "",
+		requestedTool: getString(payload.requested_tool) ?? "",
 		runId: input.runId,
-		selectedTool: input.selectedTool ?? "",
+		selectedTool: "",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
 		surface: input.surface,
-		taskQueue: input.taskQueue,
+		taskQueue: "campus-agent.workflow",
 		terminalReason: "",
 		traceId: input.traceId ?? "",
 		turnId: input.turnId,
 		updatedAt: now,
-		workflowPlanRef: "",
 	};
 }
 
@@ -638,8 +635,18 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 		...(response.observability
 			? { observability: observabilityWireFromToolResponse(response.observability) }
 			: {}),
+		resolved_scope: response.resolvedScope ?? null,
 		result: response.result ?? null,
 		selected_tool: response.selectedTool,
+		session_update: response.sessionUpdate
+			? {
+					upsert_slots: response.sessionUpdate.upsertSlots.map((slot) => ({
+						confirmed: slot.confirmed,
+						name: slot.name,
+						value: slot.value,
+					})),
+				}
+			: null,
 		status: response.status,
 		trace_id: response.traceId,
 		...(response.workflowTraceSummary
@@ -651,63 +658,22 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 function observabilityWireFromToolResponse(
 	observability: NonNullable<ToolExecutionResponse["observability"]>,
 ): Record<string, unknown> {
-	return {
-		acl_anomaly_code: observability.aclAnomalyCode,
-		acl_decision: observability.aclDecision,
-		cached_input_tokens: observability.cachedInputTokens,
-		candidate_count: observability.candidateCount,
-		citation_count: observability.citationCount,
-		citation_expected: observability.citationExpected,
-		citation_missing: observability.citationMissing,
-		estimated_cost_microusd: observability.estimatedCostMicrousd,
-		fail_closed: observability.failClosed,
-		input_tokens: observability.inputTokens,
-		intent_ambiguity_reason: observability.intentAmbiguityReason,
-		intent_ambiguity_signal: observability.intentAmbiguitySignal,
-		intent_tool: observability.intentTool,
-		intent_classifier_version: observability.intentClassifierVersion,
-		intent_context_reference_type: observability.intentContextReferenceType,
-		intent_context_resolution_state: observability.intentContextResolutionState,
-		intent_launch_state: observability.intentLaunchState,
-		intent_missing_slots: observability.intentMissingSlots,
-		intent_next_action: observability.intentNextAction,
-		intent_policy_reason: observability.intentPolicyReason,
-		intent_resolved_slots: observability.intentResolvedSlots,
-		intent_routing_confidence: observability.intentRoutingConfidence,
-		intent_schema_version: observability.intentSchemaVersion,
-		intent_scope_class: observability.intentScopeClass,
-		intent_scope_reason: observability.intentScopeReason,
-		intent_task_kind: observability.intentTaskKind,
-		model_name: observability.modelName,
-		model_provider: observability.modelProvider,
-		output_tokens: observability.outputTokens,
-		policy_reason: observability.policyReason,
-		model_execution_detail: observability.modelExecutionDetail,
-		model_execution_state: observability.modelExecutionState,
-		prompt_trace: observability.promptTrace
-			? {
-					model_name: observability.promptTrace.modelName,
-					model_provider: observability.promptTrace.modelProvider,
-					output_schema_version: observability.promptTrace.outputSchemaVersion,
-					prompt_id: observability.promptTrace.promptId,
-					prompt_version: observability.promptTrace.promptVersion,
-					template_sha256: observability.promptTrace.templateSha256,
-					variables_schema_version: observability.promptTrace.variablesSchemaVersion,
-				}
-			: null,
-		refusal_class: observability.refusalClass,
-		retrieval_attempted: observability.retrievalAttempted,
-		retrieved_source_count: observability.retrievedSourceCount,
-		retrieved_sources: observability.retrievedSources,
-		resolved_scope_collection: observability.resolvedScopeCollection,
-		resolved_scope_corpus: observability.resolvedScopeCorpus,
-		scope_class: observability.scopeClass,
-		semantic_outcome: observability.semanticOutcome,
-		selected_tool: observability.selectedTool,
-		tool_business_outcome: observability.toolBusinessOutcome,
-		tool_fail_close_reason: observability.toolFailCloseReason,
-		tool_historical_downgrade_reason: observability.toolHistoricalDowngradeReason,
-	};
+	return toSnakeCaseWire(observability) as Record<string, unknown>;
+}
+
+function toSnakeCaseWire(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(toSnakeCaseWire);
+	}
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+			key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+			toSnakeCaseWire(item),
+		]),
+	);
 }
 
 function executionErrorResponse(input: {
@@ -724,8 +690,10 @@ function executionErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
+		resolvedScope: null,
 		result: null,
 		selectedTool: null,
+		sessionUpdate: null,
 		status: "error",
 		traceId: input.traceId,
 	};

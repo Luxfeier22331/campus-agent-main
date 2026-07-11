@@ -163,9 +163,12 @@ describe("ingest artifact helpers", () => {
 		expect(() => parseS3Uri("https://example.edu/object.json")).toThrow(
 			"object-store uri must use s3://",
 		);
-		expect(() => parseS3Uri({ kind: "inline", uri: "s3://bucket/key" })).toThrow(
-			"input_ref must be object_store",
-		);
+		expect(() =>
+			parseS3Uri({ kind: "inline", uri: "s3://bucket/key" } as unknown as {
+				kind: "object_store";
+				uri: string;
+			}),
+		).toThrow("input_ref must be object_store");
 		expect(() =>
 			assertSha256Digest({
 				label: "capture release",

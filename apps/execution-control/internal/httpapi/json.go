@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Request) (json.RawMessage, bool) {
@@ -133,27 +131,6 @@ func writeJSON(response http.ResponseWriter, status int, body any) {
 	response.Header().Set("content-type", "application/json")
 	response.WriteHeader(status)
 	_ = json.NewEncoder(response).Encode(body)
-}
-
-func writeExecutionError(response http.ResponseWriter, httpErr *execution.HTTPError) {
-	writeError(
-		response,
-		httpErr.Status,
-		httpErr.Code,
-		httpErr.Message,
-		httpErr.Retryable,
-	)
-}
-
-func lowerHeaders(headers http.Header) map[string]string {
-	normalized := make(map[string]string, len(headers))
-	for key, values := range headers {
-		if len(values) > 0 {
-			normalized[http.CanonicalHeaderKey(key)] = values[0]
-			normalized[toLowerASCII(key)] = values[0]
-		}
-	}
-	return normalized
 }
 
 func writeRawJSON(response http.ResponseWriter, status int, body []byte) {

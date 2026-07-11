@@ -1,10 +1,21 @@
 export {
+	createIngestionTaskRegistryCatalog,
+	IngestionTaskRegistryCatalog,
+	RegistryAdmissionError,
+} from "ingest-core";
+export {
+	listCollectionChunkProfileFiles,
+	listIngestionTaskRegistryFiles,
+	loadCollectionChunkProfilesFromRoot,
+	loadIngestionTaskRegistryCatalogFromRoot,
+	loadIngestionTaskRegistryFromFile,
+} from "ingest-core/node";
+export {
 	createIngestionTaskActivities,
 	type ExecuteIngestionTaskResult,
 	type IngestionTaskActivities,
 } from "./activities";
 export { createIngestionControlHandler, type IngestionControlHandler } from "./http";
-export { InMemoryIngestionTaskStore } from "./in-memory-store";
 export {
 	createS3IngestionObjectStore,
 	createS3IngestionObjectStoreFromEnv,
@@ -42,16 +53,6 @@ export {
 	TsTaskHandlerRegistry,
 	type TsTaskHandlerResult,
 } from "./task-executor";
-export {
-	createIngestionTaskRegistryCatalog,
-	IngestionTaskRegistryCatalog,
-	listCollectionChunkProfileFiles,
-	listIngestionTaskRegistryFiles,
-	loadCollectionChunkProfilesFromRoot,
-	loadIngestionTaskRegistryCatalogFromRoot,
-	loadIngestionTaskRegistryFromFile,
-	RegistryAdmissionError,
-} from "./task-registry";
 export {
 	type ClosableIngestionWorkflowStarter,
 	createTemporalIngestionWorkflowStarter,

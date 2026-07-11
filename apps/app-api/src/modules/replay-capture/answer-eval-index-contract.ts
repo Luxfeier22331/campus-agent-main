@@ -39,11 +39,10 @@ const ANSWER_BRANCH_KINDS = new Set([
 	"clarification",
 	"direct_no_tool",
 	"policy_refusal",
-	"rag_synthesis",
 	"runtime_error",
 	"tool_routed",
 ]);
-const LLM_CALL_SITES = new Set(["agent.primary", "rag.synthesis"]);
+const LLM_CALL_SITES = new Set(["agent.primary"]);
 const SINK_IDENTITY_PROJECTION_FIELDS = new Set([
 	"projection_sha256",
 	"pseudonymization_policy",

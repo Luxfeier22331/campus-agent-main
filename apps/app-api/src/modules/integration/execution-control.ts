@@ -49,7 +49,6 @@ export type {
 	ToolExecutionObservability,
 	ToolExecutionPreviousEvidenceRef,
 	ToolExecutionPreviousToolResultRef,
-	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
 	ToolExecutionSelectedNoticeRef,
 	ToolExecutionSessionSlot,

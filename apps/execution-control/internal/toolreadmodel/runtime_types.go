@@ -4,8 +4,6 @@ import "time"
 
 const (
 	ToolTransportScheduleLookup = "transport_schedule_lookup"
-	ToolCampusNoticeDiscover    = "campus_notice_discover"
-	ToolCampusNoticeGet         = "campus_notice_get"
 
 	defaultToolReadModelHealthTimeout = 250 * time.Millisecond
 )
@@ -15,10 +13,6 @@ type Options struct {
 	TransportScheduleReadModelStore TransportScheduleReadModelStore
 	StructuredProjectionDatabaseURL string
 	TrustedTimeRFC3339              string
-	NoticeReadModelStore            NoticeReadModelStore
-	NoticeBodyStore                 NoticeBodyStore
-	NoticeReadModelDatabaseURL      string
-	NoticeReadModelTable            string
 }
 
 type Runtime struct {
@@ -27,8 +21,6 @@ type Runtime struct {
 	transportScheduleReadModelStore TransportScheduleReadModelStore
 	transportScheduleBundleCache    projectionBundleCache
 	trustedTime                     time.Time
-	noticeReadModelStore            NoticeReadModelStore
-	noticeBodyStore                 NoticeBodyStore
 }
 
 type Status struct {
@@ -40,11 +32,7 @@ type Status struct {
 	TransportScheduleReadModelConfigured bool   `json:"transport_schedule_read_model_configured"`
 	TransportScheduleReadModelHealthy    bool   `json:"transport_schedule_read_model_healthy"`
 	TransportScheduleImplemented         bool   `json:"transport_schedule_implemented"`
-	NoticeReadModelConfigured            bool   `json:"notice_read_model_configured"`
-	NoticeBodyStoreConfigured            bool   `json:"notice_body_store_configured"`
-	NoticeReadModelHealthy               bool   `json:"notice_read_model_healthy"`
-	NoticeBodyStoreHealthy               bool   `json:"notice_body_store_healthy"`
-	NoticeRuntimeLastError               string `json:"notice_runtime_last_error"`
+	ProjectionRuntimeLastError           string `json:"projection_runtime_last_error"`
 }
 
 type Response struct {

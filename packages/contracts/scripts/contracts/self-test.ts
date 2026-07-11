@@ -31,7 +31,6 @@ function checkRegistryCoverage(): void {
 		"query-serving-scopes.v2": ["configs/runtime/query-serving-scopes.v2.json"],
 		"intent-policy.v1": ["configs/runtime/intent-policy.v1.json"],
 		"intent-drift-thresholds.v1": ["configs/runtime/intent-drift-thresholds.v1.json"],
-		"provider-pricing.v1": ["configs/runtime/provider-pricing.v1.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 		"env-surface-policy.v1": ["configs/runtime/env-surface-policy.v1.json"],
 	};

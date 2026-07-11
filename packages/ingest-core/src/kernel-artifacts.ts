@@ -76,7 +76,7 @@ export function parseIngestionKernelJsonOutput(input: {
 	expectedSchemaVersion: string;
 	kernelId: string;
 	stdout: Uint8Array;
-}): { bytes: Uint8Array; value: Record<string, unknown> } {
+}): { bytes: Uint8Array; errorCount: number; errors: string[]; value: Record<string, unknown> } {
 	const value = parseJsonObjectBytes(input.stdout, `ingestion kernel ${input.kernelId} stdout`);
 	if (value.schema_version !== input.expectedSchemaVersion) {
 		throw new Error(
@@ -88,10 +88,39 @@ export function parseIngestionKernelJsonOutput(input: {
 		kernelId: input.kernelId,
 		value,
 	});
+	const errorCount = readKernelErrorCount(input.kernelId, value);
+	const errors = readKernelErrors(input.kernelId, value);
 	return {
 		bytes: input.stdout,
+		errorCount,
+		errors,
 		value,
 	};
+}
+
+export class IngestionKernelReportedErrorsError extends Error {
+	readonly errorCount: number;
+	readonly errors: string[];
+	readonly kernelId: string;
+
+	constructor(input: { errorCount: number; errors: string[]; kernelId: string }) {
+		super(
+			`ingestion kernel ${input.kernelId} reported ${input.errorCount} validation error${input.errorCount === 1 ? "" : "s"}${formatKernelReportedErrors(input.errors)}`,
+		);
+		this.errorCount = input.errorCount;
+		this.errors = [...input.errors];
+		this.kernelId = input.kernelId;
+	}
+}
+
+export function assertIngestionKernelOutputSucceeded(input: {
+	errorCount: number;
+	errors: string[];
+	kernelId: string;
+}): void {
+	if (input.errorCount > 0) {
+		throw new IngestionKernelReportedErrorsError(input);
+	}
 }
 
 function validateKernelOutputContract(input: {
@@ -115,6 +144,29 @@ function validateKernelOutputContract(input: {
 			).join("; ")}`,
 		);
 	}
+}
+
+function readKernelErrorCount(kernelId: string, value: Record<string, unknown>): number {
+	const errorCount = value.error_count;
+	if (typeof errorCount !== "number" || !Number.isInteger(errorCount) || errorCount < 0) {
+		throw new Error(`ingestion kernel ${kernelId} stdout error_count is invalid`);
+	}
+	return errorCount;
+}
+
+function readKernelErrors(kernelId: string, value: Record<string, unknown>): string[] {
+	const errors = value.errors;
+	if (!Array.isArray(errors) || errors.some((item) => typeof item !== "string")) {
+		throw new Error(`ingestion kernel ${kernelId} stdout errors is invalid`);
+	}
+	return [...errors];
+}
+
+function formatKernelReportedErrors(errors: string[]): string {
+	if (errors.length === 0) {
+		return ".";
+	}
+	return `: ${errors.slice(0, 5).join("; ").slice(0, 1000)}`;
 }
 
 function safeKernelArtifactKeySegment(value: string, label: string): string {

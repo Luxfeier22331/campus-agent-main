@@ -248,34 +248,6 @@ func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 	}, nil
 }
 
-func (httpTemporalE2EActivities) PlanRouteActivity(
-	context.Context,
-	temporalruntime.PlanRouteActivityInput,
-) (temporalruntime.PlanRouteActivityOutput, error) {
-	panic("PlanRouteActivity should not run in direct primary-agent HTTP E2E")
-}
-
-func (httpTemporalE2EActivities) PlanReplanActivity(
-	context.Context,
-	temporalruntime.PlanReplanActivityInput,
-) (temporalruntime.PlanReplanActivityOutput, error) {
-	panic("PlanReplanActivity should not run in direct primary-agent HTTP E2E")
-}
-
-func (httpTemporalE2EActivities) ExecuteTypedToolActivity(
-	context.Context,
-	temporalruntime.ExecuteTypedToolActivityInput,
-) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
-	panic("ExecuteTypedToolActivity should not run in direct primary-agent HTTP E2E")
-}
-
-func (httpTemporalE2EActivities) ExecuteAgentAsToolActivity(
-	context.Context,
-	temporalruntime.ExecuteAgentAsToolActivityInput,
-) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
-	panic("ExecuteAgentAsToolActivity should not run in direct primary-agent HTTP E2E")
-}
-
 func (a httpTemporalE2EActivities) ExecutePrimaryAgentActivity(
 	ctx context.Context,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,

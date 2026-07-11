@@ -37,8 +37,7 @@ export function registerOperatorQueryRuntimeHealthSuite(): void {
 					requiredTaskQueues: [
 						"campus-agent.workflow",
 						"campus-agent.activity.core",
-						"campus-agent.activity.knowledge",
-						"campus-agent.activity.core",
+						"campus-agent.activity.agent",
 					],
 					taskQueueGate: "pollers_required",
 					taskQueuePollers: [
@@ -50,7 +49,13 @@ export function registerOperatorQueryRuntimeHealthSuite(): void {
 						},
 						{
 							healthy: true,
-							name: "campus-agent.activity.knowledge",
+							name: "campus-agent.activity.core",
+							pollers: 2,
+							type: "activity",
+						},
+						{
+							healthy: true,
+							name: "campus-agent.activity.agent",
 							pollers: 2,
 							type: "activity",
 						},

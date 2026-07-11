@@ -6,13 +6,9 @@
 	"request_timeout_ms": 95000,
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 95000,
-	"intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
 	"observability_config_projection_path": "/run/campus-agent/observability-config-projection.json",
-	"provider_pricing_path": "/etc/campus-agent/provider-pricing.v1.json",
-	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v2.json",
+	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v3.json",
 	"tool_read_model_timeout_ms": 1000,
-	"open_tools": ["public_web_search"],
-	"multi_step_workflow_enabled": false,
 	"otel": {
 		"enabled": true,
 		"endpoint": "http://otel-collector:4318/v1/traces",
@@ -29,20 +25,10 @@
 		"enabled": true,
 		"timeout_ms": 500
 	},
-	"rag": {
+	"knowledge_search": {
 		"top_k_max": 8,
-		"selected_evidence_max": 8,
-		"retrieval_max_concurrent": 4,
-		"synthesis_max_concurrent": 2,
 		"embedding_timeout_ms": 10000,
-		"qdrant_timeout_ms": 60000,
-		"provider_timeout_ms": 60000,
-		"synthesis_generation": {
-			"max_output_tokens": 900,
-			"reasoning_effort": "low",
-			"store_provider_output": false,
-			"text_verbosity": "low"
-		}
+		"qdrant_timeout_ms": 60000
 	},
 	"personal_memory": {
 		"runtime": "hindsight",

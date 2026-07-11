@@ -29,8 +29,8 @@ updated: 2026-04-14
 ## 当前 Artifact 位置
 
 - seed：`configs/reference-data/campus_navigation/place_catalog/seed.v1.json`
-- consumption owner：TS/Go typed tool or internal query owner；产品路径当前仍
-  fail-close，等待地图产品显式开放
+- consumption owner：future SDK function tool behind an internal query service；
+  产品路径当前仍 fail-close，等待地图产品显式开放
 - authoritative source inventory：private source/data boundary；公开 repo 只保留
   admission rule 与 synthetic fixture
 
@@ -40,7 +40,7 @@ updated: 2026-04-14
 
 - `navigation` 的 repo-owned spatial truth 输入
 - alias-first place resolution 的 canonical source
-- 地图实际上线后 `place_card` / map surface 的预留 place truth
+- campus-map place read surface 的 canonical place truth
 
 它当前不是：
 
@@ -51,10 +51,10 @@ updated: 2026-04-14
 
 ## 当前产品状态
 
-- 当前 execution 产品路径已对 `place_lookup` fail-close
-- 校内导航 / 地点查询暂不作为已开放能力，等待地图产品上线后再开放
+- 当前没有 model-visible place tool 或 execution contract
+- 校内导航 / 地点查询暂不作为已开放 chat 能力
 - `place_catalog` 继续保留为 repo-owned spatial truth foundation，而不是当前浏览器可消费 surface
-- `place_card` / map consumption 不由本文开放；必须由对应 product requirement 与
+- 新增 place-finding 或 wayfinding 必须由对应 product requirement、runtime owner 与
   browser projection contract 显式承接
 
 ## Record Shape
@@ -195,7 +195,6 @@ collection，也没有 `serving-config.json`。
 
 ## Related Docs
 
-- `docs/contracts/place-finding.md`
 - `docs/domains/place.md`
 - `docs/reference/open-source-data.md`
 - `docs/architecture/domains/navigation/architecture.md`
