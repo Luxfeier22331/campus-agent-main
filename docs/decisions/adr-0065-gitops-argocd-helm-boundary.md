@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0065
 status: accepted
 created: 2026-07-03
-updated: 2026-07-06
+updated: 2026-07-10
 ---
 # ADR-0065 GitOps Argo CD And Helm Boundary
 
@@ -40,6 +40,10 @@ The initial third-party Helm applications are:
   secret delivery controller
 - optional `platform-external-secrets` when the deployment selects External
   Secrets Operator as its secret delivery backend
+
+ADR-0070 governs repository ownership: the application repository retains
+reusable first-party Kustomize bases, while concrete Applications, overlays and
+third-party Helm values live in the deployment environment repository.
 
 ## Consequences
 

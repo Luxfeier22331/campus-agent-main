@@ -1,9 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespace.yaml
   - service-account.yaml
-  - configmap.yaml
   - network-policy.yaml
   - cloudflared-execution-control.yaml
   - availability.yaml

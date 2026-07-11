@@ -29,6 +29,24 @@ func TestProviderConfigResolverLoadsLocalProjectionArtifact(t *testing.T) {
 	}
 }
 
+func TestProviderConfigResolverLoadsKubernetesGroupReadableProjection(t *testing.T) {
+	path := writeProviderProjectionForTest(t)
+	if err := os.Chmod(path, 0o440); err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := newProviderConfigResolver(config.Config{
+		ProviderConfigSnapshotPath: path,
+	})
+	if err != nil {
+		t.Fatalf("newProviderConfigResolver() error = %v", err)
+	}
+
+	_, err = resolver.ResolveActiveProviderConfig(t.Context(), providerConfigRolePrimaryAgent)
+	if err != nil {
+		t.Fatalf("ResolveActiveProviderConfig() error = %v", err)
+	}
+}
+
 func TestProviderConfigResolverWithoutProjectionIsNotConfigured(t *testing.T) {
 	_, err := newProviderConfigResolver(config.Config{})
 
@@ -51,8 +69,8 @@ func TestProviderConfigResolverRejectsInsecureProjectionPermissions(t *testing.T
 
 	_, err = resolver.ResolveActiveProviderConfig(t.Context(), providerConfigRolePrimaryAgent)
 
-	if err == nil || !strings.Contains(err.Error(), "0600") {
-		t.Fatalf("error = %v, want 0600 permission requirement", err)
+	if err == nil || !strings.Contains(err.Error(), "0600 or 0440") {
+		t.Fatalf("error = %v, want secure permission requirement", err)
 	}
 }
 

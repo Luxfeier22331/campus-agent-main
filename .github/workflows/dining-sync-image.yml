@@ -37,9 +37,7 @@ jobs:
           file: jobs/dining-sync/Dockerfile
           load: true
           push: false
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:staging
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Scan dining-sync image
         uses: aquasecurity/trivy-action@v0.36.0
@@ -78,6 +76,4 @@ jobs:
           context: .
           file: jobs/dining-sync/Dockerfile
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:staging
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}

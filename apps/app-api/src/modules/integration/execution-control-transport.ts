@@ -26,6 +26,7 @@ export interface ExecutionControlCampusServicesProductPathPreflight {
 
 export interface ExecutionControlRuntimePreflight {
 	status: "ready" | "blocked" | "not_reported";
+	runtimeRelease?: string;
 	checks: {
 		runProjectionStore: ExecutionControlReadinessCheckStatus;
 		temporalRuntime: ExecutionControlReadinessCheckStatus;
@@ -312,10 +313,12 @@ function buildExecutionRuntimePreflight(
 			: "blocked"
 		: "not_reported";
 
+	const runtimeRelease = readNullableString(payload?.runtime_release);
 	return {
 		status,
 		checks,
 		blockers,
+		...(runtimeRelease ? { runtimeRelease } : {}),
 	};
 }
 

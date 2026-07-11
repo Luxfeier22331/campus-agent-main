@@ -147,10 +147,9 @@ review 前缀并删除审核对象；未通过或 provider 异常时不写入公
 
 `jobs/dining-sync/Dockerfile` 是 Docker/K8s manual job runtime 的构建入口。
 `.github/workflows/dining-sync-image.yml` 提供手动镜像构建；默认只构建不推送，
-只有 `workflow_dispatch.push_image=true` 时才推送到 GHCR，并写入
-`${GITHUB_SHA}` 与 `staging` 两个 tag。
+只有 `workflow_dispatch.push_image=true` 时才推送到 GHCR，并只写入不可变的
+`${GITHUB_SHA}` tag。
 
-K8s staging overlay 默认保留 `:staging` 作为可手动覆盖 tag。正式发布脚本应在
-临时 kustomize 目录里把 image tag 改成目标 commit SHA 后再 apply，避免 CronJob
-隐式漂移到未知镜像。CronJob 容器默认命令是 `sync-all`；上线前可用相同镜像创建
-一次性 Job 跑 `verify-published` 做 closeout。
+源仓只保留 namespace-neutral Kustomize base。部署环境仓负责 namespace、ConfigMap、
+Secret、调度策略与不可变镜像选择；不得使用 `staging` 等可变 tag。CronJob 容器默认命令
+是 `sync-all`；上线前可用相同镜像创建一次性 Job 跑 `verify-published` 做 closeout。

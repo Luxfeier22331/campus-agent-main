@@ -1,10 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -20,18 +21,32 @@ func TestNewRunProjectionStoreIsNilWhenDatabaseURLIsNotConfigured(t *testing.T) 
 	}
 }
 
-func TestNewRunProjectionStoreReturnsConnectionErrorForExplicitInvalidDatabaseURL(t *testing.T) {
+func TestNewRunProjectionStoreDefersConnectionErrorToHealthCheck(t *testing.T) {
 	store, err := newRunProjectionStore(config.Config{
 		RunProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 	})
-	if store != nil {
-		t.Fatalf("run projection store = %#v, want nil on connection error", store)
+	if err != nil {
+		t.Fatalf("new run projection store: %v", err)
 	}
-	if err == nil {
-		t.Fatal("expected explicit invalid run projection database url to fail")
+	postgresStore, ok := store.(*execution.PostgresRunProjectionStore)
+	if !ok {
+		t.Fatalf("run projection store = %T, want *execution.PostgresRunProjectionStore", store)
 	}
-	if !strings.Contains(err.Error(), "run projection") {
-		t.Fatalf("error = %v, want run projection context", err)
+	defer postgresStore.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := postgresStore.HealthCheck(ctx); err == nil {
+		t.Fatal("HealthCheck returned nil error for unavailable Postgres")
+	}
+}
+
+func TestNewRunProjectionStoreRejectsMalformedDatabaseURL(t *testing.T) {
+	store, err := newRunProjectionStore(config.Config{
+		RunProjectionDatabaseURL: "://malformed",
+	})
+	if store != nil || err == nil {
+		t.Fatalf("new run projection store = (%#v, %v), want malformed URL error", store, err)
 	}
 }
 

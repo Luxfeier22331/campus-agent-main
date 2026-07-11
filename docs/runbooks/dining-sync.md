@@ -45,4 +45,6 @@ K8s CronJob deployments consume the stable Secret name `dining-sync-secrets`.
 Real secret material must be delivered through manual Kubernetes Secret,
 SealedSecret, ExternalSecret or SOPS-encrypted Secret. Do not maintain plaintext
 `secret.example.yaml` files under `infra/k8s/dining-sync/base`; the key
-contract is documented in `infra/gitops/secrets/README.md`.
+contract is documented in `docs/environment/providers.md` and consumed by
+`infra/k8s/dining-sync/base/cronjob.yaml`. The environment repository owns the
+real Secret manifest.

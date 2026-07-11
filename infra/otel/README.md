@@ -34,7 +34,7 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   `x-axiom-dataset=campus-agent-runtime-metrics`.
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must be the base domain, for example
   `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`,
-  `/v1/logs`, or `/v1/metrics` because the Collector `otlphttp` exporter
+  `/v1/logs`, or `/v1/metrics` because the Collector `otlp_http` exporter
   appends the signal path.
 - Worker surfaces must not configure Axiom REST ingest. Axiom endpoint, auth
   header and dataset are Collector exporter settings only.

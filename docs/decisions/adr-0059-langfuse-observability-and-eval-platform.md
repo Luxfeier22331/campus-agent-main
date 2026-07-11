@@ -44,7 +44,7 @@ through the same base URL and OTLP endpoint configuration.
 
 The runtime integration is enabled through explicit configuration:
 
-- Collector config declares `otlphttp/langfuse`, with secret-bearing values
+- Collector config declares `otlp_http/langfuse`, with secret-bearing values
   supplied by deployment secret management.
 - execution-control runtime config owns whether Temporal tracing is enabled.
 - app-api propagates W3C `traceparent` in addition to current Sentry trace

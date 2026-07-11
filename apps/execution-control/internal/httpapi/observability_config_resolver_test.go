@@ -261,8 +261,8 @@ func TestObservabilityConfigResolverRejectsInsecureSecretProjectionPermissions(t
 
 	_, err = resolver.ResolveLLMDebugTraceConfig(t.Context())
 
-	if err == nil || !strings.Contains(err.Error(), "0600") {
-		t.Fatalf("error = %v, want 0600 permission requirement", err)
+	if err == nil || !strings.Contains(err.Error(), "0600 or 0440") {
+		t.Fatalf("error = %v, want secure permission requirement", err)
 	}
 }
 

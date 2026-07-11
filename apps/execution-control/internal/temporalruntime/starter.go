@@ -58,7 +58,7 @@ type Starter struct {
 	startTimeout       time.Duration
 }
 
-func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
+func NewStarter(_ context.Context, options StarterOptions) (*Starter, error) {
 	address := strings.TrimSpace(options.Address)
 	namespace := strings.TrimSpace(options.Namespace)
 	if address == "" || namespace == "" {
@@ -72,7 +72,7 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 		HostPort:  address,
 		Namespace: namespace,
 	}, tracing)
-	temporalClient, err := client.DialContext(ctx, clientOptions)
+	temporalClient, err := client.NewLazyClient(clientOptions)
 	if err != nil {
 		return nil, err
 	}

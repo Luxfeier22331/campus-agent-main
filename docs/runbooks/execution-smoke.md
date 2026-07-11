@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-09
+updated: 2026-07-10
 ---
 # Execution Control Staging Smoke Runbook
 
@@ -19,7 +19,7 @@ updated: 2026-07-09
 
 它回答的是：
 
-- 如何把 `campus-staging -> app-api-staging -> execution-control trusted machine upstream`
+- 如何把 `campus-staging -> app-api-staging -> execution-control private service`
   跑通
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
@@ -29,8 +29,8 @@ updated: 2026-07-09
 ## 当前补充真相
 
 - `apps/execution-control` smoke 只要求真实可达的 Go execution origin；Docker Compose
-  只用于 local diagnostics
-- 当前 repo-owned staging execution runtime 在 `nc-arm-6c` 上运行：
+  只用于 local diagnostics，不作为 forward deploy truth
+- 当前 staging execution runtime 在部署环境的 Kubernetes 集群运行：
   - `otel-collector`
   - `execution-control`
   - `workflow-worker`
@@ -45,7 +45,7 @@ updated: 2026-07-09
   execution-control runtime config 控制，不再通过额外 worker 进程打开。
 - `execution-control` 不作为 public staging surface；`app-api-staging` 通过
   Cloudflare Worker VPC Service binding 访问 K8s 内的 ClusterIP Service
-- `cloudflared-execution-control` connector 在 `nc-arm-6c` K8s 内运行，使用
+- `cloudflared-execution-control` connector 在 staging K8s 内运行，使用
   SealedSecret 投递 tunnel token
 - `app-api-staging` runtime 必须已经通过 Cloudflare Worker secret store 配置
   `EXECUTION_CONTROL_SHARED_SECRET`；缺失时 fail closed
@@ -70,25 +70,15 @@ updated: 2026-07-09
 
 ## Step 1. 确认 canonical execution-control staging runtime
 
-在 `nc-arm-6c` 对应 K8s cluster 使用 GitOps/Kubernetes 原生状态作为 runtime
-readiness 证据：
-
-```bash
-argocd app wait execution-runtime-staging --health --sync
-kubectl -n campus-agent-staging rollout status deploy/execution-control
-kubectl -n campus-agent-staging rollout status deploy/agent-runtime
-kubectl -n campus-agent-staging rollout status deploy/workflow-worker
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-core
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-agent
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-knowledge
-kubectl -n campus-agent-staging get pods,svc,ingress
-```
+先按私有环境仓的 runbook 采集 GitOps/Kubernetes runtime readiness 证据。本源仓
+不记录 Application 名称、namespace 或集群命令。
 
 最小通过标准：
 
-- `execution-runtime-staging` 为 Synced/Healthy
+- 环境仓 revision 与 Argo CD reconciled revision 一致
+- root 与相关 child Applications 为 Synced/Healthy
 - first-party runtime Deployments rollout 成功
-- `kubectl get pods` 不包含 CrashLoopBackOff、ImagePullBackOff 或 Pending
+- runtime pods 不包含 CrashLoopBackOff、ImagePullBackOff 或 unresolved Pending
 - Temporal、Hindsight、Qdrant、OTel、Postgres 由对应 platform/data Application
   提供，不通过 execution-runtime overlay 或 host-bridge 补齐
 
@@ -216,7 +206,7 @@ pnpm smoke:app-api -- chat-memory-staging
 
 不再保留直连 execution-control internal endpoint 的 staging smoke。Hindsight /
 public web search 等能力验证必须通过 app-api chat stream、operator read model 或
-execution-control K8s readiness 间接证明；需要内部 endpoint 诊断时在 nc-arm-6c 内部
+execution-control K8s readiness 间接证明；需要内部 endpoint 诊断时在目标集群内部
 临时执行，不进入 app-api package script 或 release closeout。
 
 公开官网搜索 agent eval 必须走 app-api chat stream，而不是直连 tool endpoint：
@@ -246,8 +236,7 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 
 至少记录：
 
-- `argocd app get execution-runtime-staging`
-- `kubectl -n campus-agent-staging get pods,svc,ingress`
+- 环境仓 revision、Argo CD sync/health 与 first-party rollout 摘要
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm smoke:app-api -- chat-staging` 的 JSON 摘要
 - `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts run-public-web-search-agent-eval ...`
@@ -255,11 +244,11 @@ id、latency、provider error count 与 source-policy scores。没有已接受�
 - 当前 app-api Worker 配置包含 `EXECUTION_CONTROL_PRIVATE` VPC Service binding 与
   `EXECUTION_CONTROL_PRIVATE_ORIGIN`
 
-## Rollback
+## Failure Handling
 
 如果 smoke 失败且无法快速恢复：
 
-1. 保持 execution upstream 指向 canonical staging runtime，并修复 canonical runtime 或
-   `app-api-staging` 配置后重新执行 smoke
-1. 对 first-party runtime 使用 `argocd app rollback execution-runtime-staging <revision>`
-1. 对 platform/data regression 回滚对应 Argo CD Application，并记录依赖名
+1. 保持 execution upstream 指向 canonical staging runtime，并定位 runtime 或
+   `app-api-staging` 配置错误。
+2. 集群 desired-state 修复按环境仓 runbook 提交和验证，不从本源仓直接操作 Argo CD。
+3. 修复后从 Step 1 重新执行 smoke，并记录失败依赖与新的环境 revision。

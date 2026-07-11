@@ -87,7 +87,7 @@ processors:
     send_batch_size: 512
 
 exporters:
-  otlphttp/sentry:
+  otlp_http/sentry:
     endpoint: "${env:OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT}"
     headers:
       x-sentry-auth: "${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}"
@@ -102,7 +102,7 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
-  otlphttp/axiom:
+  otlp_http/axiom:
     endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
     compression: zstd
     headers:
@@ -117,7 +117,7 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
-  otlphttp/axiommetrics:
+  otlp_http/axiommetrics:
     endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
     compression: zstd
     headers:
@@ -132,7 +132,7 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
-  otlphttp/langfuse:
+  otlp_http/langfuse:
     endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
     headers:
       authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
@@ -167,9 +167,9 @@ service:
         - probabilistic_sampler/traces
         - batch
       exporters:
-        - otlphttp/sentry
-        - otlphttp/axiom
-        - otlphttp/langfuse
+        - otlp_http/sentry
+        - otlp_http/axiom
+        - otlp_http/langfuse
         - debug
     metrics:
       receivers:
@@ -181,7 +181,7 @@ service:
         - filter/drop_marked
         - batch
       exporters:
-        - otlphttp/axiommetrics
+        - otlp_http/axiommetrics
         - debug
     logs:
       receivers:
@@ -194,5 +194,5 @@ service:
         - probabilistic_sampler/logs
         - batch
       exporters:
-        - otlphttp/axiom
+        - otlp_http/axiom
         - debug

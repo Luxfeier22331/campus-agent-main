@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: workflow-worker
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: workflow-worker
     app.kubernetes.io/part-of: campus-agent
@@ -27,8 +26,8 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: worker
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/workflow-worker"]
           envFrom:
             - configMapRef:
@@ -66,7 +65,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: activity-worker-core
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-core
     app.kubernetes.io/part-of: campus-agent
@@ -88,11 +86,13 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 60
       containers:
         - name: worker
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/activity-worker-core"]
           envFrom:
             - configMapRef:
@@ -142,7 +142,7 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
-            defaultMode: 0600
+            defaultMode: 0440
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
@@ -151,7 +151,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: activity-worker-agent
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-agent
     app.kubernetes.io/part-of: campus-agent
@@ -173,11 +172,13 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 60
       containers:
         - name: worker
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/activity-worker-agent"]
           envFrom:
             - configMapRef:
@@ -223,7 +224,7 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
-            defaultMode: 0600
+            defaultMode: 0440
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
@@ -232,7 +233,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: activity-worker-knowledge
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-knowledge
     app.kubernetes.io/part-of: campus-agent
@@ -254,11 +254,13 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 60
       containers:
         - name: worker
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/activity-worker-knowledge"]
           envFrom:
             - configMapRef:
@@ -307,7 +309,7 @@ spec:
         - name: provider-config-projection
           secret:
             secretName: execution-runtime-provider-config-projection
-            defaultMode: 0600
+            defaultMode: 0440
             items:
               - key: provider-config-projection.json
                 path: provider-config-projection.json

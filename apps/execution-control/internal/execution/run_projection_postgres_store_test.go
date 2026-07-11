@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPostgresRunProjectionStoreRequiresDatabaseURL(t *testing.T) {
@@ -16,6 +17,25 @@ func TestPostgresRunProjectionStoreRequiresDatabaseURL(t *testing.T) {
 	)
 	if !errors.Is(err, ErrInvalidRunProjectionStore) {
 		t.Fatalf("empty run projection postgres options error = %v, want ErrInvalidRunProjectionStore", err)
+	}
+}
+
+func TestPostgresRunProjectionStoreDefersConnectivityToHealthCheck(t *testing.T) {
+	store, err := NewPostgresRunProjectionStore(
+		context.Background(),
+		PostgresRunProjectionStoreOptions{
+			DatabaseURL: "postgres://campus_agent:secret@127.0.0.1:1/campus_agent?sslmode=disable",
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewPostgresRunProjectionStore returned error: %v", err)
+	}
+	defer store.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := store.HealthCheck(ctx); err == nil {
+		t.Fatal("HealthCheck returned nil error for unavailable Postgres")
 	}
 }
 

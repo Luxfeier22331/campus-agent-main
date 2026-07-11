@@ -78,13 +78,12 @@ jobs:
       - name: Build and deploy operator console staging
         run: pnpm --dir apps/operator-console-web build:staging && pnpm --dir apps/operator-console-web deploy:staging
 
-      - name: Verify staging readiness
+      - name: Verify deployed surface health
         shell: bash
         run: |
           set -euo pipefail
           for url in \
             https://api-staging.mucwiki-edge.link/healthz \
-            https://api-staging.mucwiki-edge.link/readyz \
             https://campus-staging.mucwiki-edge.link/healthz \
             https://campus-staging.mucwiki-edge.link/readyz \
             https://panel-staging.mucwiki-edge.link/healthz \
@@ -102,4 +101,5 @@ jobs:
             echo "- Campus Web: https://campus-staging.mucwiki-edge.link"
             echo "- App API: https://api-staging.mucwiki-edge.link"
             echo "- Operator Console: https://panel-staging.mucwiki-edge.link"
+            echo "- Runtime readiness: verified after the GitOps promotion is merged"
           } >> "$GITHUB_STEP_SUMMARY"

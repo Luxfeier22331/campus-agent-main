@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-12
-updated: 2026-07-06
+updated: 2026-07-10
 ---
 
 # Providers
@@ -292,8 +292,9 @@ Reading model:
 ### Kubernetes / GitOps Deploy
 
 - Owner: K8s deploy substrate and GitOps runtime.
-- Surfaces: `infra/k8s/**` Kustomize overlays and `infra/gitops/**` Argo CD
-  skeleton.
+- Surfaces: namespace-neutral `infra/k8s/**/base` resources here and concrete
+  Argo CD Applications, overlays and Helm values in the deployment environment
+  repository.
 - Rule: ConfigMaps carry non-secret bootstrap handles, Secrets carry delivered
   secret material, and the concrete K8s secret delivery path is selected by the
   deployment. Sealed Secrets is the repo-supported self-hosted/open-source

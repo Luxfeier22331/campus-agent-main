@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared-execution-control
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: cloudflared-execution-control
     app.kubernetes.io/component: private-service-connector

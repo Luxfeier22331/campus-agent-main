@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-16
-updated: 2026-07-06
+updated: 2026-07-10
 ---
 # Kubernetes Execution Runtime Architecture
 
@@ -199,10 +199,10 @@ Execution-runtime K8s manifests live at:
 
 ```text
 infra/k8s/execution-runtime/base
-infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
 ```
 
-They use Kustomize/raw YAML and intentionally exclude `campus-web`,
+The source repository contains namespace-neutral Kustomize/raw YAML and
+intentionally excludes `campus-web`,
 `operator-console-web` and `app-api`, which remain Cloudflare Worker surfaces.
 The execution-runtime manifests describe first-party internal execution-plane
 workloads only:
@@ -218,32 +218,16 @@ They do not own StatefulSets, platform databases, Qdrant server lifecycle,
 Temporal server lifecycle, Hindsight API lifecycle, OTel collector lifecycle or
 Traefik controller lifecycle.
 
-The `nc-arm-6c-staging-full` overlay is the single-node first-party execution
-runtime validation overlay. It owns only `execution-control`, `agent-runtime`, worker
-pools and first-party KEDA/posture support. Platform stateful and observability
-components enter Kubernetes through their own GitOps Applications:
+Concrete Applications and overlays live in the deployment environment
+repository under ADR-0070. A supported environment composes the first-party
+execution base with separately owned PostgreSQL, Qdrant, Temporal, Hindsight,
+OTel collector, ingress and secret-delivery Applications. It must patch the
+Temporal namespace/FQDN, provide the runtime ConfigMap, select immutable image
+digests and inject registry credentials when the registry is private.
 
-- `platform-cloudnativepg` installs the CloudNativePG operator.
-- `data-postgres-staging` declares the CNPG-managed projection / Temporal /
-  Hindsight databases.
-- `data-qdrant-staging` installs Qdrant through the pinned Qdrant Helm chart.
-- `platform-temporal-staging` installs Temporal through the pinned Temporal
-  Helm chart.
-- `platform-temporal-alias-staging` publishes the stable `temporal:7233`
-  same-namespace Service alias consumed by first-party execution-control and
-  workers. KEDA Temporal scalers run from the `keda` namespace and must use the
-  fully qualified endpoint
-  `temporal.campus-agent-staging.svc.cluster.local:7233`.
-- `memory-hindsight-staging` installs the Hindsight API with external model
-  providers, external Postgres and UI/control-plane/worker disabled by default.
-- `observability-otel-collector-staging` installs the OTel collector through the
-  pinned OpenTelemetry Collector Helm chart.
-- `ingress-traefik-staging` installs the non-default staging Traefik ingress
-  controller.
-
-This proves substrate shape only; it is not HA production evidence. Stateful HA
-decisions remain separate and require multiple failure domains or managed
-services.
+The base proves workload contract shape only; it is not an environment or HA
+production claim. Stateful HA decisions remain environment-owned and require
+multiple failure domains or managed services.
 
 ### Postgres Deployment Topology
 
@@ -276,15 +260,10 @@ mode.
 
 ### Ingress Controller
 
-nc-arm-6c full staging uses a Helm-managed Traefik controller with the
-non-default ingress class `traefik-staging`. First-party routes are declared in
-the owning Kustomize overlay as Kubernetes `Ingress` resources. Helm values live
-under `infra/gitops/values/traefik`.
-
-The shadow Traefik profile binds host ports `18080/18443` so the K8s ingress
-path can be verified while Docker Traefik still owns `80/443`. Cutover to
-`80/443` requires the Docker Traefik owner to stop or move first; do not let two
-controllers compete for the same host ports.
+Ingress controller choice, class, hostnames, ports and cutover policy belong to
+the environment repository. First-party internal Services do not embed a
+specific ingress controller. Do not let two controllers compete for the same
+host ports during an environment migration.
 
 ### Runtime Config And Secret Resources
 
@@ -298,42 +277,44 @@ material from separate Secrets such as `execution-control-secrets`,
 `execution-rag-secrets`, `execution-tool-read-model-secrets`,
 `execution-agent-client-secrets` and `agent-runtime-secrets`.
 
-Execution-runtime no longer owns a repo-static `execution-runtime-config`
-ConfigMap for platform collector config. OTel collector config belongs to
-`infra/gitops/values/opentelemetry-collector/staging.yaml` and is rendered by
-the OTel Helm chart. Execution-runtime ConfigMaps must not own provider active
-profiles, DSNs, tokens or platform config files. Release identity may be
-tracked as deploy bootstrap config and must be set by the deployment overlay
-before rollout. Provider active profiles remain app-api provider-config truth
-and enter K8s only through the reviewed
+The source base references but does not create
+`execution-runtime-rendered-config`; the environment overlay owns its concrete
+values. OTel collector config belongs to the environment's pinned chart values.
+Execution-runtime ConfigMaps must not own provider active profiles, DSNs,
+tokens or platform config files. Release identity may be tracked as deploy
+bootstrap config and must be set by the deployment overlay before rollout.
+Provider active profiles remain app-api provider-config truth and enter K8s
+only through the reviewed
 `execution-runtime-provider-config-projection` artifact.
+The projection Secret is mounted with mode `0440`; consumer Pods use runtime
+group `10001` through `fsGroup`. Local projection files remain owner-only
+`0600`.
 
 Local env renderers that emit Kubernetes ConfigMap or Secret YAML from copied
-env files are retired from the execution-runtime path. ConfigMap keys are
-tracked in Kustomize; Secret material is delivered by the selected backend
-described in ADR-0066. Local env may only be an operator input to that backend,
-not a renderer-defined desired state.
+env files are retired from the execution-runtime path. Secret material is
+delivered by the environment-selected backend described in ADR-0066. Local env
+may only be an operator input to that backend, not desired state.
 
-The `nc-arm-6c-slim` profile intentionally excludes in-cluster platform
-services and bridges Docker-owned Temporal, Hindsight, Qdrant, projection
-Postgres and OTel through selector-less Services. `staging-full` consumes the
-same first-party runtime Secret set plus `execution-app-api-internal-secrets`
-for internal projection publishing. Platform Secrets such as
+Platform Secrets such as
 `qdrant-server-secrets`, `qdrant-server-tls`, `temporal-db-secret`,
 `hindsight-api-secrets`, `otel-collector-secrets` and CNPG owner Secrets are
-owned by the selected GitOps secret-delivery path, not execution-runtime
-renderer output.
+owned by the environment GitOps secret-delivery path. Registry pull Secret
+selection is also environment-owned and is not part of the reusable base.
 
 ### GitOps And Helm Boundary
 
-Target K8s desired state is managed by Argo CD once a K8s staging/production
-environment exists. Argo CD is not current Docker staging truth and must not be
-used as evidence that nc-arm-6c has already migrated to Kubernetes.
+Target K8s desired state is managed by Argo CD from a deployment environment
+repository. Live rollout truth comes from Argo CD Application status,
+Kubernetes resources, runtime readiness and product smoke evidence; committed
+manifests alone are only desired state.
 
 First-party `campus-agent` execution resources remain Kustomize/raw YAML by
 default. Third-party platform components are consumed as pinned Helm charts or
 operator-managed custom resources through Argo CD. Argo CD uses Helm only to
 render third-party charts; Argo CD owns the Application lifecycle.
+The environment execution overlay runs the idempotent run projection schema
+installer as an Argo CD PreSync Job. Long-running execution-control processes
+keep schema auto-migration disabled and cannot become the migration owner.
 
 Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
 Hyperdrive bindings, Cloudflare Access policy or app-api provider-config active

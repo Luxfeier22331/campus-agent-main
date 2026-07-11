@@ -2,13 +2,12 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: campus-agent-postgres
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
 spec:
   instances: 1
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.0-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-202606221003-minimal-trixie@sha256:538f1b327b8dc7621a94aac79c9c3e5c50dfa29115a6c291e19372a5b876f415
   bootstrap:
     initdb:
       database: campus_agent

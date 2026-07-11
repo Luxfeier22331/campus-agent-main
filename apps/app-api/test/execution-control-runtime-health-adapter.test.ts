@@ -12,6 +12,7 @@ describe("execution control runtime health adapter", () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
+					runtime_release: "execution-control@0123456789ab",
 					run_projection_store: {
 						configured: true,
 						healthy: true,
@@ -68,6 +69,7 @@ describe("execution control runtime health adapter", () => {
 					runProjectionStore: "ready",
 					temporalRuntime: "ready",
 				},
+				runtimeRelease: "execution-control@0123456789ab",
 				status: "ready",
 			},
 			runProjectionStore: {

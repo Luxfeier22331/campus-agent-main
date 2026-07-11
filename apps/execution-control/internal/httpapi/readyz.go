@@ -66,6 +66,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 
 	responseBody := map[string]any{
 		"status":                  statusText,
+		"runtime_release":         strings.TrimSpace(s.config.RuntimeRelease),
 		"transport_runtime":       transportStatus,
 		"lifecycle_runtime":       s.lifecycle.Snapshot(),
 		"telemetry_runtime":       telemetryStatus,

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-03
-updated: 2026-07-09
+updated: 2026-07-10
 ---
 # E2E QA Release Runbook
 
@@ -58,36 +58,18 @@ git diff --check | tee "$E2E_QA_CLOSEOUT_DIR/git-diff-check.txt"
 
 ## 2. Staging Runtime Readiness
 
-先确认 `nc-arm-6c` 上的 execution-control staging runtime。本机只允许作为开发与
+先确认目标 Kubernetes 集群上的 execution-control staging runtime。本机只允许作为开发与
 静态验证环境，不得作为 staging acceptance source of truth：
 
-```bash
-argocd app get execution-runtime-staging \
-  | tee "$E2E_QA_CLOSEOUT_DIR/execution-runtime-argocd.txt"
-
-argocd app wait execution-runtime-staging --health --sync \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-argocd.txt"
-
-kubectl -n campus-agent-staging get pods,svc,ingress \
-  | tee "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-
-kubectl -n campus-agent-staging rollout status deploy/execution-control \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-kubectl -n campus-agent-staging rollout status deploy/agent-runtime \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-kubectl -n campus-agent-staging rollout status deploy/workflow-worker \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-core \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-agent \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-knowledge \
-  | tee -a "$E2E_QA_CLOSEOUT_DIR/execution-runtime-k8s.txt"
-```
+按私有环境仓的 cluster-readiness runbook 采集 Argo CD revision、Application
+sync/health、schema PreSync 与 first-party rollout evidence，并将摘要保存到
+`$E2E_QA_CLOSEOUT_DIR/execution-runtime-gitops.txt`。本源仓不复制环境的
+Application 名称、namespace 或集群命令。
 
 通过标准：
 
-- `execution-runtime-staging` 为 Synced/Healthy
+- 环境仓 revision 与 Argo CD reconciled revision 一致
+- root 与相关 child Applications 为 Synced/Healthy
 - first-party runtime Deployments rollout 成功
 - pods 不处于 CrashLoopBackOff、ImagePullBackOff 或 Pending
 - execution-control readiness 由 app-api `/readyz` 的 dependency status 进一步证明
@@ -163,7 +145,7 @@ pnpm smoke:app-api -- chat-memory-staging \
 Hindsight personal memory 与 public web search 不再通过 app-api package script 直连
 execution-control internal endpoint。相关能力必须通过 app-api chat stream、
 operator read model 或 execution-control K8s readiness 间接证明；需要内部 endpoint
-诊断时在 `nc-arm-6c` 内部临时执行，不进入 release closeout 默认命令。
+诊断时按环境仓 runbook 在受控集群网络内临时执行，不进入 release closeout 默认命令。
 
 通过标准：
 
@@ -348,6 +330,9 @@ projection drain 时间段，并保存：
 上线前必须验证 operator-safe runtime projection，而不是回读 Temporal history、
 Docker state 或本地 closeout artifact。
 
+先确认 GitOps revision、K8s sampler/posture collector 和 app-api operator projection
+均已更新。不要从远端 checkout 或一次性 host script 刷新线上 projection。
+
 检查 Temporal task queue snapshot：
 
 ```bash
@@ -394,19 +379,19 @@ Eval diagnostic release closeout 必须从 app-api operator observability detail
 
 ## 10. Data Plane Sanity
 
-只读检查 `nc-arm-6c` 容器与数据面：
+只读检查 Argo CD Applications、Kubernetes workload 与数据面：
 
 ```bash
-ssh nc-arm-6c \
-  'cd /srv/apps/campus-agent && \
-    docker ps --format "{{.Names}}\t{{.Status}}\t{{.Ports}}"' \
-  | tee "$E2E_QA_CLOSEOUT_DIR/remote-containers.txt"
+argocd app list | tee "$E2E_QA_CLOSEOUT_DIR/argocd-applications.txt"
+kubectl -n campus-agent-staging get pods,svc,networkpolicy \
+  | tee "$E2E_QA_CLOSEOUT_DIR/k8s-data-plane.txt"
 ```
 
 检查项：
 
-- Qdrant、Postgres、MinIO、execution runtime 容器健康
-- Qdrant 端口只绑定 host loopback 或 Docker data-plane，不公网暴露
+- Qdrant、Postgres、Temporal、Hindsight、OTel 与 execution runtime Application
+  均为 Synced/Healthy
+- 数据面 Service 不通过 host bridge 或手工 EndpointSlice 补齐
 - query-enabled aliases 仍为当前 accepted surfaces
 - runtime release manifest 可被 guard 读取
 - Qdrant snapshot 不存入 staging R2

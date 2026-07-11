@@ -33,6 +33,7 @@ RUN go test ./... \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge ./cmd/activity-worker-knowledge \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/keda-hpa-posture-collector ./cmd/keda-hpa-posture-collector \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/temporal-task-queue-sampler ./cmd/temporal-task-queue-sampler \
+  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/worker-autoscaler ./cmd/worker-autoscaler
 
 FROM debian:bookworm-slim
@@ -49,6 +50,7 @@ COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agen
 COPY --from=build /out/activity-worker-knowledge /usr/local/bin/activity-worker-knowledge
 COPY --from=build /out/keda-hpa-posture-collector /usr/local/bin/keda-hpa-posture-collector
 COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-queue-sampler
+COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json

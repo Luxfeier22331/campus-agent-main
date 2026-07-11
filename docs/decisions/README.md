@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: active
 created: 2026-04-12
-updated: 2026-07-05
+updated: 2026-07-10
 ---
 # Decisions
 
@@ -73,6 +73,10 @@ owner-boundary 映射。
     开源 GitOps 推荐默认路径，manual Secret、External Secrets Operator 或 SOPS
     仍可由部署者选择；repo 不提交明文 secret，Cloudflare Worker secrets 继续由
     Worker secret store 管理。
+- `adr-0070-source-and-environment-repository-boundary.md`
+  - 应用仓只保留可复用 source 与 namespace-neutral Kustomize base；真实 Argo
+    Application、overlay、Helm values、SealedSecret 和网络坐标由私有环境仓拥有，
+    镜像构建通过 GitOps PR 晋升。
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-tool-routing.md`
 - `adr-0060-agent-llm-io-contract.md`

@@ -52,15 +52,17 @@ controlled release validation stay outside ordinary PR blockers.
 Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a GitHub
 Actions workflow.
 
-Mutable K8s staging image tags must have an owning image workflow and
-`imagePullPolicy: Always` in the matching staging manifests. A GitOps sync must
-not rely on a node-local cached `:staging` image after runtime config, binary or
-schema files change.
+First-party K8s images are published with the source commit SHA and selected in
+the environment repository by multi-architecture manifest digest. Mutable
+staging tags and node-local image cache state are not deployment inputs.
 
 K8s/GitOps deployment validation is gated by live infrastructure bootstrap.
-Do not treat `infra/gitops/apps/*.yaml` as deployed truth, and do not claim
-nc-arm-6c deploy validation until Argo CD, the selected secret backend, KEDA
-and the target Applications exist and report healthy state in the cluster.
+Do not treat source-repository bases as deployed truth. Claim deployment
+validation only when the environment repository revision, Argo CD, the selected
+secret backend, KEDA and all target Applications report healthy state in the
+cluster. For execution-runtime promotion, the environment repository also
+requires public `app-api /readyz` to report the release identifier selected by
+its desired state.
 
 ## Scheduled Full Health Checks
 
@@ -267,11 +269,14 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - It builds a local image, blocks on Trivy HIGH / CRITICAL findings, and
     generates an SBOM artifact when `push_image=true`.
 - `.github/workflows/execution-runtime-image.yml`
-  - Execution runtime image build and GHCR publish workflow for
-    `execution-control:staging` and `agent-runtime:staging`.
-  - Pull requests build and scan the images. Pushes to `main`, or manual
-    dispatch with `push_image=true`, publish both `${{ github.sha }}` and
-    `staging` tags and generate SBOM artifacts.
+  - Pull-request image build and vulnerability scan for `execution-control` and
+    `agent-runtime`; it has no package-write or environment-repository access.
+- `.github/workflows/execution-runtime-publish.yml`
+  - Pushes to `main`, or manual dispatch with `push_image=true`, publish
+    `${{ github.sha }}` tags and generate SBOM artifacts.
+  - A successful `main` build resolves both image digests and opens an
+    environment-repository pull request that updates source SHA, digests and
+    runtime release id. It never writes directly to environment `main`.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
   - It is not a PR blocker and must not be treated as branch protection
@@ -283,21 +288,23 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - Automatic staging deployment after successful `pr` on `main`, and
     manual dispatch for a selected ref.
   - It binds the GitHub `staging` environment, runs existing app-local staging
-    deploy scripts, then checks Worker `healthz` / `readyz`.
+    deploy scripts, then checks product-surface health. It does not check
+    execution runtime readiness before the GitOps promotion is merged.
   - Its GitHub secret surface is limited to Cloudflare deploy auth. App-api
     staging reaches execution-control through the committed
     `EXECUTION_CONTROL_PRIVATE` VPC Service binding and non-secret
     `EXECUTION_CONTROL_PRIVATE_ORIGIN`; staging DB credentials stay in smoke /
     closeout paths.
-  - It is deployment validation, not a PR blocker.
+  - Full staging validation is completed by the environment repository after
+    promotion; this source workflow is not a PR blocker.
 - `.github/workflows/production-preflight.yml`
   - Protected production release preflight through manual dispatch and the
     GitHub `production` environment.
   - It verifies the selected ref is on `main` history and runs Worker build
     preflight. It does not deploy production until production app deploy scripts
     and rollback are explicitly added.
-  - It does not validate nc-arm-6c Kubernetes deployment. K8s deployment
-    validation starts only after the GitOps bootstrap prerequisites are live.
+  - It does not validate Kubernetes deployment. K8s deployment validation
+    starts only after the environment GitOps bootstrap prerequisites are live.
 
 ## Rules
 

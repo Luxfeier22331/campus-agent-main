@@ -119,6 +119,23 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	}
 }
 
+func TestReadyzPublishesRuntimeRelease(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.RuntimeRelease = "execution-control@0123456789ab"
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["runtime_release"] != "execution-control@0123456789ab" {
+		t.Fatalf("runtime_release = %v, want configured release", body["runtime_release"])
+	}
+}
+
 func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.temporalStarter = readyTemporalStarter{

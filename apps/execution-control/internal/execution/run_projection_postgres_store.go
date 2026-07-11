@@ -39,10 +39,6 @@ func NewPostgresRunProjectionStore(
 	if err != nil {
 		return nil, fmt.Errorf("create run projection postgres pool: %w", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping run projection postgres: %w", err)
-	}
 	store := &PostgresRunProjectionStore{pool: pool}
 	if options.AutoMigrate {
 		if err := store.EnsureSchema(ctx); err != nil {

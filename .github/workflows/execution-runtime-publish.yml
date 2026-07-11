@@ -1,0 +1,323 @@
+name: execution-runtime-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: Push execution runtime images to GHCR
+        required: true
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - apps/execution-control/**
+      - apps/agent-runtime/**
+      - configs/runtime/**
+      - configs/ingestion/**
+      - infra/k8s/data-postgres/base/**
+      - infra/k8s/data-qdrant/base/**
+      - infra/k8s/execution-runtime/base/**
+      - infra/k8s/memory-hindsight/base/**
+      - infra/k8s/observability-otel-collector/base/**
+      - infra/k8s/platform-temporal/base/**
+      - packages/contracts/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - package.json
+      - .github/workflows/execution-runtime-publish.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: execution-runtime-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: execution-control
+            dockerfile: apps/execution-control/Dockerfile
+            sbom: execution-control-sbom.spdx.json
+          - image: agent-runtime
+            dockerfile: apps/agent-runtime/Dockerfile
+            sbom: agent-runtime-sbom.spdx.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve image name
+        id: image
+        shell: bash
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image for scan
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+  push:
+    needs: scan
+    if: ${{ github.event_name == 'push' || inputs.push_image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: execution-control
+            dockerfile: apps/execution-control/Dockerfile
+            sbom: execution-control-sbom.spdx.json
+          - image: agent-runtime
+            dockerfile: apps/agent-runtime/Dockerfile
+            sbom: agent-runtime-sbom.spdx.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve image name
+        id: image
+        shell: bash
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image for SBOM
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+
+      - name: Generate image SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          artifact-name: ${{ matrix.sbom }}
+          format: spdx-json
+          dependency-snapshot: false
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+
+  promote-staging:
+    needs: push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Create GitOps promotion token
+        id: gitops-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: campus-agent-gitops
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.GITOPS_REPOSITORY }}
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve published image digests
+        id: digests
+        shell: bash
+        env:
+          IMAGE_ROOT: ghcr.io/${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          execution_control_digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE_ROOT,,}/execution-control:${SOURCE_SHA}" \
+              --format '{{json .Manifest}}' | jq -r '.digest'
+          )"
+          agent_runtime_digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE_ROOT,,}/agent-runtime:${SOURCE_SHA}" \
+              --format '{{json .Manifest}}' | jq -r '.digest'
+          )"
+          [[ "${execution_control_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${agent_runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "execution_control=${execution_control_digest}" >> "${GITHUB_OUTPUT}"
+          echo "agent_runtime=${agent_runtime_digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update immutable GitOps inputs
+        id: source
+        uses: mikefarah/yq@v4.53.3
+        env:
+          AGENT_RUNTIME_DIGEST: ${{ steps.digests.outputs.agent_runtime }}
+          AGENT_RUNTIME_IMAGE: ghcr.io/muc-wiki/campus-agent/agent-runtime
+          EXECUTION_CONTROL_DIGEST: ${{ steps.digests.outputs.execution_control }}
+          EXECUTION_CONTROL_IMAGE: ghcr.io/muc-wiki/campus-agent/execution-control
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        with:
+          cmd: |
+            set -eu
+            overlay_root=gitops/clusters/staging/overlays
+            for kustomization in "${overlay_root}"/*/kustomization.yaml; do
+              yq -i '(
+                .resources[] |
+                select(test(
+                  "^https://github.com/" + strenv(SOURCE_REPOSITORY) +
+                  "//infra/k8s/.+\\?ref=[0-9a-f]{40}$"
+                ))
+              ) |= sub("ref=[0-9a-f]{40}$"; "ref=" + strenv(SOURCE_SHA))' \
+                "${kustomization}"
+            done
+
+            runtime_kustomization="${overlay_root}/execution-runtime/kustomization.yaml"
+            yq -i '(
+              .images[] |
+              select(.name == strenv(EXECUTION_CONTROL_IMAGE))
+            ).digest = strenv(EXECUTION_CONTROL_DIGEST) | (
+              .images[] |
+              select(.name == strenv(AGENT_RUNTIME_IMAGE))
+            ).digest = strenv(AGENT_RUNTIME_DIGEST)' \
+              "${runtime_kustomization}"
+
+            runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
+            short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
+            SHORT_SHA="${short_sha}" yq -i '
+              .data.EXECUTION_CONTROL_RUNTIME_RELEASE =
+                ("execution-control@" + strenv(SHORT_SHA))
+            ' "${runtime_config}"
+
+            source_ref_count=0
+            for kustomization in "${overlay_root}"/*/kustomization.yaml; do
+              count="$(yq '[
+                .resources[] |
+                select(test("\\?ref=" + strenv(SOURCE_SHA) + "$"))
+              ] | length' "${kustomization}")"
+              source_ref_count="$((source_ref_count + count))"
+            done
+            test "${source_ref_count}" -eq 6
+            test "$(yq '[
+              .images[] |
+              select(
+                .name == strenv(EXECUTION_CONTROL_IMAGE) and
+                .digest == strenv(EXECUTION_CONTROL_DIGEST)
+              )
+            ] | length' "${runtime_kustomization}")" -eq 1
+            test "$(yq '[
+              .images[] |
+              select(
+                .name == strenv(AGENT_RUNTIME_IMAGE) and
+                .digest == strenv(AGENT_RUNTIME_DIGEST)
+              )
+            ] | length' "${runtime_kustomization}")" -eq 1
+            test "$(yq '.data.EXECUTION_CONTROL_RUNTIME_RELEASE' "${runtime_config}")" = \
+              "execution-control@${short_sha}"
+            printf '%s' "${short_sha}"
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: v1.36.2
+
+      - name: Validate promoted manifests
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global \
+            url."https://x-access-token:${SOURCE_TOKEN}@github.com/".insteadOf \
+            "https://github.com/"
+          for overlay in gitops/clusters/staging/overlays/*; do
+            kubectl kustomize "${overlay}" >/dev/null
+          done
+          kubectl kustomize gitops/clusters/staging/applications >/dev/null
+          kubectl kustomize gitops/clusters/staging/secrets >/dev/null
+
+      - name: Open GitOps deployment pull request
+        id: deployment-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops
+          base: main
+          branch: deploy/execution-runtime-${{ github.sha }}
+          delete-branch: true
+          commit-message: "chore: 部署 execution runtime ${{ steps.source.outputs.result }}"
+          title: "chore: 部署 execution runtime ${{ steps.source.outputs.result }}"
+          body: |
+            ## 变更内容
+
+            - 使用 `campus-agent@${{ github.sha }}` 的 Kubernetes 基座
+            - 固定 `execution-control` 和 `agent-runtime` 的多架构镜像 digest
+            - 同步运行时发布标识
+
+            ## 验证结果
+
+            - [x] 所有 staging Kustomize overlay 可完整渲染
+            - [x] Application 与 SealedSecret 清单可完整渲染

@@ -2,7 +2,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: dining-sync
-  namespace: campus-agent-dining-sync
 spec:
   schedule: "0 * * * *"
   timeZone: Asia/Shanghai
@@ -20,8 +19,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: dining-sync
-              image: ghcr.io/muc-wiki/campus-agent/dining-sync:staging
-              imagePullPolicy: Always
+              image: ghcr.io/muc-wiki/campus-agent/dining-sync:replace-me
+              imagePullPolicy: IfNotPresent
               command:
                 - pnpm
                 - --dir

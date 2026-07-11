@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: campus-agent-staging
-  labels:
-    kubernetes.io/metadata.name: campus-agent-staging

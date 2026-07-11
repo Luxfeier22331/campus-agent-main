@@ -143,6 +143,15 @@ function createRuntimeReadinessResult() {
 				},
 				blockers: {},
 			},
+			executionRuntime: {
+				status: "ready",
+				runtimeRelease: "execution-control@0123456789ab",
+				checks: {
+					runProjectionStore: "ready",
+					temporalRuntime: "ready",
+				},
+				blockers: {},
+			},
 		},
 	};
 }
@@ -378,6 +387,15 @@ describe("app-api worker foundation", () => {
 						toolReadModelRuntime: "ready",
 						transportSchedule: "ready",
 						transportScheduleReadModel: "ready",
+					},
+					blockers: {},
+				},
+				executionRuntime: {
+					status: "ready",
+					runtimeRelease: "execution-control@0123456789ab",
+					checks: {
+						runProjectionStore: "ready",
+						temporalRuntime: "ready",
 					},
 					blockers: {},
 				},

@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-02
-updated: 2026-06-22
+updated: 2026-07-10
 ---
 # Identity Platform Architecture
 
@@ -266,7 +266,7 @@ Implemented federation runtime:
   runtime are implemented in `apps/app-api` with `@better-auth/oauth-provider`
   and Better Auth `jwt()`.
 - Production `muc.wiki` login federation is still gated by staging client
-  provisioning, runtime secret injection and `nc-arm-6c` MediaWiki OpenID
+  provisioning, runtime secret injection and deployment-environment MediaWiki OpenID
   Connect smoke.
 - The older OIDC Provider plugin is not the selected production adapter.
 

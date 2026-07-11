@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dining-sync-config
-  namespace: campus-agent-dining-sync
 data:
   DINING_LARK_BASE_TOKEN: replace-me
   DINING_LARK_CAMPUS_TABLE_ID: replace-me

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0052
 status: accepted
 created: 2026-06-01
-updated: 2026-06-01
+updated: 2026-07-10
 supersedes: ADR-0020
 ---
 # ADR-0052 Self-Hosted Single-Node Qdrant And Native Backups
@@ -15,7 +15,7 @@ supersedes: ADR-0020
 `campus-agent` 的 query-serving index 当前规模小，早期 production 更需要可控、
 低成本、可恢复的部署面，而不是立即进入 Qdrant Cloud Standard。
 
-`nc-arm-6c` 当前已有 Docker runtime、`/srv` 服务目录和足够磁盘空间；截至
+当前单节点 staging 环境已有容器 runtime 和足够磁盘空间；截至
 2026-06-01，4 个当前 query-enabled collection 的 snapshot 总量约 `472M`，
 服务器 `/` 还有约 `203G` 可用空间。
 

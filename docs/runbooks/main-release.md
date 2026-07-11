@@ -67,15 +67,18 @@ release 流程：
 
 ## Main 到 Staging
 
-`main` push 触发 `.github/workflows/pr.yml` 的主干健康检查；staging 部署由
-`.github/workflows/deploy-staging.yml` 承接。
+`main` push 触发 `.github/workflows/pr.yml` 的主干健康检查；Cloudflare 产品面
+部署由 `.github/workflows/deploy-staging.yml` 承接，Kubernetes runtime 由环境仓
+promotion pull request 与 Argo CD 承接。
 
 标准做法：
 
 1. PR 合入 `main` 前确认 `pr / required` 为 success。
-1. 合入后等待 `main` push 上的 repo health lane 和 staging deploy 结果。
-1. staging 验证只在 GitHub deployment、Worker probes 和必要 runbook
-   证据都存在时才视为完成。
+1. 合入后等待源仓镜像发布、Cloudflare 产品面部署和环境仓 promotion pull
+   request。
+1. 合并环境仓 promotion pull request，等待 Argo CD 同步。
+1. staging 验证只在环境仓 post-promotion workflow 确认 `app-api /readyz`
+   报告目标 runtime release 后才视为完成。
 
 ## Production Release
 

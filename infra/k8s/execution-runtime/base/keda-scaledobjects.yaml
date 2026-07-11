@@ -2,7 +2,6 @@ apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
   name: temporal-worker-scaler-auth
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: temporal-worker-scaler-auth
     app.kubernetes.io/part-of: campus-agent
@@ -12,7 +11,6 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: workflow-worker
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: workflow-worker
     app.kubernetes.io/part-of: campus-agent
@@ -31,8 +29,8 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
-        namespace: campus-agent-staging
+        endpoint: temporal.default.svc.cluster.local:7233
+        namespace: default
         taskQueue: campus-agent.workflow
         queueTypes: workflow
         targetQueueSize: "8"
@@ -44,7 +42,6 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: activity-worker-core
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-core
     app.kubernetes.io/part-of: campus-agent
@@ -63,8 +60,8 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
-        namespace: campus-agent-staging
+        endpoint: temporal.default.svc.cluster.local:7233
+        namespace: default
         taskQueue: campus-agent.activity.core
         queueTypes: activity
         targetQueueSize: "8"
@@ -76,7 +73,6 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: activity-worker-agent
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-agent
     app.kubernetes.io/part-of: campus-agent
@@ -95,8 +91,8 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
-        namespace: campus-agent-staging
+        endpoint: temporal.default.svc.cluster.local:7233
+        namespace: default
         taskQueue: campus-agent.activity.agent
         queueTypes: activity
         targetQueueSize: "8"
@@ -108,7 +104,6 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: activity-worker-knowledge
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-knowledge
     app.kubernetes.io/part-of: campus-agent
@@ -127,8 +122,8 @@ spec:
   triggers:
     - type: temporal
       metadata:
-        endpoint: temporal.campus-agent-staging.svc.cluster.local:7233
-        namespace: campus-agent-staging
+        endpoint: temporal.default.svc.cluster.local:7233
+        namespace: default
         taskQueue: campus-agent.activity.knowledge
         queueTypes: activity
         targetQueueSize: "8"

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/policies
 status: active
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-10
 ---
 # Public Source And Data Policy
 
@@ -23,6 +23,8 @@ databases or internal operator evidence.
 - self-authored low-frequency product seeds when ownership is documented
 - attribution-only metadata that does not copy restricted source content
 - `.env.example` / `.dev.vars.example` templates with placeholders only
+- namespace-neutral Kubernetes workload bases with placeholder deployment
+  inputs
 
 ## Not Allowed In Public Repo
 
@@ -34,6 +36,8 @@ databases or internal operator evidence.
 - real map tiles, third-party GeoJSON or generated publication artifacts
 - current serving truth such as release current pointers or mutable production
   projections
+- real cluster names, machine names, private hostnames, IP/CIDR topology,
+  environment Helm values, Argo Applications or encrypted secret inventory
 
 ## Provenance Classes
 

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-14
-updated: 2026-04-25
+updated: 2026-07-10
 ---
 # Runtime Delivery And Release Hardening Architecture
 
@@ -102,6 +102,22 @@ release identity 的长期规则固定为：
 - release naming 是 deploy-time concern，不是静态配置文件事实
 - observability、artifact 命名与 deploy 审计必须围绕同一 release identity 收口
 
+## Staging Deployment Sequence
+
+Staging deployment uses two ordered owners:
+
+1. A source-repository `main` push deploys the Cloudflare product surfaces and
+   checks their own health. It also publishes execution runtime images and
+   opens an environment-repository promotion pull request.
+1. Merging that promotion pull request lets Argo CD reconcile the pinned source
+   SHA and image digests. The environment repository then waits for public
+   `app-api /readyz` to report both runtime dependencies ready and the exact
+   `execution-control` release selected by desired state.
+
+The source-repository Worker deployment must not claim full runtime readiness
+before the environment promotion is merged. A healthy stale runtime release is
+not valid post-promotion evidence.
+
 ## Pre-Deploy Gate
 
 长期上，发布前 gate 至少分成四类：
@@ -135,7 +151,7 @@ release identity 的长期规则固定为：
 - `app-api` staging deploy 必须包含 `EXECUTION_CONTROL_PRIVATE` Worker VPC Service
   binding，并显式配置非密的 `EXECUTION_CONTROL_PRIVATE_ORIGIN`
 - staging forward deploy truth 是
-  `app-api Worker -> Worker VPC Service -> cloudflared in nc-arm-6c K8s ->
+  `app-api Worker -> Worker VPC Service -> cloudflared in staging K8s ->
   ClusterIP execution-control:8000`
 - staging 不再要求旧的 execution-control public URL deploy 变量，也不再通过
   Cloudflare Access service-token 访问 execution-control public ingress

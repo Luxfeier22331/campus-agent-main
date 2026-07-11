@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-07-05
+updated: 2026-07-10
 ---
 # 当前架构
 
@@ -87,9 +87,11 @@ dining.review_projections -> app-api /api/dining/* reader`
   sanitized projection writeback
 - Docker Compose execution runtime 只保留 local diagnostics；长期 production
   target substrate 已由 ADR-0056 与 Kubernetes execution runtime architecture
-  收口为 K8s + KEDA。live staging/production substrate 不能只由本文
-  文档措辞推断，必须看 applied resources、runtime env、operator projection 与
-  release closeout artifacts。
+  收口为 K8s + KEDA。应用仓只保留 namespace-neutral Kustomize base；
+  真实 Application、overlay、Helm values 与 encrypted secret inventory 由
+  deployment environment repository 管理。live staging/production substrate
+  不能只由本文文档措辞推断，必须看 environment revision、Argo/K8s status、runtime
+  readiness、operator projection 与 release closeout artifacts。
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
   启动 / 取消 `ToolExecutionWorkflow`，Temporal task queue 承担 execution substrate

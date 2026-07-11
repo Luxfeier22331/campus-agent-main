@@ -355,7 +355,7 @@ If the Collector receives telemetry but no sink records appear:
 6. Confirm Sentry uses `x-sentry-auth`, not `Authorization`.
 7. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
    for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,
-   or `/v1/metrics` in the Collector exporter config because `otlphttp` appends the signal path
+   or `/v1/metrics` in the Collector exporter config because `otlp_http` appends the signal path
    automatically.
 8. Confirm Worker-origin telemetry is posted to the protected Collector OTLP
    HTTP receiver with bearer auth, not to vendor sinks.

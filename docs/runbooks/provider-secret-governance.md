@@ -146,7 +146,9 @@ ConfigMap、Worker vars、Docker Compose runtime env 或 GitOps values 的来源
 1. 再在 Operator Console 确认目标 provider profiles 已 validate + active
 1. 运行 `apps/execution-control/scripts/sync-provider-config-projection.ts`，确认目标 runtime 的
    `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` /
-   `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 projection artifact
+   `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向安全的 projection artifact：
+   本地文件使用 `0600`；Kubernetes Secret 投影使用 `0440`，并由 Pod `fsGroup`
+   授予 runtime group 只读权限
 1. 如果启用 LLM debug trace，先在 Operator Console 的 `观测配置` 页面确认
    Langfuse OTLP 配置，再运行 `apps/execution-control/scripts/sync-observability-config-projection.ts`，
    确认目标 runtime 的 `CAMPUS_OBSERVABILITY_CONFIG_SNAPSHOT_HOST_PATH` 指向

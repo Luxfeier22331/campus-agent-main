@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: temporal-task-queue-sampler
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: temporal-task-queue-sampler
     app.kubernetes.io/part-of: campus-agent
@@ -20,8 +19,8 @@ spec:
       serviceAccountName: execution-runtime
       containers:
         - name: sampler
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
             - -ec
@@ -54,7 +53,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keda-hpa-posture-collector
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: keda-hpa-posture-collector
     app.kubernetes.io/part-of: campus-agent
@@ -72,8 +70,8 @@ spec:
       serviceAccountName: keda-hpa-posture-reader
       containers:
         - name: posture-collector
-          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
-          imagePullPolicy: Always
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
             - -ec

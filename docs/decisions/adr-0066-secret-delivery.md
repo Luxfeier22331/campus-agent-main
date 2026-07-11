@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0066
 status: accepted
 created: 2026-07-03
-updated: 2026-07-06
+updated: 2026-07-10
 ---
 # ADR-0066 Secret Delivery
 
@@ -25,8 +25,10 @@ architecture truth.
 
 - Workloads consume Kubernetes Secrets by stable, role-scoped names.
 - Real secret material stays outside plaintext git.
-- Repo-tracked manifests may contain delivery-backend references or encrypted
-  secret resources, but not plaintext secret values.
+- Deployment environment repositories may contain delivery-backend references
+  or encrypted secret resources, but not plaintext secret values. The
+  application source repository contains only stable Secret consumption names
+  and placeholder examples.
 - Sealed Secrets is the recommended default for repo-supported self-hosted and
   open-source deployments because it keeps GitOps reviewability without
   requiring a separate hosted secret manager.
@@ -49,11 +51,12 @@ secrets or app-api provider-config active profiles.
   delivery documentation instead.
 - Manual K8s Secret creation is accepted for small self-hosted deployments when
   the operator also owns rotation and audit runbooks.
-- The repo provides a pinned `platform-sealed-secrets` Argo CD Application for
-  the recommended default self-hosted GitOps path.
-- SealedSecret manifests committed to the repo must use the default strict
-  scope. Namespace-wide or cluster-wide sealing is a separate risk acceptance,
-  not a repo default.
+- A deployment environment repository may provide a pinned
+  `platform-sealed-secrets` Argo CD Application for the recommended default
+  self-hosted GitOps path.
+- SealedSecret manifests committed to an environment repository must use the
+  default strict scope. Namespace-wide or cluster-wide sealing is a separate
+  risk acceptance, not a default.
 - Secret delivery checks must reject provider API keys, DSNs, tokens or shared
   secrets in GitOps manifests and Helm values.
 - A deployment can switch from manual Secrets to Sealed Secrets, External

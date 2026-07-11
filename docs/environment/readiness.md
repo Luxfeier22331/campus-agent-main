@@ -97,7 +97,11 @@ Fixed interpretation:
 - `/healthz` means the process or Worker surface is alive enough to answer.
 - `/readyz` means required runtime dependencies for that surface are ready.
 - `app-api /readyz` may expose sanitized dependency state such as
-  `executionControl` and `executionRuntime`.
+  `executionControl`, `executionRuntime` and the current execution runtime
+  release identifier.
+- Environment post-promotion verification must match that release identifier
+  against the environment repository desired state; a healthy stale release
+  does not close the deployment.
 - `execution-control /readyz` is a trusted machine probe outside local profiles;
   it is not a public browser readiness endpoint.
 - Docs reader readiness uses `GET /api/docs/readyz`; it does not imply chat,

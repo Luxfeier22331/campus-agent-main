@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-06
-updated: 2026-06-06
+updated: 2026-07-10
 ---
 # Temporal Self-Hosted Operations
 
@@ -147,20 +147,23 @@ pnpm repo:static
 ```
 
 `CLOUDFLARE_API_TOKEN` stays in the deploy shell process env and must not be
-written into the checkout. On `nc-arm-6c` non-login SSH shells, first confirm
-`pnpm` and `uv` are on `PATH`; the current host paths are
-`/usr/local/bin/pnpm` and `/home/deploy/.local/bin/uv`.
+written into the checkout. Environment-repository or cluster operator shells
+must provide their own toolchain without recording host filesystem paths here.
 
-Before runtime validation, confirm schema install/check closeout artifacts exist
-and report `passed=true`, `schema_ready=true`, and `store=postgres`:
+For K8s staging, confirm the Argo CD PreSync schema Job completed and
+its JSON log reports `passed=true`, `schema_ready=true`, and `store=postgres`:
 
 ```bash
-jq . .tmp/execution-control-staging/evidence/run-projection-schema-install.json
-jq . .tmp/execution-control-staging/evidence/run-projection-schema-check.json
+kubectl -n campus-agent-staging get job execution-run-projection-schema
+kubectl -n campus-agent-staging logs job/execution-run-projection-schema
 ```
 
+Do not run schema installation manually for this GitOps path. The PreSync Job
+must fail before runtime reconciliation when the database, schema command or
+required Secret is unavailable.
+
 Run the repo-owned Temporal-ready HTTP validation only from a network position
-that can reach execution-control directly, such as inside `nc-arm-6c` K8s or a
+that can reach execution-control directly, such as inside the target K8s cluster or a
 temporary port-forward. Staging no longer exposes execution-control through a
 public ingress.
 
@@ -228,16 +231,18 @@ terminal state, or downstream budget.
 
 ### Kubernetes Staging Validation
 
-First-stage Kubernetes staging manifests live at:
+Kubernetes staging desired state lives in the deployment environment
+repository. Render its execution overlay before merge:
 
 ```bash
-kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full
+kubectl kustomize clusters/<environment>/overlays/execution-runtime
 ```
 
-Before apply, confirm the first-party Kustomize overlay renders the tracked
+Before merge, confirm the first-party Kustomize overlay renders the environment-owned
 `execution-runtime-rendered-config` ConfigMap, and confirm the selected
 secret-delivery path has created the required role-scoped Secrets,
-`execution-runtime-provider-config-projection`, and
+`execution-runtime-provider-config-projection`,
+`ghcr-campus-agent-pull`, and
 `execution-runtime-qdrant-tls-ca`. The default slim execution-runtime Secret
 set is:
 `execution-control-secrets`, `execution-control-metrics-secrets`,
@@ -252,17 +257,16 @@ database role. Do not create monolithic
 `execution-runtime-secrets` or `execution-worker-common-secrets` Secrets. The provider-config
 projection Secret is created from a reviewed `provider_config_projection.v1`
 artifact by the selected secret-delivery path; it is not a handwritten example
-Secret. The example files under `infra/k8s/execution-runtime/base/` are
-documentation samples and must not be applied as real staging credentials.
+Secret. The example ConfigMap under `infra/k8s/execution-runtime/base/` is a
+documentation sample and must not be applied as real staging config.
 
 The full first-party runtime validation only adds
 `execution-app-api-internal-secrets` to the first-party runtime Secret set.
 Temporal server lifecycle, Temporal database credentials and the stable
 same-namespace `temporal:7233` alias are managed by the GitOps platform
-Applications and the selected GitOps secret-delivery path
-(`platform-temporal-staging`, `platform-temporal-alias-staging`,
-`temporal-db-secret`), not by the execution-runtime overlay. KEDA Temporal
-scalers must use `temporal.campus-agent-staging.svc.cluster.local:7233`
+Applications and the selected GitOps secret-delivery path, not by the
+execution-runtime overlay. KEDA Temporal
+scalers must use the environment's fully qualified Temporal Service endpoint
 because they run from the `keda` namespace. OTel collector, Hindsight, Qdrant
 and CNPG Secrets follow the same platform/data ownership rule.
 
@@ -270,17 +274,11 @@ Execution-runtime env renderers must not emit Kubernetes ConfigMap or Secret
 YAML from local env files. Use tracked Kustomize config and the selected Secret
 delivery backend instead.
 
-Render and apply:
+Render before merge, then use the environment repository's runbook to wait for
+Argo CD and first-party Deployment readiness:
 
 ```bash
-kubectl kustomize infra/k8s/execution-runtime/overlays/nc-arm-6c-staging-full > /tmp/campus-agent-k8s-staging.yaml
-kubectl apply -f /tmp/campus-agent-k8s-staging.yaml
-kubectl -n campus-agent-staging wait \
-  --for=condition=available deploy/execution-control \
-  --timeout=300s
-kubectl -n campus-agent-staging wait \
-  --for=condition=available deploy/agent-runtime \
-  --timeout=300s
+kubectl kustomize clusters/<environment>/overlays/execution-runtime >/dev/null
 ```
 
 The K8s staging validation must confirm:

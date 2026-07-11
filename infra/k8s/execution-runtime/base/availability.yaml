@@ -2,7 +2,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: execution-control
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: execution-control
     app.kubernetes.io/part-of: campus-agent
@@ -16,7 +15,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: workflow-worker
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: workflow-worker
     app.kubernetes.io/part-of: campus-agent
@@ -30,7 +28,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: activity-worker-core
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-core
     app.kubernetes.io/part-of: campus-agent
@@ -44,7 +41,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: activity-worker-agent
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-agent
     app.kubernetes.io/part-of: campus-agent
@@ -58,7 +54,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: activity-worker-knowledge
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: activity-worker-knowledge
     app.kubernetes.io/part-of: campus-agent

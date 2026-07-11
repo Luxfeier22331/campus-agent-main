@@ -2,13 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: campus-agent-postgres
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
 spec:
   type: ExternalName
-  externalName: campus-agent-postgres-rw.campus-agent-staging.svc.cluster.local
+  externalName: campus-agent-postgres-rw.default.svc.cluster.local
   ports:
     - name: postgres
       port: 5432

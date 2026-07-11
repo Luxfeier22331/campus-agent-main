@@ -2,7 +2,6 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
   name: campus-agent-postgres-campus-agent
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -17,7 +16,6 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
   name: campus-agent-postgres-temporal
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -32,7 +30,6 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
   name: campus-agent-postgres-temporal-visibility
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -47,7 +44,6 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
   name: campus-agent-postgres-hindsight
-  namespace: campus-agent-staging
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent

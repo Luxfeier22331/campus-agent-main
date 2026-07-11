@@ -4,96 +4,84 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-06
+updated: 2026-07-10
 ---
 
 # Execution Control Staging Operations
 
 ## Boundary
 
-Execution-control staging operations are Kubernetes/GitOps-owned. Docker Compose
-is local diagnostics only and must not own staging lifecycle.
+Execution-control staging operations are Kubernetes/GitOps-owned. Docker
+Compose is local diagnostics only and must not own staging lifecycle.
 
 Related owner docs:
 
 - current topology: `../architecture/current.md`
 - K8s runtime architecture: `../architecture/system/k8s-runtime.md`
-- GitOps operations: `gitops-k8s.md`
+- GitOps handoff: `gitops-k8s.md`
 - product-path smoke: `execution-smoke.md`
+
+The private environment repository owns Application names, namespaces, rollout
+commands, recovery procedures and cluster evidence. This source runbook defines
+the evidence contract and must not become a second environment runbook.
 
 ## Deploy And Status
 
-Use Argo CD as the lifecycle owner:
+The source deployment handoff is:
 
-```bash
-argocd app sync platform-cloudnativepg
-argocd app sync data-postgres-staging
-argocd app sync data-qdrant-staging
-argocd app sync platform-temporal-staging
-argocd app sync platform-temporal-alias-staging
-argocd app sync observability-otel-collector-staging
-argocd app sync memory-hindsight-staging
-argocd app sync ingress-traefik-staging
-argocd app sync execution-runtime-staging
-argocd app wait execution-runtime-staging --health --sync
-```
+1. `.github/workflows/execution-runtime-publish.yml` publishes immutable images
+   and opens an environment-repository pull request.
+2. Environment CI renders and validates its Applications, values, overlays and
+   encrypted secret inventory.
+3. Merging that pull request selects the deployment revision.
+4. Argo CD reconciles the environment repository and records health at that
+   revision.
 
-Check first-party runtime readiness with Kubernetes primitives:
+The environment execution overlay runs a `PreSync` schema Job before
+first-party Deployments reconcile. The Job uses the same immutable
+`execution-control` image digest as the runtime, installs and verifies the run
+projection schema and blocks sync on failure. Long-running processes keep
+`EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=false`.
 
-```bash
-kubectl -n campus-agent-staging rollout status deploy/execution-control
-kubectl -n campus-agent-staging rollout status deploy/agent-runtime
-kubectl -n campus-agent-staging rollout status deploy/workflow-worker
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-core
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-agent
-kubectl -n campus-agent-staging rollout status deploy/activity-worker-knowledge
-kubectl -n campus-agent-staging get pods,svc,ingress
-```
+Required deployment evidence:
+
+- environment repository commit;
+- root and child Application sync/health status;
+- schema Job output with `passed=true`, `schema_ready=true` and
+  `store=postgres`;
+- first-party Deployment rollout status and immutable image digests;
+- no runtime Pod in `CrashLoopBackOff`, `ImagePullBackOff` or unresolved
+  `Pending` state.
+
+Use the environment repository's runbook to collect that evidence. Do not add
+cluster coordinates or direct sync commands here.
 
 ## Config And Secrets
 
-Non-secret bootstrap config is tracked in Kustomize/Helm values and delivered as
-Kubernetes ConfigMaps. Secret material is delivered through the selected
-Kubernetes Secret backend: manual Secrets, Sealed Secrets, External Secrets
-Operator or SOPS-backed encrypted Secrets.
+Non-secret runtime config is tracked in the environment repository and
+delivered as Kubernetes ConfigMaps. Secret material is delivered through the
+environment-selected backend; this source repository records only stable
+Secret consumption contracts. If the registry is private, the environment
+overlay adds the matching pull Secret to first-party ServiceAccounts.
 
-Provider active profiles remain app-api provider-config truth. Runtime consumers
-use the reviewed provider projection artifact delivered through the selected
-Secret/file delivery path. Missing Secrets, ConfigMaps or projections are
-deployment blockers.
+Provider active profiles remain app-api provider-config truth. Runtime
+consumers use the reviewed provider projection artifact delivered through the
+selected Secret/file delivery path. Missing Secrets, ConfigMaps or projections
+are deployment blockers.
 
 ## Health And Triage
 
-Use Kubernetes probes, events and logs:
-
-```bash
-kubectl -n campus-agent-staging get events --sort-by=.lastTimestamp
-kubectl -n campus-agent-staging logs deploy/execution-control --tail=200
-kubectl -n campus-agent-staging logs deploy/activity-worker-knowledge --tail=200
-kubectl -n campus-agent-staging describe deploy/execution-control
-```
-
-Public readiness is still observed through app-api:
+The environment runbook owns Pod events, logs, describes and dependency
+Application inspection. Source-side release verification consumes only the
+sanitized evidence above plus public app-api readiness:
 
 ```bash
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/readyz
 ```
 
-If execution-control readiness is degraded, inspect the owning platform
-Application first: Temporal, Hindsight, Qdrant, OTel, Postgres or the
-first-party execution-runtime Application. Do not add Docker staging scripts or
-local env renderers as a workaround.
-
-## Rollback
-
-Rollback is GitOps rollback, not Docker Compose restart:
-
-```bash
-argocd app history execution-runtime-staging
-argocd app rollback execution-runtime-staging <revision>
-argocd app wait execution-runtime-staging --health --sync
-```
-
-If a platform Application caused the regression, roll back that Application
-separately and record the affected dependency in the closeout artifact.
+If execution-control readiness is degraded, identify whether Temporal,
+Hindsight, Qdrant, OTel, Postgres or the first-party runtime Application owns
+the failed dependency. Fix desired state in the environment repository; do not
+recreate Docker staging scripts, local env renderers or direct host mutation as
+a workaround.

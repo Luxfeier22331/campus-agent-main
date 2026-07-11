@@ -2,7 +2,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: execution-runtime-default-deny
-  namespace: campus-agent-staging
 spec:
   podSelector: {}
   policyTypes: ["Ingress", "Egress"]
@@ -11,7 +10,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: execution-runtime-namespace-traffic
-  namespace: campus-agent-staging
 spec:
   podSelector:
     matchLabels:
@@ -32,7 +30,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: execution-runtime-platform-egress
-  namespace: campus-agent-staging
 spec:
   podSelector:
     matchLabels:
@@ -71,7 +68,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: execution-runtime-temporal-keda-ingress
-  namespace: campus-agent-staging
 spec:
   podSelector:
     matchLabels:
