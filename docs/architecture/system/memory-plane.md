@@ -466,6 +466,8 @@ Hindsight posture：
   recall / reflect / operation lifecycle 由 Hindsight 承担。
 - execution-control 通过官方 Go SDK 消费 Hindsight HTTP API，不把 Hindsight SDK 类型泄漏进
   `packages/contracts`。
+- Hindsight 使用外部 LLM、embedding、reranker 与 PostgreSQL 时必须采用官方 slim
+  image；不得为这些外部 provider 场景继续部署包含本地模型依赖的 full image。
 - staging / local compose 默认使用内网 `http://hindsight-api:8888`；只有外接
   Hindsight endpoint 时才需要覆盖 URL，外部 endpoint 必须使用 HTTPS。
 - `PERSONAL_MEMORY_API_SECRET` 只注入需要 personal memory 的 execution-control

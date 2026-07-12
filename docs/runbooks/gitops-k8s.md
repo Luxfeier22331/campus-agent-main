@@ -37,6 +37,12 @@ The environment repository owns:
 - full source commit SHAs and first-party image digests;
 - environment-specific rollout, recovery and cluster verification.
 
+The self-hosted object store follows the same split: this repository owns the
+namespace-neutral StatefulSet, Service, bootstrap Job and NetworkPolicy base;
+the environment repository owns storage class, SealedSecret values, source SHA
+and Argo CD Application. The object store is private ClusterIP-only data-plane
+infrastructure and must not gain a public ingress for migration convenience.
+
 Do not copy environment files back into this repository. Other institutions
 should fork the source and create their own environment repository.
 

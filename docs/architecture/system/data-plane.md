@@ -136,6 +136,25 @@ has an external source lifecycle. `apps/ingestion-control` remains a self-hosted
 control-plane service because task admission, workflow start and terminal
 closeout need stable internal state, diagnostics and failure semantics.
 
+## Object Store Posture
+
+The object store is a private S3-compatible data-plane substrate for source and
+derived artifacts. It is not an Agent, browser or public API surface.
+
+- staging uses the GitOps-managed `object-store` Kubernetes Service and a
+  persistent single-node volume; local development may use the Compose
+  `object-store` service
+- canonical buckets are `campus-agent-source` and `campus-agent-derived`; the
+  retired `campus-rag-*` names are not compatibility aliases
+- collectors receive source-bucket credentials, while materializers and
+  readers receive only the bucket credentials required by their runtime role
+- the Kubernetes service has no public ingress; host-side maintenance uses a
+  bounded `kubectl port-forward`
+- application contracts expose `OBJECT_STORE_*` and `s3://` artifact refs, not
+  MinIO deployment, policy or storage types
+- object-store bootstrap owns bucket and policy creation; application startup
+  must fail closed when required buckets or scoped credentials are unavailable
+
 Official-web source-channel projection preserves selected write target metadata
 from collector observations into terminal run events. Ingestion-control admits
 `official_web/stable_reference` or `official_web/fresh_news`
@@ -158,12 +177,12 @@ production posture 固定为 `self-hosted authenticated private data-plane`：
   backup / restore 才使用 admin `QDRANT_API_KEY`
 - execution-control personal memory 不再接入 Qdrant write path；个人记忆写入由 Hindsight
   runtime 承担
-- `QDRANT_URL` 指向 Docker data-plane / private network endpoint，不作为 browser、
-  panel、docs、chat 或 public smoke endpoint
-- 同一 self-host substrate / compose network 内的 `QDRANT_URL` 默认使用
-  `http://qdrant:6333`。跨 substrate、公网入口或 machine ingress 必须使用 HTTPS，并配置
-  `QDRANT_TLS_CA_CERT_PATH`；外部 `api_key + http://` warning 代表不合格 data-plane
-  transport。
+- staging `QDRANT_URL` 指向 Kubernetes private Service；local development may
+  use the Compose data-plane endpoint. Neither endpoint is a browser, panel,
+  docs, chat or public smoke surface
+- authenticated staging and production Qdrant transport uses HTTPS and
+  `QDRANT_TLS_CA_CERT_PATH`; external `api_key + http://` is not an acceptable
+  data-plane transport
 - Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
   只消费已发布 alias / serving config，不直接把 Qdrant physical collection 名提升为
   product truth

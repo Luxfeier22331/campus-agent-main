@@ -140,7 +140,7 @@ services:
       - execution-runtime
 
   hindsight-api:
-    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.4}
+    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.4-slim}
     restart: unless-stopped
     extra_hosts: *host-gateway
     depends_on:
