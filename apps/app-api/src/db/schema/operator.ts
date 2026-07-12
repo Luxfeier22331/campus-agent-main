@@ -180,24 +180,6 @@ export const qualityGradeProjection = operator.table(
 	}),
 );
 
-export const traceBacklinkProjection = operator.table(
-	"trace_backlink_projection",
-	{
-		requestId: text("request_id").primaryKey(),
-		traceId: text("trace_id").notNull(),
-		traceLink: text("trace_link"),
-		issueLink: text("issue_link"),
-		issueFingerprint: text("issue_fingerprint"),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		traceProjectedAtIndex: index("operator_trace_backlink_projection_trace_projected_at_idx").on(
-			table.traceId,
-			table.projectedAt,
-		),
-	}),
-);
-
 export const officialWebRunProjection = operator.table(
 	"official_web_run_projection",
 	{

@@ -4,189 +4,99 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-19
-updated: 2026-07-05
+updated: 2026-07-11
 ---
-
 # Langfuse Evals
 
-## 1. Background
+## Background
 
-Langfuse is the LLM observability and eval platform for campus-agent. It can
-hold traces, datasets, experiments, annotation workflows, scores and score
-analytics. It does not replace repo-owned versioned eval asset truth, Temporal history,
-app-api projection, operator backend contracts or release authority.
+Langfuse is the shared platform for traces, datasets, experiments, annotation
+workflows and scores. It does not replace repo-owned eval assets, Temporal
+history, app-api storage, contracts or release authority.
 
-Eval migration is Langfuse/Ragas-first. The active product requirement is to
-let engineering, Eval / QA and operator workflows inspect the same sanitized
-eval evidence while avoiding repo-owned self-built eval frameworks.
+## Goals
 
-## 2. Goals
+- Correlate request, run, workflow, trace and eval identity.
+- Score approved Langfuse traces and materialized datasets with upstream Ragas.
+- Evaluate primary-agent tool and handoff decisions with deterministic TS
+  scorers over `tool_trajectory.v1`.
+- Publish only registered scores and bounded metadata.
+- Use Langfuse annotation and experiment workflows instead of rebuilding them
+  in the repo.
+- Keep Operator-facing surfaces on sanitized repo projections.
 
-- Langfuse can correlate request / run / workflow / eval identity.
-- Langfuse can store `ragas.*` scores published from repo-owned safe
-  projections.
-- Agent tool-use cases can be stored as Langfuse datasets / experiments for
-  routing, tool selection, handoff, evidence quality and fail-closed review.
-- Langfuse datasets can be synced from repo RAG eval assets without fabricating
-  answers or retrieved contexts.
-- Langfuse experiments and annotation queues can be used as official platform
-  workflows without repo-owned experiment or review-manifest automation.
-- Operator-facing surfaces consume only app-api sanitized projections and safe
-  runtime quality candidates; they do not query Langfuse directly.
-- Default Langfuse-bound safe payloads obey the forbidden-field policy.
-- Restricted replay-backed eval can use `llm_replay_packet.v1` only after
-  request-scoped `raw_capture_policy.v1` admission.
+## Non-Goals
 
-## 3. Non-Goals
+- Do not restore `packages/evals`, Python `campus_evals` or broad self-built eval
+  frameworks.
+- Do not make online serving depend on Langfuse.
+- Do not expose Langfuse SDK/API types through shared contracts.
+- Do not build an Operator Console trace viewer or copy Langfuse trace bodies
+  into app-api.
+- Do not capture or retain raw production model I/O for replay.
 
-- Do not restore `packages/evals`, Python `campus_evals`,
-  `scripts.eval_gate`, broad `agent-eval`, `rag-first-stage` or `ragas-batch`
-  as active product/eval paths.
-- Do not use Langfuse as Temporal workflow history, app-api product storage,
-  operator query truth or repo contract truth.
-- Do not let online answer serving depend on Langfuse availability.
-- Do not leak Langfuse SDK/API types into `packages/contracts`.
-- Do not send raw prompts, raw answers, transcripts, retrieved snippets,
-  unrestricted source bodies, provider raw responses, auth material or secrets
-  to default safe eval datasets, score metadata or operator-safe projections.
-- Do not treat restricted replay-backed eval as ordinary production dataset
-  sync, training data, Operator Console payload or release verdict truth.
+## Product Requirements
 
-## 4. Users And Scenarios
+### Trace And Dataset Scoring
 
-- Engineering: inspect trace, observation and score evidence for a real request
-  or materialized dataset run.
-- Eval / QA: compare RAG quality across datasets, releases and model/prompt
-  variants.
-- Operator: review runtime quality candidates and safe trace links without
-  directly depending on Langfuse as a backend.
-- Product / architecture: understand quality trend, regression risk and
-  release-closeout boundaries.
+- `ragas-score-traces` selects traces by explicit name, tag, release and limit.
+- `ragas-score-dataset` scores only materialized dataset items.
+- Qrels-only items must be paired with approved answer/context material before
+  scoring.
+- Missing identity, answer, contexts, metric denominator or allowed fields must
+  fail closed.
 
-## 5. Product Requirements
+### Score Publishing
 
-### 5.1 Trace And Dataset Scoring
-
-- `ragas-score-traces` selects Langfuse traces by name, tag, release and limit.
-- `ragas-score-dataset` scores only materialized Langfuse dataset items.
-- Qrels-only dataset items carry `reference_context_ids`; they must be paired
-  with safe trace/observation projection before Ragas scoring.
-- Missing trace identity, missing answer, missing retrieved contexts,
-  denominator drift or forbidden payloads must fail closed.
-- Restricted replay-backed scoring must reference `llm_replay_packet.v1` by
-  packet metadata and policy identity. It must not copy raw packet bodies into
-  score metadata or app-api projections.
-
-### 5.2 Score Registry And Publishing
-
-- Active score names are the names registered in
+- Every score name must exist in
   `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
-  Current families include `ragas.*` and `agent.*`.
-- Every published score must exist in
-  `packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
-- Unknown score names, invalid target identity or forbidden metadata must fail
-  closed.
-- Score publication targets Langfuse scores, not repo-owned release verdict
-  artifacts.
+- Current score families include `ragas.*` and `agent.*`.
+- Scores target Langfuse observations, traces or dataset runs; they are not
+  repo-owned release verdicts.
 
-### 5.3 Dataset Sync
+### Dataset And Review
 
-- Repo RAG eval assets remain the source for Langfuse-bound qrels,
-  answer-quality and known-gap cases.
-- Dataset sync must preserve source asset path, case id, source git head and
-  asset hash.
-- Dataset sync must not invent generated answers or retrieved context text for
-  qrels-only cases.
+- Repo eval assets remain the source for repo-authored qrels and known cases.
+- Dataset sync preserves source path, case id, source git head and asset hash.
+- Dataset sync must not fabricate generated answers or retrieved contexts.
+- Langfuse annotation queues are the human-review workflow. Reviewer output may
+  propose repo asset changes but cannot overwrite them directly.
 
-### 5.4 Annotation And Review
+### Operator Boundary
 
-- Langfuse annotation queues remain the official human review workflow.
-- Reviewer output can inform backlog or asset candidates, but cannot directly
-  overwrite canonical versioned eval asset truth or release verdicts.
-- The repo no longer owns custom annotation queue sync/export commands.
+- Operator Console does not query Langfuse.
+- App-api exposes only request-level safe correlation and runtime status owned
+  by the Ops Index contract.
+- Eval coverage, diagnostic badcase and external sink projections require a new
+  explicit product contract before entering Operator Console.
 
-### 5.5 Operator-Safe Projection
+## Data Boundary
 
-- Operator Console does not directly query Langfuse.
-- App-api does not expose runtime quality badcases, negative feedback candidates,
-  Langfuse score state or trace backlink queues through the current Operator
-  Console surface.
-- App-api may expose only request-level safe correlation fields owned by the Ops
-  Index contract.
-- The retired eval coverage / diagnostic-badcase / Langfuse backlink projection
-  paths must not be restored as product requirements.
+Approved eval projection may include case and trace identity, approved
+question/answer text, retrieved/reference contexts or ids, tool trajectory
+facts, release metadata and metric applicability.
 
-### 5.6 Knowledge Agent Eval
+Raw prompts, transcripts, provider payloads, unrestricted source bodies,
+memory text, auth material, secrets, database URLs and object-store paths are
+forbidden.
 
-- `agent-tool-use` distinguishes direct answer, `transport_schedule_lookup` and
-  `knowledge_query` handoff.
-- Knowledge cases validate official SDK handoff, strict scope/version arguments,
-  internal `knowledge_search` evidence and finalized source integrity.
-- Tool-use scoring consumes `tool_trajectory.v1`; it must not infer routing
-  from raw prompt, provider response or final answer prose.
-- Answer/evidence quality is scored separately from tool selection and contract
-  validity.
+## Acceptance
 
-## 6. Data Boundary
+- Trace and dataset commands support validation without publishing scores.
+- Score-config and dataset sync support dry-run.
+- Trace verification rejects missing correlation and forbidden payload fields.
+- Agent tool-use validation covers all currently model-visible tools and the
+  Knowledge Agent handoff.
+- Published scores are queryable from the expected Langfuse target.
 
-Allowed in safe eval projection:
+## References
 
-- trace, observation, dataset item and case identity
-- question or user input approved for eval storage
-- answer approved for eval storage
-- retrieved contexts and optional retrieved/reference context ids
-- surface, variant, release and metric applicability metadata
-
-Allowed only in restricted replay-backed eval:
-
-- raw or near-raw rendered messages
-- provider request / response bodies
-- provider stream deltas
-- selected evidence packet text
-- selected memory context text
-- tool call / tool result payloads
-
-These fields require `raw_capture_policy.v1`, encrypted object storage, TTL,
-RBAC, access audit and deletion linkage as defined by
-`docs/contracts/replay-capture.md`.
-
-Forbidden:
-
-- raw prompt, raw transcript, raw provider response
-- unrestricted source body, object-store path, retrieval backend dump
-- JWT, cookie, authorization header, API key, provider secret or database URL
-
-The forbidden list above applies to safe eval projection, safe datasets, score
-metadata and Operator-facing projection. Restricted replay artifacts have their
-own narrower contract and never allow secrets or auth material.
-
-## 7. Acceptance
-
-- `ragas-score-traces --validate-only` builds safe samples from Langfuse traces
-  and validates score payloads.
-- `ragas-score-dataset --validate-only` fails closed for qrels-only dataset
-  items and succeeds for materialized dataset items.
-- `sync-score-configs --dry-run` covers all active registered scores.
-- `sync-datasets --dry-run` reports dataset changes without writing platform
-  state.
-- `verify-trace` distinguishes repo-owned observations from SDK /
-  infrastructure observations and rejects forbidden payload fields.
-- Restricted replay-backed eval validates packet TTL, policy mode,
-  allowed_raw_fields, RBAC/audit requirements and deletion linkage before
-  consuming a packet.
-- Agent-tool-use validation covers current model-visible tools and rejects
-  undeclared tool labels.
-
-## 8. References
-
-- [ADR-0059 Langfuse Observability And Eval Platform](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
-- [ADR-0061 Eval Runtime](../decisions/adr-0061-eval-runtime.md)
-- [ADR-0062 Ragas And Langfuse Collaboration](../decisions/adr-0062-ragas-langfuse.md)
-- [ADR-0069 Raw Replay Capture](../decisions/adr-0069-raw-replay-capture.md)
 - [Langfuse Architecture](../architecture/system/langfuse.md)
 - [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
-- [Replay Capture Contract](../contracts/replay-capture.md)
 - [Tool Trajectory Contract](../contracts/tool-trajectory.md)
 - [Eval Reference](../reference/eval.md)
 - [Eval Map](../reference/eval-map.md)
 - [Eval Ragas Runbook](../runbooks/eval-ragas.md)
+- [ADR-0059](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
+- [ADR-0061](../decisions/adr-0061-eval-runtime.md)
+- [ADR-0062](../decisions/adr-0062-ragas-langfuse.md)

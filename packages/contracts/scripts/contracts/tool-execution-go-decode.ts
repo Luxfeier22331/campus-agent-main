@@ -1,13 +1,11 @@
 export function goDecodeHelpers({
 	answerArtifactKinds,
-	debugTraceSinks,
 	requestedTools,
 	stageTimingFields,
 	toolIds,
 	workflowModes,
 }: {
 	answerArtifactKinds: string[];
-	debugTraceSinks: string[];
 	requestedTools: string[];
 	stageTimingFields: string[];
 	toolIds: string[];
@@ -26,9 +24,6 @@ export function goDecodeHelpers({
 	const stageTimingFieldCases = stageTimingFields
 		.map((value) => `StageTimingField${goConstSuffix(value)}`)
 		.join(",\n\t\t");
-	const debugTraceSinkCases = debugTraceSinks
-		.map((value) => `DebugTraceSink${goConstSuffix(value)}`)
-		.join(", ");
 	const template = `
 func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
 \tvar wire ExecutionPayloadWire
@@ -305,11 +300,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t\t\treturn fmt.Errorf("stage_timing: %w", err)
 \t\t}
 \t}
-\tfor index, ref := range wire.DebugTraceRefs {
-\t\tif err := ref.Validate(); err != nil {
-\t\t\treturn fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
-\t\t}
-\t}
 \treturn nil
 }
 
@@ -341,16 +331,6 @@ func (wire StageTimingWire) Validate() error {
 \t\tif durationMs < 0 || math.IsNaN(durationMs) || math.IsInf(durationMs, 0) {
 \t\t\treturn fmt.Errorf("%s must be a finite non-negative duration", field)
 \t\t}
-\t}
-\treturn nil
-}
-
-func (wire DebugTraceRefWire) Validate() error {
-\tif !wire.Sink.Valid() {
-\t\treturn fmt.Errorf("sink is invalid")
-\t}
-\tif wire.TraceRef == "" {
-\t\treturn fmt.Errorf("trace_ref is required")
 \t}
 \treturn nil
 }
@@ -418,22 +398,13 @@ func (value StageTimingField) Valid() bool {
 \t}
 }
 
-func (value DebugTraceSink) Valid() bool {
-\tswitch value {
-\tcase __DEBUG_TRACE_SINK_CASES__:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
 `;
 	const result = template
 		.replace("__TOOL_ID_CASES__", toolIdCases)
 		.replace("__REQUESTED_TOOL_CASES__", requestedToolCases)
 		.replace("__WORKFLOW_MODE_CASES__", workflowModeCases)
 		.replace("__ANSWER_ARTIFACT_KIND_CASES__", answerArtifactKindCases)
-		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases)
-		.replace("__DEBUG_TRACE_SINK_CASES__", debugTraceSinkCases);
+		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases);
 	return result;
 }
 

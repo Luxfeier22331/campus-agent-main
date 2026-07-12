@@ -36,7 +36,6 @@ shape 与字段语义。
 - `operator-runtime.md`
 - `langfuse-runtime.md`
 - `stage-timing.md`
-- `replay-capture.md`
 - `eval-artifact.md`
 
 ## Domain Contracts

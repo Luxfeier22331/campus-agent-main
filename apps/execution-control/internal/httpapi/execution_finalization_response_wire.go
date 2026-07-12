@@ -5,7 +5,6 @@ import "encoding/json"
 type ExecutionFinalizationResponseWire struct {
 	AnswerText           string             `json:"answer_text"`
 	Confidence           string             `json:"confidence"`
-	DebugTraceRefs       []map[string]any   `json:"debug_trace_refs,omitempty"`
 	Error                any                `json:"error"`
 	FollowUpQuestion     string             `json:"follow_up_question"`
 	Observability        map[string]any     `json:"observability"`

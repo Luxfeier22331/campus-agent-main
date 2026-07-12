@@ -18,12 +18,6 @@ describe("agent runtime server env contract", () => {
 		expect(source).not.toContain("createOpenAIAgentsRunnerFromEnv");
 		expect(source).not.toContain("OPENAI_API_KEY");
 	});
-
-	it("does not use agent-runtime env for LLM debug trace config", () => {
-		const source = readServerSource();
-
-		expect(source).not.toContain("AGENT_RUNTIME_LLM_DEBUG");
-	});
 });
 
 function readServerSource(): string {

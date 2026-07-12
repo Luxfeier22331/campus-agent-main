@@ -57,8 +57,6 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 		},
 		terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
 		provider_response_id: result.providerResponseId,
-		sdk_trace_ref: result.sdkTraceRef,
-		debug_trace_refs: debugTraceRefsWire(result.debugTraceRefs),
 		selected_tools: result.selectedTools,
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
@@ -114,18 +112,6 @@ export function errorMessage(error: unknown): string {
 
 function encodeSseEvent(event: string, data: unknown): Uint8Array {
 	return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-function debugTraceRefsWire(refs: PrimaryAgentRunResult["debugTraceRefs"] | undefined) {
-	if (!refs) {
-		return [];
-	}
-	return refs.map((ref) => ({
-		sink: ref.sink,
-		trace_id: ref.traceId,
-		trace_ref: ref.traceRef,
-		url: ref.url,
-	}));
 }
 
 function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"]) {

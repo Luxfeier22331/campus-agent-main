@@ -223,13 +223,10 @@ pnpm --dir apps/operator-console-web exec tsx ./e2e/staging-access-service-token
   operator context
 - allowlisted service token 可以通过 Operator Console proxy 读取
   `/api/operator/provider-config/profiles`
-- allowlisted service token 可以通过 Operator Console proxy 读取
-  `/api/operator/observability-config/llm-debug-trace`，且响应不包含 raw auth
-  header
 
 该 smoke 证明 Access envelope 可由 automation 到达，并证明受控机器
-operator 可以走 Operator Console -> app-api 的 provider-config 与
-observability-config 路径；它不代表 human operator browser E2E。
+operator 可以走 Operator Console -> app-api 的 provider-config 路径；它不代表
+human operator browser E2E。
 
 使用 admitted human operator 登录后，至少检查当前 domain matrix：
 
@@ -237,8 +234,6 @@ observability-config 路径；它不代表 human operator browser E2E。
 - Requests：`/requests` loads and calls `/api/requests`
 - Provider Config：`/operations/provider-config` loads and calls
   `/api/operator/provider-config/profiles`
-- Observability Config：`/operations/observability` loads and calls
-  `/api/operator/observability-config/llm-debug-trace`
 
 以上 closeout artifact 可以是 browser automation report、network capture 摘要或截图加对应
 HTTP status 记录；不能用 service-token smoke 代替。
@@ -259,7 +254,7 @@ pnpm --dir apps/operator-console-web exec tsx ./e2e/staging-browser.ts \
 通过标准：
 
 - `operator-console-browser-e2e.json` 输出 `passed=true`
-- screenshots 覆盖 shell、Requests、Provider Config 与 Observability Config
+- screenshots 覆盖 shell、Requests 与 Provider Config
 - network summary 中不出现 direct execution-control、Temporal、PG、Sentry、Axiom
   或 Langfuse URL
 - console / network blocker 为 `0`
@@ -282,7 +277,7 @@ pnpm --dir apps/operator-console-web exec tsx ./e2e/staging-browser.ts \
 - `https://panel-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
-  - Requests、Provider Config 与 Observability Config 当前域矩阵完成检查
+  - Requests 与 Provider Config 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字 closeout artifact。console / network
 明显错误必须记录。

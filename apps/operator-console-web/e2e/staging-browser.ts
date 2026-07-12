@@ -129,7 +129,6 @@ async function main() {
 			["/", "operator-shell.png"],
 			["/requests", "operator-requests.png"],
 			["/operations/provider-config", "operator-provider-config.png"],
-			["/operations/observability", "operator-observability-config.png"],
 		];
 		for (const [path, screenshotName] of routes) {
 			await visit(page, path, args.evidenceDir, screenshotName);

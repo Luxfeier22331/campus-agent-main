@@ -1,4 +1,4 @@
-# Pull Request
+<!-- markdownlint-disable MD041 -->
 
 <!--
 Thanks for sending a pull request. Before review:

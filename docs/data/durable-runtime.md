@@ -56,7 +56,7 @@ metadata may include:
 - available and selected model-visible tools;
 - Knowledge Agent handoff occurrence;
 - SDK function-tool invocation summaries;
-- provider response/trace refs;
+- provider response id and safe LLM I/O fingerprint;
 - input, output and cached token counts;
 - structured terminal outcome.
 

@@ -18,8 +18,7 @@ operator HTTP contract 横切规则。
 - `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
 - Operator Console operations surface 与 `app-api` 的 proxy 边界
 - ops draft / release candidate / release / published projection 的通用 envelope
-- provider-config / observability-config operator command 与 internal projection
-  export 的边界
+- provider-config operator command 与 internal projection export 的边界
 
 它不负责：
 
@@ -40,8 +39,7 @@ operator browser -> operator console operations surface -> app-api /api/ops/*
 ```
 
 当前 `operator-console-web` Worker 只允许显式 proxy 已实现的 operations routes：
-`/api/ops/dining/*`、`/api/operator/provider-config/*` 与
-`/api/operator/observability-config/*`。它不开放 generic `/api/*`，也不 proxy
+`/api/ops/dining/*` 与 `/api/operator/provider-config/*`。它不开放 generic `/api/*`，也不 proxy
 `/api/auth/*` 或 `/api/federation/*`。
 
 Provider configuration routes：
@@ -54,15 +52,6 @@ Provider configuration routes：
 - `PATCH /api/operator/provider-config/profiles/:profileId`
 - `POST /api/operator/provider-config/profiles/:profileId/validate`
 - `POST /api/operator/provider-config/profiles/:profileId/activate`
-
-Observability configuration routes：
-
-- `GET /api/operator/observability-config/llm-debug-trace`
-- `PATCH /api/operator/observability-config/llm-debug-trace`
-
-LLM debug trace config is not a provider-config role. app-api owns the operator
-config surface, execution-control consumes the internal projection, and
-agent-runtime only receives request-scoped `debug_trace_config`.
 
 长期 operator namespace 优先使用 `/api/operator/*`。`/api/ops/dining/*` 是当前 accepted
 dining operations route inventory，不表示存在第二套长期 ops product backend。

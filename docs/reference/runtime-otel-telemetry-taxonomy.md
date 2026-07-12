@@ -38,44 +38,30 @@ This taxonomy follows the OpenTelemetry direction that:
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
 | `apps/execution-control` | yes | Online trace owner for request admission, four-phase Temporal workflow/activity attempts, internal queries, evidence/source validation, finalization, error and telemetry self-health |
+| `apps/agent-runtime` | yes | Continue the execution trace with allowlisted Agents SDK run, agent, generation, tool, handoff and guardrail facts; never export model, tool, evidence or memory payloads |
 | `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
+| `apps/ops-web` | no in the current implementation | Read allowlisted PostgreSQL summaries and fixed OpenObserve queries; never become a telemetry ingestion path or generic query proxy |
 | Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
-| Knowledge search runtime | runtime adapter only | Emit sanitized search observations; no OTel/Sentry/Axiom dependency in contracts |
+| Knowledge search runtime | runtime adapter only | Emit sanitized search observations; no OTel/OpenObserve/Sentry/Axiom dependency in contracts |
 | `packages/ingest-core` | no by default | Runtime-neutral ingestion helper logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
-| `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
+| `packages/contracts` | no | No OTel, Collector, OpenObserve, Sentry or Axiom types |
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
+| OpenObserve | sink/query platform only | Self-hosted runtime logs, metrics and traces queried through fixed Ops Web server paths; not request-state truth |
 | Sentry | sink only | Error, trace and performance debugging; not an Operator Console database |
 | Axiom | sink only | Runtime logs/events, query dashboards and trend analysis through Collector exporter; not an app-api dashboard cache |
-| Langfuse | sink/platform only | LLM traces, controlled debug observations, datasets, scores and review workflows; not an app-api score or trace store |
+| Langfuse | sink/platform only | Sanitized LLM traces, datasets, scores and review workflows; not an app-api score or trace store |
 
 ## Signal Taxonomy
 
 Event names are low-cardinality and stable. Dynamic identifiers belong in attributes only when
 explicitly allowed below.
 
-Runtime observability has three data classes:
-
-- `safe telemetry`: sanitized OTel/log/metric/event data, repo observations,
-  stage timing and sink correlation. This is the default class for app-api,
-  Operator Console, Sentry, Axiom and Langfuse repo observations.
-- `restricted raw debug trace`: model/tool/provider trace detail admitted by
-  request-scoped `raw_capture_policy.v1` and sent only to controlled debug
-  sinks.
-- `replay artifact`: `llm_replay_packet.v1` raw or near-raw packet stored in
-  encrypted S3-compatible object storage with index, TTL, checksum, access
-  audit and deletion linkage.
-
-Metrics, log labels, repo-owned OTel attributes and Operator projections use
-safe telemetry only. Restricted raw trace and replay artifact bodies are never
-metric labels or app-api projection payloads.
-
-Replay-related safe telemetry may reference prompt registry attestation,
-primary attestation, tool runtime attestation, provider request safe hash, model
-params projection, evidence replay index refs, replay retention refs and access
-audit refs as metadata. These refs identify controlled artifacts and decisions;
-they do not authorize raw replay packet body export through telemetry.
+Runtime observability has one data class: sanitized telemetry. OTel spans, logs,
+metrics, repo observations, stage timing, safe fingerprints and Operator
+projections all use explicit allowlists. No telemetry path admits raw model I/O,
+source bodies, tool payloads or memory text.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
@@ -83,6 +69,7 @@ they do not authorize raw replay packet body export through telemetry.
 | `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control private upstream transport failure |
 | `execution.activity.started` | `apps/execution-control` / Go activity worker | Temporal activity attempt started with task queue, worker identity and request correlation |
+| Agents SDK lifecycle spans | `apps/agent-runtime` | Allowlisted run, agent, generation, response, function, handoff and guardrail spans with model name, token counts, bounded agent/tool names and terminal status only |
 | `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token/cost and cancel/timeout outcome |
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
@@ -93,7 +80,7 @@ they do not authorize raw replay packet body export through telemetry.
 | `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
 | `index.release.audit` | `apps/ingestion-control` | Payload index, manifest, point payload and release guard audit result |
 | `index.release.publish` | `apps/ingestion-control` | Alias/current pointer publish attempt and result |
-| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; configured product answer paths fail closed |
+| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; recorded as operational degradation without failing the answer path |
 | `telemetry.export.dropped` | runtime / adapter | Explicitly sampled telemetry count |
 
 ## Allowed Attribute Groups
@@ -138,7 +125,7 @@ they do not authorize raw replay packet body export through telemetry.
 - `http_status`
 - `sample_ratio`
 
-### LLM Replay Safe Attributes
+### LLM Fingerprint Attributes
 
 - `llm.call_site`
 - `llm.provider`
@@ -151,11 +138,6 @@ they do not authorize raw replay packet body export through telemetry.
 - `llm.provider_request_safe_hash`
 - `llm.tool_runtime_combined_sha256`
 - `llm.primary_attestation_kind`
-- `replay.packet_id`
-- `replay.packet_index_ref`
-- `replay.retention_class`
-- `replay.access_audit_ref`
-- `replay.evidence_ref_count`
 
 ### Retrieval Attributes
 
@@ -239,7 +221,7 @@ small bounded count for debugging sinks. They must not be promoted to metric lab
 ## Forbidden Fields
 
 The following must not be sent to repo-owned runtime OTel attributes, event
-bodies, Sentry contexts or Axiom events by default:
+bodies, OpenObserve records, Sentry contexts or Axiom events by default:
 
 - raw prompt
 - raw query text
@@ -263,30 +245,12 @@ bodies, Sentry contexts or Axiom events by default:
 - full exporter endpoint URL if it contains credentials or query tokens
 - provider request safe-hash canonicalization input
 - model params projection input before allowlist filtering
-- replay retention deletion subject in clear text
-- replay access-audit body
 
-Any temporary debug override must be explicit, bounded, documented, disabled by
-default and excluded from safe telemetry projections.
-
-Controlled debug trace and replay artifact lanes are the only allowed exception
-for raw or near-raw model input/output. They are defined by
-`../contracts/langfuse-runtime.md` and `../contracts/replay-capture.md`, and must
-be admitted by request-scoped `raw_capture_policy.v1`. The exception never
-applies to app-api runtime events, Operator Console read models, Temporal
-metadata, repo-owned run/step projections, score metadata or metrics labels.
-Secrets, credentials, auth material, cookies, JWTs, database URLs,
-object-store secrets and raw Hindsight refs remain forbidden in every lane.
-
-Current LLM debug trace implementation exports only to Langfuse OTLP when an
-app-api-owned operator config is projected through execution-control and passed
-request-scoped to agent-runtime. Agent-runtime does not own environment
-variables for this behavior. The repo-owned projection surface may carry only
-safe `debug_trace_refs`, `stage_timing.v1` fields, replay packet metadata, safe
-replay index refs and replay attestation metadata defined in
-`../contracts/stage-timing.md` and `../contracts/replay-capture.md`; raw OTLP
-bodies, SDK trace payloads and replay packet bodies stay in their controlled
-sink/artifact lanes.
+No temporary override admits a forbidden field. Agent-runtime keeps OpenAI
+Agents SDK sensitive tracing disabled, maps allowlisted SDK facts to OTel, and
+exports through the environment-owned Collector. App-api and Operator Console
+receive only repo-owned `stage_timing.v1`, safe fingerprints and request
+correlation; they do not receive SDK span bodies or sink-specific trace refs.
 
 ## Stage Timing Projection
 

@@ -172,8 +172,8 @@ updated: 2026-07-11
 - `stepTrajectory[]`：`stepId`、`spanKind`、`status`、`retryCount`，以及可为空的
   `parentStepId`、`toolName`、`resultStatus`、`outcome`。
 - `traceSummary`：`available`、`measuredAt`、`projectionLagMs`、`updatedAt`。
-- `debugTraceRefs[]`：`sink`、`traceRef` 和可为空的 `traceId`。
-- `externalLinks[]`：通过服务端地址白名单校验后的系统入口。
+- `externalLinks[]`：服务端根据已保存关联标识和地址白名单生成的系统入口；不读取或返回
+  持久化外部 URL/ref。
 
 `workflowId` 仅在 `runId` 存在时按 `campus-agent.chat.<runId>` 生成。响应不返回
 Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或检索候选统计。

@@ -130,14 +130,6 @@ export function requestObservabilityRow(): OpsRequestObservabilityRow {
 	return {
 		aclAnomalyCode: null,
 		aclDecision: "allowed",
-		debugTraceRefsJson: [
-			{
-				sink: "langfuse_otlp",
-				traceId: "trace_pg_001",
-				traceRef: "langfuse://lf_trace_pg_001",
-				url: "https://langfuse.example.test/project/traces/lf_trace_pg_001",
-			},
-		],
 		failClosed: false,
 		measuredAt: new Date("2026-07-09T07:29:05.000Z"),
 		modelName: "gpt-4.1-mini",

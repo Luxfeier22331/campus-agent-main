@@ -8,6 +8,13 @@
       "when": 1783594363151,
       "tag": "0000_current_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783813943596,
+      "tag": "0001_replace_replay_with_ops_observability",
+      "breakpoints": true
     }
   ]
 }

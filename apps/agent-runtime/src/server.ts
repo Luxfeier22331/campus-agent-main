@@ -6,6 +6,7 @@ import {
 	createRequestScopedOpenAIAgentsRunner,
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
+import { startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
@@ -17,6 +18,8 @@ const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
 const executionControlSharedSecret =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET ?? "";
+
+const telemetry = startAgentRuntimeTelemetry();
 
 const catalog = loadToolCatalog(catalogPath);
 const runtime = createPrimaryAgentRuntime({
@@ -68,3 +71,10 @@ const server = createServer(async (request, response) => {
 server.listen(port, host, () => {
 	console.log(`agent-runtime listening on ${host}:${port}`);
 });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+	process.once(signal, () => {
+		server.close();
+		void telemetry.shutdown().finally(() => process.exit(0));
+	});
+}

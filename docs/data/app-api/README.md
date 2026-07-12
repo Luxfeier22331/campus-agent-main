@@ -117,14 +117,15 @@ collector control-plane writer owner；具体规则另见
 
 当前 schema artifact ownership 已显式拆分为：
 
-- `apps/app-api/drizzle/0000_current_baseline.sql` 是 app-api Drizzle current
-  baseline，覆盖 app-facing product、projection 与 operator surfaces。
+- `apps/app-api/drizzle/0000_current_baseline.sql` 是新数据库的 app-api Drizzle
+  baseline；后续 `apps/app-api/drizzle/*.sql` 是已存在数据库的增量迁移。
 - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
   shared-product `chat.*` bootstrap baseline。
 - `official_web.*` 的 collector control-plane durable writes 由
   `apps/ingestion-control` 执行；app-api schema export 只服务 operator projection、
   release-gate ledger 和 query/type safety，不得恢复 collector write path。
-- `drizzle.app_api_migrations` 不与 shared-product SQL baseline 混用同一 journal 语义。
+- `drizzle.app_api_migrations` 记录 app-api Drizzle migration chain，不与
+  shared-product SQL baseline 混用同一 journal 语义。
 
 这意味着：
 
@@ -135,9 +136,11 @@ collector control-plane writer owner；具体规则另见
 
 ## Migration Rules
 
-- 当前 repo 以单一 current baseline 表达 app-api Drizzle schema；staging/prod 未正式上线
-  前，环境数据库可以备份后重建，不保留历史 migration chain 作为默认运行时事实。
+- 新数据库从 `0000_current_baseline.sql` 创建 clean schema；已存在数据库按 journal
+  顺序执行后续迁移。
 - Better Auth/app-auth 与 chat shared-product bootstrap 使用显式 SQL baseline。
 - Worker runtime 使用 Hyperdrive；migration 命令不通过 Hyperdrive 执行
-- schema bootstrap / schema inspection 使用 direct database management connection
+- schema migration / inspection 使用 direct database management connection，并在
+  Worker rollout 前完成
+- long-running Worker 不执行 schema auto-migration
 - 允许第一版单库共存，但禁止把 schema separation 退化成无边界的大表堆

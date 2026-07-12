@@ -55,7 +55,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					followUpQuestion: "",
 					observability: {
 						agentRuntime: "openai_agents_sdk",
-						sdkTraceRef: "sdk-trace-eval-01HQ",
 						selectedTools: ["knowledge_query"],
 						terminalReason: "answer",
 					},
@@ -145,7 +144,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				followUpQuestion: "",
 				observability: {
 					agentRuntime: "openai_agents_sdk",
-					sdkTraceRef: "sdk-trace-eval-01HQ",
 					selectedTools: ["knowledge_query"],
 					terminalReason: "answer",
 				},

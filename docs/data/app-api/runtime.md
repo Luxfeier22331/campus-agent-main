@@ -169,7 +169,6 @@ Columns:
 - `fail_closed` nullable
 - `workflow_trace_summary_json` nullable
 - `stage_timing_json` not null default `{}`
-- `debug_trace_refs_json` not null default `[]`
 - `answer_eval_fingerprint_json` nullable
 - `llm_io_fingerprint_json` nullable
 - `model_provider` nullable
@@ -203,12 +202,12 @@ Rules:
 - each supporting source contains canonical URL, source title, source kind,
   target kind and version id; raw snippets and retrieval candidates are not
   persisted here;
-- workflow trace, stage timing and debug refs are allowlisted safe projections;
+- workflow trace and stage timing are allowlisted safe projections;
 - answer-eval and LLM I/O fingerprints are verified for request/run/trace and
   hash consistency before persistence;
 - `projection_lag_ms` is updated by read-model materialization;
 - the table does not store usage rollups, estimated cost, candidate counts,
   retrieval adequacy, citation heuristics, grounding verdicts or app-owned
   quality badcases;
-- Operator Console reads this app-owned projection and approved links; it does
+- Operator Console reads this app-owned projection; it does
   not query raw Langfuse, Sentry or OpenTelemetry payloads.

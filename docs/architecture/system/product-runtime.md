@@ -112,9 +112,9 @@ OpenObserve fixed queries / service health checks`
 - `Operator Console`
   - 承接受控业务操作和配置，当前 implementation surface 是 `operator-console-web`
   - 当前最小 implementation surface 只承载 `/requests` 与
-    `/operations/provider-config`、`/operations/observability`
+    `/operations/provider-config`
   - 当前只通过 explicitly allowlisted request / runtime health / provider
-    configuration / observability configuration routes 消费 `apps/app-api`
+    configuration routes 消费 `apps/app-api`
   - 通用控件使用 shadcn/Radix wrappers，配置表单使用 `react-hook-form` + `zod`，
     简单列表使用 shadcn-style table primitive；不维护第二套自研表单、select、button
     或 table widget
@@ -314,8 +314,8 @@ Additional operator-facing visibility 域也遵循同一 ownership rule：
 - `apps/app-api` 只拥有产品运行所需的最小 Ops Index：request identity、request
   state、runtime health summary 与 external sink correlation
 - audit / quality / safety / cost 这类 broad observability surface 不再是 target
-  architecture；详细错误、日志、trace、LLM eval / score 默认由 Sentry / Axiom /
-  Langfuse 原生平台承担
+  architecture；内网日志和 trace 由 OpenObserve 承担，外部错误与日志由 Sentry / Axiom
+  承担，脱敏 LLM eval / score 由 Langfuse 承担
 - authenticated notice processing 这类 ingestion/downstream visibility surface
   也必须经
   `apps/app-api` 的 operator-safe projection 暴露，不能让 Operator Console 回读 queue、object-store、

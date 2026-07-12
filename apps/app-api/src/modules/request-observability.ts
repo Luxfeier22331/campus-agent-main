@@ -319,7 +319,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		updatedAt: input.startedAt,
 		workflowTraceSummary: null,
 		stageTiming: {},
-		debugTraceRefs: [],
 		answerEvalFingerprint: null,
 		llmIoFingerprint: null,
 	};
@@ -413,7 +412,6 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			requestTotalMs: input.durationMs,
 			streamBrowserTtftMs: input.streamBrowserTtftMs,
 		}),
-		debugTraceRefs: input.response.debugTraceRefs ?? [],
 		answerEvalFingerprint,
 		llmIoFingerprint,
 	};

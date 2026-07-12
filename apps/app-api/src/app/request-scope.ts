@@ -42,10 +42,6 @@ import {
 	probeExecutionControlOperatorRuntimeHealth,
 } from "../modules/integration";
 import {
-	buildObservabilityConfigService,
-	createPgObservabilityConfigStore,
-} from "../modules/observability-config";
-import {
 	buildOfficialWebQueryService,
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
@@ -80,7 +76,6 @@ import {
 	buildProviderConfigService,
 	createPgProviderConfigStore,
 } from "../modules/provider-config";
-import { buildReplayCaptureService, createPgReplayCaptureStore } from "../modules/replay-capture";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import {
@@ -132,13 +127,11 @@ export function createRequestScopeFactory(input: {
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let officialWebTargetReleaseGateService =
 				input.dependencies.officialWebTargetReleaseGateService ?? null;
-			let observabilityConfigService = input.dependencies.observabilityConfigService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
 			let providerConfigService = input.dependencies.providerConfigService ?? null;
-			let replayCaptureService = input.dependencies.replayCaptureService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 			let weChatOfficialAccountCommandService =
 				input.dependencies.wechatOfficialAccountCommandService ?? null;
@@ -408,18 +401,6 @@ export function createRequestScopeFactory(input: {
 				return operatorQueryService;
 			}
 
-			function resolveObservabilityConfigService() {
-				if (observabilityConfigService) {
-					return observabilityConfigService;
-				}
-
-				observabilityConfigService = buildObservabilityConfigService({
-					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
-					store: createPgObservabilityConfigStore(input.env, { getDb: runtime.getDb }),
-				});
-				return observabilityConfigService;
-			}
-
 			function resolveOperatorObservabilityCommandService() {
 				if (operatorObservabilityCommandService) {
 					return operatorObservabilityCommandService;
@@ -470,17 +451,6 @@ export function createRequestScopeFactory(input: {
 				return providerConfigService;
 			}
 
-			function resolveReplayCaptureService() {
-				if (replayCaptureService) {
-					return replayCaptureService;
-				}
-
-				replayCaptureService = buildReplayCaptureService({
-					store: createPgReplayCaptureStore(input.env, { getDb: runtime.getDb }),
-				});
-				return replayCaptureService;
-			}
-
 			function resolveRuntimeRunService() {
 				if (runtimeRunService) {
 					return runtimeRunService;
@@ -527,12 +497,10 @@ export function createRequestScopeFactory(input: {
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOfficialWebTargetReleaseGateService,
-				resolveObservabilityConfigService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
 				resolveProviderConfigService,
-				resolveReplayCaptureService,
 				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
 				telemetry: input.telemetry,

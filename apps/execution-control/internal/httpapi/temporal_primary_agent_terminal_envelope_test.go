@@ -29,7 +29,6 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 			"run_id":               "run-primary-agent-missing-envelope",
 			"final_output":         "你好，我是校园问答助手。",
 			"provider_response_id": "resp-primary-agent-missing-envelope",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-missing-envelope",
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -90,7 +89,6 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 			"final_output":         "legacy string that must not be consumed",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-direct-finalization",
-			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-direct-finalization",
 			"selected_tools":       []string{},
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "answer_completed",
@@ -168,7 +166,6 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 		map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"provider_response_id": "resp-primary-agent-tool-finalization",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-tool-finalization",
 			"selected_tools":       []string{"transport_schedule_lookup"},
 			"terminal_envelope": map[string]any{
 				"kind":        "answer",
@@ -272,7 +269,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 			"final_output":         "这个请求不属于校园问答助手当前可处理的范围。",
 			"terminal_envelope":    map[string]any{"kind": "out_of_scope", "reason": "这个请求不属于校园问答助手当前可处理的范围。"},
 			"provider_response_id": "resp-primary-agent-out-of-scope",
-			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-out-of-scope",
 			"selected_tools":       []string{},
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "out_of_scope",

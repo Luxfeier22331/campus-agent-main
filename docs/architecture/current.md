@@ -227,10 +227,9 @@ official-web 的消费链路边界以
 
 - protected Worker web surface
 - 负责 Operator Console 当前最小 UI：`/requests` 请求与运行值班台、
-  `/operations/provider-config` 模型服务配置、`/operations/observability`
-  观测配置
+  `/operations/provider-config` 模型服务配置
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned request /
-  runtime health / provider configuration / observability configuration routes
+  runtime health / provider configuration routes
 - 当前不承载 Official Web、authenticated notice processing、dining operations、Quality、
   Safety、Cost、standalone Audit 或离线 Eval 页面
 - 当前不 proxy `/api/official-web/*`、`/api/authenticated-notices/*`、

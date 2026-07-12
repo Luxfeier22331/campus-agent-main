@@ -12,7 +12,6 @@
 		"request_timeout_ms",
 		"request_body_limit_bytes",
 		"shutdown_grace_ms",
-		"observability_config_projection_path",
 		"query_serving_scopes_path",
 		"tool_read_model_timeout_ms",
 		"otel",
@@ -47,10 +46,6 @@
 		"shutdown_grace_ms": {
 			"type": "integer",
 			"minimum": 1
-		},
-		"observability_config_projection_path": {
-			"type": "string",
-			"minLength": 1
 		},
 		"query_serving_scopes_path": {
 			"type": "string",

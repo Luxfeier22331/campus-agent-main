@@ -54,7 +54,6 @@ describe("candidate publishing", () => {
 				evidence: {
 					budgetState: "critical",
 					budgetVersion: "latency-budget-v1",
-					debugTraceRefCount: 1,
 					durationMs: 5500,
 					failClosed: false,
 					reasonCodes: ["stream_ttft_too_slow"],

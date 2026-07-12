@@ -39,7 +39,6 @@ export const STAGE_TIMING_FIELDS = [
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;
-export const DEBUG_TRACE_SINKS = ["langfuse_otlp"] as const;
 
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
@@ -52,7 +51,6 @@ export type AnswerArtifactKind = (typeof ANSWER_ARTIFACT_KINDS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
-export type DebugTraceSink = (typeof DEBUG_TRACE_SINKS)[number];
 
 export type SafeRecord = Record<string, unknown>;
 
@@ -125,13 +123,6 @@ export interface ToolExecutionWorkflowTraceSummaryWire {
 	runtime_versions: SafeRecord;
 }
 
-export interface DebugTraceRefWire {
-	sink: DebugTraceSink;
-	trace_id?: string | null;
-	trace_ref: string;
-	url?: string;
-}
-
 export interface SessionUpdateSlotWire {
 	confirmed: true;
 	name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
@@ -155,6 +146,5 @@ export interface ToolExecutionResponseWire {
 	observability?: SafeRecord | null;
 	workflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;
 	stage_timing?: StageTimingWire | null;
-	debug_trace_refs?: DebugTraceRefWire[] | null;
 	trace_id: string;
 }

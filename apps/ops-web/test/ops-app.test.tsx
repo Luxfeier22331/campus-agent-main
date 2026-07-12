@@ -447,10 +447,6 @@ describe("OpsWebApp", () => {
 		expect(screen.getByTestId("observability-record-viewport-logs")).toHaveStyle({
 			height: "160px",
 		});
-		expect(screen.getByRole("link", { name: "Langfuse 调用链" })).toHaveAttribute(
-			"target",
-			"_blank",
-		);
 		expect(screen.getByRole("link", { name: "Temporal 工作流" })).toHaveAttribute(
 			"rel",
 			"noreferrer",

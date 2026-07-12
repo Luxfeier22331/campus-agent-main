@@ -594,8 +594,8 @@ automation 由 TS/Langfuse lane 承接。
   request / trace correlation、grader rationale summary 与 safe links
 - eval artifact 不得保存 raw JWT、raw cookies、raw auth envelope、raw transcript、
   provider raw response、retrieval backend dump 或未经裁剪的 source body payload
-- trace / grader tooling 的原始结果必须先经过 eval-owned projection，再进入
-  `apps/app-api` 的 operator-facing grade / backlink ingest
+- trace / grader tooling 的结果留在 eval / observability platform；app-api 只接收
+  当前 contract 明确允许的 safe request projection
 
 ## 长期 account / memory 形态
 

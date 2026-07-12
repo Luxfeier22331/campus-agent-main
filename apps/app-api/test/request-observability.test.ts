@@ -219,26 +219,12 @@ describe("request observability", () => {
 		};
 		const fact = buildFinalizedFact({
 			response: createResponse({
-				debugTraceRefs: [
-					{
-						sink: "langfuse_otlp",
-						traceId: "trace_01HQ",
-						traceRef: "langfuse://trace_01HQ",
-					},
-				],
 				status: "completed",
 				workflowTraceSummary,
 			}),
 			status: "completed",
 		});
 
-		expect(fact.debugTraceRefs).toEqual([
-			{
-				sink: "langfuse_otlp",
-				traceId: "trace_01HQ",
-				traceRef: "langfuse://trace_01HQ",
-			},
-		]);
 		expect(fact.workflowTraceSummary).toEqual(workflowTraceSummary);
 		expect(JSON.stringify(fact)).not.toContain("raw_prompt");
 		expect(JSON.stringify(fact)).not.toContain("raw_answer");

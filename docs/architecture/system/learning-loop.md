@@ -15,7 +15,7 @@ updated: 2026-07-06
 它回答：
 
 - 用户真实使用如何成为改进候选
-- `stage_timing.v1`、`debug_trace_refs`、反馈、RAG / tool 评分如何协作
+- `stage_timing.v1`、safe fingerprint、反馈、RAG / tool 评分如何协作
 - Langfuse、`packages/eval-langfuse`、`app-api` 和 Operator Console 各自承担什么
 - 哪些数据不得进入 repo-owned projection、Operator Console 或自动训练链路
 
@@ -33,8 +33,7 @@ updated: 2026-07-06
 
 ```text
 online usage
--> safe request projection / stage timing / feedback / debug trace refs
-   / optional raw_capture_policy.v1-admitted replay packet refs
+-> safe request projection / stage timing / safe fingerprints / feedback
 -> candidate selector
 -> Langfuse annotation / dataset / scores
 -> improvement action attribution
@@ -49,8 +48,7 @@ online usage
 message feedback、request correlation 与 sink correlation。
 
 Langfuse 是 LLM trace、annotation、dataset、score、experiment 和人工复核 workflow
-平台。repo 自己拥有 safe projection、replay packet index、eval adapters、改进动作分类和
-release 前验证规则。
+平台。repo 自己拥有 safe projection、eval adapters、改进动作分类和 release 前验证规则。
 
 ## Runtime Signals
 
@@ -67,9 +65,9 @@ release 前验证规则。
 扩展成 raw prompt、raw answer、raw transcript、raw provider payload 或 raw sink payload
 的 app-api 副本。
 
-当请求被 `raw_capture_policy.v1` 明确准入时，线上请求也可以产生
-`llm_replay_packet.v1`。该 packet 是受控诊断 / eval 数据面，不是 app-api projection、
-Operator Console payload、Temporal metadata 或默认 Langfuse score metadata。
+线上链路不保留 raw prompt、raw answer、raw provider payload、raw tool IO 或 raw
+memory context。复现和评估使用批准的数据集、脱敏 Langfuse trace 投影、
+`llm_io_fingerprint.v1` 与版本化配置，而不是生产 raw model-I/O replay。
 
 ## Candidate Selection
 
@@ -96,8 +94,8 @@ Runtime-only latency candidate 的去重键固定为
 `runtime_observation:<requestId>:<stageField>:<budgetVersion>`。这样同一请求的
 TTFT、agent runtime、RAG lookup 等不同慢阶段不会被粗粒度 reason 合并；同一 budget
 版本下的同一阶段也不会重复进入候选池。候选 metadata 可以携带 `stageField`、
-`durationMs`、`budgetState`、`budgetVersion` 与 `debugTraceRefCount`，但不能携带 raw
-trace body 或 raw model IO。
+`durationMs`、`budgetState` 与 `budgetVersion`，但不能携带 raw trace body 或 raw
+model IO。
 
 ## Review And Dataset Flow
 
@@ -128,23 +126,11 @@ annotation queue sync、review manifest、quality dashboard 或 broad eval works
 生产 trace 可以成为 dataset item 的来源，但必须经过 explicit mapping、脱敏和字段 allowlist。
 进入 dataset 不等于进入训练集；进入 dataset 也不等于 release verdict。
 
-Raw badcase reproduction 使用 `llm_replay_packet.v1`，不使用 app-api raw copy，也不把
-Langfuse trace body 当作 canonical replay truth。受控 replay 可以产出
-`replay_result_diff.v1`，再由人工 review 或 eval lane 判定是否成为改进 finding。
-
-Replay-backed candidate records consume the safe replay index first:
-
-- `llm_io_fingerprint.v1` identifies prompt registry attestation, primary
-  attestation, tool runtime attestation, model params projection and provider
-  request safe hash.
-- `llm_replay_packet_index.v1` may provide packet object refs, retention,
-  access-audit refs, deletion linkage and `evidence_replay_index.v1` safe
-  evidence refs.
-- The candidate selector must not inline rendered messages, provider request /
-  response bodies, selected evidence bodies, memory text or raw packet bodies.
-
-Raw packet access is a restricted follow-up action for approved review or eval,
-not a default candidate-selection input.
+Badcase reproduction uses approved Langfuse datasets or trace projection plus
+`llm_io_fingerprint.v1` identity. The fingerprint identifies prompt, provider,
+model params, tool/runtime and context hashes without retaining rendered
+messages, provider bodies, evidence bodies or memory text. Exact replay that
+requires raw production model I/O is not an active capability.
 
 ## Improvement Actions
 
@@ -186,22 +172,19 @@ token cost。
 
 ## Ownership Map
 
-- `apps/agent-runtime`：产出 model/tool/provider debug trace refs 与 stage timing，只按
-  request-scoped policy 调整 SDK trace sensitivity，不保存 repo-owned learning-loop state。
+- `apps/agent-runtime`：将 allowlisted Agents SDK span facts 映射到 OTel，并产出 stage
+  timing；不保存 repo-owned learning-loop state 或 raw model I/O。
 - `apps/execution-control`：拥有 run / step / finalization projection、Temporal runtime
-  correlation、tool outcome、安全 observability envelope、LLM I/O fingerprint 与
-  replay packet recording。
-- `apps/app-api`：保存 message feedback、request observability fact、safe sink link 与
-  Ops Index；可保存 replay packet index / metadata / audit；不保存 raw Langfuse /
-  Sentry / Axiom payload 或 replay packet raw body。
+  correlation、tool outcome、安全 observability envelope 与 LLM I/O fingerprint。
+- `apps/app-api`：保存 message feedback、request observability fact 与 Ops Index；不保存
+  raw Langfuse / Sentry / Axiom payload 或 sink-specific trace projection。
 - `packages/eval-langfuse`：拥有 Langfuse dataset / score config sync、safe Ragas projection、
-  score publishing、learning-loop dataset candidate publishing、restricted replay-backed
-  eval adapter 和 trace verification adapter。
+  score publishing、learning-loop dataset candidate publishing 和 trace verification adapter。
 - `packages/ragas-runner`：只运行上游 RAGAS scorer，不拥有候选选择、case truth、发布判定或
   Langfuse publishing。
 - Langfuse：承载 trace、annotation、dataset、score、experiment 和 score analytics。
-- Operator Console：只展示最小运行状态、request correlation、stage timing 摘要和外部 sink
-  link；不承载 learning-loop review UI。
+- Operator Console：只展示最小运行状态、request correlation 和 stage timing 摘要；不承载
+  learning-loop review UI。
 
 ## Forbidden Shapes
 
@@ -210,12 +193,7 @@ token cost。
 - 不新增在线 quality / safety / cost / intent dashboard 作为学习闭环默认面。
 - 不把 raw prompt、raw answer、raw transcript、raw provider response、raw retrieved snippet
   或 raw sink payload 写入 repo-owned projection。
-- 不把 restricted raw replay packet 自动升级为默认训练数据、默认 eval dataset 或
-  Operator Console raw viewer。
-- 不让 Langfuse / OpenAI trace body 替代 `llm_replay_packet.v1` 的 packet identity、
-  checksum、TTL、deletion linkage 或 access audit。
-- 不让 safe learning-loop candidate payload 绕过 `evidence_replay_index.v1` 去保存 raw
-  evidence body、raw provider request hash input 或 raw replay packet body。
+- 不新增生产 raw model-I/O storage、Operator Console raw viewer 或 app-api sink mirror。
 - 不从生产数据自动 fine-tune。
 - 不让线上请求依赖 Langfuse availability。
 - 不用 trace presence 代替 run lifecycle、terminal state、retry/cancel truth 或 release
@@ -226,7 +204,6 @@ token cost。
 - `docs/architecture/system/langfuse.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/contracts/langfuse-runtime.md`
-- `docs/contracts/replay-capture.md`
 - `docs/reference/eval.md`
 - `docs/reference/eval-map.md`
 - `docs/product/langfuse-evals.md`

@@ -1,7 +1,5 @@
 import { RunContext } from "@openai/agents";
 import { describe, expect, it } from "vitest";
-import type { RawCapturePolicy } from "../src/debug-trace.ts";
-import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import type { ToolExecutionResult } from "../src/primary-agent.ts";
 import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 
@@ -319,7 +317,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 
 		expect(result.finalOutput).toBe("final:校车今天几点");
 		expect(result.providerResponseId).toBe("resp-sdk-001");
-		expect(result.traceRef).toBe("trace://openai-agents/trace-sdk-001");
 		expect(result.toolCalls).toEqual([
 			{
 				name: "transport_schedule_lookup",
@@ -486,82 +483,19 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedSignal).toBe(controller.signal);
 	});
 
-	it("keeps SDK sensitive tracing disabled and exports controlled debug trace refs", async () => {
-		const langfuseTraceId = deriveLangfuseTraceId("trace-debug-sdk");
+	it("keeps SDK sensitive tracing disabled and attaches safe trace metadata", async () => {
 		let observedTraceIncludeSensitiveData: boolean | undefined;
-		const otlpRequests: Array<{ body: unknown; headers: Record<string, string>; url: string }> = [];
+		let observedTraceMetadata: Record<string, string> | undefined;
 		const runner = createOpenAIAgentsRunner({
-			fetchImplementation: async (url, init) => {
-				otlpRequests.push({
-					body: JSON.parse(String(init?.body ?? "{}")),
-					headers: Object.fromEntries(new Headers(init?.headers).entries()),
-					url: String(url),
-				});
-				return new Response(null, { status: 200 });
-			},
 			runSdk: async (_agent, _input, options) => {
 				observedTraceIncludeSensitiveData = options.traceIncludeSensitiveData;
+				observedTraceMetadata = options.traceMetadata;
 				return {
 					finalOutput: {
 						kind: "answer",
 						answerText: "我是校园问答助手。",
 					},
 					lastResponseId: "resp-sdk-debug-trace",
-					newItems: [],
-					trace: { traceId: "trace-debug-sdk" },
-				};
-			},
-		});
-
-		const result = await runner({
-			input: "hi 你是谁",
-			instructions: "Answer directly.",
-			tools: [],
-			requestId: "req-sdk-debug-trace",
-			runId: "run-sdk-debug-trace",
-			traceId: "trace-debug-sdk",
-			providerConfig,
-			debugTraceConfig: validDebugTraceConfig(),
-		});
-
-		expect(observedTraceIncludeSensitiveData).toBe(false);
-		expect(result.debugTraceRefs).toEqual([
-			{
-				sink: "langfuse_otlp",
-				traceId: langfuseTraceId,
-				traceRef: `langfuse://${langfuseTraceId}`,
-				url: `https://cloud.langfuse.com/project/demo/traces/${langfuseTraceId}`,
-			},
-		]);
-		expect(otlpRequests).toEqual([
-			{
-				url: "https://cloud.langfuse.com/api/public/otel/v1/traces",
-				headers: expect.objectContaining({
-					authorization: "Basic langfuse-secret",
-					"content-type": "application/json",
-					"x-langfuse-ingestion-version": "4",
-				}),
-				body: expect.objectContaining({
-					resourceSpans: expect.any(Array),
-				}),
-			},
-		]);
-		expect(JSON.stringify(otlpRequests)).not.toContain("hi 你是谁");
-		expect(JSON.stringify(otlpRequests)).not.toContain("我是校园问答助手");
-	});
-
-	it("enables SDK sensitive tracing only when raw capture policy admits model IO", async () => {
-		let observedTraceIncludeSensitiveData: boolean | undefined;
-		const runner = createOpenAIAgentsRunner({
-			fetchImplementation: async () => new Response(null, { status: 200 }),
-			runSdk: async (_agent, _input, options) => {
-				observedTraceIncludeSensitiveData = options.traceIncludeSensitiveData;
-				return {
-					finalOutput: {
-						kind: "answer",
-						answerText: "我是校园问答助手。",
-					},
-					lastResponseId: "resp-sdk-raw-capture",
 					newItems: [],
 				};
 			},
@@ -571,18 +505,18 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: "hi 你是谁",
 			instructions: "Answer directly.",
 			tools: [],
-			requestId: "req-sdk-raw-capture",
-			runId: "run-sdk-raw-capture",
-			traceId: "trace-sdk-raw-capture",
+			requestId: "req-sdk-debug-trace",
+			runId: "run-sdk-debug-trace",
+			traceId: "trace-debug-sdk",
 			providerConfig,
-			debugTraceConfig: {
-				...validDebugTraceConfig(),
-				includeModelIo: true,
-				rawCapturePolicy: validRawCapturePolicy(),
-			},
 		});
 
-		expect(observedTraceIncludeSensitiveData).toBe(true);
+		expect(observedTraceIncludeSensitiveData).toBe(false);
+		expect(observedTraceMetadata).toEqual({
+			"campus.trace_id": "trace-debug-sdk",
+			"request.id": "req-sdk-debug-trace",
+			"run.id": "run-sdk-debug-trace",
+		});
 	});
 
 	it("streams terminal-envelope visible text before yielding the final structured SDK result", async () => {
@@ -801,35 +735,3 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		]);
 	});
 });
-
-function validDebugTraceConfig() {
-	return {
-		includeModelIo: false as const,
-		langfuseOtlp: {
-			authHeader: "Basic langfuse-secret",
-			endpoint: "https://cloud.langfuse.com/api/public/otel",
-			publicTraceBaseUrl: "https://cloud.langfuse.com/project/demo/traces",
-		},
-		mode: "langfuse_otlp" as const,
-		sampleRatio: 1,
-		schemaVersion: "llm_debug_trace_config.v1" as const,
-	};
-}
-
-function validRawCapturePolicy() {
-	return {
-		schema_version: "raw_capture_policy.v1" as const,
-		mode: "manual_run_capture" as const,
-		capture_reason: "diagnose badcase req_debug_001",
-		ttl_days: 7,
-		allowed_sinks: ["openai_agents_trace", "langfuse_otlp"],
-		allowed_raw_fields: ["rendered_messages", "provider_request_body"],
-		operator_principal: "operator:test",
-		approval_ref: "approval:test:raw-capture",
-		request_id: "req-sdk-raw-capture",
-		run_id: "run-sdk-raw-capture",
-		trace_id: "trace-sdk-raw-capture",
-		audit_required: true,
-		dsar_delete_linkage_required: true,
-	} satisfies RawCapturePolicy;
-}

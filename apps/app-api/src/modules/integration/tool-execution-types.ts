@@ -132,13 +132,6 @@ export interface ToolExecutionAnswerEvalFingerprint {
 	traceId: string;
 }
 
-export interface ToolExecutionDebugTraceRef {
-	sink: string;
-	traceId: string | null;
-	traceRef: string;
-	url?: string;
-}
-
 export interface ToolExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
@@ -247,7 +240,6 @@ export interface ToolExecutionObservability {
 	agentRuntime: string | null;
 	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
 	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
-	sdkTraceRef: string | null;
 	selectedTools: string[];
 	terminalReason: string | null;
 }
@@ -269,7 +261,6 @@ export interface ToolExecutionWorkflowTraceSummary {
 
 export interface ToolExecutionResponse {
 	answerText: string;
-	debugTraceRefs?: ToolExecutionDebugTraceRef[];
 	error: {
 		code: string;
 		message: string;

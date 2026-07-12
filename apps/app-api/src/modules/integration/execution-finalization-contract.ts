@@ -10,11 +10,6 @@ export const EXECUTION_FINALIZATION_STATUSES = [
 
 export const EXECUTION_FINALIZATION_CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
 
-export const EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS = [
-	"execution_control_projection",
-	"langfuse_otlp",
-] as const;
-
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
 	"stream.browser_ttft_ms",
@@ -33,22 +28,12 @@ export const STAGE_TIMING_FIELDS = [
 export type ExecutionFinalizationStatus = (typeof EXECUTION_FINALIZATION_STATUSES)[number];
 export type ExecutionFinalizationConfidence =
 	(typeof EXECUTION_FINALIZATION_CONFIDENCE_LEVELS)[number];
-export type ExecutionFinalizationDebugTraceSink =
-	(typeof EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS)[number];
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
-
-export interface ExecutionFinalizationDebugTraceRefWire {
-	sink: ExecutionFinalizationDebugTraceSink;
-	trace_id?: string | null;
-	trace_ref: string;
-	url?: string;
-}
 
 export interface ExecutionFinalizationResponseWire {
 	answer_text: string;
 	confidence: ExecutionFinalizationConfidence;
-	debug_trace_refs?: ExecutionFinalizationDebugTraceRefWire[] | null;
 	error: { code: string; message: string; retryable: boolean } | null;
 	follow_up_question: string;
 	observability?: Record<string, unknown> | null;

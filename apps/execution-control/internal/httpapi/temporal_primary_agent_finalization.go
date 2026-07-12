@@ -192,7 +192,6 @@ func (s *Server) primaryAgentFinalizedResponse(
 		"agent_runtime":      "openai_agents_sdk",
 		"llm_io_fingerprint": llmIOFingerprint,
 		"selected_tools":     selectedTools,
-		"sdk_trace_ref":      agentResult["sdk_trace_ref"],
 		"terminal_reason":    terminalKind,
 	}
 	observability["answer_eval_fingerprint"] = answerEvalFingerprint(answerEvalFingerprintInput{
@@ -215,7 +214,6 @@ func (s *Server) primaryAgentFinalizedResponse(
 		SelectedTool:         primaryAgentResponseSelectedTool(selectedTool),
 		Status:               status,
 		AnswerText:           primaryAgentAnswerText(status, answerText),
-		DebugTraceRefs:       debugTraceRefsFromAgentResult(agentResult),
 		Error:                primaryAgentErrorBody(status, terminalKind),
 		FollowUpQuestion:     followUpQuestion,
 		Confidence:           confidence,
@@ -235,20 +233,6 @@ func optionalStringPointer(value string) *string {
 		return nil
 	}
 	return &value
-}
-
-func debugTraceRefsFromAgentResult(agentResult map[string]any) []map[string]any {
-	refs, _ := agentResult["debug_trace_refs"].([]any)
-	result := make([]map[string]any, 0, len(refs))
-	for _, raw := range refs {
-		ref := cloneAnyMapFromMetadata(raw)
-		if strings.TrimSpace(stringValue(ref["sink"])) == "" ||
-			strings.TrimSpace(stringValue(ref["trace_ref"])) == "" {
-			continue
-		}
-		result = append(result, ref)
-	}
-	return result
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {

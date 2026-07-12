@@ -118,14 +118,6 @@ function finalizedWrite(): FinalizeRequestWrite {
 			templateSha256: null,
 			traceAvailable: true,
 			traceId: "trace_01HQ",
-			debugTraceRefs: [
-				{
-					sink: "langfuse_otlp",
-					traceId: "trace_01HQ",
-					traceRef: "langfuse://trace_01HQ",
-					url: "https://langfuse.example/project/demo/traces/trace_01HQ",
-				},
-			],
 			stageTiming: {
 				"agent.runtime_ms": 320,
 			},
@@ -386,12 +378,6 @@ describe("pg chat command store", () => {
 					schemaVersion: "answer_eval_fingerprint.v1",
 					runId: "run_01HQ",
 				}),
-				debugTraceRefsJson: [
-					expect.objectContaining({
-						sink: "langfuse_otlp",
-						traceRef: "langfuse://trace_01HQ",
-					}),
-				],
 				stageTimingJson: {
 					"agent.runtime_ms": 320,
 				},

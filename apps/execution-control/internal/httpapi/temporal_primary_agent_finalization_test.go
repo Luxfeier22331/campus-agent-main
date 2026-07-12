@@ -41,7 +41,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 			"llm_io_fingerprint":    primaryAgentFingerprintForFinalizationTest("run-primary-agent-finalization"),
 			"raw_prompt":            "system prompt should never be projected",
 			"provider_request_body": map[string]any{"authorization": "Bearer forbidden"},
-			"sdk_trace_ref":         "trace://openai-agents/trace-primary-agent-finalization",
 			"selected_tools":        []string{"transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":       "completed",
@@ -238,7 +237,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要查询哪条校车线路或哪个校区？"},
 			"provider_response_id": "resp-primary-agent-clarification",
 			"llm_io_fingerprint":   primaryAgentFingerprintForFinalizationTest("run-primary-agent-clarification"),
-			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-clarification",
 			"selected_tools":       []string{},
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "clarification_required",

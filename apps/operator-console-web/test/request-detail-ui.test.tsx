@@ -32,19 +32,11 @@ describe("request detail UI", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("renders timing, model, tool, trusted sources, and external trace references", async () => {
+	it("renders timing, model, tool, trusted sources, and trace status", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({
 					opsIndex: {
-						debugTraceRefs: [
-							{
-								sink: "langfuse",
-								traceId: "trace_01HQ",
-								traceRef: "lf_trace_01HQ",
-								url: "https://langfuse.example/project/traces/lf_trace_01HQ",
-							},
-						],
 						model: {
 							answerEvalFingerprint: null,
 							llmIoFingerprint: null,
@@ -159,12 +151,9 @@ describe("request detail UI", () => {
 		expect(screen.getByText("回答来源")).toBeInTheDocument();
 		expect(screen.getByText("学生请假管理规定")).toBeInTheDocument();
 		expect(screen.getByText("1 个来源")).toBeInTheDocument();
-		expect(screen.getByText("外部追踪")).toBeInTheDocument();
-		const traceLink = screen.getByRole("link", { name: /langfuse/ });
-		expect(traceLink).toHaveAttribute(
-			"href",
-			"https://langfuse.example/project/traces/lf_trace_01HQ",
-		);
+		expect(screen.getByText("追踪状态")).toBeInTheDocument();
+		expect(screen.getByText("已上报")).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: /langfuse/i })).not.toBeInTheDocument();
 		expect(document.body.textContent).not.toMatch(/rawPrompt|rawAnswer|providerPayload|traceBody/i);
 	});
 
@@ -210,6 +199,6 @@ describe("request detail UI", () => {
 		const detail = await screen.findByText("请求详情");
 		expect(detail).toBeInTheDocument();
 		expect(await screen.findByText("运行观测暂未上报")).toBeInTheDocument();
-		expect(within(document.body).queryByText("外部追踪")).not.toBeInTheDocument();
+		expect(within(document.body).queryByText("追踪状态")).not.toBeInTheDocument();
 	});
 });

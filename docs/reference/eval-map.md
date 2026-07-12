@@ -96,7 +96,6 @@ The following self-built lanes are no longer active eval package surfaces:
 - artifact `run-ragas-scoring`
 - artifact `publish-score-report`
 - retired app-api online-answer-path collector aliases
-- app-api Langfuse eval backlink routes
 - Python `campus_evals` and the retired `packages/evals`
 
 Runtime behavior and agent/workflow regressions should be covered by the

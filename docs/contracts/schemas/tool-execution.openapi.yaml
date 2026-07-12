@@ -522,26 +522,6 @@ components:
           type: string
         retryable:
           type: boolean
-    DebugTraceRef:
-      type: object
-      additionalProperties: false
-      required:
-        - sink
-        - trace_ref
-      properties:
-        sink:
-          type: string
-          enum:
-            - langfuse_otlp
-        trace_id:
-          type:
-            - string
-            - "null"
-        trace_ref:
-          type: string
-        url:
-          type: string
-          format: uri
     StageTiming:
       type: object
       additionalProperties: false
@@ -948,12 +928,6 @@ components:
         stage_timing:
           oneOf:
             - $ref: "#/components/schemas/StageTiming"
-            - type: "null"
-        debug_trace_refs:
-          oneOf:
-            - type: array
-              items:
-                $ref: "#/components/schemas/DebugTraceRef"
             - type: "null"
         trace_id:
           type: string

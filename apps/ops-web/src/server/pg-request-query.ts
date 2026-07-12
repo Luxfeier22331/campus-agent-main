@@ -28,7 +28,6 @@ export function requestObservabilitySql(suffix: string): string {
 			select
 				"acl_anomaly_code" as "aclAnomalyCode",
 				"acl_decision" as "aclDecision",
-				"debug_trace_refs_json" as "debugTraceRefsJson",
 				"fail_closed" as "failClosed",
 				"measured_at" as "measuredAt",
 				"model_name" as "modelName",

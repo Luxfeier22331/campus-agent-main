@@ -89,8 +89,8 @@ that sink and expose only a safe deep link or correlation id through app-api.
 `provider_queue_ms` is not a required repo-owned timing field. Provider-internal
 queueing is not a stable repo-owned measurement unless an explicit
 contract admits a safe provider-derived projection. Use `agent.first_delta_ms`,
-`agent.runtime_ms`, `stream.browser_ttft_ms` and controlled debug trace refs for
-launch latency diagnosis.
+`agent.runtime_ms`, `stream.browser_ttft_ms` and the correlated external trace
+for launch latency diagnosis.
 
 Every canonical field above must be admissible by
 `configs/runtime/latency-budgets.v1.json`. A field may be missing from an
@@ -169,28 +169,21 @@ App-api stores `stage_timing.v1` in request observability facts. It validates
 canonical finite numeric fields before exposing Operator-safe projections and
 fails closed on non-canonical app-api-owned timing fields.
 
-## Relationship To Debug Traces
+## Relationship To Distributed Tracing
 
-`stage_timing.v1` and `debug_trace_refs` are complementary:
+`stage_timing.v1` answers which repo-owned stage was slow. OpenAI Agents SDK
+spans, Temporal tracing, Langfuse, Sentry and Axiom can provide additional
+diagnostic detail, but they do not replace this projection.
 
-- `stage_timing.v1` answers "which repo-owned stage was slow?"
-- `debug_trace_refs` lets an authorized operator jump to external sinks for
-  deeper model/provider/span inspection.
-- `llm_replay_packet.v1` can reproduce an admitted run for diagnosis or eval,
-  but only as a separate restricted artifact.
-
-OpenAI Agents SDK tracing, Langfuse OTLP, Sentry and Axiom do not replace
-`stage_timing.v1`. They can provide detail for diagnosis, but app-api and
-Operator Console consume only this safe timing projection plus safe sink refs
-and replay packet metadata. `stage_timing.v1` must never embed raw replay packet
-body, raw SDK span, raw provider payload, raw tool IO, raw prompt, raw answer or
-raw memory text.
+App-api and Operator Console consume `stage_timing.v1` directly. They do not
+store external trace bodies or sink-specific trace links. Timing projection
+must never embed SDK spans, provider payloads, tool IO, prompts, answers, source
+bodies or memory text.
 
 ## Related Documents
 
 - `docs/contracts/app-api/observability.md`
 - `docs/contracts/langfuse-runtime.md`
-- `docs/contracts/replay-capture.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/reference/observability-ledger.md`
 - `docs/architecture/system/learning-loop.md`

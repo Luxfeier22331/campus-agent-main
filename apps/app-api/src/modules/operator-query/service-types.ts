@@ -1,7 +1,6 @@
 import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
 import type {
 	ToolExecutionAnswerEvalFingerprint,
-	ToolExecutionDebugTraceRef,
 	ToolExecutionLlmIoFingerprint,
 } from "../integration/tool-execution-types";
 import type { StageTimingBudgetProjection } from "../latency-budget";
@@ -65,7 +64,6 @@ export interface RequestProjectionRecord {
 export interface OperatorRequestOpsIndex {
 	stageTiming: Record<string, number>;
 	stageTimingBudget: Record<string, StageTimingBudgetProjection>;
-	debugTraceRefs: ToolExecutionDebugTraceRef[];
 	model: {
 		modelProvider: string | null;
 		modelName: string | null;

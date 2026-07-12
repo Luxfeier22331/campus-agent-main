@@ -96,13 +96,6 @@ const SupportingSourceSchema = z.object({
 
 export const OpsRequestDetailResponseSchema = z.object({
 	correlationIds: OpsCorrelationIdsSchema,
-	debugTraceRefs: z.array(
-		z.object({
-			sink: z.string().min(1),
-			traceId: z.string().min(1).nullable(),
-			traceRef: z.string().min(1),
-		}),
-	),
 	externalLinks: z.array(ExternalLinkSchema),
 	modelSummary: z.object({
 		model: z.string().min(1).nullable(),

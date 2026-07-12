@@ -277,34 +277,12 @@ func TestDecodeToolExecutionResponseWireJSONRejectsNonCanonicalStageTiming(t *te
 	}
 }
 
-func TestDecodeToolExecutionResponseWireJSONRejectsInvalidDebugTraceRef(t *testing.T) {
-	payload := canonicalToolExecutionResponsePayload()
-	payload["debug_trace_refs"] = []map[string]any{{
-		"sink":      "raw_sdk_trace",
-		"trace_ref": "trace://raw-sdk",
-	}}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("marshal payload: %v", err)
-	}
-
-	if _, err := DecodeToolExecutionResponseWireJSON(body); err == nil {
-		t.Fatal("expected invalid debug trace sink to be rejected")
-	}
-}
-
-func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTimingAndDebugTraceRef(t *testing.T) {
+func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTiming(t *testing.T) {
 	payload := canonicalToolExecutionResponsePayload()
 	payload["stage_timing"] = map[string]any{
 		"agent.runtime_ms":     42,
 		"agent.first_delta_ms": 12,
 	}
-	payload["debug_trace_refs"] = []map[string]any{{
-		"sink":      "langfuse_otlp",
-		"trace_id":  "trace-contract-response",
-		"trace_ref": "langfuse://trace-contract-response",
-		"url":       "https://langfuse.example/project/demo/traces/trace-contract-response",
-	}}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -316,9 +294,6 @@ func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTimingAndDebugT
 	}
 	if wire.StageTiming[StageTimingFieldAgentRuntimeMs] != 42 {
 		t.Fatalf("stage timing = %#v", wire.StageTiming)
-	}
-	if len(wire.DebugTraceRefs) != 1 || wire.DebugTraceRefs[0].Sink != DebugTraceSinkLangfuseOtlp {
-		t.Fatalf("debug trace refs = %#v", wire.DebugTraceRefs)
 	}
 }
 

@@ -89,12 +89,6 @@ const (
 	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
 )
 
-type DebugTraceSink string
-
-const (
-	DebugTraceSinkLangfuseOtlp DebugTraceSink = "langfuse_otlp"
-)
-
 type ConversationContextWire struct {
 	SchemaVersion        string           `json:"schema_version"`
 	ConversationID       string           `json:"conversation_id"`
@@ -166,13 +160,6 @@ type WorkflowTraceSummaryWire struct {
 
 type StageTimingWire map[StageTimingField]float64
 
-type DebugTraceRefWire struct {
-	Sink     DebugTraceSink `json:"sink"`
-	TraceID  *string        `json:"trace_id,omitempty"`
-	TraceRef string         `json:"trace_ref"`
-	URL      string         `json:"url,omitempty"`
-}
-
 type SessionUpdateSlotWire struct {
 	Confirmed bool   `json:"confirmed"`
 	Name      string `json:"name"`
@@ -196,7 +183,6 @@ type ToolExecutionResponseWire struct {
 	Observability        map[string]any            `json:"observability,omitempty"`
 	WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
 	StageTiming          StageTimingWire           `json:"stage_timing,omitempty"`
-	DebugTraceRefs       []DebugTraceRefWire       `json:"debug_trace_refs,omitempty"`
 	TraceID              string                    `json:"trace_id"`
 }
 
@@ -475,11 +461,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 			return fmt.Errorf("stage_timing: %w", err)
 		}
 	}
-	for index, ref := range wire.DebugTraceRefs {
-		if err := ref.Validate(); err != nil {
-			return fmt.Errorf("debug_trace_refs[%d]: %w", index, err)
-		}
-	}
 	return nil
 }
 
@@ -511,16 +492,6 @@ func (wire StageTimingWire) Validate() error {
 		if durationMs < 0 || math.IsNaN(durationMs) || math.IsInf(durationMs, 0) {
 			return fmt.Errorf("%s must be a finite non-negative duration", field)
 		}
-	}
-	return nil
-}
-
-func (wire DebugTraceRefWire) Validate() error {
-	if !wire.Sink.Valid() {
-		return fmt.Errorf("sink is invalid")
-	}
-	if wire.TraceRef == "" {
-		return fmt.Errorf("trace_ref is required")
 	}
 	return nil
 }
@@ -593,15 +564,6 @@ func (value StageTimingField) Valid() bool {
 		StageTimingFieldKnowledgeSearchMs,
 		StageTimingFieldFinalizationWriteMs,
 		StageTimingFieldProjectionCloseoutMs:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value DebugTraceSink) Valid() bool {
-	switch value {
-	case DebugTraceSinkLangfuseOtlp:
 		return true
 	default:
 		return false

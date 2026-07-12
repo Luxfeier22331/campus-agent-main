@@ -172,7 +172,6 @@ response body：
     "error": null,
     "observability": {
       "agentRuntime": "openai_agents_sdk",
-      "sdkTraceRef": "sdk-trace-eval-01HQ",
       "selectedTools": ["knowledge_query"],
       "terminalReason": "answer"
     },

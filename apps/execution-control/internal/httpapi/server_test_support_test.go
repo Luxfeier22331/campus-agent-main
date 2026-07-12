@@ -33,18 +33,9 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 }
 
 func newServerForTest() *Server {
-	server := NewServer(config.Config{
+	return NewServer(config.Config{
 		RAGTopKMax: 8,
 	})
-	server.observabilityConfigResolver = staticObservabilityConfigResolver{
-		config: llmDebugTraceConfig{
-			SchemaVersion: "llm_debug_trace_config.v1",
-			Mode:          "off",
-			SampleRatio:   1,
-		},
-	}
-	server.observabilityConfigErr = nil
-	return server
 }
 
 func newWorkerAuthServerForTest() *Server {
@@ -294,8 +285,17 @@ func markKnowledgeRuntimeReadyForTest(server *Server) {
 
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
 	t.Helper()
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/readyz" {
+			t.Fatalf("agent runtime readiness path = %q", request.URL.Path)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{"status": "ready"})
+	}))
+	t.Cleanup(agentRuntime.Close)
 	cfg := config.Config{
 		AppName:                    "campus-agent",
+		AgentRuntimeBaseURL:        agentRuntime.URL,
+		AgentRuntimeSharedSecret:   "agent-runtime-secret",
 		MaxConcurrentAnswers:       8,
 		ProviderConfigSnapshotPath: writeProviderProjectionForTest(t),
 		RAGTopKMax:                 8,

@@ -448,18 +448,6 @@ function RequestObservability({ detail }: { detail: OpsRequestDetailResponse }) 
 							) : null,
 						)
 					)}
-					{detail.debugTraceRefs.map((ref) => (
-						<div
-							className="grid gap-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-							key={`${ref.sink}:${ref.traceRef}`}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<span className="font-medium">{formatTraceSinkLabel(ref.sink)}</span>
-								<Badge tone="muted">已记录引用</Badge>
-							</div>
-							<span className="break-all text-slate-500 text-xs">{ref.traceRef}</span>
-						</div>
-					))}
 				</CardContent>
 			</Card>
 			<div className="grid gap-4 xl:grid-cols-2">
@@ -574,8 +562,4 @@ function VirtualRecordList({
 			</ul>
 		</div>
 	);
-}
-
-function formatTraceSinkLabel(value: string) {
-	return value === "openobserve_otlp" ? "OpenObserve" : value;
 }

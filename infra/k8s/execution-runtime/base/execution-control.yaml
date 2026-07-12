@@ -82,8 +82,7 @@ spec:
               value: trusted-worker
           volumeMounts:
             - name: provider-config-projection
-              mountPath: /run/campus-agent/provider-config-projection.json
-              subPath: provider-config-projection.json
+              mountPath: /run/campus-agent/provider-config
               readOnly: true
             - name: qdrant-tls-ca
               mountPath: /etc/campus-agent/qdrant/tls

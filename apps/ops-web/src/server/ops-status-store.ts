@@ -157,7 +157,6 @@ export interface OpsRequestExecutionRow {
 export interface OpsRequestObservabilityRow {
 	aclAnomalyCode: string | null;
 	aclDecision: string | null;
-	debugTraceRefsJson?: unknown;
 	failClosed: boolean | null;
 	measuredAt: Date;
 	modelName?: string | null;

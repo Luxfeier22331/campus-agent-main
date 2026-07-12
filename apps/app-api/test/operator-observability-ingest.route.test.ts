@@ -3,7 +3,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import { replayPacketIndexPayload } from "./replay-capture.test-support";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -235,64 +234,6 @@ describe("operator observability internal ingest routes", () => {
 			payload,
 			persistHistory: true,
 		});
-	});
-
-	it("keeps retired internal quality grades and trace backlink ingest routes closed", async () => {
-		const service = {
-			ingestExecutionAuditEvents: vi.fn(),
-			ingestTemporalTaskQueueSnapshots: vi.fn(),
-		};
-		const app = createApp(env as never, {
-			operatorObservabilityCommandService: service as never,
-		});
-
-		for (const path of [
-			"/api/internal/operator/quality/grades",
-			"/api/internal/operator/trace-backlinks",
-		]) {
-			const response = await app.fetch(
-				new Request(`https://app-api.internal${path}`, {
-					body: JSON.stringify({}),
-					headers: {
-						"content-type": "application/json",
-						"x-app-internal-auth": "trusted-secret",
-					},
-					method: "POST",
-				}),
-			);
-			expect(response.status, path).toBe(404);
-		}
-	});
-
-	it("accepts safe replay packet index metadata through the internal ingest seam", async () => {
-		const replayCaptureService = {
-			ingestReplayPacketIndex: vi.fn().mockResolvedValue({
-				accepted: 1,
-				packetId: "llm_replay_packet_rag_01",
-			}),
-		};
-		const app = createApp(env as never, {
-			replayCaptureService: replayCaptureService as never,
-		});
-		const payload = replayPacketIndexPayload();
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/internal/observability/replay-packet-index", {
-				body: JSON.stringify(payload),
-				headers: {
-					"content-type": "application/json",
-					"x-app-internal-auth": "trusted-secret",
-				},
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			accepted: 1,
-			packetId: "llm_replay_packet_rag_01",
-		});
-		expect(replayCaptureService.ingestReplayPacketIndex).toHaveBeenCalledWith({ payload });
 	});
 
 	it("fails closed when the internal shared secret is missing", async () => {

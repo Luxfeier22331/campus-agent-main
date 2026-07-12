@@ -250,23 +250,16 @@ describe("execution finalization canonical response fixtures", () => {
 		}
 	});
 
-	it("rejects retired custom observability projections", () => {
-		for (const retiredField of [
-			"prompt_trace",
-			"replay_packet_ref",
-			"semantic_outcome",
-			"usage_summary",
-		]) {
-			const payload = loadFixture("response_temporal_finalization.valid.json");
-			payload.observability = {
-				...(payload.observability as Record<string, unknown>),
-				[retiredField]: {},
-			};
+	it("rejects unknown observability projections", () => {
+		const payload = loadFixture("response_temporal_finalization.valid.json");
+		payload.observability = {
+			...(payload.observability as Record<string, unknown>),
+			unknown_field: {},
+		};
 
-			expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
-				new RegExp(`observability\\.${retiredField} is not allowed`, "i"),
-			);
-		}
+		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
+			/observability\.unknown_field is not allowed/i,
+		);
 	});
 
 	it("parses safe llm io fingerprint from finalization observability", () => {
@@ -341,25 +334,6 @@ describe("execution finalization canonical response fixtures", () => {
 		);
 	});
 
-	it("rejects replay packet ref inside answer eval fingerprint", () => {
-		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.observability = {
-			...(payload.observability as Record<string, unknown>),
-			answer_eval_fingerprint: answerEvalFingerprintFixture({
-				replay_packet_ref: {
-					packet_id: "llm_replay_packet_01",
-					object_ref: "s3://llm-replay/packet.json",
-					object_checksum_sha256:
-						"sha256:4444444444444444444444444444444444444444444444444444444444444444",
-				},
-			}),
-		};
-
-		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
-			/execution finalization response contract/i,
-		);
-	});
-
 	it("rejects safe llm io fingerprint without nested tool runtime fingerprint", () => {
 		const payload = loadFixture("response_temporal_finalization.valid.json");
 		const fingerprint = llmIoFingerprintFixture({
@@ -380,30 +354,14 @@ describe("execution finalization canonical response fixtures", () => {
 		);
 	});
 
-	it("parses controlled debug trace refs and stage timing without raw trace bodies", () => {
+	it("parses stage timing", () => {
 		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.debug_trace_refs = [
-			{
-				sink: "langfuse_otlp",
-				trace_id: "trace-temporal-finalization",
-				trace_ref: "langfuse://trace-temporal-finalization",
-				url: "https://langfuse.example/project/demo/traces/trace-temporal-finalization",
-			},
-		];
 		payload.stage_timing = {
 			"agent.runtime_ms": 321,
 			"agent.first_delta_ms": 120,
 		};
 
 		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			debugTraceRefs: [
-				{
-					sink: "langfuse_otlp",
-					traceId: "trace-temporal-finalization",
-					traceRef: "langfuse://trace-temporal-finalization",
-					url: "https://langfuse.example/project/demo/traces/trace-temporal-finalization",
-				},
-			],
 			stageTiming: {
 				"agent.runtime_ms": 321,
 				"agent.first_delta_ms": 120,
@@ -411,23 +369,12 @@ describe("execution finalization canonical response fixtures", () => {
 		});
 	});
 
-	it("rejects non-canonical debug trace refs and stage timing fields", () => {
+	it("rejects non-canonical stage timing fields", () => {
 		const invalidStageTiming = loadFixture("response_temporal_finalization.valid.json");
 		invalidStageTiming.stage_timing = {
 			agent_runtime_duration_ms: 321,
 		};
 		expect(() => parseExecutionFinalizationResponsePayload(invalidStageTiming)).toThrow(
-			/execution finalization response contract/i,
-		);
-
-		const invalidDebugTraceRef = loadFixture("response_temporal_finalization.valid.json");
-		invalidDebugTraceRef.debug_trace_refs = [
-			{
-				sink: "raw_sdk_trace",
-				trace_ref: "trace://raw-sdk",
-			},
-		];
-		expect(() => parseExecutionFinalizationResponsePayload(invalidDebugTraceRef)).toThrow(
 			/execution finalization response contract/i,
 		);
 	});

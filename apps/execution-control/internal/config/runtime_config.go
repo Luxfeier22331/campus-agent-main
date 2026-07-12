@@ -10,21 +10,20 @@ import (
 const runtimeConfigFileSchemaVersion = "campus_execution_control_runtime_config.v1"
 
 type runtimeConfigFile struct {
-	SchemaVersion           string                        `json:"schema_version"`
-	MaxConcurrentAnswers    *int                          `json:"max_concurrent_answers,omitempty"`
-	QueueCapacity           *int                          `json:"queue_capacity,omitempty"`
-	QueueTimeoutMS          *int                          `json:"queue_timeout_ms,omitempty"`
-	RequestTimeoutMS        *int                          `json:"request_timeout_ms,omitempty"`
-	RequestBodyLimitBytes   *int64                        `json:"request_body_limit_bytes,omitempty"`
-	ShutdownGraceMS         *int                          `json:"shutdown_grace_ms,omitempty"`
-	ObservabilityConfigPath *string                       `json:"observability_config_projection_path,omitempty"`
-	QueryServingScopesPath  *string                       `json:"query_serving_scopes_path,omitempty"`
-	ToolReadModelTimeoutMS  *int                          `json:"tool_read_model_timeout_ms,omitempty"`
-	OTel                    *runtimeConfigFileOTel        `json:"otel,omitempty"`
-	ExecutionAudit          *runtimeConfigFileAudit       `json:"execution_audit,omitempty"`
-	KnowledgeSearch         *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
-	PersonalMemory          *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
-	WorkerProfiles          map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
+	SchemaVersion          string                        `json:"schema_version"`
+	MaxConcurrentAnswers   *int                          `json:"max_concurrent_answers,omitempty"`
+	QueueCapacity          *int                          `json:"queue_capacity,omitempty"`
+	QueueTimeoutMS         *int                          `json:"queue_timeout_ms,omitempty"`
+	RequestTimeoutMS       *int                          `json:"request_timeout_ms,omitempty"`
+	RequestBodyLimitBytes  *int64                        `json:"request_body_limit_bytes,omitempty"`
+	ShutdownGraceMS        *int                          `json:"shutdown_grace_ms,omitempty"`
+	QueryServingScopesPath *string                       `json:"query_serving_scopes_path,omitempty"`
+	ToolReadModelTimeoutMS *int                          `json:"tool_read_model_timeout_ms,omitempty"`
+	OTel                   *runtimeConfigFileOTel        `json:"otel,omitempty"`
+	ExecutionAudit         *runtimeConfigFileAudit       `json:"execution_audit,omitempty"`
+	KnowledgeSearch        *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
+	PersonalMemory         *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
+	WorkerProfiles         map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
 }
 
 type runtimeConfigFileOTel struct {
@@ -123,7 +122,6 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 		name  string
 		value *string
 	}{
-		{"observability_config_projection_path", profile.ObservabilityConfigPath},
 		{"query_serving_scopes_path", profile.QueryServingScopesPath},
 	}
 	for _, item := range requiredStrings {
@@ -264,7 +262,6 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 	applyInt(&values.RequestTimeoutMS, profile.RequestTimeoutMS)
 	applyInt64(&values.RequestBodyLimitBytes, profile.RequestBodyLimitBytes)
 	applyInt(&values.ShutdownGraceMS, profile.ShutdownGraceMS)
-	applyString(&values.ObservabilityConfigProjectionPath, profile.ObservabilityConfigPath)
 	applyString(&values.QueryServingScopesPath, profile.QueryServingScopesPath)
 	applyInt(&values.ToolReadModelTimeoutMS, profile.ToolReadModelTimeoutMS)
 	if profile.OTel != nil {

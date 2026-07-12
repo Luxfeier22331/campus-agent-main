@@ -20,7 +20,6 @@ import type {
 	IngestionTaskProjectionClient,
 	IngestionTaskProjectionFetch,
 } from "../modules/integration";
-import type { ObservabilityConfigService } from "../modules/observability-config";
 import type { OfficialWebQueryService } from "../modules/official-web-query";
 import type { OfficialWebReleaseTaskProcessingCommandService } from "../modules/official-web-release-task-processing-command";
 import type { OfficialWebReleaseTaskProcessingQueryService } from "../modules/official-web-release-task-processing-query";
@@ -31,7 +30,6 @@ import type { OperatorObservabilityCommandService } from "../modules/operator-ob
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ProviderConfigService } from "../modules/provider-config";
-import type { ReplayCaptureService } from "../modules/replay-capture";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
@@ -71,12 +69,10 @@ export interface AppDependencies {
 	officialWebTargetInventoryService?: OfficialWebTargetInventoryService;
 	officialWebTargetJobService?: OfficialWebTargetJobService;
 	officialWebTargetReleaseGateService?: OfficialWebTargetReleaseGateService;
-	observabilityConfigService?: ObservabilityConfigService;
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
 	providerConfigService?: ProviderConfigService;
-	replayCaptureService?: ReplayCaptureService;
 	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
@@ -138,12 +134,10 @@ export interface AppRequestScope {
 	resolveOfficialWebTargetInventoryService(): OfficialWebTargetInventoryService;
 	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
 	resolveOfficialWebTargetReleaseGateService(): OfficialWebTargetReleaseGateService;
-	resolveObservabilityConfigService(): ObservabilityConfigService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveProviderConfigService(): ProviderConfigService;
-	resolveReplayCaptureService(): ReplayCaptureService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 	telemetry: AppTelemetry;

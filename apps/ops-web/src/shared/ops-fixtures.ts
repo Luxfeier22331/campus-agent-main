@@ -98,20 +98,7 @@ function requestDetail(
 			traceId: request.traceId,
 			workflowId: request.workflowId,
 		},
-		debugTraceRefs: [
-			{
-				sink: "openobserve_otlp",
-				traceId: request.traceId,
-				traceRef: `openobserve://trace/${request.traceId}`,
-			},
-		],
 		externalLinks: [
-			{
-				href: `https://langfuse.example.test/project/traces/${request.traceId}`,
-				isAvailable: true,
-				label: "Langfuse 调用链",
-				source: "LANGFUSE",
-			},
 			{
 				href: `https://temporal.example.test/namespaces/default/workflows/${request.workflowId}`,
 				isAvailable: true,

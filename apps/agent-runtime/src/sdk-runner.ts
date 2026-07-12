@@ -7,7 +7,6 @@ import {
 	tool,
 } from "@openai/agents";
 import { z } from "zod";
-import { beginDebugTrace } from "./debug-trace.ts";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
@@ -67,7 +66,6 @@ interface AgentSdkContext {
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
 	runSdkStream?: OpenAIAgentsStreamRunFunction;
-	fetchImplementation?: typeof fetch;
 	maxTurns?: number;
 	model?: string;
 	modelProvider?: ModelProvider;
@@ -84,6 +82,7 @@ export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
+		traceMetadata: Record<string, string>;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -98,6 +97,7 @@ export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
+		traceMetadata: Record<string, string>;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -111,12 +111,10 @@ interface OpenAIAgentsRunResultLike {
 	newItems?: unknown[];
 	rawResponses?: unknown[];
 	state?: {
-		_trace?: { traceId?: string };
 		_context?: { usage?: UsageLike };
 		context?: { usage?: UsageLike };
 		usage?: UsageLike;
 	};
-	trace?: { traceId?: string };
 	usage?: UsageLike;
 }
 
@@ -144,36 +142,17 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 				modelProvider: options.modelProvider,
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const debugTrace = beginDebugTrace({
-			config: input.debugTraceConfig,
-			fetchImplementation: options.fetchImplementation,
+		const result = await runSdk(runtime.agent, input.input, {
+			context: runtime.context,
+			maxTurns,
+			modelProvider: requestOptions.modelProvider,
 			traceId: input.traceId,
+			traceMetadata: agentTraceMetadata(input),
+			workflowName: "campus-agent.primary-agent",
+			traceIncludeSensitiveData: false,
+			signal: input.signal,
 		});
-		try {
-			const result = await runSdk(runtime.agent, input.input, {
-				context: runtime.context,
-				maxTurns,
-				modelProvider: requestOptions.modelProvider,
-				traceId: input.traceId,
-				workflowName: "campus-agent.primary-agent",
-				traceIncludeSensitiveData: shouldIncludeSensitiveTraceData(input.debugTraceConfig),
-				signal: input.signal,
-			});
-			const projected = agentRunnerResultFromSDKResult(result);
-			debugTrace.exportSummary({
-				model: requestOptions.model,
-				provider: input.providerConfig.provider,
-				runId: input.runId,
-				status: "completed",
-			});
-			await debugTrace.flush();
-			return {
-				...projected,
-				debugTraceRefs: debugTrace.refs,
-			};
-		} finally {
-			debugTrace.close();
-		}
+		return agentRunnerResultFromSDKResult(result);
 	};
 }
 
@@ -190,81 +169,71 @@ export function createStreamingOpenAIAgentsRunner(
 				modelProvider: options.modelProvider,
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const debugTrace = beginDebugTrace({
-			config: input.debugTraceConfig,
-			fetchImplementation: options.fetchImplementation,
+		const result = await runSdkStream(runtime.agent, input.input, {
+			context: runtime.context,
+			maxTurns,
+			modelProvider: requestOptions.modelProvider,
 			traceId: input.traceId,
+			traceMetadata: agentTraceMetadata(input),
+			workflowName: "campus-agent.primary-agent",
+			traceIncludeSensitiveData: false,
+			signal: input.signal,
 		});
-		try {
-			const result = await runSdkStream(runtime.agent, input.input, {
-				context: runtime.context,
-				maxTurns,
-				modelProvider: requestOptions.modelProvider,
-				traceId: input.traceId,
-				workflowName: "campus-agent.primary-agent",
-				traceIncludeSensitiveData: shouldIncludeSensitiveTraceData(input.debugTraceConfig),
-				signal: input.signal,
-			});
-			let rawOutputText = "";
-			let accumulatedVisibleText = "";
-			let chunkIndex = 0;
-			for await (const delta of result.toTextStream()) {
-				if (delta === "") {
-					continue;
-				}
-				rawOutputText += delta;
-				const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
-				if (nextVisibleText === accumulatedVisibleText) {
-					continue;
-				}
-				if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
-					throw new Error("streamed terminal output visible text drifted");
-				}
-				const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
-				accumulatedVisibleText = nextVisibleText;
-				if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
-					continue;
-				}
-				if (isKnowledgeAgent(result.currentAgent)) {
-					continue;
-				}
+		let rawOutputText = "";
+		let accumulatedVisibleText = "";
+		let chunkIndex = 0;
+		for await (const delta of result.toTextStream()) {
+			if (delta === "") {
+				continue;
+			}
+			rawOutputText += delta;
+			const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
+			if (nextVisibleText === accumulatedVisibleText) {
+				continue;
+			}
+			if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
+				throw new Error("streamed terminal output visible text drifted");
+			}
+			const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
+			accumulatedVisibleText = nextVisibleText;
+			if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
+				continue;
+			}
+			if (isKnowledgeAgent(result.currentAgent)) {
+				continue;
+			}
+			chunkIndex += 1;
+			yield {
+				accumulatedText: accumulatedVisibleText,
+				chunkIndex,
+				delta: visibleDelta,
+			} satisfies AgentRunnerAnswerDelta;
+		}
+		await result.completed;
+		const finalResult = agentRunnerResultFromSDKResult(result);
+		if (accumulatedVisibleText !== "") {
+			if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
+				throw new Error("streamed answer text drifted from final output");
+			}
+			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
+			if (tail.trim() !== "" && !isKnowledgeAgent(result.lastAgent ?? result.currentAgent)) {
 				chunkIndex += 1;
 				yield {
-					accumulatedText: accumulatedVisibleText,
+					accumulatedText: finalResult.finalOutput,
 					chunkIndex,
-					delta: visibleDelta,
+					delta: tail,
 				} satisfies AgentRunnerAnswerDelta;
 			}
-			await result.completed;
-			const finalResult = agentRunnerResultFromSDKResult(result);
-			if (accumulatedVisibleText !== "") {
-				if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
-					throw new Error("streamed answer text drifted from final output");
-				}
-				const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-				if (tail.trim() !== "" && !isKnowledgeAgent(result.lastAgent ?? result.currentAgent)) {
-					chunkIndex += 1;
-					yield {
-						accumulatedText: finalResult.finalOutput,
-						chunkIndex,
-						delta: tail,
-					} satisfies AgentRunnerAnswerDelta;
-				}
-			}
-			debugTrace.exportSummary({
-				model: requestOptions.model,
-				provider: input.providerConfig.provider,
-				runId: input.runId,
-				status: "completed",
-			});
-			await debugTrace.flush();
-			yield {
-				...finalResult,
-				debugTraceRefs: debugTrace.refs,
-			};
-		} finally {
-			debugTrace.close();
 		}
+		yield finalResult;
+	};
+}
+
+function agentTraceMetadata(input: AgentRunnerInput): Record<string, string> {
+	return {
+		"campus.trace_id": input.traceId,
+		"request.id": input.requestId,
+		"run.id": input.runId,
 	};
 }
 
@@ -412,6 +381,7 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 	const runner = new Runner({
 		modelProvider: options.modelProvider,
 		traceId: options.traceId,
+		traceMetadata: options.traceMetadata,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
@@ -426,6 +396,7 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 	const runner = new Runner({
 		modelProvider: options.modelProvider,
 		traceId: options.traceId,
+		traceMetadata: options.traceMetadata,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
@@ -437,26 +408,6 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 	}) as unknown as Promise<OpenAIAgentsStreamRunResultLike>;
 };
 
-function shouldIncludeSensitiveTraceData(config: AgentRunnerInput["debugTraceConfig"]): boolean {
-	if (
-		!(config?.includeModelIo && config.rawCapturePolicy) ||
-		config.rawCapturePolicy.mode === "off"
-	) {
-		return false;
-	}
-	const admitsModelIOSink = config.rawCapturePolicy.allowed_sinks.some(
-		(sink) => sink === "openai_agents_trace" || sink === "langfuse_otlp",
-	);
-	const admitsModelIOField = config.rawCapturePolicy.allowed_raw_fields.some(
-		(field) =>
-			field === "rendered_messages" ||
-			field === "provider_request_body" ||
-			field === "provider_response_body" ||
-			field === "provider_stream_deltas",
-	);
-	return admitsModelIOSink && admitsModelIOField;
-}
-
 function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
 	const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
 	return {
@@ -467,7 +418,6 @@ function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
 		providerResponseId: providerResponseIDFromResult(result),
 		terminalEnvelope,
 		toolCalls: toolCallsFromItems(result.newItems ?? []),
-		traceRef: traceRefFromResult(result),
 		usage: usageFromResult(result),
 	};
 }
@@ -592,13 +542,6 @@ function extractJsonStringPrefix(
 function providerResponseIDFromResult(result: OpenAIAgentsRunResultLike): string {
 	const responseID = result.lastResponseId ?? lastStringID(result.rawResponses ?? []);
 	return responseID?.trim() ?? "";
-}
-
-function traceRefFromResult(result: OpenAIAgentsRunResultLike): string {
-	const traceID = result.trace?.traceId ?? result.state?._trace?.traceId;
-	return traceID === undefined || traceID.trim() === ""
-		? ""
-		: `trace://openai-agents/${traceID.trim()}`;
 }
 
 function usageFromResult(result: OpenAIAgentsRunResultLike) {

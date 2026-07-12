@@ -114,6 +114,21 @@ func requireSecureProviderConfigProjectionFile(path string) error {
 	return requireSecureSecretProjectionFile(path, "provider config projection")
 }
 
+func requireSecureSecretProjectionFile(path string, label string) error {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", label, err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("%s path must be a regular file", label)
+	}
+	permissions := fileInfo.Mode().Perm()
+	if permissions != 0o600 && permissions != 0o440 {
+		return fmt.Errorf("%s file permissions must be 0600 or 0440", label)
+	}
+	return nil
+}
+
 func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role providerConfigRole) error {
 	required := []struct {
 		name  string

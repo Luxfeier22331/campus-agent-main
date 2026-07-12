@@ -1,18 +1,16 @@
 import { readFileSync } from "node:fs";
 import { repoPath } from "./common.ts";
 import { materializeAlertFile } from "./materialize-observability-alerts.ts";
-import { validateJsonArtifactInvariants } from "./schema-invariants.ts";
 import { checkContractSchemas } from "./schema-registry.ts";
 
 export function runContractSchemaSelfTest(): void {
 	checkContractSchemasPass();
 	checkRegistryCoverage();
 	checkStructuredToolContractFixtures();
-	checkReplayCaptureFixtures();
+	checkSafeObservabilityFixtures();
 	checkRuntimeToolSchemaRefs();
 	checkObservabilityAlertMaterialization();
-	checkReplayCaptureInvariants();
-	checkReplayCaptureSchemas();
+	checkSafeObservabilitySchemas();
 }
 
 function checkContractSchemasPass(): void {
@@ -63,13 +61,10 @@ function checkStructuredToolContractFixtures(): void {
 	}
 }
 
-function checkReplayCaptureFixtures(): void {
+function checkSafeObservabilityFixtures(): void {
 	const entries = registryEntries();
 	for (const entryId of [
 		"llm-io-fingerprint.v1",
-		"raw-capture-policy.v1",
-		"llm-replay-packet.v1",
-		"replay-result-diff.v1",
 		"answer-eval-fingerprint.v1",
 		"truncation-summary.v1",
 		"sink-identity-projection.v1",
@@ -78,20 +73,13 @@ function checkReplayCaptureFixtures(): void {
 			entries[entryId]?.fixture_groups,
 			[
 				{
-					path: "packages/contracts/fixtures/replay_capture",
+					path: "packages/contracts/fixtures/runtime_observability",
 					valid_glob: `${entryId}.*.valid.json`,
 					invalid_glob: `${entryId}.*.invalid.json`,
 				},
 			],
 			`${entryId} fixture groups`,
 		);
-	}
-	for (const [fixtureName, missingField] of [
-		["raw-capture-policy.v1.missing_operator.invalid.json", "operator_principal"],
-		["raw-capture-policy.v1.missing_approval.invalid.json", "approval_ref"],
-	]) {
-		const instance = readJson(`packages/contracts/fixtures/replay_capture/${fixtureName}`);
-		expect(!(missingField in instance), `${fixtureName} should omit ${missingField}`);
 	}
 }
 
@@ -142,28 +130,7 @@ function checkObservabilityAlertMaterialization(): void {
 	}
 }
 
-function checkReplayCaptureInvariants(): void {
-	const packet = readJson(
-		"packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json",
-	);
-	packet.provider_response_body = { output: "not admitted by fixture policy" };
-	expectThrows(
-		() => validateJsonArtifactInvariants("llm-replay-packet.v1", "test-fixture.json", packet),
-		"raw section is not admitted",
-	);
-
-	const packetWithSecret = readJson(
-		"packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json",
-	);
-	packetWithSecret.provider_request_body = { authorization_header: "Bearer forbidden" };
-	expectThrows(
-		() =>
-			validateJsonArtifactInvariants("llm-replay-packet.v1", "test-fixture.json", packetWithSecret),
-		"forbidden raw replay key",
-	);
-}
-
-function checkReplayCaptureSchemas(): void {
+function checkSafeObservabilitySchemas(): void {
 	const fingerprint = readJson("packages/contracts/schemas/llm-io-fingerprint.v1.schema.json");
 	expectSuperset(new Set(fingerprint.required as string[]), [
 		"llm_call_site",
@@ -173,27 +140,6 @@ function checkReplayCaptureSchemas(): void {
 		"provider_request_safe_hash",
 		"model_params_projection",
 	]);
-
-	for (const schemaPath of [
-		"packages/contracts/schemas/llm-replay-packet.v1.schema.json",
-		"packages/contracts/schemas/llm-replay-packet-index.v1.schema.json",
-	]) {
-		const schema = readJson(schemaPath);
-		expectSuperset(new Set(schema.required as string[]), [
-			"retention",
-			"access_audit",
-			"evidence_replay_index",
-		]);
-	}
-
-	const replayDiff = readJson("packages/contracts/schemas/replay-result-diff.v1.schema.json");
-	expect((replayDiff.required as string[]).includes("replay_mode"), "replay_mode required missing");
-	const replayDiffProperties = asRecord(replayDiff.properties, "replay diff properties");
-	expectEqualJson(
-		asRecord(replayDiffProperties.replay_mode, "replay_mode").enum,
-		["safe_replay", "raw_replay"],
-		"replay mode enum",
-	);
 
 	const answerEval = readJson("packages/contracts/schemas/answer-eval-fingerprint.v1.schema.json");
 	expectSuperset(new Set(answerEval.required as string[]), [
@@ -213,7 +159,7 @@ function checkReplayCaptureSchemas(): void {
 		"truncation counts required",
 	);
 	const forbidden = readJson(
-		"packages/contracts/fixtures/replay_capture/truncation-summary.v1.raw_text.invalid.json",
+		"packages/contracts/fixtures/runtime_observability/truncation-summary.v1.raw_text.invalid.json",
 	);
 	expect("dropped_raw_messages" in forbidden, "truncation raw invalid fixture missing");
 
@@ -241,13 +187,6 @@ function readJson(path: string): Record<string, unknown> {
 	return value;
 }
 
-function asRecord(value: unknown, label: string): Record<string, unknown> {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error(`${label} must be an object`);
-	}
-	return value as Record<string, unknown>;
-}
-
 function expect(condition: boolean, message: string): void {
 	if (!condition) {
 		throw new Error(message);
@@ -258,19 +197,6 @@ function expectSuperset(actual: Set<string>, expected: string[]): void {
 	for (const item of expected) {
 		expect(actual.has(item), `expected required field missing: ${item}`);
 	}
-}
-
-function expectThrows(callback: () => void, messageFragment: string): void {
-	try {
-		callback();
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		if (message.includes(messageFragment)) {
-			return;
-		}
-		throw new Error(`expected error containing ${messageFragment}, got ${message}`);
-	}
-	throw new Error(`expected error containing ${messageFragment}`);
 }
 
 function expectEqualJson(actual: unknown, expected: unknown, label: string): void {

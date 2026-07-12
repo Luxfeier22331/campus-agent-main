@@ -25,7 +25,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 					followUpQuestion: "",
 					observability: {
 						agentRuntime: "openai_agents_sdk",
-						sdkTraceRef: "sdk-trace-0001",
 						selectedTools: ["knowledge_query"],
 						terminalReason: "answer",
 					},

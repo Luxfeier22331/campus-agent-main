@@ -197,7 +197,6 @@ function createObservability(
 ): NonNullable<ToolExecutionResponse["observability"]> {
 	return {
 		agentRuntime: "openai_agents_sdk",
-		sdkTraceRef: "sdk-trace-01HQ",
 		selectedTools: ["knowledge_query"],
 		terminalReason: "answer",
 		...overrides,

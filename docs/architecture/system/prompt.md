@@ -249,23 +249,17 @@ Do not record by default:
 - raw snippet dump
 - raw long-term memory
 
-Debug payloads require explicit opt-in, redaction and minimization. They are not
-long-term log truth.
-
-Policy-admitted raw replay is the only lane where rendered prompt messages may
-be retained. When `raw_capture_policy.v1` admits a run, rendered prompts may
-enter `llm_replay_packet.v1` together with prompt metadata, model params,
-context/evidence hashes and output schema identity. Safe projection still stores
-only `llm_io_fingerprint.v1` fields such as prompt registry attestation,
-primary attestation, `prompt_template_sha256`,
-`prompt_variables_schema_version`, `rendered_prompt_sha256`,
-`model_params_projection` and `provider_request_safe_hash`.
+Rendered prompts and provider payloads are not retained in telemetry or product
+projection. Safe projection stores only `llm_io_fingerprint.v1` fields such as
+prompt registry attestation, primary attestation,
+`prompt_template_sha256`, `prompt_variables_schema_version`,
+`rendered_prompt_sha256`, `model_params_projection` and
+`provider_request_safe_hash`.
 
 This requirement applies to the complete provider-backed SDK run, including the
 primary agent and any Knowledge Agent handoff. The run cannot begin until its
-provider and observability config projections are resolved. When raw replay is
-admitted, rendered messages and provider payloads go only to
-`llm_replay_packet.v1`; app-api receives only safe index metadata and refs.
+provider config projection is resolved. App-api receives only safe fingerprint,
+stage timing and finalization fields.
 
 ## Eval And Release Gate
 
@@ -295,4 +289,3 @@ Stable internal neighbors:
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/decisions/adr-0060-agent-llm-io-contract.md`
-- `docs/contracts/replay-capture.md`

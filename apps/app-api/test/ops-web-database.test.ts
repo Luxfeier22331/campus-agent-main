@@ -105,7 +105,6 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('"selected_tool"');
 		expect(allQueries).not.toContain('"principal_label"');
 		expect(allQueries).toContain('"acl_decision"');
-		expect(allQueries).toContain('"debug_trace_refs_json"');
 		expect(allQueries).toContain('"stage_timing_json"');
 		expect(allQueries).toContain('"supporting_sources_json"');
 		expect(allQueries).toContain('"semantic_outcome"');

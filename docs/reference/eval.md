@@ -4,235 +4,90 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-06-28
-updated: 2026-07-09
+updated: 2026-07-11
 ---
 # Eval
 
 ## Active Shape
 
-Repo-owned eval is now Langfuse/Ragas-first:
+Repo-owned eval is Langfuse/Ragas-first:
 
-- `packages/eval-langfuse` owns TypeScript adapters for Langfuse datasets,
-  traces, score config sync, dataset sync, safe Ragas projection, score
-  publishing, trace verification and agent eval runners.
-- `packages/ragas-runner` is the only accepted Python island. It runs upstream
+- `packages/eval-langfuse` owns Langfuse adapters, safe Ragas projection,
+  deterministic agent scorers, score publication and trace verification.
+- `packages/ragas-runner` is the only accepted Python island and runs upstream
   Ragas over safe JSON input produced by TypeScript.
-- `packages/eval-langfuse/assets` keeps repo-authored Langfuse/Ragas-facing
-  eval asset truth. Public RAG assets under this root are source-clean synthetic
-  examples for qrels / answer-quality shape; they are not the real release gold
-  corpus.
-- Runtime behavior, workflow orchestration, authz and product contracts belong
-  to their owning apps/packages and their tests. They must not be recreated as
-  broad self-built eval frameworks.
+- `packages/eval-langfuse/assets` stores repo-authored eval assets and score
+  registries.
+- `jobs/learning-loop-candidates` selects safe feedback and latency candidates
+  and may publish them to Langfuse datasets.
 
-The active safe platform scoring loop is:
+The scoring loop is:
 
 ```text
-Langfuse traces / datasets
+Langfuse traces / materialized datasets
 -> packages/eval-langfuse safe projection
--> packages/ragas-runner upstream Ragas
+-> packages/ragas-runner upstream Ragas or deterministic TS scorer
 -> packages/eval-langfuse Langfuse scores
 ```
 
-The target restricted replay extension adds policy-admitted replay-backed
-projection to that loop after `llm_replay_packet.v1` implementation and access
-controls exist.
-
-This is the scoring part of the broader learning loop defined in
-`docs/architecture/system/learning-loop.md`. Eval lanes validate and compare
-candidate improvements; they do not own candidate selection, product feedback
-storage, Operator Console surfaces or release authority.
-
-Candidate selection is owned by `jobs/learning-loop-candidates`. It reads safe
-online feedback/runtime projections, selects review candidates and can publish
-dataset items to Langfuse dataset `online-answer/candidates` through
-`packages/eval-langfuse`. It does not run RAGAS, publish scores, query raw
-Langfuse traces or expose an Operator Console review UI. Raw badcase
-reproduction, when needed, uses `llm_replay_packet.v1` under
-`raw_capture_policy.v1` rather than app-api raw copies.
-
 ## Active Lanes
 
-Workflow-dispatchable eval lanes are listed in `docs/reference/eval-map.md`.
-Current active lanes are:
+Workflow-dispatchable lanes are listed in `docs/reference/eval-map.md`:
 
 - `ragas-trace`
 - `ragas-dataset`
 - `agent-tool-use`
 
-The Ragas lanes follow this closed loop:
+`ragas-trace` and `ragas-dataset` score approved question, answer and context
+material. `agent-tool-use` consumes `tool_trajectory.v1` and evaluates direct
+answer, fail-closed, `transport_schedule_lookup` and `knowledge_query` handoff
+behavior.
 
-```text
-Langfuse traces/datasets
--> packages/eval-langfuse safe RAG projection
--> packages/ragas-runner upstream Ragas
--> packages/eval-langfuse Langfuse scores
-```
+## Data Boundary
 
-These lanes produce evaluation evidence and review candidates. They are not a
-repo-owned release gate framework.
+Safe Ragas projection may include trace/dataset identity, approved question and
+answer text, retrieved/reference contexts or ids and metric applicability.
 
-Langfuse experiments and annotation queues remain official platform workflows.
-This repo no longer owns custom experiment-manifest or review-manifest
-automation.
-
-`ragas-dataset` requires materialized dataset items. Qrels-only dataset items
-carry `reference_context_ids` but no generated answer or retrieved context text;
-they must be paired with safe trace/observation projection before Ragas scoring.
-
-`agent-tool-use` is not a RAGAS lane. It validates agent tool decisions through
-`tool_trajectory.v1`: whether the request should be a direct answer, a
-fail-closed outcome or an admitted tool call; whether the selected tool is
-correct; whether arguments and result contract are valid; and whether
-tool-specific source policy checks pass when the tool returns bounded sources.
-
-The current tool-specific slice covers primary-agent direct answer,
-`transport_schedule_lookup` and `knowledge_query` handoff selection. Knowledge
-cases also evaluate strict handoff arguments, internal `knowledge_search`
-evidence and final source integrity. Explicit trusted hints remain internal
-eval/debug checks and do not define product routing.
-
-## Platform Capabilities
-
-Active repo-owned Langfuse adapter capabilities are:
-
-- learning-loop dataset candidate payload construction and publishing
-- score config sync
-- dataset sync from repo RAG eval assets
-- RAG dataset manifest construction
-- sanitized `tool_trajectory.v1` consumption for tool-use eval
-- safe trace/dataset projection into Ragas input
-- restricted replay-backed projection into Ragas input when
-  `raw_capture_policy.v1` admits the packet
-- Ragas trace and materialized-dataset scoring
-- `ragas.*` score publishing back to Langfuse
-- trace identity, observation contract and forbidden-field verification
-
-Langfuse remains the eval platform and score sink. It does not own canonical
-versioned eval asset truth, product storage, Temporal history, operator query
-truth, repo contracts or release authority.
-
-## Safe Projection Boundary
-
-Ragas-bound projection may include trace/dataset identity, question/user input,
-answer, retrieved contexts, retrieved context ids, reference context ids and
-optional reference text when those fields are approved for eval storage.
-
-Forbidden fields include secrets, auth material, raw prompts, raw transcripts,
-provider raw responses, unrestricted source bodies, object-store paths and
-retrieval backend dumps.
-
-This boundary applies to default safe projection, datasets, score metadata and
-operator-safe summaries. Restricted replay-backed eval may consume raw or
-near-raw LLM I/O only through `docs/contracts/replay-capture.md`; it must not
-mirror raw packet bodies into score metadata or app-api projection.
-
-Replay-backed eval has two modes:
-
-- `safe_replay` uses safe refs, prompt registry / primary / tool-runtime
-  attestation, provider request safe hash, model params projection and
-  `evidence_replay_index.v1`.
-- `raw_replay` reads `llm_replay_packet.v1` only after `raw_capture_policy.v1`,
-  RBAC, retention, DSAR deletion linkage and access audit admit the action.
-
-`replay_result_diff.v1` may enter eval evidence, but its summaries remain safe.
-Score metadata must carry replay ids, safe fingerprint fields, verdicts and
-diff summaries only; it must not carry rendered messages, provider request /
-response bodies, selected evidence body, raw answer or raw memory text.
+Forbidden fields include raw prompts, transcripts, provider payloads,
+unrestricted source bodies, raw memory text, auth material, secrets, database
+URLs, object-store paths and retrieval backend dumps. There is no production raw
+model-I/O replay lane.
 
 ## Active Scores
 
-The active RAG score family is `ragas.*`.
-
-Default metrics:
+The default Ragas metrics are:
 
 - `ragas.faithfulness`
 - `ragas.answer_relevancy`
 - `ragas.context_precision`
 - `ragas.context_recall`
 
-Optional metrics are enabled only through Ragas runtime config:
+Optional metrics are enabled only through Ragas runtime config. Deterministic
+agent scores include `agent.tool_selection.correct` and other registered
+`agent.*` contract checks.
 
-- `ragas.context_precision_without_reference`
-- `ragas.id_context_precision`
-- `ragas.id_context_recall`
+Every score must exist in
+`packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
+Unknown score names fail closed.
 
-The active deterministic tool-selection score is
-`agent.tool_selection.correct`.
+## Asset Semantics
 
-The canonical `agent-tool-use` score family also admits these deterministic
-scores once their producers and registry entries exist:
+Repo-tracked public assets are synthetic examples for schema, qrels and
+safe-projection coverage. They are not the private release gold corpus. Real
+release denominators come from approved private assets, materialized Langfuse
+datasets or sanitized runtime trace projection.
 
-- `agent.tool_arguments.valid`
-- `agent.result_contract.valid`
-- `agent.fail_closed.correct`
+## Operator Boundary
 
-All score names must exist in
-`packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json` before
-publishing. Unknown score names fail closed.
+Langfuse owns dataset/run/score state. App-api and Operator Console do not
+recreate eval coverage, low-score candidate or sink mirror stores. Eval
+results can inform changes, but release authority remains with the owning
+product/runtime validation.
 
-## Eval Asset Semantics
-
-Repo-tracked public RAG assets are synthetic, source-clean examples. They are useful
-for schema, dataset-manifest, qrels-only and safe-projection smoke coverage.
-They are not a publication of the real private gold truth.
-
-Real release denominators should enter through one of these paths:
-
-- a private asset root passed to `build-rag-dataset-manifest --asset-root`
-- existing Langfuse datasets populated from approved private release data
-- sanitized runtime trace / observation projection generated by the owning
-  runtime
-
-Asset `split` values in `packages/eval-langfuse/assets` are descriptive
-dataset partitions:
-
-- `smoke`: small connectivity/projection sample
-- `curated`: reviewer-curated representative case
-- `regression`: accepted regression case
-- `known_gap`: known missing-source or unsupported tool/domain case
-
-`curated` and `regression` in public synthetic assets do not mean release
-admission. Release readiness is owned by product/runtime release checks and
-explicit release closeout, not by a fixture label.
-
-## Operator Coverage Projection
-
-The old app-api eval coverage projection is retired. Do not recreate:
-
-- internal coverage snapshot ingest endpoints
-- browser-facing eval coverage endpoints
-- app-api eval coverage tables
-- app-api Ragas low-score diagnostic candidate projections
-
-Coverage and score state now belongs to Langfuse datasets/runs/scores plus the
-`packages/eval-langfuse` audit output. The old app-api
-`GET /api/operator/quality/eval-candidates` intake is not part of the current
-Ops Index target; operator-facing review intake must use a new explicit
-curated-summary contract if it returns to the product surface.
-
-## Deleted Self-Built Policy Artifacts
-
-The old repo-owned operations profile policy, denominator registry, RAG
-maturity policy/backlog and generated golden dataset matrix are retired and
-deleted. Do not recreate them as active eval truth.
-
-Also do not recreate these retired active eval surfaces:
-
-- `packages/evals`
-- Python `campus_evals`
-- `scripts.eval_gate`
-- broad `agent-eval`
-- `rag-first-stage`
-- `ragas-batch`
-- custom `run-experiment`
-- custom `sync-annotation-queue`
-- custom `export-review-results`
-- generic score report publishers or local release-closeout gates
-
-The remaining active eval reference files are:
+## Related Documents
 
 - `docs/reference/eval-map.md`
-- `docs/reference/eval-gold-truth-model.md`
-- `docs/reference/eval/retrieval_qrels_denominator_policy.v1.json`
-- `docs/reference/eval/rag_known_gap_cases.v1.json`
+- `docs/product/langfuse-evals.md`
+- `docs/architecture/system/learning-loop.md`
+- `docs/contracts/langfuse-runtime.md`
+- `docs/contracts/tool-trajectory.md`

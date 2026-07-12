@@ -6,24 +6,6 @@ import (
 	"testing"
 )
 
-func assertPrimaryAgentDebugTraceConfigForTest(t *testing.T, seenBody map[string]any) {
-	t.Helper()
-	debugTraceConfig, ok := seenBody["debug_trace_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("agent runtime request missing debug_trace_config: %#v", seenBody)
-	}
-	langfuseConfig, _ := debugTraceConfig["langfuse_otlp"].(map[string]any)
-	rawCapturePolicy, _ := debugTraceConfig["raw_capture_policy"].(map[string]any)
-	if debugTraceConfig["mode"] != "langfuse_otlp" ||
-		debugTraceConfig["include_model_io"] != true ||
-		debugTraceConfig["sample_ratio"] != 0.25 ||
-		langfuseConfig["auth_header"] != "Basic langfuse-secret" ||
-		rawCapturePolicy["schema_version"] != "raw_capture_policy.v1" ||
-		rawCapturePolicy["mode"] != "manual_run_capture" {
-		t.Fatalf("debug_trace_config = %#v", debugTraceConfig)
-	}
-}
-
 func assertPrimaryAgentLLMIOFingerprintForTest(t *testing.T, agentMetadata map[string]any) {
 	t.Helper()
 	fingerprint, ok := agentMetadata["llm_io_fingerprint"].(map[string]any)
@@ -79,7 +61,6 @@ func assertPrimaryAgentLLMIOFingerprintForTest(t *testing.T, agentMetadata map[s
 		"你好，我是校园问答助手。",
 		"用户偏好先看结论",
 		"sk-primary-agent",
-		"Basic langfuse-secret",
 	} {
 		if strings.Contains(string(serializedFingerprint), forbidden) {
 			t.Fatalf("llm_io_fingerprint leaked raw value %q: %s", forbidden, serializedFingerprint)

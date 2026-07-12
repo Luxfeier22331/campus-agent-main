@@ -250,11 +250,9 @@ func TestRequiredTemporalTaskQueuesIncludeModelVisibleToolWorkers(t *testing.T) 
 }
 
 func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
-	server := NewServer(readyServerConfigForTest(t, func(cfg *config.Config) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.ProviderConfigSnapshotPath = ""
-	}))
-	markTemporalReadyForTest(server)
-	markKnowledgeRuntimeReadyForTest(server)
+	})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -294,6 +292,47 @@ func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
 	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
 	if providerConfigGate["configured"] != true || providerConfigGate["reason"] != "" {
 		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
+	}
+}
+
+func TestReadyzDegradesWhenAgentRuntimeIsNotConfigured(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.AgentRuntimeBaseURL = ""
+		cfg.AgentRuntimeSharedSecret = ""
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	agentRuntime := expectRecord(t, body["agent_runtime"], "agent_runtime")
+	if agentRuntime["configured"] != false || agentRuntime["healthy"] != false {
+		t.Fatalf("agent_runtime = %#v, want unconfigured and unhealthy", agentRuntime)
+	}
+}
+
+func TestReadyzDegradesWhenAgentRuntimeIsUnavailable(t *testing.T) {
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		writeJSON(response, http.StatusServiceUnavailable, map[string]any{"status": "degraded"})
+	}))
+	defer agentRuntime.Close()
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.AgentRuntimeBaseURL = agentRuntime.URL
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	status := expectRecord(t, body["agent_runtime"], "agent_runtime")
+	if status["configured"] != true || status["healthy"] != false {
+		t.Fatalf("agent_runtime = %#v, want configured and unhealthy", status)
 	}
 }
 

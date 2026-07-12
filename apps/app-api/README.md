@@ -54,7 +54,7 @@ package lifecycle scripts:
 
 The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 `profile.*`, `runtime.*`, `operator.*`, `official_web.*`, `dining.*`,
-`docs.*`, `campus_services_ops.*`, `provider_config.*` and
+`docs.*`, `campus_services_ops.*`, `observability.*`, `provider_config.*` and
 `wechat_official_account.*` schemas as documented in `docs/data/app-api/`.
 
 ## References
@@ -96,6 +96,18 @@ files directly from the owning local secret store or deployment runbook; do not
 fan out database URLs from the root worktree `.env`.
 
 ## Deployment Notes
+
+Apply app-api Drizzle migrations with the direct management connection before
+deploying a Worker revision that depends on the new schema:
+
+```bash
+APP_API_OPERATOR_DATABASE_URL="$DIRECT_DATABASE_URL" \
+  pnpm --dir apps/app-api exec drizzle-kit migrate --config drizzle.config.ts
+```
+
+Do not run migrations through Hyperdrive or from the long-running Worker. After
+the migration, verify the expected tables/columns through the same direct
+connection before continuing deployment.
 
 The deployed Worker must fail closed when required auth, database,
 operator-admission or execution-control configuration is absent. Dynamic

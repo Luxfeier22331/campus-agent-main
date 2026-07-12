@@ -1,9 +1,4 @@
 import { createHash } from "node:crypto";
-import {
-	type DebugTraceRef,
-	debugTraceRefsForConfig,
-	type LlmDebugTraceConfig,
-} from "./debug-trace.ts";
 import type {
 	JsonObjectSchema,
 	ToolCatalog,
@@ -23,7 +18,6 @@ export interface PrimaryAgentRunInput {
 	allowedKnowledgeScopes?: AllowedKnowledgeScope[];
 	toolChoice?: string;
 	providerConfig: PromptProviderRuntimeConfig;
-	debugTraceConfig?: LlmDebugTraceConfig;
 	finalModelContext?: FinalModelContext;
 	memoryContext?: PersonalMemoryContext;
 	memoryProjectionRefs?: string[];
@@ -250,7 +244,6 @@ export interface AgentRunnerInput {
 	runId: string;
 	traceId: string;
 	providerConfig: PromptProviderRuntimeConfig;
-	debugTraceConfig?: LlmDebugTraceConfig;
 	signal?: AbortSignal;
 }
 
@@ -259,9 +252,7 @@ export interface AgentRunnerResult {
 	providerResponseId: string;
 	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
 	toolCalls: RunnerToolCall[];
-	traceRef: string;
 	usage: UsageSummary;
-	debugTraceRefs?: DebugTraceRef[];
 }
 
 export type AgentRunner = (input: AgentRunnerInput) => Promise<AgentRunnerResult>;
@@ -278,8 +269,6 @@ export interface PrimaryAgentRunResult {
 	modelProvider: string;
 	promptTrace: PromptTrace;
 	providerResponseId: string;
-	sdkTraceRef: string;
-	debugTraceRefs: DebugTraceRef[];
 	selectedTools: string[];
 	stageTiming: Record<string, number>;
 	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
@@ -460,7 +449,6 @@ function primaryAgentRunnerInput(
 		runId: input.runId,
 		traceId: input.traceId,
 		providerConfig: input.providerConfig,
-		debugTraceConfig: input.debugTraceConfig,
 		signal: input.signal,
 	};
 }
@@ -494,8 +482,6 @@ function primaryAgentRunResultFromRunnerResult(args: {
 			modelProvider: input.providerConfig.provider,
 			promptTrace,
 			providerResponseId: result.providerResponseId,
-			sdkTraceRef: result.traceRef,
-			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
 			stageTiming: timing,
 			toolRuntimeFingerprint,
@@ -514,8 +500,6 @@ function primaryAgentRunResultFromRunnerResult(args: {
 			modelProvider: input.providerConfig.provider,
 			promptTrace,
 			providerResponseId: result.providerResponseId,
-			sdkTraceRef: result.traceRef,
-			debugTraceRefs: debugTraceRefs(input, result),
 			selectedTools: result.toolCalls.map((call) => call.name),
 			stageTiming: timing,
 			toolRuntimeFingerprint,
@@ -535,8 +519,6 @@ function primaryAgentRunResultFromRunnerResult(args: {
 		modelProvider: input.providerConfig.provider,
 		promptTrace,
 		providerResponseId: result.providerResponseId,
-		sdkTraceRef: result.traceRef,
-		debugTraceRefs: debugTraceRefs(input, result),
 		selectedTools: result.toolCalls.map((call) => call.name),
 		stageTiming: timing,
 		terminalEnvelope: result.terminalEnvelope,
@@ -561,10 +543,6 @@ function promptTraceFromRenderedInstructions(
 
 function sha256(value: string): string {
 	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
-}
-
-function debugTraceRefs(input: PrimaryAgentRunInput, result: AgentRunnerResult): DebugTraceRef[] {
-	return result.debugTraceRefs ?? debugTraceRefsForConfig(input.debugTraceConfig, input.traceId);
 }
 
 function stageTiming(

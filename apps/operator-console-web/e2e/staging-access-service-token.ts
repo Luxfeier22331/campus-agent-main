@@ -98,21 +98,6 @@ function assertProviderConfigRouteAvailable(result) {
 	}
 }
 
-function assertObservabilityConfigRouteAvailable(result) {
-	assertJsonReady(result, "Service-token observability-config route smoke", 200);
-	if (!result.body?.config || typeof result.body.config !== "object") {
-		throw new Error("Service-token observability-config route smoke expected config object.");
-	}
-	if (!["off", "langfuse_otlp"].includes(result.body.config.mode)) {
-		throw new Error("Service-token observability-config route smoke returned invalid mode.");
-	}
-	if ("authHeader" in result.body.config) {
-		throw new Error(
-			"Service-token observability-config route smoke must not expose raw authHeader.",
-		);
-	}
-}
-
 async function main() {
 	const baseUrl = resolveBaseUrl();
 	const serviceTokenHeaders = {
@@ -156,13 +141,6 @@ async function main() {
 	});
 	assertProviderConfigRouteAvailable(providerProfiles);
 
-	const observabilityConfig = await fetchPanel({
-		baseUrl,
-		headers: serviceTokenHeaders,
-		path: "/api/operator/observability-config/llm-debug-trace",
-	});
-	assertObservabilityConfigRouteAvailable(observabilityConfig);
-
 	console.log(
 		JSON.stringify(
 			{
@@ -176,11 +154,6 @@ async function main() {
 					serviceTokenProviderConfigProfiles: {
 						count: providerProfiles.body.profiles.length,
 						statusCode: providerProfiles.status,
-					},
-					serviceTokenObservabilityConfig: {
-						authHeaderConfigured: observabilityConfig.body.config.authHeaderConfigured ?? null,
-						mode: observabilityConfig.body.config.mode,
-						statusCode: observabilityConfig.status,
 					},
 					serviceTokenHealthz: {
 						...summarizeBody(healthz.contentType, healthz.body),

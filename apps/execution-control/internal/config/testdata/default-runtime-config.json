@@ -6,7 +6,6 @@
 	"request_timeout_ms": 45000,
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 45000,
-	"observability_config_projection_path": "../../configs/runtime/observability-config-projection.local.json",
 	"query_serving_scopes_path": "../../configs/runtime/query-serving-scopes.v3.json",
 	"tool_read_model_timeout_ms": 1000,
 	"otel": {

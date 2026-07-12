@@ -128,7 +128,6 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 		failClosed: input.failClosed,
 		workflowTraceSummaryJson: input.workflowTraceSummary ?? null,
 		stageTimingJson: input.stageTiming ?? {},
-		debugTraceRefsJson: input.debugTraceRefs ?? [],
 		answerEvalFingerprintJson: input.answerEvalFingerprint ?? null,
 		llmIoFingerprintJson: input.llmIoFingerprint ?? null,
 		measuredAt: new Date(input.measuredAt),

@@ -38,12 +38,6 @@ export interface RawRequestOpsIndex {
 			warnMs: number;
 		}
 	>;
-	debugTraceRefs: Array<{
-		sink: string;
-		traceId: string | null;
-		traceRef: string;
-		url?: string;
-	}>;
 	model: {
 		modelProvider: string | null;
 		modelName: string | null;

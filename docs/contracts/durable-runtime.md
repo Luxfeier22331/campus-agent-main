@@ -109,7 +109,7 @@ The final response may include:
 - selected tool and selected tool list;
 - confirmed session updates;
 - top-level trusted sources;
-- workflow trace summary, stage timing and approved trace refs;
+- workflow trace summary and stage timing;
 - LLM I/O and answer-eval fingerprints.
 
 App-api may normalize validated sources into browser source cards and safe

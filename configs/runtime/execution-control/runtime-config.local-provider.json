@@ -6,7 +6,6 @@
 	"request_timeout_ms": 180000,
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 180000,
-	"observability_config_projection_path": "/run/campus-agent/observability-config-projection.json",
 	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v3.json",
 	"tool_read_model_timeout_ms": 1000,
 	"otel": {

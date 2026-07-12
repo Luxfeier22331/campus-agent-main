@@ -62,8 +62,6 @@ Projection refresh is explicit and writes reviewed artifacts:
 ```bash
 pnpm exec tsx apps/execution-control/scripts/sync-provider-config-projection.ts \
   --output .tmp/provider-config-projection.json
-pnpm exec tsx apps/execution-control/scripts/sync-observability-config-projection.ts \
-  --output .tmp/observability-config-projection.json
 ```
 
 ## Execution Runtime Check

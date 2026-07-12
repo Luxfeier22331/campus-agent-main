@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	runtimetelemetry "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -21,7 +22,6 @@ func (s *Server) callAgentRuntime(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	providerConfig providerConfigSnapshot,
-	debugTraceConfig llmDebugTraceConfig,
 	finalModelContext map[string]any,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	timeout := time.Duration(s.config.AgentRuntimeTimeoutMS) * time.Millisecond
@@ -43,7 +43,6 @@ func (s *Server) callAgentRuntime(
 		),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
-		"debug_trace_config":     debugTraceConfig,
 	}
 	if strings.TrimSpace(input.ToolChoice) != "" {
 		payload["tool_choice"] = strings.TrimSpace(input.ToolChoice)
@@ -65,6 +64,13 @@ func (s *Server) callAgentRuntime(
 	}
 	request.Header.Set("authorization", "Bearer "+s.config.AgentRuntimeSharedSecret)
 	request.Header.Set("content-type", "application/json")
+	for name, value := range runtimetelemetry.InjectExecutionTraceHeaders(
+		requestCtx,
+		run.RequestID,
+		run.TraceID,
+	) {
+		request.Header.Set(name, value)
+	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -351,13 +357,11 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
 		FinalOutput:            strings.TrimSpace(response.FinalOutput),
-		DebugTraceRefs:         debugTraceRefsToTemporal(response.DebugTraceRefs),
 		ModelName:              strings.TrimSpace(response.ModelName),
 		ModelProvider:          strings.TrimSpace(response.ModelProvider),
 		PromptTrace:            cloneAnyMapFromMetadata(response.PromptTrace),
 		ProviderResponseID:     strings.TrimSpace(response.ProviderResponseID),
 		RunID:                  strings.TrimSpace(response.RunID),
-		SDKTraceRef:            strings.TrimSpace(response.SDKTraceRef),
 		SelectedTools:          append([]string{}, response.SelectedTools...),
 		StageTiming:            cloneAnyMapFromMetadata(response.StageTiming),
 		Status:                 strings.TrimSpace(response.Status),
@@ -372,22 +376,4 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 			OutputTokens:          response.Usage.OutputTokens,
 		},
 	}
-}
-
-func debugTraceRefsToTemporal(refs []debugTraceRef) []temporalruntime.DebugTraceRef {
-	result := make([]temporalruntime.DebugTraceRef, 0, len(refs))
-	for _, ref := range refs {
-		sink := strings.TrimSpace(ref.Sink)
-		traceRef := strings.TrimSpace(ref.TraceRef)
-		if sink == "" || traceRef == "" {
-			continue
-		}
-		result = append(result, temporalruntime.DebugTraceRef{
-			Sink:     sink,
-			TraceID:  strings.TrimSpace(ref.TraceID),
-			TraceRef: traceRef,
-			URL:      strings.TrimSpace(ref.URL),
-		})
-	}
-	return result
 }

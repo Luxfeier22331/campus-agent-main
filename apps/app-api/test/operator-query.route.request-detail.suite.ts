@@ -127,14 +127,6 @@ export function registerOperatorQueryRequestDetailSuite(): void {
 				operatorQueryService: createOperatorQueryServiceMock({
 					getById: vi.fn().mockResolvedValue({
 						opsIndex: {
-							debugTraceRefs: [
-								{
-									sink: "langfuse",
-									traceId: "trace_01HQ",
-									traceRef: "lf_trace_01HQ",
-									url: "https://langfuse.example/project/traces/lf_trace_01HQ",
-								},
-							],
 							model: {
 								answerEvalFingerprint: null,
 								llmIoFingerprint: null,

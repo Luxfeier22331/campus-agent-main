@@ -118,7 +118,6 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 			"model_provider":       "openai",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "大一是否可申请需要看转专业办法的年级条件。"},
 			"provider_response_id": "resp-primary-agent-context",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-context",
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",

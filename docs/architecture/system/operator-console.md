@@ -84,9 +84,6 @@ Console 的导航或代理路由，也不承接本文定义的业务操作和配
   - `PATCH /api/operator/provider-config/profiles/:profileId`
   - `POST /api/operator/provider-config/profiles/:profileId/validate`
   - `POST /api/operator/provider-config/profiles/:profileId/activate`
-- proxy explicit observability configuration routes:
-  - `GET /api/operator/observability-config/llm-debug-trace`
-  - `PATCH /api/operator/observability-config/llm-debug-trace`
 - reject unknown `/api/*`
 - reject `/api/federation/*`
 - reject `/api/auth/*`
@@ -125,14 +122,12 @@ Current navigation labels:
 
 - `请求与运行`
 - `模型服务配置`
-- `观测配置`
 
 Current UI implementation rules:
 
 - 通用 buttons、inputs、selects、sheet、card 与 table primitives 使用 shadcn/Radix
   wrappers
-- provider configuration 与 observability configuration forms 使用 `react-hook-form`
-  与 `zod`
+- provider configuration forms 使用 `react-hook-form` 与 `zod`
 - 页面 copy 只描述 operator 要完成的工作，不暴露 `app-api` projection、Worker
   proxy、Temporal、internal route 或架构组件名作为用户说明
 - 领域 workspace 被移出当前导航后，对应 proxy route 也必须同时移除

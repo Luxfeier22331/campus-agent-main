@@ -41,19 +41,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          readinessProbe:
-            exec:
-              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-          livenessProbe:
-            exec:
-              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
@@ -116,22 +103,8 @@ spec:
                   fieldPath: metadata.name
           volumeMounts:
             - name: provider-config-projection
-              mountPath: /run/campus-agent/provider-config-projection.json
-              subPath: provider-config-projection.json
+              mountPath: /run/campus-agent/provider-config
               readOnly: true
-          readinessProbe:
-            exec:
-              command: ["/usr/local/bin/activity-worker-core", "--check-runtime"]
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-          livenessProbe:
-            exec:
-              command: ["/usr/local/bin/activity-worker-core", "--check-runtime"]
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
@@ -198,22 +171,8 @@ spec:
                   fieldPath: metadata.name
           volumeMounts:
             - name: provider-config-projection
-              mountPath: /run/campus-agent/provider-config-projection.json
-              subPath: provider-config-projection.json
+              mountPath: /run/campus-agent/provider-config
               readOnly: true
-          readinessProbe:
-            exec:
-              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-          livenessProbe:
-            exec:
-              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 6
           resources:
             requests:
               cpu: 150m

@@ -127,11 +127,11 @@ repo root `.env` 的 canonical runtime key 固定为：
   Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中
   stale negative cache。它不是第二个数据库，也不是默认 command lane。
 - `apps/app-api` 负责当前 app-facing schema baseline：
-  - `apps/app-api/drizzle/0000_current_baseline.sql` 是 Drizzle 管理的 current
-    baseline artifact。
+  - `apps/app-api/drizzle/0000_current_baseline.sql` 是新数据库的 Drizzle baseline；
+    后续 `apps/app-api/drizzle/*.sql` 是现有数据库的增量迁移。
   - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
     shared-product `chat.*` current bootstrap artifact。
-  - `drizzle.app_api_migrations` 只记录 app-api Drizzle baseline，不与
+  - `drizzle.app_api_migrations` 只记录 app-api Drizzle migration chain，不与
     shared-product SQL baseline 混用同一 journal 语义。
 - `official_web.*` 的 collector control-plane writer owner 是
   `apps/ingestion-control`，不得新增 app-api collector write route 或 app-api-owned
@@ -142,9 +142,8 @@ repo root `.env` 的 canonical runtime key 固定为：
   schema ensure。需要 full current-scope replay / chunk-prep / release 这类
   offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
   Python 不创建 ingestion Postgres client，也不拥有 registry table migration。
-- 当前 staging / production 尚未作为不可重建数据库上线时，优先重建到 current
-  baseline；不得恢复一次性的 schema reconciliation、inventory 或自动 destructive
-  repair 脚本作为默认流程。
+- app-api migration 使用 direct management connection 在 Worker rollout 前执行；
+  Hyperdrive 与 long-running Worker 不承担 migration ownership。
 
 ## Journal Ownership
 

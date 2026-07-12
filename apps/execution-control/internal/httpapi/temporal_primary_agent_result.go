@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -49,14 +48,12 @@ func primaryAgentResultPayload(
 	}
 	return map[string]any{
 		"agent_result_ref":       output.AgentResultRef,
-		"debug_trace_refs":       debugTraceRefsPayload(output.DebugTraceRefs),
 		"final_output":           output.FinalOutput,
 		"llm_io_fingerprint":     llmIOFingerprint,
 		"memory_context_summary": temporalMemoryContextProjectionPayload(input.activityInput.MemoryContext),
 		"model_name":             output.ModelName,
 		"model_provider":         output.ModelProvider,
 		"provider_response_id":   output.ProviderResponseID,
-		"sdk_trace_ref":          output.SDKTraceRef,
 		"selected_tools":         append([]string{}, output.SelectedTools...),
 		"stage_timing":           cloneAnyMapFromMetadata(output.StageTiming),
 		"terminal_envelope":      cloneAnyMapFromMetadata(output.TerminalEnvelope),
@@ -69,29 +66,6 @@ func primaryAgentResultPayload(
 			"output_tokens":            output.Usage.OutputTokens,
 		},
 	}, nil
-}
-
-func debugTraceRefsPayload(refs []temporalruntime.DebugTraceRef) []map[string]any {
-	result := make([]map[string]any, 0, len(refs))
-	for _, ref := range refs {
-		sink := strings.TrimSpace(ref.Sink)
-		traceRef := strings.TrimSpace(ref.TraceRef)
-		if sink == "" || traceRef == "" {
-			continue
-		}
-		item := map[string]any{
-			"sink":      sink,
-			"trace_ref": traceRef,
-		}
-		if traceID := strings.TrimSpace(ref.TraceID); traceID != "" {
-			item["trace_id"] = traceID
-		}
-		if url := strings.TrimSpace(ref.URL); url != "" {
-			item["url"] = url
-		}
-		result = append(result, item)
-	}
-	return result
 }
 
 func primaryAgentSDKToolProjectionRef(runID string, toolName string, callIndex int) string {

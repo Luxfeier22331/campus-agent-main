@@ -4,312 +4,117 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-03
-updated: 2026-07-04
+updated: 2026-07-11
 ---
-
 # App API Ops Index Contract
 
 ## Boundary
 
-This document freezes the browser-facing `apps/app-api` contract for the
-Operator Console Ops Index.
-
-The active query path is:
+This contract defines the browser-facing app-api data used by Operator Console
+for request and runtime triage:
 
 ```text
 operator browser -> operator-console-web -> app-api Ops Index
 ```
 
-The contract does not define a Sentry, Axiom, Langfuse, Temporal, Prometheus or
-raw log explorer. External observability platforms remain the detailed sink
-truth. `app-api` exposes only product-owned request state, runtime health
-summary and safe correlation fields.
+App-api is not a Sentry, Axiom, Langfuse, Temporal or Prometheus proxy. It
+exposes product-owned request state, runtime health, stage timing and safe
+correlation fields only.
 
 ## Shared Rules
 
-- JSON body uses `camelCase`.
-- Timestamps use ISO 8601 UTC strings.
-- All errors use `docs/contracts/app-api/error.md`.
-- `requestId` is the product request correlation id.
-- `traceId` is the runtime trace correlation id.
-- `runId` links to durable execution when available.
-- Request, overview and health endpoints read app-api-owned request/runtime
-  projections only.
-- Sink links or dashboard entries are safe correlation helpers. They must not
-  include raw sink event bodies or route-time sink query results.
+- JSON uses `camelCase`; timestamps use ISO 8601 UTC strings.
+- `requestId`, `traceId`, `conversationId` and optional `runId` are correlation
+  values, not external sink locators.
+- Query endpoints read app-api-owned projections only.
+- Unknown fields, malformed upstream readiness and missing auth fail closed.
+- Responses never include raw prompts, answers, transcripts, source/retrieval
+  payloads, provider payloads, SDK spans, Temporal history, sink bodies, auth
+  material, secrets, local paths or object-store coordinates.
 
-Forbidden response material:
-
-- raw prompt
-- raw answer
-- raw transcript
-- raw auth material, JWT, cookie, secret or token
-- raw retrieval payload or support snippet dump
-- raw provider response
-- raw log body
-- raw trace body
-- raw sink event body
-- raw Sentry issue/event detail
-- raw Axiom dashboard result
-- raw Langfuse trace/observation/score body
-- raw Temporal history
-- local artifact path
-- object bucket/key unless a separate contract explicitly allows it
-
-## Active Endpoint Summary
-
-Active Operator Console endpoints:
+## Active Endpoints
 
 - `GET /api/operator/overview`
 - `GET /api/operator/runtime/health`
-- `GET /api/operator/observability-config/llm-debug-trace`
-- `PATCH /api/operator/observability-config/llm-debug-trace`
 - `GET /api/requests`
 - `GET /api/operator/requests/:requestId`
 
-Active machine-only internal endpoint:
+Provider configuration routes are defined by
+`docs/contracts/app-api/operator-ops.md`. App-api has no operator or internal
+runtime-trace configuration endpoint.
 
-- `GET /api/internal/observability-config/llm-debug-trace`
+Retired endpoint families must not be restored without a new product contract:
 
-Retired / non-current endpoint families:
+- broad quality, safety, cost, intent and audit dashboards;
+- external sink projection ingestion or query;
+- browser-facing Temporal/autoscaler history;
+- external sink proxy or trace-body lookup.
 
-- `GET /api/operator/quality/*`
-- `GET /api/operator/safety/*`
-- `GET /api/operator/cost/*`
-- `GET /api/operator/intent/*`
-- `GET /api/operator/audit*`
-- `POST /api/internal/operator/quality/grades`
-- `POST /api/internal/operator/trace-backlinks`
-- browser-facing Temporal / autoscaler history query endpoints
+## Overview
 
-If any of these routes still exist in current code, they are implementation
-residue and must not be used as target architecture evidence.
+`GET /api/operator/overview` may return request volume/status summaries,
+runtime status, explicit blockers, canonical stage-latency summaries, latency
+budget summaries and `asOf`.
 
-## `GET /api/operator/overview`
+It must not copy external dashboard data or infer success from missing data.
 
-Returns the minimal operator overview for launch triage.
+## Runtime Health
 
-Response shape remains implementation-owned, but it may only contain:
+`GET /api/operator/runtime/health` projects the authenticated
+execution-control `/readyz` result into bounded operator-safe blocks such as:
 
-- request volume summary
-- request terminal status counts
-- runtime health status
-- explicit blocker summaries from app-api / execution-control projections
-- stage latency summary derived from `stage_timing.v1` canonical fields
-- latency budget summary derived from `configs/runtime/latency-budgets.v1.json`
-- sink write/correlation health when available
-- `asOf`
+- `status` and `asOf`;
+- execution runtime;
+- agent runtime;
+- provider config gate;
+- run projection store;
+- Temporal runtime and required poller summaries.
 
-Rules:
+Missing configuration, auth failure, network error, non-JSON response or an
+invalid readiness projection fails closed.
 
-- This endpoint is not a custom dashboard API.
-- It must not copy Sentry/Axiom/Langfuse dashboard data.
-- It may expose that a sink is configured, degraded or recently written to.
-- It may expose `stageLatency` as p50/p95/p99/sample/warn/critical counts per
-  canonical stage field.
-- It may expose `latencyBudget` as version, warn count, critical count and worst
-  field only.
-- Backend query errors return standard errors; the panel must not disguise them
-  as empty state.
+## Request List
 
-## `GET /api/operator/runtime/health`
+`GET /api/requests` may return:
 
-Returns operator-safe execution runtime health projection.
+- request, trace, conversation and run identity;
+- surface and principal summary;
+- status, error code and bounded question/answer preview;
+- start/completion/duration values;
+- requested/selected tool ids;
+- compact reason-code and latency summaries.
 
-Allowed response blocks:
+The list is materialized from app-api projections, not reconstructed from chat
+messages, logs or telemetry sinks.
 
-- `asOf`
-- `status`
-- `executionRuntime`
-- `runProjectionStore`
-- `temporalRuntime`
+## Request Detail
 
-Rules:
+`GET /api/operator/requests/:requestId` returns the safe request projection and
+an optional Ops Index. The Ops Index may contain:
 
-- This endpoint is not Temporal UI, raw Temporal history, Prometheus or a
-  metrics explorer.
-- `status=degraded` means app-api received a structured degraded runtime
-  projection.
-- Missing execution-control config, auth failure, network error, non-JSON
-  response or malformed readyz payload fail closed through the standard error
-  envelope.
-- Task queue / worker information must stay at reason-code and count summary
-  level.
+- request identity and terminal state;
+- `stageTiming` with canonical `stage_timing.v1` fields;
+- `stageTimingBudget` derived from the versioned latency budget;
+- model/provider identity and safe fingerprint versions/hashes;
+- requested/selected tool and fail-close reason;
+- bounded retrieval count/status summaries;
+- trace availability and projection lag.
 
-## `GET /api/requests`
+It does not return external trace URLs, SDK span bodies, step-by-step execution
+dumps, raw tool/provider diagnostics or unbounded source details. Engineers use
+`traceId` to search the authorized observability platform directly.
 
-Returns the Operator Console request list.
+## Runtime Trace Boundary
 
-Allowed fields:
-
-- request identity: `requestId`, `traceId`, `conversationId`, `runId`
-- surface and principal summary
-- status and `errorCode`
-- bounded question / answer preview
-- started / completed / duration timestamps
-- selected/requested tool ids if already part of request projection
-- safe diagnostics summary
-
-Rules:
-
-- This is the canonical Operator Console request list.
-- It is not reconstructed from chat messages, raw logs or telemetry sinks.
-- It must not expose raw prompt, raw answer, raw transcript, raw retrieval
-  payload or raw sink data.
-- Safe diagnostics summary means compact ids, titles, reason codes, verdicts,
-  counts and latency/status summaries. It must not include query rewrite text,
-  retrieval query text, source snippets or raw tool/provider diagnostics.
-
-## `GET /api/operator/requests/:requestId`
-
-Returns one Operator Console request detail and its optional safe Ops Index.
-
-Top-level response shape:
-
-```json
-{
-  "request": {
-    "requestId": "req_...",
-    "traceId": "trace_...",
-    "status": "completed"
-  },
-  "opsIndex": {
-    "stageTiming": {
-      "agent.primary_ms": 620,
-      "stream.browser_ttft_ms": 410
-    },
-    "stageTimingBudget": {
-      "agent.primary_ms": {
-        "budgetState": "within_budget",
-        "budgetVersion": "latency-budget-v1",
-        "durationMs": 620,
-        "warnMs": 7000,
-        "criticalMs": 14000
-      }
-    },
-    "debugTraceRefs": [
-      {
-        "sink": "langfuse_otlp",
-        "traceId": "trace_...",
-        "traceRef": "langfuse://...",
-        "url": "https://..."
-      }
-    ],
-    "model": {},
-    "tool": {},
-    "retrieval": {},
-    "sinkLinks": {}
-  }
-}
-```
-
-`request` uses the same safe projection field family as `GET /api/requests`.
-`opsIndex` may be `null` when runtime observability fact has not been projected.
-
-`opsIndex` may contain only:
-
-- request identity and terminal state
-- minimal runtime health/correlation summary for that request
-- external sink link entries generated from safe templates or allowlisted
-  dashboard metadata
-- compact reason-code diagnostics
-- compact `knowledge_search` scope/version and evidence summary without query
-  text or raw filter payload
-- `stageTiming`: `stage_timing.v1` allowlisted numeric duration map; see
-  `docs/contracts/stage-timing.md`
-- `stageTimingBudget`: per canonical timing field budget projection derived
-  from `configs/runtime/latency-budgets.v1.json`; contains only budget state,
-  budget version and thresholds for fields that have a configured latency budget
-- `debugTraceRefs`: sink name, trace id/ref and optional safe deep link
-- `model`: provider/name, execution state/detail, token/cost summary, prompt id/version/hash
-- `tool`: requested/selected tool, business outcome and fail-close reason code
-- `retrieval`: retrieval attempted flag, candidate/source counts, collection and adequacy reason code
-- `sinkLinks`: trace availability and projection lag
-
-`stageTiming` is the app-api merged safe timing projection. It includes
-execution-control returned runtime stages plus app-api-owned
-`request.total_ms`, optional `stream.browser_ttft_ms` and optional
-`projection.closeout_ms`.
-`stageTimingBudget` is derived by app-api from the same canonical fields and
-budget artifact. Non-canonical timing keys are not returned through Ops Index
-and must not be interpreted by Operator Console.
-
-It must not return:
-
-- step-by-step raw execution dump
-- raw Temporal history
-- raw Sentry/Axiom/Langfuse payload
-- quality grade body or eval output
-- replay controls
-
-## LLM Debug Trace Config
-
-Operator routes expose only config summaries:
-
-- `mode`: `off` or `langfuse_otlp`
-- `sampleRatio`
-- `includeModelIo`, default `false`
-- Langfuse OTLP endpoint and public trace base URL
-- auth header configured/fingerprint/last4 summary
-- revision and operator update metadata
-
-They must not return the raw `Authorization` header.
-
-The internal route is machine-only and returns the execution-runtime snapshot:
-
-```json
-{
-  "config": {
-    "schema_version": "llm_debug_trace_config.v1",
-    "mode": "langfuse_otlp",
-    "include_model_io": false,
-    "sample_ratio": 1,
-    "langfuse_otlp": {
-      "endpoint": "https://cloud.langfuse.com/api/public/otel",
-      "auth_header": "Basic ...",
-      "public_trace_base_url": "https://cloud.langfuse.com/project/demo/traces"
-    }
-  }
-}
-```
-
-Rules:
-
-- app-api owns this online config surface.
-- execution-control consumes an app-api-produced projection path from its
-  runtime config.
-- agent-runtime receives only request-scoped `debug_trace_config`.
-- Do not add agent-runtime environment variables for this config.
-- `include_model_io=true` requires request-scoped admission by
-  `raw_capture_policy.v1`; it is never enabled by global default or process env.
-- `langfuse_otlp.auth_header` must use Basic auth.
-- `langfuse_otlp.endpoint` must end with `/api/public/otel`.
-- app-api/operator projections may store and display only safe deep links,
-  trace refs and `stage_timing.v1` fields.
-- app-api/operator projections must not store raw replay packet bodies. Replay
-  packet index, metadata and access audit are governed by
-  `docs/contracts/replay-capture.md`.
-
-## Internal Producer Guidance
-
-Internal producers should emit sanitized OTel/log/trace events to the protected
-Collector and external sinks. They should not publish broad operator
-observability projections into app-api unless a current app-api contract admits
-the field family.
-
-Allowed app-api internal writes remain limited to product request state,
-projection outbox entries required for request list materialization and runtime
-health summaries required by `GET /api/operator/runtime/health`.
-
-Quality scores, eval outputs, trace bodies, issue bodies and dashboard results
-belong to Langfuse, Sentry or Axiom. If a curated summary is required for
-operators without sink access, it must be introduced as a new allowlisted
-contract rather than by reactivating retired broad endpoints.
+App-api propagates W3C trace context. Execution-control and agent-runtime export
+sanitized OTLP to the environment-owned Collector; the Collector owns sink
+credentials and Langfuse fan-out. App-api does not configure this pipeline and
+does not persist sink-specific trace references.
 
 ## Related Documents
 
 - `docs/architecture/system/ops-observability.md`
 - `docs/architecture/system/operator-console.md`
 - `docs/architecture/system/langfuse.md`
-- `docs/contracts/replay-capture.md`
+- `docs/contracts/stage-timing.md`
 - `docs/reference/runtime-otel-telemetry-taxonomy.md`

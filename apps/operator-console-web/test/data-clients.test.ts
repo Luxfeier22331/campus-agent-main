@@ -103,14 +103,6 @@ describe("Operator Console minimal data clients", () => {
 	it("loads request detail through the same-site panel route", async () => {
 		const fetchSpy = mockJsonFetch({
 			opsIndex: {
-				debugTraceRefs: [
-					{
-						sink: "langfuse",
-						traceId: "trace_01HQ",
-						traceRef: "lf_trace_01HQ",
-						url: "https://langfuse.example/project/traces/lf_trace_01HQ",
-					},
-				],
 				model: {
 					answerEvalFingerprint: null,
 					llmIoFingerprint: null,

@@ -6,11 +6,9 @@ CREATE SCHEMA IF NOT EXISTS "docs";
 --> statement-breakpoint
 CREATE SCHEMA IF NOT EXISTS "identity";
 --> statement-breakpoint
-CREATE SCHEMA IF NOT EXISTS "observability";
---> statement-breakpoint
-CREATE SCHEMA IF NOT EXISTS "observability_config";
---> statement-breakpoint
 CREATE SCHEMA IF NOT EXISTS "official_web";
+--> statement-breakpoint
+CREATE SCHEMA IF NOT EXISTS "observability";
 --> statement-breakpoint
 CREATE SCHEMA IF NOT EXISTS "operator";
 --> statement-breakpoint
@@ -551,20 +549,6 @@ CREATE TABLE "identity"."identity_profiles" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "observability_config"."llm_debug_trace_config" (
-	"config_id" text PRIMARY KEY NOT NULL,
-	"mode" text NOT NULL,
-	"include_model_io" boolean DEFAULT false NOT NULL,
-	"raw_capture_policy_json" jsonb,
-	"sample_ratio" numeric DEFAULT '1' NOT NULL,
-	"otlp_endpoint" text,
-	"public_trace_base_url" text,
-	"auth_header_secret_json" jsonb,
-	"revision" integer NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	"updated_by_json" jsonb NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "operator"."official_web_release_task_event_projection" (
 	"event_id" text PRIMARY KEY NOT NULL,
 	"task_id" text NOT NULL,
@@ -907,43 +891,6 @@ CREATE TABLE "operator"."quality_grade_projection" (
 	"projected_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "observability"."replay_packet_access_audit" (
-	"access_id" text PRIMARY KEY NOT NULL,
-	"packet_id" text NOT NULL,
-	"request_id" text NOT NULL,
-	"trace_id" text NOT NULL,
-	"access_kind" text NOT NULL,
-	"actor_principal" text NOT NULL,
-	"purpose" text NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "observability"."replay_packet_index" (
-	"packet_id" text PRIMARY KEY NOT NULL,
-	"run_id" text NOT NULL,
-	"request_id" text NOT NULL,
-	"trace_id" text NOT NULL,
-	"object_ref" text NOT NULL,
-	"object_checksum_sha256" text NOT NULL,
-	"sensitivity_classification" text NOT NULL,
-	"capture_policy_json" jsonb NOT NULL,
-	"llm_io_fingerprint_json" jsonb NOT NULL,
-	"answer_eval_fingerprint_json" jsonb,
-	"deletion_linkage_json" jsonb NOT NULL,
-	"retention_json" jsonb NOT NULL,
-	"access_audit_json" jsonb NOT NULL,
-	"evidence_replay_index_json" jsonb NOT NULL,
-	"sink_identity_projection_json" jsonb,
-	"encryption_key_ref" text NOT NULL,
-	"approval_ref" text,
-	"operator_principal" text,
-	"created_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"last_accessed_at" timestamp with time zone,
-	"deleted_at" timestamp with time zone,
-	"deletion_marker_json" jsonb
-);
---> statement-breakpoint
 CREATE TABLE "operator"."request_audit_projection" (
 	"audit_event_id" text PRIMARY KEY NOT NULL,
 	"request_id" text NOT NULL,
@@ -1032,7 +979,6 @@ CREATE TABLE "runtime"."request_observability_fact" (
 	"fail_closed" boolean,
 	"workflow_trace_summary_json" jsonb,
 	"stage_timing_json" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"debug_trace_refs_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"answer_eval_fingerprint_json" jsonb,
 	"llm_io_fingerprint_json" jsonb,
 	"model_provider" text,
@@ -1134,15 +1080,6 @@ CREATE TABLE "operator"."temporal_task_queue_snapshot" (
 	"oldest_task_age_json" jsonb NOT NULL,
 	"schedule_to_start_latency_json" jsonb NOT NULL,
 	"sampled_at" timestamp with time zone NOT NULL,
-	"projected_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "operator"."trace_backlink_projection" (
-	"request_id" text PRIMARY KEY NOT NULL,
-	"trace_id" text NOT NULL,
-	"trace_link" text,
-	"issue_link" text,
-	"issue_fingerprint" text,
 	"projected_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
@@ -1394,13 +1331,6 @@ CREATE INDEX "operator_quality_grade_projection_request_started_at_idx" ON "oper
 CREATE INDEX "operator_quality_grade_projection_domain_started_at_idx" ON "operator"."quality_grade_projection" USING btree ("grade_domain","request_started_at");--> statement-breakpoint
 CREATE INDEX "operator_quality_grade_projection_request_sampled_at_idx" ON "operator"."quality_grade_projection" USING btree ("request_id","sampled_at");--> statement-breakpoint
 CREATE INDEX "operator_quality_grade_projection_domain_surface_started_at_idx" ON "operator"."quality_grade_projection" USING btree ("grade_domain","surface","request_started_at");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_access_actor_occurred_idx" ON "observability"."replay_packet_access_audit" USING btree ("actor_principal","occurred_at");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_access_packet_occurred_idx" ON "observability"."replay_packet_access_audit" USING btree ("packet_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_access_request_occurred_idx" ON "observability"."replay_packet_access_audit" USING btree ("request_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_request_id_idx" ON "observability"."replay_packet_index" USING btree ("request_id");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_run_id_idx" ON "observability"."replay_packet_index" USING btree ("run_id");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_trace_id_idx" ON "observability"."replay_packet_index" USING btree ("trace_id");--> statement-breakpoint
-CREATE INDEX "observability_replay_packet_expires_at_idx" ON "observability"."replay_packet_index" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "operator_request_audit_projection_request_occurred_at_idx" ON "operator"."request_audit_projection" USING btree ("request_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "operator_request_audit_projection_trace_occurred_at_idx" ON "operator"."request_audit_projection" USING btree ("trace_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "operator_request_audit_projection_event_type_occurred_at_idx" ON "operator"."request_audit_projection" USING btree ("event_type","occurred_at");--> statement-breakpoint
@@ -1432,7 +1362,6 @@ CREATE INDEX "operator_temporal_tq_current_queue_sampled_idx" ON "operator"."tem
 CREATE INDEX "operator_temporal_tq_current_kind_sampled_idx" ON "operator"."temporal_task_queue_current" USING btree ("task_queue_kind","sampled_at");--> statement-breakpoint
 CREATE INDEX "operator_temporal_tq_snapshot_queue_sampled_idx" ON "operator"."temporal_task_queue_snapshot" USING btree ("task_queue","sampled_at");--> statement-breakpoint
 CREATE INDEX "operator_temporal_tq_snapshot_kind_sampled_idx" ON "operator"."temporal_task_queue_snapshot" USING btree ("task_queue_kind","sampled_at");--> statement-breakpoint
-CREATE INDEX "operator_trace_backlink_projection_trace_projected_at_idx" ON "operator"."trace_backlink_projection" USING btree ("trace_id","projected_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "wechat_official_account_capture_runs_account_scheduler_idx" ON "wechat_official_account"."capture_runs" USING btree ("provider","account_slug","scheduler_run_key");--> statement-breakpoint
 CREATE INDEX "wechat_official_account_capture_runs_status_started_at_idx" ON "wechat_official_account"."capture_runs" USING btree ("status","started_at");--> statement-breakpoint
 CREATE INDEX "wechat_official_account_capture_runs_account_started_at_idx" ON "wechat_official_account"."capture_runs" USING btree ("account_slug","started_at");--> statement-breakpoint

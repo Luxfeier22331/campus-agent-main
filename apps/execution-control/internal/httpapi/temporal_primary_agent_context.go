@@ -346,7 +346,6 @@ func copyOptionalString(target map[string]any, source map[string]any, key string
 
 type agentRuntimeResponse struct {
 	Status                 string            `json:"status"`
-	DebugTraceRefs         []debugTraceRef   `json:"debug_trace_refs"`
 	Error                  agentRuntimeError `json:"error"`
 	RunID                  string            `json:"run_id"`
 	FinalOutput            string            `json:"final_output"`
@@ -354,7 +353,6 @@ type agentRuntimeResponse struct {
 	ModelProvider          string            `json:"model_provider"`
 	PromptTrace            map[string]any    `json:"prompt_trace"`
 	ProviderResponseID     string            `json:"provider_response_id"`
-	SDKTraceRef            string            `json:"sdk_trace_ref"`
 	SelectedTools          []string          `json:"selected_tools"`
 	StageTiming            map[string]any    `json:"stage_timing"`
 	ToolResults            []agentToolResult `json:"tool_results"`
@@ -362,13 +360,6 @@ type agentRuntimeResponse struct {
 	TerminalReason         string            `json:"terminal_reason"`
 	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
 	Usage                  agentRuntimeUsage `json:"usage"`
-}
-
-type debugTraceRef struct {
-	Sink     string `json:"sink"`
-	TraceID  string `json:"trace_id"`
-	TraceRef string `json:"trace_ref"`
-	URL      string `json:"url,omitempty"`
 }
 
 type agentToolResult struct {

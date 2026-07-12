@@ -1,35 +1,7 @@
-import { isRecord, loadYaml, relativePath, repoPath, sha256JsonRef } from "./common.ts";
+import { isRecord, loadYaml, relativePath, repoPath } from "./common.ts";
 import { materializeAlertFile } from "./materialize-observability-alerts.ts";
 
 const toolExecutionOpenApiPath = repoPath("docs/contracts/schemas/tool-execution.openapi.yaml");
-
-const rawCaptureFields = new Set([
-	"rendered_messages",
-	"provider_request_body",
-	"provider_response_body",
-	"provider_stream_deltas",
-	"tool_calls",
-	"tool_results",
-	"selected_evidence_packet",
-	"selected_memory_context",
-	"output_schema",
-]);
-
-const forbiddenRawKeyFragments = new Set([
-	"authorization",
-	"auth_header",
-	"api_key",
-	"apikey",
-	"cookie",
-	"database_url",
-	"db_url",
-	"jwt",
-	"object_store_secret",
-	"password",
-	"provider_key",
-	"secret",
-	"token",
-]);
 
 const safeProjectionForbiddenFragments = new Set([
 	"authorization",
@@ -73,18 +45,6 @@ export function validateJsonArtifactInvariants(
 	path: string,
 	instance: unknown,
 ): void {
-	if (entryId === "raw-capture-policy.v1") {
-		validateRawCapturePolicyInvariants(path, instance);
-		return;
-	}
-	if (entryId === "llm-replay-packet.v1") {
-		validateLlmReplayPacketInvariants(path, instance);
-		return;
-	}
-	if (entryId === "llm-replay-packet-index.v1") {
-		validateLlmReplayPacketIndexInvariants(path, instance);
-		return;
-	}
 	if (entryId === "llm-io-fingerprint.v1") {
 		validateObject(path, instance);
 		validateLlmIoFingerprintInvariants(path, instance);
@@ -114,128 +74,6 @@ export function validateJsonArtifactInvariants(
 	}
 }
 
-function validateRawCapturePolicyInvariants(path: string, instance: unknown): void {
-	validateObject(path, instance);
-	const mode = instance.mode;
-	const ttlDays = instance.ttl_days;
-	const allowedSinks = instance.allowed_sinks;
-	const allowedRawFields = instance.allowed_raw_fields;
-	if (mode === "off") {
-		if (ttlDays !== 0 || !isEmptyArray(allowedSinks) || !isEmptyArray(allowedRawFields)) {
-			throw new Error(`${relativePath(path)} off raw capture policy must not admit capture`);
-		}
-		return;
-	}
-	if (!Number.isInteger(ttlDays) || Number(ttlDays) <= 0) {
-		throw new Error(`${relativePath(path)} non-off raw capture policy requires ttl_days > 0`);
-	}
-	if (!Array.isArray(allowedSinks) || allowedSinks.length === 0) {
-		throw new Error(`${relativePath(path)} non-off raw capture policy requires allowed_sinks`);
-	}
-	if (!Array.isArray(allowedRawFields) || allowedRawFields.length === 0) {
-		throw new Error(`${relativePath(path)} non-off raw capture policy requires allowed_raw_fields`);
-	}
-	for (const rawField of allowedRawFields) {
-		if (!rawCaptureFields.has(String(rawField))) {
-			throw new Error(`${relativePath(path)} forbidden raw capture field: ${rawField}`);
-		}
-	}
-	if (instance.audit_required !== true) {
-		throw new Error(`${relativePath(path)} non-off raw capture policy requires audit`);
-	}
-	if (instance.dsar_delete_linkage_required !== true) {
-		throw new Error(`${relativePath(path)} non-off raw capture policy requires deletion linkage`);
-	}
-	for (const field of ["request_id", "run_id", "trace_id"]) {
-		if (typeof instance[field] !== "string" || instance[field].trim() === "") {
-			throw new Error(`${relativePath(path)} non-off raw capture policy requires ${field}`);
-		}
-	}
-}
-
-function validateLlmReplayPacketInvariants(path: string, instance: unknown): void {
-	validateObject(path, instance);
-	const policy = instance.capture_policy;
-	if (!isRecord(policy)) {
-		throw new Error(`${relativePath(path)} capture_policy must be an object`);
-	}
-	validateRawCapturePolicyInvariants(path, policy);
-	const allowedFields = policy.allowed_raw_fields;
-	if (!Array.isArray(allowedFields)) {
-		throw new Error(`${relativePath(path)} capture_policy.allowed_raw_fields must be a list`);
-	}
-	const allowed = new Set(allowedFields.map(String));
-	for (const rawSection of rawCaptureFields) {
-		if (rawSection in instance && !allowed.has(rawSection)) {
-			throw new Error(`${relativePath(path)} raw section is not admitted by policy: ${rawSection}`);
-		}
-		if (rawSection in instance) {
-			rejectForbiddenRawKeys(path, instance[rawSection], rawSection);
-		}
-	}
-	for (const field of ["run_id", "request_id", "trace_id"]) {
-		const fingerprint = instance.llm_io_fingerprint;
-		if (isRecord(fingerprint) && instance[field] !== fingerprint[field]) {
-			throw new Error(`${relativePath(path)} packet ${field} must match llm_io_fingerprint`);
-		}
-		if (policy.mode !== "off" && instance[field] !== policy[field]) {
-			throw new Error(`${relativePath(path)} packet ${field} must match capture_policy`);
-		}
-	}
-	if (isRecord(instance.llm_io_fingerprint)) {
-		validateLlmIoFingerprintInvariants(path, instance.llm_io_fingerprint);
-	}
-	if (isRecord(instance.deletion_linkage)) {
-		for (const field of ["request_id", "trace_id"]) {
-			if (instance[field] !== instance.deletion_linkage[field]) {
-				throw new Error(`${relativePath(path)} packet ${field} must match deletion_linkage`);
-			}
-		}
-	}
-}
-
-function validateLlmReplayPacketIndexInvariants(path: string, instance: unknown): void {
-	validateObject(path, instance);
-	const policy = instance.capture_policy;
-	if (!isRecord(policy)) {
-		throw new Error(`${relativePath(path)} capture_policy must be an object`);
-	}
-	validateRawCapturePolicyInvariants(path, policy);
-	const fingerprint = instance.llm_io_fingerprint;
-	if (!isRecord(fingerprint)) {
-		throw new Error(`${relativePath(path)} llm_io_fingerprint must be an object`);
-	}
-	for (const field of ["run_id", "request_id", "trace_id"]) {
-		if (instance[field] !== fingerprint[field]) {
-			throw new Error(`${relativePath(path)} index ${field} must match llm_io_fingerprint`);
-		}
-		if (policy.mode !== "off" && instance[field] !== policy[field]) {
-			throw new Error(`${relativePath(path)} index ${field} must match capture_policy`);
-		}
-	}
-	validateLlmIoFingerprintInvariants(path, fingerprint);
-	if (isRecord(instance.answer_eval_fingerprint)) {
-		validateAnswerEvalFingerprintInvariants(path, instance.answer_eval_fingerprint, fingerprint);
-		if (isRecord(instance.evidence_replay_index)) {
-			const expected = sha256JsonRef(instance.evidence_replay_index);
-			if (instance.answer_eval_fingerprint.evidence_replay_index_sha256 !== expected) {
-				throw new Error(
-					`${relativePath(path)} answer_eval_fingerprint.evidence_replay_index_sha256 must match evidence_replay_index`,
-				);
-			}
-		}
-	}
-	if (!isRecord(instance.deletion_linkage)) {
-		throw new Error(`${relativePath(path)} deletion_linkage must be an object`);
-	}
-	for (const field of ["request_id", "trace_id"]) {
-		if (instance[field] !== instance.deletion_linkage[field]) {
-			throw new Error(`${relativePath(path)} index ${field} must match deletion_linkage`);
-		}
-	}
-	rejectRawReplayIndexKeys(path, instance);
-}
-
 function validateLlmIoFingerprintInvariants(
 	path: string,
 	fingerprint: Record<string, unknown>,
@@ -256,66 +94,6 @@ function validateLlmIoFingerprintInvariants(
 				`${relativePath(path)} llm_io_fingerprint.${flatField} must match tool_runtime_fingerprint.${nestedField}`,
 			);
 		}
-	}
-}
-
-function validateAnswerEvalFingerprintInvariants(
-	path: string,
-	answerEval: Record<string, unknown>,
-	fingerprint: Record<string, unknown>,
-): void {
-	rejectSafeProjectionRawKeys(path, answerEval, "answer_eval_fingerprint");
-	for (const [answerField, fingerprintField] of [
-		["run_id", "run_id"],
-		["request_id", "request_id"],
-		["trace_id", "trace_id"],
-		["runtime_release", "runtime_release"],
-		["llm_call_site", "llm_call_site"],
-		["provider_profile_revision", "provider_profile_revision"],
-		["output_schema_id", "output_schema_id"],
-	]) {
-		if (answerEval[answerField] !== fingerprint[fingerprintField]) {
-			throw new Error(
-				`${relativePath(path)} answer_eval_fingerprint.${answerField} must match llm_io_fingerprint.${fingerprintField}`,
-			);
-		}
-	}
-	const toolRuntime = fingerprint.tool_runtime_fingerprint;
-	if (!isRecord(toolRuntime)) {
-		throw new Error(
-			`${relativePath(path)} llm_io_fingerprint.tool_runtime_fingerprint must be an object`,
-		);
-	}
-	if (answerEval.tool_runtime_combined_sha256 !== toolRuntime.combined_sha256) {
-		throw new Error(
-			`${relativePath(path)} answer_eval_fingerprint.tool_runtime_combined_sha256 must match llm_io_fingerprint.tool_runtime_fingerprint.combined_sha256`,
-		);
-	}
-	const branchIdentity = answerEval.branch_identity;
-	if (!isRecord(branchIdentity)) {
-		throw new Error(
-			`${relativePath(path)} answer_eval_fingerprint.branch_identity must be an object`,
-		);
-	}
-	if (branchIdentity.prompt_id !== fingerprint.prompt_id) {
-		throw new Error(
-			`${relativePath(path)} answer_eval_fingerprint.branch_identity.prompt_id must match llm_io_fingerprint.prompt_id`,
-		);
-	}
-	if (answerEval.llm_io_fingerprint_sha256 !== sha256JsonRef(fingerprint)) {
-		throw new Error(
-			`${relativePath(path)} answer_eval_fingerprint.llm_io_fingerprint_sha256 must match llm_io_fingerprint`,
-		);
-	}
-	const expectedHash = sha256JsonRef(
-		Object.fromEntries(
-			Object.entries(answerEval).filter(([key]) => key !== "answer_fingerprint_sha256"),
-		),
-	);
-	if (answerEval.answer_fingerprint_sha256 !== expectedHash) {
-		throw new Error(
-			`${relativePath(path)} answer_eval_fingerprint.answer_fingerprint_sha256 must match answer_eval_fingerprint body`,
-		);
 	}
 }
 
@@ -451,22 +229,6 @@ function canonicalStageTimingFields(): Set<string> {
 	return new Set(Object.keys(stageTiming.properties));
 }
 
-function rejectRawReplayIndexKeys(path: string, value: unknown, context = ""): void {
-	const forbidden = [
-		"raw_answer",
-		"raw_prompt",
-		"rendered_messages",
-		"provider_request_body",
-		"provider_response_body",
-		"provider_stream_deltas",
-		"selected_evidence_packet",
-		"selected_memory_context",
-		"tool_calls",
-		"tool_results",
-	];
-	rejectKeyFragments(path, value, forbidden, "forbidden replay index key", context);
-}
-
 function rejectSafeProjectionRawKeys(path: string, value: unknown, context: string): void {
 	if (isRecord(value)) {
 		for (const [key, nested] of Object.entries(value)) {
@@ -494,16 +256,6 @@ function rejectSinkIdentityDirectIdentifiers(path: string, value: unknown, conte
 		value,
 		["authorization", "cookie", "email", "jwt", "principal_id", "session", "token", "user_id"],
 		"direct identity key is forbidden",
-		context,
-	);
-}
-
-function rejectForbiddenRawKeys(path: string, value: unknown, context: string): void {
-	rejectKeyFragments(
-		path,
-		value,
-		[...forbiddenRawKeyFragments],
-		"forbidden raw replay key in",
 		context,
 	);
 }
@@ -539,10 +291,6 @@ function validateObject(
 	if (!isRecord(instance)) {
 		throw new Error(`${relativePath(path)} must contain an object`);
 	}
-}
-
-function isEmptyArray(value: unknown): boolean {
-	return Array.isArray(value) && value.length === 0;
 }
 
 function assertSetEquals(

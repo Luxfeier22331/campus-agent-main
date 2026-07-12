@@ -145,5 +145,5 @@ app-api tables.
 
 Operator-facing eval evidence should stay in Langfuse datasets, runs, scores and
 annotation queues. App-api does not expose runtime quality badcases, negative
-feedback candidates, trace backlinks, eval scoring or coverage truth as the
+feedback candidates, eval scoring or coverage truth as the
 current Operator Console surface.

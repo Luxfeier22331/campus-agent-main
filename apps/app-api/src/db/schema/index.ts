@@ -53,7 +53,6 @@ export {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
-export { llmDebugTraceConfig } from "./observability-config";
 export {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -80,7 +79,6 @@ export {
 	qualityGradeProjection,
 	requestAuditProjection,
 	requestProjection,
-	traceBacklinkProjection,
 } from "./operator";
 export {
 	temporalTaskQueueCurrent,
@@ -93,7 +91,6 @@ export {
 export { opsObservabilityReadAudit } from "./ops-observability";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
-export { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -155,7 +152,6 @@ import {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
-import { llmDebugTraceConfig } from "./observability-config";
 import {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -182,7 +178,6 @@ import {
 	qualityGradeProjection,
 	requestAuditProjection,
 	requestProjection,
-	traceBacklinkProjection,
 } from "./operator";
 import {
 	temporalTaskQueueCurrent,
@@ -195,7 +190,6 @@ import {
 import { opsObservabilityReadAudit } from "./ops-observability";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
-import { replayPacketAccessAudit, replayPacketIndex } from "./replay-capture";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -265,19 +259,15 @@ export const appApiSchema = {
 	runOutbox,
 	profileMemorySettings,
 	profileMemoryItems,
-	llmDebugTraceConfig,
 	opsObservabilityReadAudit,
 	providerConfigConnections,
 	providerConfigProfiles,
-	replayPacketAccessAudit,
-	replayPacketIndex,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,
 	requestProjection,
 	requestAuditProjection,
 	qualityGradeProjection,
-	traceBacklinkProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
 	officialWebReleaseTaskProjection,

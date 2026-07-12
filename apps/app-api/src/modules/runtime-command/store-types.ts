@@ -3,7 +3,6 @@ import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type {
 	ToolExecutionAnswerEvalFingerprint,
-	ToolExecutionDebugTraceRef,
 	ToolExecutionLlmIoFingerprint,
 	ToolExecutionWorkflowTraceSummary,
 } from "../integration/tool-execution-types";
@@ -114,7 +113,6 @@ export interface RequestObservabilityFactWrite {
 	failClosed: boolean | null;
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	stageTiming?: Record<string, unknown>;
-	debugTraceRefs?: ToolExecutionDebugTraceRef[];
 	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
 	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
 	modelProvider: string | null;

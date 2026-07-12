@@ -11,31 +11,6 @@ func attachPrimaryAgentProviderConfigForTest(server *Server) {
 	server.providerConfigResolver = staticProviderConfigResolver{
 		"primary_agent": primaryAgentProviderConfigSnapshotForTest(),
 	}
-	server.observabilityConfigResolver = staticObservabilityConfigResolver{
-		config: llmDebugTraceConfig{
-			SchemaVersion: "llm_debug_trace_config.v1",
-			Mode:          "off",
-			SampleRatio:   1,
-		},
-	}
-	server.observabilityConfigErr = nil
-}
-
-type staticObservabilityConfigResolver struct {
-	config llmDebugTraceConfig
-	err    error
-}
-
-func (resolver staticObservabilityConfigResolver) ResolveLLMDebugTraceConfig(
-	context.Context,
-) (llmDebugTraceConfig, error) {
-	if resolver.err != nil {
-		return llmDebugTraceConfig{}, resolver.err
-	}
-	if err := validateLLMDebugTraceConfig(resolver.config); err != nil {
-		return llmDebugTraceConfig{}, err
-	}
-	return resolver.config, nil
 }
 
 func primaryAgentProviderConfigSnapshotForTest() providerConfigSnapshot {

@@ -88,7 +88,6 @@ export function buildAbuseThrottleRejectedResponse(input: {
 		followUpQuestion: "",
 		observability: {
 			agentRuntime: null,
-			sdkTraceRef: null,
 			selectedTools: [],
 			terminalReason: "rate_limit_exceeded",
 		},

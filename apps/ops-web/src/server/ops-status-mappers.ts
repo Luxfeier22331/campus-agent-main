@@ -6,9 +6,6 @@ import type {
 } from "../shared/ops-contract";
 import { projectOpsStageTiming, projectOpsStageTimingBudget } from "../shared/stage-timing.ts";
 import {
-	externalLinkPriority,
-	normalizeAllowedExternalHref,
-	normalizeDebugTraceLinkSource,
 	type OpsObservabilityLinkAllowlist,
 	toTemporalExternalLink,
 } from "./ops-external-links.ts";
@@ -33,16 +30,7 @@ export function toRequestDetail(
 	const request = toRequestSummary(requestRow, executionRow, observabilityRow, principalHashSecret);
 	const workflowTrace = normalizeWorkflowTrace(observabilityRow?.workflowTraceSummaryJson);
 	const workflowId = toTemporalWorkflowId(request.runId);
-	const debugTraceRefs = normalizeDebugTraceRefs(
-		observabilityRow?.debugTraceRefsJson,
-		requestRow.traceId,
-	);
-	const externalLinks = normalizeExternalLinks(
-		observabilityRow?.debugTraceRefsJson,
-		observabilityLinks,
-		request.traceId,
-		workflowId,
-	);
+	const externalLinks = normalizeExternalLinks(observabilityLinks, workflowId);
 
 	return {
 		correlationIds: {
@@ -56,7 +44,6 @@ export function toRequestDetail(
 			traceId: request.traceId,
 			workflowId,
 		},
-		debugTraceRefs,
 		externalLinks,
 		modelSummary: {
 			model: normalizeNullableString(observabilityRow?.modelName),
@@ -389,69 +376,11 @@ function normalizeTraceStepStatus(
 }
 
 function normalizeExternalLinks(
-	value: unknown,
 	allowlist: OpsObservabilityLinkAllowlist | undefined,
-	requestTraceId: string,
 	workflowId: string | null,
 ): OpsRequestDetailResponse["externalLinks"] {
-	const links: OpsRequestDetailResponse["externalLinks"] = (Array.isArray(value) ? value : [])
-		.map((item) => (isRecord(item) ? item : null))
-		.filter((item): item is Record<string, unknown> => Boolean(item))
-		.flatMap((item) => {
-			const source = normalizeDebugTraceLinkSource(item.sink ?? item.source);
-			const traceId = normalizeNullableString(item.traceId ?? item.trace_id);
-			const href = normalizeNullableString(item.url ?? item.href);
-			if (!(source && traceId === requestTraceId && href)) {
-				return [];
-			}
-			const safeHref = normalizeAllowedExternalHref(source, href, allowlist);
-			if (!safeHref) {
-				return [];
-			}
-			return [
-				{
-					href: safeHref,
-					isAvailable: true,
-					label: normalizeNonEmptyString(item.label, `${source} 入口`),
-					source,
-				},
-			];
-		});
 	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
-	if (temporalLink) {
-		links.push(temporalLink);
-	}
-
-	return links.sort(
-		(left, right) => externalLinkPriority(left.source) - externalLinkPriority(right.source),
-	);
-}
-
-function normalizeDebugTraceRefs(
-	value: unknown,
-	requestTraceId: string,
-): OpsRequestDetailResponse["debugTraceRefs"] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.flatMap((item) => {
-		if (!isRecord(item)) {
-			return [];
-		}
-		const sink = normalizeNullableString(item.sink);
-		const traceId = normalizeNullableString(item.traceId ?? item.trace_id);
-		const traceRef = normalizeNullableString(item.traceRef ?? item.trace_ref);
-		if (!(sink && traceRef) || (traceId && traceId !== requestTraceId)) {
-			return [];
-		}
-		return [
-			{
-				sink,
-				traceId,
-				traceRef,
-			},
-		];
-	});
+	return temporalLink ? [temporalLink] : [];
 }
 
 function normalizeSupportingSources(value: unknown): OpsRequestDetailResponse["sources"] {

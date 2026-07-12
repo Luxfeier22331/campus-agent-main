@@ -91,18 +91,6 @@ function stageTimingFields(contract: Record<string, unknown>): string[] {
 	});
 }
 
-function debugTraceSinks(contract: Record<string, unknown>): string[] {
-	const schema = schemas(contract).DebugTraceRef;
-	if (!(isRecord(schema) && isRecord(schema.properties) && isRecord(schema.properties.sink))) {
-		throw new Error("DebugTraceRef.sink schema must be an object");
-	}
-	const values = schema.properties.sink.enum;
-	if (!(Array.isArray(values) && values.every((item) => typeof item === "string" && item !== ""))) {
-		throw new Error("DebugTraceRef.sink must define a string enum");
-	}
-	return values;
-}
-
 function contractMeta(contract: Record<string, unknown>): Record<string, string> {
 	const meta = contract["x-campus-contract"];
 	if (!isRecord(meta)) {
@@ -140,7 +128,6 @@ function generateTs(contract: Record<string, unknown>): string {
 		tsConstArray("WORKFLOW_MODES", enumValues(contract, "WorkflowMode")) +
 		tsConstArray("ANSWER_ARTIFACT_KINDS", enumValues(contract, "AnswerArtifactKind")) +
 		tsConstArray("STAGE_TIMING_FIELDS", stageTimingFields(contract)) +
-		tsConstArray("DEBUG_TRACE_SINKS", debugTraceSinks(contract)) +
 		tsWireTypes()
 	);
 }
@@ -158,7 +145,6 @@ export type AnswerArtifactKind = (typeof ANSWER_ARTIFACT_KINDS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
-export type DebugTraceSink = (typeof DEBUG_TRACE_SINKS)[number];
 
 export type SafeRecord = Record<string, unknown>;
 
@@ -231,13 +217,6 @@ export interface ToolExecutionWorkflowTraceSummaryWire {
 \truntime_versions: SafeRecord;
 }
 
-export interface DebugTraceRefWire {
-\tsink: DebugTraceSink;
-\ttrace_id?: string | null;
-\ttrace_ref: string;
-\turl?: string;
-}
-
 export interface SessionUpdateSlotWire {
 \tconfirmed: true;
 \tname: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
@@ -261,7 +240,6 @@ export interface ToolExecutionResponseWire {
 \tobservability?: SafeRecord | null;
 \tworkflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;
 \tstage_timing?: StageTimingWire | null;
-\tdebug_trace_refs?: DebugTraceRefWire[] | null;
 \ttrace_id: string;
 }
 `;
@@ -274,7 +252,6 @@ function generateGo(contract: Record<string, unknown>): string {
 	const workflowModes = enumValues(contract, "WorkflowMode");
 	const answerArtifactKinds = enumValues(contract, "AnswerArtifactKind");
 	const stageFields = stageTimingFields(contract);
-	const traceSinks = debugTraceSinks(contract);
 	return gofmt(
 		`// ${header}. Do not edit by hand.\n\n` +
 			"package contracts\n\n" +
@@ -298,7 +275,6 @@ function generateGo(contract: Record<string, unknown>): string {
 			goStringType("WorkflowMode", workflowModes) +
 			goStringType("AnswerArtifactKind", answerArtifactKinds) +
 			goStringType("StageTimingField", stageFields) +
-			goStringType("DebugTraceSink", traceSinks) +
 			goWireTypes() +
 			goDecodeHelpers({
 				answerArtifactKinds,
@@ -306,7 +282,6 @@ function generateGo(contract: Record<string, unknown>): string {
 				requestedTools,
 				workflowModes,
 				stageTimingFields: stageFields,
-				debugTraceSinks: traceSinks,
 			}),
 	);
 }
@@ -384,13 +359,6 @@ type WorkflowTraceSummaryWire struct {
 
 type StageTimingWire map[StageTimingField]float64
 
-type DebugTraceRefWire struct {
-\tSink DebugTraceSink \`json:"sink"\`
-\tTraceID *string \`json:"trace_id,omitempty"\`
-\tTraceRef string \`json:"trace_ref"\`
-\tURL string \`json:"url,omitempty"\`
-}
-
 type SessionUpdateSlotWire struct {
 \tConfirmed bool \`json:"confirmed"\`
 \tName string \`json:"name"\`
@@ -414,7 +382,6 @@ type ToolExecutionResponseWire struct {
 \tObservability map[string]any \`json:"observability,omitempty"\`
 \tWorkflowTraceSummary *WorkflowTraceSummaryWire \`json:"workflow_trace_summary,omitempty"\`
 \tStageTiming StageTimingWire \`json:"stage_timing,omitempty"\`
-\tDebugTraceRefs []DebugTraceRefWire \`json:"debug_trace_refs,omitempty"\`
 \tTraceID string \`json:"trace_id"\`
 }
 `;

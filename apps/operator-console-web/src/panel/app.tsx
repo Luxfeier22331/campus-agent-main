@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
+import { ArrowLeft, ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
 import { getRequestDetail, getRequestList } from "./data-provider/requests";
 import { fetchJson } from "./http";
-import { ObservabilityConfigPage } from "./operations/observability-config/page";
 import { ProviderConfigPage } from "./operations/provider-config/page";
 import { formatPanelTimestamp } from "./panel-copy";
 import { getPanelErrorMessage } from "./panel-error";
@@ -47,7 +46,6 @@ const queryClient = new QueryClient({
 const navItems = [
 	{ icon: ClipboardList, label: "请求与运行", to: "/requests" },
 	{ icon: KeyRound, label: "模型服务配置", to: "/operations/provider-config" },
-	{ icon: Activity, label: "观测配置", to: "/operations/observability" },
 ] as const;
 
 const stageTimingGroups = [
@@ -97,7 +95,6 @@ export function OperatorConsoleAdminApp() {
 					<Route element={<RequestsPage />} path="/requests" />
 					<Route element={<RequestDetailPage />} path="/requests/:requestId" />
 					<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
-					<Route element={<ObservabilityConfigPage />} path="/operations/observability" />
 					<Route element={<Navigate replace to="/requests" />} path="*" />
 				</Routes>
 			</OperatorConsoleShell>
@@ -618,8 +615,8 @@ function RequestOpsIndexPanel({
 			</Card>
 			<Card>
 				<CardHeader>
-					<CardTitle>外部追踪</CardTitle>
-					<CardDescription>只链接外部平台中的对应追踪，不展示原始内容。</CardDescription>
+					<CardTitle>追踪状态</CardTitle>
+					<CardDescription>用于确认本次请求是否进入统一追踪链路。</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<Fact
@@ -627,32 +624,6 @@ function RequestOpsIndexPanel({
 						value={opsIndex.sinkLinks.traceAvailable ? "已上报" : "未上报"}
 					/>
 					<Fact label="投影延迟" value={formatDuration(opsIndex.sinkLinks.projectionLagMs)} />
-					{opsIndex.debugTraceRefs.length > 0 ? (
-						<div className="space-y-2">
-							{opsIndex.debugTraceRefs.map((ref) =>
-								ref.url ? (
-									<a
-										className="block break-all text-slate-700 text-sm underline underline-offset-4 hover:text-slate-950"
-										href={ref.url}
-										key={`${ref.sink}:${ref.traceRef}`}
-										rel="noreferrer"
-										target="_blank"
-									>
-										{ref.sink}: {ref.traceRef}
-									</a>
-								) : (
-									<p
-										className="break-all text-slate-700 text-sm"
-										key={`${ref.sink}:${ref.traceRef}`}
-									>
-										{ref.sink}: {ref.traceRef}
-									</p>
-								),
-							)}
-						</div>
-					) : (
-						<p className="text-slate-500 text-sm">没有外部追踪引用。</p>
-					)}
 				</CardContent>
 			</Card>
 		</div>

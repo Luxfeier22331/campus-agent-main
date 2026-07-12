@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isRecord, loadYaml, repoPath, stringArray } from "../scripts/contracts/common.ts";
-import { validateJsonArtifactInvariants } from "../scripts/contracts/schema-invariants.ts";
 import { checkContractSchemas } from "../scripts/contracts/schema-registry.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
@@ -85,49 +84,5 @@ describe("contract schema registry", () => {
 		expect(functionSchemaNames).toContain("knowledge_search");
 		expect(modelVisibleNames).not.toContain("knowledge_search");
 		expect(modelVisibleNames).not.toContain("public_web_search");
-	});
-
-	it("rejects raw replay sections when the capture policy does not admit them", () => {
-		const packet = readJson(
-			"packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json",
-		);
-		packet.provider_response_body = { output: "not admitted by fixture policy" };
-
-		expect(() =>
-			validateJsonArtifactInvariants("llm-replay-packet.v1", "test-fixture.json", packet),
-		).toThrow(/raw section is not admitted/u);
-	});
-
-	it("rejects raw provider credentials inside admitted replay sections", () => {
-		const packet = readJson(
-			"packages/contracts/fixtures/replay_capture/llm-replay-packet.v1.basic.valid.json",
-		);
-		packet.provider_request_body = { authorization_header: "Bearer forbidden" };
-
-		expect(() =>
-			validateJsonArtifactInvariants("llm-replay-packet.v1", "test-fixture.json", packet),
-		).toThrow(/forbidden raw replay key/u);
-	});
-
-	it("rejects replay index identity drift", () => {
-		const index = readJson(
-			"packages/contracts/fixtures/replay_capture/llm-replay-packet-index.v1.agent_primary.valid.json",
-		);
-		(index.llm_io_fingerprint as Record<string, unknown>).request_id = "req_other";
-
-		expect(() =>
-			validateJsonArtifactInvariants("llm-replay-packet-index.v1", "test-fixture.json", index),
-		).toThrow(/index request_id must match llm_io_fingerprint/u);
-	});
-
-	it("rejects raw sections in replay indexes", () => {
-		const index = readJson(
-			"packages/contracts/fixtures/replay_capture/llm-replay-packet-index.v1.agent_primary.valid.json",
-		);
-		index.provider_response_body = { output: "forbidden" };
-
-		expect(() =>
-			validateJsonArtifactInvariants("llm-replay-packet-index.v1", "test-fixture.json", index),
-		).toThrow(/forbidden replay index key/u);
 	});
 });

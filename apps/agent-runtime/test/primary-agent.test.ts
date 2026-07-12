@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { deriveLangfuseTraceId } from "../src/debug-trace.ts";
 import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
@@ -61,8 +60,6 @@ function schemaRef(schemaName: string, definitionName: string): string {
 
 describe("primary agent runtime", () => {
 	it("returns a no-tool final answer without synthetic tool routing", async () => {
-		const langfuseTraceId = deriveLangfuseTraceId("trace-1");
-		let observedDebugTraceConfig: unknown;
 		const runner: AgentRunner = async ({ input }) =>
 			({
 				finalOutput: `我是校园问答助手。收到：${input}`,
@@ -72,15 +69,11 @@ describe("primary agent runtime", () => {
 				},
 				providerResponseId: "resp_1",
 				toolCalls: [],
-				traceRef: "trace_1",
 				usage: { inputTokens: 12, outputTokens: 8 },
 			}) as never;
 		const runtime = createPrimaryAgentRuntime({
 			catalog,
-			runner: async (input) => {
-				observedDebugTraceConfig = input.debugTraceConfig;
-				return runner(input);
-			},
+			runner,
 		});
 
 		const result = await runtime.run({
@@ -92,7 +85,6 @@ describe("primary agent runtime", () => {
 			input: "hi 你是谁",
 			providerConfig,
 			visibleToolNames: ["transport_schedule_lookup"],
-			debugTraceConfig: validDebugTraceConfig(),
 		});
 
 		expect(result.status).toBe("completed");
@@ -104,15 +96,6 @@ describe("primary agent runtime", () => {
 			answerText: "我是校园问答助手。收到：hi 你是谁",
 		});
 		expect(result.selectedTools).toEqual([]);
-		expect(observedDebugTraceConfig).toEqual(validDebugTraceConfig());
-		expect(result.debugTraceRefs).toEqual([
-			{
-				sink: "langfuse_otlp",
-				traceId: langfuseTraceId,
-				traceRef: `langfuse://${langfuseTraceId}`,
-				url: `https://cloud.langfuse.com/project/demo/traces/${langfuseTraceId}`,
-			},
-		]);
 		expect(result.stageTiming).toEqual(
 			expect.objectContaining({
 				"agent.runtime_ms": expect.any(Number),
@@ -125,7 +108,6 @@ describe("primary agent runtime", () => {
 			finalOutput: "我是校园问答助手。",
 			providerResponseId: "resp_missing_envelope",
 			toolCalls: [],
-			traceRef: "trace_missing_envelope",
 			usage: { inputTokens: 12, outputTokens: 8 },
 		});
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -157,7 +139,6 @@ describe("primary agent runtime", () => {
 					kind: "answer",
 				},
 				toolCalls: [],
-				traceRef: "trace_blocking",
 				usage: { inputTokens: 1, outputTokens: 1 },
 			}),
 		});
@@ -186,7 +167,6 @@ describe("primary agent runtime", () => {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_memory",
 				toolCalls: [],
-				traceRef: "trace_memory",
 				usage: { inputTokens: 16, outputTokens: 8 },
 			};
 		};
@@ -266,7 +246,6 @@ describe("primary agent runtime", () => {
 					terminalEnvelope: { kind: "answer", answerText: "我会查询正式知识库。" },
 					providerResponseId: "resp_allowed_scopes",
 					toolCalls: [],
-					traceRef: "trace_allowed_scopes",
 					usage: { inputTokens: 12, outputTokens: 8 },
 				};
 			},
@@ -306,7 +285,6 @@ describe("primary agent runtime", () => {
 				terminalEnvelope: { kind: "answer", answerText: "我会先给结论。" },
 				providerResponseId: "resp_prompt_trace",
 				toolCalls: [],
-				traceRef: "trace_prompt_trace",
 				usage: { inputTokens: 18, outputTokens: 8 },
 			};
 		};
@@ -360,7 +338,6 @@ describe("primary agent runtime", () => {
 				},
 				providerResponseId: "resp_context",
 				toolCalls: [],
-				traceRef: "trace_context",
 				usage: { inputTokens: 32, outputTokens: 12 },
 			};
 		};
@@ -470,7 +447,6 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				traceRef: "trace_2",
 				usage: { inputTokens: 20, outputTokens: 10 },
 			} as never;
 		};
@@ -526,7 +502,6 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				traceRef: "trace_missing_tool_executor",
 				usage: { inputTokens: 18, outputTokens: 4 },
 			};
 		};
@@ -577,7 +552,6 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				traceRef: "trace_failed_tool",
 				usage: { inputTokens: 20, outputTokens: 10 },
 			};
 		};
@@ -637,7 +611,6 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				traceRef: "trace_signal",
 				usage: { inputTokens: 20, outputTokens: 10 },
 			} as never;
 		};
@@ -674,20 +647,6 @@ describe("primary agent runtime", () => {
 		expect(executorSignal).toBe(controller.signal);
 	});
 });
-
-function validDebugTraceConfig() {
-	return {
-		includeModelIo: false as const,
-		langfuseOtlp: {
-			authHeader: "Basic langfuse-secret",
-			endpoint: "https://cloud.langfuse.com/api/public/otel",
-			publicTraceBaseUrl: "https://cloud.langfuse.com/project/demo/traces",
-		},
-		mode: "langfuse_otlp" as const,
-		sampleRatio: 1,
-		schemaVersion: "llm_debug_trace_config.v1" as const,
-	};
-}
 
 function sha256(value: string): string {
 	return `sha256:${createHash("sha256").update(value).digest("hex")}`;

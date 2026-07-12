@@ -17,7 +17,6 @@ export interface LearningLoopCandidate {
 	evidence: {
 		budgetState?: "within_budget" | "warn" | "critical";
 		budgetVersion?: string;
-		debugTraceRefCount?: number;
 		durationMs?: number;
 		failClosed: boolean | null;
 		reasonCodes: readonly string[];

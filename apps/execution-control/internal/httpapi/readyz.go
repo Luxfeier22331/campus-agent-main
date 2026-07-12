@@ -19,8 +19,7 @@ type providerConfigGate struct {
 	Source     string `json:"source"`
 }
 
-func providerConfigGateRequiredRoles(cfg config.Config) []providerConfigRole {
-	_ = cfg
+func providerConfigGateRequiredRoles() []providerConfigRole {
 	return []providerConfigRole{
 		providerConfigRolePrimaryAgent,
 		providerConfigRoleRAGQueryEmbedding,
@@ -44,6 +43,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	toolReadModelStatus := s.toolReadModel.Status(toolReadModelCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	providerConfigGate := s.evaluateProviderConfigGate()
+	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
@@ -54,6 +54,8 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		toolReadModelRuntimeHealthy &&
+		providerConfigGate.Configured &&
+		agentRuntimeStatus["healthy"] == true &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		personalMemoryStatus["healthy"] == true &&
@@ -79,9 +81,43 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"knowledge_search_runtime": knowledgeSearchStatus,
 		"tool_gates":               s.toolGateStatus(),
 		"provider_config_gate":     providerConfigGate,
+		"agent_runtime":            agentRuntimeStatus,
 	}
 
 	writeJSON(response, statusCode, responseBody)
+}
+
+func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
+	baseURL := strings.TrimRight(strings.TrimSpace(s.config.AgentRuntimeBaseURL), "/")
+	configured := baseURL != "" && strings.TrimSpace(s.config.AgentRuntimeSharedSecret) != ""
+	status := map[string]any{
+		"configured": configured,
+		"healthy":    false,
+		"last_error": "",
+	}
+	if !configured {
+		status["last_error"] = "agent runtime is not configured"
+		return status
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
+	defer cancel()
+	request, err := http.NewRequestWithContext(checkCtx, http.MethodGet, baseURL+"/readyz", nil)
+	if err != nil {
+		status["last_error"] = "agent runtime readiness request could not be created"
+		return status
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		status["last_error"] = "agent runtime readiness check failed"
+		return status
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		status["last_error"] = "agent runtime readiness check returned non-200 status"
+		return status
+	}
+	status["healthy"] = true
+	return status
 }
 
 func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
@@ -235,7 +271,7 @@ func (s *Server) evaluateProviderConfigGate() providerConfigGate {
 			Source:     "provider-config-projection",
 		}
 	}
-	for _, role := range providerConfigGateRequiredRoles(s.config) {
+	for _, role := range providerConfigGateRequiredRoles() {
 		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), role); err != nil {
 			return providerConfigGate{
 				Configured: false,

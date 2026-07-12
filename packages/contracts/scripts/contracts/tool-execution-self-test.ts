@@ -194,15 +194,6 @@ function checkExecutionResponseDiagnostics(): void {
 		]),
 		"stage timing fields",
 	);
-	const debugTrace = schema("DebugTraceRef");
-	const debugTraceProperties = properties(debugTrace, "DebugTraceRef");
-	expect(debugTrace.additionalProperties === false, "debug trace ref must be closed");
-	expectEqualJson(debugTrace.required, ["sink", "trace_ref"], "debug trace required fields");
-	expectEqualJson(
-		asRecord(debugTraceProperties.sink, "sink").enum,
-		["langfuse_otlp"],
-		"debug trace sinks",
-	);
 	expectIncludes(schema("ExecutionStatus").enum, "cancelled", "cancelled status");
 }
 
@@ -233,20 +224,12 @@ function checkGeneratedArtifacts(): void {
 		"TS stage timing missing",
 	);
 	expect(
-		tsContract.includes('export const DEBUG_TRACE_SINKS = ["langfuse_otlp"] as const'),
-		"TS debug sinks missing",
-	);
-	expect(
 		goContract.includes("type WorkflowTraceSummaryWire struct"),
 		"Go workflow summary missing",
 	);
 	expect(
 		goContract.includes("type StageTimingWire map[StageTimingField]float64"),
 		"Go stage timing missing",
-	);
-	expect(
-		goContract.includes("func (wire DebugTraceRefWire) Validate() error"),
-		"Go debug trace validation missing",
 	);
 	for (const requiredSymbol of [
 		"type ExecutionPayloadWire struct",

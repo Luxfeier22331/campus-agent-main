@@ -38,22 +38,13 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status": "completed",
-			"debug_trace_refs": []map[string]any{
-				{
-					"sink":      "langfuse_otlp",
-					"trace_id":  "trace-executor-001",
-					"trace_ref": "langfuse://trace-executor-001",
-					"url":       "https://cloud.langfuse.com/project/demo/traces/trace-executor-001",
-				},
-			},
+			"status":               "completed",
 			"run_id":               "run-primary-agent-001",
 			"final_output":         "你好，我是校园问答助手。",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-001",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-001",
 			"selected_tools":       []string{},
 			"stage_timing": map[string]any{
 				"agent.runtime_ms": 42,
@@ -76,34 +67,6 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		TemporalWorkerIdentity:   "test:agent:001",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
-	server.observabilityConfigResolver = staticObservabilityConfigResolver{
-		config: llmDebugTraceConfig{
-			SchemaVersion:  "llm_debug_trace_config.v1",
-			Mode:           "langfuse_otlp",
-			IncludeModelIO: true,
-			SampleRatio:    0.25,
-			RawCapturePolicy: &rawCapturePolicy{
-				SchemaVersion:             "raw_capture_policy.v1",
-				Mode:                      "manual_run_capture",
-				CaptureReason:             "diagnose badcase req-primary-agent-001",
-				TTLDays:                   7,
-				AllowedSinks:              []string{"openai_agents_trace", "langfuse_otlp"},
-				AllowedRawFields:          []string{"rendered_messages", "provider_request_body"},
-				OperatorPrincipal:         stringPtrForTest("operator:test"),
-				ApprovalRef:               stringPtrForTest("approval:test:raw-capture"),
-				RequestID:                 stringPtrForTest("req-executor-001"),
-				RunID:                     stringPtrForTest("run-primary-agent-001"),
-				TraceID:                   stringPtrForTest("trace-executor-001"),
-				AuditRequired:             true,
-				DSARDeleteLinkageRequired: true,
-			},
-			LangfuseOTLP: &llmDebugTraceOTLPConfig{
-				Endpoint:           "https://cloud.langfuse.com/api/public/otel",
-				AuthHeader:         "Basic langfuse-secret",
-				PublicTraceBaseURL: "https://cloud.langfuse.com/project/demo/traces",
-			},
-		},
-	}
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -134,7 +97,6 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		providerConfig["model"] != "gpt-test" {
 		t.Fatalf("provider_config = %#v", providerConfig)
 	}
-	assertPrimaryAgentDebugTraceConfigForTest(t, seenBody)
 	assertPrimaryAgentMemoryContextForTest(t, seenBody)
 	if output.AgentResultRef != "projection://runs/run-primary-agent-001/agent/primary/result" {
 		t.Fatalf("agent result ref = %q", output.AgentResultRef)
@@ -145,10 +107,8 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if output.ModelProvider != "openai" || output.ModelName != "gpt-test" {
 		t.Fatalf("output model = %q/%q, want openai/gpt-test", output.ModelProvider, output.ModelName)
 	}
-	if len(output.DebugTraceRefs) != 1 ||
-		output.DebugTraceRefs[0].Sink != "langfuse_otlp" ||
-		output.StageTiming["agent.runtime_ms"] != float64(42) {
-		t.Fatalf("debug refs/timing = %#v / %#v", output.DebugTraceRefs, output.StageTiming)
+	if output.StageTiming["agent.runtime_ms"] != float64(42) {
+		t.Fatalf("stage timing = %#v", output.StageTiming)
 	}
 	if output.TerminalEnvelope["kind"] != "answer" || output.TerminalEnvelope["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("terminal envelope = %#v", output.TerminalEnvelope)
@@ -169,10 +129,6 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	}
 	if agentMetadata["agent_result_ref"] != output.AgentResultRef {
 		t.Fatalf("agent metadata = %#v", agentMetadata)
-	}
-	debugTraceRefs, ok := agentMetadata["debug_trace_refs"].([]map[string]any)
-	if !ok || len(debugTraceRefs) != 1 {
-		t.Fatalf("agent metadata debug trace refs = %#v", agentMetadata["debug_trace_refs"])
 	}
 	envelope, ok := agentMetadata["terminal_envelope"].(map[string]any)
 	if !ok || envelope["kind"] != "answer" {
@@ -254,7 +210,6 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 			"model_provider":       "openai",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-streaming",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-streaming",
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -375,7 +330,6 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 			"model_provider":       "openai",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好"},
 			"provider_response_id": "resp-primary-agent-live-streaming",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-live-streaming",
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -480,7 +434,6 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 			"final_output":         "你好，我是校园问答助手。",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-empty-memory",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-empty-memory",
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -570,13 +523,6 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 		TemporalWorkerIdentity:   "test:agent:provider-missing",
 	})
 	server.providerConfigResolver = staticProviderConfigResolver{}
-	server.observabilityConfigResolver = staticObservabilityConfigResolver{
-		config: llmDebugTraceConfig{
-			SchemaVersion: "llm_debug_trace_config.v1",
-			Mode:          "off",
-			SampleRatio:   1,
-		},
-	}
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{

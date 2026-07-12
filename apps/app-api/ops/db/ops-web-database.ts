@@ -26,7 +26,7 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	`GRANT SELECT ("request_id", "run_id")
 	ON TABLE "runtime"."request_execution" TO "ops_web"`,
 	`GRANT SELECT (
-			"acl_anomaly_code", "acl_decision", "debug_trace_refs_json", "fail_closed", "measured_at",
+			"acl_anomaly_code", "acl_decision", "fail_closed", "measured_at",
 			"model_name", "model_provider", "prompt_id", "prompt_version", "projection_lag_ms",
 			"refusal_class", "request_id", "scope_class", "semantic_outcome", "stage_timing_json",
 			"supporting_sources_json", "template_sha256", "trace_available", "updated_at",
@@ -118,7 +118,6 @@ const REQUIRED_SELECTS = [
 				select
 						"acl_anomaly_code",
 						"acl_decision",
-						"debug_trace_refs_json",
 						"fail_closed",
 						"measured_at",
 						"model_name",

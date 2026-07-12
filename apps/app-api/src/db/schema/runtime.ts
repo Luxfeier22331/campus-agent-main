@@ -10,7 +10,6 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
 	ToolExecutionAnswerEvalFingerprint,
-	ToolExecutionDebugTraceRef,
 	ToolExecutionLlmIoFingerprint,
 	ToolExecutionWorkflowTraceSummary,
 } from "../../modules/integration/tool-execution-types";
@@ -150,10 +149,6 @@ export const requestObservabilityFact = runtime.table(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default({}),
-		debugTraceRefsJson: jsonb("debug_trace_refs_json")
-			.$type<ToolExecutionDebugTraceRef[]>()
-			.notNull()
-			.default([]),
 		answerEvalFingerprintJson: jsonb(
 			"answer_eval_fingerprint_json",
 		).$type<ToolExecutionAnswerEvalFingerprint | null>(),

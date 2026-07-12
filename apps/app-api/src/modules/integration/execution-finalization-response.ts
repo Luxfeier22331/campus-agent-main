@@ -1,14 +1,12 @@
 import { parseAnswerEvalFingerprint } from "./answer-eval-fingerprint-parser";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
-	EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
 	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
 import { parseLlmIoFingerprint } from "./llm-io-fingerprint-parser";
 import type {
-	ToolExecutionDebugTraceRef,
 	ToolExecutionObservability,
 	ToolExecutionResponse,
 	ToolExecutionWorkflowTraceSummary,
@@ -33,7 +31,6 @@ const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"answer_text",
 	"confidence",
-	"debug_trace_refs",
 	"error",
 	"follow_up_question",
 	"observability",
@@ -61,7 +58,6 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 ] as const;
 
 const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
-const DEBUG_TRACE_SINK_SET = new Set<string>(EXECUTION_FINALIZATION_DEBUG_TRACE_SINKS);
 
 class ExecutionFinalizationResponseContractError extends Error {
 	constructor(message: string) {
@@ -109,57 +105,6 @@ function assertStageTiming(
 		if (!(typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0)) {
 			throw new ExecutionFinalizationResponseContractError(
 				`stage_timing.${key} must be a finite non-negative number`,
-			);
-		}
-	}
-}
-
-function assertDebugTraceRefs(
-	value: unknown,
-): asserts value is ExecutionFinalizationResponseWire["debug_trace_refs"] {
-	if (value === null || value === undefined) {
-		return;
-	}
-	if (!Array.isArray(value)) {
-		throw new ExecutionFinalizationResponseContractError(
-			"debug_trace_refs must be an array of objects or null",
-		);
-	}
-	for (const [index, item] of value.entries()) {
-		const record = getRecord(item);
-		if (!record) {
-			throw new ExecutionFinalizationResponseContractError(
-				`debug_trace_refs[${index}] must be an object`,
-			);
-		}
-		for (const key of Object.keys(record)) {
-			if (!["sink", "trace_id", "trace_ref", "url"].includes(key)) {
-				throw new ExecutionFinalizationResponseContractError(
-					`debug_trace_refs[${index}].${key} is not allowed`,
-				);
-			}
-		}
-		if (!(typeof record.sink === "string" && DEBUG_TRACE_SINK_SET.has(record.sink))) {
-			throw new ExecutionFinalizationResponseContractError(
-				`debug_trace_refs[${index}].sink is invalid`,
-			);
-		}
-		if (!(typeof record.trace_ref === "string" && record.trace_ref.trim())) {
-			throw new ExecutionFinalizationResponseContractError(
-				`debug_trace_refs[${index}].trace_ref is required`,
-			);
-		}
-		if (
-			"trace_id" in record &&
-			!(record.trace_id === null || typeof record.trace_id === "string")
-		) {
-			throw new ExecutionFinalizationResponseContractError(
-				`debug_trace_refs[${index}].trace_id must be a string or null`,
-			);
-		}
-		if ("url" in record && !(typeof record.url === "string" && record.url.trim())) {
-			throw new ExecutionFinalizationResponseContractError(
-				`debug_trace_refs[${index}].url must be a non-empty string when present`,
 			);
 		}
 	}
@@ -250,7 +195,6 @@ function assertExecutionFinalizationResponseWire(
 		);
 	}
 	assertStageTiming(record.stage_timing);
-	assertDebugTraceRefs(record.debug_trace_refs);
 }
 
 const SESSION_UPDATE_SLOT_NAMES = new Set([
@@ -352,7 +296,6 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		"agent_runtime",
 		"answer_eval_fingerprint",
 		"llm_io_fingerprint",
-		"sdk_trace_ref",
 		"selected_tools",
 		"terminal_reason",
 	]);
@@ -366,7 +309,6 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		agentRuntime: normalizeNullableString(record.agent_runtime),
 		answerEvalFingerprint: parseAnswerEvalFingerprint(record.answer_eval_fingerprint),
 		llmIoFingerprint: parseLlmIoFingerprint(record.llm_io_fingerprint),
-		sdkTraceRef: normalizeNullableString(record.sdk_trace_ref),
 		selectedTools,
 		terminalReason: normalizeNullableString(record.terminal_reason),
 	};
@@ -463,44 +405,14 @@ function parseStageTiming(value: unknown): Record<string, number> | null {
 	return record;
 }
 
-function parseDebugTraceRefs(value: unknown): ToolExecutionDebugTraceRef[] | null {
-	if (!Array.isArray(value)) {
-		return null;
-	}
-	const refs = value.flatMap((item) => {
-		const record = getRecord(item);
-		if (!record) {
-			return [];
-		}
-		const sink = normalizeNullableString(record.sink);
-		const traceRef = normalizeNullableString(record.trace_ref);
-		if (!(sink && traceRef)) {
-			return [];
-		}
-		const parsed: ToolExecutionDebugTraceRef = {
-			sink,
-			traceId: normalizeNullableString(record.trace_id),
-			traceRef,
-		};
-		const url = normalizeNullableString(record.url);
-		if (url) {
-			parsed.url = url;
-		}
-		return [parsed];
-	});
-	return refs.length > 0 ? refs : [];
-}
-
 export function parseExecutionFinalizationResponsePayload(
 	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
 ): ToolExecutionResponse {
 	assertExecutionFinalizationResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	const stageTiming = parseStageTiming(parsed.stage_timing);
-	const debugTraceRefs = parseDebugTraceRefs(parsed.debug_trace_refs);
 	return {
 		answerText: parsed.answer_text,
-		...(debugTraceRefs ? { debugTraceRefs } : {}),
 		error:
 			parsed.error && typeof parsed.error === "object"
 				? {

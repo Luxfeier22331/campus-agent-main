@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,28 +21,26 @@ import (
 )
 
 type Server struct {
-	config                      config.Config
-	admission                   *admission.Controller
-	lifecycle                   *lifecycle.Registry
-	logger                      *slog.Logger
-	metrics                     *observability.Metrics
-	telemetry                   *telemetry.Emitter
-	executionAudit              *executionaudit.Emitter
-	toolReadModel               *toolreadmodel.Runtime
-	runProjectionStore          execution.RunProjectionStore
-	runProjectionStoreErr       error
-	personalMemoryExecutor      personalMemoryExecutor
-	personalMemoryErr           error
-	knowledgeSearchExecutor     knowledgeSearchExecutor
-	knowledgeSearchErr          error
-	knowledgeVersionResolver    knowledgeVersionResolver
-	providerConfigResolver      providerConfigResolver
-	providerConfigErr           error
-	observabilityConfigResolver observabilityConfigResolver
-	observabilityConfigErr      error
-	temporalStarter             temporalruntime.ChatWorkflowStarter
-	temporalStarterErr          error
-	temporalWorkersStarted      bool
+	config                   config.Config
+	admission                *admission.Controller
+	lifecycle                *lifecycle.Registry
+	logger                   *slog.Logger
+	metrics                  *observability.Metrics
+	telemetry                *telemetry.Emitter
+	executionAudit           *executionaudit.Emitter
+	toolReadModel            *toolreadmodel.Runtime
+	runProjectionStore       execution.RunProjectionStore
+	runProjectionStoreErr    error
+	personalMemoryExecutor   personalMemoryExecutor
+	personalMemoryErr        error
+	knowledgeSearchExecutor  knowledgeSearchExecutor
+	knowledgeSearchErr       error
+	knowledgeVersionResolver knowledgeVersionResolver
+	providerConfigResolver   providerConfigResolver
+	providerConfigErr        error
+	temporalStarter          temporalruntime.ChatWorkflowStarter
+	temporalStarterErr       error
+	temporalWorkersStarted   bool
 }
 
 type TemporalContextActivities struct {
@@ -99,6 +98,13 @@ type TemporalFinalizationActivities struct {
 	server *Server
 }
 
+type TemporalActivityRuntimeRole string
+
+const (
+	TemporalActivityRuntimeRoleAgent TemporalActivityRuntimeRole = "activity-agent"
+	TemporalActivityRuntimeRoleCore  TemporalActivityRuntimeRole = "activity-core"
+)
+
 func (s *Server) TemporalFinalizationActivities() TemporalFinalizationActivities {
 	return TemporalFinalizationActivities{server: s}
 }
@@ -132,21 +138,7 @@ func NewServerWithDependencies(
 	logger *slog.Logger,
 	metrics *observability.Metrics,
 ) *Server {
-	if cfg.AppName == "" {
-		cfg.AppName = "campus-agent"
-	}
-	if cfg.RequestBodyLimitBytes <= 0 {
-		cfg.RequestBodyLimitBytes = 1_048_576
-	}
-	if cfg.ToolReadModelTimeoutMS <= 0 {
-		cfg.ToolReadModelTimeoutMS = 1_000
-	}
-	if cfg.QueueTimeoutMS <= 0 {
-		cfg.QueueTimeoutMS = 3_000
-	}
-	if cfg.RequestTimeoutMS <= 0 {
-		cfg.RequestTimeoutMS = 45_000
-	}
+	cfg = normalizeServerConfig(cfg)
 	if admissionController == nil {
 		admissionController = newAdmissionController(cfg)
 	}
@@ -165,35 +157,96 @@ func NewServerWithDependencies(
 	})
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
-	observabilityConfigResolver, observabilityConfigErr := newObservabilityConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	knowledgeSearchExecutor, knowledgeSearchErr := newKnowledgeSearchExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
-		config:                      cfg,
-		admission:                   admissionController,
-		lifecycle:                   registry,
-		logger:                      logger,
-		metrics:                     metrics,
-		telemetry:                   telemetryEmitter,
-		executionAudit:              executionAuditEmitter,
-		toolReadModel:               toolReadModelRuntime,
-		runProjectionStore:          runProjectionStore,
-		runProjectionStoreErr:       runProjectionStoreErr,
-		personalMemoryExecutor:      personalMemoryExecutor,
-		personalMemoryErr:           personalMemoryErr,
-		knowledgeSearchExecutor:     knowledgeSearchExecutor,
-		knowledgeSearchErr:          knowledgeSearchErr,
-		knowledgeVersionResolver:    newQdrantMetadataVersionResolver(cfg),
-		providerConfigResolver:      providerConfigResolver,
-		providerConfigErr:           providerConfigErr,
-		observabilityConfigResolver: observabilityConfigResolver,
-		observabilityConfigErr:      observabilityConfigErr,
-		temporalStarter:             temporalStarter,
-		temporalStarterErr:          temporalStarterErr,
+		config:                   cfg,
+		admission:                admissionController,
+		lifecycle:                registry,
+		logger:                   logger,
+		metrics:                  metrics,
+		telemetry:                telemetryEmitter,
+		executionAudit:           executionAuditEmitter,
+		toolReadModel:            toolReadModelRuntime,
+		runProjectionStore:       runProjectionStore,
+		runProjectionStoreErr:    runProjectionStoreErr,
+		personalMemoryExecutor:   personalMemoryExecutor,
+		personalMemoryErr:        personalMemoryErr,
+		knowledgeSearchExecutor:  knowledgeSearchExecutor,
+		knowledgeSearchErr:       knowledgeSearchErr,
+		knowledgeVersionResolver: newQdrantMetadataVersionResolver(cfg),
+		providerConfigResolver:   providerConfigResolver,
+		providerConfigErr:        providerConfigErr,
+		temporalStarter:          temporalStarter,
+		temporalStarterErr:       temporalStarterErr,
 	}
 	return server
+}
+
+func NewTemporalActivityServer(
+	cfg config.Config,
+	role TemporalActivityRuntimeRole,
+) (*Server, error) {
+	cfg = normalizeServerConfig(cfg)
+	runProjectionStore, err := newRunProjectionStore(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize run projection store: %w", err)
+	}
+	if runProjectionStore == nil {
+		return nil, execution.ErrRunProjectionStoreNotConfigured
+	}
+	closeRunProjectionStore := func() {
+		if closer, ok := runProjectionStore.(interface{ Close() }); ok {
+			closer.Close()
+		}
+	}
+
+	server := &Server{
+		config:             cfg,
+		logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		metrics:            observability.NewMetrics(),
+		runProjectionStore: runProjectionStore,
+	}
+	switch role {
+	case TemporalActivityRuntimeRoleCore:
+		server.personalMemoryExecutor, err = newPersonalMemoryExecutor(cfg, nil)
+		if err != nil {
+			closeRunProjectionStore()
+			return nil, fmt.Errorf("initialize personal memory runtime: %w", err)
+		}
+	case TemporalActivityRuntimeRoleAgent:
+		server.providerConfigResolver, err = newProviderConfigResolver(cfg)
+		if err != nil {
+			closeRunProjectionStore()
+			return nil, fmt.Errorf("initialize provider config resolver: %w", err)
+		}
+	default:
+		closeRunProjectionStore()
+		return nil, fmt.Errorf("unsupported temporal activity runtime role %q", role)
+	}
+	server.telemetry = telemetry.NewEmitter(context.Background(), cfg, server.logger)
+	return server, nil
+}
+
+func normalizeServerConfig(cfg config.Config) config.Config {
+	if cfg.AppName == "" {
+		cfg.AppName = "campus-agent"
+	}
+	if cfg.RequestBodyLimitBytes <= 0 {
+		cfg.RequestBodyLimitBytes = 1_048_576
+	}
+	if cfg.ToolReadModelTimeoutMS <= 0 {
+		cfg.ToolReadModelTimeoutMS = 1_000
+	}
+	if cfg.QueueTimeoutMS <= 0 {
+		cfg.QueueTimeoutMS = 3_000
+	}
+	if cfg.RequestTimeoutMS <= 0 {
+		cfg.RequestTimeoutMS = 45_000
+	}
+	return cfg
 }
 
 func newKnowledgeSearchExecutor(

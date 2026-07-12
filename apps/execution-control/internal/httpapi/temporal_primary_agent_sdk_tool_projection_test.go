@@ -31,7 +31,6 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			"final_output":         "今晚六点的丰台到海淀班车暂时无法用结构化来源确认，请人工校对。",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "今晚六点的丰台到海淀班车暂时无法用结构化来源确认，请人工校对。"},
 			"provider_response_id": "resp-primary-agent-sdk-tool",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool",
 			"selected_tools":       []string{"transport_schedule_lookup", "transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":       "completed",
@@ -209,7 +208,6 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 			"run_id":               "run-primary-agent-sdk-tool-failed",
 			"final_output":         "",
 			"provider_response_id": "resp-primary-agent-sdk-tool-failed",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-failed",
 			"selected_tools":       []string{"transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":            "failed",
@@ -307,7 +305,6 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 			"run_id":               "run-primary-agent-sdk-tool-bad-args",
 			"final_output":         "不应在非法参数后完成。",
 			"provider_response_id": "resp-primary-agent-sdk-tool-bad-args",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-bad-args",
 			"selected_tools":       []string{"transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":         "completed",
@@ -390,7 +387,6 @@ func TestExecutePrimaryAgentActivityFailsClosedOnSdkToolArgumentMinimumDrift(t *
 			"run_id":               "run-primary-agent-sdk-tool-max-drift",
 			"final_output":         "不应在非法参数后完成。",
 			"provider_response_id": "resp-primary-agent-sdk-tool-max-drift",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-max-drift",
 			"selected_tools":       []string{"transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":         "completed",
@@ -454,7 +450,6 @@ func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnv
 			"run_id":               "run-primary-agent-sdk-tool-missing-envelope",
 			"final_output":         "不应在缺少标准结果 envelope 后完成。",
 			"provider_response_id": "resp-primary-agent-sdk-tool-missing-envelope",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-missing-envelope",
 			"selected_tools":       []string{"transport_schedule_lookup"},
 			"tool_results": []map[string]any{{
 				"status":       "completed",
@@ -532,7 +527,6 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 			"run_id":               "run-primary-agent-sdk-tool-unadmitted",
 			"final_output":         "不应使用 internal-only 工具回答。",
 			"provider_response_id": "resp-primary-agent-sdk-tool-unadmitted",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-unadmitted",
 			"selected_tools":       []string{"unregistered_fixture_tool"},
 			"tool_results": []map[string]any{{
 				"status":       "completed",

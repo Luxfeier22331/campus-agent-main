@@ -74,7 +74,7 @@ flowchart LR
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
 | OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
 | Temporal | 工作流历史、重试、超时、取消和任务队列真相 | Ops Web 请求状态或页面合同 |
-| Langfuse | 模型调用、提示词、输入输出、评分、数据集和评测 | 产品请求状态数据库 |
+| Langfuse | 脱敏模型调用事实、评分、数据集和评测 | 原始生产模型输入输出或产品请求状态数据库 |
 | Sentry | 错误、异常和性能排查 | Ops Web 的内网原始记录来源 |
 | Axiom | 外部日志、事件、查询、看板和告警 | Ops Web 的内网原始记录来源 |
 | Hindsight | 由 execution-control Activities 调用的个人记忆服务 | Ops Web 浏览器或服务端查询接口 |
@@ -90,6 +90,10 @@ flowchart LR
 
 Ops Web 只获得这些来源中合同列出的列。OpenObserve、健康检查、Temporal、Langfuse、
 Sentry 和 Axiom 只能补充排查信息，不能改写请求状态。
+
+agent-runtime 只通过标准 OTLP 输出 allowlist 中的 run、agent、generation、function、handoff
+和 guardrail span facts。原始模型输入输出、tool payload、evidence、memory、SDK trace body 和
+Temporal history 不进入 PostgreSQL 摘要、OpenObserve 或外部 sink。
 
 关联标识的用途：
 
@@ -136,8 +140,9 @@ Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择
 
 - Ops Web 从 PostgreSQL 读取 Temporal 队列摘要，不访问 Temporal persistence。
 - 完整工作流历史、重试、Signal、Update、Reset 和 Terminate 留在 Temporal UI。
-- Ops Web 展示已保存的模型、提示词版本和调用链引用，不查询 Langfuse 数据库。
-- 模型输入输出、token、费用、评分、数据集和人工评审留在 Langfuse UI。
+- Ops Web 展示已保存的模型、提示词版本和安全关联标识，不查询 Langfuse 数据库。
+- 脱敏模型 span facts、token、费用、评分、数据集和人工评审留在 Langfuse UI；生产原始
+  模型输入输出不采集、不回放。
 - Sentry 和 Axiom 只作为已配置的外部入口；Ops Web 不定时同步、不缓存其接口响应。
 - 外部链接必须使用 HTTPS，并通过每个平台的服务端地址白名单校验。
 
@@ -196,6 +201,9 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - 不让 Ops Web 服务端查询 Temporal、Langfuse 或 Hindsight 数据库。
 - 不让浏览器传入任意 SQL、数据流、`traceId`、时间范围或记录上限。
 - 不在 `app-api` 中保存 OpenObserve、Sentry、Axiom 或 Langfuse 查询结果。
+- 不把 raw audit log、raw trace、raw event、raw LLM observation 或 SDK trace body 写入
+  PostgreSQL read model。
+- 不把 vendor-specific observability schema 写进 `packages/contracts`。
 - 不恢复供应商正文同步任务或外部观测数据镜像表。
 - 不把 Ops Web 做成通用管理后台、工作流控制台或外部平台复制品。
 - 不为 Ops Web 单独拆分一个只有它消费的后端服务。
@@ -207,6 +215,8 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - `operator-console.md`
 - `k8s-runtime.md`
 - `langfuse.md`
+- `../../contracts/stage-timing.md`
+- `../../reference/runtime-otel-telemetry-taxonomy.md`
 - `../../decisions/adr-0067-ops-index-external-sinks.md`
 - `../../decisions/adr-0070-source-and-environment-repository-boundary.md`
 - `../../decisions/adr-0072-self-hosted-ops-web.md`

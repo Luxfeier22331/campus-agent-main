@@ -72,14 +72,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 						"sha256:1515151515151515151515151515151515151515151515151515151515151515",
 					traceId: "trace_01HQ",
 				},
-				debugTraceRefsJson: [
-					{
-						sink: "langfuse",
-						traceId: "trace_01HQ",
-						traceRef: "lf_trace_01HQ",
-						url: "https://langfuse.example/project/traces/lf_trace_01HQ",
-					},
-				],
 				failClosed: false,
 				llmIoFingerprintJson: {
 					contextEnvelopeSha256:
@@ -155,12 +147,6 @@ export function registerOperatorQueryStoreRequestDetailSuite(
 		}
 		expect(result).toMatchObject({
 			opsIndex: {
-				debugTraceRefs: [
-					{
-						sink: "langfuse",
-						traceRef: "lf_trace_01HQ",
-					},
-				],
 				model: {
 					answerEvalFingerprint: {
 						runId: "run_01HQ",

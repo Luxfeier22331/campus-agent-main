@@ -38,7 +38,6 @@ The following command names and surfaces are not active automation:
 - `build-ragas-sample-batch`
 - `closeout-staging`
 - app-api online-answer-path collector aliases
-- app-api Langfuse eval backlink ingest/query routes
 
 ## Execution Surface
 

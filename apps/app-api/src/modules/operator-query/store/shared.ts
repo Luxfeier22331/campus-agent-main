@@ -99,7 +99,6 @@ export function toOperatorRequestOpsIndex(
 	row: RequestObservabilityFactRow,
 ): OperatorRequestOpsIndex {
 	return {
-		debugTraceRefs: row.debugTraceRefsJson ?? [],
 		model: {
 			answerEvalFingerprint: row.answerEvalFingerprintJson ?? null,
 			llmIoFingerprint: row.llmIoFingerprintJson ?? null,

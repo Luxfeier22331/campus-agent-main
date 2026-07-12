@@ -189,12 +189,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/observability-config/llm-debug-trace",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/provider-config/connections",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -347,12 +341,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "PATCH",
 		path: "/api/operator/provider-config/connections/:connectionId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "PATCH",
-		path: "/api/operator/observability-config/llm-debug-trace",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
 	},

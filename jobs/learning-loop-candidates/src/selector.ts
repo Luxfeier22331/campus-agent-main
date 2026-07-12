@@ -60,7 +60,6 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 					evidence: {
 						budgetState: breach.severity,
 						budgetVersion: LATENCY_BUDGET_VERSION,
-						debugTraceRefCount: row.traceAvailable ? 1 : 0,
 						durationMs: breach.durationMs,
 						failClosed: row.failClosed,
 						reasonCodes: row.reasonCodes,

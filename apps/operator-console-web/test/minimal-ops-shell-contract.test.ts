@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import packageManifest from "../package.json" with { type: "json" };
 import workerSource from "../src/index/worker.ts?raw";
 import appSource from "../src/panel/app.tsx?raw";
-import observabilityConfigSource from "../src/panel/operations/observability-config/page.tsx?raw";
 import providerConfigSource from "../src/panel/operations/provider-config/page.tsx?raw";
 
 describe("minimal Operator Console shell contract", () => {
@@ -19,7 +18,6 @@ describe("minimal Operator Console shell contract", () => {
 	it("keeps offline eval and broad governance pages out of the online nav", () => {
 		expect(appSource).toContain('label: "请求与运行"');
 		expect(appSource).toContain('label: "模型服务配置"');
-		expect(appSource).toContain('label: "观测配置"');
 		expect(appSource).not.toContain('label: "总览"');
 		expect(appSource).not.toContain('label: "官网采集"');
 		expect(appSource).not.toContain('label: "食堂运营"');
@@ -62,9 +60,6 @@ describe("minimal Operator Console shell contract", () => {
 		expect(providerConfigSource).not.toContain("<select");
 		expect(providerConfigSource).not.toContain("<input");
 		expect(providerConfigSource).not.toContain("<button");
-		expect(observabilityConfigSource).not.toContain("<select");
-		expect(observabilityConfigSource).not.toContain("<input");
-		expect(observabilityConfigSource).not.toContain("<button");
 		expect(providerConfigSource).not.toContain("ops-primary-button");
 		expect(providerConfigSource).not.toContain("ops-secondary-button");
 		expect(providerConfigSource).not.toContain("ops-table");
