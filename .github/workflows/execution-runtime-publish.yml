@@ -37,12 +37,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: execution-runtime-publish-${{ github.ref }}
-  cancel-in-progress: true
+  group: execution-runtime-publish
+  cancel-in-progress: false
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     strategy:
       fail-fast: false
       matrix:
@@ -99,7 +99,7 @@ jobs:
   push:
     needs: scan
     if: ${{ github.event_name == 'push' || inputs.push_image }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     permissions:
       contents: read
       packages: write
@@ -177,7 +177,7 @@ jobs:
   promote-staging:
     needs: push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     permissions:
       contents: read
       packages: read
