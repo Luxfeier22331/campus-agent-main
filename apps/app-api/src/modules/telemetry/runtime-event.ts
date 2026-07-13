@@ -77,89 +77,8 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		]),
 	],
 	[
-		"projection.enqueued",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"conversation_id",
-			"projection_stage",
-			"resolved_scope_summary",
-			"safety_identifier",
-		]),
-	],
-	[
-		"projection.drain",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"abandoned_count",
-			"failed_count",
-			"processed_count",
-			"projector_last_error_code",
-			"projector_name",
-		]),
-	],
-	[
 		"identity.endpoint",
 		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "correlation_id", "endpoint"]),
-	],
-	[
-		"execution.admission_rejected",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"decision",
-			"duration_ms",
-			"http_status",
-			"task_queue",
-			"queue_wait_ms",
-			"retryable",
-		]),
-	],
-	[
-		"execution.cancel_requested",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"duration_ms",
-			"http_status",
-			"task_queue",
-			"retryable",
-		]),
-	],
-	[
-		"execution.cancelled",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"duration_ms",
-			"http_status",
-			"task_queue",
-			"retryable",
-		]),
-	],
-	[
-		"execution.activity_failed",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"activity_duration_ms",
-			"decision",
-			"duration_ms",
-			"failure_kind",
-			"http_status",
-			"task_queue",
-			"queue_wait_ms",
-			"retryable",
-		]),
-	],
-	[
-		"execution.timed_out",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"activity_duration_ms",
-			"decision",
-			"duration_ms",
-			"failure_kind",
-			"http_status",
-			"task_queue",
-			"queue_wait_ms",
-			"retryable",
-		]),
 	],
 ]);
 

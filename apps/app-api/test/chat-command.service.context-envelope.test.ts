@@ -142,7 +142,7 @@ describe("chat command context envelope assembly", () => {
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				turnSequence: 3,
 				userMessageId: "msg_0001",
 			},
@@ -328,7 +328,7 @@ describe("chat command context envelope assembly", () => {
 		});
 		expect(context.conversation).not.toHaveProperty("visibility");
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				turnSequence: 3,
 			},
 		});

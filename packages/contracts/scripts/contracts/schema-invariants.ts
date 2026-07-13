@@ -159,7 +159,6 @@ function validateObservabilityAlertInvariants(path: string, instance: unknown): 
 	const expectedUnits: Record<string, string> = {
 		stage_latency_p95: "ms",
 		request_error_rate: "ratio",
-		projection_outbox_stale: "count",
 		telemetry_export_failure: "count",
 		missing_trace_rate: "ratio",
 	};

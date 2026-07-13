@@ -30,7 +30,7 @@ func TestSamplerMarksUnsupportedMetricsExplicitly(t *testing.T) {
 			},
 		},
 		Namespace: "campus-agent-staging",
-		Source:    "execution-control.temporal-task-queue-sampler",
+		Source:    "execution-control.ops-api",
 		TaskQueues: []TaskQueueTarget{
 			{Name: "campus-agent.workflow", Kind: TaskQueueKindWorkflow},
 			{Name: "campus-agent.activity.agent", Kind: TaskQueueKindActivity},

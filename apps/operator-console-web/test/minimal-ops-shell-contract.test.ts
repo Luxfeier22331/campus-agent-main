@@ -16,8 +16,9 @@ describe("minimal Operator Console shell contract", () => {
 	});
 
 	it("keeps offline eval and broad governance pages out of the online nav", () => {
-		expect(appSource).toContain('label: "请求与运行"');
 		expect(appSource).toContain('label: "模型服务配置"');
+		expect(appSource).not.toContain('label: "请求与运行"');
+		expect(appSource).not.toContain("/requests");
 		expect(appSource).not.toContain('label: "总览"');
 		expect(appSource).not.toContain('label: "官网采集"');
 		expect(appSource).not.toContain('label: "食堂运营"');
@@ -48,6 +49,9 @@ describe("minimal Operator Console shell contract", () => {
 
 	it("does not keep hidden proxy prefixes for pages that are not in the minimal panel", () => {
 		expect(workerSource).not.toContain('prefix: "/api/requests/"');
+		expect(workerSource).not.toContain('path: "/api/requests"');
+		expect(workerSource).not.toContain("/api/operator/overview");
+		expect(workerSource).not.toContain("/api/operator/runtime/health");
 		expect(workerSource).not.toContain("/api/ops/dining");
 		expect(workerSource).not.toContain("/api/official-web");
 		expect(workerSource).not.toContain("/api/operator/audit");

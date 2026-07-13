@@ -56,10 +56,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
@@ -126,12 +122,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	}
 	if cfg.OTelServiceName != "campus-execution-control" {
 		t.Fatalf("otel service name = %q, want campus-execution-control", cfg.OTelServiceName)
-	}
-	if cfg.ExecutionAuditEnabled {
-		t.Fatal("execution audit enabled = true, want false by default")
-	}
-	if cfg.ExecutionAuditTimeoutMS != 500 {
-		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
 	}
 	if cfg.OTelSampleRatio != 1.0 {
 		t.Fatalf("otel sample ratio = %v, want 1.0", cfg.OTelSampleRatio)
@@ -497,13 +487,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
     "sample_ratio": 0.25,
     "allowed_attributes_version": "custom-attrs-v1",
     "temporal_tracing_enabled": true
-  },
-  "execution_audit": {
-    "enabled": true,
-    "url": "http://app-api:27031/api/internal/execution/audit-events",
-    "shared_secret": "audit-secret",
-    "timeout_ms": 250
-	  }
+	}
 }`)
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
@@ -527,11 +511,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.OTelExportIntervalMS != 15000 ||
 		!cfg.OTelMetricsEnabled ||
 		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
-		!cfg.ExecutionAuditEnabled ||
 		!cfg.TemporalTracingEnabled ||
-		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
-		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
-		cfg.ExecutionAuditTimeoutMS != 250 ||
 		cfg.OTelSampleRatio != 0.25 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" {
 		t.Fatalf("unexpected config: %#v", cfg)
@@ -648,13 +628,6 @@ func TestLoadFromEnvRejectsRetiredGroupQueueAndInvalidOTelSettings(t *testing.T)
 	}
 
 	t.Setenv("EXECUTION_CONTROL_OTEL_ENABLED", "")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "maybe")
-	_, err = LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected invalid execution audit bool to fail")
-	}
-
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO", "1.5")
 	_, err = LoadFromEnv()
 	if err == nil {

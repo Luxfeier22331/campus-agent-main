@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import currentBaselineRaw from "../drizzle/0000_current_baseline.sql?raw";
+import currentBaselineRaw from "../drizzle/0000_initial.sql?raw";
 import * as appModule from "../src/app";
 import * as configModule from "../src/config";
 import * as runtimeDbModule from "../src/db/runtime";

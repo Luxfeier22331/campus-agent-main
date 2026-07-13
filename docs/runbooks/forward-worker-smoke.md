@@ -194,7 +194,7 @@ execution-control 仍通过 app-api internal provider-config snapshot 消费 act
 - `campus-web -> app-api` 的 same-site chat request 链路可用
 - `campus-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
 - online answer shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
-- `operator-console-web -> app-api` 的 operator request query 链路可用
+- `operator-console-web -> app-api` 的 provider config 链路可用
 - Operator Console 到 `app-api` 的 trusted internal bridge admission 正常
 - Operator Console 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
 

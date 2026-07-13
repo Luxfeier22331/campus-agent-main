@@ -67,10 +67,10 @@ no longer the only target source for RAGAS scoring.
   project into `retrieved_context_ids` so Ragas ID-based context metrics can be
   used before adding a separate IR metric runner.
 - Langfuse scores are allowed to carry trace or observation correlation when
-  that correlation comes from safe projection. Operator-facing views use the
-  minimal app-api Ops Index and safe sink links rather than querying Langfuse
-  directly or storing app-api-owned runtime/quality score projections; the old
-  eval backlink projection is retired.
+  that correlation comes from safe projection. Ops Web uses owner-table
+  correlation and safe sink links rather than storing app-api-owned
+  runtime/quality score projections; the old eval backlink projection is
+  retired.
 - The raw payload ban remains active. This ADR narrows the ban to raw and
   unrestricted payloads; it does not prohibit safe RAG eval projection fields.
 

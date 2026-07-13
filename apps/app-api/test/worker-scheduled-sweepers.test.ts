@@ -21,10 +21,6 @@ const env = {
 };
 
 function buildScheduledRuntime(input: { envOverrides?: Record<string, string> }) {
-	const requestProjector = {
-		drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
-		drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
-	};
 	const chatCommandService = {
 		reconcileDurableCloseouts: vi.fn().mockResolvedValue({
 			failed: 0,
@@ -40,36 +36,32 @@ function buildScheduledRuntime(input: { envOverrides?: Record<string, string> })
 		},
 		{
 			chatCommandService,
-			requestProjector,
 		},
 	);
 	return {
 		chatCommandService,
-		requestProjector,
 		runtime,
 	};
 }
 
 describe("app-api worker scheduled sweepers", () => {
-	it("does not run scheduled DB sweepers unless explicitly enabled", async () => {
-		const { chatCommandService, requestProjector, runtime } = buildScheduledRuntime({});
+	it("does not reconcile durable closeouts unless explicitly enabled", async () => {
+		const { chatCommandService, runtime } = buildScheduledRuntime({});
 
 		await runtime.scheduled();
 
 		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
-		expect(requestProjector.drain).not.toHaveBeenCalled();
 	});
 
-	it("runs only explicitly enabled scheduled DB sweepers", async () => {
-		const { chatCommandService, requestProjector, runtime } = buildScheduledRuntime({
+	it("reconciles durable closeouts when explicitly enabled", async () => {
+		const { chatCommandService, runtime } = buildScheduledRuntime({
 			envOverrides: {
-				APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED: "true",
+				APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED: "true",
 			},
 		});
 
 		await runtime.scheduled();
 
-		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
-		expect(requestProjector.drain).toHaveBeenCalledTimes(1);
+		expect(chatCommandService.reconcileDurableCloseouts).toHaveBeenCalledTimes(1);
 	});
 });

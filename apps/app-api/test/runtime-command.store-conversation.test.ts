@@ -2,11 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { messages, requestExecution } from "../src/db/schema";
+import type { messages, turnDispatches } from "../src/db/schema";
 import type { ChatConversation } from "../src/modules/chat";
 import { buildStoredIdempotentRequest } from "../src/modules/runtime-command/store-conversation";
 
-type ExecutionRow = typeof requestExecution.$inferSelect;
+type DispatchRow = typeof turnDispatches.$inferSelect;
 type MessageRow = typeof messages.$inferSelect;
 
 function createConversation(): ChatConversation {
@@ -21,16 +21,15 @@ function createConversation(): ChatConversation {
 	};
 }
 
-function executionRow(overrides: Partial<ExecutionRow> = {}): ExecutionRow {
+function dispatchRow(overrides: Partial<DispatchRow> = {}): DispatchRow {
 	return {
-		answerPreview: "Execution failed.",
 		errorCode: "execution_timeout",
 		requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 		requestId: "req_prev",
 		status: "error",
 		traceId: "trace_prev",
 		...overrides,
-	} as ExecutionRow;
+	} as DispatchRow;
 }
 
 function assistantMessageRow(overrides: Partial<MessageRow> = {}): MessageRow {
@@ -49,12 +48,12 @@ function assistantMessageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 }
 
 describe("runtime command idempotent replay contract", () => {
-	it("rejects finalized execution rows that are missing the assistant message", () => {
+	it("rejects finalized dispatch rows that are missing the assistant message", () => {
 		expect(() =>
 			buildStoredIdempotentRequest({
 				assistantMessageRow: null,
 				conversation: createConversation(),
-				executionRow: executionRow({ status: "error" }),
+				dispatchRow: dispatchRow({ status: "error" }),
 			}),
 		).toThrow("idempotent replay is missing assistant message for finalized request");
 	});
@@ -64,17 +63,17 @@ describe("runtime command idempotent replay contract", () => {
 			buildStoredIdempotentRequest({
 				assistantMessageRow: assistantMessageRow({ retryable: null }),
 				conversation: createConversation(),
-				executionRow: executionRow({ status: "error" }),
+				dispatchRow: dispatchRow({ status: "error" }),
 			}),
 		).toThrow("idempotent replay error message is missing retryable");
 	});
 
-	it("rejects execution rows that are missing their idempotency fingerprint", () => {
+	it("rejects dispatch rows that are missing their idempotency fingerprint", () => {
 		expect(() =>
 			buildStoredIdempotentRequest({
 				assistantMessageRow: assistantMessageRow(),
 				conversation: createConversation(),
-				executionRow: executionRow({ requestFingerprintSha256: null }),
+				dispatchRow: dispatchRow({ requestFingerprintSha256: null }),
 			}),
 		).toThrow("idempotent replay is missing request fingerprint");
 	});

@@ -45,10 +45,6 @@ type Config struct {
 	OTelSampleRatio                  float64
 	OTelAllowedAttributesVersion     string
 	TemporalTracingEnabled           bool
-	ExecutionAuditEnabled            bool
-	ExecutionAuditURL                string
-	ExecutionAuditSharedSecret       string
-	ExecutionAuditTimeoutMS          int
 	RunProjectionDatabaseURL         string
 	RunProjectionAutoMigrate         bool
 	TemporalAddress                  string
@@ -123,9 +119,6 @@ type envValues struct {
 	OTelSampleRatio                 float64
 	OTelAllowedAttributesVersion    string
 	TemporalTracingEnabled          bool
-	ExecutionAuditURL               string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_URL"`
-	ExecutionAuditSharedSecret      string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"`
-	ExecutionAuditTimeoutMS         int
 	RunProjectionDatabaseURL        string `env:"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"`
 	TemporalAddress                 string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
 	TemporalNamespace               string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
@@ -191,13 +184,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	otelMetricsEnabled := false
 	if runtimeConfigFile.OTel != nil {
 		otelMetricsEnabled = boolFromRuntimeConfig(runtimeConfigFile.OTel.MetricsEnabled, otelMetricsEnabled)
-	}
-	executionAuditEnabled := false
-	if runtimeConfigFile.ExecutionAudit != nil {
-		executionAuditEnabled = boolFromRuntimeConfig(
-			runtimeConfigFile.ExecutionAudit.Enabled,
-			executionAuditEnabled,
-		)
 	}
 	runtimeMode, err := normalizeRuntimeMode(values.RuntimeMode)
 	if err != nil {
@@ -273,10 +259,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		OTelSampleRatio:                 values.OTelSampleRatio,
 		OTelAllowedAttributesVersion:    defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "execution-control-otel-attrs-v1"),
 		TemporalTracingEnabled:          values.TemporalTracingEnabled,
-		ExecutionAuditEnabled:           executionAuditEnabled,
-		ExecutionAuditURL:               strings.TrimSpace(values.ExecutionAuditURL),
-		ExecutionAuditSharedSecret:      strings.TrimSpace(values.ExecutionAuditSharedSecret),
-		ExecutionAuditTimeoutMS:         values.ExecutionAuditTimeoutMS,
 		RunProjectionDatabaseURL:        readRunProjectionDatabaseURL(values),
 		RunProjectionAutoMigrate:        runProjectionAutoMigrate,
 		TemporalAddress:                 strings.TrimSpace(values.TemporalAddress),
@@ -336,7 +318,6 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		{"runtime config shutdown_grace_ms", values.ShutdownGraceMS},
 		{"runtime config otel.export_timeout_ms", values.OTelExportTimeoutMS},
 		{"runtime config otel.export_interval_ms", values.OTelExportIntervalMS},
-		{"runtime config execution_audit.timeout_ms", values.ExecutionAuditTimeoutMS},
 		{"runtime config tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},

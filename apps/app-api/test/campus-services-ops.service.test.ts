@@ -6,10 +6,7 @@ import {
 	buildCampusServicesOpsService,
 	createInMemoryCampusServicesOpsStore,
 } from "../src/modules/campus-services-ops";
-import {
-	createCampusPrincipal,
-	createOperatorPrincipal,
-} from "./operator-query.route.test-support";
+import { createCampusPrincipal, createOperatorPrincipal } from "./operator-route.test-support";
 
 const fixedNow = new Date("2026-06-11T08:00:00.000Z");
 

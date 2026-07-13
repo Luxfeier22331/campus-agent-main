@@ -13,6 +13,7 @@ export interface CampusTransportDeparture {
 	departureTime: string;
 	kind: CampusTransportDepartureKind;
 	note?: string;
+	serviceDate?: string;
 	sourceRefs: string[];
 	status: CampusTransportDepartureStatus;
 }

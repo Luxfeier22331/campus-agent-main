@@ -321,57 +321,19 @@ projection drain 时间段，并保存：
 - matched request id 或 trace id
 - redaction note
 
-## 9. Operator Runtime And Eval Closeout
+## 9. Runtime Observability
 
-上线前必须验证 operator-safe runtime projection，而不是回读 Temporal history、
-Docker state 或本地 closeout artifact。
+需要 release QA 时，使用当前 owner surface 验证：
 
-先确认 GitOps revision、K8s sampler/posture collector 和 app-api operator projection
-均已更新。不要从远端 checkout 或一次性 host script 刷新线上 projection。
+- Ops Web 能按 requestId/traceId 关联 `chat.turn_dispatches`、`chat.messages`、
+  `runtime.agent_runs` 和 `runtime.request_observability_fact`；
+- execution-control 的 `/internal/ops/temporal/task-queues` 能返回三个固定队列的当前状态；
+- KEDA ScaledObject、生成的 HPA 和三个 worker Deployment owner 一一对应；
+- Temporal UI/Langfuse/OpenObserve 的关联标识与 Ops Web 展示一致。
 
-检查 Temporal task queue snapshot：
-
-```bash
-task_queue_url="$APP_API_BASE_URL/api/internal/operator/runtime/temporal-task-queues"
-curl --noproxy '*' -sS \
-  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
-  "$task_queue_url?limit=8" \
-  | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-task-queues.json"
-```
-
-K8s execution runtime 必须检查 autoscaler posture：
-
-```bash
-curl --noproxy '*' -sS \
-  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
-  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
-  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/postures?limit=16" \
-  | tee "$E2E_QA_CLOSEOUT_DIR/operator-runtime-autoscaler-postures.json"
-```
-
-通过标准：
-
-- task queue current projection 覆盖 workflow worker 与 opened activity workers
-- `pollerCount`、`pollerIdentities`、`backlog` 与 `oldestTaskAge` 来自 Temporal
-  `DescribeTaskQueue(report_stats=true)`
-- 当前 sampler 下 `scheduleToStartLatency` 必须显式为 `unsupported_by_source`
-- K8s runtime 的 autoscaler posture 覆盖每个 KEDA-managed worker pool，且
-  `scalerKind=keda_temporal`
-- explicit closeout 如需保留历史行，producer 必须使用 `history=1`；release QA 默认只要求
-  current projection closeout artifact
-
-Eval diagnostic release closeout 必须从 app-api operator observability detail 注入
-`runtimeRun.operatorStepTrajectory`，再生成 badcase projection。release mode 必须设置
-`require_trajectory_attribution=True`。
-
-阻断条件：
-
-- request correlation 缺失
-- app-api observability detail 缺 `runtimeRun.operatorStepTrajectory`
-- low-score badcase 的 trajectory attribution 为 `trajectory_missing` 或
-  `attribution_missing`
-- eval artifact 包含 Temporal history、raw trace、prompt、transcript、auth header 或本地
-  object-store path
+不要启动 sampler/posture collector，不要写 app-api operator projection，也不要从远端
+checkout 或一次性 host script 刷新线上诊断数据。Eval artifact 不得包含 Temporal history、
+raw trace、prompt、transcript、auth header 或本地 object-store path。
 
 ## 10. Data Plane Sanity
 
@@ -406,7 +368,7 @@ E2E QA 通过必须同时满足：
   run / workflow identity 比对
 - 若本轮执行 Ragas eval，`ragas-score-traces` 或 `ragas-score-dataset` 输出已落盘；
   Langfuse score 只作为 eval sink closeout artifact
-- operator runtime task queue / autoscaler projection closeout artifact 完整
+- Ops Web request correlation、Temporal queue 和 KEDA/HPA 状态验证完成
 - Langfuse Ragas score candidate projection 使用 operator step trajectory 且无
   missing attribution
 - closeout artifacts 完整落盘到本轮目录

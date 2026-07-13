@@ -107,13 +107,7 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
     "sample_ratio": 0.5,
     "allowed_attributes_version": "custom-attrs-v1",
     "temporal_tracing_enabled": true
-  },
-  "execution_audit": {
-    "enabled": true,
-    "url": "http://app-api:27031/api/internal/execution/audit-events",
-    "shared_secret": "audit-secret",
-    "timeout_ms": 300
-  },
+	},
   "knowledge_search": {
     "top_k_max": 7,
     "embedding_timeout_ms": 7000,
@@ -157,10 +151,6 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
 		cfg.OTelSampleRatio != 0.5 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
 		!cfg.TemporalTracingEnabled ||
-		!cfg.ExecutionAuditEnabled ||
-		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
-		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
-		cfg.ExecutionAuditTimeoutMS != 300 ||
 		cfg.RAGTopKMax != 7 ||
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
 		cfg.RAGQdrantTimeoutMS != 8000 ||

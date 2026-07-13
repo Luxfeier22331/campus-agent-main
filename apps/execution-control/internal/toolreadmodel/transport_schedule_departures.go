@@ -91,7 +91,6 @@ func buildTransportDepartures(
 	serviceDate time.Time,
 ) ([]scheduledDeparture, error) {
 	departures := []scheduledDeparture{}
-	serviceDateText := serviceDate.Format(transportLocalDateLayout)
 	for _, record := range records {
 		if record.RouteID != route.RouteID {
 			continue
@@ -99,7 +98,7 @@ func buildTransportDepartures(
 		if record.SnapshotID != "" && record.SnapshotID != snapshot.SnapshotID {
 			continue
 		}
-		if len(record.ServiceDates) > 0 && !stringSliceContains(record.ServiceDates, serviceDateText) {
+		if !departureAppliesToServiceDate(record, serviceDate) {
 			continue
 		}
 		departure, ok, err := buildTransportDeparture(record, route, serviceDate)
@@ -114,6 +113,27 @@ func buildTransportDepartures(
 		return departures[i].DepartureAt < departures[j].DepartureAt
 	})
 	return departures, nil
+}
+
+func departureAppliesToServiceDate(record scheduledDepartureRecord, serviceDate time.Time) bool {
+	serviceDateText := serviceDate.In(transportLocation).Format(transportLocalDateLayout)
+	if len(record.ServiceDates) > 0 {
+		return stringSliceContains(record.ServiceDates, serviceDateText)
+	}
+	switch strings.TrimSpace(record.ServiceMode) {
+	case "weekday":
+		weekday := serviceDate.In(transportLocation).Weekday()
+		return weekday >= time.Monday && weekday <= time.Friday
+	case "weekend_holiday":
+		weekday := serviceDate.In(transportLocation).Weekday()
+		return weekday == time.Saturday || weekday == time.Sunday
+	case "temporary":
+		return false
+	case "", "daily":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildTransportDeparture(
@@ -265,4 +285,15 @@ func limitTransportDepartures(
 		return append([]scheduledDeparture(nil), departures...)
 	}
 	return append([]scheduledDeparture(nil), departures[:effectiveLimit]...)
+}
+
+func operatingTransportDepartures(departures []scheduledDeparture) []scheduledDeparture {
+	operating := make([]scheduledDeparture, 0, len(departures))
+	for _, departure := range departures {
+		if departure.DepartureStatus == "cancelled" {
+			continue
+		}
+		operating = append(operating, departure)
+	}
+	return operating
 }

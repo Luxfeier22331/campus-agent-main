@@ -150,10 +150,6 @@ export function registerChatRoutes(input: {
 		env: Env,
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
-	scheduleRequestProjectionDrain?: (value: {
-		requestId: string;
-		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-	}) => void;
 }) {
 	input.app.post("/api/chat/requests", async (c) => {
 		const scope = input.createRequestScope();
@@ -178,11 +174,6 @@ export function registerChatRoutes(input: {
 				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});
-			input.scheduleRequestProjectionDrain?.({
-				requestId: response.requestId,
-				waitUntil: resolveWaitUntil(c),
-			});
-
 			return jsonResponse(
 				{
 					answer: response.answer,
@@ -252,12 +243,6 @@ export function registerChatRoutes(input: {
 			return createChatSseResponse({
 				first: first.value,
 				iterator,
-				onTerminal: (event) => {
-					input.scheduleRequestProjectionDrain?.({
-						requestId: event.data.requestId,
-						waitUntil: resolveWaitUntil(c),
-					});
-				},
 			});
 		} catch (error) {
 			const response = routeChatErrorResponse(error, routeErrorCorrelation);
@@ -313,7 +298,6 @@ export function registerChatRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		routeChatErrorResponse,
-		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 
 	input.app.get("/api/chat/conversations", async (c) => {

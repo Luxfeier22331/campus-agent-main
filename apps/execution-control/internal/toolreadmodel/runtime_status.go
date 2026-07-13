@@ -5,25 +5,14 @@ import (
 )
 
 func (r *Runtime) Status(ctx context.Context) Status {
-	hasPostgresProjection := r.campusServicesOpsReleaseStore != nil ||
-		r.transportScheduleReadModelStore != nil
+	hasPostgresProjection := r.transportScheduleReadModelStore != nil
 	status := Status{
 		Configured:       hasPostgresProjection,
 		ProjectionSource: projectionSourceLabel(hasPostgresProjection),
 	}
-	if r.campusServicesOpsReleaseStore != nil {
-		status.CampusServicesOpsReleaseReady = projectionReady(ctx, r.campusServicesOpsReleaseStore)
-	}
 	if r.transportScheduleReadModelStore != nil {
 		status.TransportScheduleImplemented = projectionReady(ctx, r.transportScheduleReadModelStore)
 	}
-	status.CampusServicesOpsReleaseConfigured = r.campusServicesOpsReleaseStore != nil
-	status.CampusServicesOpsReleaseHealthy, status.ProjectionRuntimeLastError = projectionRuntimeComponentHealthy(
-		ctx,
-		r.campusServicesOpsReleaseStore,
-		"campus_services_ops_release_unhealthy",
-		status.ProjectionRuntimeLastError,
-	)
 	status.TransportScheduleReadModelConfigured = r.transportScheduleReadModelStore != nil
 	status.TransportScheduleReadModelHealthy, status.ProjectionRuntimeLastError = projectionRuntimeComponentHealthy(
 		ctx,

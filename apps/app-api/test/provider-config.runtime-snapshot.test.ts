@@ -6,7 +6,7 @@ import {
 	buildProviderConfigService,
 	createInMemoryProviderConfigStore,
 } from "../src/modules/provider-config";
-import { createOperatorPrincipal } from "./operator-query.route.test-support";
+import { createOperatorPrincipal } from "./operator-route.test-support";
 
 describe("provider config runtime snapshots", () => {
 	it("resolves eval LLM active projection snapshots", async () => {

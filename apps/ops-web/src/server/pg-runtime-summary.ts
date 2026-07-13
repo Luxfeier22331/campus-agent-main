@@ -9,7 +9,6 @@ export const REQUIRED_TEMPORAL_TASK_QUEUES = [
 	{ kind: "WORKFLOW", name: "workflow", taskQueue: "campus-agent.workflow" },
 	{ kind: "ACTIVITY", name: "core", taskQueue: "campus-agent.activity.core" },
 	{ kind: "ACTIVITY", name: "agent", taskQueue: "campus-agent.activity.agent" },
-	{ kind: "ACTIVITY", name: "knowledge", taskQueue: "campus-agent.activity.knowledge" },
 ] as const;
 
 export function summarizeTemporalTaskQueues(

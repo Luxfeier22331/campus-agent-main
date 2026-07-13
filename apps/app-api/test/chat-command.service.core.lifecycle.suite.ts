@@ -109,13 +109,12 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.completed",
-			},
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				selectedTool: "knowledge_query",
 				status: "completed",
+			},
+			requestObservabilityFact: {
 				traceId: "trace_0001",
 			},
 		});
@@ -168,7 +167,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			retryable: true,
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "execution_control_invalid_response",
 				status: "error",
 			},
@@ -223,7 +222,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			}),
 		);
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestedTool: null,
 			},
 			requestObservabilityFact: {
@@ -231,8 +230,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
-				requestedTool: null,
+			turnDispatch: {
 				selectedTool: "knowledge_query",
 			},
 			requestObservabilityFact: {

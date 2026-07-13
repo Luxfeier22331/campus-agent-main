@@ -234,9 +234,9 @@ Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或
 
 运行时使用专用 `ops_web` 账号。允许读取的来源只有：
 
-- `operator.request_projection`
-- `operator.temporal_task_queue_current`
-- `runtime.request_execution`
+- `chat.turn_dispatches`
+- `chat.messages`
+- `runtime.agent_runs`
 - `runtime.request_observability_fact`
 
 各表使用列级 `SELECT`，不得使用数据库 owner 账号。唯一写权限是向

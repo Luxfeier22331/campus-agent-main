@@ -1,12 +1,4 @@
-import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { AppApiRouteError } from "../../http";
-import {
-	ExecutionControlTransportError,
-	parseExecutionControlErrorEnvelope,
-	parseExecutionControlJsonResponse,
-	resolveExecutionControlUpstream,
-	selectExecutionControlFetchImplementation,
-} from "../integration/execution-control-transport";
 import type {
 	CampusServicesTransportScheduleService,
 	CampusServicesTransportStatusDeparture,
@@ -18,165 +10,61 @@ import type {
 	TransportStatusGroupKind,
 } from "./types";
 
-export type CampusServicesTransportScheduleFetch = (
-	request: Request,
-) => Promise<Response> | Response;
+type TransportStatusRecord = Record<string, unknown>;
 
-type ToolReadModelRecord = Record<string, unknown>;
-
-interface CampusServicesTransportScheduleServiceDependencies {
-	env: Pick<
-		Env,
-		| "APP_API_ENVIRONMENT"
-		| "EXECUTION_CONTROL_BASE_URL"
-		| "EXECUTION_CONTROL_PRIVATE"
-		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-		| "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
-		| "EXECUTION_CONTROL_TIMEOUT_MS"
-	>;
-	fetchImplementation?: CampusServicesTransportScheduleFetch;
+export interface CampusServicesTransportScheduleStore {
+	getCurrentStatus(): Promise<{
+		contentSha256: string;
+		status: unknown;
+	} | null>;
 }
 
-const TRANSPORT_STATUS_PATH = "/internal/projections/campus-services/transport-schedule/status";
-const LOCAL_WALL_TIME_FORMAT = /^\d{2}:\d{2}$/;
+interface CampusServicesTransportScheduleServiceDependencies {
+	store: CampusServicesTransportScheduleStore;
+}
+
+const LOCAL_WALL_TIME_FORMAT = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const ISO_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
+const RFC3339_FORMAT =
+	/^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 
 export function buildCampusServicesTransportScheduleService(
 	dependencies: CampusServicesTransportScheduleServiceDependencies,
 ): CampusServicesTransportScheduleService {
-	const upstream = resolveExecutionControlUpstream(dependencies.env);
-	const fetchImplementation = selectExecutionControlFetchImplementation(
-		dependencies.env,
-		upstream,
-		dependencies.fetchImplementation as typeof fetch | undefined,
-	);
-
 	return {
 		async getPublicStatus() {
-			const result = await requestTransportStatus(dependencies.env, fetchImplementation);
-			return result;
+			const current = await dependencies.store.getCurrentStatus();
+			if (!current) {
+				throw new AppApiRouteError({
+					code: "transport_status_unavailable",
+					message: "Transport status is unavailable.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			return {
+				etag: `"${current.contentSha256}"`,
+				projection: parseTransportStatusProjection(current.status),
+			};
 		},
 	};
 }
 
-async function requestTransportStatus(
-	env: CampusServicesTransportScheduleServiceDependencies["env"],
-	fetchImplementation: CampusServicesTransportScheduleFetch,
-): Promise<{ etag: string | null; projection: CampusServicesTransportStatusResponse }> {
-	const response = await requestExecutionControlTransport(
-		env,
-		fetchImplementation,
-		new Request(new URL(TRANSPORT_STATUS_PATH, requireTransportBaseUrl(env)), {
-			headers: transportRequestHeaders(env, false),
-			method: "GET",
-		}),
-		"Execution control transport status exceeded",
-	);
-	const parsed = await parseExecutionControlJsonResponse(response);
-	if (response.status !== 200) {
-		throw toRouteErrorFromEnvelope(parsed, response.status);
-	}
-	return {
-		etag: response.headers.get("etag"),
-		projection: parseTransportStatusProjection(parsed),
-	};
-}
-
-function requireTransportBaseUrl(
-	env: CampusServicesTransportScheduleServiceDependencies["env"],
-): string {
-	const sharedSecret = env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim();
-	if (!sharedSecret) {
-		throw new AppApiRouteError({
-			code: "dependency_not_ready",
-			message: "Transport schedule runtime is not configured.",
-			retryable: true,
-			status: 503,
-		});
-	}
-	return resolveExecutionControlUpstream(env).baseUrl;
-}
-
-function transportRequestHeaders(
-	env: CampusServicesTransportScheduleServiceDependencies["env"],
-	withBody: boolean,
-): HeadersInit {
-	const sharedSecret = env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim() ?? "";
-	return {
-		accept: "application/json",
-		...(withBody ? { "content-type": "application/json" } : {}),
-		"x-execution-query-auth": sharedSecret,
-	};
-}
-
-async function requestExecutionControlTransport(
-	env: CampusServicesTransportScheduleServiceDependencies["env"],
-	fetchImplementation: CampusServicesTransportScheduleFetch,
-	request: Request,
-	timeoutMessagePrefix: string,
-): Promise<Response> {
-	const timeoutMs = parsePositiveInteger(
-		env.EXECUTION_CONTROL_TIMEOUT_MS,
-		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-	);
-	let response: Response;
-	try {
-		response = await new Promise<Response>((resolve, reject) => {
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => {
-				controller.abort();
-				reject(
-					new ExecutionControlTransportError({
-						code: "execution_timeout",
-						message: `${timeoutMessagePrefix} ${timeoutMs}ms timeout.`,
-						retryable: true,
-						status: 504,
-					}),
-				);
-			}, timeoutMs);
-
-			Promise.resolve(fetchImplementation(new Request(request, { signal: controller.signal })))
-				.then(resolve)
-				.catch((error: unknown) => {
-					if (error instanceof Error && error.name === "AbortError") {
-						reject(
-							new ExecutionControlTransportError({
-								code: "execution_timeout",
-								message: `${timeoutMessagePrefix} ${timeoutMs}ms timeout.`,
-								retryable: true,
-								status: 504,
-							}),
-						);
-						return;
-					}
-					reject(error);
-				})
-				.finally(() => clearTimeout(timeoutId));
-		});
-	} catch (error) {
-		if (error instanceof ExecutionControlTransportError) {
-			throw toRouteError(error);
-		}
-		throw new AppApiRouteError({
-			code: "execution_control_unavailable",
-			message: error instanceof Error ? error.message : "Transport schedule runtime failed.",
-			retryable: true,
-			status: 502,
-		});
-	}
-	return response;
-}
-
-function parseTransportStatusProjection(
-	payload: ToolReadModelRecord,
+export function parseTransportStatusProjection(
+	payload: unknown,
 ): CampusServicesTransportStatusResponse {
-	const release = readRecord(payload.release);
+	const root = requireRecord(payload, "status");
+	const release = readRecord(root.release);
 	const releaseId = readString(release?.releaseId);
 	const publishedAt = readString(release?.publishedAt);
-	const releaseSourceRefs = readStringArray(release?.sourceRefs);
-	if (!(releaseId && publishedAt && hasOnlyHttpUrls(releaseSourceRefs))) {
+	const releaseSourceRefs = requireHttpUrlArray(release?.sourceRefs, "release.sourceRefs");
+	if (!(releaseId && isRfc3339(publishedAt))) {
 		throw invalidTransportStatusProjection("release");
 	}
-	const groups = readArray(payload.groups).map(parseTransportStatusGroup);
+	const groups = requireArray(root.groups, "groups").map(parseTransportStatusGroup);
+	if (!groups.some((group) => group.routes.some((route) => route.departures.length > 0))) {
+		throw invalidTransportStatusProjection("groups");
+	}
 	return {
 		groups,
 		release: {
@@ -202,11 +90,16 @@ function parseTransportStatusGroup(value: unknown): CampusServicesTransportStatu
 	const kind = parseTransportStatusGroupKind(readString(record.kind));
 	return {
 		kind,
-		routes: readArray(record.routes).map(parseTransportStatusRoute),
+		routes: requireArray(record.routes, "group.routes").map((route) =>
+			parseTransportStatusRoute(route, kind),
+		),
 	};
 }
 
-function parseTransportStatusRoute(value: unknown): CampusServicesTransportStatusRoute {
+function parseTransportStatusRoute(
+	value: unknown,
+	groupKind: TransportStatusGroupKind,
+): CampusServicesTransportStatusRoute {
 	const record = requireRecord(value, "route");
 	const routeId = readString(record.routeId);
 	const displayName = readString(record.displayName);
@@ -214,27 +107,56 @@ function parseTransportStatusRoute(value: unknown): CampusServicesTransportStatu
 		throw invalidTransportStatusProjection("route");
 	}
 	return {
-		departures: readArray(record.departures).map(parseTransportStatusDeparture),
+		departures: requireArray(record.departures, "route.departures").map((departure) =>
+			parseTransportStatusDeparture(departure, groupKind),
+		),
 		displayName,
 		routeId,
 	};
 }
 
-function parseTransportStatusDeparture(value: unknown): CampusServicesTransportStatusDeparture {
+function parseTransportStatusDeparture(
+	value: unknown,
+	groupKind: TransportStatusGroupKind,
+): CampusServicesTransportStatusDeparture {
 	const record = requireRecord(value, "departure");
 	const departureTime = readString(record.departureTime);
-	const sourceRefs = readStringArray(record.sourceRefs);
-	if (!(LOCAL_WALL_TIME_FORMAT.test(departureTime) && hasOnlyHttpUrls(sourceRefs))) {
+	const sourceRefs = requireHttpUrlArray(record.sourceRefs, "departure.sourceRefs");
+	if (!LOCAL_WALL_TIME_FORMAT.test(departureTime)) {
 		throw invalidTransportStatusProjection("departure");
 	}
-	const note = readString(record.note);
+	const note = readOptionalString(record.note, "departure.note");
+	const serviceDate = readOptionalString(record.serviceDate, "departure.serviceDate");
+	if ((serviceDate && !isIsoDate(serviceDate)) || (groupKind === "temporary" && !serviceDate)) {
+		throw invalidTransportStatusProjection("departure.serviceDate");
+	}
 	return {
 		departureTime,
 		kind: parseTransportStatusDepartureKind(readString(record.kind)),
 		...(note ? { note } : {}),
+		...(serviceDate ? { serviceDate } : {}),
 		sourceRefs,
 		status: parseTransportStatusDepartureStatus(readString(record.status)),
 	};
+}
+
+function isIsoDate(value: string): boolean {
+	if (!ISO_DATE_FORMAT.test(value)) {
+		return false;
+	}
+	const [year, month, day] = value.split("-").map(Number);
+	if (year === undefined || month === undefined || day === undefined) {
+		return false;
+	}
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return (
+		date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+	);
+}
+
+function isRfc3339(value: string): boolean {
+	const match = value.match(RFC3339_FORMAT);
+	return Boolean(match?.[1] && isIsoDate(match[1]) && !Number.isNaN(Date.parse(value)));
 }
 
 function parseTransportStatusGroupKind(value: string): TransportStatusGroupKind {
@@ -273,13 +195,13 @@ function parseTransportStatusDepartureStatus(value: string): CampusTransportDepa
 	}
 }
 
-function readRecord(value: unknown): ToolReadModelRecord | null {
+function readRecord(value: unknown): TransportStatusRecord | null {
 	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as ToolReadModelRecord)
+		? (value as TransportStatusRecord)
 		: null;
 }
 
-function requireRecord(value: unknown, field: string): ToolReadModelRecord {
+function requireRecord(value: unknown, field: string): TransportStatusRecord {
 	const record = readRecord(value);
 	if (!record) {
 		throw invalidTransportStatusProjection(field);
@@ -287,40 +209,50 @@ function requireRecord(value: unknown, field: string): ToolReadModelRecord {
 	return record;
 }
 
-function readArray(value: unknown): unknown[] {
-	return Array.isArray(value) ? value : [];
+function requireArray(value: unknown, field: string): unknown[] {
+	if (!Array.isArray(value)) {
+		throw invalidTransportStatusProjection(field);
+	}
+	return value;
 }
 
 function readString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
-function readStringArray(value: unknown): string[] {
-	if (!Array.isArray(value)) {
-		return [];
+function readOptionalString(value: unknown, field: string): string | undefined {
+	if (value === undefined) {
+		return;
 	}
-	return [...new Set(value.map(readString).filter(Boolean))];
+	const parsed = readString(value);
+	if (!parsed) {
+		throw invalidTransportStatusProjection(field);
+	}
+	return parsed;
 }
 
-function hasOnlyHttpUrls(values: string[]): boolean {
-	return values.length > 0 && values.every((value) => /^https?:\/\//i.test(value));
+function requireHttpUrlArray(value: unknown, field: string): string[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		throw invalidTransportStatusProjection(field);
+	}
+	const urls: string[] = [];
+	for (const item of value) {
+		const url = readString(item);
+		if (!isHttpUrl(url)) {
+			throw invalidTransportStatusProjection(field);
+		}
+		if (!urls.includes(url)) {
+			urls.push(url);
+		}
+	}
+	return urls;
 }
 
-function toRouteError(error: ExecutionControlTransportError): AppApiRouteError {
-	return new AppApiRouteError({
-		code: error.code,
-		message: error.message,
-		retryable: error.retryable,
-		status: error.status,
-	});
-}
-
-function toRouteErrorFromEnvelope(parsed: ToolReadModelRecord, status: number): AppApiRouteError {
-	const envelope = parseExecutionControlErrorEnvelope(parsed, status);
-	return new AppApiRouteError({
-		code: envelope.code,
-		message: envelope.message,
-		retryable: envelope.retryable,
-		status,
-	});
+function isHttpUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return url.protocol === "http:" || url.protocol === "https:";
+	} catch {
+		return false;
+	}
 }

@@ -36,7 +36,8 @@ describe("ops-web status view schema", () => {
 	});
 
 	it("keeps the current baseline aligned with the ops-web read model", () => {
-		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const sql = readAppFile("drizzle/0000_initial.sql");
+		const chatSql = readAppFile("db/shared-product-schema/chat_current.sql");
 		const requestObservabilityDefinition = sql.match(
 			/CREATE TABLE "runtime"\."request_observability_fact" \([\s\S]*?\n\);/u,
 		)?.[0];
@@ -63,11 +64,16 @@ describe("ops-web status view schema", () => {
 		]) {
 			expect(sql).toContain(requiredFragment);
 		}
-		expect(sql).toContain(
-			'CREATE INDEX "operator_request_projection_started_at_request_id_idx" ON "operator"."request_projection" USING btree ("started_at" DESC NULLS LAST,"request_id" DESC NULLS LAST)',
+		expect(chatSql).toContain('CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches"');
+		expect(chatSql).toContain('CREATE TABLE IF NOT EXISTS "chat"."messages"');
+		expect(chatSql).toContain('"principal_snapshot_json" jsonb NOT NULL');
+		expect(chatSql).toContain('"user_message_id" text NOT NULL');
+		expect(chatSql).toContain(
+			'CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_created_at_request_id_idx"',
 		);
-		expect(sql).toContain(
-			'CREATE INDEX "operator_request_projection_trace_started_at_request_id_idx" ON "operator"."request_projection" USING btree ("trace_id","started_at" DESC NULLS LAST,"request_id" DESC NULLS LAST)',
+		expect(chatSql).toContain('CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_run_id_idx"');
+		expect(chatSql).toContain(
+			'CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_trace_id_created_at_idx"',
 		);
 		expect(sql).toContain(
 			'CREATE INDEX "observability_ops_read_at_idx" ON "observability"."ops_observability_read_audit" USING btree ("read_at")',
@@ -83,10 +89,13 @@ describe("ops-web status view schema", () => {
 	it("keeps ops_web grants column-scoped in the database operations command", () => {
 		const source = readAppFile("ops/db/ops-web-database.ts");
 
-		expect(source).toContain('GRANT USAGE ON SCHEMA "operator", "runtime", "observability"');
+		expect(source).toContain('GRANT USAGE ON SCHEMA "chat", "runtime", "observability"');
 		expect(source).toContain("REVOKE ALL PRIVILEGES ON TABLE");
 		expect(source).toContain("GRANT SELECT (");
 		expect(source).toContain("GRANT INSERT (");
+		expect(source).toContain('ON TABLE "chat"."turn_dispatches" TO "ops_web"');
+		expect(source).toContain('ON TABLE "chat"."messages" TO "ops_web"');
+		expect(source).toContain('ON TABLE "runtime"."agent_runs" TO "ops_web"');
 		expect(source).toContain('"semantic_outcome", "stage_timing_json"');
 		expect(source).toContain('"supporting_sources_json", "template_sha256", "trace_available"');
 		expect(source).not.toContain("GRANT SELECT ON TABLE");

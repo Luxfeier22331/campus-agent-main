@@ -33,7 +33,7 @@ updated: 2026-07-06
 
 ```text
 online usage
--> safe request projection / stage timing / safe fingerprints / feedback
+-> turn dispatch / run observability / stage timing / safe fingerprints / feedback
 -> candidate selector
 -> Langfuse annotation / dataset / scores
 -> improvement action attribution

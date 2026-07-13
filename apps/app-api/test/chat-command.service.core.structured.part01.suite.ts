@@ -55,7 +55,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			assistantMessage: {
 				kind: "answer",
 			},
-			requestExecution: {
+			turnDispatch: {
 				status: "completed",
 			},
 		});

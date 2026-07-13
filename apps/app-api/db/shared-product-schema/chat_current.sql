@@ -58,6 +58,52 @@ ON "chat"."messages" USING btree ("request_id");
 CREATE INDEX IF NOT EXISTS "chat_messages_run_id_idx"
 ON "chat"."messages" USING btree ("run_id");
 
+CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches" (
+    "request_id" text PRIMARY KEY,
+    "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE CASCADE,
+    "user_message_id" text NOT NULL REFERENCES "chat"."messages" ("id") ON DELETE CASCADE,
+    "turn_sequence" integer NOT NULL,
+    "surface" text NOT NULL,
+    "owner_user_id" text NOT NULL,
+    "actor_user_id" text NOT NULL,
+    "principal_snapshot_json" jsonb NOT NULL,
+    "idempotency_key" text,
+    "request_fingerprint_sha256" text,
+    "trace_id" text NOT NULL,
+    "run_id" text,
+    "safety_identifier" text,
+    "requested_tool" text,
+    "requested_scope" text,
+    "version_query_json" jsonb,
+    "selected_tool" text,
+    "status" text NOT NULL,
+    "error_code" text,
+    "created_at" timestamp with time zone NOT NULL,
+    "completed_at" timestamp with time zone,
+    "updated_at" timestamp with time zone NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_turn_dispatches_actor_idempotency_uidx"
+ON "chat"."turn_dispatches" USING btree ("actor_user_id", "idempotency_key");
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_conversation_turn_sequence_idx"
+ON "chat"."turn_dispatches" USING btree ("conversation_id", "turn_sequence");
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_created_at_request_id_idx"
+ON "chat"."turn_dispatches" USING btree ("created_at" DESC, "request_id" DESC);
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_run_id_idx"
+ON "chat"."turn_dispatches" USING btree ("run_id");
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_safety_identifier_created_at_idx"
+ON "chat"."turn_dispatches" USING btree ("safety_identifier", "created_at");
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_status_created_at_idx"
+ON "chat"."turn_dispatches" USING btree ("status", "created_at");
+
+CREATE INDEX IF NOT EXISTS "chat_turn_dispatches_trace_id_created_at_idx"
+ON "chat"."turn_dispatches" USING btree ("trace_id", "created_at" DESC);
+
 CREATE TABLE IF NOT EXISTS "chat"."message_feedback" (
     "feedback_id" text PRIMARY KEY,
     "owner_user_id" text NOT NULL,

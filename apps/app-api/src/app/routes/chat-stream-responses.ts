@@ -8,18 +8,9 @@ function encodeSseComment(comment: string): Uint8Array {
 	return new TextEncoder().encode(`: ${comment}\n\n`);
 }
 
-function isTerminalChatStreamEvent(event: ChatCommandStreamEvent): boolean {
-	return (
-		event.event === "request.completed" ||
-		event.event === "request.failed" ||
-		event.event === "request.cancelled"
-	);
-}
-
 export function createChatSseResponse(input: {
 	first: ChatCommandStreamEvent;
 	iterator: AsyncIterator<ChatCommandStreamEvent>;
-	onTerminal?: (event: ChatCommandStreamEvent) => void;
 }): Response {
 	const stream = new ReadableStream<Uint8Array>({
 		async cancel() {
@@ -28,9 +19,6 @@ export function createChatSseResponse(input: {
 		async start(controller) {
 			let keepaliveInterval: ReturnType<typeof setInterval> | null = null;
 			async function emit(event: ChatCommandStreamEvent) {
-				if (isTerminalChatStreamEvent(event)) {
-					input.onTerminal?.(event);
-				}
 				controller.enqueue(encodeSseEvent(event));
 			}
 

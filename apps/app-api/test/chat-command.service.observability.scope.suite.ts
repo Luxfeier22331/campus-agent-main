@@ -57,7 +57,7 @@ export function registerChatCommandServiceObservabilityScopeSuite(): void {
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestedScope: null,
 			},
 			requestObservabilityFact: {
@@ -66,9 +66,8 @@ export function registerChatCommandServiceObservabilityScopeSuite(): void {
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestedScope: null,
-				resolvedScope: "curriculum",
 			},
 			requestObservabilityFact: {
 				requestedScopeSummary: null,

@@ -35,54 +35,18 @@ function finalizedWrite(): FinalizeRequestWrite {
 		},
 		conversationTitle: "示例大学本科学生国家奖学金评审办法",
 		ownerUserId: "user_01HQ",
-		outboxEvent: {
-			attemptCount: 0,
-			availableAt: "2026-06-04T01:02:06.000Z",
-			eventId: "evt_final_01HQ",
-			eventType: "request.completed",
-			lastError: null,
-			occurredAt: "2026-06-04T01:02:06.000Z",
-			payload: {},
-			processedAt: null,
-			requestId: "req_01HQ",
-		},
-		requestExecution: {
-			actorDepartments: [],
-			actorPrincipalId: "user_01HQ",
-			actorRoles: ["student"],
-			actorUserId: "user_01HQ",
-			answerPreview: "国家奖学金每学年评审一次。",
-			applicabilityScope: "undergraduate",
-			assistantMessageId: "msg_assistant_01HQ",
+		turnDispatch: {
 			completedAt: "2026-06-04T01:02:06.000Z",
-			conversationId: "conv_01HQ",
-			createdAt: "2026-06-04T01:02:03.000Z",
-			durationMs: 3000,
-			entitlementGroups: ["students"],
-			entitlementSnapshotId: "entitlements_01HQ",
 			errorCode: null,
-			idempotencyKey: null,
-			principalLabel: "Jane Doe",
-			principalType: "student",
-			questionPreview: "示例大学本科学生国家奖学金评审办法",
-			requestedTool: "knowledge_query",
 			requestedScope: null,
-			requestFingerprintSha256: null,
 			requestId: "req_01HQ",
-			resolvedScope: null,
 			runId: "run_01HQ",
 			safetyIdentifier: "safety_01HQ",
 			selectedTool: "knowledge_query",
-			sourceDocIds: ["student_rules:national-scholarship"],
-			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_01HQ",
 			turnSequence: 1,
 			updatedAt: "2026-06-04T01:02:06.000Z",
-			userMessageId: "msg_user_01HQ",
 			versionQuery: null,
-			visibilityScope: "main",
 		},
 		requestObservabilityFact: {
 			aclAnomalyCode: null,
@@ -362,7 +326,7 @@ describe("pg chat command store", () => {
 			],
 		});
 		expect(update).toHaveBeenCalledTimes(2);
-		expect(insert).toHaveBeenCalledTimes(3);
+		expect(insert).toHaveBeenCalledTimes(2);
 		expect(deleteFn).not.toHaveBeenCalled();
 		expect(insertValues).toHaveBeenCalledWith(
 			expect.objectContaining({

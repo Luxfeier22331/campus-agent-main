@@ -20,7 +20,6 @@ type runtimeConfigFile struct {
 	QueryServingScopesPath *string                       `json:"query_serving_scopes_path,omitempty"`
 	ToolReadModelTimeoutMS *int                          `json:"tool_read_model_timeout_ms,omitempty"`
 	OTel                   *runtimeConfigFileOTel        `json:"otel,omitempty"`
-	ExecutionAudit         *runtimeConfigFileAudit       `json:"execution_audit,omitempty"`
 	KnowledgeSearch        *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
 	PersonalMemory         *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
 	WorkerProfiles         map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
@@ -38,13 +37,6 @@ type runtimeConfigFileOTel struct {
 	SampleRatio              *float64 `json:"sample_ratio,omitempty"`
 	AllowedAttributesVersion *string  `json:"allowed_attributes_version,omitempty"`
 	TemporalTracingEnabled   *bool    `json:"temporal_tracing_enabled,omitempty"`
-}
-
-type runtimeConfigFileAudit struct {
-	Enabled      *bool   `json:"enabled,omitempty"`
-	URL          *string `json:"url,omitempty"`
-	SharedSecret *string `json:"shared_secret,omitempty"`
-	TimeoutMS    *int    `json:"timeout_ms,omitempty"`
 }
 
 type runtimeConfigKnowledgeSearch struct {
@@ -132,9 +124,6 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 	if err := validateRuntimeConfigOTelCompleteness(profile.OTel); err != nil {
 		return err
 	}
-	if err := validateRuntimeConfigAuditCompleteness(profile.ExecutionAudit); err != nil {
-		return err
-	}
 	if err := validateRuntimeConfigKnowledgeSearchCompleteness(profile.KnowledgeSearch); err != nil {
 		return err
 	}
@@ -189,19 +178,6 @@ func validateRuntimeConfigOTelCompleteness(value *runtimeConfigFileOTel) error {
 	}
 	if value.SampleRatio == nil {
 		return fmt.Errorf("execution-control runtime config missing required field otel.sample_ratio")
-	}
-	return nil
-}
-
-func validateRuntimeConfigAuditCompleteness(value *runtimeConfigFileAudit) error {
-	if value == nil {
-		return fmt.Errorf("execution-control runtime config missing required field execution_audit")
-	}
-	if value.Enabled == nil {
-		return fmt.Errorf("execution-control runtime config missing required field execution_audit.enabled")
-	}
-	if value.TimeoutMS == nil {
-		return fmt.Errorf("execution-control runtime config missing required field execution_audit.timeout_ms")
 	}
 	return nil
 }
@@ -277,11 +253,6 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 			profile.OTel.TemporalTracingEnabled,
 			values.TemporalTracingEnabled,
 		)
-	}
-	if profile.ExecutionAudit != nil {
-		applyString(&values.ExecutionAuditURL, profile.ExecutionAudit.URL)
-		applyString(&values.ExecutionAuditSharedSecret, profile.ExecutionAudit.SharedSecret)
-		applyInt(&values.ExecutionAuditTimeoutMS, profile.ExecutionAudit.TimeoutMS)
 	}
 	if profile.KnowledgeSearch != nil {
 		applyInt(&values.RAGTopKMax, profile.KnowledgeSearch.TopKMax)
@@ -375,8 +346,6 @@ func rejectRuntimeConfigOwnedEnvSettings() error {
 		"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS",
 		"EXECUTION_CONTROL_OTEL_SAMPLE_RATIO",
 		"EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION",
-		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED",
-		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS",
 		"PERSONAL_MEMORY_COLLECTION",
 		"PERSONAL_MEMORY_TOP_K",
 		"PERSONAL_MEMORY_MAX_CHARS",

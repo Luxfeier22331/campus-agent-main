@@ -58,6 +58,13 @@ type Starter struct {
 	startTimeout       time.Duration
 }
 
+func (s *Starter) SDKClient() client.Client {
+	if s == nil {
+		return nil
+	}
+	return s.client
+}
+
 func NewStarter(_ context.Context, options StarterOptions) (*Starter, error) {
 	address := strings.TrimSpace(options.Address)
 	namespace := strings.TrimSpace(options.Namespace)

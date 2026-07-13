@@ -7,7 +7,6 @@ const defaultAlertsPath = repoPath("configs/runtime/observability-alerts.v1.json
 
 const axiomDatasetBySignal: Record<string, string> = {
 	missing_trace_rate: "campus-agent-runtime-metrics",
-	projection_outbox_stale: "campus-agent-runtime-metrics",
 	request_error_rate: "campus-agent-runtime-metrics",
 	stage_latency_p95: "campus-agent-runtime-metrics",
 	telemetry_export_failure: "campus-agent-runtime-metrics",
@@ -15,7 +14,6 @@ const axiomDatasetBySignal: Record<string, string> = {
 
 const metricBySignal: Record<string, string> = {
 	missing_trace_rate: "campus.app_api.trace_missing_ratio",
-	projection_outbox_stale: "campus.app_api.projection_outbox_stale",
 	request_error_rate: "campus.app_api.request_error_ratio",
 	stage_latency_p95: "campus.app_api.stage_duration_ms",
 	telemetry_export_failure: "campus.telemetry.export_failures",

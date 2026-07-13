@@ -1,11 +1,11 @@
-import type { conversations, messages, requestExecution, sessionSlots } from "../../db/schema";
+import type { conversations, messages, sessionSlots, turnDispatches } from "../../db/schema";
 import {
 	type ChatConversation,
 	type ChatMessage,
 	normalizeChatStructuredParts,
 	toConversationResponse,
 } from "../chat";
-import type { RequestExecutionStatus, StoredIdempotentRequest } from "./store-types";
+import type { StoredIdempotentRequest, TurnDispatchStatus } from "./store-types";
 
 export function toIsoString(value: Date): string {
 	return value.toISOString();
@@ -58,15 +58,15 @@ export function toChatConversation(
 export function buildStoredIdempotentRequest(input: {
 	assistantMessageRow: typeof messages.$inferSelect | null;
 	conversation: ChatConversation;
-	executionRow: typeof requestExecution.$inferSelect;
+	dispatchRow: typeof turnDispatches.$inferSelect;
 }): StoredIdempotentRequest {
 	const assistantMessage = input.assistantMessageRow
 		? toChatMessage(input.assistantMessageRow)
 		: null;
-	if (!assistantMessage && input.executionRow.status !== "accepted") {
+	if (!assistantMessage && input.dispatchRow.status !== "accepted") {
 		throw new Error("idempotent replay is missing assistant message for finalized request");
 	}
-	const requestFingerprintSha256 = input.executionRow.requestFingerprintSha256;
+	const requestFingerprintSha256 = input.dispatchRow.requestFingerprintSha256;
 	if (!requestFingerprintSha256) {
 		throw new Error("idempotent replay is missing request fingerprint");
 	}
@@ -75,29 +75,29 @@ export function buildStoredIdempotentRequest(input: {
 		assistantMessage?.kind === "error"
 			? buildStoredErrorReplayResult({
 					assistantMessage,
-					errorCode: input.executionRow.errorCode,
-					requestId: input.executionRow.requestId,
-					traceId: input.executionRow.traceId,
+					errorCode: input.dispatchRow.errorCode,
+					requestId: input.dispatchRow.requestId,
+					traceId: input.dispatchRow.traceId,
 				})
 			: assistantMessage?.kind === "clarification"
 				? {
 						kind: "clarification" as const,
 						text: assistantMessage.text,
-						requestId: input.executionRow.requestId,
-						traceId: input.executionRow.traceId,
+						requestId: input.dispatchRow.requestId,
+						traceId: input.dispatchRow.traceId,
 					}
 				: assistantMessage?.kind === "no_answer"
 					? {
 							kind: "no_answer" as const,
 							text: assistantMessage.text,
-							requestId: input.executionRow.requestId,
-							traceId: input.executionRow.traceId,
+							requestId: input.dispatchRow.requestId,
+							traceId: input.dispatchRow.traceId,
 						}
 					: {
 							kind: "answer" as const,
-							text: assistantMessage?.text ?? input.executionRow.answerPreview ?? "",
-							requestId: input.executionRow.requestId,
-							traceId: input.executionRow.traceId,
+							text: assistantMessage?.text ?? "",
+							requestId: input.dispatchRow.requestId,
+							traceId: input.dispatchRow.traceId,
 						};
 
 	return {
@@ -107,10 +107,10 @@ export function buildStoredIdempotentRequest(input: {
 				conversation: toConversationResponse(input.conversation),
 				result,
 			},
-			requestId: input.executionRow.requestId,
-			traceId: input.executionRow.traceId,
+			requestId: input.dispatchRow.requestId,
+			traceId: input.dispatchRow.traceId,
 		},
-		status: input.executionRow.status as RequestExecutionStatus,
+		status: input.dispatchRow.status as TurnDispatchStatus,
 	};
 }
 

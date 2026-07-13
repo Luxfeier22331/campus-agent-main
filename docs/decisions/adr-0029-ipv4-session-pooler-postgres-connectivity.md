@@ -3,11 +3,14 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0029
-status: accepted
+status: superseded
 created: 2026-04-05
-updated: 2026-04-19
+updated: 2026-07-12
+superseded_by: ADR-0073
 ---
 # ADR-0029 IPv4 Operator Session-Pooler Postgres Connectivity
+
+> 本决策已由 ADR-0073 取代，仅保留为历史决策记录，不代表当前数据库连接方式。
 
 适用范围：repo-owned persistent runtime 的 Postgres 连接策略、Supabase-backed
 registry/control-plane database、authenticated notice / ingestion-worker / app

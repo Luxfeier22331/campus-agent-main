@@ -31,7 +31,6 @@ const emptyTraceHeaders = {
 
 describe("POST /api/internal/evals/chat/requests", () => {
 	it("accepts internal eval requests with shared secret and returns request correlation headers", async () => {
-		const scheduleRequestProjectionDrain = vi.fn();
 		const service: ChatCommandService = {
 			submit: vi.fn().mockResolvedValue({
 				answer: {
@@ -89,7 +88,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			},
 			{
 				chatCommandService: service,
-				scheduleRequestProjectionDrain,
 			},
 		);
 
@@ -119,7 +117,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(scheduleRequestProjectionDrain).not.toHaveBeenCalled();
 		expect(response.headers.get("x-request-id")).toBe("req_eval_01HQ");
 		expect(response.headers.get("x-trace-id")).toBe("trace_eval_01HQ");
 		await expect(response.json()).resolves.toEqual({

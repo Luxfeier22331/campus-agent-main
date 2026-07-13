@@ -16,6 +16,7 @@ import type {
 } from "../src/modules/integration/execution-control";
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 import type {
+	AcceptRequestWrite,
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
@@ -161,8 +162,8 @@ export function createCommandStore(input?: {
 	conversation?: ReturnType<typeof createConversation>;
 }) {
 	const conversation = input?.conversation ?? createConversation();
-	const acceptedWrites: unknown[] = [];
-	const finalWrites: unknown[] = [];
+	const acceptedWrites: AcceptRequestWrite[] = [];
+	const finalWrites: FinalizeRequestWrite[] = [];
 	const store: ChatCommandStore = {
 		acceptRequest: vi.fn(async (input) => {
 			acceptedWrites.push(input);
@@ -176,7 +177,7 @@ export function createCommandStore(input?: {
 			conversation.activeBranchId = input.userMessage.branchId ?? "branch_active";
 			conversation.activeMessageId = input.userMessage.id;
 			conversation.activeRunId = input.userMessage.runId ?? null;
-			conversation.activeTurnSequence = input.requestExecution.turnSequence;
+			conversation.activeTurnSequence = input.turnDispatch.turnSequence;
 			for (const message of conversation.messages) {
 				if (message.branchId === conversation.activeBranchId) {
 					message.isActiveBranchHead = false;
@@ -193,15 +194,15 @@ export function createCommandStore(input?: {
 		finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
 			finalWrites.push(input);
 			const isActiveRun =
-				conversation.activeRunId === input.requestExecution.runId &&
-				conversation.activeTurnSequence === input.requestExecution.turnSequence;
+				conversation.activeRunId === input.turnDispatch.runId &&
+				conversation.activeTurnSequence === input.turnDispatch.turnSequence;
 			if (isActiveRun) {
 				conversation.title = input.conversationTitle;
 				conversation.updatedAt = input.assistantMessage.createdAt;
 				conversation.activeBranchId = input.assistantMessage.branchId ?? "branch_active";
 				conversation.activeMessageId = input.assistantMessage.id;
 				conversation.activeRunId = input.assistantMessage.runId ?? null;
-				conversation.activeTurnSequence = input.requestExecution.turnSequence;
+				conversation.activeTurnSequence = input.turnDispatch.turnSequence;
 				for (const message of conversation.messages) {
 					if (message.branchId === conversation.activeBranchId) {
 						message.isActiveBranchHead = false;
@@ -250,10 +251,7 @@ export function createTelemetryMock(): AppTelemetry {
 			sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 		}),
 		markHttpResponseStatus: vi.fn(),
-		recordExecutionAuditEvent: vi.fn(),
 		recordIdentityEndpoint: vi.fn(),
-		recordProjectionDrain: vi.fn(),
-		recordProjectionEnqueued: vi.fn(),
 		recordRequestAccepted: vi.fn(),
 		recordRequestFinalized: vi.fn(),
 		recordRequestTransportError: vi.fn(),

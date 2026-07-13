@@ -12,19 +12,19 @@ import {
 	toRequestSummary,
 } from "./ops-status-mappers.ts";
 import type {
-	OpsRequestExecutionRow,
 	OpsRequestObservabilityRow,
 	OpsRequestOverviewRow,
-	OpsRequestProjectionRow,
+	OpsRequestRow,
 	OpsRequestTrendRow,
 	OpsStatusStore,
-	OpsTemporalTaskQueueRow,
+	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "./ops-status-store.ts";
 import {
-	buildRequestProjectionFilter,
+	buildRequestFilter,
 	requestObservabilitySql,
-	requestProjectionSql,
+	requestRowsCte,
+	requestSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
 import { summarizeTemporalTaskQueues } from "./pg-runtime-summary.ts";
@@ -46,9 +46,11 @@ export function createPgOpsStatusStore(input: {
 		temporal?: string;
 	};
 	principalHashSecret?: string;
+	temporalTaskQueues?: OpsTemporalTaskQueueSource;
 }): OpsStatusStore {
 	const now = input.now ?? (() => new Date());
 	const principalHashSecret = input.principalHashSecret ?? "ops-web-test-principal-hash-secret";
+	const temporalTaskQueues = input.temporalTaskQueues ?? { getTaskQueues: async () => [] };
 
 	return {
 		async getOverview(window) {
@@ -57,7 +59,7 @@ export function createPgOpsStatusStore(input: {
 			const [requestOverview, trends, taskQueues] = await Promise.all([
 				input.db.getRequestOverview(since),
 				input.db.getRequestTrends(since, trendBucketMinutes(window)),
-				input.db.getTemporalTaskQueues(),
+				temporalTaskQueues.getTaskQueues(),
 			]);
 			return {
 				externalLinks: normalizeOverviewLinks(input.observabilityLinks),
@@ -73,39 +75,25 @@ export function createPgOpsStatusStore(input: {
 			};
 		},
 		async getRequestDetail(requestId) {
-			const request = await input.db.getRequestProjection(requestId);
+			const request = await input.db.getRequest(requestId);
 			if (!request) {
 				return null;
 			}
-			const [execution, observability] = await Promise.all([
-				input.db.getRequestExecution(requestId),
-				input.db.getRequestObservability(requestId),
-			]);
-			return toRequestDetail(
-				request,
-				execution,
-				observability,
-				input.observabilityLinks,
-				principalHashSecret,
-			);
+			const observability = await input.db.getRequestObservability(requestId);
+			return toRequestDetail(request, observability, input.observabilityLinks, principalHashSecret);
 		},
 		async listRequests(query) {
 			const since = subtractWindow(now(), query.window);
-			const rows = await input.db.listRequestProjections(query, since);
+			const rows = await input.db.listRequests(query, since);
 			const visibleRows = rows.slice(0, query.limit);
 			const requestIds = visibleRows.map((row) => row.requestId);
-			const [executions, observabilityRows] = await Promise.all([
-				input.db.getRequestExecutions(requestIds),
-				input.db.getRequestObservabilities(requestIds),
-			]);
-			const executionByRequest = new Map(executions.map((row) => [row.requestId, row]));
+			const observabilityRows = await input.db.getRequestObservabilities(requestIds);
 			const observabilityByRequest = new Map(observabilityRows.map((row) => [row.requestId, row]));
 			const lastVisibleRow = visibleRows.at(-1);
 			return {
 				data: visibleRows.map((row) =>
 					toRequestSummary(
 						row,
-						executionByRequest.get(row.requestId) ?? null,
 						observabilityByRequest.get(row.requestId) ?? null,
 						principalHashSecret,
 					),
@@ -116,7 +104,7 @@ export function createPgOpsStatusStore(input: {
 							? encodeRequestCursor(lastVisibleRow)
 							: null,
 				},
-				summary: await input.db.summarizeRequestProjections(query, since),
+				summary: await input.db.summarizeRequests(query, since),
 				window: query.window,
 			};
 		},
@@ -155,29 +143,6 @@ export function createPgOpsStatusStoreDatabase(
 	pool.on("error", (error) => console.error("[ops-web] postgres pool error", error));
 
 	return {
-		async getRequestExecution(requestId) {
-			return classifyDbError(async () => {
-				const result = await pool.query(
-					`select "request_id" as "requestId", "run_id" as "runId"
-					 from "runtime"."request_execution" where "request_id" = $1 limit 1`,
-					[requestId],
-				);
-				return (result.rows[0] as OpsRequestExecutionRow | undefined) ?? null;
-			});
-		},
-		async getRequestExecutions(requestIds) {
-			if (requestIds.length === 0) {
-				return [];
-			}
-			return classifyDbError(async () => {
-				const result = await pool.query(
-					`select "request_id" as "requestId", "run_id" as "runId"
-					 from "runtime"."request_execution" where "request_id" = any($1::text[])`,
-					[requestIds],
-				);
-				return result.rows as OpsRequestExecutionRow[];
-			});
-		},
 		async getRequestObservability(requestId) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
@@ -202,7 +167,7 @@ export function createPgOpsStatusStoreDatabase(
 		async getRequestOverview(since) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
-					`
+					`${requestRowsCte()}
 						select
 							count(*) filter (where "status" = 'cancelled')::int as "cancelled",
 							count(*) filter (where "status" = 'completed')::int as "completed",
@@ -212,7 +177,7 @@ export function createPgOpsStatusStoreDatabase(
 							count(*)::int as "total",
 							max("projected_at") as "latestProjectedAt",
 							round(percentile_cont(0.95) within group (order by "duration_ms"))::int as "p95DurationMs"
-						from "operator"."request_projection"
+						from request_rows
 						where "started_at" >= $1
 					`,
 					[since],
@@ -220,25 +185,23 @@ export function createPgOpsStatusStoreDatabase(
 				return normalizeOverviewRow(result.rows[0]);
 			});
 		},
-		async getRequestProjection(requestId) {
+		async getRequest(requestId) {
 			return classifyDbError(async () => {
-				const result = await pool.query(requestProjectionSql('where "request_id" = $1 limit 1'), [
-					requestId,
-				]);
-				return (result.rows[0] as OpsRequestProjectionRow | undefined) ?? null;
+				const result = await pool.query(requestSql('where "request_id" = $1 limit 1'), [requestId]);
+				return (result.rows[0] as OpsRequestRow | undefined) ?? null;
 			});
 		},
 		async getRequestTrends(since, bucketMinutes) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
-					`
+					`${requestRowsCte()}
 						select
 							date_bin($2::interval, "started_at", timestamptz '1970-01-01') as "bucketStart",
 							count(*) filter (where "status" = 'completed')::int as "completed",
 							count(*) filter (where "status" in ('error', 'rejected', 'no_answer'))::int as "failed",
 							count(*)::int as "total",
 							round(percentile_cont(0.95) within group (order by "duration_ms"))::int as "p95DurationMs"
-						from "operator"."request_projection"
+						from request_rows
 						where "started_at" >= $1
 						group by 1
 						order by 1 asc
@@ -248,25 +211,9 @@ export function createPgOpsStatusStoreDatabase(
 				return result.rows.map(normalizeTrendRow);
 			});
 		},
-		async getTemporalTaskQueues() {
+		async listRequests(query, since) {
 			return classifyDbError(async () => {
-				const result = await pool.query(`
-					select
-						"backlog_json" as "backlogJson",
-						"oldest_task_age_json" as "oldestTaskAgeJson",
-						"poller_count" as "pollerCount",
-						"projected_at" as "projectedAt",
-						"task_queue" as "taskQueue",
-						"task_queue_kind" as "taskQueueKind"
-					from "operator"."temporal_task_queue_current"
-					order by "task_queue" asc
-				`);
-				return result.rows as OpsTemporalTaskQueueRow[];
-			});
-		},
-		async listRequestProjections(query, since) {
-			return classifyDbError(async () => {
-				const filter = buildRequestProjectionFilter(query, since);
+				const filter = buildRequestFilter(query, since);
 				const conditions = filter.whereClause ? [filter.whereClause.slice(6)] : [];
 				const values = [...filter.values];
 				const cursor = decodeRequestCursor(query.cursor);
@@ -278,19 +225,20 @@ export function createPgOpsStatusStoreDatabase(
 				}
 				values.push(query.limit + 1);
 				const result = await pool.query(
-					requestProjectionSql(
+					requestSql(
 						`where ${conditions.join(" and ")} order by "started_at" desc, "request_id" desc limit $${values.length}`,
 					),
 					values,
 				);
-				return result.rows as OpsRequestProjectionRow[];
+				return result.rows as OpsRequestRow[];
 			});
 		},
-		async summarizeRequestProjections(query, since) {
+		async summarizeRequests(query, since) {
 			return classifyDbError(async () => {
-				const filter = buildRequestProjectionFilter({ ...query, cursor: undefined }, since);
+				const filter = buildRequestFilter({ ...query, cursor: undefined }, since);
 				const result = await pool.query(
-					`select "status", count(*)::int as "count" from "operator"."request_projection"
+					`${requestRowsCte()}
+					 select "status", count(*)::int as "count" from request_rows
 					 ${filter.whereClause} group by "status"`,
 					filter.values,
 				);
@@ -322,12 +270,8 @@ export function createPgOpsStatusStoreDatabase(
 		async verifyReadiness() {
 			return classifyDbError(async () => {
 				await Promise.all([
-					pool.query(requestProjectionSql("limit 0")),
+					pool.query(requestSql("limit 0")),
 					pool.query(requestObservabilitySql("limit 0")),
-					pool.query('select "request_id", "run_id" from "runtime"."request_execution" limit 0'),
-					pool.query(
-						'select "task_queue", "poller_count", "projected_at" from "operator"."temporal_task_queue_current" limit 0',
-					),
 				]);
 			});
 		},

@@ -8,6 +8,8 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { TurnDispatchPrincipalSnapshot } from "../../modules/runtime-command/store-types";
+import type { VersionQuery } from "../../modules/version-query";
 
 const chat = pgSchema("chat");
 
@@ -83,6 +85,66 @@ export const messages = chat.table(
 			table.turnSequence,
 		),
 		runIdIndex: index("chat_messages_run_id_idx").on(table.runId),
+	}),
+);
+
+export const turnDispatches = chat.table(
+	"turn_dispatches",
+	{
+		requestId: text("request_id").primaryKey(),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => conversations.id, { onDelete: "cascade" }),
+		userMessageId: text("user_message_id")
+			.notNull()
+			.references(() => messages.id, { onDelete: "cascade" }),
+		turnSequence: integer("turn_sequence").notNull(),
+		surface: text("surface").notNull(),
+		ownerUserId: text("owner_user_id").notNull(),
+		actorUserId: text("actor_user_id").notNull(),
+		principalSnapshotJson: jsonb("principal_snapshot_json")
+			.$type<TurnDispatchPrincipalSnapshot>()
+			.notNull(),
+		idempotencyKey: text("idempotency_key"),
+		requestFingerprintSha256: text("request_fingerprint_sha256"),
+		traceId: text("trace_id").notNull(),
+		runId: text("run_id"),
+		safetyIdentifier: text("safety_identifier"),
+		requestedTool: text("requested_tool"),
+		requestedScope: text("requested_scope"),
+		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
+		selectedTool: text("selected_tool"),
+		status: text("status").notNull(),
+		errorCode: text("error_code"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		actorIdempotencyUnique: uniqueIndex("chat_turn_dispatches_actor_idempotency_uidx").on(
+			table.actorUserId,
+			table.idempotencyKey,
+		),
+		conversationTurnSequenceIndex: index("chat_turn_dispatches_conversation_turn_sequence_idx").on(
+			table.conversationId,
+			table.turnSequence,
+		),
+		createdAtRequestIdIndex: index("chat_turn_dispatches_created_at_request_id_idx").on(
+			table.createdAt.desc(),
+			table.requestId.desc(),
+		),
+		runIdIndex: index("chat_turn_dispatches_run_id_idx").on(table.runId),
+		safetyIdentifierCreatedAtIndex: index(
+			"chat_turn_dispatches_safety_identifier_created_at_idx",
+		).on(table.safetyIdentifier, table.createdAt),
+		statusCreatedAtIndex: index("chat_turn_dispatches_status_created_at_idx").on(
+			table.status,
+			table.createdAt,
+		),
+		traceIdCreatedAtIndex: index("chat_turn_dispatches_trace_id_created_at_idx").on(
+			table.traceId,
+			table.createdAt.desc(),
+		),
 	}),
 );
 

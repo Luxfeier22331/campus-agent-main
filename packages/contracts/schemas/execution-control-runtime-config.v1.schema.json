@@ -15,7 +15,6 @@
 		"query_serving_scopes_path",
 		"tool_read_model_timeout_ms",
 		"otel",
-		"execution_audit",
 		"knowledge_search",
 		"personal_memory"
 	],
@@ -57,9 +56,6 @@
 		},
 		"otel": {
 			"$ref": "#/$defs/OTel"
-		},
-		"execution_audit": {
-			"$ref": "#/$defs/ExecutionAudit"
 		},
 		"knowledge_search": {
 			"$ref": "#/$defs/KnowledgeSearch"
@@ -161,26 +157,6 @@
 					}
 				}
 			]
-		},
-		"ExecutionAudit": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["enabled", "timeout_ms"],
-			"properties": {
-				"enabled": {
-					"type": "boolean"
-				},
-				"url": {
-					"type": "string"
-				},
-				"shared_secret": {
-					"type": "string"
-				},
-				"timeout_ms": {
-					"type": "integer",
-					"minimum": 1
-				}
-			}
 		},
 		"KnowledgeSearch": {
 			"type": "object",

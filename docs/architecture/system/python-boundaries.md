@@ -74,7 +74,7 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 - Go internal query service 保持 backend orchestration facade
 - backend errors、embedding cache、registry lookup、evidence source shaping 继续按 owner
   分文件维护
-- request projection、tool result、merge / trust filtering 属于 repo-owned
+- retrieval request context、tool result、merge / trust filtering 属于 repo-owned
   retrieval runtime seam
 
 ## Data-Plane Boundary

@@ -387,6 +387,7 @@ func decodeProjectionBundleFixture(t *testing.T, body string) toolreadmodel.Proj
 
 type fakeStructuredReadModelStore struct {
 	bundle             toolreadmodel.ProjectionBundle
+	healthCheckErr     error
 	loadCount          int
 	projectionReady    bool
 	projectionReadySet bool
@@ -394,7 +395,7 @@ type fakeStructuredReadModelStore struct {
 }
 
 func (s *fakeStructuredReadModelStore) HealthCheck(context.Context) error {
-	return nil
+	return s.healthCheckErr
 }
 
 func (s *fakeStructuredReadModelStore) CurrentReleaseID(context.Context) (string, error) {

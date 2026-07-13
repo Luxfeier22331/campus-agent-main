@@ -3,11 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import {
-	createOperatorPrincipal,
-	createOperatorQueryServiceMock,
-	env,
-} from "./operator-query.route.test-support";
+import { createOperatorPrincipal, env } from "./operator-route.test-support";
 
 describe("operator ingestion task route", () => {
 	it("proxies read-only ingestion task projections for operator principals", async () => {
@@ -50,7 +46,6 @@ describe("operator ingestion task route", () => {
 			},
 			{
 				getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
-				operatorQueryService: createOperatorQueryServiceMock(),
 				ingestionTaskProjectionFetch: fetchImplementation,
 			},
 		);

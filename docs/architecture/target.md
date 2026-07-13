@@ -294,7 +294,7 @@ collector/source admission
 
 - public 与 protected browser surface 可以是独立 Worker web surface
 - shared `apps/app-api` 持续承接产品层 auth/session/principal、conversation、chat
-  ingress、request projection 与 operator read surfaces
+  ingress/turn dispatch、request observability 与受控 operator config/source read surfaces
 - `campus-web` 是长期学生侧统一入口，承载 Q&A、account、docs、map、dining 与
   feedback；`/docs/*` 使用 Rspress-powered canonical reader，而不是独立
   `public-docs` product surface
@@ -471,7 +471,7 @@ model-visible tool 与 internal query function 的边界必须保持清晰：
 - execution-control 的 runtime-visible tool set
 - provider-native function schema
 - OpenAI Agents SDK function tool schema / model-visible catalog
-- workflow trace / execution audit 的 sanitized projection
+- workflow/run observability 的 sanitized projection
 - `packages/eval-langfuse` / repo-owned eval truth 中的 tool selection、argument
   precision 与 fail-close denominator
 

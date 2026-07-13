@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-06-13
-updated: 2026-07-10
+updated: 2026-07-12
 ---
 # Tool Read Model Internal Runtime Contract
 
@@ -42,20 +42,6 @@ Contract rules:
 - runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
   source bundle、notice HTML 或 generic retrieval chunk
 
-## Internal Projection Endpoints
-
-Go `apps/execution-control` also owns internal read-model projection endpoints
-when a browser-facing surface needs a stable display projection instead of a
-tool result:
-
-- `GET /internal/projections/campus-services/transport-schedule/status`
-
-This endpoint returns the current transport status display projection described
-by `docs/domains/transport.md`. It is not a tool endpoint, does not
-accept arbitrary date query, does not return a structured tool result envelope
-and does not make `app-api` the owner of campus-services transport schedule
-truth.
-
 ## Contracted Read-Model Backing
 
 The tool read model family reads PostgreSQL release current pointer + typed
@@ -82,6 +68,6 @@ Runtime opening requires a model-visible SDK tool admitted by execution-control
 and the matching domain serving truth.
 
 Tool production readiness is not defined by query-kernel executability alone.
-Normal, fail-close, cancel, timeout and late-completion outcomes must enter
-sanitized trajectory and app-api operator read model before a tool can be
+Normal, fail-close, cancel, timeout and late-completion outcomes must enter the
+sanitized execution trajectory and runtime projection before a tool can be
 considered production-open.

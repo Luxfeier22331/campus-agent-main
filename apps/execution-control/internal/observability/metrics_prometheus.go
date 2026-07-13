@@ -285,26 +285,5 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	} else {
 		builder.WriteString("campus_execution_control_telemetry_metrics_exporter_configured 0\n")
 	}
-	builder.WriteString("# HELP campus_execution_control_execution_audit_emitted_total Total execution audit events accepted by execution-control emitter.\n")
-	builder.WriteString("# TYPE campus_execution_control_execution_audit_emitted_total counter\n")
-	fmt.Fprintf(&builder, "campus_execution_control_execution_audit_emitted_total %d\n", snapshot.ExecutionAudit.EmittedCount)
-	builder.WriteString("# HELP campus_execution_control_execution_audit_failed_total Total execution audit delivery failures.\n")
-	builder.WriteString("# TYPE campus_execution_control_execution_audit_failed_total counter\n")
-	fmt.Fprintf(&builder, "campus_execution_control_execution_audit_failed_total %d\n", snapshot.ExecutionAudit.FailedCount)
-	builder.WriteString("# HELP campus_execution_control_execution_audit_enabled Whether execution audit emission is enabled.\n")
-	builder.WriteString("# TYPE campus_execution_control_execution_audit_enabled gauge\n")
-	if snapshot.ExecutionAudit.Enabled {
-		builder.WriteString("campus_execution_control_execution_audit_enabled 1\n")
-	} else {
-		builder.WriteString("campus_execution_control_execution_audit_enabled 0\n")
-	}
-	builder.WriteString("# HELP campus_execution_control_execution_audit_configured Whether execution audit emission is configured.\n")
-	builder.WriteString("# TYPE campus_execution_control_execution_audit_configured gauge\n")
-	if snapshot.ExecutionAudit.Configured {
-		builder.WriteString("campus_execution_control_execution_audit_configured 1\n")
-	} else {
-		builder.WriteString("campus_execution_control_execution_audit_configured 0\n")
-	}
-
 	return []byte(builder.String())
 }

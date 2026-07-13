@@ -22,7 +22,7 @@ grouping. Detailed endpoint bodies live in split contract docs.
 - `chat.md`
   - Chat: conversation, request, stream and event endpoints
 - `operator.md`
-  - Operator: operator request list and detail endpoints
+  - Operator: authenticated-notice, official-web and ingestion projection endpoints
 - `identity.md`
   - Account center and identity product projection endpoints
 - `federation.md`
@@ -100,7 +100,7 @@ Route inventory is verified by `apps/app-api/src/app/route-exposure.ts`.
 
 - 不把已退役 standalone chat app 的旧 `/api/answer` 继续提升为 forward contract
 - 不为 Operator Console 暴露 database/admin-console 风格 API
-- 不让 operator endpoints 旁路读取 `runtime.request_execution`
+- 不为已退役 request/runtime projection 恢复 operator endpoints
 - 不把 `packages/contracts` 直接当 browser product API
 - 不冻结 provider raw token streaming chat API
 - 不在本索引重复各分册的 endpoint body 或 response DTO

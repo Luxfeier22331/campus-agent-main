@@ -7,11 +7,7 @@ import {
 	buildCampusServicesOpsService,
 	createInMemoryCampusServicesOpsStore,
 } from "../src/modules/campus-services-ops";
-import {
-	createCampusPrincipal,
-	createOperatorPrincipal,
-	env,
-} from "./operator-query.route.test-support";
+import { createCampusPrincipal, createOperatorPrincipal, env } from "./operator-route.test-support";
 
 describe("campus services ops routes", () => {
 	it("exposes operator-only attestation, override preview, publish, and audit endpoints", async () => {

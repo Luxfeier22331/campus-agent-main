@@ -3,34 +3,24 @@ import type {
 	OpsObservabilityReadAuditInput,
 	OpsRequestListQuery,
 	OpsRequestObservabilityRow,
-	OpsRequestProjectionRow,
+	OpsRequestRow,
 	OpsTemporalTaskQueueRow,
+	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "../src/server/ops-status-store";
 
 export function createFakeOpsDb(
 	overrides: {
-		executionRows?: ReturnType<typeof requestExecutionRow>[];
 		observabilityRows?: ReturnType<typeof requestObservabilityRow>[];
-		requestRows?: OpsRequestProjectionRow[];
-		temporalRows?: OpsTemporalTaskQueueRow[];
+		requestRows?: OpsRequestRow[];
 	} = {},
 ): PgOpsStatusStoreDatabase & { auditEvents: OpsObservabilityReadAuditInput[] } {
-	const requestRows = overrides.requestRows ?? [requestProjectionRow()];
+	const requestRows = overrides.requestRows ?? [requestRow()];
 	const observabilityRows = overrides.observabilityRows ?? [requestObservabilityRow()];
-	const executionRows = overrides.executionRows ?? [requestExecutionRow()];
-	const temporalRows = overrides.temporalRows ?? requiredTemporalQueueRows();
 	const auditEvents: OpsObservabilityReadAuditInput[] = [];
 
 	return {
 		auditEvents,
-		async getRequestExecution(requestId) {
-			return executionRows.find((row) => row.requestId === requestId) ?? null;
-		},
-		async getRequestExecutions(requestIds) {
-			const requestIdSet = new Set(requestIds);
-			return executionRows.filter((row) => requestIdSet.has(row.requestId));
-		},
 		async getRequestObservability(requestId) {
 			return observabilityRows.find((row) => row.requestId === requestId) ?? null;
 		},
@@ -54,7 +44,7 @@ export function createFakeOpsDb(
 					durations.length > 0 ? durations[Math.ceil(durations.length * 0.95) - 1] : null,
 			};
 		},
-		async getRequestProjection(requestId) {
+		async getRequest(requestId) {
 			return requestRows.find((row) => row.requestId === requestId) ?? null;
 		},
 		async getRequestTrends(since) {
@@ -69,10 +59,7 @@ export function createFakeOpsDb(
 						},
 					];
 		},
-		async getTemporalTaskQueues() {
-			return temporalRows;
-		},
-		async listRequestProjections(query, since) {
+		async listRequests(query, since) {
 			const filtered = filterRequestRows(requestRows, query, since);
 			const cursor = decodeRequestCursor(query.cursor);
 			const visible = cursor
@@ -85,7 +72,7 @@ export function createFakeOpsDb(
 				: filtered;
 			return visible.slice(0, query.limit + 1);
 		},
-		async summarizeRequestProjections(query, since) {
+		async summarizeRequests(query, since) {
 			return summarizeRows(filterRequestRows(requestRows, query, since));
 		},
 		async verifyObservabilityReadAuditWrite() {
@@ -100,9 +87,13 @@ export function createFakeOpsDb(
 	};
 }
 
-export function requestProjectionRow(
-	overrides: Partial<OpsRequestProjectionRow> = {},
-): OpsRequestProjectionRow {
+export function createFakeTemporalTaskQueueSource(
+	rows: OpsTemporalTaskQueueRow[] = requiredTemporalQueueRows(),
+): OpsTemporalTaskQueueSource {
+	return { getTaskQueues: async () => rows };
+}
+
+export function requestRow(overrides: Partial<OpsRequestRow> = {}): OpsRequestRow {
 	return {
 		completedAt: new Date("2026-07-09T07:29:04.000Z"),
 		conversationId: "conv_pg_001",
@@ -114,16 +105,13 @@ export function requestProjectionRow(
 		questionPreview: "今天班车什么时候发车？",
 		requestId: "req_pg_001",
 		requestedTool: "transport_schedule_lookup",
+		runId: "run_pg_001",
 		selectedTool: "transport_schedule_lookup",
 		startedAt: new Date("2026-07-09T07:29:00.000Z"),
 		status: "completed",
 		traceId: "trace_pg_001",
 		...overrides,
 	};
-}
-
-export function requestExecutionRow() {
-	return { requestId: "req_pg_001", runId: "run_pg_001" };
 }
 
 export function requestObservabilityRow(): OpsRequestObservabilityRow {
@@ -183,7 +171,7 @@ export function temporalQueueRow(
 		oldestTaskAgeJson: { backlogCount: 3, ms: 2400, state: "observed" },
 		pollerCount: 4,
 		projectedAt: new Date("2026-07-09T07:29:06.000Z"),
-		taskQueue: "campus-agent.activity.knowledge",
+		taskQueue: "campus-agent.activity.agent",
 		taskQueueKind: "activity",
 		...overrides,
 	};
@@ -194,15 +182,14 @@ export function requiredTemporalQueueRows(): OpsTemporalTaskQueueRow[] {
 		temporalQueueRow({ taskQueue: "campus-agent.workflow", taskQueueKind: "workflow" }),
 		temporalQueueRow({ taskQueue: "campus-agent.activity.core" }),
 		temporalQueueRow({ taskQueue: "campus-agent.activity.agent" }),
-		temporalQueueRow(),
 	];
 }
 
 function filterRequestRows(
-	rows: OpsRequestProjectionRow[],
+	rows: OpsRequestRow[],
 	query: OpsRequestListQuery,
 	since: Date,
-): OpsRequestProjectionRow[] {
+): OpsRequestRow[] {
 	return rows
 		.filter((row) => row.startedAt >= since)
 		.filter((row) => {
@@ -245,7 +232,7 @@ function filterRequestRows(
 		});
 }
 
-function summarizeRows(rows: OpsRequestProjectionRow[]) {
+function summarizeRows(rows: OpsRequestRow[]) {
 	const summary = { cancelled: 0, completed: 0, failed: 0, pending: 0, running: 0, total: 0 };
 	for (const row of rows) {
 		if (row.status === "completed") {

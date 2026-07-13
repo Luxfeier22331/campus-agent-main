@@ -279,30 +279,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "Operator Console trusted caller plus admitted operator principal",
 	},
 	{
-		method: "GET",
-		path: "/api/operator/overview",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/runtime/health",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/requests",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/requests/:requestId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
 		method: "POST",
 		path: "/api/operator/campus-services/attestations",
 		callerClass: "operator-via-panel",

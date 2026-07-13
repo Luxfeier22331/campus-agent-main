@@ -10,7 +10,7 @@ export function registerWorkerShellAssetsSuite() {
 			},
 			async (token) => {
 				const response = await worker.fetch(
-					new Request("https://operator-console.example.com/requests", {
+					new Request("https://operator-console.example.com/operations/provider-config", {
 						headers: {
 							"cf-access-jwt-assertion": token,
 						},
@@ -44,7 +44,7 @@ export function registerWorkerShellAssetsSuite() {
 			},
 			async (token) => {
 				const response = await worker.fetch(
-					new Request("https://operator-console.example.com/requests", {
+					new Request("https://operator-console.example.com/operations/provider-config", {
 						headers: {
 							"cf-access-jwt-assertion": token,
 						},

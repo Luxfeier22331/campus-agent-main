@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-30
+updated: 2026-07-13
 ---
 
 # App API HTTP System Auth Profile Memory
@@ -65,10 +65,11 @@ updated: 2026-06-30
 
 它不是 ingestion-control service 的完整 readiness probe。
 
-`preflight.campusServicesProductPath` 是 online answer campus services opening gate
-的诊断块。
-它不改变 `app-api` 对非 campus-services 产品路径的基础 readiness 语义；当 status 为
-`blocked` 时，`blockers` 会指出具体 gate / projection / read-model 缺口。
+`preflight.campusServicesProductPath` 记录班车查询能力的检查结果。
+它不改变 `app-api` 其他产品路径的 readiness；当 `status` 为 `blocked` 时，
+`blockers` 会指出具体问题。缺少当前有效的班车数据时，该检查结果为 `blocked`，
+但 `app-api` 整体仍可为 `ready`。只有数据库连接或 execution-control 等共享运行时
+依赖异常才会阻塞整体 readiness。
 
 当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed`
 中列出失败 probe，例如：

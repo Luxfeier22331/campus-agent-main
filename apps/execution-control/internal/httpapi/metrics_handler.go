@@ -25,7 +25,6 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 	}
 	lifecycleStatus := s.lifecycle.Snapshot()
 	telemetryStatus := s.telemetry.Status()
-	executionAuditStatus := s.executionAudit.Status()
 	_, _ = response.Write(s.metrics.Prometheus(observability.AdmissionSnapshot{
 		Active:        status.Active,
 		Queued:        status.Queued,
@@ -48,13 +47,6 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 			FailedCount:        telemetryStatus.FailedCount,
 			SampleRatio:        telemetryStatus.SampleRatio,
 			LastError:          telemetryStatus.LastError,
-		},
-		ExecutionAudit: observability.ExecutionAuditSnapshot{
-			Configured:   executionAuditStatus.Configured,
-			EmittedCount: executionAuditStatus.EmittedCount,
-			Enabled:      executionAuditStatus.Enabled,
-			FailedCount:  executionAuditStatus.FailedCount,
-			LastError:    executionAuditStatus.LastError,
 		},
 	}))
 }

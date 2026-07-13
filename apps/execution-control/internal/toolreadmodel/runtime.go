@@ -9,14 +9,6 @@ import (
 
 func NewRuntime(options Options) *Runtime {
 	structuredProjectionDatabaseURL := strings.TrimSpace(options.StructuredProjectionDatabaseURL)
-	campusServicesOpsReleaseStore := options.CampusServicesOpsReleaseStore
-	if campusServicesOpsReleaseStore == nil {
-		campusServicesOpsReleaseStore = NewPostgresCampusServicesOpsReleaseStore(
-			CampusServicesOpsPostgresOptions{
-				DatabaseURL: structuredProjectionDatabaseURL,
-			},
-		)
-	}
 	transportScheduleReadModelStore := options.TransportScheduleReadModelStore
 	if transportScheduleReadModelStore == nil {
 		transportScheduleReadModelStore = NewPostgresTransportScheduleReadModelStore(
@@ -26,7 +18,6 @@ func NewRuntime(options Options) *Runtime {
 		)
 	}
 	runtime := &Runtime{
-		campusServicesOpsReleaseStore:   campusServicesOpsReleaseStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
@@ -39,9 +30,6 @@ func NewRuntime(options Options) *Runtime {
 }
 
 func (r *Runtime) Close() {
-	if closer, ok := r.campusServicesOpsReleaseStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
 	if closer, ok := r.transportScheduleReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}

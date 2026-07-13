@@ -19,7 +19,7 @@ spec:
     name: workflow-worker
   pollingInterval: 15
   cooldownPeriod: 180
-  minReplicaCount: 1
+  minReplicaCount: 0
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
@@ -50,7 +50,7 @@ spec:
     name: activity-worker-core
   pollingInterval: 15
   cooldownPeriod: 180
-  minReplicaCount: 1
+  minReplicaCount: 0
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
@@ -81,7 +81,7 @@ spec:
     name: activity-worker-agent
   pollingInterval: 15
   cooldownPeriod: 180
-  minReplicaCount: 1
+  minReplicaCount: 0
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:

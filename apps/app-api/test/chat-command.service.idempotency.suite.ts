@@ -73,10 +73,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			traceId: "trace_0001",
 		});
 		expect(finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.rejected",
-			},
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "rate_limit_exceeded",
 				safetyIdentifier: expectedSafetyIdentifier,
 				status: "rejected",
@@ -134,10 +131,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				retryable: true,
 				text: "Execution timed out.",
 			},
-			outboxEvent: {
-				eventType: "request.error",
-			},
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "execution_timeout",
 				status: "error",
 			},
@@ -194,10 +188,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				retryable: false,
 				text: "untyped execution failure",
 			},
-			outboxEvent: {
-				eventType: "request.error",
-			},
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "internal_error",
 				status: "error",
 			},
@@ -383,7 +374,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				ownerUserId: "user_01HQ",
 				title: "图书馆开放到几点？",
 			},
-			requestExecution: {
+			turnDispatch: {
 				conversationId: "conv_client_0001",
 			},
 		});
@@ -441,7 +432,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				ownerUserId: "user_01HQ",
 				title: "图书馆开放到几点？",
 			},
-			requestExecution: {
+			turnDispatch: {
 				conversationId: "conv_0001",
 			},
 		});

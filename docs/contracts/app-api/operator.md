@@ -4,78 +4,59 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-07-12
 ---
 
-# App API HTTP Operator
+# App API Operator HTTP
 
-<!-- markdownlint-disable MD013 -->
+## 范围
 
-## Operator Endpoints
+本文列出 app-api 当前 operator source-processing 读取面。Operator Console 当前不消费这些
+页面；数据库表存在也不自动开放 route。
 
-### `GET /api/operator/requests`
+## Authenticated Notice
 
-查询参数：
+- `GET /api/operator/authenticated-notices/processing`
+- `GET /api/operator/authenticated-notices/processing/:noticeId`
+- `GET /api/operator/authenticated-notices/run-processing`
+- `GET /api/operator/authenticated-notices/run-processing/:id`
 
-- `limit`
-- `cursor`
-- `status`
-- `surface`
-- `conversationId`
-- `requestId`
+list 支持受限 limit/cursor 和代码中声明的 filter；detail 返回 sanitized projection 与
+timeline。响应不包含原始通知正文、认证材料或 Temporal history。
 
-响应：
+## Official Web
 
-```json
-{
-  "requests": [],
-  "page": {
-    "nextCursor": null
-  }
-}
-```
+- `GET /api/operator/official-web/release-tasks`
+- `GET /api/operator/official-web/release-tasks/:id`
 
-规则：
+返回 release task lifecycle、输入/输出摘要、错误和 timeline，不返回 raw artifact bytes。
 
-- 默认 `limit=20`
-- 最大 `limit=100`
-- 结果按 `startedAt desc`
-- 只读取 `operator.request_projection`
-- 不回放 answer execution
+## Ingestion
 
-### `GET /api/operator/requests/:requestId`
+- `GET /api/operator/ingestion/tasks`
 
-响应：
+该 route 读取 ingestion-control owner 的 operator-safe task projection，不创建或修改任务。
 
-```json
-{
-  "request": {
-    "requestId": "req_01HQ...",
-    "traceId": "trace_01HQ...",
-    "surface": "campus_web",
-    "conversationId": "conv_01HQ...",
-    "status": "completed",
-    "requestedTool": "knowledge_query",
-    "requestedScope": "student_rules",
-    "resolvedScope": "student_rules",
-    "selectedTool": "knowledge_query",
-    "questionPreview": "图书馆开放到几点？",
-    "answerPreview": "图书馆开放到 22:00。",
-    "errorCode": null,
-    "sourceDocIds": ["handbook:library-hours"],
-    "startedAt": "2026-03-28T07:10:30.000Z",
-    "completedAt": "2026-03-28T07:10:31.000Z",
-    "durationMs": 842,
-    "projectedAt": "2026-03-28T07:10:31.500Z"
-  }
-}
-```
+## 已退役
 
-规则：
+app-api 不再暴露：
 
-- 这是 projection detail，不是 raw execution dump
-- `requestedScope` 表示调用方显式请求的 model-facing knowledge scope id，可为 `null`
-- `resolvedScope` 表示 agent 最终解析并执行的 model-facing serving scope id，是
-  operator/panel 侧的前向真相
-- 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
-- v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 agent-internal payload
+- `/api/operator/requests`
+- `/api/operator/requests/:requestId`
+- `/api/operator/runtime/*`
+- execution audit ingest/backflow routes
+
+请求排查由 self-hosted Ops Web 直接读取受限 PostgreSQL 列并关联 execution-control 数据。
+
+## 通用规则
+
+- 只接受 operator-via-panel 或明确 trusted operator principal；
+- limit/cursor/filter 验证失败返回统一 app-api error envelope；
+- 未找到 detail 返回 `404`；
+- 不返回数据库 owner 字段、raw auth、raw prompt、raw answer 或 provider payload。
+
+## 可执行来源
+
+- `apps/app-api/src/app/routes/operator.ts`
+- `apps/app-api/src/app/route-exposure-operator-inventory.ts`
+- `apps/app-api/src/db/schema/operator.ts`

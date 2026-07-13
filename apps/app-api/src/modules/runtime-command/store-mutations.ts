@@ -2,9 +2,9 @@ import type { conversations, messages, sessionSlots } from "../../db/schema";
 import type {
 	AcceptRequestWrite,
 	FinalizeRequestWrite,
-	ProjectionOutboxWrite,
-	RequestExecutionWrite,
+	FinalizeTurnDispatchWrite,
 	RequestObservabilityFactWrite,
+	TurnDispatchWrite,
 } from "./store-types";
 
 export function buildConversationSeedInsertValues(
@@ -40,24 +40,16 @@ export function buildChatMessageInsertValues(
 	};
 }
 
-export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionWrite) {
+export function buildAcceptTurnDispatchInsertValues(input: TurnDispatchWrite) {
 	return {
 		requestId: input.requestId,
 		conversationId: input.conversationId,
 		userMessageId: input.userMessageId,
-		assistantMessageId: null,
 		turnSequence: input.turnSequence,
 		surface: input.surface,
+		ownerUserId: input.ownerUserId,
 		actorUserId: input.actorUserId,
-		actorPrincipalId: input.actorPrincipalId,
-		actorRolesJson: input.actorRoles,
-		actorDepartmentsJson: input.actorDepartments,
-		principalType: input.principalType,
-		principalLabel: input.principalLabel,
-		entitlementSnapshotId: input.entitlementSnapshotId,
-		entitlementGroupsJson: input.entitlementGroups,
-		visibilityScope: input.visibilityScope,
-		applicabilityScope: input.applicabilityScope,
+		principalSnapshotJson: input.principalSnapshot,
 		idempotencyKey: input.idempotencyKey,
 		requestFingerprintSha256: input.requestFingerprintSha256,
 		traceId: input.traceId,
@@ -66,52 +58,26 @@ export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionW
 		requestedTool: input.requestedTool,
 		requestedScope: input.requestedScope,
 		versionQueryJson: input.versionQuery,
-		resolvedScope: input.resolvedScope,
 		selectedTool: null,
 		status: input.status,
 		errorCode: null,
-		questionPreview: input.questionPreview,
-		answerPreview: null,
-		sourceDocIdsJson: [],
-		startedAt: new Date(input.startedAt),
 		completedAt: null,
-		durationMs: null,
 		createdAt: new Date(input.createdAt),
 		updatedAt: new Date(input.updatedAt),
 	};
 }
 
-export function buildFinalizeRequestExecutionUpdateValues(input: RequestExecutionWrite) {
+export function buildFinalizeTurnDispatchUpdateValues(input: FinalizeTurnDispatchWrite) {
 	return {
-		assistantMessageId: input.assistantMessageId,
-		turnSequence: input.turnSequence,
 		selectedTool: input.selectedTool,
 		status: input.status,
 		errorCode: input.errorCode,
 		requestedScope: input.requestedScope,
 		versionQueryJson: input.versionQuery,
-		resolvedScope: input.resolvedScope,
 		runId: input.runId,
 		safetyIdentifier: input.safetyIdentifier ?? null,
-		answerPreview: input.answerPreview,
-		sourceDocIdsJson: input.sourceDocIds,
 		completedAt: input.completedAt ? new Date(input.completedAt) : null,
-		durationMs: input.durationMs,
 		updatedAt: new Date(input.updatedAt),
-	};
-}
-
-export function buildProjectionOutboxInsertValues(input: ProjectionOutboxWrite) {
-	return {
-		eventId: input.eventId,
-		requestId: input.requestId,
-		eventType: input.eventType,
-		payloadJson: input.payload as Record<string, unknown>,
-		occurredAt: new Date(input.occurredAt),
-		availableAt: new Date(input.availableAt),
-		processedAt: null,
-		attemptCount: input.attemptCount,
-		lastError: null,
 	};
 }
 

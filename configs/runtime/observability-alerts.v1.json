@@ -44,19 +44,6 @@
 			"enabled": true
 		},
 		{
-			"id": "projection.outbox_stale.ticket",
-			"signal": "projection_outbox_stale",
-			"severity": "ticket",
-			"window": "15m",
-			"threshold": {
-				"operator": "gte",
-				"value": 1,
-				"unit": "count"
-			},
-			"runbook_anchor": "#projection-outbox",
-			"enabled": true
-		},
-		{
 			"id": "telemetry.export_failure.ticket",
 			"signal": "telemetry_export_failure",
 			"severity": "ticket",

@@ -84,7 +84,6 @@ describe("buildFinalizedWrite trace integrity", () => {
 				conversation: createConversation(),
 				conversationTitle: "示例问题",
 				durationMs: 3000,
-				outboxEventId: "evt_final_01HQ",
 				principal: createPrincipal(),
 				requestId: "req_01HQ",
 				requestedScope: null,

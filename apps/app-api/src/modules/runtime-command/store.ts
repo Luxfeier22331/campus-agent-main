@@ -7,23 +7,20 @@ import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runt
 import {
 	conversations,
 	messages,
-	projectionOutbox,
-	requestExecution,
 	requestObservabilityFact,
 	sessionSlots,
+	turnDispatches,
 } from "../../db/schema";
-import type { AppPrincipalType } from "../auth";
 import type { ChatConversation } from "../chat";
 import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../safety-ops-policy";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
 import { buildStoredIdempotentRequest, toChatConversation } from "./store-conversation";
 import {
-	buildAcceptRequestExecutionInsertValues,
+	buildAcceptTurnDispatchInsertValues,
 	buildChatMessageInsertValues,
 	buildConversationSeedInsertValues,
 	buildConversationTitleUpdateValues,
-	buildFinalizeRequestExecutionUpdateValues,
-	buildProjectionOutboxInsertValues,
+	buildFinalizeTurnDispatchUpdateValues,
 	buildRequestObservabilityFactInsertValues,
 	buildRequestObservabilityFactUpdateValues,
 	buildSessionSlotInsertValues,
@@ -42,11 +39,12 @@ export type {
 	AcceptRequestWrite,
 	ChatCommandStore,
 	FinalizeRequestWrite,
-	ProjectionOutboxWrite,
-	RequestExecutionStatus,
-	RequestExecutionWrite,
+	FinalizeTurnDispatchWrite,
 	RequestObservabilityFactWrite,
 	StoredIdempotentRequest,
+	TurnDispatchPrincipalSnapshot,
+	TurnDispatchStatus,
+	TurnDispatchWrite,
 } from "./store-types";
 
 export function createPgChatCommandStore(
@@ -92,25 +90,29 @@ export function createPgChatCommandStore(
 			const limit = Math.max(1, Math.min(input.limit, 10));
 			const rows = await db
 				.select({
-					answerPreview: requestExecution.answerPreview,
-					requestId: requestExecution.requestId,
-					runId: requestExecution.runId,
-					selectedTool: requestExecution.selectedTool,
-					status: requestExecution.status,
-					turnSequence: requestExecution.turnSequence,
+					answerText: messages.text,
+					requestId: turnDispatches.requestId,
+					runId: turnDispatches.runId,
+					selectedTool: turnDispatches.selectedTool,
+					status: turnDispatches.status,
+					turnSequence: turnDispatches.turnSequence,
 				})
-				.from(requestExecution)
+				.from(turnDispatches)
+				.leftJoin(
+					messages,
+					and(eq(messages.requestId, turnDispatches.requestId), eq(messages.role, "assistant")),
+				)
 				.where(
 					and(
-						eq(requestExecution.actorUserId, input.ownerUserId),
-						eq(requestExecution.conversationId, input.conversationId),
-						eq(requestExecution.status, "completed"),
-						isNotNull(requestExecution.runId),
-						isNotNull(requestExecution.selectedTool),
-						lte(requestExecution.turnSequence, input.beforeTurnSequence - 1),
+						eq(turnDispatches.ownerUserId, input.ownerUserId),
+						eq(turnDispatches.conversationId, input.conversationId),
+						eq(turnDispatches.status, "completed"),
+						isNotNull(turnDispatches.runId),
+						isNotNull(turnDispatches.selectedTool),
+						lte(turnDispatches.turnSequence, input.beforeTurnSequence - 1),
 					),
 				)
-				.orderBy(desc(requestExecution.turnSequence))
+				.orderBy(desc(turnDispatches.turnSequence))
 				.limit(limit);
 			return rows.flatMap((row) => {
 				if (!(row.runId && row.selectedTool)) {
@@ -125,14 +127,14 @@ export function createPgChatCommandStore(
 							row.runId,
 							row.selectedTool,
 							row.status,
-							row.answerPreview ?? "",
+							row.answerText ?? "",
 						]),
 						projectionRef,
 						requestId: row.requestId,
 						resultKind: "final_response",
 						runId: row.runId,
 						status: row.status,
-						...(row.answerPreview ? { summary: row.answerPreview } : {}),
+						...(row.answerText ? { summary: row.answerText } : {}),
 					},
 				];
 			});
@@ -143,70 +145,58 @@ export function createPgChatCommandStore(
 			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
 			const startedBefore = input.startedBefore ? new Date(input.startedBefore) : new Date();
 			const runId = input.runId?.trim();
-			const executionRows = await db
+			const dispatchRows = await db
 				.select()
-				.from(requestExecution)
+				.from(turnDispatches)
 				.where(
 					and(
-						eq(requestExecution.status, "accepted"),
-						isNotNull(requestExecution.runId),
-						lte(requestExecution.startedAt, startedBefore),
-						...(runId ? [eq(requestExecution.runId, runId)] : []),
+						eq(turnDispatches.status, "accepted"),
+						isNotNull(turnDispatches.runId),
+						lte(turnDispatches.createdAt, startedBefore),
+						...(runId ? [eq(turnDispatches.runId, runId)] : []),
 					),
 				)
-				.orderBy(asc(requestExecution.startedAt))
+				.orderBy(asc(turnDispatches.createdAt))
 				.limit(limit);
 			const candidates: AcceptedDurableRequestCloseout[] = [];
-			for (const row of executionRows) {
+			for (const row of dispatchRows) {
 				if (!row.runId) {
 					continue;
 				}
-				const conversation = await loadConversation(row.actorUserId, row.conversationId);
+				const conversation = await loadConversation(row.ownerUserId, row.conversationId);
 				if (!conversation) {
 					continue;
 				}
+				const userMessage = conversation.messages.find(
+					(message) => message.id === row.userMessageId,
+				);
+				if (!userMessage) {
+					continue;
+				}
+				const principalSnapshot = row.principalSnapshotJson;
 				candidates.push({
-					acceptedAt: row.startedAt.toISOString(),
+					acceptedAt: row.createdAt.toISOString(),
 					conversation,
 					conversationTitle: conversation.title,
 					idempotencyKey: row.idempotencyKey,
 					principal: {
-						actor: {
-							departments: row.actorDepartmentsJson,
-							principalId: row.actorPrincipalId,
-							principalType: row.principalType as AppPrincipalType,
-							roles: row.actorRolesJson,
-							userId: row.actorUserId,
-						},
-						authorization: {
-							...(row.applicabilityScope ? { applicabilityScope: row.applicabilityScope } : {}),
-							approvalState: "not_required",
-							entitlementGroups: row.entitlementGroupsJson,
-							entitlementSnapshotId: row.entitlementSnapshotId ?? "",
-							ownershipScopes: [`conversation:${row.actorUserId}`],
-							principalId: row.actorPrincipalId,
-							projectionSource: "campus_identity",
-							retrievalFilter: {
-								entitlementGroups: row.entitlementGroupsJson,
-								policyProjectionVersion: "phase1-authorization-projection-v1",
-								visibilityLevel: "public",
-								visibilityScope: row.visibilityScope ?? "main",
-							},
-							visibilityScope: row.visibilityScope,
-						},
+						actor: principalSnapshot.actor,
+						...(principalSnapshot.authorization
+							? { authorization: principalSnapshot.authorization }
+							: {}),
 						permissions: {
 							chat: true,
-							operator: row.actorRolesJson.includes("operator"),
+							operator: principalSnapshot.actor.roles.includes("operator"),
 						},
 						principal: {
-							displayName: row.principalLabel ?? row.actorPrincipalId,
+							displayName: principalSnapshot.principal.displayName,
 							email: null,
-							principalId: row.actorPrincipalId,
-							type: row.principalType as AppPrincipalType,
+							principalId: principalSnapshot.principal.principalId,
+							type: principalSnapshot.principal.type,
 						},
 						session: null,
 					},
-					questionPreview: row.questionPreview,
+					questionPreview: userMessage.text,
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
 					requestedTool: row.requestedTool,
@@ -225,22 +215,25 @@ export function createPgChatCommandStore(
 
 		async findIdempotentRequest(input) {
 			const db = await getDb();
-			const executionRows = await db
+			const dispatchRows = await db
 				.select()
-				.from(requestExecution)
+				.from(turnDispatches)
 				.where(
 					and(
-						eq(requestExecution.actorUserId, input.actorUserId),
-						eq(requestExecution.idempotencyKey, input.idempotencyKey),
+						eq(turnDispatches.actorUserId, input.actorUserId),
+						eq(turnDispatches.idempotencyKey, input.idempotencyKey),
 					),
 				)
 				.limit(1);
-			const executionRow = executionRows[0];
-			if (!executionRow) {
+			const dispatchRow = dispatchRows[0];
+			if (!dispatchRow) {
 				return null;
 			}
 
-			const conversation = await loadConversation(input.actorUserId, executionRow.conversationId);
+			const conversation = await loadConversation(
+				dispatchRow.ownerUserId,
+				dispatchRow.conversationId,
+			);
 			if (!conversation) {
 				return null;
 			}
@@ -248,13 +241,13 @@ export function createPgChatCommandStore(
 			const assistantRows = await db
 				.select()
 				.from(messages)
-				.where(eq(messages.requestId, executionRow.requestId))
+				.where(eq(messages.requestId, dispatchRow.requestId))
 				.orderBy(desc(messages.createdAt))
 				.limit(1);
 			return buildStoredIdempotentRequest({
 				assistantMessageRow: assistantRows[0] ?? null,
 				conversation,
-				executionRow,
+				dispatchRow,
 			});
 		},
 
@@ -271,15 +264,15 @@ export function createPgChatCommandStore(
 			);
 			const rows = await db
 				.select({
-					errorCode: requestExecution.errorCode,
-					startedAt: requestExecution.startedAt,
+					errorCode: turnDispatches.errorCode,
+					startedAt: turnDispatches.createdAt,
 				})
-				.from(requestExecution)
+				.from(turnDispatches)
 				.where(
 					and(
-						eq(requestExecution.safetyIdentifier, safetyIdentifier),
-						eq(requestExecution.surface, surface),
-						gte(requestExecution.startedAt, tenMinutesAgo),
+						eq(turnDispatches.safetyIdentifier, safetyIdentifier),
+						eq(turnDispatches.surface, surface),
+						gte(turnDispatches.createdAt, tenMinutesAgo),
 					),
 				);
 			return deriveAbuseControlState({
@@ -311,12 +304,8 @@ export function createPgChatCommandStore(
 				await tx.insert(messages).values(buildChatMessageInsertValues(input.userMessage));
 
 				await tx
-					.insert(requestExecution)
-					.values(buildAcceptRequestExecutionInsertValues(input.requestExecution));
-
-				await tx
-					.insert(projectionOutbox)
-					.values(buildProjectionOutboxInsertValues(input.outboxEvent));
+					.insert(turnDispatches)
+					.values(buildAcceptTurnDispatchInsertValues(input.turnDispatch));
 
 				await tx
 					.insert(requestObservabilityFact)
@@ -332,7 +321,7 @@ export function createPgChatCommandStore(
 						activeBranchId: input.userMessage.branchId ?? "branch_active",
 						activeMessageId: input.userMessage.id,
 						activeRunId: input.userMessage.runId ?? null,
-						activeTurnSequence: input.requestExecution.turnSequence,
+						activeTurnSequence: input.turnDispatch.turnSequence,
 					})
 					.where(
 						and(
@@ -347,19 +336,19 @@ export function createPgChatCommandStore(
 			const db = await getDb();
 			let activeStateAdvanced = false;
 			await db.transaction(async (tx) => {
-				const finalizedRequestRows = await tx
-					.update(requestExecution)
-					.set(buildFinalizeRequestExecutionUpdateValues(input.requestExecution))
+				const finalizedDispatchRows = await tx
+					.update(turnDispatches)
+					.set(buildFinalizeTurnDispatchUpdateValues(input.turnDispatch))
 					.where(
 						and(
-							eq(requestExecution.requestId, input.requestExecution.requestId),
-							eq(requestExecution.status, "accepted"),
+							eq(turnDispatches.requestId, input.turnDispatch.requestId),
+							eq(turnDispatches.status, "accepted"),
 						),
 					)
-					.returning({ requestId: requestExecution.requestId });
-				if (finalizedRequestRows.length !== 1) {
+					.returning({ requestId: turnDispatches.requestId });
+				if (finalizedDispatchRows.length !== 1) {
 					throw new Error(
-						`Cannot finalize request ${input.requestExecution.requestId} because it is not in accepted status.`,
+						`Cannot finalize request ${input.turnDispatch.requestId} because it is not in accepted status.`,
 					);
 				}
 
@@ -373,15 +362,15 @@ export function createPgChatCommandStore(
 						activeBranchId: input.assistantMessage.branchId ?? "branch_active",
 						activeMessageId: input.assistantMessage.id,
 						activeRunId: input.assistantMessage.runId ?? null,
-						activeTurnSequence: input.requestExecution.turnSequence,
+						activeTurnSequence: input.turnDispatch.turnSequence,
 					})
 					.where(
 						and(
 							eq(conversations.id, input.assistantMessage.conversationId),
 							eq(conversations.ownerUserId, input.ownerUserId),
-							eq(conversations.activeTurnSequence, input.requestExecution.turnSequence),
-							input.requestExecution.runId
-								? eq(conversations.activeRunId, input.requestExecution.runId)
+							eq(conversations.activeTurnSequence, input.turnDispatch.turnSequence),
+							input.turnDispatch.runId
+								? eq(conversations.activeRunId, input.turnDispatch.runId)
 								: isNull(conversations.activeRunId),
 						),
 					)
@@ -409,10 +398,6 @@ export function createPgChatCommandStore(
 				);
 
 				await tx
-					.insert(projectionOutbox)
-					.values(buildProjectionOutboxInsertValues(input.outboxEvent));
-
-				await tx
 					.insert(requestObservabilityFact)
 					.values(buildRequestObservabilityFactInsertValues(input.requestObservabilityFact))
 					.onConflictDoUpdate({
@@ -423,7 +408,7 @@ export function createPgChatCommandStore(
 				if (activeStateAdvanced && input.sessionSlots.length > 0) {
 					await tx.delete(sessionSlots).where(
 						and(
-							eq(sessionSlots.conversationId, input.requestExecution.conversationId),
+							eq(sessionSlots.conversationId, input.assistantMessage.conversationId),
 							inArray(
 								sessionSlots.name,
 								input.sessionSlots.map((slot) => slot.name),
@@ -435,7 +420,7 @@ export function createPgChatCommandStore(
 				if (activeStateAdvanced && input.sessionSlots.length > 0) {
 					await tx.insert(sessionSlots).values(
 						buildSessionSlotInsertValues({
-							conversationId: input.requestExecution.conversationId,
+							conversationId: input.assistantMessage.conversationId,
 							sessionSlots: input.sessionSlots,
 						}),
 					);
@@ -444,7 +429,7 @@ export function createPgChatCommandStore(
 
 			const conversation = await loadConversation(
 				input.ownerUserId,
-				input.requestExecution.conversationId,
+				input.assistantMessage.conversationId,
 			);
 			if (!conversation) {
 				throw new Error("Conversation disappeared after finalize.");

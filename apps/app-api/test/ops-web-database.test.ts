@@ -98,10 +98,13 @@ describe("ops-web database verification", () => {
 		expect(connect).toHaveBeenCalledTimes(3);
 		expect(end).toHaveBeenCalledTimes(3);
 		const allQueries = observedQueries.join("\n");
-		expect(allQueries).toContain('from "operator"."request_projection"');
+		expect(allQueries).toContain('from "chat"."turn_dispatches"');
+		expect(allQueries).toContain('from "chat"."messages"');
+		expect(allQueries).toContain('from "runtime"."agent_runs"');
+		expect(allQueries).toContain('from "runtime"."request_observability_fact"');
 		expect(allQueries).toContain('"duration_ms"');
-		expect(allQueries).toContain('"principal_type"');
-		expect(allQueries).toContain('"question_preview"');
+		expect(allQueries).toContain('"principal_snapshot_json"');
+		expect(allQueries).toContain('"text"');
 		expect(allQueries).toContain('"selected_tool"');
 		expect(allQueries).not.toContain('"principal_label"');
 		expect(allQueries).toContain('"acl_decision"');
@@ -113,10 +116,8 @@ describe("ops-web database verification", () => {
 		expect(allQueries).not.toContain('"candidate_count"');
 		expect(allQueries).not.toContain('"memory_summary_json"');
 		expect(allQueries).not.toContain('"input_tokens"');
-		expect(allQueries).toContain('"backlog_json"');
-		expect(allQueries).toContain('"oldest_task_age_json"');
-		expect(allQueries).toContain('"sampled_at"');
-		expect(allQueries).toContain('"current_id"');
+		expect(allQueries).toContain('"terminal_reason"');
+		expect(allQueries).toContain('"user_message_id"');
 		expect(allQueries).not.toContain('"body"');
 		expect(allQueries).toContain('insert into "observability"."ops_observability_read_audit"');
 		expect(allQueries).toContain("has_table_privilege");
@@ -168,9 +169,11 @@ describe("ops-web database verification", () => {
 		});
 
 		const allQueries = observedQueries.join("\n");
-		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "operator", "runtime", "observability"');
+		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat", "runtime", "observability"');
 		expect(allQueries).toContain("REVOKE ALL PRIVILEGES ON TABLE");
-		expect(allQueries).toContain('ON TABLE "operator"."request_projection" TO "ops_web"');
+		expect(allQueries).toContain('ON TABLE "chat"."turn_dispatches" TO "ops_web"');
+		expect(allQueries).toContain('ON TABLE "chat"."messages" TO "ops_web"');
+		expect(allQueries).toContain('ON TABLE "runtime"."agent_runs" TO "ops_web"');
 		expect(allQueries).toContain(
 			'ON TABLE "observability"."ops_observability_read_audit" TO "ops_web"',
 		);

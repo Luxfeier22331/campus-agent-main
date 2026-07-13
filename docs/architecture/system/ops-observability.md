@@ -37,7 +37,8 @@ flowchart LR
   Browser[值班人员浏览器]
   Access[Cloudflare Access]
   OpsWeb[ops-web 页面与服务端]
-  Pg[(PostgreSQL 请求与队列摘要)]
+  Pg[(PostgreSQL 请求与运行摘要)]
+  Control[execution-control 队列状态接口]
   Health[固定服务健康检查]
   OpenObserve[(OpenObserve)]
   OTel[OpenTelemetry Collector]
@@ -49,6 +50,7 @@ flowchart LR
 
   Browser --> Access --> OpsWeb
   OpsWeb --> Pg
+  OpsWeb --> Control
   OpsWeb --> Health
   OpsWeb --> OpenObserve
   Runtime --> OTel
@@ -70,7 +72,7 @@ flowchart LR
 | --- | --- | --- |
 | Ops Web 页面 | 展示、筛选、复制关联标识、打开已配置入口 | 持有服务凭据或提交任意查询 |
 | Ops Web 服务端 | Access 验证、固定查询、短缓存、响应校验、读取审计 | 写请求状态、执行工作流、提供通用代理 |
-| PostgreSQL | 请求、执行、观测和 Temporal 队列摘要；原始读取审计 | 原始日志、原始调用链、Temporal 历史 |
+| PostgreSQL | turn dispatch、用户问题、agent run、observability fact 和读取审计 | Temporal 队列、原始日志、原始调用链 |
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
 | OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
 | Temporal | 工作流历史、重试、超时、取消和任务队列真相 | Ops Web 请求状态或页面合同 |
@@ -81,11 +83,11 @@ flowchart LR
 
 ## 请求状态和关联
 
-请求状态只来自以下 PostgreSQL 来源：
+请求状态和排查摘要来自以下 PostgreSQL 来源：
 
-- `operator.request_projection`
-- `operator.temporal_task_queue_current`
-- `runtime.request_execution`
+- `chat.turn_dispatches`
+- `chat.messages`
+- `runtime.agent_runs`
 - `runtime.request_observability_fact`
 
 Ops Web 只获得这些来源中合同列出的列。OpenObserve、健康检查、Temporal、Langfuse、
@@ -109,9 +111,10 @@ Temporal history 不进入 PostgreSQL 摘要、OpenObserve 或外部 sink。
 
 Ops Web 并行读取三类信息：
 
-1. PostgreSQL 提供请求数量、状态、95% 耗时、趋势和 Temporal 队列摘要。
-2. 固定健康检查提供五个服务的 HTTP 状态。
-3. OpenObserve 提供日志、指标和调用链在所选时间窗口内的记录数与最近时间。
+1. PostgreSQL 提供请求数量、状态、95% 耗时和趋势。
+2. execution-control 通过 Temporal SDK 提供当前任务队列状态。
+3. 固定健康检查提供五个服务的 HTTP 状态。
+4. OpenObserve 提供日志、指标和调用链在所选时间窗口内的记录数与最近时间。
 
 单个健康检查有独立超时。概况结果在每个进程内缓存 15 秒；PostgreSQL 和运行信号都失败时，
 只允许使用五分钟内的最近成功结果并标为 `STALE`。该缓存不承担持久化或跨实例一致性。
@@ -138,7 +141,7 @@ Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择
 
 ## Temporal、Langfuse 和外部平台
 
-- Ops Web 从 PostgreSQL 读取 Temporal 队列摘要，不访问 Temporal persistence。
+- Ops Web 调用 execution-control 的只读内部接口获取当前 Temporal 队列状态；该结果不落库。
 - 完整工作流历史、重试、Signal、Update、Reset 和 Terminate 留在 Temporal UI。
 - Ops Web 展示已保存的模型、提示词版本和安全关联标识，不查询 Langfuse 数据库。
 - 脱敏模型 span facts、token、费用、评分、数据集和人工评审留在 Langfuse UI；生产原始

@@ -129,39 +129,42 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		);
 		expect(acceptedWrites).toHaveLength(1);
 		expect(acceptedWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.accepted",
-			},
-			requestExecution: {
-				applicabilityScope: "undergraduate",
-				actorPrincipalId: "user_01HQ",
+			turnDispatch: {
 				actorUserId: "user_01HQ",
-				entitlementGroups: ["students"],
-				entitlementSnapshotId: "entitlements-2026-03-29",
 				idempotencyKey: "idem-001",
-				principalLabel: "Jane Doe",
-				principalType: "student",
-				questionPreview: "图书馆开放到几点？",
+				principalSnapshot: {
+					actor: {
+						principalId: "user_01HQ",
+						userId: "user_01HQ",
+					},
+					authorization: {
+						applicabilityScope: "undergraduate",
+						entitlementGroups: ["students"],
+						entitlementSnapshotId: "entitlements-2026-03-29",
+						visibilityScope: "main",
+					},
+					principal: {
+						displayName: "Jane Doe",
+						principalId: "user_01HQ",
+						type: "student",
+					},
+				},
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
 				status: "accepted",
 				traceId: "trace_0001",
-				visibilityScope: "main",
 			},
 			requestObservabilityFact: {
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
 			},
+			userMessage: {
+				text: "图书馆开放到几点？",
+			},
 		});
-		expect(
-			(acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
-		).not.toHaveProperty("actorSnapshot");
-		expect(
-			(acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
-		).not.toHaveProperty("actorGroups");
-		expect(
-			(acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
-		).not.toHaveProperty("actorCampusScope");
+		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorSnapshot");
+		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorGroups");
+		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorCampusScope");
 		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({
 			assistantMessage: {
@@ -170,33 +173,22 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				role: "assistant",
 				text: "图书馆开放到 22:00。",
 			},
-			outboxEvent: {
-				eventType: "request.completed",
-			},
-			requestExecution: {
-				answerPreview: "图书馆开放到 22:00。",
-				applicabilityScope: "undergraduate",
-				actorPrincipalId: "user_01HQ",
-				entitlementGroups: ["students"],
-				entitlementSnapshotId: "entitlements-2026-03-29",
+			turnDispatch: {
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
 				selectedTool: "knowledge_query",
-				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
-				visibilityScope: "main",
 			},
 			requestObservabilityFact: {
+				entitlementSnapshotId: "entitlements-2026-03-29",
+				principalType: "student",
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
+				supportingSources: [],
 			},
 		});
-		expect(
-			(finalWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
-		).not.toHaveProperty("actorGroups");
-		expect(
-			(finalWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
-		).not.toHaveProperty("actorCampusScope");
+		expect(finalWrites[0].turnDispatch).not.toHaveProperty("actorGroups");
+		expect(finalWrites[0].turnDispatch).not.toHaveProperty("actorCampusScope");
 		expect(response).toMatchObject({
 			answer: {
 				conversation: {
@@ -229,20 +221,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
-			}),
-		);
-		expect(telemetry.recordProjectionEnqueued).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({
-				projectionStage: "accepted",
-				requestId: "req_0001",
-			}),
-		);
-		expect(telemetry.recordProjectionEnqueued).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				projectionStage: "finalized",
-				requestId: "req_0001",
 			}),
 		);
 		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(

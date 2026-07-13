@@ -119,10 +119,13 @@ Ops Web 必须让值班人员直接回答三个问题：
 
 Ops Web 只读取以下 PostgreSQL 来源中明确授权的列：
 
-- `operator.request_projection`
-- `operator.temporal_task_queue_current`
-- `runtime.request_execution`
+- `chat.turn_dispatches`
+- `chat.messages`
+- `runtime.agent_runs`
 - `runtime.request_observability_fact`
+
+Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只读接口获得，进程内缓存
+15 秒，不写入 PostgreSQL。
 
 页面可展示问题摘要和不可逆用户标识摘要，不展示完整用户身份、原始对话、原始提示词、
 原始回答、记忆正文或检索片段正文。

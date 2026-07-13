@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -283,12 +282,6 @@ func (s *Server) handleExecutionRunCancel(
 		)
 		return
 	}
-	s.emitExecutionRunAuditEvent(run, executionaudit.Event{
-		Decision:   reason,
-		EventType:  "execution.cancel_requested",
-		OccurredAt: time.Now().UTC(),
-		Retryable:  false,
-	})
 	canceledAt := time.Now().UTC()
 	canceled, err := s.runProjectionStore.CancelRunProjection(
 		request.Context(),
@@ -315,12 +308,6 @@ func (s *Server) handleExecutionRunCancel(
 		return
 	}
 	setOutcome(response, "execution_run_canceled")
-	s.emitExecutionRunAuditEvent(canceled, executionaudit.Event{
-		Decision:   reason,
-		EventType:  "execution.cancelled",
-		OccurredAt: canceledAt,
-		Retryable:  false,
-	})
 	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled))
 }
 

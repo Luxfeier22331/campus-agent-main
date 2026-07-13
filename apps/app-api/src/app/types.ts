@@ -6,10 +6,7 @@ import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesOpsService } from "../modules/campus-services-ops";
-import type {
-	CampusServicesTransportScheduleFetch,
-	CampusServicesTransportScheduleService,
-} from "../modules/campus-services-transport-schedule";
+import type { CampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningOperationsService } from "../modules/dining-ops";
 import type { DocsService } from "../modules/docs";
@@ -26,8 +23,6 @@ import type { OfficialWebReleaseTaskProcessingQueryService } from "../modules/of
 import type { OfficialWebTargetInventoryService } from "../modules/official-web-target-inventory";
 import type { OfficialWebTargetJobService } from "../modules/official-web-target-jobs";
 import type { OfficialWebTargetReleaseGateService } from "../modules/official-web-target-release-gates";
-import type { OperatorObservabilityCommandService } from "../modules/operator-observability-command";
-import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ProviderConfigService } from "../modules/provider-config";
 import type { ChatCommandService } from "../modules/runtime-command";
@@ -47,7 +42,6 @@ export interface AppDependencies {
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
 	campusExperienceService?: CampusExperienceService;
 	campusServicesOpsService?: CampusServicesOpsService;
-	campusServicesTransportScheduleFetch?: CampusServicesTransportScheduleFetch;
 	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
@@ -69,15 +63,9 @@ export interface AppDependencies {
 	officialWebTargetInventoryService?: OfficialWebTargetInventoryService;
 	officialWebTargetJobService?: OfficialWebTargetJobService;
 	officialWebTargetReleaseGateService?: OfficialWebTargetReleaseGateService;
-	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
-	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
 	providerConfigService?: ProviderConfigService;
 	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
-	scheduleRequestProjectionDrain?: (input: {
-		requestId: string;
-		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-	}) => void;
 	telemetry?: AppTelemetry;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
 	runtimeRunService?: RuntimeRunService;
@@ -134,8 +122,6 @@ export interface AppRequestScope {
 	resolveOfficialWebTargetInventoryService(): OfficialWebTargetInventoryService;
 	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
 	resolveOfficialWebTargetReleaseGateService(): OfficialWebTargetReleaseGateService;
-	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
-	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveProviderConfigService(): ProviderConfigService;
 	resolveRuntimeRunService(): RuntimeRunService;

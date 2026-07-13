@@ -109,7 +109,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
-			expect(finalizedWrite.requestExecution.selectedTool).toBe("transport_schedule_lookup");
+			expect(finalizedWrite.turnDispatch.selectedTool).toBe("transport_schedule_lookup");
 			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
 				(part) => part.type === "campus_service_trace_cards",
 			);

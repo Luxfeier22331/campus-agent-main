@@ -31,7 +31,7 @@ browser UX, execution runtime contracts or runbook procedures.
 规则：
 
 - 具体物理表名允许由 Better Auth adapter 决定
-- Supabase platform `auth.*` 不是这里的 repo-owned Better Auth schema
+- 不存在第二套 provider-managed browser auth schema
 - `app-api` runtime 与 shared-product bootstrap 使用 `app_auth.*`，但当前不由 `app-api`
   Drizzle journal 直接接管
 - app-domain migration 不应手写改造 Better Auth 的内部列约定，除非适配器明确支持
@@ -187,7 +187,7 @@ browser UX, execution runtime contracts or runbook procedures.
 
 规则：
 
-- 它属于 `chat.*` 的当前会话状态，不属于 `runtime.request_execution`
+- 它属于 `chat.*` 的当前会话状态，不属于 turn dispatch 或 execution run projection
 - 第一版只承载可回灌到 execution request context 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
 - 当前已冻结的 curriculum slot contract：
   - `curriculum_program_family`

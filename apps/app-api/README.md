@@ -45,7 +45,7 @@ fixture truth belongs to `packages/domains/dining`; import/review sync belongs t
 `jobs/dining-sync`, not the app-api request path.
 
 Repeatable local / staging database artifacts stay under app-owned `ops/`
-entry points, `apps/app-api/drizzle/0000_current_baseline.sql` and
+entry points, `apps/app-api/drizzle/0000_initial.sql` and
 `apps/app-api/db/shared-product-schema/chat_current.sql` rather than
 package lifecycle scripts:
 

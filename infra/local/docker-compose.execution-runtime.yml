@@ -273,8 +273,6 @@ services:
       QDRANT_QUERY_API_KEY: ${QDRANT_QUERY_API_KEY:?set QDRANT_QUERY_API_KEY}
       QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
       QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-60}
-      EXECUTION_CONTROL_EXECUTION_AUDIT_URL: ${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}
-      EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET: ${EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET:-}
       EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
       CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}
       EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: ${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:?set EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH}
@@ -310,29 +308,6 @@ services:
     networks:
       - execution-runtime
       - data-plane
-
-  worker-autoscaler-bin:
-    profiles: ["ops-check"]
-    init: true
-    restart: "no"
-    build:
-      context: ../..
-      dockerfile: apps/execution-control/Dockerfile
-      args:
-        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
-        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
-    user: "0:0"
-    entrypoint:
-      - /bin/sh
-      - -ec
-    command:
-      - |
-        cp /usr/local/bin/worker-autoscaler /runtime-bin/worker-autoscaler
-        chmod 0755 /runtime-bin/worker-autoscaler
-    volumes:
-      - execution-control-runtime-bin:/runtime-bin
-    networks:
-      - execution-runtime
 
   agent-runtime:
     init: true
@@ -521,91 +496,6 @@ services:
       - execution-runtime
       - data-plane
 
-  temporal-task-queue-sampler:
-    profiles: ["ops-check"]
-    init: true
-    restart: "no"
-    extra_hosts: *host-gateway
-    build:
-      context: ../..
-      dockerfile: apps/execution-control/Dockerfile
-      args:
-        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
-        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
-    entrypoint:
-      - /bin/sh
-      - -ec
-    command:
-      - |
-        /usr/local/bin/temporal-task-queue-sampler \
-          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
-    depends_on:
-      temporal-namespace-setup:
-        condition: service_completed_successfully
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      EXECUTION_CONTROL_APP_API_BASE_URL: ${EXECUTION_CONTROL_APP_API_BASE_URL:?set EXECUTION_CONTROL_APP_API_BASE_URL}
-      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:?set EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
-      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
-      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
-      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
-      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
-      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY}
-    networks:
-      - execution-runtime
-
-  worker-autoscaler:
-    profiles: ["ops-check"]
-    init: true
-    restart: "no"
-    image: docker:28-cli
-    extra_hosts: *host-gateway
-    entrypoint:
-      - /bin/sh
-      - -ec
-    command:
-      - |
-        install -m 0755 /runtime-bin/worker-autoscaler /usr/local/bin/worker-autoscaler
-        /usr/local/bin/worker-autoscaler \
-          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
-    depends_on:
-      worker-autoscaler-bin:
-        condition: service_completed_successfully
-      temporal-task-queue-sampler:
-        condition: service_started
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      EXECUTION_CONTROL_APP_API_BASE_URL: ${EXECUTION_CONTROL_APP_API_BASE_URL:?set EXECUTION_CONTROL_APP_API_BASE_URL}
-      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:?set EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
-      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}
-      EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY: ${EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY:?set EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY}
-      EXECUTION_CONTROL_COMPOSE_PROJECT_NAME: ${EXECUTION_CONTROL_COMPOSE_PROJECT_NAME:?set EXECUTION_CONTROL_COMPOSE_PROJECT_NAME}
-      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS:-60}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE:-dry-run}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_COOLDOWN_SECONDS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_COOLDOWN_SECONDS:-180}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_DOWN_WINDOWS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_DOWN_WINDOWS:-6}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_BACKLOG_THRESHOLD: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_BACKLOG_THRESHOLD:-8}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS:-30000}
-      EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS:-2}
-    volumes:
-      - execution-control-runtime-bin:/runtime-bin:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - execution-runtime
-
 networks:
   execution-runtime:
     name: ${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}
@@ -614,6 +504,5 @@ networks:
     name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}
 
 volumes:
-  execution-control-runtime-bin:
   temporal-postgres-data:
   hindsight-postgres-data:

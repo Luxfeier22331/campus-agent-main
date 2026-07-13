@@ -1,169 +1,99 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: apps/app-api
+owner_boundary: data-postgres
 status: active
 created: 2026-03-30
-updated: 2026-07-05
+updated: 2026-07-12
 ---
-# Shared Postgres Ownership
+
+# Postgres Ownership
 
 ## 文档边界
 
-这份文档冻结 repo root `CAMPUS_SHARED_POSTGRES_URL` 指向的共享 Supabase Postgres 的
-ownership、逻辑 schema 划分与当前可重建 schema 规则。
+本文定义 repo-owned PostgreSQL 的连接、角色、逻辑 schema 和安装边界。表字段由各 owner
+数据文档和可执行 schema 定义；环境是否已部署成功由 GitOps 状态和运行验证决定。
 
-它补充但不替代以下文档：
+## 部署拓扑
 
-- `app-api` 逻辑 schema：`docs/data/app-api/README.md`
-- `official_web` shared data schema：`docs/data/app-api/official-web.md`
-- `app-api`
-  runtime/ownership：`docs/architecture/system/product-runtime.md`
-- env ownership：`docs/environment/README.md`
+- Kubernetes 使用一套自托管 CloudNativePG 集群。
+- 产品关系型数据位于 `campus_agent` 数据库，并按逻辑 schema 分域。
+- 集群内运行时通过 ClusterIP 直连，挂载 CNPG CA 并使用 `verify-full`。
+- `app-api` Worker 通过 Hyperdrive 和 Workers VPC TCP Service 访问同一数据库。
+- schema installer 使用 owner 连接直连 CNPG，不通过 Hyperdrive。
+- PostgreSQL 不暴露公网入口，也不提供旧数据库或公共地址 fallback。
 
-这份文档不冻结：
+完整连接决策见 `docs/decisions/adr-0073-private-postgres.md`。
 
-- 具体 Supabase project / region
-- connection pooler host
-- 对象存储与 Qdrant 细节
-- ingestion collection 级别的 raw/chunk/index policy
-- staging / production 的当前部署状态
+## 角色
 
-## Ownership 与连接姿态说明
+| 角色 | 所有者 | 权限边界 |
+| --- | --- | --- |
+| `campus_agent` | CNPG bootstrap | schema 安装和授权，不用于常驻 runtime |
+| `app_api` | `apps/app-api` | app-owned schema DML；只能访问允许的 `runtime.*` 表 |
+| `execution_control` | `apps/execution-control` | execution projection 写入和 campus services 读取 |
+| `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
+| `ops_web` | `apps/ops-web` | 明确列的读取和 observability read-audit 写入 |
+| `ops_audit_maintenance` | maintenance Job | 只执行审计清理函数 |
 
-这份文档冻结的是 repo 共享 Postgres 的 ownership、env 命名与 connectivity posture。
+Temporal、Hindsight 和 OpenObserve 使用各自数据库或登录角色，不共享产品运行时角色。
+CNPG `DatabaseRole` 和部署 Secret 管理角色密码；应用 schema 只负责表、函数和 grant。
 
-它不承担：
+## Schema 所有权
 
-- 当前环境是否已经部署完成
-- 某个 worktree 的数据库迁移执行现场
-- 某条 feature/wave 的 closeout 状态说明
+- `app_auth.*`、`chat.*`、`docs.*`、`identity.*`、`profile.*`、
+  `provider_config.*` 和 app-facing operator schema 由
+  `apps/app-api` 拥有。
+- `runtime.request_observability_fact` 由 app-api schema 安装并由运行链路更新。
+- `runtime.agent_*` 由 execution-control schema owner 管理；`app_api` 不读取这些表。
+- `campus_services.*` 由 `jobs/transport-publisher` 安装和发布；app-api 状态页与
+  execution-control tool 读取同一个 current release。
+- ingestion registry 和 source truth 由 ingestion owner 管理，不并入 app-api migration。
 
-判断当前环境执行状态时，应以 `.planning/PROJECT.md`、
-`.planning/WORKSTREAMS.md`、相关 runbook 与实际代码为准。本地会话状态由
-GSD SDK / Codex native session 承接，不再写回 tracked workstream state file。
+已退役的 `runtime.request_execution`、`runtime.projection_outbox`、operator request
+projection、Temporal sampler projection 和 worker-autoscaler projection 不属于当前 schema。
 
-## 核心结论
+## 安装与 journal
 
-repo 当前接受一份共享 Supabase Postgres，作为多个 runtime/data-plane owner 共用的关系型存储底座。
+- `jobs/app-api-schema` 先执行 `apps/app-api/drizzle/0000_initial.sql`，再收敛 Better Auth
+  `app_auth.*`、`chat_current.sql` 和运行角色 grant。
+- app-api Drizzle journal 固定为 `drizzle.app_api_migrations`。
+- `jobs/transport-publisher install-schema` 安装 `campus_services.*` 并应用 publisher、
+  app-api 和 execution-control 的最小权限；Ops Web 不读取该 schema。
+- execution-control 使用独立的 run-projection schema installer 和 journal。
+- installer 必须可重复执行；缺少角色、表、CA 或权限时失败，不自动做破坏性修复。
 
-repo root `.env` 的 canonical runtime key 固定为：
+当前数据库没有需要迁移的旧产品数据，因此安装路径从 repo-owned baseline 重建。未来若
+出现不可重建的正式数据，必须单独接受一次性迁移方案，完成后删除临时迁移代码。
 
-- `CAMPUS_SHARED_POSTGRES_URL`
+## Hyperdrive
 
-同时允许一个只服务于 offline operator / schema bootstrap / DBA 路径的 companion key：
+- `APP_API_DB` 与 `APP_API_DB_FRESH` 指向同一 `campus_agent` 数据库和 `app_api` 角色。
+- `APP_API_DB` 承担普通读取并允许 Hyperdrive 查询缓存。
+- `APP_API_DB_FRESH` 关闭查询缓存，只用于明确列出的写后读路径。
+- 两个 binding 不是双写、双库或故障回退。
 
-- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+## 环境变量
 
-这表示：
+- 根 `CAMPUS_SHARED_POSTGRES_URL` 和 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 只服务本地命令
+  与 owner 工具，不是 Kubernetes 部署 truth。
+- app-local env 只保存该 app 直接消费的连接，例如
+  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 和
+  `APP_API_OPERATOR_DATABASE_URL`。
+- Kubernetes 连接由 ConfigMap 中的固定内部主机、CNPG CA 和角色 Secret 组装；Secret
+  不重复保存可由这些字段确定的 DSN。
 
-- 它是 repo 共享 Postgres truth，不是某个 app 的专属数据库
-- app-local env 可以显式填写同一数据库的 owner-specific DSN，但不得反向把
-  app-local DSN 重新写成 repo shared truth，也不得通过 repo 脚本批量 fan out
-- domain-specific database env 名称只保留为显式 override，不再承载“共享库 canonical name”语义
+## 不变量
 
-## Connectivity Posture
+- runtime 不使用 schema owner 凭据。
+- owner 之间不共享 migration journal。
+- 对象 bytes 进入 S3-compatible object storage，不进入 PostgreSQL。
+- 缺少私网连接时不公开数据库。
+- 代码中的 schema、GitOps DatabaseRole、Secret 和网络策略必须一起变更并一起验证。
 
-共享 Postgres 的长期连接规则见
-`docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`。
+## 相关文档
 
-当前 accepted posture 固定为：
-
-- repo-owned persistent runtime 默认按 `IPv4-only` 处理
-- `CAMPUS_SHARED_POSTGRES_URL` 在 Supabase-backed runtime 下默认指向 `session pooler`
-- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 是 canonical operator lane，当前默认指向 IPv4
-  可达的 session pooler `:5432`
-- runtime 主链路不在 `direct connection` 与 `session pooler` 之间做自动切换
-- 长驻 Python / Node runtime 必须使用 application-side pooling，而不是每次数据库操作新建连接
-
-因此这份文档冻结的是 shared Postgres ownership，不再把“连接方式由各命令临时选择”视为允许形态。
-
-## 逻辑 Schema Ownership
-
-当前共享库允许以下 repo-owned schema 共存：
-
-- `app_auth.*` repo-owned Better Auth truth；runtime 与 current schema bootstrap
-  owner 都是 `apps/app-api`
-- `chat.*` consumer conversation/message truth；product-layer owner 与 shared-db
-  bootstrap owner 都是 `apps/app-api`
-- `runtime.*` request command-side ledger / outbox；owner 是 `apps/app-api`
-- `operator.*` panel/read-model projections；owner 是 `apps/app-api`
-- `official_web.*` crawl-run ledger、page observation、freshness 与 target workset
-  durable truth；runtime writer owner 是 `apps/ingestion-control`。`apps/app-api`
-  只消费 operator projection/read surface 与 operator release-gate command ledger。
-- `ingestion_registry.*` 或其他 ingestion task / document / raw asset registry
-  truth；runtime owner 是 `apps/ingestion-control`。Runtime-neutral DTO /
-  parser / canonical artifact helper 归 `packages/ingest-core`；Python 不拥有
-  registry connection 或 migration truth。
-
-## Env Ownership Rules
-
-- repo root `.env` / `.env.example` 持有 `CAMPUS_SHARED_POSTGRES_URL` 与 canonical
-  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-- app-local env 只持有当前 app runtime 直接消费的 database URL，例如：
-  - `apps/app-api/.env` ->
-    `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` /
-    `APP_API_OPERATOR_DATABASE_URL`
-- domain override env 例如
-  `DOCUMENT_REGISTRY_DATABASE_URL`、`RAW_ASSET_REGISTRY_DATABASE_URL`，只在对应 owner
-  明确偏离共享库时使用
-
-## Current Schema Bootstrap Rules
-
-- Supabase platform-managed `auth.*` 保留给 Supabase Auth；repo 不接管，也不把它当成 Better
-  Auth 的物理 schema
-- `app_auth.*` on Supabase session pooler shared-product bootstrap 仍通过数据库角色默认
-  `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c
-  search_path=...` 在当前 shared DB 上不可靠，而 `apps/app-api` runtime 现已改为通过 Drizzle
-  adapter + schema-qualified metadata 访问 `app_auth.*`
-- deployed Worker runtimes 远端 Worker 环境会重新缓存静态 Worker/app assembly，但不会跨请求复用
-  repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime
-  state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
-- deployed `app-api` runtime Hyperdrive lanes `APP_API_DB` 继续承接
-  cached/read-mostly queries；`APP_API_DB_FRESH` 只承接 Better Auth、provider
-  config、dining operations、chat command conversation-context admission 与 chat
-  conversation detail read-after-write verification 这类显式白名单的
-  read-after-write-sensitive product paths，并要求在
-  Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中
-  stale negative cache。它不是第二个数据库，也不是默认 command lane。
-- `apps/app-api` 负责当前 app-facing schema baseline：
-  - `apps/app-api/drizzle/0000_current_baseline.sql` 是新数据库的 Drizzle baseline；
-    后续 `apps/app-api/drizzle/*.sql` 是现有数据库的增量迁移。
-  - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
-    shared-product `chat.*` current bootstrap artifact。
-  - `drizzle.app_api_migrations` 只记录 app-api Drizzle migration chain，不与
-    shared-product SQL baseline 混用同一 journal 语义。
-- `official_web.*` 的 collector control-plane writer owner 是
-  `apps/ingestion-control`，不得新增 app-api collector write route 或 app-api-owned
-  run admission ledger。`apps/app-api` 只保留 operator read/projection 与
-  release-gate command ledger 所需的 query/type surface。
-- `apps/ingestion-control` 不接管 `app-api` 的 Drizzle migration journal；
-  ingestion task / registry / closeout tables 由 ingestion-control 代码路径负责
-  schema ensure。需要 full current-scope replay / chunk-prep / release 这类
-  offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
-  Python 不创建 ingestion Postgres client，也不拥有 registry table migration。
-- app-api migration 使用 direct management connection 在 Worker rollout 前执行；
-  Hyperdrive 与 long-running Worker 不承担 migration ownership。
-
-## Journal Ownership
-
-共享库中不同 migration owner 不得共享同一张 migration journal table。
-
-当前接受：
-
-- `apps/app-api` 使用 `drizzle.app_api_migrations`
-
-这意味着：
-
-- `app-api` 不再使用默认 `drizzle.__drizzle_migrations`
-- 以后若其他 owner 引入 Drizzle，也必须使用自己的独立 journal table
-
-## Existing Database Handling
-
-当某个环境已经存在部分 schema 但还没有接受当前 repo baseline 时：
-
-- 默认处理方式是备份后重建到 current baseline，而不是在产品代码中保留迁移接管逻辑。
-- 如果未来出现不可重建的正式生产数据库，必须通过新的 ADR/runbook 接受一次性迁移计划，
-  并在迁移完成后删除迁移脚本、测试和文档入口。
-- 不允许把“不确定是否一致”的共享库直接标记为已迁移
-- 发现结构不一致时必须 fail closed，而不是自动 destructive 修复
+- `docs/data/app-api/README.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/k8s-runtime.md`
+- `docs/decisions/adr-0073-private-postgres.md`

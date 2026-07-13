@@ -174,7 +174,7 @@ describe("chat command durable stream closeout", () => {
 		await iterator.return?.();
 
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "accepted",
@@ -198,7 +198,7 @@ describe("chat command durable stream closeout", () => {
 		});
 		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",
@@ -544,7 +544,7 @@ describe("chat command durable stream closeout", () => {
 
 		expect(events).toEqual(["request.accepted", "answer.delta", "request.completed"]);
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: null,
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -628,7 +628,7 @@ describe("chat command durable stream closeout", () => {
 				role: "assistant",
 				text: "国家奖学金评审结果会按学校规则公示。",
 			},
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",

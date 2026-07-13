@@ -3,11 +3,15 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0016
-status: accepted
+status: superseded
 created: 2026-03-28
-updated: 2026-07-11
+updated: 2026-07-12
+superseded_by: ADR-0072
 ---
 # ADR-0016 App API Request Projection And Operator Console Query Ownership
+
+> 本决策已由 ADR-0072 取代。请求排查由自托管 Ops Web 从受限 PostgreSQL 来源读取，
+> app-api request projection 与 Operator Console request proxy 已退役。下文只保留历史决策。
 
 适用范围：operator-facing request list/detail、shared `app-api` request
 projection、Operator Console `Requests` domain 的长期 ownership

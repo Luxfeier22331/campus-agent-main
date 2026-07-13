@@ -21,9 +21,10 @@ export {
 	type ChatCommandStore,
 	createPgChatCommandStore,
 	type FinalizeRequestWrite,
-	type ProjectionOutboxWrite,
-	type RequestExecutionStatus,
-	type RequestExecutionWrite,
+	type FinalizeTurnDispatchWrite,
 	type RequestObservabilityFactWrite,
 	type StoredIdempotentRequest,
+	type TurnDispatchPrincipalSnapshot,
+	type TurnDispatchStatus,
+	type TurnDispatchWrite,
 } from "./store";

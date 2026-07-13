@@ -12,10 +12,7 @@ import {
 	type StageTimingField,
 } from "./integration/execution-finalization-contract";
 import { llmIoFingerprintSha256 } from "./integration/llm-io-fingerprint-hash";
-import type {
-	RequestExecutionStatus,
-	RequestObservabilityFactWrite,
-} from "./runtime-command/store";
+import type { RequestObservabilityFactWrite, TurnDispatchStatus } from "./runtime-command/store";
 import { extractObservedSourcesFromResult } from "./source-trace";
 import { summarizeVersionQuery, type VersionQuery } from "./version-query";
 
@@ -189,7 +186,7 @@ function assertLlmIoFingerprintRunConsistent(input: {
 	}
 }
 
-function normalizeAclDecision(input: { status: RequestExecutionStatus }): string | null {
+function normalizeAclDecision(input: { status: TurnDispatchStatus }): string | null {
 	if (input.status === "approval_required") {
 		return "approval_required";
 	}
@@ -199,14 +196,14 @@ function normalizeAclDecision(input: { status: RequestExecutionStatus }): string
 	return input.status === "accepted" ? null : "allowed";
 }
 
-function normalizeFailClosed(input: { status: RequestExecutionStatus }): boolean | null {
+function normalizeFailClosed(input: { status: TurnDispatchStatus }): boolean | null {
 	if (input.status === "accepted") {
 		return null;
 	}
 	return !["completed", "needs_clarification"].includes(input.status);
 }
 
-function normalizeRefusalClass(status: RequestExecutionStatus): string | null {
+function normalizeRefusalClass(status: TurnDispatchStatus): string | null {
 	if (
 		status === "needs_clarification" ||
 		status === "no_answer" ||
@@ -219,7 +216,7 @@ function normalizeRefusalClass(status: RequestExecutionStatus): string | null {
 	return status === "error" || status === "cancelled" ? status : null;
 }
 
-function normalizeSemanticOutcome(status: RequestExecutionStatus): string | null {
+function normalizeSemanticOutcome(status: TurnDispatchStatus): string | null {
 	if (status === "completed") {
 		return "answer";
 	}
@@ -241,7 +238,7 @@ function normalizeSemanticOutcome(status: RequestExecutionStatus): string | null
 function normalizeScopeClass(input: {
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	status: RequestExecutionStatus;
+	status: TurnDispatchStatus;
 }): string | null {
 	if (
 		(input.status === "completed" ||
@@ -254,7 +251,7 @@ function normalizeScopeClass(input: {
 	return null;
 }
 
-function normalizePolicyReason(input: { status: RequestExecutionStatus }): string | null {
+function normalizePolicyReason(input: { status: TurnDispatchStatus }): string | null {
 	if (input.status === "approval_required") {
 		return "approval_required";
 	}
@@ -339,7 +336,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	safetyIdentifier?: string | null;
 	startedAt: string;
 	stageTiming?: Record<string, unknown> | null;
-	status: RequestExecutionStatus;
+	status: TurnDispatchStatus;
 	streamBrowserTtftMs?: number | null;
 	surface: string;
 	traceId: string;

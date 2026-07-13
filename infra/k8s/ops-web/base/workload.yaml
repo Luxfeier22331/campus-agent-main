@@ -66,6 +66,13 @@ spec:
                 secretKeyRef:
                   name: ops-web-database-secrets
                   key: OPS_WEB_DATABASE_URL
+            - name: OPS_WEB_EXECUTION_CONTROL_URL
+              value: http://execution-control:8000
+            - name: OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: execution-control-metrics-secrets
+                  key: EXECUTION_CONTROL_METRICS_BEARER_TOKEN
             - name: ACCESS_TEAM_DOMAIN
               valueFrom:
                 secretKeyRef:

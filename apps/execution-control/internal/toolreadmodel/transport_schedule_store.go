@@ -4,16 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const (
-	defaultTransportScheduleReadModelSchema         = "ingestion_projection"
-	defaultTransportScheduleReadModelMaxConns int32 = 2
-)
+const defaultTransportScheduleReadModelMaxConns int32 = 2
 
 type TransportScheduleReadModelStore interface {
 	HealthCheck(ctx context.Context) error
@@ -27,8 +24,7 @@ type TransportSchedulePostgresOptions struct {
 }
 
 type PostgresTransportScheduleReadModelStore struct {
-	pool      *pgxpool.Pool
-	schemaSQL string
+	pool *pgxpool.Pool
 }
 
 func NewPostgresTransportScheduleReadModelStore(
@@ -38,31 +34,17 @@ func NewPostgresTransportScheduleReadModelStore(
 	if databaseURL == "" {
 		return nil
 	}
-	schemaSQL := qualifiedTransportScheduleSchemaSQL()
-	config, err := transportSchedulePostgresPoolConfig(options)
+	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil
 	}
+	config.MinConns = 0
+	config.MaxConns = defaultTransportScheduleReadModelMaxConns
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return nil
 	}
-	return &PostgresTransportScheduleReadModelStore{
-		pool:      pool,
-		schemaSQL: schemaSQL,
-	}
-}
-
-func transportSchedulePostgresPoolConfig(
-	options TransportSchedulePostgresOptions,
-) (*pgxpool.Config, error) {
-	config, err := pgxpool.ParseConfig(strings.TrimSpace(options.DatabaseURL))
-	if err != nil {
-		return nil, err
-	}
-	config.MinConns = 0
-	config.MaxConns = defaultTransportScheduleReadModelMaxConns
-	return config, nil
+	return &PostgresTransportScheduleReadModelStore{pool: pool}
 }
 
 func (s *PostgresTransportScheduleReadModelStore) HealthCheck(ctx context.Context) error {
@@ -82,18 +64,35 @@ func (s *PostgresTransportScheduleReadModelStore) CurrentReleaseID(ctx context.C
 	if s == nil || s.pool == nil {
 		return "", errors.New("transport schedule read model store is not configured")
 	}
-	return s.currentReleaseID(ctx, "campus_services", "transport_schedule")
+	var releaseID string
+	err := s.pool.QueryRow(
+		ctx,
+		`select release_id from campus_services.transport_current where pointer_key = 'current'`,
+	).Scan(&releaseID)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(releaseID) == "" {
+		return "", errors.New("current transport schedule release is empty")
+	}
+	return releaseID, nil
 }
 
 func (s *PostgresTransportScheduleReadModelStore) ProjectionReady(ctx context.Context) (bool, error) {
-	if s == nil || s.pool == nil {
-		return false, errors.New("transport schedule read model store is not configured")
-	}
 	releaseID, err := s.CurrentReleaseID(ctx)
 	if err != nil {
 		return false, err
 	}
-	return projectionTableReady(ctx, s.pool, s.tableSQL("transport_schedule_snapshots"), releaseID)
+	var routeCount int
+	var departureCount int
+	err = s.pool.QueryRow(
+		ctx,
+		`select
+			(select count(*) from campus_services.transport_routes where release_id = $1),
+			(select count(*) from campus_services.transport_departures where release_id = $1)`,
+		releaseID,
+	).Scan(&routeCount, &departureCount)
+	return routeCount > 0 && departureCount > 0, err
 }
 
 func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
@@ -103,204 +102,184 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if s == nil || s.pool == nil {
 		return projectionBundle{}, errors.New("transport schedule read model store is not configured")
 	}
-	snapshots, err := fetchStructuredJSONRecords[transportScheduleSnapshotRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_schedule_snapshots"),
-		releaseID,
-	)
+	snapshot, sourceURLs, err := s.loadRelease(ctx, releaseID)
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	routes, err := fetchStructuredJSONRecords[transportRouteRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_routes"),
-		releaseID,
-	)
+	routes, err := s.loadRoutes(ctx, releaseID)
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	departures, err := fetchStructuredJSONRecords[scheduledDepartureRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_scheduled_departures"),
-		releaseID,
-	)
+	departures, err := s.loadDepartures(ctx, releaseID)
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	exceptions, err := fetchStructuredJSONRecords[transportServiceExceptionRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_service_exceptions"),
-		releaseID,
-	)
-	if err != nil {
-		return projectionBundle{}, err
-	}
-	operationalNotices, err := fetchStructuredJSONRecords[transportOperationalNoticeRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_operational_notices"),
-		releaseID,
-	)
-	if err != nil {
-		return projectionBundle{}, err
-	}
-	releaseNotices, err := fetchStructuredJSONRecords[transportReleaseNoticeRecord](
-		ctx,
-		s.pool,
-		s.tableSQL("transport_release_notices"),
-		releaseID,
-	)
-	if err != nil {
-		return projectionBundle{}, err
+	releaseNotices := make([]transportReleaseNoticeRecord, 0, len(sourceURLs))
+	for _, sourceURL := range sourceURLs {
+		releaseNotices = append(releaseNotices, transportReleaseNoticeRecord{
+			SourceNoticeID: sourceURL,
+			SourceRef:      sourceURL,
+			SourceURL:      sourceURL,
+			AdmittedAt:     snapshot.PublishedAt,
+			MaterializedAt: snapshot.PublishedAt,
+		})
 	}
 	return projectionBundle{
-		SchemaVersion:               "campus_services_projection_bundle.v1",
-		TransportScheduleSnapshots:  snapshots,
-		TransportRoutes:             routes,
-		ScheduledDepartures:         departures,
-		TransportServiceExceptions:  exceptions,
-		TransportOperationalNotices: operationalNotices,
-		TransportReleaseNotices:     releaseNotices,
+		SchemaVersion:              "campus_services_transport.v1",
+		TransportScheduleSnapshots: []transportScheduleSnapshotRecord{snapshot},
+		TransportRoutes:            routes,
+		ScheduledDepartures:        departures,
+		TransportReleaseNotices:    releaseNotices,
 	}, nil
 }
 
-func (s *PostgresTransportScheduleReadModelStore) EnrichTransportReleaseNoticeURLs(
+func (s *PostgresTransportScheduleReadModelStore) loadRelease(
 	ctx context.Context,
-	bundle projectionBundle,
-) (projectionBundle, error) {
-	if len(bundle.TransportReleaseNotices) == 0 || transportReleaseNoticesHaveURLs(bundle.TransportReleaseNotices) {
-		return bundle, nil
-	}
-	urlByNoticeID, err := s.fetchAuthenticatedNoticeURLs(ctx, bundle.TransportReleaseNotices)
+	releaseID string,
+) (transportScheduleSnapshotRecord, []string, error) {
+	var publishedAt time.Time
+	var effectiveFrom time.Time
+	var effectiveUntil *time.Time
+	var sourceURLsJSON []byte
+	err := s.pool.QueryRow(
+		ctx,
+		`select published_at, effective_from, effective_until, source_urls_json
+		   from campus_services.transport_releases where release_id = $1`,
+		releaseID,
+	).Scan(&publishedAt, &effectiveFrom, &effectiveUntil, &sourceURLsJSON)
 	if err != nil {
-		return projectionBundle{}, err
+		return transportScheduleSnapshotRecord{}, nil, err
 	}
-	for index := range bundle.TransportReleaseNotices {
-		if strings.TrimSpace(bundle.TransportReleaseNotices[index].SourceURL) != "" {
+	sourceURLs := []string{}
+	if err := json.Unmarshal(sourceURLsJSON, &sourceURLs); err != nil {
+		return transportScheduleSnapshotRecord{}, nil, err
+	}
+	sourceURLs = normalizeTransportSourceURLs(sourceURLs)
+	if len(sourceURLs) == 0 {
+		return transportScheduleSnapshotRecord{}, nil, errors.New("transport release source URLs are empty")
+	}
+	snapshot := transportScheduleSnapshotRecord{
+		SnapshotID:    releaseID,
+		PublishedAt:   publishedAt.UTC().Format(time.RFC3339),
+		EffectiveFrom: beginningOfTransportDay(effectiveFrom.In(transportLocation)).Format(time.RFC3339),
+		SourceRef:     sourceURLs[0],
+		IsCurrent:     true,
+		ScheduleScope: "baseline_revision",
+		Precedence:    100,
+	}
+	if effectiveUntil != nil {
+		snapshot.EffectiveUntil = beginningOfTransportDay(effectiveUntil.In(transportLocation)).Format(time.RFC3339)
+	}
+	return snapshot, sourceURLs, nil
+}
+
+func (s *PostgresTransportScheduleReadModelStore) loadRoutes(
+	ctx context.Context,
+	releaseID string,
+) ([]transportRouteRecord, error) {
+	rows, err := s.pool.Query(
+		ctx,
+		`select route_id, display_name, aliases_json, origin_campus, destination_campus,
+		        origin_stop_id, origin_stop_name, destination_stop_id, destination_stop_name
+		   from campus_services.transport_routes
+		  where release_id = $1 order by sort_order, route_id`,
+		releaseID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	routes := []transportRouteRecord{}
+	for rows.Next() {
+		var route transportRouteRecord
+		var aliasesJSON []byte
+		var originStop transportStopRecord
+		var destinationStop transportStopRecord
+		if err := rows.Scan(
+			&route.RouteID,
+			&route.DisplayName,
+			&aliasesJSON,
+			&route.OriginCampus,
+			&route.DestinationCampus,
+			&originStop.StopID,
+			&originStop.DisplayName,
+			&destinationStop.StopID,
+			&destinationStop.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(aliasesJSON, &route.Aliases); err != nil {
+			return nil, err
+		}
+		route.ServiceFamily = "campus_shuttle"
+		route.Stops = []transportStopRecord{originStop, destinationStop}
+		routes = append(routes, route)
+	}
+	return routes, rows.Err()
+}
+
+func (s *PostgresTransportScheduleReadModelStore) loadDepartures(
+	ctx context.Context,
+	releaseID string,
+) ([]scheduledDepartureRecord, error) {
+	rows, err := s.pool.Query(
+		ctx,
+		`select d.route_id, d.service_mode, d.service_date, d.departure_time,
+		        d.departure_kind, d.status, d.note, d.source_urls_json,
+		        r.origin_stop_id, r.destination_stop_id
+		   from campus_services.transport_departures d
+		   join campus_services.transport_routes r
+		     on r.release_id = d.release_id and r.route_id = d.route_id
+		  where d.release_id = $1 order by d.sort_order, d.departure_id`,
+		releaseID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	departures := []scheduledDepartureRecord{}
+	for rows.Next() {
+		var record scheduledDepartureRecord
+		var operationalComment *string
+		var serviceDate *time.Time
+		var sourceURLsJSON []byte
+		if err := rows.Scan(
+			&record.RouteID,
+			&record.ServiceMode,
+			&serviceDate,
+			&record.DepartureTime,
+			&record.DepartureKind,
+			&record.DepartureStatus,
+			&operationalComment,
+			&sourceURLsJSON,
+			&record.OriginStopID,
+			&record.DestinationStopID,
+		); err != nil {
+			return nil, err
+		}
+		if serviceDate != nil {
+			record.ServiceDates = []string{serviceDate.In(transportLocation).Format(transportLocalDateLayout)}
+		}
+		if operationalComment != nil {
+			record.OperationalComment = *operationalComment
+		}
+		if err := json.Unmarshal(sourceURLsJSON, &record.RelatedNoticeRefs); err != nil {
+			return nil, err
+		}
+		record.SnapshotID = releaseID
+		departures = append(departures, record)
+	}
+	return departures, rows.Err()
+}
+
+func normalizeTransportSourceURLs(values []string) []string {
+	result := []string{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || (!strings.HasPrefix(value, "https://") && !strings.HasPrefix(value, "http://")) {
 			continue
 		}
-		siteID, noticeID := bundle.TransportReleaseNotices[index].sourceNoticeIdentity()
-		if url := urlByNoticeID[transportReleaseNoticeURLKey(siteID, noticeID)]; url != "" {
-			bundle.TransportReleaseNotices[index].SourceURL = url
-		}
+		result = appendUniqueTransportRefs(result, []string{value})
 	}
-	return bundle, nil
-}
-
-func (s *PostgresTransportScheduleReadModelStore) fetchAuthenticatedNoticeURLs(
-	ctx context.Context,
-	releaseNotices []transportReleaseNoticeRecord,
-) (map[string]string, error) {
-	noticeIdentities := uniqueTransportReleaseNoticeIdentities(releaseNotices)
-	if len(noticeIdentities) == 0 {
-		return map[string]string{}, nil
-	}
-	siteIDs := make([]string, 0, len(noticeIdentities))
-	noticeIDs := make([]string, 0, len(noticeIdentities))
-	for _, identity := range noticeIdentities {
-		siteIDs = append(siteIDs, identity.SiteID)
-		noticeIDs = append(noticeIDs, identity.NoticeID)
-	}
-	query := fmt.Sprintf(
-		`select site_id,
-		        notice_id,
-		        coalesce(
-		            record->>'notice_browser_url',
-		            record->>'portal_print_url',
-		            record #>> '{parent_snapshot,notice_browser_url}',
-		            record #>> '{parent_snapshot,portal_print_url}',
-		            ''
-		        ) as source_url
-		   from %s
-		  where (site_id, notice_id) in (
-		      select * from unnest($1::text[], $2::text[])
-		  )`,
-		s.tableSQL("authenticated_notice_source_truth_inventory"),
-	)
-	rows, err := s.pool.Query(ctx, query, siteIDs, noticeIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	urls := map[string]string{}
-	for rows.Next() {
-		var siteID string
-		var noticeID string
-		var sourceURL string
-		if err := rows.Scan(&siteID, &noticeID, &sourceURL); err != nil {
-			return nil, err
-		}
-		siteID = strings.TrimSpace(siteID)
-		noticeID = strings.TrimSpace(noticeID)
-		sourceURL = strings.TrimSpace(sourceURL)
-		if siteID != "" && noticeID != "" && sourceURL != "" {
-			urls[transportReleaseNoticeURLKey(siteID, noticeID)] = sourceURL
-		}
-	}
-	return urls, rows.Err()
-}
-
-func (s *PostgresTransportScheduleReadModelStore) currentReleaseID(
-	ctx context.Context,
-	corpus string,
-	collection string,
-) (string, error) {
-	query := fmt.Sprintf(
-		`select release_id from %s where corpus = $1 and collection = $2`,
-		s.tableSQL("structured_projection_current"),
-	)
-	var releaseID string
-	if err := s.pool.QueryRow(ctx, query, corpus, collection).Scan(&releaseID); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(releaseID) == "" {
-		return "", errors.New("current transport schedule release is empty")
-	}
-	return releaseID, nil
-}
-
-func fetchStructuredJSONRecords[T any](
-	ctx context.Context,
-	pool *pgxpool.Pool,
-	tableSQL string,
-	releaseID string,
-) ([]T, error) {
-	query := fmt.Sprintf(
-		`select record from %s where release_id = $1 order by record_id`,
-		tableSQL,
-	)
-	rows, err := pool.Query(ctx, query, releaseID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	records := []T{}
-	for rows.Next() {
-		var raw json.RawMessage
-		if err := rows.Scan(&raw); err != nil {
-			return nil, err
-		}
-		var record T
-		if err := json.Unmarshal(raw, &record); err != nil {
-			return nil, err
-		}
-		records = append(records, record)
-	}
-	return records, rows.Err()
-}
-
-func (s *PostgresTransportScheduleReadModelStore) tableSQL(tableName string) string {
-	return s.schemaSQL + "." + quoteTransportScheduleIdentifier(tableName)
-}
-
-func qualifiedTransportScheduleSchemaSQL() string {
-	return quoteTransportScheduleIdentifier(defaultTransportScheduleReadModelSchema)
-}
-
-func quoteTransportScheduleIdentifier(identifier string) string {
-	return `"` + identifier + `"`
+	return result
 }

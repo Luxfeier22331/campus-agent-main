@@ -14,7 +14,10 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/app-api/**
       - apps/ops-web/**
+      - jobs/app-api-schema/**
+      - jobs/transport-publisher/**
       - configs/runtime/**
       - configs/ingestion/**
       - infra/k8s/data-postgres/base/**
@@ -50,9 +53,15 @@ jobs:
           - image: agent-runtime
             dockerfile: apps/agent-runtime/Dockerfile
             sbom: agent-runtime-sbom.spdx.json
+          - image: app-api-schema
+            dockerfile: jobs/app-api-schema/Dockerfile
+            sbom: app-api-schema-sbom.spdx.json
           - image: ops-web
             dockerfile: apps/ops-web/Dockerfile
             sbom: ops-web-sbom.spdx.json
+          - image: transport-publisher
+            dockerfile: jobs/transport-publisher/Dockerfile
+            sbom: transport-publisher-sbom.spdx.json
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -104,9 +113,15 @@ jobs:
           - image: agent-runtime
             dockerfile: apps/agent-runtime/Dockerfile
             sbom: agent-runtime-sbom.spdx.json
+          - image: app-api-schema
+            dockerfile: jobs/app-api-schema/Dockerfile
+            sbom: app-api-schema-sbom.spdx.json
           - image: ops-web
             dockerfile: apps/ops-web/Dockerfile
             sbom: ops-web-sbom.spdx.json
+          - image: transport-publisher
+            dockerfile: jobs/transport-publisher/Dockerfile
+            sbom: transport-publisher-sbom.spdx.json
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -213,17 +228,26 @@ jobs:
               "${IMAGE_ROOT,,}/agent-runtime:${SOURCE_SHA}" \
               --format '{{json .Manifest}}' | jq -r '.digest'
           )"
-          ops_web_digest="$(
+          app_api_schema_digest="$(
             docker buildx imagetools inspect \
-              "${IMAGE_ROOT,,}/ops-web:${SOURCE_SHA}" \
+              "${IMAGE_ROOT,,}/app-api-schema:${SOURCE_SHA}" \
+              --format '{{json .Manifest}}' | jq -r '.digest'
+          )"
+          transport_publisher_digest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE_ROOT,,}/transport-publisher:${SOURCE_SHA}" \
               --format '{{json .Manifest}}' | jq -r '.digest'
           )"
           [[ "${execution_control_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "${agent_runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "${ops_web_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          echo "execution_control=${execution_control_digest}" >> "${GITHUB_OUTPUT}"
-          echo "agent_runtime=${agent_runtime_digest}" >> "${GITHUB_OUTPUT}"
-          echo "ops_web=${ops_web_digest}" >> "${GITHUB_OUTPUT}"
+          [[ "${app_api_schema_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${transport_publisher_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          {
+            echo "execution_control=${execution_control_digest}"
+            echo "agent_runtime=${agent_runtime_digest}"
+            echo "app_api_schema=${app_api_schema_digest}"
+            echo "transport_publisher=${transport_publisher_digest}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Update immutable GitOps inputs
         id: source
@@ -231,12 +255,14 @@ jobs:
         env:
           AGENT_RUNTIME_DIGEST: ${{ steps.digests.outputs.agent_runtime }}
           AGENT_RUNTIME_IMAGE: ghcr.io/muc-wiki/campus-agent/agent-runtime
+          APP_API_SCHEMA_DIGEST: ${{ steps.digests.outputs.app_api_schema }}
+          APP_API_SCHEMA_IMAGE: ghcr.io/muc-wiki/campus-agent/app-api-schema
           EXECUTION_CONTROL_DIGEST: ${{ steps.digests.outputs.execution_control }}
           EXECUTION_CONTROL_IMAGE: ghcr.io/muc-wiki/campus-agent/execution-control
-          OPS_WEB_DIGEST: ${{ steps.digests.outputs.ops_web }}
-          OPS_WEB_IMAGE: ghcr.io/muc-wiki/campus-agent/ops-web
           SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
+          TRANSPORT_PUBLISHER_DIGEST: ${{ steps.digests.outputs.transport_publisher }}
+          TRANSPORT_PUBLISHER_IMAGE: ghcr.io/muc-wiki/campus-agent/transport-publisher
         with:
           cmd: |
             set -eu
@@ -259,15 +285,14 @@ jobs:
             ).digest = strenv(EXECUTION_CONTROL_DIGEST) | (
               .images[] |
               select(.name == strenv(AGENT_RUNTIME_IMAGE))
-            ).digest = strenv(AGENT_RUNTIME_DIGEST)' \
-              "${runtime_kustomization}"
-
-            ops_web_kustomization="${overlay_root}/ops-web/kustomization.yaml"
-            yq -i '(
+            ).digest = strenv(AGENT_RUNTIME_DIGEST) | (
               .images[] |
-              select(.name == strenv(OPS_WEB_IMAGE))
-            ).digest = strenv(OPS_WEB_DIGEST)' \
-              "${ops_web_kustomization}"
+              select(.name == strenv(APP_API_SCHEMA_IMAGE))
+            ).digest = strenv(APP_API_SCHEMA_DIGEST) | (
+              .images[] |
+              select(.name == strenv(TRANSPORT_PUBLISHER_IMAGE))
+            ).digest = strenv(TRANSPORT_PUBLISHER_DIGEST)' \
+              "${runtime_kustomization}"
 
             runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
             short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
@@ -295,10 +320,17 @@ jobs:
             test "$(yq '[
               .images[] |
               select(
-                .name == strenv(OPS_WEB_IMAGE) and
-                .digest == strenv(OPS_WEB_DIGEST)
+                .name == strenv(TRANSPORT_PUBLISHER_IMAGE) and
+                .digest == strenv(TRANSPORT_PUBLISHER_DIGEST)
               )
-            ] | length' "${ops_web_kustomization}")" -eq 1
+            ] | length' "${runtime_kustomization}")" -eq 1
+            test "$(yq '[
+              .images[] |
+              select(
+                .name == strenv(APP_API_SCHEMA_IMAGE) and
+                .digest == strenv(APP_API_SCHEMA_DIGEST)
+              )
+            ] | length' "${runtime_kustomization}")" -eq 1
             test "$(yq '[
               .images[] |
               select(
@@ -345,7 +377,7 @@ jobs:
             ## 变更内容
 
             - 使用 `campus-agent@${{ github.sha }}` 的 Kubernetes 基座
-            - 固定 `execution-control`、`agent-runtime` 和 `ops-web` 的多架构镜像 digest
+            - 固定 `execution-control`、`agent-runtime`、`app-api-schema` 和 `transport-publisher` 的多架构镜像 digest
             - 同步运行时发布标识
 
             ## 验证结果

@@ -9,9 +9,6 @@ import {
 import { getMissingRuntimeConfig, hasAppApiBridge, probeAppApiRuntime } from "./runtime";
 import { type Env, resolveOperatorConsoleAppName } from "./types";
 
-const OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE =
-	"Protected operator runtime queries require a trusted operator identity.";
-const REQUEST_IDENTITY_MESSAGE = "Protected request queries require a trusted operator identity.";
 const PROVIDER_CONFIG_IDENTITY_MESSAGE =
 	"Operator Console provider configuration requires a trusted operator identity.";
 
@@ -40,24 +37,6 @@ const STATIC_PROXY_ROUTES = [
 		path: "/api/operator/provider-config/profiles",
 		targetPath: "/api/operator/provider-config/profiles",
 	},
-	{
-		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
-		method: "GET",
-		path: "/api/operator/overview",
-		targetPath: "/api/operator/overview",
-	},
-	{
-		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
-		method: "GET",
-		path: "/api/operator/runtime/health",
-		targetPath: "/api/operator/runtime/health",
-	},
-	{
-		identityMessage: REQUEST_IDENTITY_MESSAGE,
-		method: "GET",
-		path: "/api/requests",
-		targetPath: "/api/operator/requests",
-	},
 ] as const;
 
 const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
@@ -67,18 +46,13 @@ const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
 	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/activate$/,
 ] as const;
 
-const REQUEST_DYNAMIC_PROXY_ROUTES = [/^GET \/api\/requests\/[^/]+$/] as const;
-
 function matchProxyRoute(
 	request: Request,
 	url: URL,
-):
-	| {
-			identityMessage: string;
-			targetPath: string;
-	  }
-	| "not_found"
-	| null {
+): {
+	identityMessage: string;
+	targetPath: string;
+} | null {
 	const routeKey = `${request.method.toUpperCase()} ${url.pathname}`;
 	const staticRoute = STATIC_PROXY_ROUTES.find(
 		(route) => route.method === request.method.toUpperCase() && route.path === url.pathname,
@@ -94,13 +68,6 @@ function matchProxyRoute(
 		return {
 			identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
 			targetPath: `${url.pathname}${url.search}`,
-		};
-	}
-
-	if (REQUEST_DYNAMIC_PROXY_ROUTES.some((pattern) => pattern.test(routeKey))) {
-		return {
-			identityMessage: REQUEST_IDENTITY_MESSAGE,
-			targetPath: `/api/operator${url.pathname.slice("/api".length)}${url.search}`,
 		};
 	}
 
@@ -186,9 +153,6 @@ export const worker = {
 		}
 
 		const proxyRoute = matchProxyRoute(request, url);
-		if (proxyRoute === "not_found") {
-			return notFoundResponse();
-		}
 		if (proxyRoute) {
 			const admission = await validateProtectedApiRequest(request, env);
 			if (admission.error) {

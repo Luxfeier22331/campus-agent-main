@@ -21,7 +21,6 @@ export function runDoctorEnvSelfTest(): number {
 	);
 	selfTestExecutionControlReady();
 	selfTestExecutionControlMissing();
-	selfTestExecutionAuditRequired();
 	selfTestQuerySurface();
 	selfTestWorkerObservabilityLocalSurface();
 	selfTestIngestionBucketScopedCredentials();
@@ -59,21 +58,6 @@ function selfTestExecutionControlMissing(): void {
 			status.settings.required.temporal_address.present,
 			false,
 			"temporal address should be missing",
-		);
-	});
-}
-
-function selfTestExecutionAuditRequired(): void {
-	withFixture((root) => {
-		writeText(join(root, ".env"), `${executionControlRequiredEnv().join("\n")}\n`);
-		writeExecutionControlRuntimeConfig(root, { executionAuditEnabled: true });
-		const status = collectEnvDoctorStatus({ env: {}, root, surface: "execution-control" });
-		expectEqual(status.overall_ready, false, "execution audit missing env should fail");
-		expect(
-			String(status.conditions.execution_audit_contract.error).includes(
-				"EXECUTION_CONTROL_EXECUTION_AUDIT_URL",
-			),
-			"execution audit missing URL was not reported",
 		);
 	});
 }
@@ -228,15 +212,11 @@ function executionControlRequiredEnv(): string[] {
 	];
 }
 
-function writeExecutionControlRuntimeConfig(
-	root: string,
-	{ executionAuditEnabled = false }: { executionAuditEnabled?: boolean } = {},
-): void {
+function writeExecutionControlRuntimeConfig(root: string): void {
 	writeText(
 		join(root, "configs/runtime/execution-control/runtime-config.staging.json"),
 		`${JSON.stringify({
 			schema_version: "campus_execution_control_runtime_config.v1",
-			execution_audit: { enabled: executionAuditEnabled },
 		})}\n`,
 	);
 }

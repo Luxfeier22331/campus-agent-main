@@ -34,7 +34,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
-	executionAuditStatus := s.executionAudit.Status()
 	toolReadModelCtx, toolReadModelCancel := context.WithTimeout(
 		request.Context(),
 		time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond,
@@ -47,12 +46,10 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
-	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	toolReadModelRuntimeHealthy := s.openToolReadModelRuntimeHealthy(toolReadModelStatus)
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
 		telemetryHealthy &&
-		executionAuditHealthy &&
 		toolReadModelRuntimeHealthy &&
 		providerConfigGate.Configured &&
 		agentRuntimeStatus["healthy"] == true &&
@@ -73,7 +70,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"transport_runtime":        transportStatus,
 		"lifecycle_runtime":        s.lifecycle.Snapshot(),
 		"telemetry_runtime":        telemetryStatus,
-		"execution_audit_runtime":  executionAuditStatus,
 		"tool_read_model_runtime":  toolReadModelStatus,
 		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
@@ -333,8 +329,7 @@ func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bo
 	if modelVisibleToolConfigured("transport_schedule_lookup") &&
 		(!status.Configured ||
 			!status.TransportScheduleReadModelConfigured ||
-			!status.TransportScheduleReadModelHealthy ||
-			!status.TransportScheduleImplemented) {
+			!status.TransportScheduleReadModelHealthy) {
 		return false
 	}
 	return true

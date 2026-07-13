@@ -32,14 +32,13 @@ type routeHistogram struct {
 }
 
 type AdmissionSnapshot struct {
-	Active         int
-	Queued         int
-	QueueCapacity  int
-	Draining       bool
-	Groups         map[string]AdmissionGroupSnapshot
-	Lifecycle      LifecycleSnapshot
-	Telemetry      TelemetrySnapshot
-	ExecutionAudit ExecutionAuditSnapshot
+	Active        int
+	Queued        int
+	QueueCapacity int
+	Draining      bool
+	Groups        map[string]AdmissionGroupSnapshot
+	Lifecycle     LifecycleSnapshot
+	Telemetry     TelemetrySnapshot
 }
 
 type AdmissionGroupSnapshot struct {
@@ -65,14 +64,6 @@ type TelemetrySnapshot struct {
 	FailedCount        uint64
 	SampleRatio        string
 	LastError          string
-}
-
-type ExecutionAuditSnapshot struct {
-	Enabled      bool
-	Configured   bool
-	EmittedCount uint64
-	FailedCount  uint64
-	LastError    string
 }
 
 type groupDecisionKey struct {

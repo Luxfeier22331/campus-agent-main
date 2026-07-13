@@ -12,7 +12,7 @@ import {
 	env as baseEnv,
 	createCampusPrincipal,
 	createOperatorPrincipal,
-} from "./operator-query.route.test-support";
+} from "./operator-route.test-support";
 
 const env = {
 	...baseEnv,

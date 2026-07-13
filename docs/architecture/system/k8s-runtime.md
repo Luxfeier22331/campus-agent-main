@@ -1,455 +1,178 @@
 ---
 doc_type: architecture
-truth_scope: execution
-owner_boundary: execution-control
+truth_scope: system
+owner_boundary: execution-runtime
 status: active
-created: 2026-06-16
-updated: 2026-07-11
+created: 2026-07-03
+updated: 2026-07-12
 ---
-# Kubernetes Execution Runtime Architecture
 
-## Document Boundary
+# Kubernetes Runtime
 
-本文冻结 `campus-agent` execution-control / Temporal worker plane 的目标
-Kubernetes deployment substrate 与 autoscaling boundary。
+## 文档边界
 
-它回答的是：
+本文定义 execution runtime 的 Kubernetes 资源、Temporal worker pool、KEDA、私网入口和
+配置所有权。具体环境选择、镜像 digest、Secret 和部署状态由 GitOps repo 管理。
 
-- execution-control、Temporal、workflow worker 与 activity worker 在 K8s 中如何分层
-- KEDA / HPA 与 Temporal task queue 指标如何参与 worker replica autoscaling
-- Docker Compose `worker-autoscaler` 在目标态中的位置
-- Operator Console / app-api 应消费什么运行证据
-- 自托管 Ops Web 如何与 execution runtime 分开部署
+## 拓扑
 
-它不负责：
+```mermaid
+flowchart LR
+  AppAPI[app-api Worker]
+  VPC[Workers VPC Service]
+  Tunnel[cloudflared]
+  Control[execution-control]
+  Temporal[Temporal]
+  Workflow[workflow-worker]
+  Core[activity-worker-core]
+  AgentWorker[activity-worker-agent]
+  Agent[agent-runtime]
+  Pg[(CNPG)]
+  KEDA[KEDA]
 
-- Kubernetes provider / cluster vendor
-- 当前 merged staging 是否已经迁移到 Kubernetes
-- 每个 worker 的最终 CPU / memory request、node pool 或实际阈值
-- Temporal Cloud 与 self-hosted Temporal 的最终商业选择
-
-当前拓扑 truth 仍以 `../current.md` 为准；live substrate truth 必须由
-applied resources、runtime env、operator projection 与 release closeout artifacts
-共同确认。本文描述目标 deployment substrate 和 supporting architecture。
-
-## Core Conclusion
-
-execution-control production target substrate 固定为：
-
-```text
-app-api Worker
--> execution-control Kubernetes Service
--> Temporal Service / Temporal Cloud endpoint
--> workflow-worker Deployment
--> activity-worker-* Deployments
--> KEDA temporal ScaledObjects
--> Kubernetes HPA replica control
--> sanitized app-api runtime projection
+  AppAPI --> VPC --> Tunnel --> Control
+  Control --> Temporal
+  Temporal --> Workflow
+  Temporal --> Core
+  Temporal --> AgentWorker
+  AgentWorker --> Agent
+  Control --> Pg
+  Workflow --> Pg
+  KEDA --> Temporal
+  KEDA --> Workflow
+  KEDA --> Core
+  KEDA --> AgentWorker
 ```
 
-核心规则：
+PostgreSQL 的 Worker 私网路径复用同一 `cloudflared` 隧道，但使用独立 TCP VPC Service 和
+5432 网络策略；数据库不暴露公网。
 
-- Temporal 仍拥有 workflow history、workflow / activity task queue、retry、timeout、
-  heartbeat、signal、query 与 update。
-- Kubernetes 只拥有 pod scheduling、resource requests / limits、rollout、readiness、
-  liveness、service discovery 与 workload replica desired state。
-- KEDA / HPA 只调整 worker Deployment replica count，不拥有 execution truth、
-  product run projection、step projection 或 terminal state。
-- `worker-autoscaler` 不再作为长期 production autoscaling controller；它只保留为
-  local diagnostics runtime projection producer。
-- Operator Console 不读取 Kubernetes API、Temporal history 或 raw KEDA metrics；它只读取
-  app-api 物化的 operator-safe runtime projection。
+## First-party Workloads
 
-## Runtime Ownership Ledger
+`infra/k8s/execution-runtime/base` 只包含：
 
-Runtime substrate ownership is split by truth type:
+- `execution-control` Deployment/Service；
+- `agent-runtime` Deployment/Service；
+- `workflow-worker`；
+- `activity-worker-core`；
+- `activity-worker-agent`；
+- 一组 `cloudflared` connector 副本；
+- 每个 worker pool 一个 KEDA `ScaledObject`；
+- namespace-neutral ServiceAccount、NetworkPolicy 和 probes。
 
-- Temporal owns workflow history, workflow/activity task queues, retry,
-  timeout, heartbeat and signal/query/update. It does not own product
-  projection, final answer truth or operator read models.
-- Kubernetes owns pod scheduling, services, rollout, probes, resource
-  requests/limits and replica desired state. It does not own workflow history,
-  task queue truth or tool admission.
-- KEDA/HPA owns worker Deployment replica actuation from Temporal/task metrics.
-  It does not own run/step/event projection, terminal state or tool policy.
-- app-api owns product projection and operator-safe runtime projection. It does
-  not expose raw Temporal history or raw Kubernetes/KEDA/HPA objects.
-- worker-autoscaler owns only local diagnostics projection production. It is not
-  the production replica controller once KEDA/HPA owns workers.
+Temporal、CNPG、Qdrant、Hindsight、OpenTelemetry Collector、OpenObserve、KEDA controller 和
+Ingress controller 是平台/data applications，不复制进 execution-runtime base。Ops Web 有
+独立的 `infra/k8s/ops-web/base`。
 
-This ledger is the runtime equivalent of the tool concept governance rule:
-deployment role names and scaler components do not create product/runtime truth.
+## Worker Pools
 
-## Target Runtime Topology
+每个 Deployment 只 poll 一个固定队列：
 
-### Control Plane
+| Deployment | Queue | 类型 |
+| --- | --- | --- |
+| `workflow-worker` | `campus-agent.workflow` | workflow |
+| `activity-worker-core` | `campus-agent.activity.core` | activity |
+| `activity-worker-agent` | `campus-agent.activity.agent` | activity |
 
-`execution-control` 在 K8s 中是 internal-only Deployment + Service：
+worker image 可以复用 execution-control image，通过 command 选择角色；镜像拆分不是运行时
+所有权边界。每个 pool 独立设置 resource、probe、rollout 和 KEDA policy。
 
-- 接收 `apps/app-api` 的 trusted machine command/query request。
-- 拥有 workflow start / signal / cancel / query / update seam。
-- 暴露 `/healthz`、`/readyz` 与 `/metrics`。
-- 不作为 browser surface、public API 或 Operator Console query backend。
+## KEDA
 
-`apps/app-api` 仍是 product-layer owner：
+KEDA Temporal scaler 直接读取 Temporal，不经过 app-api、PostgreSQL、sampler 或自研
+autoscaler。当前 base 参数：
 
-- conversation / run creation
-- auth/session/principal
-- product projection
-- operator-safe read model
-- internal runtime projection ingest / query endpoints
+- `pollingInterval: 15`
+- `cooldownPeriod: 180`
+- `minReplicaCount: 0`
+- `maxReplicaCount: 3`
+- `targetQueueSize: "8"`
+- `activationTargetQueueSize: "0"`
+- HPA scale-down stabilization：300 秒
 
-`app-api -> execution-control` 的 transport 可通过 private network、service mesh、
-internal ingress 或 Cloudflare-protected machine ingress 实现；transport 形态不得改变
-owner boundary。
+scale-to-zero 会增加首个任务的冷启动时间；这是当前资源姿态，不是永久容量承诺。调整这些
+值必须依据 schedule-to-start、backlog、poller、activity latency 和用户时延，而不是恢复
+第二套控制器。
 
-### Temporal Plane
+KEDA/HPA 是唯一 replica actuator。不得运行 Docker worker-autoscaler、写 decision/actuation
+表或让 application code 调 Kubernetes API。
 
-Temporal 可以是：
+## 当前队列观测
 
-- self-hosted Temporal in the same cluster；或
-- Temporal Cloud / external Temporal endpoint。
+execution-control 的 `GET /internal/ops/temporal/task-queues` 使用 Temporal SDK 即时读取三个
+队列，Ops Web 缓存 15 秒。该接口只服务人工观测：
 
-二者对 repo architecture 等价：Temporal endpoint、namespace、TLS / API key / mTLS
-secret 由 deploy environment 注入。repo 不把 Temporal persistence schema、Temporal
-internal DB 或 Temporal UI 当成 product truth。
+- 不写 PostgreSQL；
+- 不参与 KEDA 决策；
+- 不产生 sampler Deployment、posture collector 或 autoscaler artifacts。
 
-### Worker Plane
+合同见 `docs/contracts/operator-runtime.md`。
 
-每个 worker pool 是独立 Deployment：
+## 配置和 Secret
 
-- `workflow-worker`
-- `activity-worker-core`
-- `activity-worker-agent`
+- source repo 保存 runtime JSON、schema、namespace-neutral Kustomize base 和策略。
+- GitOps ConfigMap 保存环境非密配置；Secret 保存角色凭据和内部 token。
+- provider active profile 仍由 app-api provider-config 拥有，并以受控 projection 交付 runtime。
+- 每个数据库、内部 API、telemetry、memory、RAG 和 agent 调用面使用独立 Secret。
+- 不从根 `.env` 生成 staging ConfigMap/Secret，不创建 monolithic runtime Secret。
 
-拆分原则：
+## PostgreSQL
 
-- 每个 Deployment 只 poll 自己的 Temporal task queue。
-- 每个 Deployment 独立设置 resource requests / limits、readiness、liveness、
-  rollout strategy、PodDisruptionBudget 与 KEDA ScaledObject。
-- worker image 可以先复用同一 `apps/execution-control` image，通过 command / args
-  选择 Temporal task queue / worker target；是否拆 image 是交付优化，不是架构边界。
+- CNPG 是独立 data application。
+- execution-control 使用自己的 run projection 角色和 schema installer。
+- app-api schema 与 campus-services schema 由 GitOps PreSync Job 安装。
+- PreSync 先安装 execution-control run projection schema，再安装依赖其表授权的 app-api
+  schema；campus-services schema 与 app-api schema 同波执行。
+- campus-services Schema 安装不发布班车数据。缺少 current transport release
+  不得阻塞其他服务的 rollout 或 readiness；正式数据发布等待 notice 链路重做后单独执行。
+- 所有集群内连接挂载 CNPG CA 并使用 `verify-full`。
+- app-api Worker 通过 Hyperdrive/Workers VPC 访问 `app_api` 角色。
 
-## Autoscaling Model
+数据库连接规则见 `docs/data/postgres-ownership.md`。
 
-### Source Metrics
+## 私网和 NetworkPolicy
 
-目标态使用成熟 substrate 的双层 autoscaling：
+- app-api 只通过 Workers VPC 到达 execution-control 和 CNPG。
+- `cloudflared` 仅允许 DNS、Cloudflare tunnel egress、execution-control:8000 和 CNPG:5432。
+- execution-control 不需要 public Ingress。
+- Ops Web Ingress、Access 和内部上游由其 GitOps application 独立管理。
 
-1. Temporal / worker metrics supply demand and saturation signals.
-2. KEDA / HPA controls Kubernetes Deployment replicas.
+## Readiness
 
-KEDA Temporal scaler 的主输入：
+execution-control `/readyz` 至少检查：
 
-- `namespace`
-- `taskQueue`
-- `queueTypes`: `workflow` / `activity`
-- `targetQueueSize`
-- `activationTargetQueueSize`
-- Temporal `endpoint`
-- Temporal auth: API key or mTLS where required
-- optional Temporal Worker Deployment version selectors:
-  `workerDeploymentName` + `workerDeploymentBuildId`
-
-Temporal SDK worker tuning / poller autoscaling 只调整单个 worker 进程内部的 task
-poller / slot 行为；它不是 Deployment replica autoscaling 的替代品。
-
-### Replica Policy
-
-默认 production policy：
-
-| Worker | Queue type | Min replicas | Max replicas | Target queue size |
-| --- | ---: | ---: | ---: | ---: |
-| `workflow-worker` | workflow | 1 | 3 | 8 |
-| `activity-worker-core` | activity | 1 | 3 | 8 |
-| `activity-worker-agent` | activity | 1 | 3 | 8 |
-
-These values mirror the current Docker Compose autoscaler policy as the first
-K8s target baseline. They are not permanent capacity promises; production tuning
-must use observed schedule-to-start latency, backlog, worker slot metrics,
-provider latency, Qdrant latency and app-api run SLO.
-
-Scale-to-zero is not the default for online answer workers. `minReplicaCount`
-stays `1` unless a worker pool is proven cold, non-critical and safe to cold
-start without affecting user-visible latency.
-
-### HPA Behavior
-
-KEDA owns event-source polling and exposes external metrics to HPA. HPA owns
-1-to-N replica calculation and applies stabilization / rate policies.
-
-Required HPA behavior:
-
-- scale up can be faster than scale down
-- scale down uses a stabilization window
-- scale down must not race in-flight long-running Temporal activities
-- manual pause must use KEDA pause annotations or deployment freeze, not deletion
-  of ScaledObject history
-
-KEDA `fallback` must not hide source metric failure as success. If Temporal
-metric collection fails, runtime evidence must mark autoscaling posture as
-degraded and fail closed for release closeout.
-
-### Manifest Boundary
-
-Execution-runtime K8s manifests live at:
-
-```text
-infra/k8s/execution-runtime/base
-```
-
-The source repository contains namespace-neutral Kustomize/raw YAML and
-intentionally excludes `campus-web`,
-`operator-console-web` and `app-api`, which remain Cloudflare Worker surfaces.
-The execution-runtime manifests describe first-party internal execution-plane
-workloads only:
-
-- `execution-control` internal Service / Deployment
-- `agent-runtime`
-- workflow/activity worker Deployments
-- Temporal task queue sampler
-- KEDA/HPA posture collector
-- one KEDA `ScaledObject` per worker Deployment
-
-They do not own StatefulSets, platform databases, Qdrant server lifecycle,
-Temporal server lifecycle, Hindsight API lifecycle, OTel collector lifecycle or
-Traefik controller lifecycle.
-
-Ops Web is also not part of the execution-runtime base. Its reusable workload
-contract lives at `infra/k8s/ops-web/base` and contains only the Service,
-Deployment and ServiceAccount. The base is namespace-neutral and references
-stable ConfigMap, Secret and PostgreSQL CA names without creating environment
-instances. The environment repository owns the concrete config, ingress,
-NetworkPolicy, image digest, registry credentials and audit-retention CronJob.
-
-Concrete Applications and overlays live in the deployment environment
-repository under ADR-0070. A supported environment composes the first-party
-execution base with separately owned PostgreSQL, Qdrant, Temporal, Hindsight,
-OTel collector, ingress and secret-delivery Applications. It must patch the
-Temporal namespace/FQDN, provide the runtime ConfigMap, select immutable image
-digests and inject registry credentials when the registry is private.
-
-The base proves workload contract shape only; it is not an environment or HA
-production claim. Stateful HA decisions remain environment-owned and require
-multiple failure domains or managed services.
-
-### Postgres Deployment Topology
-
-Kubernetes deployments may choose either a shared Postgres cluster with
-separate databases/roles or separate Postgres clusters per runtime owner.
-
-The stable contract is owner separation, not physical cluster count:
-
-- Temporal uses its own `temporal` and `temporal_visibility` databases.
-- Hindsight uses its own `hindsight` database and role.
-- Product/operator projections use their own database/schema owner.
-- Ingestion registry/data-plane databases are optional and belong to ingestion
-  deployments, not the online execution runtime.
-
-A single Postgres cluster with multiple databases and roles is an accepted
-self-hosted deployment shape when the operator wants fewer pods, fewer PVCs and
-lower baseline memory. This shape shares one database engine failure domain, so
-backups, restore tests and resource limits must be managed accordingly.
-
-Separate Postgres clusters are the stronger isolation shape. They are preferred
-when an operator needs independent failure domains, backup/restore schedules,
-maintenance windows, performance tuning or migration cadence per owner. They
-cost more baseline CPU, memory, storage and operational surface because each
-cluster owns its own server processes, cache, connections, PVCs and lifecycle.
-
-Charts for Temporal and Hindsight must consume external Postgres endpoints in
-both shapes. Third-party charts must not silently create embedded Postgres
-instances unless the deployment explicitly chooses that chart-owned database
-mode.
-
-### Ingress Controller
-
-Ingress controller choice, class, hostnames, ports and cutover policy belong to
-the environment repository. First-party internal Services do not embed a
-specific ingress controller. Do not let two controllers compete for the same
-host ports during an environment migration.
-
-### Runtime Config And Secret Resources
-
-Execution-runtime K8s config follows the runtime config taxonomy in
-ADR-0064. Workloads consume non-secret deploy bootstrap values from the
-tracked `execution-runtime-rendered-config` ConfigMap and role-scoped secret
-material from separate Secrets such as `execution-control-secrets`,
-`execution-control-metrics-secrets`,
-`execution-telemetry-client-secrets`,
-`execution-run-projection-secrets`, `execution-memory-client-secrets`,
-`execution-rag-secrets`, `execution-tool-read-model-secrets`,
-`execution-agent-client-secrets` and `agent-runtime-secrets`.
-
-The source base references but does not create
-`execution-runtime-rendered-config`; the environment overlay owns its concrete
-values. OTel collector config belongs to the environment's pinned chart values.
-Execution-runtime ConfigMaps must not own provider active profiles, DSNs,
-tokens or platform config files. Release identity may be tracked as deploy
-bootstrap config and must be set by the deployment overlay before rollout.
-Provider active profiles remain app-api provider-config truth and enter K8s
-only through the reviewed
-`execution-runtime-provider-config-projection` artifact.
-The projection Secret is mounted with mode `0440`; consumer Pods use runtime
-group `10001` through `fsGroup`. Local projection files remain owner-only
-`0600`.
-
-Local env renderers that emit Kubernetes ConfigMap or Secret YAML from copied
-env files are retired from the execution-runtime path. Secret material is
-delivered by the environment-selected backend described in ADR-0066. Local env
-may only be an operator input to that backend, not desired state.
-
-Platform Secrets such as
-`qdrant-server-secrets`, `qdrant-server-tls`, `temporal-db-secret`,
-`hindsight-api-secrets`, `otel-collector-secrets` and CNPG owner Secrets are
-owned by the environment GitOps secret-delivery path. Registry pull Secret
-selection is also environment-owned and is not part of the reusable base.
-
-Ops Web follows the same split. Its base consumes `ops-web-config`,
-`ops-web-database-secrets`, `ops-web-access-secrets`,
-`openobserve-reader-secrets` and `campus-agent-postgres-ca`. The environment
-must not start the workload with root or placeholder OpenObserve credentials.
-
-### GitOps And Helm Boundary
-
-Target K8s desired state is managed by Argo CD from a deployment environment
-repository. Live rollout truth comes from Argo CD Application status,
-Kubernetes resources, runtime readiness and product smoke evidence; committed
-manifests alone are only desired state.
-
-First-party `campus-agent` execution resources remain Kustomize/raw YAML by
-default. Third-party platform components are consumed as pinned Helm charts or
-operator-managed custom resources through Argo CD. Argo CD uses Helm only to
-render third-party charts; Argo CD owns the Application lifecycle.
-The environment execution overlay runs the idempotent run projection schema
-installer as an Argo CD PreSync Job. Long-running execution-control processes
-keep schema auto-migration disabled and cannot become the migration owner.
-
-Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
-Hyperdrive bindings, Cloudflare Access policy or app-api provider-config active
-profiles.
-
-The example below is the committed baseline shape:
-
-```yaml
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
-metadata:
-  name: activity-worker-agent
-spec:
-  scaleTargetRef:
-    name: activity-worker-agent
-  pollingInterval: 15
-  cooldownPeriod: 180
-  minReplicaCount: 1
-  maxReplicaCount: 3
-  advanced:
-    horizontalPodAutoscalerConfig:
-      behavior:
-        scaleDown:
-          stabilizationWindowSeconds: 300
-  triggers:
-    - type: temporal
-      metadata:
-        namespace: default
-        taskQueue: campus-agent.activity.agent
-        queueTypes: activity
-        targetQueueSize: "8"
-        activationTargetQueueSize: "0"
-        endpoint: temporal-frontend.temporal.svc.cluster.local:7233
-      authenticationRef:
-        name: temporal-worker-scaler-auth
-```
-
-The baseline sets `minReplicaCount=1`, `targetQueueSize="8"`,
-`pollingInterval=15`, `cooldownPeriod=180` and HPA scale-down stabilization to
-`300` seconds. Online workflow, core and agent pools use
-`maxReplicaCount=3` as the initial baseline.
-
-## Runtime Projection And Operator Evidence
-
-KEDA / HPA become the actuation owner, but app-api remains the operator-safe
-runtime projection owner.
-
-Target projection families:
-
-- `temporal_task_queue_metrics_snapshot.v1`
-  - sampled from Temporal or metrics pipeline
-  - captures task queue backlog, oldest task age, schedule-to-start where available,
-    poller / worker health
-- `worker_autoscaler_decision.v1`
-  - records KEDA/HPA desired-vs-current state or a normalized decision summary
-  - may be produced by a projection collector rather than execution-control
-- `worker_autoscaler_actuation.v1`
-  - records KEDA/HPA scale events / Kubernetes workload replica changes
-  - actuator kind becomes `keda_hpa`
-- `worker_autoscaler_posture.v1`
-  - aggregate for release closeout: scaler health, metric freshness, paused
-    state, degraded state and last scale event
-  - produced in K8s by `keda-hpa-posture-collector`, which reads only
-    Deployment, HPA and KEDA ScaledObject status in the execution namespace and
-    publishes sanitized records through app-api internal ingest
-
-Operator Console reads only app-api operator endpoints. It does not call the
-Kubernetes API server, KEDA API, HPA API or Temporal history APIs directly.
-
-## Readiness Invariants
-
-Production readiness for K8s execution runtime requires:
-
-- `execution-control` Service is reachable only by trusted internal callers.
-- `/healthz`, `/readyz` and `/metrics` are reachable by cluster probes / monitoring.
-- Every worker Deployment has readiness / liveness probes and resource requests.
-- Every Temporal task queue in the admitted worker policy has exactly one owner
-  Deployment and one ScaledObject.
-- Every ScaledObject has explicit min/max replicas, target queue size, polling
-  interval and cooldown / HPA scale-down behavior.
-- KEDA operator and metrics server are healthy.
-- HPA objects are present and not reporting metric fetch failures.
-- app-api operator runtime projection contains fresh queue metrics and
-  `worker_autoscaler_posture.v1` scaler posture.
-- Release closeout is runbook-owned and must validate queue backlog response,
-  HPA desired replica movement, idle stabilization and in-flight activity safety
-  before production acceptance.
-
-## Migration Boundary
-
-K8s migration is an operations rollout, not an architecture truth owner. This
-document owns the target runtime boundary and forbidden shapes. Shadow
-validation, traffic cutover and deploy order belong to the release runbooks
-and planning signals. Docker Compose remains local diagnostics only.
-
-## Forbidden Shapes
-
-- Do not let KEDA/HPA write workflow state, run projection, step projection,
-  terminal state or tool policy.
-- Do not let Operator Console query Kubernetes / Temporal directly.
-- Do not scale all worker pools from one global backlog metric.
-- Do not use CPU-only HPA as the primary Temporal worker autoscaling signal.
-- Do not enable scale-to-zero for online answer workers without explicit cold-start
-  and in-flight task evidence.
-- Do not preserve Docker Compose autoscaler as a parallel production controller
-  once KEDA/HPA owns the worker Deployment.
-- Do not use KEDA fallback replicas as a silent success path for release closeout.
-
-## External Platform Basis
-
-This architecture relies on these current upstream tools:
-
-- KEDA Temporal scaler can scale Kubernetes workloads from Temporal task queue
-  backlog using `namespace`, `taskQueue`, `targetQueueSize`, `queueTypes` and
-  Temporal endpoint/auth settings.
-- KEDA monitors event sources and feeds metrics to Kubernetes HPA for Deployment
-  / StatefulSet scaling.
-- Kubernetes HPA is the native controller for horizontal workload replica
-  autoscaling.
-- Temporal worker performance guidance separates worker process tuning / poller
-  autoscaling from fleet-level replica scaling.
-
-## Related Documents
-
-- `docs/architecture/target.md`
-- `docs/architecture/system/durable-runtime.md`
-- `docs/architecture/system/runtime-release.md`
+- admission 未 draining/过载；
+- OTel exporter 配置；
+- open tool read model；
+- run projection store；
+- Temporal client 和三个队列的 poller；
+- Hindsight personal memory；
+- knowledge search/Qdrant；
+- required provider-config roles。
+
+Kubernetes 还必须检查 worker probes、KEDA controller/metrics server、ScaledObject/HPA 条件、
+资源限制和网络策略。运行时 readiness 不替代 GitOps application health。
+
+## GitOps
+
+- source base 以完整 source commit SHA 固定；
+- first-party image 以 multi-arch manifest digest 固定；
+- Argo CD 管理 K8s desired state，不管理 Cloudflare Worker、Hyperdrive 或 VPC Service；
+- source image workflow 可以创建 GitOps PR，但不能直接写 GitOps `main`。
+
+## 禁止形态
+
+- 不恢复 temporal-task-queue-sampler、keda-hpa-posture-collector 或 worker-autoscaler。
+- 不为 KEDA 复制一套数据库 queue/current/posture 模型。
+- 不把 app-api、campus-web 或 operator-console-web 部署进 Kubernetes。
+- 不公开 execution-control 或 PostgreSQL 来绕过 Workers VPC。
+- 不把 deployment closeout、临时验证或本地 Compose 描述成架构 truth。
+
+## 相关文档
+
 - `docs/contracts/operator-runtime.md`
+- `docs/data/postgres-ownership.md`
+- `docs/architecture/system/runtime-release.md`
 - `docs/decisions/adr-0056-k8s-keda.md`
+- `docs/decisions/adr-0065-gitops-argocd-helm-boundary.md`
+- `docs/decisions/adr-0073-private-postgres.md`

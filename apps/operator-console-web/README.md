@@ -23,6 +23,9 @@ The current product and proxy surface is defined by:
 - `docs/contracts/app-api/operator-ops.md`
 - `docs/contracts/app-api/observability.md`
 
+Request and runtime diagnosis belongs to the self-hosted `apps/ops-web` surface.
+This Worker does not proxy those read APIs.
+
 ## Runtime Env
 
 - `OPERATOR_CONSOLE_APP_NAME`
@@ -68,7 +71,7 @@ OPERATOR_CONSOLE_LIVE_SMOKE=1 pnpm dev
 Then open:
 
 ```text
-http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/requests
+http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/operations/provider-config
 ```
 
 ## Operational Notes
@@ -76,8 +79,7 @@ http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/requests
 - Proxied panel API responses are `Cache-Control: no-store`.
 - Raw Access JWTs, cookies, operator email, prompt text, answer text and
   transcript text must not enter telemetry sinks.
-- Local smoke requires a compatible `apps/app-api` runtime and, for runtime
-  health checks, `apps/execution-control`.
+- Local smoke requires a compatible `apps/app-api` runtime.
 - Missing dining seed or eval coverage snapshot should surface the governed
   backend diagnostic state, not synthesized frontend data.
 - Current minimal Operator Console does not expose a dining operations

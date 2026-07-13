@@ -144,18 +144,6 @@
 			"secret": false,
 			"retired": true
 		},
-		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": {
-			"owner": "execution-control-runtime-config",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
-		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS": {
-			"owner": "execution-control-runtime-config",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
 		"EXECUTION_CONTROL_PROVIDER_PRICING_PATH": {
 			"owner": "execution-control-runtime-config",
 			"scopes": [],
@@ -615,11 +603,6 @@
 			"secret": true
 		},
 		"EXECUTION_CONTROL_METRICS_BEARER_TOKEN": {
-			"owner": "execution-control-command-secret",
-			"scopes": ["command"],
-			"secret": true
-		},
-		"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET": {
 			"owner": "execution-control-command-secret",
 			"scopes": ["command"],
 			"secret": true

@@ -29,9 +29,9 @@ the evidence contract and must not become a second environment runbook.
 
 The source deployment handoff is:
 
-1. `.github/workflows/execution-runtime-publish.yml` publishes immutable
-   execution-runtime and Ops Web images and opens an environment-repository
-   pull request.
+1. `.github/workflows/execution-runtime-publish.yml` publishes immutable runtime and Ops Web
+   images, then opens an environment-repository pull request for the four images currently owned by
+   the execution-runtime overlay. Ops Web is not promoted until its environment overlay exists.
 2. Environment CI renders and validates its Applications, values, overlays and
    encrypted secret inventory.
 3. Merging that pull request selects the deployment revision.

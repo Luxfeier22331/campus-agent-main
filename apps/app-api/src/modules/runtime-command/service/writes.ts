@@ -19,13 +19,8 @@ import {
 } from "../../request-observability";
 import type { VersionQuery } from "../../version-query";
 import { buildExecutionSessionProjection } from "../curriculum-session";
-import type { AcceptRequestWrite, FinalizeRequestWrite, RequestExecutionStatus } from "../store";
-import {
-	extractSourceDocIds,
-	normalizeChatResponseStructuredParts,
-	previewText,
-	sanitizePublicAssistantText,
-} from "./normalize";
+import type { AcceptRequestWrite, FinalizeRequestWrite, TurnDispatchStatus } from "../store";
+import { normalizeChatResponseStructuredParts, sanitizePublicAssistantText } from "./normalize";
 import type { ChatCommandResponse, ChatCommandResult } from "./types";
 
 export function buildConversationTitle(currentTitle: string, prompt: string): string {
@@ -183,7 +178,6 @@ export function buildAcceptedWrite(input: {
 	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
-	outboxEventId: string;
 }): AcceptRequestWrite {
 	const parentMessageId = input.conversation.messages.at(-1)?.id ?? null;
 	const userMessage: ChatMessage = {
@@ -208,23 +202,23 @@ export function buildAcceptedWrite(input: {
 		conversationTitle: input.conversationTitle,
 		ownerUserId: input.conversation.ownerUserId,
 		userMessage,
-		requestExecution: {
+		turnDispatch: {
 			requestId: input.requestId,
 			conversationId: input.conversation.id,
 			userMessageId: input.userMessageId,
-			assistantMessageId: null,
 			turnSequence: input.turnSequence,
 			surface: input.surface,
+			ownerUserId: input.conversation.ownerUserId,
 			actorUserId: input.principal.actor.userId,
-			actorPrincipalId: input.principal.actor.principalId,
-			actorRoles: input.principal.actor.roles,
-			actorDepartments: input.principal.actor.departments,
-			principalType: input.principal.principal.type,
-			principalLabel: input.principal.principal.displayName,
-			entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId || null,
-			entitlementGroups: input.principal.authorization?.entitlementGroups ?? [],
-			visibilityScope: input.principal.authorization?.visibilityScope ?? null,
-			applicabilityScope: input.principal.authorization?.applicabilityScope ?? null,
+			principalSnapshot: {
+				actor: input.principal.actor,
+				authorization: input.principal.authorization ?? null,
+				principal: {
+					displayName: input.principal.principal.displayName,
+					principalId: input.principal.principal.principalId,
+					type: input.principal.principal.type,
+				},
+			},
 			idempotencyKey: input.idempotencyKey,
 			requestFingerprintSha256: input.requestFingerprintSha256,
 			traceId: input.traceId,
@@ -233,16 +227,10 @@ export function buildAcceptedWrite(input: {
 			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
-			resolvedScope: null,
 			selectedTool: null,
 			status: "accepted",
 			errorCode: null,
-			questionPreview: previewText(input.prompt),
-			answerPreview: null,
-			sourceDocIds: [],
-			startedAt: input.now,
 			completedAt: null,
-			durationMs: null,
 			createdAt: input.now,
 			updatedAt: input.now,
 		},
@@ -259,26 +247,6 @@ export function buildAcceptedWrite(input: {
 			traceId: input.traceId,
 			versionQuery: input.versionQuery,
 		}),
-		outboxEvent: {
-			eventId: input.outboxEventId,
-			requestId: input.requestId,
-			eventType: "request.accepted",
-			payload: {
-				requestId: input.requestId,
-				traceId: input.traceId,
-				conversationId: input.conversation.id,
-				status: "accepted",
-				questionPreview: previewText(input.prompt),
-				requestedTool: input.requestedTool,
-				requestedScope: input.requestedScope,
-				surface: input.surface,
-			},
-			occurredAt: input.now,
-			availableAt: input.now,
-			processedAt: null,
-			attemptCount: 0,
-			lastError: null,
-		},
 	};
 }
 
@@ -324,7 +292,6 @@ export function buildFinalizedWrite(input: {
 	conversationTitle: string;
 	completedAt: string;
 	durationMs: number;
-	outboxEventId: string;
 	principal: ResolvedAppPrincipal;
 	projectionCloseoutMs?: number | null;
 	requestId: string;
@@ -354,7 +321,6 @@ export function buildFinalizedWrite(input: {
 		...input.response,
 		traceId: normalizedTraceId,
 	} satisfies ToolExecutionResponse;
-	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
 		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
 		result: input.response.result,
@@ -368,14 +334,12 @@ export function buildFinalizedWrite(input: {
 	let assistantText: string;
 	let errorCode: string | null = null;
 	let retryable: boolean | null = null;
-	let outboxEventType: string;
 	let result: ChatCommandResult;
-	let status: RequestExecutionStatus;
+	let status: TurnDispatchStatus;
 
 	if (input.response.status === "needs_clarification") {
 		assistantKind = "clarification";
 		assistantText = input.response.followUpQuestion || input.response.answerText;
-		outboxEventType = "request.needs_clarification";
 		result = {
 			kind: "clarification",
 			requestId: input.requestId,
@@ -386,7 +350,6 @@ export function buildFinalizedWrite(input: {
 	} else if (input.response.status === "no_answer") {
 		assistantKind = "no_answer";
 		assistantText = input.response.answerText;
-		outboxEventType = "request.no_answer";
 		result = {
 			kind: "no_answer",
 			requestId: input.requestId,
@@ -421,7 +384,6 @@ export function buildFinalizedWrite(input: {
 						? "execution_cancelled"
 						: "internal_error");
 		retryable = input.response.error?.retryable ?? false;
-		outboxEventType = `request.${input.response.status}`;
 		result = {
 			kind: "error",
 			message: assistantText,
@@ -434,7 +396,6 @@ export function buildFinalizedWrite(input: {
 	} else {
 		assistantKind = "answer";
 		assistantText = input.response.answerText;
-		outboxEventType = "request.completed";
 		result = {
 			kind: "answer",
 			requestId: input.requestId,
@@ -481,42 +442,17 @@ export function buildFinalizedWrite(input: {
 		assistantMessage,
 		conversationTitle: input.conversationTitle,
 		ownerUserId: input.conversation.ownerUserId,
-		requestExecution: {
+		turnDispatch: {
 			requestId: input.requestId,
-			conversationId: input.conversation.id,
-			userMessageId: input.userMessageId,
-			assistantMessageId: input.assistantMessageId,
-			turnSequence: input.turnSequence,
-			surface: input.surface,
-			actorUserId: input.conversation.ownerUserId,
-			actorPrincipalId: input.conversation.ownerUserId,
-			actorRoles: [],
-			actorDepartments: [],
-			principalType: input.principal.principal.type,
-			principalLabel: null,
-			entitlementSnapshotId: null,
-			entitlementGroups: [],
-			visibilityScope: null,
-			applicabilityScope: null,
-			idempotencyKey: null,
-			requestFingerprintSha256: null,
-			traceId: normalizedTraceId,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
-			resolvedScope,
 			selectedTool: input.response.selectedTool,
 			status,
 			errorCode,
-			questionPreview: "",
-			answerPreview: previewText(assistantText),
-			sourceDocIds,
-			startedAt: input.startedAt,
+			turnSequence: input.turnSequence,
 			completedAt: input.completedAt,
-			durationMs: input.durationMs,
-			createdAt: input.startedAt,
 			updatedAt: input.completedAt,
 		},
 		requestObservabilityFact: buildFinalizedRequestObservabilityFact({
@@ -540,26 +476,6 @@ export function buildFinalizedWrite(input: {
 			traceId: normalizedTraceId,
 			versionQuery: input.versionQuery,
 		}),
-		outboxEvent: {
-			eventId: input.outboxEventId,
-			requestId: input.requestId,
-			eventType: outboxEventType,
-			payload: {
-				requestId: input.requestId,
-				traceId: normalizedTraceId,
-				conversationId: input.conversation.id,
-				status,
-				selectedTool: input.response.selectedTool,
-				answerPreview: previewText(assistantText),
-				errorCode,
-				sourceDocIds,
-			},
-			occurredAt: input.completedAt,
-			availableAt: input.completedAt,
-			processedAt: null,
-			attemptCount: 0,
-			lastError: null,
-		},
 		sessionSlots:
 			status === "completed"
 				? (input.response.sessionUpdate?.upsertSlots ?? []).map((slot) => ({

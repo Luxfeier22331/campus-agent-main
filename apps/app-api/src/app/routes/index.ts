@@ -31,7 +31,6 @@ export function registerAppRoutes(input: {
 	getPrincipal: NonNullable<AppDependencies["getPrincipal"]>;
 	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
-	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
 }) {
 	registerRuntimeRoutes({
 		app: input.app,
@@ -62,7 +61,6 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
-		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerCampusExperienceRoutes({
 		app: input.app,
@@ -104,7 +102,6 @@ export function registerAppRoutes(input: {
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
-		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({
 		app: input.app,

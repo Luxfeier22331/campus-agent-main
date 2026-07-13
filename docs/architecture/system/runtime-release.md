@@ -55,10 +55,10 @@ identity injection -> post-deploy smoke -> release closeout artifact`
   upstream 参与 staging execution seam
 - repo-owned local diagnostics execution runtime shape 固定为
   `execution-control + Temporal + workflow-worker + activity-worker-core +
-  activity-worker-agent + agent-runtime + worker-autoscaler`；
+  activity-worker-agent + agent-runtime`；
   不允许新增第二条 dev-backed serving fallback path
-- production target runtime 使用 KEDA Temporal scaler + Kubernetes HPA；
-  Docker Compose autoscaler 只保留 local diagnostics projection
+- production target runtime 使用 KEDA Temporal scaler + Kubernetes HPA；本地不运行第二套
+  replica controller
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / agent-runtime / knowledge-search dependency unhealthy 才进入 degraded posture
@@ -168,9 +168,7 @@ Execution runtime 的 release gate 长期至少覆盖：
 - queue full、queue timeout、draining、tool runtime timeout 与 tool runtime
   unavailable 都有 typed failure fingerprint
 - cancel / client disconnect path 不继续占用 Go request slot
-- audit writer / runtime log sink 不阻塞 answer path，并暴露 dropped / last-error 状态
-- audit writer 的批量、重试、spool 与 OTel sample/export/drop/failure 状态必须进入
-  `/readyz` / `/metrics`
+- OTel exporter 不阻塞 answer path，并暴露 export/drop/failure 状态
 - `POST /internal/execution/runs` 只作为 app-api 内部 execution command seam 验证，不作为
   token streaming 或 browser 直连验收标准
 
@@ -183,11 +181,11 @@ Kubernetes production target 还必须覆盖：
 - KEDA operator / metrics server healthy，HPA 不存在 metric fetch failure
 - ScaledObject 明确 min/max replicas、target queue size、polling interval、cooldown
   与 HPA scale-down behavior
-- app-api operator runtime projection 能看到 fresh task queue metrics、KEDA/HPA
-  scaler posture 与 scale event evidence
+- execution-control 队列接口能读取 fresh Temporal queue 状态，Kubernetes 能读取
+  ScaledObject/HPA condition 和 Deployment replica
 
-这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 `app-api`
-产品层 request projection、operator read model 或 browser smoke。
+这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 app-api chat
+finalization、Ops Web request correlation 或 browser smoke。
 
 ## Protected Access And Operator Admission
 

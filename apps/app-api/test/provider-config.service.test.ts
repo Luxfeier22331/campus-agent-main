@@ -6,7 +6,7 @@ import {
 	buildProviderConfigService,
 	createInMemoryProviderConfigStore,
 } from "../src/modules/provider-config";
-import { createOperatorPrincipal } from "./operator-query.route.test-support";
+import { createOperatorPrincipal } from "./operator-route.test-support";
 
 describe("provider config service", () => {
 	it("passes connection and profile fields to embedding compatibility checks", async () => {

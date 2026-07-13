@@ -19,12 +19,15 @@ const mockedGetAppAuth = vi.mocked(getAppAuth);
 
 describe("operator surface principal resolution", () => {
 	it("does not trust operator headers without a matching internal shared secret", () => {
-		const request = new Request("https://app-api.internal/api/operator/requests", {
-			headers: {
-				"x-app-operator-email": "ops@example.com",
-				"x-app-operator-groups": "panel,ops",
+		const request = new Request(
+			"https://app-api.internal/api/operator/provider-config/connections",
+			{
+				headers: {
+					"x-app-operator-email": "ops@example.com",
+					"x-app-operator-groups": "panel,ops",
+				},
 			},
-		});
+		);
 
 		expect(
 			mapOperatorHeadersToPrincipal(request, {
@@ -35,16 +38,19 @@ describe("operator surface principal resolution", () => {
 	});
 
 	it("resolves an operator principal only when allowlist and internal auth both match", () => {
-		const request = new Request("https://app-api.internal/api/operator/requests", {
-			headers: {
-				"x-app-internal-auth": "trusted-secret",
-				"x-app-operator-email": "ops@example.com",
-				"x-app-operator-groups": "panel,ops",
-				"x-app-operator-campus-scope": "main",
-				"x-app-operator-id": "operator-001",
-				"x-app-operator-name": "Ops Team",
+		const request = new Request(
+			"https://app-api.internal/api/operator/provider-config/connections",
+			{
+				headers: {
+					"x-app-internal-auth": "trusted-secret",
+					"x-app-operator-email": "ops@example.com",
+					"x-app-operator-groups": "panel,ops",
+					"x-app-operator-campus-scope": "main",
+					"x-app-operator-id": "operator-001",
+					"x-app-operator-name": "Ops Team",
+				},
 			},
-		});
+		);
 
 		const principal = mapOperatorHeadersToPrincipal(request, {
 			APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
@@ -356,7 +362,7 @@ describe("request principal resolution", () => {
 	it("rejects operator route requests when the trusted operator email is not admitted", async () => {
 		await expect(
 			resolveRequestPrincipal(
-				new Request("https://app-api.internal/api/operator/requests", {
+				new Request("https://app-api.internal/api/operator/provider-config/connections", {
 					headers: {
 						"x-app-internal-auth": "trusted-secret",
 						"x-app-operator-email": "help_bot@outlook.com",
@@ -380,7 +386,7 @@ describe("request principal resolution", () => {
 	it("rejects operator route requests when trusted internal auth is missing", async () => {
 		await expect(
 			resolveRequestPrincipal(
-				new Request("https://app-api.internal/api/operator/requests", {
+				new Request("https://app-api.internal/api/operator/provider-config/connections", {
 					headers: {
 						"x-app-operator-email": "ops@example.com",
 					},

@@ -75,11 +75,11 @@ export function registerAppApiDatabaseConfigSuite() {
 			const config = buildOperatorDatabaseConfig({
 				APP_API_DATABASE_SSLMODE: "require",
 				APP_API_OPERATOR_DATABASE_URL:
-					"postgres://postgres.project-ref:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/campus_agent_admin?sslmode=require",
+					"postgres://schema-owner:secret@postgres.example.internal:5432/campus_agent?sslmode=require",
 			});
 
 			expect(config.connectionString).toBe(
-				"postgres://postgres.project-ref:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/campus_agent_admin",
+				"postgres://schema-owner:secret@postgres.example.internal:5432/campus_agent",
 			);
 			expect(config.ssl).toEqual({
 				rejectUnauthorized: false,

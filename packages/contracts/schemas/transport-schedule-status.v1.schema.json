@@ -15,7 +15,8 @@
 					"$ref": "#/$defs/NonEmptyString"
 				},
 				"publishedAt": {
-					"$ref": "#/$defs/NonEmptyString"
+					"type": "string",
+					"format": "date-time"
 				},
 				"sourceRefs": {
 					"$ref": "#/$defs/SourceRefs"
@@ -87,9 +88,13 @@
 			"additionalProperties": false,
 			"required": ["departureTime", "kind", "status", "sourceRefs"],
 			"properties": {
+				"serviceDate": {
+					"type": "string",
+					"format": "date"
+				},
 				"departureTime": {
 					"type": "string",
-					"pattern": "^\\d{2}:\\d{2}$"
+					"pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
 				},
 				"kind": {
 					"enum": ["student", "teacher", "other"]

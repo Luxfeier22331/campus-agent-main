@@ -1,7 +1,9 @@
 export {
 	buildCampusServicesTransportScheduleService,
-	type CampusServicesTransportScheduleFetch,
+	type CampusServicesTransportScheduleStore,
+	parseTransportStatusProjection,
 } from "./service";
+export { createPgCampusServicesTransportScheduleStore } from "./store";
 export type {
 	CampusServicesTransportScheduleService,
 	CampusServicesTransportStatusResponse,

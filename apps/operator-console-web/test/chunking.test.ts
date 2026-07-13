@@ -35,7 +35,7 @@ describe("Operator Console web chunk strategy", () => {
 	it("leaves app-local modules to route-level lazy splitting instead of forcing them into a manual chunk", () => {
 		expect(
 			operatorConsoleManualChunks(
-				"/workspace/apps/operator-console-web/src/panel/requests/request-list.tsx",
+				"/workspace/apps/operator-console-web/src/panel/operations/provider-config/page.tsx",
 			),
 		).toBeUndefined();
 	});

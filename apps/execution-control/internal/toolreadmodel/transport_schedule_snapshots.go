@@ -190,7 +190,7 @@ func snapshotInferredRouteServiceDateSpanCovers(
 		if departure.RouteID != route.RouteID || !departureMatchesSnapshot(departure, snapshot) {
 			continue
 		}
-		if len(departure.ServiceDates) == 0 {
+		if len(departure.ServiceDates) == 0 && departureAppliesToServiceDate(departure, serviceDate) {
 			return snapshotAppliesToServiceDate(snapshot, serviceDate)
 		}
 		for _, serviceDateText := range departure.ServiceDates {
@@ -292,7 +292,12 @@ func snapshotHasRouteServiceData(
 		if departure.RouteID != route.RouteID {
 			continue
 		}
-		if len(departure.ServiceDates) == 0 || stringSliceContains(departure.ServiceDates, serviceDate) {
+		parsedServiceDate, err := time.ParseInLocation(
+			transportLocalDateLayout,
+			serviceDate,
+			transportLocation,
+		)
+		if err == nil && departureAppliesToServiceDate(departure, parsedServiceDate) {
 			return true
 		}
 	}

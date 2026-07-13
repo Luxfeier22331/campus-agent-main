@@ -25,7 +25,10 @@ import {
 	buildCampusServicesOpsService,
 	createPgCampusServicesOpsStore,
 } from "../modules/campus-services-ops";
-import { buildCampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
+import {
+	buildCampusServicesTransportScheduleService,
+	createPgCampusServicesTransportScheduleStore,
+} from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
@@ -39,7 +42,6 @@ import {
 	createExecutionControlRuntimeClient,
 	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
-	probeExecutionControlOperatorRuntimeHealth,
 } from "../modules/integration";
 import {
 	buildOfficialWebQueryService,
@@ -66,11 +68,6 @@ import {
 	buildOfficialWebTargetReleaseGateService,
 	createPgOfficialWebTargetReleaseGateStore,
 } from "../modules/official-web-target-release-gates";
-import {
-	buildOperatorObservabilityCommandService,
-	createPgOperatorObservabilityCommandStore,
-} from "../modules/operator-observability-command";
-import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import {
 	buildProviderConfigService,
@@ -127,9 +124,6 @@ export function createRequestScopeFactory(input: {
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let officialWebTargetReleaseGateService =
 				input.dependencies.officialWebTargetReleaseGateService ?? null;
-			let operatorObservabilityCommandService =
-				input.dependencies.operatorObservabilityCommandService ?? null;
-			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
 			let providerConfigService = input.dependencies.providerConfigService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
@@ -253,8 +247,9 @@ export function createRequestScopeFactory(input: {
 				}
 
 				campusServicesTransportScheduleService = buildCampusServicesTransportScheduleService({
-					env: input.env,
-					fetchImplementation: input.dependencies.campusServicesTransportScheduleFetch,
+					store: createPgCampusServicesTransportScheduleStore(input.env, {
+						getDb: runtime.getDb,
+					}),
 				});
 				return campusServicesTransportScheduleService;
 			}
@@ -388,33 +383,6 @@ export function createRequestScopeFactory(input: {
 				return officialWebReleaseTaskProcessingQueryService;
 			}
 
-			function resolveOperatorQueryService() {
-				if (operatorQueryService) {
-					return operatorQueryService;
-				}
-
-				operatorQueryService = buildOperatorQueryService({
-					executionRuntime: createExecutionControlRuntimeClient(input.env),
-					runtimeHealthProbe: () => probeExecutionControlOperatorRuntimeHealth(input.env),
-					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
-				});
-				return operatorQueryService;
-			}
-
-			function resolveOperatorObservabilityCommandService() {
-				if (operatorObservabilityCommandService) {
-					return operatorObservabilityCommandService;
-				}
-
-				operatorObservabilityCommandService = buildOperatorObservabilityCommandService({
-					store: createPgOperatorObservabilityCommandStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-					telemetry: input.telemetry,
-				});
-				return operatorObservabilityCommandService;
-			}
-
 			function resolveProfileMemoryService() {
 				if (profileMemoryService) {
 					return profileMemoryService;
@@ -497,8 +465,6 @@ export function createRequestScopeFactory(input: {
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOfficialWebTargetReleaseGateService,
-				resolveOperatorObservabilityCommandService,
-				resolveOperatorQueryService,
 				resolveProfileMemoryService,
 				resolveProviderConfigService,
 				resolveRuntimeRunService,

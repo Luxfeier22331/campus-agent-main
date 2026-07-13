@@ -5,7 +5,8 @@ owner_boundary: docs/decisions
 decision_id: ADR-0017
 status: accepted
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-07-12
+partially_superseded_by: ADR-0072
 ---
 # ADR-0017 Supervisor Internal Execution Admission
 
@@ -18,6 +19,11 @@ Accepted on 2026-03-28.
 本 ADR 标题中的 `Supervisor` 是历史命名。目标态 active architecture term 是
 `Execution Agent Layer`；本 ADR 的长期约束继续适用于 `execution-control` 内的
 Execution Agent Layer 与 internal execution admission。
+
+本 ADR 的 identity owner 与 execution admission 约束继续有效。request outbox、
+`runtime.request_execution` 与 `operator.request_projection` 已由 ADR-0072 的自托管 Ops Web
+读取形态取代；当前请求状态使用 `chat.turn_dispatches`、`runtime.agent_runs` 和
+`runtime.request_observability_fact`。
 
 ## 背景
 

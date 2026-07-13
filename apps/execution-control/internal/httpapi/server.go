@@ -12,7 +12,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
@@ -27,7 +26,6 @@ type Server struct {
 	logger                   *slog.Logger
 	metrics                  *observability.Metrics
 	telemetry                *telemetry.Emitter
-	executionAudit           *executionaudit.Emitter
 	toolReadModel            *toolreadmodel.Runtime
 	runProjectionStore       execution.RunProjectionStore
 	runProjectionStoreErr    error
@@ -40,6 +38,7 @@ type Server struct {
 	providerConfigErr        error
 	temporalStarter          temporalruntime.ChatWorkflowStarter
 	temporalStarterErr       error
+	temporalTaskQueueSampler temporalTaskQueueSampler
 	temporalWorkersStarted   bool
 }
 
@@ -150,7 +149,6 @@ func NewServerWithDependencies(
 	}
 	registry := lifecycle.NewRegistry()
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
-	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
 		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
@@ -160,6 +158,7 @@ func NewServerWithDependencies(
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	knowledgeSearchExecutor, knowledgeSearchErr := newKnowledgeSearchExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
+	taskQueueSampler := newTemporalTaskQueueSampler(cfg, temporalStarter)
 
 	server := &Server{
 		config:                   cfg,
@@ -168,7 +167,6 @@ func NewServerWithDependencies(
 		logger:                   logger,
 		metrics:                  metrics,
 		telemetry:                telemetryEmitter,
-		executionAudit:           executionAuditEmitter,
 		toolReadModel:            toolReadModelRuntime,
 		runProjectionStore:       runProjectionStore,
 		runProjectionStoreErr:    runProjectionStoreErr,
@@ -181,6 +179,7 @@ func NewServerWithDependencies(
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,
 		temporalStarterErr:       temporalStarterErr,
+		temporalTaskQueueSampler: taskQueueSampler,
 	}
 	return server
 }
@@ -317,15 +316,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.telemetry != nil {
 		firstErr = s.telemetry.Shutdown(ctx)
 	}
-	if s.executionAudit != nil {
-		if err := s.executionAudit.Shutdown(ctx); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
 	if s.toolReadModel != nil {
 		s.toolReadModel.Close()
 	}
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := s.temporalStarter.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	return firstErr
@@ -354,6 +351,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	case request.Method == http.MethodGet && path == "/metrics":
 		setOutcome(writer, "ok")
 		s.handleMetrics(writer, request)
+	case request.Method == http.MethodGet && path == "/internal/ops/temporal/task-queues":
+		s.handleTemporalTaskQueues(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/runs":
 		s.handleExecutionRunCreate(writer, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
@@ -413,8 +412,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/knowledge/search":
 		s.handleKnowledgeSearch(writer, request)
-	case request.Method == http.MethodGet && path == "/internal/projections/campus-services/transport-schedule/status":
-		s.handleTransportStatusProjection(writer, request)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(

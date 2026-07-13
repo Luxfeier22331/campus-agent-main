@@ -5,7 +5,8 @@ owner_boundary: docs/decisions
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-06-15
+updated: 2026-07-12
+partially_superseded_by: ADR-0072
 ---
 # ADR-0010 观测与遥测栈决策
 
@@ -18,6 +19,10 @@ supervisor、旧 Python knowledge/retrieval 在线链路的 runtime 拆分已由
 ADR-0048 与 `python-boundaries` 局部 supersede；当前 online execution /
 retrieval telemetry 由 `apps/execution-control`、Temporal、`agent-runtime` 与 typed
 activity workers 产出。
+
+本文首版基线中的 Operator Console request projection 已由 ADR-0072 取代；当前请求排查由
+self-hosted Ops Web 读取受限 owner tables。OpenTelemetry-first、Sentry、Axiom 与 Langfuse
+的分层决策继续有效。
 
 ## 背景
 

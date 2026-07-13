@@ -93,10 +93,6 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			traceId: "trace_0001",
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
-				surface: "eval_benchmark",
-				traceId: "trace_0001",
-			},
 			requestObservabilityFact: {
 				surface: "eval_benchmark",
 				traceId: "trace_0001",

@@ -11,7 +11,7 @@ import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { VersionQuery, VersionQueryMode } from "../version-query";
 import type { ChatCommandResponse } from "./service";
 
-export type RequestExecutionStatus =
+export type TurnDispatchStatus =
 	| "accepted"
 	| "completed"
 	| "needs_clarification"
@@ -32,23 +32,21 @@ export interface PreviousToolResultRef {
 	summary?: string;
 }
 
-export interface RequestExecutionWrite {
+export interface TurnDispatchPrincipalSnapshot {
+	actor: ResolvedAppPrincipal["actor"];
+	authorization: ResolvedAppPrincipal["authorization"] | null;
+	principal: Pick<ResolvedAppPrincipal["principal"], "displayName" | "principalId" | "type">;
+}
+
+export interface TurnDispatchWrite {
 	requestId: string;
 	conversationId: string;
 	userMessageId: string;
-	assistantMessageId: string | null;
 	turnSequence: number;
 	surface: string;
+	ownerUserId: string;
 	actorUserId: string;
-	actorPrincipalId: string;
-	actorRoles: string[];
-	actorDepartments: string[];
-	principalType: string;
-	principalLabel: string | null;
-	entitlementSnapshotId: string | null;
-	entitlementGroups: string[];
-	visibilityScope: string | null;
-	applicabilityScope: string | null;
+	principalSnapshot: TurnDispatchPrincipalSnapshot;
 	idempotencyKey: string | null;
 	requestFingerprintSha256: string | null;
 	traceId: string;
@@ -57,31 +55,28 @@ export interface RequestExecutionWrite {
 	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
-	resolvedScope: RequestedScope | null;
 	selectedTool: string | null;
-	status: RequestExecutionStatus;
+	status: TurnDispatchStatus;
 	errorCode: string | null;
-	questionPreview: string;
-	answerPreview: string | null;
-	sourceDocIds: string[];
-	startedAt: string;
 	completedAt: string | null;
-	durationMs: number | null;
 	createdAt: string;
 	updatedAt: string;
 }
 
-export interface ProjectionOutboxWrite {
-	eventId: string;
-	requestId: string;
-	eventType: string;
-	payload: Record<string, unknown>;
-	occurredAt: string;
-	availableAt: string;
-	processedAt: string | null;
-	attemptCount: number;
-	lastError: string | null;
-}
+export type FinalizeTurnDispatchWrite = Pick<
+	TurnDispatchWrite,
+	| "completedAt"
+	| "errorCode"
+	| "requestId"
+	| "requestedScope"
+	| "runId"
+	| "safetyIdentifier"
+	| "selectedTool"
+	| "status"
+	| "turnSequence"
+	| "updatedAt"
+	| "versionQuery"
+>;
 
 export interface RequestObservabilityFactWrite {
 	requestId: string;
@@ -99,7 +94,7 @@ export interface RequestObservabilityFactWrite {
 	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
 	selectedTool: string | null;
-	status: RequestExecutionStatus;
+	status: TurnDispatchStatus;
 	errorCode: string | null;
 	startedAt: string;
 	completedAt: string | null;
@@ -136,9 +131,8 @@ export interface AcceptRequestWrite {
 	};
 	conversationTitle: string;
 	ownerUserId: string;
-	outboxEvent: ProjectionOutboxWrite;
 	requestObservabilityFact: RequestObservabilityFactWrite;
-	requestExecution: RequestExecutionWrite;
+	turnDispatch: TurnDispatchWrite;
 	userMessage: ChatMessage;
 }
 
@@ -146,16 +140,15 @@ export interface FinalizeRequestWrite {
 	assistantMessage: ChatMessage;
 	conversationTitle: string;
 	ownerUserId: string;
-	outboxEvent: ProjectionOutboxWrite;
 	requestObservabilityFact: RequestObservabilityFactWrite;
-	requestExecution: RequestExecutionWrite;
+	turnDispatch: FinalizeTurnDispatchWrite;
 	sessionSlots: ChatSessionSlot[];
 }
 
 export interface StoredIdempotentRequest {
 	requestFingerprintSha256: string;
 	response: ChatCommandResponse;
-	status: RequestExecutionStatus;
+	status: TurnDispatchStatus;
 }
 
 export interface AcceptedDurableRequestCloseout {

@@ -64,7 +64,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "accepted",
@@ -72,7 +72,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		});
 		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "conversation_active_run",
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -146,14 +146,14 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		});
 		expect(events[0]?.data.runId).toBeUndefined();
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "accepted",
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "invalid_request",
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -228,7 +228,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			text: "问答服务暂时无法连接，请稍后再试。",
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "execution_control_unavailable",
 				status: "error",
 			},
@@ -311,7 +311,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 
 		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "execution_timeout",
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -497,14 +497,14 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 		]);
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "accepted",
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",
@@ -609,7 +609,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			{ event: "request.cancelled", status: "cancelled" },
 		]);
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "execution_cancelled",
 				requestId: "req_0001",
 				runId: "run_0001",

@@ -20,12 +20,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth plus eval principal headers",
 	},
 	{
-		method: "POST",
-		path: "/api/internal/execution/audit-events",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
 		method: "GET",
 		path: "/api/internal/provider-config/active",
 		callerClass: "machine-internal",
@@ -53,30 +47,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/operator/official-web/release-task-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/runtime/temporal-task-queue-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "GET",
-		path: "/api/internal/operator/runtime/temporal-task-queues",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "GET",
-		path: "/api/internal/operator/runtime/autoscaler/actuations",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "GET",
-		path: "/api/internal/operator/runtime/autoscaler/postures",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

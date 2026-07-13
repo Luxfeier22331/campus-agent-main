@@ -23,7 +23,7 @@ import {
 	defaultComputeFingerprint,
 	defaultGenerateId,
 	deriveSafetyIdentifier,
-	previewText,
+	extractSourceDocIds,
 	resolveValidatedPayload,
 } from "./service/normalize";
 import { toTerminalChatStreamEvent } from "./service/stream";
@@ -151,7 +151,6 @@ export function buildChatCommandService(
 		const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 		const acceptedAt = now().toISOString();
 		const userMessageId = generateId("msg");
-		const acceptedEventId = generateId("evt");
 		const branchId = conversation?.activeBranchId ?? "branch_active";
 
 		let conversationSeed:
@@ -212,7 +211,6 @@ export function buildChatCommandService(
 			traceId,
 			turnSequence,
 			userMessageId,
-			outboxEventId: acceptedEventId,
 		});
 
 		telemetry?.configureChatRequestScope({
@@ -247,18 +245,6 @@ export function buildChatCommandService(
 			surface,
 			traceId,
 		});
-		await telemetry?.recordProjectionEnqueued({
-			conversationId: conversation.id,
-			principalType: input.principal.principal.type,
-			projectionStage: "accepted",
-			requestId,
-			requestedTool: validatedPayload.requestedTool,
-			requestedScope: validatedPayload.requestedScope,
-			safetyIdentifier,
-			surface,
-			traceId,
-		});
-
 		return {
 			kind: "accepted",
 			value: {
@@ -449,7 +435,6 @@ export function buildChatCommandService(
 				)
 			: null;
 		const assistantMessageId = generateId("msg");
-		const finalEventId = generateId("evt");
 		const finalized = buildFinalizedWrite({
 			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
 			assistantMessageId,
@@ -458,7 +443,6 @@ export function buildChatCommandService(
 			conversation: context.conversation,
 			conversationTitle: context.conversationTitle,
 			durationMs,
-			outboxEventId: finalEventId,
 			principal: context.input.principal,
 			projectionCloseoutMs,
 			requestId: context.requestId,
@@ -476,55 +460,22 @@ export function buildChatCommandService(
 			userMessageId: context.userMessageId,
 		});
 
-		finalized.write.requestExecution.actorUserId = context.input.principal.actor.userId;
-		finalized.write.requestExecution.actorPrincipalId = context.input.principal.actor.principalId;
-		finalized.write.requestExecution.actorRoles = context.input.principal.actor.roles;
-		finalized.write.requestExecution.actorDepartments = context.input.principal.actor.departments;
-		finalized.write.requestExecution.principalType = context.input.principal.principal.type;
-		finalized.write.requestExecution.principalLabel = context.input.principal.principal.displayName;
-		finalized.write.requestExecution.entitlementSnapshotId =
-			context.input.principal.authorization?.entitlementSnapshotId || null;
-		finalized.write.requestExecution.entitlementGroups =
-			context.input.principal.authorization?.entitlementGroups ?? [];
-		finalized.write.requestExecution.visibilityScope =
-			context.input.principal.authorization?.visibilityScope ?? null;
-		finalized.write.requestExecution.applicabilityScope =
-			context.input.principal.authorization?.applicabilityScope ?? null;
-		finalized.write.requestExecution.idempotencyKey = context.idempotencyKey;
-		finalized.write.requestExecution.requestFingerprintSha256 = context.requestFingerprintSha256;
-		finalized.write.requestExecution.questionPreview = previewText(context.validatedPayload.prompt);
-		finalized.write.requestExecution.requestedTool = context.validatedPayload.requestedTool;
-		finalized.write.requestExecution.requestedScope = context.validatedPayload.requestedScope;
-		finalized.write.requestExecution.versionQuery = context.validatedPayload.versionQuery;
-
 		const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
-		await telemetry?.recordProjectionEnqueued({
-			conversationId: context.conversation.id,
-			principalType: context.input.principal.principal.type,
-			projectionStage: "finalized",
-			requestId: context.requestId,
-			requestedTool: context.validatedPayload.requestedTool,
-			requestedScope: context.validatedPayload.requestedScope,
-			resolvedScope: finalized.write.requestExecution.resolvedScope,
-			safetyIdentifier: context.safetyIdentifier,
-			surface: context.surface,
-			traceId: finalized.write.requestExecution.traceId,
-		});
 		await telemetry?.recordRequestFinalized({
 			conversationId: context.conversation.id,
 			durationMs,
-			errorCode: finalized.write.requestExecution.errorCode,
+			errorCode: finalized.write.turnDispatch.errorCode,
 			principalType: context.input.principal.principal.type,
 			requestId: context.requestId,
 			requestedTool: context.validatedPayload.requestedTool,
 			requestedScope: context.validatedPayload.requestedScope,
-			resolvedScope: finalized.write.requestExecution.resolvedScope,
+			resolvedScope: input.executionResponse.resolvedScope?.trim() || null,
 			retryable: finalized.write.assistantMessage.retryable,
 			safetyIdentifier: context.safetyIdentifier,
-			selectedTool: finalized.write.requestExecution.selectedTool,
-			sourceDocIds: finalized.write.requestExecution.sourceDocIds,
+			selectedTool: finalized.write.turnDispatch.selectedTool,
+			sourceDocIds: extractSourceDocIds(input.executionResponse.result),
 			stageTiming: finalized.write.requestObservabilityFact.stageTiming,
-			status: finalized.write.requestExecution.status as
+			status: finalized.write.turnDispatch.status as
 				| "completed"
 				| "error"
 				| "needs_clarification"
@@ -533,7 +484,7 @@ export function buildChatCommandService(
 				| "rejected"
 				| "cancelled",
 			surface: context.surface,
-			traceId: finalized.write.requestExecution.traceId,
+			traceId: context.traceId,
 		});
 
 		return {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,24 +12,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
-
-func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.ExecutionAuditEnabled = true
-	})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	executionAuditRuntime := expectRecord(t, body["execution_audit_runtime"], "execution_audit_runtime")
-	if executionAuditRuntime["enabled"] != true || executionAuditRuntime["configured"] != false {
-		t.Fatalf("unexpected execution_audit_runtime: %#v", executionAuditRuntime)
-	}
-}
 
 func TestReadyzDegradesWhenModelVisibleCampusServicesRuntimeIsUnavailable(t *testing.T) {
 	server := newReadyServerForTest(t)
@@ -47,7 +30,7 @@ func TestReadyzDegradesWhenModelVisibleCampusServicesRuntimeIsUnavailable(t *tes
 	}
 }
 
-func TestReadyzDegradesWhenModelVisibleCampusServicesTransportProjectionIsUnavailable(t *testing.T) {
+func TestReadyzKeepsRuntimeReadyWhenTransportProjectionHasNoCurrentRelease(t *testing.T) {
 	emptyTransportFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[]
@@ -63,12 +46,36 @@ func TestReadyzDegradesWhenModelVisibleCampusServicesTransportProjectionIsUnavai
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
+	if toolReadModelRuntime["transport_schedule_implemented"] != false {
+		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
+	}
+	if toolReadModelRuntime["transport_schedule_read_model_healthy"] != true {
+		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
+	}
+}
+
+func TestReadyzDegradesWhenTransportReadModelDatabaseIsUnhealthy(t *testing.T) {
+	server := newReadyServerForTest(t)
+	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
+		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
+			healthCheckErr: errors.New("database unavailable"),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["transport_schedule_implemented"] != false {
+	if toolReadModelRuntime["transport_schedule_read_model_healthy"] != false {
 		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
 	}
 }

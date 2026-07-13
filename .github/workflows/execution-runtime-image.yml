@@ -5,6 +5,9 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/app-api/**
+      - jobs/app-api-schema/**
+      - jobs/transport-publisher/**
       - configs/runtime/**
       - configs/ingestion/**
       - infra/k8s/data-postgres/base/**
@@ -37,6 +40,10 @@ jobs:
             dockerfile: apps/execution-control/Dockerfile
           - image: agent-runtime
             dockerfile: apps/agent-runtime/Dockerfile
+          - image: app-api-schema
+            dockerfile: jobs/app-api-schema/Dockerfile
+          - image: transport-publisher
+            dockerfile: jobs/transport-publisher/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v7

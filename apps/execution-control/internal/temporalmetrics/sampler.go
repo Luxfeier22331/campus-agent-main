@@ -15,7 +15,7 @@ const (
 	TaskQueueKindActivity     = "activity"
 	SourceMetricObserved      = "observed"
 	SourceMetricUnsupported   = "unsupported_by_source"
-	DefaultSamplerSource      = "execution-control.temporal-task-queue-sampler"
+	DefaultSamplerSource      = "execution-control.ops-api"
 	defaultSnapshotIDTimeForm = "20060102T150405Z"
 )
 

@@ -40,22 +40,6 @@ export interface AppTelemetry {
 	}): void;
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
-	recordExecutionAuditEvent(input: {
-		activityDurationMs: number | null;
-		decision: string | null;
-		durationMs: number | null;
-		eventType: string;
-		failureKind: string | null;
-		httpStatus: number | null;
-		taskQueue: string | null;
-		queueWaitMs: number | null;
-		requestId: string;
-		requestedTool: string | null;
-		retryable: boolean | null;
-		status: string;
-		surface: string;
-		traceId: string;
-	}): Promise<void>;
 	recordIdentityEndpoint(input: {
 		correlationId: string;
 		endpoint: string;
@@ -64,19 +48,6 @@ export interface AppTelemetry {
 		status: number;
 		surface: string;
 	}): Promise<void>;
-	recordProjectionDrain(input: {
-		abandoned?: number;
-		failed: number;
-		processed: number;
-		projector: string;
-		projectorLastErrorCode?: string | null;
-		surface: string;
-	}): Promise<void>;
-	recordProjectionEnqueued(
-		input: BaseRequestTelemetry & {
-			projectionStage: "accepted" | "finalized";
-		},
-	): Promise<void>;
 	recordRequestAccepted(
 		input: BaseRequestTelemetry & {
 			actor: ActorTelemetrySummary;

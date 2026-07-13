@@ -2,6 +2,7 @@
 	"name": "app-api",
 	"version": "0.1.0",
 	"private": true,
+	"type": "module",
 	"description": "Shared Worker-native application backend for campus-agent v2.",
 	"packageManager": "pnpm@10.26.1",
 	"scripts": {

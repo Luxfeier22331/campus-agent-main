@@ -239,7 +239,7 @@ function TransportScheduleGroupSection({ group }: { group: CampusTransportStatus
 function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
 	const rows = route.departures.map((departure, index) => ({
 		...departure,
-		rowId: `${route.routeId}:${index}:${departure.departureTime}`,
+		rowId: `${route.routeId}:${index}:${departure.serviceDate ?? "baseline"}:${departure.departureTime}`,
 	}));
 	return (
 		<section aria-labelledby={`transport-route-${route.routeId}`} className="grid gap-3">
@@ -296,9 +296,16 @@ function TransportDepartureRow({
 function renderDepartureCell(departure: CampusTransportDeparture, columnId: ScheduleTableColumnId) {
 	if (columnId === "departureTime") {
 		return (
-			<p className="min-w-[96px] font-mono text-base font-semibold tabular-nums text-[var(--sys-text-strong)]">
-				{departure.departureTime}
-			</p>
+			<div className="min-w-[96px]">
+				{departure.serviceDate ? (
+					<p className="mb-1 text-xs text-[var(--sys-text-muted)]">
+						{formatServiceDate(departure.serviceDate)}
+					</p>
+				) : null}
+				<p className="font-mono text-base font-semibold tabular-nums text-[var(--sys-text-strong)]">
+					{departure.departureTime}
+				</p>
+			</div>
 		);
 	}
 	if (columnId === "type") {
@@ -327,7 +334,9 @@ function getDepartureCellText(
 	columnId: ScheduleTableColumnId,
 ): string {
 	if (columnId === "departureTime") {
-		return departure.departureTime;
+		return departure.serviceDate
+			? `${departure.serviceDate} ${departure.departureTime}`
+			: departure.departureTime;
 	}
 	if (columnId === "type") {
 		return departureKindLabels[departure.kind];
@@ -389,5 +398,18 @@ function formatDisplayDateTime(value: string): string {
 		month: "2-digit",
 		timeZone: "Asia/Shanghai",
 		year: "numeric",
+	}).format(date);
+}
+
+function formatServiceDate(value: string): string {
+	const date = new Date(`${value}T00:00:00+08:00`);
+	if (Number.isNaN(date.valueOf())) {
+		return value;
+	}
+	return new Intl.DateTimeFormat("zh-CN", {
+		day: "numeric",
+		month: "long",
+		timeZone: "Asia/Shanghai",
+		weekday: "short",
 	}).format(date);
 }

@@ -10,10 +10,9 @@ import {
 	toTemporalExternalLink,
 } from "./ops-external-links.ts";
 import type {
-	OpsRequestExecutionRow,
 	OpsRequestListQuery,
 	OpsRequestObservabilityRow,
-	OpsRequestProjectionRow,
+	OpsRequestRow,
 	OpsRequestSummaryTotals,
 } from "./ops-status-store.ts";
 
@@ -21,13 +20,12 @@ const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 const TEST_PRINCIPAL_HASH_SECRET = "ops-web-test-principal-hash-secret";
 
 export function toRequestDetail(
-	requestRow: OpsRequestProjectionRow,
-	executionRow: OpsRequestExecutionRow | null,
+	requestRow: OpsRequestRow,
 	observabilityRow: OpsRequestObservabilityRow | null,
 	observabilityLinks?: OpsObservabilityLinkAllowlist,
 	principalHashSecret: string = TEST_PRINCIPAL_HASH_SECRET,
 ): OpsRequestDetailResponse {
-	const request = toRequestSummary(requestRow, executionRow, observabilityRow, principalHashSecret);
+	const request = toRequestSummary(requestRow, observabilityRow, principalHashSecret);
 	const workflowTrace = normalizeWorkflowTrace(observabilityRow?.workflowTraceSummaryJson);
 	const workflowId = toTemporalWorkflowId(request.runId);
 	const externalLinks = normalizeExternalLinks(observabilityLinks, workflowId);
@@ -90,13 +88,12 @@ export function toRequestDetail(
 }
 
 export function toRequestSummary(
-	row: OpsRequestProjectionRow,
-	execution: OpsRequestExecutionRow | null,
+	row: OpsRequestRow,
 	observability: OpsRequestObservabilityRow | null,
 	principalHashSecret: string = TEST_PRINCIPAL_HASH_SECRET,
 ): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
-	const runId = normalizeNullableString(execution?.runId);
+	const runId = normalizeNullableString(row.runId);
 	const workflowId = toTemporalWorkflowId(runId);
 	return {
 		completedAt: row.completedAt?.toISOString() ?? null,
@@ -430,7 +427,7 @@ function requestSearchText(request: OpsRequestSummary) {
 }
 
 function summarizeRequestDiagnostics(
-	row: OpsRequestProjectionRow,
+	row: OpsRequestRow,
 	observability: OpsRequestObservabilityRow | null,
 ) {
 	const diagnostics = new Set<string>();

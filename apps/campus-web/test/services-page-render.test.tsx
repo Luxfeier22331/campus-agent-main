@@ -37,6 +37,7 @@ describe("campus services page", () => {
 									departureTime: "12:10",
 									kind: "student",
 									note: "新增班次",
+									serviceDate: "2026-03-21",
 									sourceRefs: ["https://portal.example.edu/notice/456"],
 									status: "added",
 								},
@@ -65,6 +66,7 @@ describe("campus services page", () => {
 		expect(screen.getByText("07:00")).toBeInTheDocument();
 		expect(screen.getByText("教师班次")).toBeInTheDocument();
 		expect(screen.getByText("12:10")).toBeInTheDocument();
+		expect(screen.getByText("3月21日周六")).toBeInTheDocument();
 		expect(screen.getByText("学生班次")).toBeInTheDocument();
 		expect(screen.getByText("加开")).toBeInTheDocument();
 		expect(screen.getByText("新增班次")).toBeInTheDocument();

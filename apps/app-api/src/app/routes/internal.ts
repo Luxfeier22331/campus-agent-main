@@ -14,16 +14,14 @@ import {
 } from "../../http";
 import {
 	buildEndUserEmailAdmissionPolicy,
-	buildExecutionAuthorizationContext,
 	hashAppPassword,
 	hasMatchingInternalSecret,
 	isEndUserEmailAllowedForAuth,
-	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
 import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
-import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
+import { readJsonRequestBody } from "../request-utils";
 import { serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
@@ -138,47 +136,6 @@ async function resetStagingSmokeIdentity(input: {
 	return { userId };
 }
 
-function collectExecutionAuditRequestIds(payload: Record<string, unknown>): string[] {
-	const events = Array.isArray(payload.events) ? payload.events : [];
-	const requestIds = new Set<string>();
-	for (const event of events) {
-		if (!event || typeof event !== "object" || Array.isArray(event)) {
-			continue;
-		}
-		const requestId = readStringField(event as Record<string, unknown>, "request_id");
-		if (requestId) {
-			requestIds.add(requestId);
-		}
-	}
-	return [...requestIds];
-}
-
-function buildInternalRuntimeOperatorPrincipal(): ResolvedAppPrincipal {
-	const principalId = "execution-control-runtime";
-	const actor = {
-		departments: [],
-		principalId,
-		principalType: "operator" as const,
-		roles: ["operator", "execution_control_runtime"],
-		userId: principalId,
-	};
-	return {
-		actor,
-		authorization: buildExecutionAuthorizationContext(actor),
-		permissions: {
-			chat: false,
-			operator: true,
-		},
-		principal: {
-			displayName: "Execution Control Runtime",
-			email: null,
-			principalId,
-			type: "operator",
-		},
-		session: null,
-	};
-}
-
 function providerConfigProxyError(input: {
 	code: string;
 	message: string;
@@ -238,10 +195,6 @@ export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
-	scheduleRequestProjectionDrain?: (value: {
-		requestId: string;
-		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-	}) => void;
 }) {
 	input.app.all("/api/internal/provider-config/openai-compatible/:role/v1/*", async (c) => {
 		const scope = input.createRequestScope();
@@ -363,101 +316,6 @@ export function registerInternalRoutes(input: {
 				payload,
 			}),
 		);
-	});
-
-	input.app.post("/api/internal/operator/runtime/temporal-task-queue-snapshots", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestTemporalTaskQueueSnapshots({
-				payload: await readJsonRequestBody(c.req.raw),
-				persistHistory: c.req.query("history") === "1",
-			}),
-		);
-	});
-
-	input.app.get("/api/internal/operator/runtime/temporal-task-queues", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listTemporalTaskQueues({
-				filters: {
-					cursor: c.req.query("cursor") ?? null,
-					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
-					taskQueue: c.req.query("taskQueue") ?? null,
-					taskQueueKind: c.req.query("taskQueueKind") ?? null,
-				},
-				principal: buildInternalRuntimeOperatorPrincipal(),
-			}),
-		);
-	});
-
-	input.app.get("/api/internal/operator/runtime/autoscaler/actuations", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listAutoscalerActuations({
-				filters: {
-					cursor: c.req.query("cursor") ?? null,
-					decisionId: c.req.query("decisionId") ?? null,
-					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
-					status: c.req.query("status") ?? null,
-					targetService: c.req.query("targetService") ?? null,
-				},
-				principal: buildInternalRuntimeOperatorPrincipal(),
-			}),
-		);
-	});
-
-	input.app.get("/api/internal/operator/runtime/autoscaler/postures", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().listAutoscalerPostures({
-				filters: {
-					cursor: c.req.query("cursor") ?? null,
-					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
-					scalerStatus: c.req.query("scalerStatus") ?? null,
-					targetService: c.req.query("targetService") ?? null,
-				},
-				principal: buildInternalRuntimeOperatorPrincipal(),
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/execution/audit-events", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const payload = await readJsonRequestBody(c.req.raw);
-		const result = await scope
-			.resolveOperatorObservabilityCommandService()
-			.ingestExecutionAuditEvents({
-				payload,
-			});
-		const waitUntil = resolveWaitUntil(c);
-		for (const requestId of collectExecutionAuditRequestIds(payload)) {
-			input.scheduleRequestProjectionDrain?.({
-				requestId,
-				waitUntil,
-			});
-		}
-
-		return jsonResponse(result);
 	});
 
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {

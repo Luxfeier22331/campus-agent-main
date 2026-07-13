@@ -52,6 +52,7 @@ type transportStopRecord struct {
 type scheduledDepartureRecord struct {
 	SnapshotID         string   `json:"snapshot_id"`
 	RouteID            string   `json:"route_id"`
+	ServiceMode        string   `json:"service_mode"`
 	ServiceDates       []string `json:"service_dates"`
 	DepartureTime      string   `json:"departure_time"`
 	ArrivalTime        string   `json:"arrival_time"`
@@ -377,18 +378,28 @@ func (r *Runtime) lookupTransportSchedule(
 		base.ServiceStatus = "not_running"
 		return transportScheduleResponse(base)
 	}
+	operatingDepartures := operatingTransportDepartures(departures)
+	if len(operatingDepartures) == 0 {
+		base.ServiceStatus = "not_running"
+	} else if len(operatingDepartures) < len(departures) {
+		base.ServiceStatus = "limited_service"
+	}
+	if request.Intent != "timetable" && len(operatingDepartures) == 0 {
+		base.Outcome = "not_found"
+		return transportScheduleResponse(base)
+	}
 
 	switch request.Intent {
 	case "next_departure", "first_departure":
-		base.SelectedDeparture = &departures[0]
+		base.SelectedDeparture = &operatingDepartures[0]
 	case "last_departure":
-		base.SelectedDeparture = &departures[len(departures)-1]
+		base.SelectedDeparture = &operatingDepartures[len(operatingDepartures)-1]
 	case "departure_list":
-		base.DepartureOptions = limitTransportDepartures(departures, request.ResultLimit)
+		base.DepartureOptions = limitTransportDepartures(operatingDepartures, request.ResultLimit)
 	case "service_window":
 		base.ServiceWindow = &transportServiceWindow{
-			FirstDepartureAt: departures[0].DepartureAt,
-			LastDepartureAt:  departures[len(departures)-1].DepartureAt,
+			FirstDepartureAt: operatingDepartures[0].DepartureAt,
+			LastDepartureAt:  operatingDepartures[len(operatingDepartures)-1].DepartureAt,
 		}
 	case "timetable":
 		base.TimetableEntries = limitTransportDepartures(departures, request.ResultLimit)

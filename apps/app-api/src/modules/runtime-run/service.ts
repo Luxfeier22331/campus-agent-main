@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
-import { requestExecution } from "../../db/schema";
+import { turnDispatches } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
@@ -321,16 +321,16 @@ export function createPgRuntimeRunStore(
 			const db = await getDb();
 			const rows = await db
 				.select({
-					conversationId: requestExecution.conversationId,
-					requestId: requestExecution.requestId,
-					runId: requestExecution.runId,
-					traceId: requestExecution.traceId,
+					conversationId: turnDispatches.conversationId,
+					requestId: turnDispatches.requestId,
+					runId: turnDispatches.runId,
+					traceId: turnDispatches.traceId,
 				})
-				.from(requestExecution)
+				.from(turnDispatches)
 				.where(
 					and(
-						eq(requestExecution.actorUserId, query.ownerUserId),
-						eq(requestExecution.runId, query.runId),
+						eq(turnDispatches.actorUserId, query.ownerUserId),
+						eq(turnDispatches.runId, query.runId),
 					),
 				)
 				.limit(1);

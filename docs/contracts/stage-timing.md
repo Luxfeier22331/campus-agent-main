@@ -109,7 +109,7 @@ reasons, exact enabled-field coverage of the canonical field table and
 - `projection.closeout_ms`
 
 `request.total_ms` is measured from app-api request acceptance to terminal
-request projection. `stream.browser_ttft_ms` is measured only for browser
+request observability fact. `stream.browser_ttft_ms` is measured only for browser
 streaming requests that emit a real answer delta. `projection.closeout_ms` is
 measured from execution finalization receipt to app-api observability fact
 closeout.

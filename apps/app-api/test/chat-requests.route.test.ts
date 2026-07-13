@@ -468,11 +468,9 @@ describe("POST /api/chat/requests/stream", () => {
 				};
 			}),
 		};
-		const scheduleRequestProjectionDrain = vi.fn();
 		const app = createApp(env, {
 			chatCommandService: service,
 			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
-			scheduleRequestProjectionDrain,
 		});
 
 		const response = await app.fetch(
@@ -511,10 +509,6 @@ describe("POST /api/chat/requests/stream", () => {
 			}),
 			requestKind: "public_chat",
 			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
-			waitUntil: undefined,
-		});
-		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
-			requestId: "req_stream_01HQ",
 			waitUntil: undefined,
 		});
 	});

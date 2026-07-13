@@ -32,9 +32,9 @@ Adopt Langfuse as a self-host-first LLM observability and eval platform.
 - `packages/eval-langfuse` may publish datasets, experiments and scores to
   Langfuse, but deterministic release verdicts remain repo-owned. ADR-0061 later
   retired the old `packages/evals` package from active eval ownership.
-- Operator Console must not query Langfuse directly. After ADR-0064, it may show
-  only minimal app-api Ops Index correlation or safe link-template output; it
-  must not store Langfuse observations or scores in app-api.
+- Operator Console must not query Langfuse directly. Ops Web may show safe
+  correlation and link-template output; app-api must not store Langfuse
+  observations or scores.
 - Langfuse types and provider SDKs must not leak into `packages/contracts`.
 
 Self-host is the default deployment target. Cloud Langfuse remains compatible

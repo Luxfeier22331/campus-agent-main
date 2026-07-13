@@ -51,7 +51,7 @@ describe("Operator Console http copy", () => {
 			}),
 		);
 
-		await expect(fetchJson("/api/requests")).rejects.toMatchObject({
+		await expect(fetchJson("/api/operator/provider-config/connections")).rejects.toMatchObject({
 			message: "当前身份没有运维面板访问权限。",
 			status: 403,
 		});
@@ -70,7 +70,7 @@ describe("Operator Console http copy", () => {
 			),
 		);
 
-		await expect(fetchJson("/api/requests")).rejects.toMatchObject({
+		await expect(fetchJson("/api/operator/provider-config/connections")).rejects.toMatchObject({
 			message: "服务暂时不可用，请稍后重试。",
 			status: 500,
 		});
@@ -78,10 +78,12 @@ describe("Operator Console http copy", () => {
 
 	it("maps opaque access redirects to a login reentry error", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			createOpaqueRedirectResponse("https://panel-staging.mucwiki-edge.link/api/requests?limit=20"),
+			createOpaqueRedirectResponse(
+				"https://panel-staging.mucwiki-edge.link/api/operator/provider-config/connections",
+			),
 		);
 
-		await expect(fetchJson("/api/requests?limit=20")).rejects.toMatchObject({
+		await expect(fetchJson("/api/operator/provider-config/connections")).rejects.toMatchObject({
 			message: "当前受保护访问会话已失效，请重新进入面板。",
 			redirectTo: "/login",
 			status: 401,

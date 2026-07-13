@@ -17,14 +17,7 @@ const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["request.finalized", "runtime.request.finalized"],
 	["request.stage_timing", "runtime.request.stage_timing"],
 	["request.transport_error", "runtime.request.transport_error"],
-	["projection.enqueued", "runtime.projection.enqueued"],
-	["projection.drain", "runtime.projection.drain"],
 	["identity.endpoint", "runtime.identity.endpoint"],
-	["execution.admission_rejected", "runtime.execution.admission_rejected"],
-	["execution.cancel_requested", "runtime.execution.cancel_requested"],
-	["execution.cancelled", "runtime.execution.cancelled"],
-	["execution.activity_failed", "runtime.execution.activity_failed"],
-	["execution.timed_out", "runtime.execution.timed_out"],
 ]);
 
 export interface OtlpRuntimeEventEnv

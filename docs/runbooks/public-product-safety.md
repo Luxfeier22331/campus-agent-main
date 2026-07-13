@@ -4,63 +4,40 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-07-12
 ---
-# Public Product-path Safety Ops Runbook
 
-## Purpose
+# Product Safety Operations
 
-在 `app-api` 的 public/product-path 上执行最小安全运营闭环：确认 abuse throttle，
-并用受控请求事实定位需要人工跟进的异常模式。
+## 范围
 
-本 runbook 不定义 Operator Console 的安全 dashboard、alert 页面或独立 safety read
-model；当前 Operator Console 只展示最小 Ops Index。
+本文说明如何用当前持久化事实排查 abuse throttle 和 safety failure。请求查找在 Ops Web，
+不是 Operator Console。
 
-## Canonical Signal Sources
+## 信号
 
-- `runtime.request_execution`
-- `runtime.request_observability_fact`
+- `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
+- `runtime.request_observability_fact`：ACL、scope、refusal、semantic outcome 和 trace refs；
+- OpenObserve：辅助日志和调用链，不是 throttle truth。
 
-不要把 Axiom、Sentry 或其他 sink 当作 canonical abuse-control truth。
+## 固定阈值
 
-## Fixed Thresholds
+- 同一 `safety_identifier` 每 60 秒超过 8 次请求；
+- 同一 `safety_identifier` 每 10 分钟超过 30 次请求；
+- 命中 `rate_limit_exceeded` 后保持 5 分钟临时限流。
 
-- request throttle:
-  - same `safety_identifier` `> 8 requests / 60s`
-  - same `safety_identifier` `> 30 requests / 10m`
-- temporary throttle window:
-  - any `rate_limit_exceeded` hit keeps the same `safety_identifier` throttled
-    for `5m`
-- safety event patterns:
-  - `safety.rate_limit_exceeded`: same `safety_identifier` reaches `>= 3`
-    rate-limit hits in `15m`
-  - `safety.remote_content_suspicion_spike`: same `safety_identifier` reaches
-    `>= 3` suspicion-marked or `generation_blocked=true` requests in `15m`
-  - `safety.provider_content_filter_spike`: same `safety_identifier` reaches `>=
-    3` provider `content_filter` outcomes in `15m`
+阈值变更必须修改 owning policy 和测试，不能只改 runbook。
 
-## Operator Steps
+## 处理步骤
 
-1. Open Operator Console Requests and filter recent failed / rejected requests.
-   Use `/api/operator/overview` only for minimal request/runtime summary.
-1. If `code=safety.rate_limit_exceeded`:
-   - confirm recent requests show `status=rejected` and
-     `error_code=rate_limit_exceeded`
-   - no automatic `incident_backfill` is required
-   - keep the pattern in abuse-monitoring notes only
-1. If `code=safety.remote_content_suspicion_spike` or
-   `code=safety.provider_content_filter_spike`:
-   - inspect recent request detail tied to the same window
-   - collect only sanitized request identifiers, trace identifiers, pattern code,
-     and observed diagnostics
-   - open follow-up work in the golden governance lane as `incident_backfill`
-1. Close the incident only after the `incident_backfill` target has been created
-   and linked in operator notes.
+1. 在 Ops Web 按时间、状态、requestId、traceId 或 safety 关联摘要定位请求。
+2. 确认 turn dispatch 的 terminal 状态和 `error_code`。
+3. 使用 observability fact 判断 ACL、scope、remote-content suspicion 或 provider filter。
+4. 需要深入排查时按 request/trace 时间窗口读取 OpenObserve；审计失败时不返回原始记录。
+5. 只记录 sanitized request/trace id、pattern code、时间窗口和结论。
 
-## Evidence Boundaries
+## 禁止
 
-- Use `requestId`, `traceId`, pattern code, and operator-visible diagnostics.
-- Do not copy raw auth material, raw session secrets, or sink-side unowned
-  payloads into the incident note.
-- For remote-content incidents, use the sanitized suspicion summary rather than
-  pasting remote raw text into the closeout record.
+- 不从日志 sink 改写 request status 或 throttle truth。
+- 不复制 auth、session、memory、prompt、provider response 或 remote raw text 到工单。
+- 不恢复 operator request projection 或独立 safety dashboard 数据库。

@@ -47,7 +47,6 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		getPrincipal,
 		docsReadinessProbe,
 		runtimeReadinessProbe,
-		scheduleRequestProjectionDrain: dependencies.scheduleRequestProjectionDrain,
 	});
 
 	app.onError((error, c) => {

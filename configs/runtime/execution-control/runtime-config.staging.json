@@ -20,10 +20,6 @@
 		"allowed_attributes_version": "execution-control-otel-attrs-v1",
 		"temporal_tracing_enabled": true
 	},
-	"execution_audit": {
-		"enabled": true,
-		"timeout_ms": 500
-	},
 	"knowledge_search": {
 		"top_k_max": 8,
 		"embedding_timeout_ms": 10000,

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/temporal"
 )
@@ -252,12 +251,6 @@ func (s *Server) failTemporalRun(
 	if transitionErr != nil {
 		return execution.DurableRun{}, transitionErr
 	}
-	s.emitExecutionRunAuditEvent(failedRun, executionaudit.Event{
-		EventType:   executionAuditEventTypeForFailure(ctx, projection, cause),
-		FailureKind: failureKind,
-		OccurredAt:  failedAt,
-		Retryable:   failedRun.Retryable,
-	})
 	_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":run-failed",
 		RunID:                run.RunID,

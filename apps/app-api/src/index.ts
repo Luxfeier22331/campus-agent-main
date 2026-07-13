@@ -16,11 +16,6 @@ import {
 	isExecutionControlRuntimeConfigured,
 } from "./modules/integration";
 import {
-	buildRequestProjectionProjector,
-	createPgProjectionStore,
-	type RequestProjectionProjector,
-} from "./modules/projection";
-import {
 	buildChatCommandService,
 	type ChatCommandService,
 	createPgChatCommandStore,
@@ -29,9 +24,7 @@ import { createAppTelemetry } from "./modules/telemetry";
 
 export type { Env } from "./config";
 
-export interface WorkerRuntimeDependencies extends AppDependencies {
-	requestProjector?: RequestProjectionProjector;
-}
+export type WorkerRuntimeDependencies = AppDependencies;
 
 interface WaitUntilContext {
 	waitUntil(promise: Promise<unknown>): void;
@@ -105,41 +98,11 @@ function isExplicitlyEnabled(value: string | undefined): boolean {
 	return value?.trim().toLowerCase() === "true";
 }
 
-async function drainRequestProjection(input: {
-	op: "cron" | "task";
-	requestProjector: RequestProjectionProjector;
-	telemetry: ReturnType<typeof createAppTelemetry>;
-}) {
-	const result = await Sentry.startSpan(
-		{
-			name: "app-api.request-projection.drain",
-			op: input.op,
-		},
-		() => input.requestProjector.drain(),
-	);
-	if (result.processed > 0 || result.failed > 0) {
-		await input.telemetry.recordProjectionDrain({
-			failed: result.failed,
-			processed: result.processed,
-			projector: "request_projection",
-			projectorLastErrorCode: result.failed > 0 ? "projection_failed" : null,
-			surface: "app_api",
-		});
-	}
-
-	return result;
-}
-
 export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
 	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
-	const requestProjector =
-		dependencies.requestProjector ??
-		buildRequestProjectionProjector({
-			store: createPgProjectionStore(env),
-		});
 	let durableCloseoutService = dependencies.chatCommandService ?? null;
 	function resolveDurableCloseoutService(): ChatCommandService {
 		if (durableCloseoutService) {
@@ -174,68 +137,8 @@ export function createWorkerRuntime(
 		});
 		return durableCloseoutService;
 	}
-	const scheduleRequestProjectionDrain =
-		dependencies.scheduleRequestProjectionDrain ??
-		((input: {
-			requestId: string;
-			waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-		}) => {
-			if (!input.waitUntil) {
-				throw new AppApiRouteError({
-					code: "request_projection_scheduler_unavailable",
-					message: "Request projection drain requires executionCtx.waitUntil.",
-					retryable: true,
-					status: 503,
-				});
-			}
-
-			const runDrain = Promise.resolve().then(async () => {
-				try {
-					const result = await Sentry.startSpan(
-						{
-							name: "app-api.request-projection.drain",
-							op: "task",
-						},
-						() => requestProjector.drainRequest(input.requestId),
-					);
-					if (result.processed > 0 || result.failed > 0) {
-						await telemetry.recordProjectionDrain({
-							failed: result.failed,
-							processed: result.processed,
-							projector: "request_projection",
-							projectorLastErrorCode: result.failed > 0 ? "projection_failed" : null,
-							surface: "app_api",
-						});
-					}
-				} catch (error) {
-					telemetry.captureException(error, {
-						route: "/api/chat/requests",
-						surface: "app_api",
-					});
-					console.error(
-						JSON.stringify({
-							error:
-								error instanceof Error
-									? {
-											message: error.message,
-											name: error.name,
-										}
-									: {
-											message: String(error),
-											name: "UnknownError",
-										},
-							requestId: input.requestId,
-							source: "app-api.request-projection-projector.background",
-						}),
-					);
-				}
-			});
-
-			input.waitUntil(runDrain);
-		});
 	const app = createApp(env, {
 		...dependencies,
-		scheduleRequestProjectionDrain,
 		telemetry,
 	});
 
@@ -255,22 +158,6 @@ export function createWorkerRuntime(
 							Promise.resolve(null),
 					)
 				: null;
-			const requestResult = isExplicitlyEnabled(env.APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED)
-				? await drainRequestProjection({
-						op: "cron",
-						requestProjector,
-						telemetry,
-					})
-				: { failed: 0, processed: 0 };
-			if (requestResult.processed > 0) {
-				console.info(
-					JSON.stringify({
-						failed: requestResult.failed,
-						processed: requestResult.processed,
-						source: "app-api.request-projection-projector",
-					}),
-				);
-			}
 			if (closeoutResult && (closeoutResult.finalized > 0 || closeoutResult.failed > 0)) {
 				console.info(
 					JSON.stringify({
@@ -288,15 +175,6 @@ export function createWorkerRuntime(
 						finalized: closeoutResult.finalized,
 						scanned: closeoutResult.scanned,
 						source: "app-api.durable-closeout-reconciler",
-					}),
-				);
-			}
-			if (requestResult.failed > 0) {
-				console.error(
-					JSON.stringify({
-						failed: requestResult.failed,
-						processed: requestResult.processed,
-						source: "app-api.request-projection-projector",
 					}),
 				);
 			}

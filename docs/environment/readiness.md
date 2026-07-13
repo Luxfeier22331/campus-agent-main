@@ -58,20 +58,15 @@ pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 connection and worker identities, run projection database, internal query auth
 and service credentials separately from Worker staging.
 
-Conditional readiness is limited to config-owned optional features:
-
-- if runtime config `execution_audit.enabled=true`, doctor requires
-  `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
-  `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-
 Tool exposure is owned by `configs/runtime/tools.v4.json`, not by an
 `open_tools` field in runtime config. The doctor therefore does not infer tool
 readiness from a retired runtime profile shape.
 
 Runtime `/readyz` is stricter than liveness:
 
-- `200 ready` means provider-config resolver admitted, audit writer healthy,
-  and answer admission not currently saturated
+- `200 ready` means provider config, run projection, Temporal pollers, memory,
+  knowledge search, open tool read models and telemetry are healthy, and answer
+  admission is not draining or saturated
 - `503 degraded` means at least one execution runtime component is not ready
 - outside the `local` runtime mode, execution-control full `/readyz` requires
   internal worker auth and must not be used as an unauthenticated public deploy

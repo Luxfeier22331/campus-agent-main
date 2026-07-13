@@ -42,7 +42,6 @@
 			"enum": [
 				"stage_latency_p95",
 				"request_error_rate",
-				"projection_outbox_stale",
 				"telemetry_export_failure",
 				"missing_trace_rate"
 			]

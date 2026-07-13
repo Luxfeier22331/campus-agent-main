@@ -9,15 +9,12 @@ const (
 )
 
 type Options struct {
-	CampusServicesOpsReleaseStore   CampusServicesOpsReleaseStore
 	TransportScheduleReadModelStore TransportScheduleReadModelStore
 	StructuredProjectionDatabaseURL string
 	TrustedTimeRFC3339              string
 }
 
 type Runtime struct {
-	campusServicesOpsReleaseStore   CampusServicesOpsReleaseStore
-	campusServicesOpsReleaseCache   campusServicesOpsReleaseCache
 	transportScheduleReadModelStore TransportScheduleReadModelStore
 	transportScheduleBundleCache    projectionBundleCache
 	trustedTime                     time.Time
@@ -26,9 +23,6 @@ type Runtime struct {
 type Status struct {
 	Configured                           bool   `json:"configured"`
 	ProjectionSource                     string `json:"projection_source"`
-	CampusServicesOpsReleaseConfigured   bool   `json:"campus_services_ops_release_configured"`
-	CampusServicesOpsReleaseReady        bool   `json:"campus_services_ops_release_ready"`
-	CampusServicesOpsReleaseHealthy      bool   `json:"campus_services_ops_release_healthy"`
 	TransportScheduleReadModelConfigured bool   `json:"transport_schedule_read_model_configured"`
 	TransportScheduleReadModelHealthy    bool   `json:"transport_schedule_read_model_healthy"`
 	TransportScheduleImplemented         bool   `json:"transport_schedule_implemented"`

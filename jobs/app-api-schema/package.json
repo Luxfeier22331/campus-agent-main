@@ -1,0 +1,14 @@
+{
+	"name": "app-api-schema",
+	"version": "0.1.0",
+	"private": true,
+	"description": "One-shot app-api PostgreSQL schema installer image boundary.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"dependencies": {
+		"@better-auth/oauth-provider": "1.6.23",
+		"better-auth": "^1.6.23",
+		"drizzle-orm": "^0.45.2",
+		"pg": "^8.22.0"
+	}
+}

@@ -632,8 +632,8 @@ registry / control-plane database 与对象存储长期分层。
   所需 payload
 - Redis 只允许作为 cache / invalidation adjunct，不拥有 source truth、release catalog、
   current pointer 或 typed read model
-- 当共享 Postgres 由 Supabase 承载且 repo-owned runtime 采用 IPv4-only 姿态时，运行时连接规则以
-  `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md` 为准
+- 共享 Postgres 使用自托管 CNPG；集群内 TLS、Worker Hyperdrive/Workers VPC 私网路径和
+  独立数据库角色以 `docs/decisions/adr-0073-private-postgres.md` 为准
 
 ## Collection-Specific Rules
 
@@ -694,7 +694,7 @@ active registry，直到 collection-specific handler 与 contract artifact 同�
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
-- `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
+- `docs/decisions/adr-0073-private-postgres.md`
 - `docs/data/authenticated-notice.md`
 - `docs/architecture/system/file-asset-loader.md`
 - `docs/reference/internal-notice-pdf-chunks.md`

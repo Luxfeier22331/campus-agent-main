@@ -1,8 +1,5 @@
 import type { JWTPayload } from "jose";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { vi } from "vitest";
-
-import type { OperatorQueryService } from "../../app-api/src/modules/operator-query";
 import packageManifestRaw from "../package.json?raw";
 
 export const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -11,7 +8,6 @@ export const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
 };
 
-export { createApp as createAppApi } from "../../app-api/src/app";
 export { default as stagingAccessServiceTokenSmokeSource } from "../e2e/staging-access-service-token.ts?raw";
 export { default as stagingBrowserE2ESource } from "../e2e/staging-browser.ts?raw";
 export { default as localAccessSmokeServerSource } from "../e2e/support/local-access-server.ts?raw";
@@ -21,26 +17,6 @@ export { default as worker } from "../src/index";
 export { default as viteConfigSource } from "../vite.config.ts?raw";
 export { default as wranglerLocalSmokeConfig } from "../wrangler.local-smoke.toml?raw";
 export { default as wranglerConfig } from "../wrangler.toml?raw";
-
-export function createOperatorQueryServiceMock(
-	overrides: Partial<OperatorQueryService> = {},
-): OperatorQueryService {
-	return {
-		getById: vi.fn(),
-		getOverview: vi.fn(),
-		getRuntimeHealth: vi.fn(),
-		listAutoscalerActuations: vi.fn(),
-		listAutoscalerPostures: vi.fn(),
-		list: vi.fn().mockResolvedValue({
-			page: {
-				nextCursor: null,
-			},
-			requests: [],
-		}),
-		listTemporalTaskQueues: vi.fn(),
-		...overrides,
-	};
-}
 
 export function createHtmlShellResponse() {
 	return new Response('<!doctype html><html><body><div id="root"></div></body></html>', {

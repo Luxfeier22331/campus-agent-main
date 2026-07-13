@@ -291,30 +291,7 @@ function collectSurfaceConditions(input: {
 			ready: input.runtimeConfig.ready === true,
 			error: input.runtimeConfig.error ?? null,
 		},
-		execution_audit_contract: executionAuditContract(input.runtimeConfig, input.settings.optional),
 		otel_axiom_collector_endpoint_contract: axiomCollectorEndpointContract(input.env),
-	};
-}
-
-function executionAuditContract(
-	runtimeConfig: Record<string, unknown>,
-	optionalSettings: Record<string, Record<string, unknown>>,
-): Record<string, unknown> {
-	const config = isRecord(runtimeConfig.config) ? runtimeConfig.config : {};
-	const executionAudit = isRecord(config.execution_audit) ? config.execution_audit : {};
-	const required = executionAudit.enabled === true;
-	const missing = required
-		? [
-				["execution_audit_url", "EXECUTION_CONTROL_EXECUTION_AUDIT_URL"],
-				["execution_audit_shared_secret", "EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"],
-			]
-				.filter(([setting]) => !settingPresent(optionalSettings, setting))
-				.map(([, key]) => key)
-		: [];
-	return {
-		required,
-		ready: missing.length === 0,
-		error: missing.length > 0 ? `execution audit enabled but missing ${missing.join(" / ")}` : null,
 	};
 }
 function axiomCollectorEndpointContract(env: Env): Record<string, unknown> {
@@ -375,13 +352,6 @@ function collectExecutionControlRuntimeConfigStatus(
 			error: `runtime config is not readable: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
-}
-
-function settingPresent(
-	settings: Record<string, Record<string, unknown>>,
-	settingName: string,
-): boolean {
-	return settings[settingName]?.present === true;
 }
 
 function postgresDiagnosticsReady(

@@ -2,7 +2,6 @@ package toolreadmodel
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -431,6 +430,54 @@ func TestLookupTransportScheduleTimetableEntriesIncludeDepartureMetadata(t *test
 	}
 }
 
+func TestLookupTransportScheduleDoesNotSelectCancelledDeparture(t *testing.T) {
+	bundle := mustProjectionBundle(t, transportProjectionFixtureWithDepartureMetadata())
+	bundle.ScheduledDepartures[0].DepartureStatus = "cancelled"
+	bundle.ScheduledDepartures = append(bundle.ScheduledDepartures, scheduledDepartureRecord{
+		SnapshotID:        "snapshot:bus:2026-04-20",
+		RouteID:           "route:haidian-to-fengtai",
+		ServiceDates:      []string{"2026-04-24"},
+		DepartureTime:     "09:00",
+		OriginStopID:      "stop:haidian-east-gate",
+		DestinationStopID: "stop:fengtai-main-gate",
+		DepartureStatus:   "normal",
+		DepartureKind:     "student",
+	})
+	runtime := NewRuntime(Options{
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{bundle: bundle},
+		TrustedTimeRFC3339:              "2026-04-24T07:00:00+08:00",
+	})
+
+	next := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天下一班去丰台的班车",
+		"intent":"next_departure",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+	nextResult := next.Body.(transportScheduleResult)
+	if nextResult.SelectedDeparture == nil ||
+		nextResult.SelectedDeparture.DepartureAt != "2026-04-24T09:00:00+08:00" {
+		t.Fatalf("selected departure = %#v, want operating 09:00 departure", nextResult.SelectedDeparture)
+	}
+	if nextResult.ServiceStatus != "limited_service" {
+		t.Fatalf("service status = %q, want limited_service", nextResult.ServiceStatus)
+	}
+
+	timetable := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台的完整班车表",
+		"intent":"timetable",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+	timetableResult := timetable.Body.(transportScheduleResult)
+	if len(timetableResult.TimetableEntries) != 2 ||
+		timetableResult.TimetableEntries[0].DepartureStatus != "cancelled" {
+		t.Fatalf("timetable entries = %#v, want cancelled row retained", timetableResult.TimetableEntries)
+	}
+}
+
 func TestLookupTransportScheduleFailsClosedOnInvalidDepartureMetadata(t *testing.T) {
 	fixture := strings.Replace(
 		transportProjectionFixtureWithDepartureMetadata(),
@@ -515,138 +562,6 @@ func TestLookupTransportScheduleAppliesTemporarySuspension(t *testing.T) {
 	}
 	if result.ServiceWindow != nil {
 		t.Fatalf("service_window = %#v, want nil", result.ServiceWindow)
-	}
-}
-
-func TestLookupTransportScheduleAppliesPublishedOpsTransportOverride(t *testing.T) {
-	runtime := NewRuntime(Options{
-		CampusServicesOpsReleaseStore: &fakeCampusServicesOpsReleaseStore{
-			release: campusServicesOpsRelease{
-				ReleaseID:   "services_release_current",
-				PublishedAt: "2026-04-24T09:00:00+08:00",
-				CurrentEffective: campusServicesOpsCurrentEffectiveSnapshot{
-					GeneratedAt: "2026-04-24T09:00:00+08:00",
-					TransportOverrides: []campusServicesOpsTransportOverride{
-						{
-							OverrideID:           "services_transport_override_1",
-							RouteID:              "route:haidian-to-fengtai",
-							DisplayName:          "海淀到丰台通勤车",
-							ServiceStatus:        "suspended",
-							Message:              "今天 10:00-12:00 因临时管制暂停发车",
-							EffectiveFrom:        "2026-04-24T10:00:00+08:00",
-							EffectiveUntil:       "2026-04-24T12:00:00+08:00",
-							SourceAttestationIDs: []string{"services_attestation_bus_1"},
-							ReviewState:          "ready_for_publish",
-						},
-					},
-				},
-			},
-		},
-		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
-			bundle: mustProjectionBundle(t, transportProjectionFixture()),
-		},
-		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	})
-
-	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
-		"query_text":"今天去丰台的班车还跑吗",
-		"intent":"service_window",
-		"route_selector":{"route_id":"route:haidian-to-fengtai"},
-		"snapshot_query":{"mode":"current"},
-		"service_time_query":{"date_mode":"today"}
-	}`))
-
-	result := response.Body.(transportScheduleResult)
-	if result.Outcome != "resolved_current" {
-		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
-	}
-	if result.ServiceStatus != "temporarily_suspended" {
-		t.Fatalf("service_status = %q, want temporarily_suspended", result.ServiceStatus)
-	}
-	wantRefs := []string{"campus_services_ops:release:services_release_current", "campus_services_ops:attestation:services_attestation_bus_1"}
-	if !reflect.DeepEqual(result.RelatedNoticeRefs, wantRefs) {
-		t.Fatalf("related_notice_refs = %#v, want %#v", result.RelatedNoticeRefs, wantRefs)
-	}
-	if result.ServiceWindow != nil {
-		t.Fatalf("service_window = %#v, want nil", result.ServiceWindow)
-	}
-}
-
-func TestLookupTransportScheduleIgnoresExpiredOpsTransportOverrideAtQueryTime(t *testing.T) {
-	runtime := NewRuntime(Options{
-		CampusServicesOpsReleaseStore: &fakeCampusServicesOpsReleaseStore{
-			release: campusServicesOpsRelease{
-				ReleaseID:   "services_release_current",
-				PublishedAt: "2026-04-24T09:00:00+08:00",
-				CurrentEffective: campusServicesOpsCurrentEffectiveSnapshot{
-					GeneratedAt: "2026-04-24T09:00:00+08:00",
-					TransportOverrides: []campusServicesOpsTransportOverride{
-						{
-							OverrideID:           "services_transport_override_1",
-							RouteID:              "route:haidian-to-fengtai",
-							DisplayName:          "海淀到丰台通勤车",
-							ServiceStatus:        "suspended",
-							Message:              "今天 10:00-12:00 因临时管制暂停发车",
-							EffectiveFrom:        "2026-04-24T10:00:00+08:00",
-							EffectiveUntil:       "2026-04-24T12:00:00+08:00",
-							SourceAttestationIDs: []string{"services_attestation_bus_1"},
-							ReviewState:          "ready_for_publish",
-						},
-					},
-				},
-			},
-		},
-		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
-			bundle: mustProjectionBundle(t, transportProjectionFixture()),
-		},
-		TrustedTimeRFC3339: "2026-04-24T13:30:00+08:00",
-	})
-
-	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
-		"query_text":"今天去丰台的班车还跑吗",
-		"intent":"service_window",
-		"route_selector":{"route_id":"route:haidian-to-fengtai"},
-		"snapshot_query":{"mode":"current"},
-		"service_time_query":{"date_mode":"today"}
-	}`))
-
-	result := response.Body.(transportScheduleResult)
-	if result.Outcome != "resolved_current" {
-		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
-	}
-	if result.ServiceStatus != "running" {
-		t.Fatalf("service_status = %q, want running", result.ServiceStatus)
-	}
-}
-
-func TestLookupTransportScheduleFailsClosedWhenConfiguredOpsReleaseStoreFails(t *testing.T) {
-	runtime := NewRuntime(Options{
-		CampusServicesOpsReleaseStore: &fakeCampusServicesOpsReleaseStore{
-			latestErr: errors.New("ops release store unavailable"),
-		},
-		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
-			bundle: mustProjectionBundle(t, transportProjectionFixture()),
-		},
-		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	})
-
-	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
-		"query_text":"今天去丰台的班车还跑吗",
-		"intent":"service_window",
-		"route_selector":{"route_id":"route:haidian-to-fengtai"},
-		"snapshot_query":{"mode":"current"},
-		"service_time_query":{"date_mode":"today"}
-	}`))
-
-	result := response.Body.(transportScheduleResult)
-	if result.Outcome != "temporarily_unverifiable" {
-		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
-	}
-	if result.FailCloseReason != "source_truth_unavailable" {
-		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
-	}
-	if result.ServiceStatus != "unknown" {
-		t.Fatalf("service_status = %q, want unknown", result.ServiceStatus)
 	}
 }
 

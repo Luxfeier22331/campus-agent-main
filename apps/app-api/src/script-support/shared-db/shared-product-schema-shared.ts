@@ -4,11 +4,13 @@ import { fileURLToPath } from "node:url";
 import type { NormalizedColumnSpec, NormalizedIndexSpec } from "./shared-db-script-types.ts";
 
 export const APP_API_KNOWN_SCHEMAS = [
+	"campus_services",
 	"campus_services_ops",
 	"chat",
 	"dining",
 	"docs",
 	"identity",
+	"observability",
 	"official_web",
 	"observability",
 	"operator",

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0072
 status: accepted
 created: 2026-07-11
-updated: 2026-07-11
+updated: 2026-07-12
 supersedes:
   - ADR-0055 single implementation surface for privileged runtime diagnosis
 ---
@@ -29,8 +29,8 @@ and arbitrary query capability.
 Add `apps/ops-web` as a separate, self-hosted, read-only runtime diagnosis application.
 
 - One Node/Hono process serves the React application and its fixed `/api/ops/*` endpoints.
-- The server reads only allowlisted columns from four PostgreSQL summaries and writes only raw
-  observability read audits.
+- The server reads only allowlisted columns from turn dispatches, user messages, agent runs and
+  observability facts, and writes only raw observability read audits.
 - The server queries fixed OpenObserve streams with request-derived identifiers and bounded time
   windows. The browser cannot submit SQL or choose streams.
 - Cloudflare Access plus application allowlists protect all Ops APIs. Raw logs and traces require

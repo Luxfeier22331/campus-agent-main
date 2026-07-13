@@ -242,7 +242,9 @@ official-web 的消费链路边界以
 ### `apps/ops-web`
 
 - 已有自托管只读运行排查源码，Hono 服务端同时提供 React 页面和固定 `/api/ops/*`
-- 读取四个允许的 PostgreSQL 摘要、固定服务健康检查和 OpenObserve，不经过 `app-api`
+- 读取 `chat.turn_dispatches`、`chat.messages`、`runtime.agent_runs` 和
+  `runtime.request_observability_fact` 的受限列，以及固定服务健康检查和 OpenObserve，不经过
+  `app-api`
 - 使用 Access JWT、两级操作者白名单、列级数据库权限和原始观测读取审计
 - 当前浏览器 serving truth 仍是 `operator-console-web`；Ops Web 源码和 K8s base 不证明
   staging 已部署，也不替换现有 Worker Console
@@ -273,20 +275,20 @@ official-web 的消费链路边界以
 
 ### `apps/execution-control`
 
-- Docker-side internal execution ingress
+- self-hosted internal execution ingress
 - 暴露 `GET /healthz`、`GET /readyz`、`GET /metrics` 与
   `POST /internal/execution/runs`、`GET /internal/execution/runs/:runId`、
   `GET /internal/execution/runs/:runId/events`、
   `GET /internal/execution/runs/:runId/steps`、
   `POST /internal/execution/runs/:runId/cancel`
-- 拥有 request body limit、caller auth、strict env parsing、request projection、
+- 拥有 request body limit、caller auth、strict env parsing、run projection、
   Temporal workflow command/cancel、memory activities、internal query admission、
   evidence/source validation、sanitized projection writeback、timeout、readiness、
   metrics、OTel telemetry seam 与 graceful drain
 - 当前 execution plane 已切为 self-hosted Temporal：`app-api` accepted chat
   request 调用 `execution-control` 创建 Temporal-backed run，Temporal
   workflow/activity worker 负责执行编排，PG `runtime.agent_runs` / events /
-  step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
+  step projection rows 只作为 Ops Web、受控 eval 读取的 sanitized product
   projection truth。
 - 当前 `ToolExecutionWorkflow` 只有四阶段：`Memory Recall -> Agent Activity ->
   Finalization -> Memory Append`。Agent Activity 内的一次 OpenAI Agents SDK run
@@ -363,7 +365,7 @@ official-web 的消费链路边界以
 - 各 adapter 负责 source-channel capture、source-bucket artifact 写入与对应
   control-plane run lifecycle 上报；`official-web` 上报 `apps/ingestion-control`，
   `wechat-official-account` 仍上报 `apps/app-api`
-- 不拥有 operator ledger、request projection、ingestion-control task lifecycle 或
+- 不拥有 operator ledger、online request truth、ingestion-control task lifecycle 或
   source-truth materialization truth
 - adapter 内部可使用 Crawlee 承接 crawl queue / retry / concurrency；Crawlee request
   identity 不替代 source-bucket handoff contract

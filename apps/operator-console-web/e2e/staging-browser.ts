@@ -127,7 +127,6 @@ async function main() {
 	try {
 		const routes = [
 			["/", "operator-shell.png"],
-			["/requests", "operator-requests.png"],
 			["/operations/provider-config", "operator-provider-config.png"],
 		];
 		for (const [path, screenshotName] of routes) {

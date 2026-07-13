@@ -68,9 +68,9 @@ not create Namespaces.
 On a successful `main` image build,
 `.github/workflows/execution-runtime-publish.yml`:
 
-1. publishes `execution-control`, `agent-runtime` and `ops-web` with only the
-   source commit SHA as a tag;
-2. resolves each multi-architecture manifest digest;
+1. publishes `execution-control`, `agent-runtime`, `app-api-schema`, `transport-publisher` and
+   `ops-web` with only the source commit SHA as a tag;
+2. resolves the four images currently owned by the execution-runtime environment overlay;
 3. authenticates as a dedicated GitHub App limited to the environment
    repository;
 4. updates the environment's source-base SHA, image digests and runtime release
@@ -80,6 +80,9 @@ On a successful `main` image build,
 
 The workflow never writes directly to environment `main`. Merging the GitOps
 pull request is the deployment action.
+
+Ops Web currently has source and image publication but no environment overlay on GitOps `main`.
+Its digest must not be added to runtime promotion until that Application and overlay are merged.
 
 ## Secret Delivery
 

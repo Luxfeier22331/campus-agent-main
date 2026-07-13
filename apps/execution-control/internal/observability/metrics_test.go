@@ -34,12 +34,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 			MetricsEnabled:    true,
 			MetricsConfigured: true,
 		},
-		ExecutionAudit: ExecutionAuditSnapshot{
-			Enabled:      true,
-			Configured:   true,
-			EmittedCount: 7,
-			FailedCount:  1,
-		},
 	}))
 
 	expectedSnippets := []string{
@@ -64,10 +58,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_telemetry_sample_ratio 0.25`,
 		`campus_execution_control_telemetry_metrics_enabled 1`,
 		`campus_execution_control_telemetry_metrics_exporter_configured 1`,
-		`campus_execution_control_execution_audit_emitted_total 7`,
-		`campus_execution_control_execution_audit_failed_total 1`,
-		`campus_execution_control_execution_audit_enabled 1`,
-		`campus_execution_control_execution_audit_configured 1`,
 	}
 	for _, snippet := range expectedSnippets {
 		if !strings.Contains(output, snippet) {

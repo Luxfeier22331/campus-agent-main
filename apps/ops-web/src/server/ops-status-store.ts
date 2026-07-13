@@ -10,6 +10,7 @@ import type {
 import { createFixtureOpsStatusStore } from "./fixture-ops-status-store.ts";
 import { createPgOpsStatusStore, createPgOpsStatusStoreDatabase } from "./pg-ops-status-store.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
+import { createTemporalTaskQueueSource } from "./temporal-task-queue-client.ts";
 
 export interface OpsRequestListQuery {
 	conversationId?: string;
@@ -78,6 +79,8 @@ export interface OpsStatusEnv {
 	OPS_WEB_DB_IDLE_TIMEOUT_MS?: string;
 	OPS_WEB_DB_POOL_MAX?: string;
 	OPS_WEB_DB_STATEMENT_TIMEOUT_MS?: string;
+	OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN?: string;
+	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_OPENOBSERVE_URL?: string;
@@ -89,22 +92,13 @@ export interface OpsStatusEnv {
 }
 
 export interface PgOpsStatusStoreDatabase {
-	getRequestExecution(requestId: string): Promise<OpsRequestExecutionRow | null>;
-	getRequestExecutions(requestIds: string[]): Promise<OpsRequestExecutionRow[]>;
 	getRequestObservabilities(requestIds: string[]): Promise<OpsRequestObservabilityRow[]>;
 	getRequestObservability(requestId: string): Promise<OpsRequestObservabilityRow | null>;
 	getRequestOverview(since: Date): Promise<OpsRequestOverviewRow>;
-	getRequestProjection(requestId: string): Promise<OpsRequestProjectionRow | null>;
+	getRequest(requestId: string): Promise<OpsRequestRow | null>;
 	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
-	getTemporalTaskQueues(): Promise<OpsTemporalTaskQueueRow[]>;
-	listRequestProjections(
-		query: OpsRequestListQuery,
-		since: Date,
-	): Promise<OpsRequestProjectionRow[]>;
-	summarizeRequestProjections(
-		query: OpsRequestListQuery,
-		since: Date,
-	): Promise<OpsRequestSummaryTotals>;
+	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
+	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
 	verifyObservabilityReadAuditWrite(): Promise<void>;
 	verifyReadiness(): Promise<void>;
 	writeObservabilityReadAudit(input: OpsObservabilityReadAuditInput): Promise<void>;
@@ -132,7 +126,7 @@ export interface OpsRequestTrendRow {
 	total: number;
 }
 
-export interface OpsRequestProjectionRow {
+export interface OpsRequestRow {
 	completedAt: Date | null;
 	conversationId: string;
 	durationMs: number | null;
@@ -143,15 +137,11 @@ export interface OpsRequestProjectionRow {
 	questionPreview: string;
 	requestId: string;
 	requestedTool: string | null;
+	runId: string | null;
 	selectedTool: string | null;
 	startedAt: Date;
 	status: string;
 	traceId: string;
-}
-
-export interface OpsRequestExecutionRow {
-	requestId: string;
-	runId: string | null;
 }
 
 export interface OpsRequestObservabilityRow {
@@ -183,6 +173,10 @@ export interface OpsTemporalTaskQueueRow {
 	projectedAt: Date;
 	taskQueue: string;
 	taskQueueKind?: string | null;
+}
+
+export interface OpsTemporalTaskQueueSource {
+	getTaskQueues(): Promise<OpsTemporalTaskQueueRow[]>;
 }
 
 export function createUnavailableOpsStatusStore(
@@ -235,6 +229,10 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 			max: normalizePositiveIntegerEnv(env.OPS_WEB_DB_POOL_MAX),
 			ssl: databaseConfig.ssl,
 			statementTimeoutMs: normalizePositiveIntegerEnv(env.OPS_WEB_DB_STATEMENT_TIMEOUT_MS),
+		}),
+		temporalTaskQueues: createTemporalTaskQueueSource({
+			baseUrl: env.OPS_WEB_EXECUTION_CONTROL_URL ?? "",
+			bearerToken: env.OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN ?? "",
 		}),
 		observabilityLinks: {
 			axiom: env.OPS_WEB_AXIOM_URL ?? env.AXIOM_BASE_URL,

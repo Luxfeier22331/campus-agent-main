@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0056
 status: accepted
 created: 2026-06-16
-updated: 2026-06-16
+updated: 2026-07-12
 supersedes:
   - adr-0043-docker-runtime.md
 ---
@@ -14,6 +14,13 @@ supersedes:
 ## 状态
 
 Accepted on 2026-06-16.
+
+## 当前边界
+
+KEDA/HPA 已是 Kubernetes worker pool 的唯一副本执行器。Docker `worker-autoscaler`、
+Temporal sampler、posture collector 及其 app-api 投影已删除；Ops Web 需要队列状态时通过
+execution-control 使用 Temporal SDK 即时读取，不落 PostgreSQL。下文关于保留过渡
+autoscaler、comparison projection 或 app-api collector 的内容只代表迁移期设计。
 
 本文 supersedes ADR-0043 对长期 production execution-control deployment
 substrate 的 Docker-first 决策。ADR-0043 仍保留为 current Docker Compose / local /

@@ -1,4 +1,5 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,7 @@ export interface SharedProductBootstrapEnv {
 	authShellOrigin?: string;
 	betterAuthSecret?: string;
 	chatSchema: string;
+	databaseCa?: string;
 	databaseSslMode: string;
 	databaseUrl: string;
 }
@@ -43,7 +45,7 @@ interface BetterAuthTableOwnershipInput {
 type BetterAuthTableOwnership = "fresh" | "target_schema" | "target_schema_needs_migration";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const sharedProductSchemaRoot = join(appRoot, "db", "shared-product-schema");
+const chatCurrentSchemaPath = join(appRoot, "db", "shared-product-schema", "chat_current.sql");
 
 function readRequiredEnv(key: string, env: NodeJS.ProcessEnv = process.env): string {
 	const value = env[key]?.trim();
@@ -67,12 +69,24 @@ function assertIdentifier(label: string, value: string): string {
 	return value;
 }
 
-function resolveSsl(databaseSslMode: string): false | { rejectUnauthorized: false } {
-	return databaseSslMode === "disable"
-		? false
-		: {
-				rejectUnauthorized: false,
-			};
+function resolveSsl(
+	env: SharedProductBootstrapEnv,
+): false | { ca: string; rejectUnauthorized: true } | { rejectUnauthorized: false } {
+	if (env.databaseSslMode === "disable") {
+		return false;
+	}
+	if (env.databaseSslMode === "verify-full") {
+		if (!env.databaseCa) {
+			throw new Error(
+				"APP_API_DATABASE_CA_CERT_PATH is required when APP_API_DATABASE_SSLMODE=verify-full.",
+			);
+		}
+		return { ca: env.databaseCa, rejectUnauthorized: true };
+	}
+	if (env.databaseSslMode === "require") {
+		return { rejectUnauthorized: false };
+	}
+	throw new Error("APP_API_DATABASE_SSLMODE must be verify-full, require, or disable.");
 }
 
 export function readSharedProductBootstrapEnv(
@@ -86,12 +100,14 @@ export function readSharedProductBootstrapEnv(
 	normalizedDatabaseUrl.searchParams.delete("sslmode");
 	const rawAuthShellOrigin = readOptionalEnv("AUTH_SHELL_ORIGIN", env);
 	const authShellOrigin = rawAuthShellOrigin ? new URL(rawAuthShellOrigin).origin : undefined;
+	const databaseCaCertPath = readOptionalEnv("APP_API_DATABASE_CA_CERT_PATH", env);
 
 	return {
 		authSchema: APP_AUTH_SCHEMA,
 		chatSchema: APP_CHAT_SCHEMA,
 		databaseSslMode: env.APP_API_DATABASE_SSLMODE?.trim() || "require",
 		databaseUrl: normalizedDatabaseUrl.toString(),
+		databaseCa: databaseCaCertPath ? readFileSync(databaseCaCertPath, "utf8") : undefined,
 		betterAuthSecret: readOptionalEnv("BETTER_AUTH_SECRET", env),
 		authShellOrigin,
 	};
@@ -117,17 +133,17 @@ export function buildSearchPathConnectionString(
 	return nextUrl.toString();
 }
 
-function createPool(env: SharedProductBootstrapEnv): Pool {
+export function createSharedProductPool(env: SharedProductBootstrapEnv): Pool {
 	return new PgPool({
 		connectionString: env.databaseUrl,
-		ssl: resolveSsl(env.databaseSslMode),
+		ssl: resolveSsl(env),
 	});
 }
 
 function createBetterAuthPool(env: SharedProductBootstrapEnv): Pool {
 	return new PgPool({
 		connectionString: buildSearchPathConnectionString(env.databaseUrl, [env.authSchema, "public"]),
-		ssl: resolveSsl(env.databaseSslMode),
+		ssl: resolveSsl(env),
 	});
 }
 
@@ -297,26 +313,10 @@ async function runBetterAuthMigrations(env: SharedProductBootstrapEnv): Promise<
 	}
 }
 
-export async function listChatSchemaFiles(): Promise<string[]> {
-	const entries = await readdir(sharedProductSchemaRoot, {
-		withFileTypes: true,
-	});
-
-	return entries
-		.filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-		.map((entry) => join(sharedProductSchemaRoot, entry.name))
-		.sort();
-}
-
 async function applyChatCurrentSchema(pool: Pool): Promise<string[]> {
-	const schemaFiles = await listChatSchemaFiles();
-
-	for (const schemaFile of schemaFiles) {
-		const sql = await readFile(schemaFile, "utf8");
-		await applySharedProductCurrentSchemaSql(pool, sql);
-	}
-
-	return schemaFiles;
+	const sql = await readFile(chatCurrentSchemaPath, "utf8");
+	await applySharedProductCurrentSchemaSql(pool, sql);
+	return [chatCurrentSchemaPath];
 }
 
 export async function applySharedProductCurrentSchemaSql(
@@ -335,7 +335,7 @@ export async function bootstrapSharedProductDatabase(
 	schemaFiles: string[];
 }> {
 	const env = readSharedProductBootstrapEnv(envOverrides);
-	const pool = createPool(env);
+	const pool = createSharedProductPool(env);
 
 	try {
 		await pool.query(buildSchemaSql(env));

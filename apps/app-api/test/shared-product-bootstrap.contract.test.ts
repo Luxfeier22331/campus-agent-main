@@ -56,7 +56,7 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("checks in explicit current shared product bootstrap artifacts under app-api", () => {
 		const requiredFiles = [
 			"db/shared-product-schema/chat_current.sql",
-			"drizzle/0000_current_baseline.sql",
+			"drizzle/0000_initial.sql",
 			"ops/db/bootstrap-shared-product-database.ts",
 			"ops/db/ensure-app-auth-role-search-path.ts",
 			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
@@ -76,7 +76,8 @@ describe("app-api shared product bootstrap contracts", () => {
 	});
 
 	it("keeps the current baseline free of retired routing state", () => {
-		const baseline = readAppFile("drizzle/0000_current_baseline.sql");
+		const baseline = readAppFile("drizzle/0000_initial.sql");
+		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
 		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
 
 		for (const retiredField of [
@@ -89,17 +90,13 @@ describe("app-api shared product bootstrap contracts", () => {
 			expect(baseline).not.toContain(retiredField);
 			expect(snapshot).not.toContain(retiredField);
 		}
-		expect(baseline).toContain('"requested_scope" text');
-		expect(baseline).toContain('"resolved_scope" text');
+		expect(chatSchema).toContain('"requested_scope" text');
+		expect(chatSchema).not.toContain('"resolved_scope" text');
 	});
 
-	it("removes raw replay observability from fresh and existing databases", () => {
-		const baseline = readAppFile("drizzle/0000_current_baseline.sql");
+	it("keeps retired replay and observability configuration out of the initial schema", () => {
+		const baseline = readAppFile("drizzle/0000_initial.sql");
 		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
-		const migration = readAppFile("drizzle/0001_replace_replay_with_ops_observability.sql");
-		expect(migration).toContain(
-			'CREATE TABLE IF NOT EXISTS "observability"."ops_observability_read_audit"',
-		);
 
 		for (const retiredName of [
 			"llm_debug_trace_config",
@@ -110,10 +107,8 @@ describe("app-api shared product bootstrap contracts", () => {
 		]) {
 			expect(baseline).not.toContain(retiredName);
 			expect(snapshot).not.toContain(retiredName);
-			expect(migration).toContain(retiredName);
 		}
-		expect(migration).toContain('DROP SCHEMA IF EXISTS "observability_config"');
-		expect(migration).not.toContain('DROP SCHEMA IF EXISTS "observability"');
+		expect(baseline).toContain('CREATE TABLE "observability"."ops_observability_read_audit"');
 	});
 
 	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
@@ -136,7 +131,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 		expect(readme).toContain("bootstrap-shared-product-database.ts");
 		expect(readme).toContain("ensure-app-auth-role-search-path.ts");
-		expect(readme).toContain("0000_current_baseline.sql");
+		expect(readme).toContain("0000_initial.sql");
 		expect(readme).toContain("chat_current.sql");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
@@ -184,7 +179,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			"resolveIdentityPlatformService",
 			"resolveOfficialWebReleaseTaskProcessingCommandService",
 			"resolveOfficialWebTargetReleaseGateService",
-			"resolveOperatorObservabilityCommandService",
 			"resolveProfileMemoryService",
 			"resolveRuntimeRunService",
 			"resolveWeChatOfficialAccountCommandService",

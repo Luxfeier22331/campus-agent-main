@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/reference
 status: active
 created: 2026-07-04
-updated: 2026-07-05
+updated: 2026-07-12
 ---
 # Observability Completion Ledger
 
@@ -57,7 +57,7 @@ updated: 2026-07-05
 | Safe LLM I/O fingerprint projection | `apps/execution-control` + `apps/app-api` | complete | `cd apps/execution-control && go test ./internal/httpapi`; `pnpm --dir apps/app-api test -- execution-finalization-response-fixtures.test.ts` |
 | Learning-loop candidate selection from feedback and stage latency | `jobs/learning-loop-candidates` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir jobs/learning-loop-candidates typecheck` |
 | Learning-loop dataset publish and verify path | `jobs/learning-loop-candidates` + `packages/eval-langfuse` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir packages/eval-langfuse test` |
-| Operator-safe Ops Index boundary | `apps/app-api` + `operator-console-web` docs | complete | `pnpm --dir apps/app-api test -- operator-query.store.request-detail.suite.ts operator-query.store.overview.suite.ts`; no raw sink payload is admitted by contract tests |
+| Self-hosted Ops Web request diagnosis | `apps/ops-web` + restricted PostgreSQL role | complete | `pnpm --dir apps/ops-web typecheck`; `pnpm --dir apps/ops-web test` |
 
 ## Non-Completion Items
 

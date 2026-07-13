@@ -28,10 +28,7 @@ RUN go test ./... \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-core ./cmd/activity-worker-core \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/keda-hpa-posture-collector ./cmd/keda-hpa-posture-collector \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/temporal-task-queue-sampler ./cmd/temporal-task-queue-sampler \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/worker-autoscaler ./cmd/worker-autoscaler
+  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema
 
 FROM debian:bookworm-slim
 
@@ -44,10 +41,7 @@ COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-core /usr/local/bin/activity-worker-core
 COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent
-COPY --from=build /out/keda-hpa-posture-collector /usr/local/bin/keda-hpa-posture-collector
-COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-queue-sampler
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
-COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/query-serving-scopes.v3.json /etc/campus-agent/query-serving-scopes.v3.json
 COPY configs/runtime/tool-function-schemas.v1.json /etc/campus-agent/tool-function-schemas.v1.json
 COPY configs/runtime/execution-control/runtime-config.local.json /etc/campus-agent/runtime-config.local.json

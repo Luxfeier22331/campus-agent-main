@@ -224,8 +224,6 @@ const surfaceSpecDefinitions = {
 			agent_runtime_timeout_ms: ["EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS"],
 			audit_log_path: ["AUDIT_LOG_PATH"],
 			audit_queue_capacity: ["AUDIT_QUEUE_CAPACITY"],
-			execution_audit_url: ["EXECUTION_CONTROL_EXECUTION_AUDIT_URL"],
-			execution_audit_shared_secret: ["EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"],
 		},
 		files: {},
 	},

@@ -4,7 +4,7 @@ import type { Env } from "../../config";
 import { jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
 import { requireOperatorPrincipal } from "../principal";
-import { parseLimit, readOperatorAggregateFilters } from "../request-utils";
+import { parseLimit } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 export function registerOperatorRoutes(input: {
@@ -17,45 +17,6 @@ export function registerOperatorRoutes(input: {
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
-	input.app.get("/api/operator/overview", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getOverview({
-				filters: readOperatorAggregateFilters(c.req),
-				principal: resolved.principal,
-			}),
-		);
-	});
-
-	input.app.get("/api/operator/runtime/health", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getRuntimeHealth({
-				principal: resolved.principal,
-			}),
-		);
-	});
-
 	input.app.get("/api/operator/authenticated-notices/processing", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({
@@ -231,53 +192,5 @@ export function registerOperatorRoutes(input: {
 				query: new URL(c.req.raw.url).searchParams,
 			}),
 		);
-	});
-
-	input.app.get("/api/operator/requests", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const response = await scope.resolveOperatorQueryService().list({
-			filters: {
-				conversationId: c.req.query("conversationId") ?? null,
-				cursor: c.req.query("cursor") ?? null,
-				limit: parseLimit(c.req.query("limit")),
-				q: c.req.query("q") ?? null,
-				requestId: c.req.query("requestId") ?? null,
-				status: c.req.query("status") ?? null,
-				surface: c.req.query("surface") ?? null,
-			},
-			principal: resolved.principal,
-		});
-
-		return jsonResponse(response);
-	});
-
-	input.app.get("/api/operator/requests/:requestId", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const detail = await scope.resolveOperatorQueryService().getById({
-			principal: resolved.principal,
-			requestId: c.req.param("requestId"),
-		});
-
-		return jsonResponse(detail);
 	});
 }

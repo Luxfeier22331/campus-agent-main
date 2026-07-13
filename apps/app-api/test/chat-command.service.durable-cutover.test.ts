@@ -299,14 +299,14 @@ describe("chat command durable runtime cutover", () => {
 			}),
 		);
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "accepted",
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",
@@ -396,7 +396,7 @@ describe("chat command durable runtime cutover", () => {
 		});
 		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "error",
@@ -668,7 +668,7 @@ describe("chat command durable runtime cutover", () => {
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				runId: "run_0001",
 				status: "completed",

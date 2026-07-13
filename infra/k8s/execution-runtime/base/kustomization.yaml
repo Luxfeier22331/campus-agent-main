@@ -8,5 +8,4 @@ resources:
   - agent-runtime.yaml
   - execution-control.yaml
   - workers.yaml
-  - samplers.yaml
   - keda-scaledobjects.yaml

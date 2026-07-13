@@ -14,14 +14,7 @@ describe("runtime event sanitizer", () => {
 			"request.finalized",
 			"request.stage_timing",
 			"request.transport_error",
-			"projection.enqueued",
-			"projection.drain",
 			"identity.endpoint",
-			"execution.admission_rejected",
-			"execution.cancel_requested",
-			"execution.cancelled",
-			"execution.activity_failed",
-			"execution.timed_out",
 		]);
 	});
 
@@ -65,50 +58,6 @@ describe("runtime event sanitizer", () => {
 				trace_id: "trace_01HQ",
 			}),
 		).toBeNull();
-	});
-
-	it("allows only safe execution audit event fields", () => {
-		expect(
-			sanitizeRuntimeEventPayload({
-				answer: "raw answer must not pass",
-				activity_duration_ms: 35000,
-				decision: "queue_full",
-				duration_ms: 35012,
-				environment: "staging",
-				event_type: "execution.activity_failed",
-				failure_kind: "timeout",
-				http_status: 504,
-				task_queue: "campus-agent.workflow",
-				occurred_at: "2026-04-24T10:00:00.000Z",
-				prompt: "raw prompt must not pass",
-				queue_wait_ms: 12,
-				release: "app-api@2026.04.24",
-				request_id: "req_01HQ",
-				requested_tool: "knowledge_query",
-				retryable: true,
-				status: "error",
-				surface: "campus_web",
-				trace_id: "trace_01HQ",
-			}),
-		).toEqual({
-			activity_duration_ms: 35000,
-			decision: "queue_full",
-			duration_ms: 35012,
-			environment: "staging",
-			event_type: "execution.activity_failed",
-			failure_kind: "timeout",
-			http_status: 504,
-			task_queue: "campus-agent.workflow",
-			occurred_at: "2026-04-24T10:00:00.000Z",
-			queue_wait_ms: 12,
-			release: "app-api@2026.04.24",
-			request_id: "req_01HQ",
-			requested_tool: "knowledge_query",
-			retryable: true,
-			status: "error",
-			surface: "campus_web",
-			trace_id: "trace_01HQ",
-		});
 	});
 
 	it("allows bounded stage timing telemetry fields without raw payload material", () => {

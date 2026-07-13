@@ -37,7 +37,7 @@ field details live in split data documents.
 - migration / schema 管理通过 direct database management connection 访问数据库
 - 逻辑 schema 分域而不是物理拆库
 - 这份 Postgres 是 repo 共享数据库，不是 `apps/app-api` 独占实例
-- Supabase platform-managed `auth.*` 不属于 repo-owned app schema
+- `app_auth.*` 是唯一 repo-owned browser authentication schema
 
 `apps/app-api` 当前运行时直接消费的逻辑分域：
 
@@ -70,15 +70,15 @@ field details live in split data documents.
   `docs/data/app-api/official-web.md`；当前 collector control-plane writer owner
   是 `apps/ingestion-control`，`apps/app-api` 只拥有 operator read/projection 与
   release-gate operator ledger。
-- 本文继续只覆盖当前 browser-facing app surfaces、request projection 基线与 app-api
-  owned operator projections；source-channel 专用 schema 另见各 domain data contract
+- 本文继续只覆盖 browser-facing app surfaces、chat dispatch 事实与 app-api owned
+  operator configuration；source-channel 专用 schema 另见各 domain data contract
 
 ## Global Rules
 
 - 所有业务主键使用 opaque text id；不要把自增整数暴露成长期 API 依赖
-- `chat.*` 是 consumer UX truth，不是 operator request truth
-- `operator.*` 是 panel read model，不是 chat history truth
-- `runtime.*` 是 request command-side truth 与 projection input truth
+- `chat.*` 是 conversation、message 与 turn dispatch truth
+- `operator.*` 是受控配置和 source-processing projection，不是 chat history truth
+- app-api 在 `runtime.*` 中只拥有 request observability projection，不拥有 execution run truth
 - 第一版不单独建立 operator end-user 用户系统表
 - 本索引不冻结物理拆库、托管商、Drizzle migration 文件名、
   Better Auth adapter 的全部 SQL 细节或 source-channel 专用 schema
@@ -117,8 +117,8 @@ collector control-plane writer owner；具体规则另见
 
 当前 schema artifact ownership 已显式拆分为：
 
-- `apps/app-api/drizzle/0000_current_baseline.sql` 是新数据库的 app-api Drizzle
-  baseline；后续 `apps/app-api/drizzle/*.sql` 是已存在数据库的增量迁移。
+- `apps/app-api/drizzle/0000_initial.sql` 是 app-api Drizzle 初始
+  baseline，覆盖 app-facing product、projection 与 operator surfaces。
 - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
   shared-product `chat.*` bootstrap baseline。
 - `official_web.*` 的 collector control-plane durable writes 由
@@ -136,8 +136,7 @@ collector control-plane writer owner；具体规则另见
 
 ## Migration Rules
 
-- 新数据库从 `0000_current_baseline.sql` 创建 clean schema；已存在数据库按 journal
-  顺序执行后续迁移。
+- 新数据库从 `0000_initial.sql` 创建 schema；未来的增量迁移按 journal 顺序执行。
 - Better Auth/app-auth 与 chat shared-product bootstrap 使用显式 SQL baseline。
 - Worker runtime 使用 Hyperdrive；migration 命令不通过 Hyperdrive 执行
 - schema migration / inspection 使用 direct database management connection，并在

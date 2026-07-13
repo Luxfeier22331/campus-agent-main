@@ -34,6 +34,8 @@ const env = {
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
+	APP_API_INTERNAL_SHARED_SECRET: "internal-shared-secret",
+	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.edu",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
@@ -86,7 +88,9 @@ describe("runtime readiness", () => {
 	});
 
 	it("marks ingestion-control not_configured when task admission is disabled", async () => {
-		await expect(defaultRuntimeReadinessProbe(env)).resolves.toMatchObject({
+		const readiness = await defaultRuntimeReadinessProbe(env);
+		expect(mockedProbeExecutionControlReady).toHaveBeenCalledTimes(1);
+		expect(readiness).toMatchObject({
 			dependencies: {
 				ingestionControl: "not_configured",
 			},
@@ -105,6 +109,59 @@ describe("runtime readiness", () => {
 				ingestionControl: "configured",
 			},
 			failed: {},
+		});
+	});
+
+	it("keeps app readiness healthy when the transport current release is unavailable", async () => {
+		const executionRuntime = {
+			status: "ready" as const,
+			checks: {
+				runProjectionStore: "ready" as const,
+				temporalRuntime: "ready" as const,
+			},
+			blockers: {},
+		};
+		mockedProbeExecutionControlReady.mockResolvedValue({
+			campusServicesProductPath: {
+				status: "blocked",
+				toolGate: "open",
+				projectionSource: "postgres",
+				checks: {
+					toolReadModelRuntime: "ready",
+					transportSchedule: "not_ready",
+					transportScheduleReadModel: "ready",
+				},
+				blockers: {
+					transportSchedule: "transport_schedule_implemented is false",
+				},
+			},
+			executionRuntime,
+			runtimeHealth: {
+				asOf: "2026-07-13T08:00:00.000Z",
+				executionRuntime,
+				status: "ready",
+				runProjectionStore: {
+					configured: true,
+					healthy: true,
+					lastError: null,
+				},
+				temporalRuntime: null,
+			},
+		});
+
+		await expect(defaultRuntimeReadinessProbe(env)).resolves.toMatchObject({
+			dependencies: {
+				executionControl: "ready",
+			},
+			failed: {},
+			preflight: {
+				campusServicesProductPath: {
+					status: "blocked",
+					checks: {
+						transportSchedule: "not_ready",
+					},
+				},
+			},
 		});
 	});
 });

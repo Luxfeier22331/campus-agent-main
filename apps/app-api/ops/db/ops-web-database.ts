@@ -6,27 +6,29 @@ import pg, { type Client } from "pg";
 import { type DatabaseSslConfig, readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
 const OPS_WEB_GRANT_STATEMENTS = [
-	`GRANT USAGE ON SCHEMA "operator", "runtime", "observability" TO "ops_web"`,
+	`GRANT USAGE ON SCHEMA "chat", "runtime", "observability" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
-		"operator"."request_projection",
-			"operator"."temporal_task_queue_current",
-			"runtime"."request_execution",
+		"chat"."turn_dispatches",
+			"chat"."messages",
+			"runtime"."agent_runs",
 			"runtime"."request_observability_fact",
 			"observability"."ops_observability_read_audit"
 	FROM "ops_web"`,
 	`GRANT SELECT (
-		"completed_at", "conversation_id", "duration_ms", "error_code", "principal_id",
-		"principal_type", "projected_at", "question_preview", "request_id", "requested_tool",
-		"selected_tool", "started_at", "status", "trace_id"
-	) ON TABLE "operator"."request_projection" TO "ops_web"`,
+		"completed_at", "conversation_id", "created_at", "error_code", "owner_user_id",
+		"principal_snapshot_json", "request_id", "requested_tool", "run_id", "selected_tool",
+		"status", "trace_id", "updated_at", "user_message_id"
+	) ON TABLE "chat"."turn_dispatches" TO "ops_web"`,
 	`GRANT SELECT (
-		"backlog_json", "current_id", "oldest_task_age_json", "poller_count", "projected_at",
-		"sampled_at", "task_queue", "task_queue_kind"
-	) ON TABLE "operator"."temporal_task_queue_current" TO "ops_web"`,
-	`GRANT SELECT ("request_id", "run_id")
-	ON TABLE "runtime"."request_execution" TO "ops_web"`,
+		"id", "text"
+	) ON TABLE "chat"."messages" TO "ops_web"`,
 	`GRANT SELECT (
-			"acl_anomaly_code", "acl_decision", "fail_closed", "measured_at",
+		"completed_at", "fail_close_reason", "requested_tool", "run_id", "selected_tool",
+		"status", "terminal_reason", "trace_id", "updated_at"
+	) ON TABLE "runtime"."agent_runs" TO "ops_web"`,
+	`GRANT SELECT (
+			"acl_anomaly_code", "acl_decision", "completed_at", "duration_ms", "fail_closed",
+			"measured_at",
 			"model_name", "model_provider", "prompt_id", "prompt_version", "projection_lag_ms",
 			"refusal_class", "request_id", "scope_class", "semantic_outcome", "stage_timing_json",
 			"supporting_sources_json", "template_sha256", "trace_available", "updated_at",
@@ -59,56 +61,68 @@ const OPS_AUDIT_MAINTENANCE_GRANT_STATEMENTS = [
 	`GRANT EXECUTE ON FUNCTION "observability"."prune_ops_observability_read_audit"() TO "ops_audit_maintenance"`,
 ] as const;
 
+export async function applyOpsWebGrantStatements(client: {
+	query(sql: string): Promise<unknown>;
+}): Promise<void> {
+	for (const statement of [
+		...OPS_WEB_GRANT_STATEMENTS,
+		...OPS_AUDIT_MAINTENANCE_GRANT_STATEMENTS,
+	]) {
+		await client.query(statement);
+	}
+}
+
 interface DatabaseConnectionConfig {
 	connectionString: string;
 	ssl: DatabaseSslConfig;
 }
 const REQUIRED_SELECTS = [
 	{
-		label: "operator.request_projection",
+		label: "chat.turn_dispatches",
 		sql: `
 			select
 				"completed_at",
 				"conversation_id",
-				"duration_ms",
+				"created_at",
 				"error_code",
-				"principal_id",
-				"principal_type",
-				"projected_at",
-				"question_preview",
+				"owner_user_id",
+				"principal_snapshot_json",
 				"request_id",
 				"requested_tool",
+				"run_id",
 				"selected_tool",
-				"started_at",
 				"status",
-				"trace_id"
-			from "operator"."request_projection"
+				"trace_id",
+				"updated_at",
+				"user_message_id"
+			from "chat"."turn_dispatches"
 			limit 0
 		`,
 	},
 	{
-		label: "operator.temporal_task_queue_current",
+		label: "chat.messages",
 		sql: `
 			select
-					"backlog_json",
-					"oldest_task_age_json",
-					"poller_count",
-					"projected_at",
-					"task_queue",
-					"task_queue_kind",
-					"sampled_at",
-					"current_id"
-				from "operator"."temporal_task_queue_current"
-				limit 0
-			`,
+				"id",
+				"text"
+			from "chat"."messages"
+			limit 0
+		`,
 	},
 	{
-		label: "runtime.request_execution",
+		label: "runtime.agent_runs",
 		sql: `
 			select
-				"request_id",
-				"run_id"
-			from "runtime"."request_execution"
+				"completed_at",
+				"fail_close_reason",
+				"requested_tool",
+				"run_id",
+				"selected_tool",
+				"status",
+				"terminal_reason",
+				"trace_id",
+				"updated_at"
+			from "runtime"."agent_runs"
 			limit 0
 		`,
 	},
@@ -118,6 +132,8 @@ const REQUIRED_SELECTS = [
 				select
 						"acl_anomaly_code",
 						"acl_decision",
+						"completed_at",
+						"duration_ms",
 						"fail_closed",
 						"measured_at",
 						"model_name",
@@ -305,12 +321,7 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 		await assertDatabaseRole(client, "ops_audit_maintenance");
 		await client.query("begin");
 		try {
-			for (const statement of [
-				...OPS_WEB_GRANT_STATEMENTS,
-				...OPS_AUDIT_MAINTENANCE_GRANT_STATEMENTS,
-			]) {
-				await client.query(statement);
-			}
+			await applyOpsWebGrantStatements(client);
 			await client.query("commit");
 		} catch (error) {
 			await client.query("rollback");

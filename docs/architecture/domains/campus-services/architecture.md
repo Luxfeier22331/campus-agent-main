@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: domains/campus-services
 status: active
 created: 2026-04-23
-updated: 2026-06-26
+updated: 2026-07-12
 ---
 # Campus Services Runtime Architecture
 
@@ -41,9 +41,8 @@ app-api -> execution-control -> Temporal Agent Activity
 Browser status path:
 
 ```text
-campus-web -> app-api facade/cache
--> execution-control internal projection endpoint
--> same projection-backed structured truth
+campus-web -> app-api public status route
+-> campus_services current release status_json
 ```
 
 Fixed constraints:
@@ -53,8 +52,13 @@ Fixed constraints:
 - tool output is bounded JSON, not raw read-model rows
 - `app-api` does not own campus-services transport schedule truth, rebuild the
   timetable, or maintain a second current pointer
+- `app-api` does not proxy transport status through execution-control; browser
+  and tool readers use the same PostgreSQL current pointer with separate roles
 - missing currentness, missing source truth, ambiguous route/date, or conflicting
   sources fail closed
+- missing transport content blocks only the transport status/tool capability;
+  it does not block global product or execution-runtime readiness when the
+  read-model database connection is healthy
 - `navigation` may consume stop/place refs but does not own timetable truth
 - `notice` owns notice product redesign; campus services may consume
   admitted notice-derived transport overrides only through bounded projections

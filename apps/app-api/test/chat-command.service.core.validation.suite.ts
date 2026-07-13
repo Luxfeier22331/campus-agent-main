@@ -95,7 +95,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			}),
 		);
 		expect(acceptedWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				versionQuery: {
 					mode: "historical",
@@ -109,7 +109,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				requestId: "req_0001",
 				versionQuery: {
 					mode: "historical",

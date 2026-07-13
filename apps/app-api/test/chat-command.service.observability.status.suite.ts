@@ -74,10 +74,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			traceId: "trace_0001",
 		});
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.needs_clarification",
-			},
-			requestExecution: {
+			turnDispatch: {
 				status: "needs_clarification",
 			},
 		});
@@ -88,10 +85,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			traceId: "trace_0001",
 		});
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.no_answer",
-			},
-			requestExecution: {
+			turnDispatch: {
 				status: "no_answer",
 			},
 		});
@@ -242,7 +236,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(clarification.answer.result.text).toContain("丰台至海淀通勤班车");
 		expectNoInternalLocators(clarification.answer.result.text);
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				selectedTool: "transport_schedule_lookup",
 				status: "needs_clarification",
 			},
@@ -257,7 +251,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(noAnswer.answer.result.text).toContain("班车临时变更");
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				selectedTool: "transport_schedule_lookup",
 				status: "no_answer",
 			},
@@ -269,7 +263,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(approval.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
 		expect(approvalStore.finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				selectedTool: "transport_schedule_lookup",
 				status: "approval_required",
 			},
@@ -281,7 +275,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(rejected.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "request_rejected",
 				selectedTool: "transport_schedule_lookup",
 				status: "rejected",
@@ -359,10 +353,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			traceId: "trace_0001",
 		});
 		expect(approvalStore.finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.approval_required",
-			},
-			requestExecution: {
+			turnDispatch: {
 				selectedTool: null,
 				status: "approval_required",
 			},
@@ -383,10 +374,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			traceId: "trace_0001",
 		});
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
-			outboxEvent: {
-				eventType: "request.rejected",
-			},
-			requestExecution: {
+			turnDispatch: {
 				errorCode: "request_rejected",
 				selectedTool: null,
 				status: "rejected",

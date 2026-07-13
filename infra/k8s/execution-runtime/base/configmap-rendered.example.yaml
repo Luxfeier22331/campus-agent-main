@@ -18,7 +18,6 @@ data:
   EXECUTION_CONTROL_APP_API_BASE_URL: https://api.example.invalid
   EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: https://api.example.invalid
   EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: "30000"
-  EXECUTION_CONTROL_EXECUTION_AUDIT_URL: https://api.example.invalid/api/internal/execution/audit-events
   EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH: /run/campus-agent/provider-config/provider-config-projection.json
   PERSONAL_MEMORY_BASE_URL: http://hindsight-api:8888
   EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: "5000"

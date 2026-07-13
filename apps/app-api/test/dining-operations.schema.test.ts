@@ -43,7 +43,7 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps shared product bootstrap aligned with candidate-first dining storage", () => {
-		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const sql = readAppFile("drizzle/0000_initial.sql");
 
 		for (const requiredFragment of [
 			'"floorplan_id" text',
@@ -101,7 +101,7 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps dining source observations incremental and replayable", () => {
-		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const sql = readAppFile("drizzle/0000_initial.sql");
 		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
 			tables: Record<
 				string,
@@ -137,7 +137,7 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps shared dining review projections bound to published stall/window ids", () => {
-		const sql = readAppFile("drizzle/0000_current_baseline.sql");
+		const sql = readAppFile("drizzle/0000_initial.sql");
 		const latestSnapshot = JSON.parse(readAppFile("drizzle/meta/0000_snapshot.json")) as {
 			tables: Record<
 				string,

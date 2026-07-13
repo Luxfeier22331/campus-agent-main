@@ -5,7 +5,8 @@ import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
 import {
 	createFakeOpsDb,
-	requestProjectionRow,
+	createFakeTemporalTaskQueueSource,
+	requestRow,
 	requiredTemporalQueueRows,
 } from "./ops-status-store-test-helpers";
 
@@ -13,7 +14,11 @@ const now = new Date("2026-07-09T07:30:00.000Z");
 
 describe("PostgreSQL ops status store", () => {
 	it("builds windowed request and Temporal overview data", async () => {
-		const store = createPgOpsStatusStore({ db: createFakeOpsDb(), now: () => now });
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb(),
+			now: () => now,
+			temporalTaskQueues: createFakeTemporalTaskQueueSource(),
+		});
 		const overview = await store.getOverview("1h");
 
 		expect(overview.requests).toMatchObject({
@@ -24,17 +29,17 @@ describe("PostgreSQL ops status store", () => {
 		});
 		expect(overview.temporal).toMatchObject({
 			dataState: "FRESH",
-			pollerCount: 16,
+			pollerCount: 12,
 			status: "HEALTHY",
 		});
-		expect(overview.temporal.queues).toHaveLength(4);
+		expect(overview.temporal.queues).toHaveLength(3);
 		expect(overview.trends).toHaveLength(1);
 	});
 
 	it("represents a quiet request window as no data instead of stale", async () => {
 		const db = createFakeOpsDb({
 			requestRows: [
-				requestProjectionRow({
+				requestRow({
 					projectedAt: new Date("2026-07-08T07:29:05.000Z"),
 					startedAt: new Date("2026-07-08T07:29:00.000Z"),
 				}),
@@ -50,19 +55,21 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("does not degrade Temporal only because one task age metric is unsupported", async () => {
-		const db = createFakeOpsDb({
-			temporalRows: requiredTemporalQueueRows().map((row) =>
-				row.taskQueue === "campus-agent.activity.knowledge"
-					? { ...row, oldestTaskAgeJson: { state: "unsupported_by_source" } }
-					: row,
-			),
+		const rows = requiredTemporalQueueRows().map((row) =>
+			row.taskQueue === "campus-agent.activity.agent"
+				? { ...row, oldestTaskAgeJson: { state: "unsupported_by_source" } }
+				: row,
+		);
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb(),
+			now: () => now,
+			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
 		});
-		const store = createPgOpsStatusStore({ db, now: () => now });
 
 		const temporal = (await store.getOverview("1h")).temporal;
 
 		expect(temporal.status).toBe("HEALTHY");
-		expect(temporal.queues[3]).toMatchObject({
+		expect(temporal.queues[2]).toMatchObject({
 			dataState: "UNAVAILABLE",
 			oldestTaskAgeMs: null,
 			status: "UNKNOWN",
@@ -70,19 +77,21 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("degrades Temporal when a task age metric is malformed", async () => {
-		const db = createFakeOpsDb({
-			temporalRows: requiredTemporalQueueRows().map((row) =>
-				row.taskQueue === "campus-agent.activity.knowledge"
-					? { ...row, oldestTaskAgeJson: { ms: "not-a-number", state: "observed" } }
-					: row,
-			),
+		const rows = requiredTemporalQueueRows().map((row) =>
+			row.taskQueue === "campus-agent.activity.agent"
+				? { ...row, oldestTaskAgeJson: { ms: "not-a-number", state: "observed" } }
+				: row,
+		);
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb(),
+			now: () => now,
+			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
 		});
-		const store = createPgOpsStatusStore({ db, now: () => now });
 
 		const temporal = (await store.getOverview("1h")).temporal;
 
 		expect(temporal.status).toBe("DEGRADED");
-		expect(temporal.queues[3]).toMatchObject({
+		expect(temporal.queues[2]).toMatchObject({
 			dataState: "UNAVAILABLE",
 			oldestTaskAgeMs: null,
 			status: "DEGRADED",
@@ -90,13 +99,15 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("degrades Temporal when task queue data is stale", async () => {
-		const db = createFakeOpsDb({
-			temporalRows: requiredTemporalQueueRows().map((row) => ({
-				...row,
-				projectedAt: new Date("2026-07-09T07:20:00.000Z"),
-			})),
+		const rows = requiredTemporalQueueRows().map((row) => ({
+			...row,
+			projectedAt: new Date("2026-07-09T07:20:00.000Z"),
+		}));
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb(),
+			now: () => now,
+			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
 		});
-		const store = createPgOpsStatusStore({ db, now: () => now });
 
 		const temporal = (await store.getOverview("1h")).temporal;
 
@@ -105,12 +116,14 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("marks Temporal unavailable when a required queue has no worker", async () => {
-		const db = createFakeOpsDb({
-			temporalRows: requiredTemporalQueueRows().map((row) =>
-				row.taskQueue === "campus-agent.activity.agent" ? { ...row, pollerCount: 0 } : row,
-			),
+		const rows = requiredTemporalQueueRows().map((row) =>
+			row.taskQueue === "campus-agent.activity.agent" ? { ...row, pollerCount: 0 } : row,
+		);
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb(),
+			now: () => now,
+			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
 		});
-		const store = createPgOpsStatusStore({ db, now: () => now });
 
 		const temporal = (await store.getOverview("1h")).temporal;
 
@@ -146,7 +159,7 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("writes a raw observability read audit", async () => {
-		const db = createFakeOpsDb({ temporalRows: requiredTemporalQueueRows() });
+		const db = createFakeOpsDb();
 		const store = createPgOpsStatusStore({ db, now: () => now });
 		await store.writeObservabilityReadAudit({
 			kind: "logs",

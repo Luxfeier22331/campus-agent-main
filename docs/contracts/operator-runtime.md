@@ -1,260 +1,69 @@
 ---
 doc_type: contract
-truth_scope: ops
-owner_boundary: apps/app-api
+truth_scope: runtime
+owner_boundary: apps/execution-control
 status: active
-created: 2026-06-16
-updated: 2026-06-16
+created: 2026-06-13
+updated: 2026-07-12
 ---
-# Operator Runtime Observability Contract
 
-## Boundary
+# Temporal Queue Status
 
-`apps/app-api` owns operator-safe runtime projections. `apps/execution-control`
-may publish sanitized runtime observations through internal app-api HTTP
-endpoints, but it must not write the app-api database directly.
+## 文档边界
 
-This contract covers:
-
-- `temporal_task_queue_metrics_snapshot.v1`
-- `worker_autoscaler_posture.v1`
-- `worker_autoscaler_decision.v1` where a runtime produces a normalized
-  decision observation
-- `worker_autoscaler_actuation.v1` where a runtime produces a normalized scale
-  event observation
-- release eval consumption of `operator_step_trajectory.v1`
-
-It does not expose Temporal workflow history, raw Temporal responses, raw
-provider traces, prompts, cookies, tokens or object-store credentials.
+本文定义 Ops Web 获取当前 Temporal task queue 状态的内部只读接口。它不定义持久化
+projection、自研 autoscaler、HPA 决策或 Temporal workflow history。
 
-## Temporal Task Queue Snapshot
+## 接口
 
-Producer: `apps/execution-control/cmd/temporal-task-queue-sampler`
+`GET /internal/ops/temporal/task-queues`
 
-Ingest endpoint:
+- owner：`apps/execution-control`；
+- consumer：`apps/ops-web` 服务端；
+- auth：`Authorization: Bearer <metrics token>`；
+- timeout：execution-control 的 Temporal query timeout；
+- source：Temporal SDK `DescribeTaskQueue`/enhanced task queue description。
 
-`POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
+成功响应：
 
-Internal query endpoint for execution-control:
+```json
+{
+  "sampledAt": "2026-07-12T12:00:00Z",
+  "queues": [
+    {
+      "name": "campus-agent.activity.agent",
+      "type": "activity",
+      "backlogCount": 3,
+      "oldestTaskAgeSeconds": 2.5,
+      "pollerCount": 2
+    }
+  ]
+}
+```
 
-`GET /api/internal/operator/runtime/temporal-task-queues?limit=<n>`
+固定队列包括 workflow、core activity 和 agent activity。来源不支持某个指标时对应字段为
+`null`，不能伪造为零。
 
-Operator query endpoint:
+## 缓存与持久化
 
-`GET /api/operator/runtime/temporal-task-queues`
+- execution-control 每次请求读取 Temporal 当前状态，不写 PostgreSQL。
+- Ops Web 进程内缓存成功结果 15 秒，避免首页刷新放大 Temporal 查询。
+- 查询失败时可以显示该进程最近一次成功缓存；没有缓存时返回 unavailable/no data。
+- 不存在 `operator.temporal_task_queue_current` 或 snapshot 表。
 
-Payload schema version:
-
-`temporal_task_queue_metrics_snapshot.v1`
+## 与 KEDA 的关系
 
-Snapshot fields:
-
-- `snapshotId`
-- `namespace`
-- `taskQueue`
-- `taskQueueKind`: `workflow | activity`
-- `source`
-- `pollerCount`
-- `pollerIdentities`
-- `backlog`
-- `oldestTaskAge`
-- `scheduleToStartLatency`
-- `sampledAt`
+KEDA Temporal scaler 直接读取 Temporal 队列并控制 worker Deployment。该内部接口只服务
+人工观测，不参与扩缩容决策，不写 actuation/posture 记录，也不能调用 Kubernetes API。
 
-Current sampler source is Temporal `DescribeTaskQueue(report_stats=true)`.
-Therefore:
+## 错误
 
-- `pollerCount` and `pollerIdentities` are observed.
-- `backlog` is observed from Temporal approximate backlog count.
-- `oldestTaskAge` is observed from Temporal approximate backlog age when the
-  server reports it.
-- `scheduleToStartLatency` must be emitted as
-  `{ "state": "unsupported_by_source" }` until a dedicated latency metric source
-  is wired.
-- Consumers must not infer unsupported values from zero, empty arrays or missing
-  fields.
-
-## Worker Autoscaler Decision
-
-Current Docker Compose producer: `apps/execution-control/cmd/worker-autoscaler`.
+- token 缺失或错误：`401`；
+- Temporal client 未配置：`503 temporal_unavailable`；
+- Temporal 查询失败或超时：`503 temporal_query_failed`。
 
-Kubernetes target posture producer:
-`apps/execution-control/cmd/keda-hpa-posture-collector` writing through app-api
-internal ingest.
+## 可执行来源
 
-The autoscaler reads the latest app-api runtime task queue projection, reads
-Docker Compose replica state, computes desired worker replicas and publishes
-decisions back through app-api internal ingest.
-
-Load-based scale-up requires consecutive observed backlog or oldest-task-age
-breaches. Load-based scale-down requires consecutive observed idle windows.
-Unsupported load metrics cannot drive load scaling; poller absence may still
-drive presence repair within the service policy replica budget. Cooldown uses
-recent `worker_autoscaler_actuation.v1` projection read through the app-api
-internal runtime query seam; active cooldown returns a `hold` decision with
-`reason=cooldown_active`.
-
-Production target uses KEDA Temporal scaler and Kubernetes HPA for decision /
-replica control. In that mode `worker_autoscaler_decision.v1` is optional
-operator-safe observation of KEDA/HPA desired-vs-current state, not a repo-owned
-Go controller decision. First-stage Kubernetes runtime closeout must rely on
-`worker_autoscaler_posture.v1`; it must not require a repo-owned K8s scale
-decision loop.
-
-Decision fields:
-
-- `decisionId`
-- `targetService`
-- `taskQueue`
-- `taskQueueKind`
-- `decision`: `scale_up | scale_down | hold`
-- `currentReplicas`
-- `desiredReplicas`
-- `budgetState`: `within_budget | budget_exhausted | actuation_disabled`
-- `reason`
-- `sourceSnapshotId`
-- `evidence`
-- `decidedAt`
-
-Fail-closed requirements:
-
-- every target service must have an explicit service policy
-- every service policy must resolve to a source snapshot
-- every target service must have replica state
-- apply mode must use an allowlisted actuator target
-- unsupported source metrics stay explicit in `evidence`
-
-## Worker Autoscaler Actuation
-
-Apply mode uses the Docker Compose actuator for local/staging compose runtime.
-Allowed services are:
-
-- `workflow-worker`
-- `activity-worker-core`
-- `activity-worker-agent`
-
-Actuation fields:
-
-- `actuationId`
-- `decisionId`
-- `targetService`
-- `actuatorKind`: `docker_compose | keda_hpa`
-- `action`: `scale | none`
-- `status`: `applied | skipped | failed`
-- `fromReplicas`
-- `toReplicas`
-- `actedAt`
-- `errorCode`
-
-When Docker Compose apply fails, execution-control must publish a failed
-actuation with `errorCode=docker_compose_scale_failed` before returning the
-actuation error. The failed actuation is diagnostic evidence, not a successful
-scale operation.
-
-Operator query endpoints:
-
-- `GET /api/operator/runtime/autoscaler/decisions`
-- `GET /api/operator/runtime/autoscaler/actuations`
-
-The autoscaler may adjust worker replica count only. It must not write Temporal
-workflow history, run projection, step projection, event projection, final
-answer state or downstream budget state.
-
-In Kubernetes target runtime:
-
-- `keda_hpa` actuation evidence is optional. When produced, it represents a
-  normalized Kubernetes scale event / HPA desired replica change observed by a
-  projection collector, not an execution-control control operation.
-- KEDA/HPA owns replica control for worker Deployments.
-- Docker Compose `worker-autoscaler` must not run as a parallel production
-  controller for the same worker pool.
-- Operator query endpoints stay the same; response payloads remain sanitized and
-  must not include raw Kubernetes API objects, KEDA internals, Temporal history
-  or credentials.
-
-## Worker Autoscaler Posture
-
-Payload schema version:
-
-`worker_autoscaler_posture.v1`
-
-This projection summarizes scaler health for release closeout and operator
-diagnosis.
-
-For the Kubernetes target runtime this is the first-stage mandatory autoscaling
-projection. Decision and actuation projections may be added later as normalized
-observations, but posture is the required release closeout surface.
-
-Fields:
-
-- `observedAt`
-- `targetService`
-- `taskQueue`
-- `taskQueueKind`
-- `scalerKind`: `keda_temporal | docker_compose`
-- `scalerStatus`: `healthy | degraded | paused | disabled`
-- `metricFreshness`
-- `currentReplicas`
-- `desiredReplicas`
-- `minReplicas`
-- `maxReplicas`
-- `lastScaleEventId`
-- `lastScaleEventAt`
-- `reason`
-- `evidence`
-
-Evidence may include sanitized KEDA event fields:
-
-- `kedaEventReason`
-- `kedaEventType`
-- `kedaEventMessage`
-- `kedaEventAt`
-
-Rules:
-
-- metric-stale / HPA metric-fetch failure / KEDA paused state must be explicit.
-- KEDA fallback events must set `scalerStatus=degraded` with
-  `reason=keda_fallback_active`.
-- KEDA scaler / metric-source failure events must set `scalerStatus=degraded`
-  with `reason=keda_metric_source_failed`.
-- KEDA pause annotations must set `scalerStatus=paused` with
-  `reason=keda_scaledobject_paused`.
-- projection consumers must not infer scaler health from missing fields.
-- release closeout must fail closed when posture is missing for a production
-  worker pool that is expected to autoscale.
-
-Ingest endpoint:
-
-`POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
-
-Operator query endpoint:
-
-`GET /api/operator/runtime/autoscaler/postures`
-
-Internal query endpoint:
-
-`GET /api/internal/operator/runtime/autoscaler/postures`
-
-The K8s posture collector may read only Deployment, HPA, KEDA ScaledObject
-status and core Kubernetes Events in its namespace. It must not expose raw
-Kubernetes API objects, credentials, Temporal history, prompts or provider
-payloads.
-
-## Eval Release Consumption
-
-Eval release diagnostics consume operator-safe app-api observability details:
-
-`GET /api/operator/requests/:requestId/observability`
-
-The release consumer normalizes `runtimeRun.operatorStepTrajectory` into
-`operator_step_trajectory.v1` and injects it into diagnostic reports before
-building operator badcases.
-
-Release mode is fail-closed:
-
-- missing request correlation is a blocker
-- missing `runtimeRun.operatorStepTrajectory` is a blocker
-- low-score badcases with `trajectory_missing` or `attribution_missing` are
-  blockers
-- eval artifacts must not contain Temporal history, raw traces, prompts,
-  transcripts, auth headers or local object-store paths
+- `apps/execution-control/internal/httpapi/temporal_task_queues.go`
+- `apps/ops-web/src/server/temporal-task-queue-client.ts`
+- `infra/k8s/execution-runtime/base/keda-scaledobjects.yaml`

@@ -160,32 +160,6 @@ export function createAppTelemetry(
 			});
 		},
 
-		async recordExecutionAuditEvent(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					activity_duration_ms: input.activityDurationMs,
-					decision: input.decision,
-					duration_ms: input.durationMs,
-					failure_kind: input.failureKind,
-					http_status: input.httpStatus,
-					task_queue: input.taskQueue,
-					queue_wait_ms: input.queueWaitMs,
-					retryable: input.retryable,
-					...buildRuntimeEventEnvelope(
-						{
-							eventType: input.eventType,
-							requestId: input.requestId,
-							requestedTool: input.requestedTool,
-							status: input.status,
-							surface: input.surface,
-							traceId: input.traceId,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
-
 		async recordIdentityEndpoint(input) {
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
@@ -199,49 +173,6 @@ export function createAppTelemetry(
 							status: String(input.status),
 							surface: input.surface,
 							traceId: input.correlationId,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
-
-		async recordProjectionDrain(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					abandoned_count: input.abandoned ?? 0,
-					failed_count: input.failed,
-					processed_count: input.processed,
-					projector_last_error_code: input.projectorLastErrorCode ?? null,
-					projector_name: input.projector,
-					...buildRuntimeEventEnvelope(
-						{
-							errorCode: input.projectorLastErrorCode ?? null,
-							eventType: "projection.drain",
-							surface: input.surface,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
-
-		async recordProjectionEnqueued(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					conversation_id: input.conversationId,
-					projection_stage: input.projectionStage,
-					resolved_scope_summary: toScopeSummary(input.resolvedScope),
-					safety_identifier: input.safetyIdentifier ?? null,
-					...buildRuntimeEventEnvelope(
-						{
-							eventType: "projection.enqueued",
-							principalType: input.principalType,
-							requestId: input.requestId,
-							requestedTool: input.requestedTool,
-							requestedScope: input.requestedScope,
-							surface: input.surface,
-							traceId: input.traceId,
 						},
 						telemetryMetadata,
 					),
