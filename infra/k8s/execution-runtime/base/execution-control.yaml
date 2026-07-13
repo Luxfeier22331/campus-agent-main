@@ -52,6 +52,8 @@ spec:
             - secretRef:
                 name: execution-control-secrets
             - secretRef:
+                name: execution-agent-client-secrets
+            - secretRef:
                 name: execution-control-metrics-secrets
             - secretRef:
                 name: execution-temporal-workflow-secrets
