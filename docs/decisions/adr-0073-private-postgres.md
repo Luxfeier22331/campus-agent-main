@@ -45,7 +45,6 @@ schema Job 和运维读取面需要访问同一份权威数据，但不能公开
 - Cloudflare 连接配置和 Kubernetes 网络策略必须同时允许私网数据库路径。
 - CNPG CA 轮换、Hyperdrive 配置和 VPC Service 状态属于部署验证项，不写入产品代码
   fallback。
-- ADR-0029 的 session-pooler 连接决策被本 ADR 取代。
 
 ## 参考
 
