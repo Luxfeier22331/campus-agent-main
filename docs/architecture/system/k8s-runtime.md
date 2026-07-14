@@ -4,7 +4,7 @@ truth_scope: system
 owner_boundary: execution-runtime
 status: active
 created: 2026-07-03
-updated: 2026-07-12
+updated: 2026-07-14
 ---
 
 # Kubernetes Runtime
@@ -84,15 +84,16 @@ autoscaler。当前 base 参数：
 
 - `pollingInterval: 15`
 - `cooldownPeriod: 180`
-- `minReplicaCount: 0`
+- `minReplicaCount: 1`
 - `maxReplicaCount: 3`
 - `targetQueueSize: "8"`
 - `activationTargetQueueSize: "0"`
 - HPA scale-down stabilization：300 秒
 
-scale-to-zero 会增加首个任务的冷启动时间；这是当前资源姿态，不是永久容量承诺。调整这些
-值必须依据 schedule-to-start、backlog、poller、activity latency 和用户时延，而不是恢复
-第二套控制器。
+在线问答 worker 默认保留一个副本，使 Temporal poller readiness 和首个任务时延保持稳定。
+scale-to-zero 只有在冷启动时延、KEDA activation、cooldown/HPA 和 release evidence 满足
+ADR-0056 的条件后才能单独启用。调整这些值必须依据 schedule-to-start、backlog、poller、
+activity latency 和用户时延，而不是恢复第二套控制器。
 
 KEDA/HPA 是唯一 replica actuator。不得运行 Docker worker-autoscaler、写 decision/actuation
 表或让 application code 调 Kubernetes API。
