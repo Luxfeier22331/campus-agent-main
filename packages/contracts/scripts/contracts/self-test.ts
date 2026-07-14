@@ -97,10 +97,6 @@ function checkRuntimeToolSchemaRefs(): void {
 	for (const tool of config.tools as Record<string, unknown>[]) {
 		for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 			const ref = String(tool[fieldName]);
-			expect(
-				!ref.includes("campus_contracts."),
-				`${tool.name}.${fieldName} leaks Python contract name`,
-			);
 			const [schemaId, fragment] = ref.split("#");
 			expect(fragment !== undefined, `${tool.name}.${fieldName} must contain a JSON pointer`);
 			expect(schemaId in schemaDocs, `${schemaId} missing from registered schemas`);

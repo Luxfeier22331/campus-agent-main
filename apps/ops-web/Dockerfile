@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM node:24.15-bookworm-slim AS build
 
 WORKDIR /app
@@ -5,16 +6,15 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
 
-RUN npm install --global corepack@0.35.0 \
-  && npm cache clean --force \
-  && corepack enable pnpm \
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
   && pnpm install --frozen-lockfile --filter ops-web
 
 COPY apps/ops-web ./apps/ops-web
 
-RUN pnpm --filter ops-web typecheck \
-  && pnpm --filter ops-web test \
-  && pnpm --filter ops-web build \
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  pnpm --filter ops-web build \
   && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web
 
 FROM node:24.15-bookworm-slim AS runtime

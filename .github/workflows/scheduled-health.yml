@@ -13,122 +13,124 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  repo:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Run full repository lane
-        run: pnpm ci:repo
-
-  web:
-    runs-on: ubuntu-latest
+  node:
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 60
     env:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm
-
-      - name: Run full web lane
-        run: pnpm ci:web:full
-
-  contracts:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: ./.github/actions/setup-python-uv
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Run full repository lane
+        run: pnpm ci:repo
 
       - name: Run contracts lane
         run: pnpm ci:contracts
 
-  ingest:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Run full TypeScript lane
+        run: |
+          rm -rf .turbo/runs
+          pnpm ci:typescript:full
 
-      - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Run ingest lane
-        run: pnpm ci:ingest
-
-  eval:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Summarize TypeScript lane
+        if: always()
+        run: scripts/ci/turbo-summary.sh
 
       - name: Run eval lane
         run: pnpm ci:eval
 
   go:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        if: runner.environment == 'github-hosted'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
         with:
-          go-version: "1.26.2"
+          go-version: "1.26.5"
+          cache: true
           cache-dependency-path: apps/execution-control/go.mod
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-        with:
-          install: "false"
+      - name: Verify Go
+        if: runner.environment == 'self-hosted'
+        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+        if: runner.environment == 'github-hosted'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
+        with:
+          version: v2.11.4
+          install-only: true
+
+      - name: Verify golangci-lint
+        if: runner.environment == 'self-hosted'
+        run: test "$(golangci-lint version --short)" = "2.11.4"
 
       - name: Run full Go lane
-        run: pnpm ci:go
+        run: scripts/ci/go-check.sh
 
   rust:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
-          install: "false"
+          persist-credentials: false
+
+      - name: Setup Rust
+        if: runner.environment == 'github-hosted'
+        uses: dtolnay/rust-toolchain@ad7910d95e317a4b12a9a3dfad520f4b409b3ec0  # 1.91.0
+        with:
+          components: clippy, rustfmt
+
+      - name: Verify Rust
+        if: runner.environment == 'self-hosted'
+        run: |
+          set -euo pipefail
+          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
+          test "$(cargo --version | awk '{print $2}')" = "1.91.0"
+          rustup component list --toolchain 1.91.0 --installed | grep -q '^clippy-'
+          rustup component list --toolchain 1.91.0 --installed | grep -q '^rustfmt-'
+
+      - name: Cache Rust
+        if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
+
+      - name: Run full Rust lane with persistent target
+        if: runner.environment == 'self-hosted'
+        env:
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+        run: scripts/ci/rust-check.sh
 
       - name: Run full Rust lane
-        run: pnpm ci:rust
+        if: runner.environment == 'github-hosted'
+        run: scripts/ci/rust-check.sh
 
   deps:
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
-    with:
-      upload-sarif: false
-      scan-args: |-
-        --config=osv-scanner.toml
-        --lockfile=pnpm-lock.yaml
-        --lockfile=uv.lock
-        --lockfile=Cargo.lock
-        --lockfile=apps/execution-control/go.mod
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Scan dependencies
+        uses: ./.github/actions/run-osv-scan

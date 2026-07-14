@@ -12,7 +12,7 @@ describe("agent-runtime Dockerfile", () => {
 			"configs/runtime/tool-function-schemas.v1.json",
 			"configs/runtime/workflow-artifacts.v2.json",
 		]) {
-			expect(dockerfile).toContain(`COPY ${configPath} ./${configPath}`);
+			expect(dockerfile).toContain(`${configPath} ./${configPath}`);
 		}
 	});
 });

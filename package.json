@@ -1,7 +1,7 @@
 {
 	"name": "campus-agent-web-workspace",
 	"private": true,
-	"packageManager": "pnpm@10.26.1",
+	"packageManager": "pnpm@10.34.5",
 	"pnpm": {
 		"overrides": {
 			"esbuild@<0.25.0": "0.25.12"
@@ -23,31 +23,30 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"repo:static": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(node_modules|vendor|\\.planning|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
+		"repo:static": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#**/dist/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|vendor|\\.planning|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
 		"smoke:app-api": "pnpm exec tsx scripts/smoke/app-api.ts",
 		"ci:repo": "pnpm repo:static",
-		"ci:contracts": "pnpm --filter campus-contracts typecheck && pnpm --filter campus-contracts test && pnpm contracts:check && uv run --package campus-contracts python -m unittest discover -s packages/contracts/tests -t packages/contracts -q",
-		"ci:ingest": "pnpm --filter ingestion-contracts typecheck && pnpm --filter ingestion-contracts test && pnpm --filter ingest-core typecheck && pnpm --filter ingest-core test && uv run --package campus-ingestion-contracts python -m unittest discover -s packages/ingestion-contracts/tests -t packages/ingestion-contracts -q",
-		"ci:eval": "pnpm --dir packages/eval-langfuse typecheck && pnpm --dir packages/eval-langfuse test && pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json && uv run --package campus-ragas-runner python -m unittest discover -s packages/ragas-runner/tests -t packages/ragas-runner -q && pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/telemetry.index.test.ts",
-		"ci:go": "pnpm go:check",
-		"ci:rust": "cargo fmt --all --check && cargo clippy --locked --workspace --all-targets -- -D warnings && cargo test --locked --workspace",
-		"ci:web": "turbo run typecheck test --affected --concurrency=2",
-		"ci:web:full": "pnpm web:check",
-		"ci:worker": "pnpm web:test:worker && pnpm --dir apps/app-api exec wrangler deploy --dry-run --outdir /tmp/campus-agent-app-api-worker-bundle --env local && pnpm --dir apps/campus-web build:app && pnpm --dir apps/operator-console-web build",
+		"ci:contracts": "pnpm contracts:check",
+		"ci:eval": "pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json && uv run --package campus-ragas-runner python -m unittest discover -s packages/ragas-runner/tests -t packages/ragas-runner -q",
+		"ci:go": "scripts/ci/go-check.sh",
+		"ci:rust": "scripts/ci/rust-check.sh",
+		"ci:typescript": "turbo run typecheck test --affected --concurrency=1 --summarize",
+		"ci:typescript:full": "turbo run typecheck test --concurrency=1 --summarize && pnpm ci:worker && pnpm --dir apps/ops-web build",
+		"ci:worker": "pnpm web:test:worker && pnpm exec turbo run build:worker --filter=app-api --concurrency=1 && pnpm exec turbo run build:app --filter=campus-web --concurrency=1 && pnpm exec turbo run build --filter=operator-console-web --concurrency=1",
 		"ci:config": "pnpm ci:actions:lint && uvx zizmor --min-severity=medium .github",
 		"ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
-		"ci:deps": "go run github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.8 scan source --config osv-scanner.toml --format=vertical --verbosity=error --lockfile pnpm-lock.yaml --lockfile uv.lock --lockfile Cargo.lock --lockfile apps/execution-control/go.mod",
+		"ci:deps": "scripts/ci/osv-scan.sh",
 		"dev": "turbo run dev --filter=campus-web --filter=app-api",
 		"web:build": "turbo run build",
-		"web:check": "turbo run typecheck test build --concurrency=2",
+		"web:check": "turbo run typecheck test build --concurrency=1",
 		"web:lint": "pnpm exec biome check .",
 		"web:test": "turbo run test",
-		"web:test:worker": "turbo run test:worker",
+		"web:test:worker": "turbo run test:worker --concurrency=1",
 		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
 		"web:typecheck": "turbo run typecheck",
 		"contracts:generate": "pnpm --dir packages/contracts generate",
 		"contracts:check": "pnpm --dir packages/contracts check",
-		"go:check": "test -z \"$(gofmt -l apps/execution-control)\" && cd apps/execution-control && go vet ./... && export PATH=\"$(go env GOPATH)/bin:$PATH\" && if ! command -v golangci-lint >/dev/null 2>&1; then echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; fi && golangci-lint run ./... && go test ./..."
+		"go:check": "scripts/ci/go-check.sh"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.3",

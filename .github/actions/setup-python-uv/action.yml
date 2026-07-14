@@ -8,15 +8,23 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@v6
+    - name: Setup uv
+      if: runner.environment == 'github-hosted'
+      uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1  # v8.3.1
       with:
+        version: "0.11.28"
+        enable-cache: true
         python-version: "3.12"
 
-    - name: Setup uv
-      uses: astral-sh/setup-uv@v8.3.1
-      with:
-        enable-cache: true
+    - name: Verify uv installation
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(uv --version | awk '{print $2}')" = "0.11.28"
+
+    - name: Install Python
+      shell: bash
+      run: uv python install 3.12
 
     - name: Sync workspace
       if: inputs.sync == 'true'

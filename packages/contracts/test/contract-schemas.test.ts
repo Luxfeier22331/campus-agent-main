@@ -48,10 +48,6 @@ describe("contract schema registry", () => {
 			for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 				const ref = String(tool[fieldName]);
 				const [schemaId, pointer] = ref.split("#");
-				expect(
-					ref,
-					`${tool.name}.${fieldName} must not reference Python helper names`,
-				).not.toContain("campus_contracts.");
 				expect(schemaIds.has(schemaId), `${schemaId} must be registered`).toBe(true);
 				expect(pointer, `${tool.name}.${fieldName} must target a $defs JSON pointer`).toMatch(
 					/^\/\$defs\//u,

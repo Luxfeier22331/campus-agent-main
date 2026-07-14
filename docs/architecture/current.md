@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 # 当前架构
 
@@ -298,8 +298,7 @@ official-web 的消费链路边界以
   Agent 唯一可调用的 internal-only tool。Raw retrieval endpoint、collection、top-k
   与 provider-specific tool 均不对 primary agent 或 browser 暴露。
   runtime catalog 的 tool payload/result schema ref 只允许指向已登记 JSON
-  Schema `$id#/$defs/...`；Python `campus_contracts.*` dataclass 只是
-  language-local helper，不是 active runtime schema truth。
+  Schema `$id#/$defs/...`；仓库不维护第二套语言本地契约模型。
   当前 runtime-supported tools 通过 `tools.v4`、`tool-function-schemas.v1` 与
   `workflow-artifacts.v2` 暴露给 `agent.primary`，并由 execution-control internal
   query endpoint 执行；Go runtime 通过 tool registry / function schema / endpoint

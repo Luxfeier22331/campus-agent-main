@@ -4,15 +4,15 @@ truth_scope: execution
 owner_boundary: python-boundaries
 status: active
 created: 2026-04-26
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 # Python Boundary
 
 ## 文档边界
 
-本文冻结 Python side adapter boundary。它不改变 Temporal / Go
-execution-control 的 ownership，只说明 Python 不再参与 online answer hot path，
-以及后续只能保留在哪些非热路径场景。
+本文冻结 Python runtime boundary。它不改变 Temporal / Go execution-control 的
+ownership，只说明 Python 不再参与 online answer hot path，以及后续只能保留在
+哪些明确准入的非热路径场景。
 
 ## Runtime Boundary
 
@@ -161,15 +161,14 @@ native rendering dependency.
   top-level `scripts/` directory and app script directories for app-api,
   campus-web and operator-console-web must not add `.py`, `.mjs` or `.d.mts`
   implementations. Use `pnpm exec tsx` for these script entrypoints.
-- Python tests remain valid only when they exercise admitted Python
-  package/runtime islands: contracts models, ingestion contract package behavior
-  and the isolated Ragas runner. Repo governance, CI/workflow contracts,
+- Python tests remain valid only when they exercise an admitted Python runtime
+  island. The current workspace admits only the isolated Ragas runner. Repo
+  governance, CI/workflow contracts,
   Worker/app scripts, ingestion clean-target checks and other common tooling
   must be tested through TS checks or the owning package tests, not root-level
   Python unittest suites.
-- Root `uv.workspace.members` is a narrow Python boundary allowlist:
-  `packages/contracts`, `packages/ingestion-contracts`,
-  `packages/ragas-runner`. TS / Worker / Rust owners must not add
+- Root `uv.workspace.members` is a narrow Python boundary allowlist containing
+  only `packages/ragas-runner`. TS / Worker / Rust owners must not add
   `pyproject.toml` workspace shells or re-enter `uv.lock`.
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
 - 不把 deterministic execution admission、evidence validation 或 source generation

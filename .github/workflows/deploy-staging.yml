@@ -11,6 +11,19 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'apps/app-api/**'
+      - 'apps/campus-web/**'
+      - 'apps/operator-console-web/**'
+      - 'configs/branding/**'
+      - 'configs/runtime/**'
+      - 'configs/sources/**'
+      - 'packages/domains/dining/**'
+      - 'packages/ingestion-contracts/**'
+      - 'scripts/deploy/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
 
 permissions:
   contents: read
@@ -22,7 +35,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     environment:
       name: staging
       url: https://campus-staging.mucwiki-edge.link
@@ -51,9 +64,10 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ steps.deploy_ref.outputs.ref }}
 
       - name: Verify ref is on main history
@@ -63,29 +77,97 @@ jobs:
           git fetch --no-tags origin main
           git merge-base --is-ancestor HEAD origin/main
 
-      - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
+      - name: Detect changed applications
+        if: github.event_name == 'push'
+        id: app-filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
+        with:
+          base: ${{ github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            app_api:
+              - 'apps/app-api/**'
+              - 'configs/runtime/**'
+              - 'configs/sources/**'
+              - 'packages/domains/dining/**'
+              - 'packages/ingestion-contracts/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            campus_web:
+              - 'apps/campus-web/**'
+              - 'configs/branding/**'
+              - 'packages/domains/dining/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            operator_console:
+              - 'apps/operator-console-web/**'
+              - 'configs/branding/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+
+      - name: Select applications
+        id: apps
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "app_api=true"
+              echo "campus_web=true"
+              echo "operator_console=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "app_api=${{ steps.app-filter.outputs.app_api }}"
+              echo "campus_web=${{ steps.app-filter.outputs.campus_web }}"
+              echo "operator_console=${{ steps.app-filter.outputs.operator_console }}"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Deploy app-api staging
+        if: steps.apps.outputs.app_api == 'true'
         run: pnpm --dir apps/app-api deploy:staging
 
       - name: Build and deploy campus-web staging
+        if: steps.apps.outputs.campus_web == 'true'
         run: pnpm --dir apps/campus-web build:staging && pnpm --dir apps/campus-web deploy:staging
 
       - name: Build and deploy operator console staging
+        if: steps.apps.outputs.operator_console == 'true'
         run: pnpm --dir apps/operator-console-web build:staging && pnpm --dir apps/operator-console-web deploy:staging
 
-      - name: Verify deployed surface health
+      - name: Verify app-api health
+        if: steps.apps.outputs.app_api == 'true'
+        run: >-
+          curl --noproxy '*' --fail --show-error --silent
+          --retry 3 --retry-delay 5
+          https://api-staging.mucwiki-edge.link/healthz >/dev/null
+
+      - name: Verify campus-web health
+        if: steps.apps.outputs.campus_web == 'true'
         shell: bash
         run: |
           set -euo pipefail
           for url in \
-            https://api-staging.mucwiki-edge.link/healthz \
             https://campus-staging.mucwiki-edge.link/healthz \
-            https://campus-staging.mucwiki-edge.link/readyz \
+            https://campus-staging.mucwiki-edge.link/readyz; do
+            curl --noproxy '*' --fail --show-error --silent --retry 3 --retry-delay 5 "$url" >/dev/null
+          done
+
+      - name: Verify operator console health
+        if: steps.apps.outputs.operator_console == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
             https://panel-staging.mucwiki-edge.link/healthz \
             https://panel-staging.mucwiki-edge.link/readyz; do
             curl --noproxy '*' --fail --show-error --silent --retry 3 --retry-delay 5 "$url" >/dev/null

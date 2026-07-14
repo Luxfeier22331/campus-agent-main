@@ -11,6 +11,8 @@ export default defineConfig({
 		}),
 	],
 	test: {
+		fileParallelism: false,
 		include: ["test/**/*.worker.test.ts"],
+		maxWorkers: 1,
 	},
 });

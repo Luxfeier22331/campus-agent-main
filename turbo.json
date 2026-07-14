@@ -1,10 +1,12 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
-	"globalPassThroughEnv": [
-		"STAGING_EXECUTION_CONTROL_BASE_URL",
-		"STAGING_SENTRY_RELEASE",
-		"WORKER_SECRET_AUDIT_MAX_ATTEMPTS"
-	],
+	"futureFlags": {
+		"affectedUsingTaskInputs": true,
+		"longerSignatureKey": true
+	},
+	"remoteCache": {
+		"signature": true
+	},
 	"tasks": {
 		"build": {
 			"env": [
@@ -16,16 +18,317 @@
 				"OBJECT_STORE_REGION",
 				"OBJECT_STORE_SECRET_KEY"
 			],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputs": ["dist/**", ".tanstack/**"]
 		},
 		"typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
 			"outputs": []
 		},
 		"test": {
+			"dependsOn": ["^test"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
 			"outputs": []
 		},
 		"test:worker": {
+			"dependsOn": ["^test"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
 			"outputs": []
+		},
+		"agent-runtime#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v1.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v4.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"app-api#build:worker": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts",
+				"$TURBO_ROOT$/packages/ingestion-contracts/package.json",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/src/**/*.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/worker/**"]
+		},
+		"app-api#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+			],
+			"outputLogs": "new-only"
+		},
+		"app-api#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
+				"$TURBO_ROOT$/jobs/app-api-schema/**",
+				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
+				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+			],
+			"outputLogs": "new-only"
+		},
+		"app-api#test:worker": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"package.json",
+				"scripts/**",
+				"src/**",
+				"test/federation-runtime-readiness.test.ts",
+				"test/worker-scheduled-sweepers.test.ts",
+				"test/worker.test.ts",
+				"tsconfig.json",
+				"vitest.worker.config.mts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+			],
+			"outputLogs": "new-only"
+		},
+		"campus-web#build": {
+			"env": [
+				"CAMPUS_DOCS_SYNC_MANIFEST_KEY",
+				"CAMPUS_DOCS_SYNC_MANIFEST_PATH",
+				"OBJECT_STORE_ACCESS_KEY",
+				"OBJECT_STORE_BUCKET_DERIVED",
+				"OBJECT_STORE_ENDPOINT",
+				"OBJECT_STORE_REGION",
+				"OBJECT_STORE_SECRET_KEY"
+			],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/docs/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"campus-web#build:app": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"campus-web#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"campus-web#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"campus-web#test:worker": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"test/assets/**",
+				"test/**/*.worker.test.ts",
+				"tsconfig.json",
+				"vitest.worker.config.mts",
+				"wrangler.test.toml"
+			],
+			"outputLogs": "new-only"
+		},
+		"campus-contracts#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["package.json", "scripts/**/*.ts", "test/**/*.ts", "tsconfig.json"],
+			"outputLogs": "new-only"
+		},
+		"campus-contracts#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"fixtures/**",
+				"package.json",
+				"schemas/**",
+				"scripts/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml"
+			],
+			"outputLogs": "new-only"
+		},
+		"ingest-core#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"ingestion-control#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"eval-langfuse#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"eval-langfuse#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"learning-loop-candidates#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"learning-loop-candidates#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"operator-console-web#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/branding/**"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"operator-console-web#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/branding/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"ingestion-contracts#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["package.json", "schemas/**", "src/**/*.ts", "test/**/*.ts", "tsconfig.json"],
+			"outputLogs": "new-only"
+		},
+		"ingestion-contracts#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"assertions/**",
+				"package.json",
+				"schemas/**",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"source-collector#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"transport-publisher#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"transport-publisher#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
+			],
+			"outputLogs": "new-only"
 		},
 		"test:integration": {
 			"cache": false
@@ -38,7 +341,8 @@
 			"persistent": true
 		},
 		"deploy": {
-			"cache": false
+			"cache": false,
+			"passThroughEnv": ["STAGING_SENTRY_RELEASE", "WORKER_SECRET_AUDIT_MAX_ATTEMPTS"]
 		}
 	}
 }

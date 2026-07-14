@@ -4,9 +4,11 @@
 	"private": true,
 	"type": "module",
 	"description": "Unified source collector runtime for campus-agent ingestion source adapters.",
-	"packageManager": "pnpm@10.26.1",
+	"packageManager": "pnpm@10.34.5",
 	"scripts": {
-		"test": "vitest run -c vitest.config.mts",
+		"test": "pnpm run test:fast && pnpm run test:isolated",
+		"test:fast": "vitest run -c vitest.fast.config.mts",
+		"test:isolated": "vitest run -c vitest.isolated.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -16,7 +18,7 @@
 		"content-disposition": "^2.0.1",
 		"crawlee": "^3.17.0",
 		"dotenv": "^17.4.2",
-		"ingest-core": "file:../../packages/ingest-core",
+		"ingest-core": "workspace:*",
 		"jsdom": "^27.4.0",
 		"mime-types": "^3.0.2",
 		"pg": "^8.22.0",

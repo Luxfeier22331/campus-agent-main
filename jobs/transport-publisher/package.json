@@ -5,6 +5,9 @@
 	"description": "Validated transport schedule publication job for campus-agent.",
 	"license": "Apache-2.0",
 	"type": "module",
+	"files": [
+		"src"
+	],
 	"scripts": {
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"

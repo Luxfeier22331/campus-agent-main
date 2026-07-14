@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"description": "Cloudflare Worker runtime shell for the student-facing campus experience surface.",
-	"packageManager": "pnpm@10.26.1",
+	"packageManager": "pnpm@10.34.5",
 	"scripts": {
 		"build": "pnpm run build:docs && pnpm run build:app",
 		"build:app": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build && pnpm exec tsx ./scripts/check-client-bundle-budget.ts",
@@ -14,10 +14,12 @@
 		"deploy": "pnpm build && pnpm exec tsx ../../scripts/deploy/verify-worker-deploy-config.ts dist/campus_web/wrangler.json APP_API=app-api && pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy --config dist/campus_web/wrangler.json",
 		"deploy:staging": "pnpm exec tsx ./scripts/deploy-staging.ts",
 		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",
-		"test": "pnpm run test:node",
+		"test": "pnpm run test:node:fast && pnpm run test:node:isolated",
 		"test:e2e": "playwright test -c e2e.config.ts",
 		"test:e2e:worker": "playwright test -c e2e.worker.config.ts",
 		"test:node": "vitest run -c vitest.config.mts",
+		"test:node:fast": "vitest run -c vitest.fast.config.mts",
+		"test:node:isolated": "vitest run -c vitest.isolated.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"typecheck": "tsc --noEmit"
 	},

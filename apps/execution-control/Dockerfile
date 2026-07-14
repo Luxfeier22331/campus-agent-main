@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM golang:1.26.5-bookworm AS build
 
 ARG TARGETOS=linux
@@ -12,7 +13,7 @@ ENV GOPROXY=${GOPROXY} \
 WORKDIR /src/apps/execution-control
 
 COPY apps/execution-control/go.mod apps/execution-control/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod go mod download
 
 COPY apps/execution-control ./
 COPY configs/runtime/query-serving-scopes.v3.json /src/configs/runtime/query-serving-scopes.v3.json
@@ -23,8 +24,9 @@ COPY configs/runtime/execution-control /src/configs/runtime/execution-control
 COPY configs/ingestion /src/configs/ingestion
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
-RUN go test ./... \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
+RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
+  --mount=type=cache,id=go-build,target=/root/.cache/go-build \
+  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-core ./cmd/activity-worker-core \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \

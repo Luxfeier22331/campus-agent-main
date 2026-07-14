@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-03-29
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 # Main Release Runbook
 
@@ -39,7 +39,7 @@ release 流程：
 
 当前仓库采用：
 
-`worktree feature -> PR -> main -> staging -> release tag / production preflight`
+`worktree feature -> PR -> main -> staging`
 
 具体含义是：
 
@@ -47,8 +47,8 @@ release 流程：
 - PR 以 `main` 为 base，并通过 `pr / required` 聚合检查。
 - 合入 `main` 后，`deploy-staging` 可以自动部署 staging 并记录 GitHub
   deployment。
-- production 只选择已合入 `main` 的 ref 或 release tag，并通过
-  `production-preflight` 和 GitHub `production` Environment 控制。
+- production 只允许选择已合入 `main` 的 ref 或 release tag；当前仓库尚未接入
+  production deploy。
 
 ## Feature Worktree 到 Main
 
@@ -67,9 +67,9 @@ release 流程：
 
 ## Main 到 Staging
 
-`main` push 触发 `.github/workflows/pr.yml` 的主干健康检查；Cloudflare 产品面
-部署由 `.github/workflows/deploy-staging.yml` 承接，Kubernetes runtime 由环境仓
-promotion pull request 与 Argo CD 承接。
+PR 已经验证合入 `main` 的源码树，因此 `main` 不重复运行 PR 检查。Cloudflare
+产品面部署由 `.github/workflows/deploy-staging.yml` 按受影响应用承接，Kubernetes
+runtime 由环境仓 promotion pull request 与 Argo CD 承接。
 
 标准做法：
 
@@ -87,13 +87,12 @@ production 不从 feature branch 或 worktree 直接取 ref。
 标准做法：
 
 1. 在 `main` 上选择准备发布的 commit。
-1. 为该 commit 创建 release tag，或在 `production-preflight` 中显式选择该
-   `main` ref。
+1. 为该 commit 创建 release tag。
 1. 运行本轮 release 所需验证、smoke 和必要手工验收。
-1. 通过 GitHub `production` Environment 审批后继续生产发布步骤。
+1. 等待真实 production deploy、审批和回滚链路落地后再执行生产发布。
 
-当前 `production-preflight` 只做受保护的生产预检。真实 production deploy、
-rollback 和 artifact attestation 需要在产物链路明确后再接入。
+当前没有 production workflow。不得用重复构建或空预检代替真实部署、审批和
+回滚能力。
 
 ## Main Hotfix
 
@@ -102,8 +101,8 @@ rollback 和 artifact attestation 需要在产物链路明确后再接入。
 1. 从最新 `main` 建立 hotfix branch / worktree。
 1. 修复并运行受影响验证。
 1. 通过 PR 合入 `main`。
-1. 如需生产发布，为合入后的 `main` commit 创建 release tag 或执行
-   `production-preflight`。
+1. 如需生产发布，为合入后的 `main` commit 创建 release tag，并遵循已经落地的
+   生产发布流程；当前仓库尚未提供该流程。
 
 ## 什么时候不该发布
 

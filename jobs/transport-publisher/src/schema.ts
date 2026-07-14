@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Client, type ClientConfig } from "pg";
-import type { TransportPublisherDatabaseClientFactory } from "./postgres-publisher";
+import type { TransportPublisherDatabaseClientFactory } from "./postgres-publisher.ts";
 
 const CAMPUS_SERVICES_GRANTS_SQL = `
 REVOKE ALL ON SCHEMA "campus_services" FROM PUBLIC;

@@ -2,189 +2,229 @@ name: execution-runtime-publish
 
 on:
   workflow_dispatch:
-    inputs:
-      push_image:
-        description: Push execution runtime images to GHCR
-        required: true
-        default: false
-        type: boolean
   push:
     branches:
       - main
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
-      - apps/app-api/**
       - apps/ops-web/**
       - jobs/app-api-schema/**
       - jobs/transport-publisher/**
-      - configs/runtime/**
+      - apps/app-api/package.json
+      - apps/app-api/db/shared-product-schema/**
+      - apps/app-api/drizzle/**
+      - apps/app-api/ops/db/**
+      - apps/app-api/src/script-support/shared-db/**
       - configs/ingestion/**
-      - infra/k8s/data-postgres/base/**
-      - infra/k8s/data-qdrant/base/**
-      - infra/k8s/execution-runtime/base/**
-      - infra/k8s/memory-hindsight/base/**
-      - infra/k8s/observability-otel-collector/base/**
-      - infra/k8s/ops-web/base/**
-      - infra/k8s/platform-temporal/base/**
-      - packages/contracts/**
+      - configs/runtime/execution-control/**
+      - configs/runtime/query-serving-scopes.v3.json
+      - configs/runtime/tool-function-schemas.v1.json
+      - configs/runtime/tools.v4.json
+      - configs/runtime/workflow-artifacts.v2.json
+      - infra/k8s/**
+      - packages/contracts/fixtures/tool_execution_contract/**
+      - packages/contracts/schemas/transport-schedule-status.v1.schema.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
-      - .github/workflows/execution-runtime-publish.yml
+      - .dockerignore
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: execution-runtime-publish
   cancel-in-progress: false
 
 jobs:
-  scan:
+  publish:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: execution-control
-            dockerfile: apps/execution-control/Dockerfile
-            sbom: execution-control-sbom.spdx.json
-          - image: agent-runtime
-            dockerfile: apps/agent-runtime/Dockerfile
-            sbom: agent-runtime-sbom.spdx.json
-          - image: app-api-schema
-            dockerfile: jobs/app-api-schema/Dockerfile
-            sbom: app-api-schema-sbom.spdx.json
-          - image: ops-web
-            dockerfile: apps/ops-web/Dockerfile
-            sbom: ops-web-sbom.spdx.json
-          - image: transport-publisher
-            dockerfile: jobs/transport-publisher/Dockerfile
-            sbom: transport-publisher-sbom.spdx.json
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Detect changed release inputs
+        if: github.event_name == 'push'
+        id: release-filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
+        with:
+          base: ${{ github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            execution_control:
+              - '.dockerignore'
+              - 'apps/execution-control/**'
+              - 'configs/ingestion/**'
+              - 'configs/runtime/execution-control/**'
+              - 'configs/runtime/query-serving-scopes.v3.json'
+              - 'configs/runtime/tool-function-schemas.v1.json'
+              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/workflow-artifacts.v2.json'
+              - 'packages/contracts/fixtures/tool_execution_contract/**'
+            agent_runtime:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'apps/agent-runtime/**'
+              - 'configs/runtime/tool-function-schemas.v1.json'
+              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/workflow-artifacts.v2.json'
+            app_api_schema:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'jobs/app-api-schema/**'
+              - 'apps/app-api/package.json'
+              - 'apps/app-api/db/shared-product-schema/**'
+              - 'apps/app-api/drizzle/**'
+              - 'apps/app-api/ops/db/**'
+              - 'apps/app-api/src/script-support/shared-db/**'
+            ops_web:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'apps/ops-web/**'
+            transport_publisher:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'jobs/transport-publisher/**'
+              - 'apps/app-api/db/shared-product-schema/campus_services.sql'
+              - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
+            k8s:
+              - 'infra/k8s/**'
 
-      - name: Resolve image name
-        id: image
+      - name: Select images
+        id: images
         shell: bash
-        env:
-          IMAGE_NAME: ghcr.io/${{ github.repository }}/${{ matrix.image }}
-        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Build image for scan
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          load: true
-          push: false
-          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
-
-      - name: Scan image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: image
-          image-ref: ${{ steps.image.outputs.name }}:${{ github.sha }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-
-  push:
-    needs: scan
-    if: ${{ github.event_name == 'push' || inputs.push_image }}
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: execution-control
-            dockerfile: apps/execution-control/Dockerfile
-            sbom: execution-control-sbom.spdx.json
-          - image: agent-runtime
-            dockerfile: apps/agent-runtime/Dockerfile
-            sbom: agent-runtime-sbom.spdx.json
-          - image: app-api-schema
-            dockerfile: jobs/app-api-schema/Dockerfile
-            sbom: app-api-schema-sbom.spdx.json
-          - image: ops-web
-            dockerfile: apps/ops-web/Dockerfile
-            sbom: ops-web-sbom.spdx.json
-          - image: transport-publisher
-            dockerfile: jobs/transport-publisher/Dockerfile
-            sbom: transport-publisher-sbom.spdx.json
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+        run: |
+          set -euo pipefail
+          images=()
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            images=(execution-control agent-runtime app-api-schema ops-web transport-publisher)
+          else
+            [ "${{ steps.release-filter.outputs.execution_control }}" = "true" ] && images+=(execution-control)
+            [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
+            [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
+            [ "${{ steps.release-filter.outputs.ops_web }}" = "true" ] && images+=(ops-web)
+            [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
+          fi
+          if [ "${#images[@]}" -eq 0 ]; then
+            images_json='[]'
+          else
+            images_json="$(printf '%s\n' "${images[@]}" | jq -R . | jq -sc .)"
+          fi
+          echo '{}' > image-digests.json
+          echo "images=$images_json" >> "$GITHUB_OUTPUT"
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@v4
+        if: steps.images.outputs.images != '[]'
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Resolve image name
-        id: image
-        shell: bash
-        env:
-          IMAGE_NAME: ghcr.io/${{ github.repository }}/${{ matrix.image }}
-        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Build image for SBOM
-        uses: docker/build-push-action@v7
+      - name: Setup persistent Docker Buildx
+        if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          load: true
-          push: false
-          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          name: campus-agent-release
+          keep-state: true
+          cleanup: false
+          cache-binary: false
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              reservedSpace = "2GB"
+              maxUsedSpace = "12GB"
+              minFreeSpace = "25GB"
 
-      - name: Generate image SBOM
-        uses: anchore/sbom-action@v0.24.0
+      - name: Setup temporary Docker Buildx
+        if: steps.images.outputs.images != '[]' && runner.environment == 'github-hosted'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+
+      - name: Verify Trivy
+        if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
+        run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
+
+      - name: Setup Trivy
+        if: steps.images.outputs.images != '[]' && runner.environment == 'github-hosted'
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
         with:
-          image: ${{ steps.image.outputs.name }}:${{ github.sha }}
-          artifact-name: ${{ matrix.sbom }}
-          format: spdx-json
-          dependency-snapshot: false
-          upload-artifact: true
-          upload-release-assets: false
+          version: v0.72.0
+          cache: true
 
       - name: Login to GHCR
-        uses: docker/login-action@v4.3.0
+        if: steps.images.outputs.images != '[]'
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4  # v4.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+      - name: Build, publish and scan images
+        if: steps.images.outputs.images != '[]'
+        shell: bash
+        env:
+          IMAGES: ${{ steps.images.outputs.images }}
+        run: |
+          set -euo pipefail
+          trivy_cache_dir="${RUNNER_TOOL_CACHE}/trivy"
+          echo '{}' > image-digests.json
+          while IFS= read -r image; do
+            case "$image" in
+              execution-control) dockerfile=apps/execution-control/Dockerfile ;;
+              agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
+              app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
+              ops-web) dockerfile=apps/ops-web/Dockerfile ;;
+              transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
+              *) echo "Unsupported image: $image" >&2; exit 1 ;;
+            esac
+            repository="ghcr.io/${GITHUB_REPOSITORY,,}/${image}"
+            tag="${repository}:${GITHUB_SHA}"
+            metadata_file="build-metadata-${image}.json"
+            docker buildx build \
+              --file "$dockerfile" \
+              --platform linux/amd64,linux/arm64 \
+              --pull \
+              --push \
+              --sbom=true \
+              --metadata-file "$metadata_file" \
+              --tag "$tag" \
+              .
+            digest="$(
+              jq -er \
+                '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
+                "$metadata_file"
+            )"
+            for platform in linux/amd64 linux/arm64; do
+              trivy image \
+                --cache-dir "$trivy_cache_dir" \
+                --platform "$platform" \
+                --scanners vuln \
+                --ignore-unfixed \
+                --pkg-types os,library \
+                --severity HIGH,CRITICAL \
+                --exit-code 1 \
+                "${repository}@${digest}"
+            done
+            jq --arg image "$image" --arg digest "$digest" \
+              '. + {($image): $digest}' image-digests.json > image-digests.tmp
+            mv image-digests.tmp image-digests.json
+          done < <(jq -r '.[]' <<< "$IMAGES")
 
-  promote-staging:
-    needs: push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    permissions:
-      contents: read
-      packages: read
-    steps:
       - name: Create GitOps promotion token
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: gitops-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
@@ -194,165 +234,145 @@ jobs:
           permission-pull-requests: write
 
       - name: Checkout GitOps repository
-        uses: actions/checkout@v7
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
+          persist-credentials: false
           repository: ${{ vars.GITOPS_REPOSITORY }}
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve published image digests
-        id: digests
+      - name: Update GitOps desired state
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
+        id: source
         shell: bash
         env:
-          IMAGE_ROOT: ghcr.io/${{ github.repository }}
+          K8S_CHANGED: ${{ steps.release-filter.outputs.k8s }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          execution_control_digest="$(
-            docker buildx imagetools inspect \
-              "${IMAGE_ROOT,,}/execution-control:${SOURCE_SHA}" \
-              --format '{{json .Manifest}}' | jq -r '.digest'
-          )"
-          agent_runtime_digest="$(
-            docker buildx imagetools inspect \
-              "${IMAGE_ROOT,,}/agent-runtime:${SOURCE_SHA}" \
-              --format '{{json .Manifest}}' | jq -r '.digest'
-          )"
-          app_api_schema_digest="$(
-            docker buildx imagetools inspect \
-              "${IMAGE_ROOT,,}/app-api-schema:${SOURCE_SHA}" \
-              --format '{{json .Manifest}}' | jq -r '.digest'
-          )"
-          transport_publisher_digest="$(
-            docker buildx imagetools inspect \
-              "${IMAGE_ROOT,,}/transport-publisher:${SOURCE_SHA}" \
-              --format '{{json .Manifest}}' | jq -r '.digest'
-          )"
-          [[ "${execution_control_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "${agent_runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "${app_api_schema_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "${transport_publisher_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          {
-            echo "execution_control=${execution_control_digest}"
-            echo "agent_runtime=${agent_runtime_digest}"
-            echo "app_api_schema=${app_api_schema_digest}"
-            echo "transport_publisher=${transport_publisher_digest}"
-          } >> "${GITHUB_OUTPUT}"
+          short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
+          image_root="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-      - name: Update immutable GitOps inputs
-        id: source
-        uses: mikefarah/yq@v4.53.3
-        env:
-          AGENT_RUNTIME_DIGEST: ${{ steps.digests.outputs.agent_runtime }}
-          AGENT_RUNTIME_IMAGE: ghcr.io/muc-wiki/campus-agent/agent-runtime
-          APP_API_SCHEMA_DIGEST: ${{ steps.digests.outputs.app_api_schema }}
-          APP_API_SCHEMA_IMAGE: ghcr.io/muc-wiki/campus-agent/app-api-schema
-          EXECUTION_CONTROL_DIGEST: ${{ steps.digests.outputs.execution_control }}
-          EXECUTION_CONTROL_IMAGE: ghcr.io/muc-wiki/campus-agent/execution-control
-          SOURCE_REPOSITORY: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
-          TRANSPORT_PUBLISHER_DIGEST: ${{ steps.digests.outputs.transport_publisher }}
-          TRANSPORT_PUBLISHER_IMAGE: ghcr.io/muc-wiki/campus-agent/transport-publisher
-        with:
-          cmd: |
-            set -eu
-            overlay_root=gitops/clusters/staging/overlays
-            for kustomization in "${overlay_root}"/*/kustomization.yaml; do
-              yq -i '(
-                .resources[] |
-                select(test(
-                  "^https://github.com/" + strenv(SOURCE_REPOSITORY) +
-                  "//infra/k8s/.+\\?ref=[0-9a-f]{40}$"
-                ))
-              ) |= sub("ref=[0-9a-f]{40}$"; "ref=" + strenv(SOURCE_SHA))' \
-                "${kustomization}"
-            done
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --env IMAGE_ROOT="${image_root}" \
+            --env K8S_CHANGED \
+            --env SHORT_SHA="${short_sha}" \
+            --env SOURCE_REPOSITORY \
+            --env SOURCE_SHA \
+            --volume "${PWD}:/workdir" \
+            --workdir /workdir \
+            --entrypoint sh \
+            mikefarah/yq:4.53.3@sha256:11a1f0b604b13dbbdc662260d8db6f644b22d8553122a25c1b5b2e8713ca6977 -c '
+              set -eu
+              overlay_root=gitops/clusters/staging/overlays
 
-            runtime_kustomization="${overlay_root}/execution-runtime/kustomization.yaml"
-            yq -i '(
-              .images[] |
-              select(.name == strenv(EXECUTION_CONTROL_IMAGE))
-            ).digest = strenv(EXECUTION_CONTROL_DIGEST) | (
-              .images[] |
-              select(.name == strenv(AGENT_RUNTIME_IMAGE))
-            ).digest = strenv(AGENT_RUNTIME_DIGEST) | (
-              .images[] |
-              select(.name == strenv(APP_API_SCHEMA_IMAGE))
-            ).digest = strenv(APP_API_SCHEMA_DIGEST) | (
-              .images[] |
-              select(.name == strenv(TRANSPORT_PUBLISHER_IMAGE))
-            ).digest = strenv(TRANSPORT_PUBLISHER_DIGEST)' \
-              "${runtime_kustomization}"
+              if [ "${K8S_CHANGED}" = "true" ]; then
+                source_matches=0
+                for kustomization in "${overlay_root}"/*/kustomization.yaml; do
+                  count="$(yq "[
+                    .resources[]? | select(test(
+                      \"^https://github.com/\" + strenv(SOURCE_REPOSITORY) +
+                      \"//infra/k8s/.+\\\\?ref=[0-9a-f]{40}$\"
+                    ))
+                  ] | length" "${kustomization}")"
+                  if [ "${count}" -gt 0 ]; then
+                    yq -i "(
+                      .resources[]? |
+                      select(test(
+                        \"^https://github.com/\" + strenv(SOURCE_REPOSITORY) +
+                        \"//infra/k8s/.+\\\\?ref=[0-9a-f]{40}$\"
+                      ))
+                    ) |= sub(
+                      \"ref=[0-9a-f]{40}$\";
+                      \"ref=\" + strenv(SOURCE_SHA)
+                    )" "${kustomization}"
+                    source_matches="$((source_matches + count))"
+                  fi
+                done
+                if [ "${source_matches}" -eq 0 ]; then
+                  echo "No GitOps source ref matched ${SOURCE_REPOSITORY}." >&2
+                  exit 1
+                fi
+              fi
 
-            runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
-            short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
-            SHORT_SHA="${short_sha}" yq -i '
-              .data.EXECUTION_CONTROL_RUNTIME_RELEASE =
-                ("execution-control@" + strenv(SHORT_SHA))
-            ' "${runtime_config}"
+              execution_control_written=false
+              for image in $(yq -r "keys | .[]" image-digests.json); do
+                digest="$(IMAGE_KEY="${image}" yq -r ".[strenv(IMAGE_KEY)]" image-digests.json)"
+                full_image="${IMAGE_ROOT}/${image}"
+                matches=0
+                export DIGEST="${digest}" IMAGE="${full_image}"
+                for kustomization in "${overlay_root}"/*/kustomization.yaml; do
+                  count="$(yq "[
+                    .images[]? | select(.name == strenv(IMAGE))
+                  ] | length" "${kustomization}")"
+                  if [ "${count}" -gt 0 ]; then
+                    yq -i "(
+                      .images[] | select(.name == strenv(IMAGE))
+                    ).digest = strenv(DIGEST)" "${kustomization}"
+                    matches="$((matches + count))"
+                  fi
+                done
+                if [ "${matches}" -eq 0 ]; then
+                  case "${image}" in
+                    execution-control|agent-runtime)
+                      echo "No required GitOps consumer for ${image}." >&2
+                      exit 1
+                      ;;
+                    *)
+                      echo "No GitOps consumer for optional image ${image}; candidate remains unpublished to staging."
+                      ;;
+                  esac
+                elif [ "${image}" = "execution-control" ]; then
+                  execution_control_written=true
+                fi
+              done
 
-            source_ref_count=0
-            for kustomization in "${overlay_root}"/*/kustomization.yaml; do
-              count="$(yq '[
-                .resources[] |
-                select(test("\\?ref=" + strenv(SOURCE_SHA) + "$"))
-              ] | length' "${kustomization}")"
-              source_ref_count="$((source_ref_count + count))"
-            done
-            test "${source_ref_count}" -eq 7
-            test "$(yq '[
-              .images[] |
-              select(
-                .name == strenv(EXECUTION_CONTROL_IMAGE) and
-                .digest == strenv(EXECUTION_CONTROL_DIGEST)
-              )
-            ] | length' "${runtime_kustomization}")" -eq 1
-            test "$(yq '[
-              .images[] |
-              select(
-                .name == strenv(TRANSPORT_PUBLISHER_IMAGE) and
-                .digest == strenv(TRANSPORT_PUBLISHER_DIGEST)
-              )
-            ] | length' "${runtime_kustomization}")" -eq 1
-            test "$(yq '[
-              .images[] |
-              select(
-                .name == strenv(APP_API_SCHEMA_IMAGE) and
-                .digest == strenv(APP_API_SCHEMA_DIGEST)
-              )
-            ] | length' "${runtime_kustomization}")" -eq 1
-            test "$(yq '[
-              .images[] |
-              select(
-                .name == strenv(AGENT_RUNTIME_IMAGE) and
-                .digest == strenv(AGENT_RUNTIME_DIGEST)
-              )
-            ] | length' "${runtime_kustomization}")" -eq 1
-            test "$(yq '.data.EXECUTION_CONTROL_RUNTIME_RELEASE' "${runtime_config}")" = \
-              "execution-control@${short_sha}"
-            printf '%s' "${short_sha}"
+              if [ "${execution_control_written}" = "true" ]; then
+                runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
+                if [ ! -f "${runtime_config}" ]; then
+                  echo "Missing execution runtime release config: ${runtime_config}." >&2
+                  exit 1
+                fi
+                yq -i ".data.EXECUTION_CONTROL_RUNTIME_RELEASE =
+                  (\"execution-control@\" + strenv(SHORT_SHA))" "${runtime_config}"
+              fi
+            '
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect GitOps changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: promotion
+        shell: bash
+        run: |
+          if git -C gitops diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v5
+        if: steps.promotion.outputs.changed == 'true'
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d  # v5
         with:
           version: v1.36.2
 
       - name: Validate promoted manifests
+        if: steps.promotion.outputs.changed == 'true'
         shell: bash
         env:
           SOURCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git_config="$(mktemp)"
+          trap 'rm -f "$git_config"' EXIT
+          export GIT_CONFIG_GLOBAL="$git_config"
           git config --global \
             url."https://x-access-token:${SOURCE_TOKEN}@github.com/".insteadOf \
             "https://github.com/"
@@ -363,24 +383,25 @@ jobs:
           kubectl kustomize gitops/clusters/staging/secrets >/dev/null
 
       - name: Open GitOps deployment pull request
-        id: deployment-pr
-        uses: peter-evans/create-pull-request@v8
+        if: steps.promotion.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8
         with:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
           base: main
-          branch: deploy/execution-runtime-${{ github.sha }}
+          branch: deploy/runtime-${{ github.sha }}
           delete-branch: true
-          commit-message: "chore: 部署 execution runtime ${{ steps.source.outputs.result }}"
-          title: "chore: 部署 execution runtime ${{ steps.source.outputs.result }}"
+          commit-message: "chore: 部署运行时 ${{ steps.source.outputs.short_sha }}"
+          title: "chore: 部署运行时 ${{ steps.source.outputs.short_sha }}"
           body: |
             ## 变更内容
 
-            - 使用 `campus-agent@${{ github.sha }}` 的 Kubernetes 基座
-            - 固定 `execution-control`、`agent-runtime`、`app-api-schema` 和 `transport-publisher` 的多架构镜像 digest
-            - 同步运行时发布标识
+            - 更新 `campus-agent@${{ github.sha }}` 产生的受影响镜像（如有）
+            - 仅更新环境仓已经声明的镜像 digest
+            - Kubernetes 基座变化时同步源码引用
 
             ## 验证结果
 
+            - [x] 本次产生的镜像（如有）均在 amd64 与 arm64 上通过 HIGH / CRITICAL 漏洞扫描
             - [x] 所有 staging Kustomize overlay 可完整渲染
             - [x] Application 与 SealedSecret 清单可完整渲染

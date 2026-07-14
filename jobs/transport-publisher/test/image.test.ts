@@ -5,10 +5,14 @@ import { describe, expect, it } from "vitest";
 const dockerfile = readFileSync(resolve(import.meta.dirname, "../Dockerfile"), "utf8");
 
 describe("transport publisher image", () => {
-	it("starts with the packaged TypeScript runner", () => {
+	it("starts with Node's packaged TypeScript runtime", () => {
 		expect(dockerfile).toContain(
-			'ENTRYPOINT ["/app/jobs/transport-publisher/node_modules/.bin/tsx", "/app/jobs/transport-publisher/src/cli.ts"]',
+			'ENTRYPOINT ["node", "/app/jobs/transport-publisher/src/cli.ts"]',
+		);
+		expect(dockerfile).toContain(
+			"deploy --legacy --prod --no-optional /opt/transport-publisher",
 		);
 		expect(dockerfile).not.toContain('ENTRYPOINT ["pnpm"');
+		expect(dockerfile).not.toContain('ENTRYPOINT ["tsx"');
 	});
 });

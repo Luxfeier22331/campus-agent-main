@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0054
 status: accepted
 created: 2026-06-11
-updated: 2026-07-04
+updated: 2026-07-13
 supersedes: []
 partially_superseded_by:
   - adr-0048-temporal.md
@@ -35,6 +35,12 @@ JSON Schema in both TypeScript and Python (`Ajv` / `jsonschema`) and owns
 Postgres schema no longer relaxes old self-built lease / retry / attempt
 columns; old queued / dead-letter rows fail closed instead of being treated as
 an active compatibility path.
+
+2026-07-13 update: the Python mirror package and its copied schemas had no
+runtime consumer and have been removed. `packages/ingestion-contracts/schemas`
+remains canonical, while its TypeScript/Ajv package is the active validator.
+Future Python islands must consume the canonical JSON Schema through an
+explicit runtime boundary instead of restoring package-local schema copies.
 
 ## 背景
 

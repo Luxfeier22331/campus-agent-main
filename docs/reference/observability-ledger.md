@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/reference
 status: active
 created: 2026-07-04
-updated: 2026-07-12
+updated: 2026-07-13
 ---
 # Observability Completion Ledger
 
@@ -45,16 +45,16 @@ updated: 2026-07-12
 | Capability | Owner | Status | Verification |
 | --- | --- | --- | --- |
 | Canonical `stage_timing.v1` field table | `docs/contracts/stage-timing.md` + generated contracts | complete | `pnpm ci:contracts` |
-| App-api stage timing event and histogram projection | `apps/app-api` | complete | `pnpm --dir apps/app-api test -- telemetry.index.test.ts telemetry.otlp.test.ts request-observability.stage-timing.test.ts` |
+| App-api stage timing event and histogram projection | `apps/app-api` | complete | `pnpm --dir apps/app-api exec vitest run -c vitest.node-isolated.config.mts test/telemetry.index.isolated.test.ts`; `pnpm --dir apps/app-api exec vitest run -c vitest.node-fast.config.mts test/telemetry.otlp.test.ts test/request-observability.stage-timing.test.ts` |
 | Execution-control stage timing producer mapping | `apps/execution-control/internal/httpapi` | complete | `cd apps/execution-control && go test ./internal/httpapi -run 'TestStageTimingForRun' -count=1` |
-| Agent-runtime primary-agent runtime / first-delta timing | `apps/agent-runtime` | complete | `pnpm --dir apps/agent-runtime test -- primary-agent.test.ts http-server.test.ts` |
+| Agent-runtime primary-agent runtime / first-delta timing | `apps/agent-runtime` | complete | `pnpm --dir apps/agent-runtime exec vitest run test/primary-agent.test.ts test/http-server.test.ts` |
 | Latency budget coverage for every canonical stage field | `configs/runtime/latency-budgets.v1.json` | complete | `pnpm contracts:check` |
 | Alert policy materialization to Axiom monitor specs | `configs/runtime/observability-alerts.v1.json` + `packages/contracts/scripts/contracts/materialize-observability-alerts.ts` | complete | `pnpm exec tsx packages/contracts/scripts/contracts/materialize-observability-alerts.ts --self-test`; `pnpm contracts:check` |
 | Collector traces fan-out | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `otelcol-contrib validate --config=infra/otel/collector-staging-template.yaml` with populated env |
 | Collector logs fan-out to Axiom events dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static` |
-| Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `pnpm --dir packages/eval-langfuse test -- langfuse-core.test.ts` |
+| Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `pnpm --dir packages/eval-langfuse exec vitest run test/langfuse-core.test.ts` |
 | Langfuse trace verification adapter | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test`; `pnpm --dir packages/eval-langfuse typecheck` |
-| Safe LLM I/O fingerprint projection | `apps/execution-control` + `apps/app-api` | complete | `cd apps/execution-control && go test ./internal/httpapi`; `pnpm --dir apps/app-api test -- execution-finalization-response-fixtures.test.ts` |
+| Safe LLM I/O fingerprint projection | `apps/execution-control` + `apps/app-api` | complete | `cd apps/execution-control && go test ./internal/httpapi`; `pnpm --dir apps/app-api exec vitest run -c vitest.node-fast.config.mts test/execution-finalization-response-fixtures.test.ts` |
 | Learning-loop candidate selection from feedback and stage latency | `jobs/learning-loop-candidates` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir jobs/learning-loop-candidates typecheck` |
 | Learning-loop dataset publish and verify path | `jobs/learning-loop-candidates` + `packages/eval-langfuse` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir packages/eval-langfuse test` |
 | Self-hosted Ops Web request diagnosis | `apps/ops-web` + restricted PostgreSQL role | complete | `pnpm --dir apps/ops-web typecheck`; `pnpm --dir apps/ops-web test` |

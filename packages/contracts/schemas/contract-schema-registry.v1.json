@@ -247,14 +247,6 @@
 			"notes": "Offline ingestion task registry contract."
 		},
 		{
-			"id": "python-campus-contracts",
-			"kind": "language_local",
-			"path": "packages/contracts/src/campus_contracts",
-			"owner": "packages/contracts",
-			"status": "active",
-			"notes": "Python dataclasses and validators are language-local consumer/helper models. Runtime tool catalogs must not reference campus_contracts.* names; cross-language contract truth requires a matching JSON Schema or OpenAPI registry entry."
-		},
-		{
 			"id": "agent-runtime-tool-catalog-zod",
 			"kind": "language_local",
 			"path": "apps/agent-runtime/src/tool-catalog.ts",

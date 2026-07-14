@@ -1,5 +1,5 @@
 import { Client, type ClientConfig, type QueryResult } from "pg";
-import type { PreparedTransportPublication } from "./publication";
+import type { PreparedTransportPublication } from "./publication.ts";
 
 export interface TransportPublisherDatabaseClient {
 	connect(): Promise<unknown>;

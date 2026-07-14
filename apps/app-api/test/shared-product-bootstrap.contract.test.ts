@@ -42,10 +42,14 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["db:print-auth-migration"]).toBeUndefined();
 		expect(packageJson.scripts["db:reconcile-shared-drift"]).toBeUndefined();
 		expect(packageJson.scripts["official-web:drain-projection"]).toBeUndefined();
-		expect(packageJson.scripts.test).toBe("vitest run -c vitest.node.config.mts");
+		expect(packageJson.scripts.test).toBe("pnpm run test:node");
 		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(false);
 		expect(packageJson.scripts["test:all"]).toBeUndefined();
-		expect(packageJson.scripts["test:node"]).toContain("vitest.node.config.mts");
+		expect(packageJson.scripts["test:node"]).toBe(
+			"pnpm run test:node:fast && pnpm run test:node:isolated",
+		);
+		expect(packageJson.scripts["test:node:fast"]).toContain("vitest.node-fast.config.mts");
+		expect(packageJson.scripts["test:node:isolated"]).toContain("vitest.node-isolated.config.mts");
 		expect(packageJson.scripts["test:worker"]).toContain("vitest.worker.config.mts");
 		expect(packageJson.scripts["test:shared-db-integration"]).toContain(
 			"vitest.shared-db.config.mts",

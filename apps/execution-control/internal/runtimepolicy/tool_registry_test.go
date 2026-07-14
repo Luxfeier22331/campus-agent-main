@@ -85,7 +85,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			want: "model-visible tools must be read_only",
 		},
 		{
-			name: "python schema ref",
+			name: "unregistered schema ref",
 			body: `{
 			  "schema_version": "tool-registry-v4",
 			  "registry_version": "test",
@@ -95,7 +95,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			    "exposure": "model_visible",
 			    "read_only": true,
 			    "requires_approval": false,
-			    "payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
+			    "payload_schema_ref": "https://campus-agent.local/schemas/unregistered.v1.schema.json#/$defs/BadPayload",
 			    "result_schema_ref": "` + transportResultSchemaRef + `",
 			    "handler": {"type": "execution_control_internal_query", "endpoint": "/internal/query/test"},
 			    "timeout_ms": 1000,

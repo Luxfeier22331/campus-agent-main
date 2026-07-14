@@ -106,8 +106,6 @@ package = false
 
 [tool.uv.workspace]
 members = [
-  "packages/contracts",
-  "packages/ingestion-contracts",
   "packages/ragas-runner",
 ]
 

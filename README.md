@@ -105,8 +105,8 @@ pnpm repo:static
 pnpm go:check
 pnpm ci:rust
 pnpm ci:contracts
-pnpm ci:ingest
 pnpm ci:eval
+pnpm ci:typescript
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
@@ -117,13 +117,13 @@ pnpm web:test:worker
 ```bash
 pnpm web:test:integration
 pnpm web:build
-pnpm ci:web:full
+pnpm ci:typescript:full
 ```
 
 - `pnpm web:test:integration` 需要 shared DB / Hyperdrive local connection env。
-- `pnpm web:build` 与 `pnpm ci:web:full` 会构建文档站，需要已有
-  docs read-model sync manifest，或可访问 app-api operator database 的
-  `APP_API_OPERATOR_DATABASE_URL` 等内部配置。
+- `pnpm web:build` 会构建文档站，需要已有 docs read-model sync manifest，
+  或可访问 app-api operator database 的 `APP_API_OPERATOR_DATABASE_URL`
+  等内部配置。`pnpm ci:typescript:full` 不构建文档站。
 
 ## Docs Reader Data
 

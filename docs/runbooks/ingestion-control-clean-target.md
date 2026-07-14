@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/ingestion-control
 status: active
 created: 2026-06-12
-updated: 2026-07-05
+updated: 2026-07-13
 ---
 
 # Ingestion Control Clean-Target Runbook
@@ -138,7 +138,7 @@ as the worker process command.
 
 ```bash
 pnpm --filter ingestion-contracts test
-pnpm --filter ingestion-control test -- task-registry.test.ts
+pnpm --filter ingestion-control exec vitest run test/task-registry.test.ts
 pnpm repo:static
 ```
 

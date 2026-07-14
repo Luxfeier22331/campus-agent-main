@@ -9,7 +9,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"eval-langfuse": "file:../../packages/eval-langfuse",
+		"eval-langfuse": "workspace:*",
 		"pg": "^8.22.0"
 	},
 	"devDependencies": {

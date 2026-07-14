@@ -8,7 +8,6 @@ It owns:
 - runtime-neutral tool payload/result schemas;
 - runtime registry and configuration artifact schemas;
 - shared fixtures and generated TypeScript/Go consumers;
-- narrow Python data adapters for stable retrieval records.
 
 It does not own runtime framework types, provider clients, Temporal workflow
 implementation, retrieval backend details, object-store records or browser
@@ -40,10 +39,6 @@ tool model-visible; runtime exposure is controlled by the runtime registries.
 `pnpm contracts:generate` generates the app-api TypeScript and
 execution-control Go wire consumers. Generated types are local parsers, not a
 second source of truth.
-
-Python `campus_contracts` exports only runtime-neutral data helpers. It does
-not define serving orchestration, planner, replan, grounding or tool handoff
-contracts.
 
 ## Verification
 

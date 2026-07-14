@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-03-29
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -70,7 +70,7 @@ allowlist：
 
 ```bash
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
-pnpm --dir apps/campus-web test:node -- test/campus-worker.test.ts
+pnpm --dir apps/campus-web exec vitest run -c vitest.config.mts test/campus-worker.test.ts
 pnpm exec tsx apps/campus-web/scripts/prepare-docs-reader-build.ts \
   --read-model-manifest var/docs-read-model-manifest.json
 pnpm --dir apps/campus-web exec tsx ./scripts/build-published-reader-docs.ts

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-06-03
-updated: 2026-07-10
+updated: 2026-07-13
 ---
 # Code Organization And Decomposition Architecture
 
@@ -84,14 +84,10 @@ package 级测试默认使用 TS-first 布局：
 
 - TS package 的单元 / contract / schema 测试放在 owner package 的 `test/`
   目录，并通过该 package 的 `test` / `typecheck` script 进入。
-- `tests/` 目录保留给 Python island 或 Python adapter smoke。它不承载 TS
-  package 的 Vitest 测试。
-- `packages/contracts/tests` 与 `packages/ingestion-contracts/tests` 只能保留
-  `__init__.py` 和 `test_python_adapter.py`。共享 contract truth 由 JSON
-  Schema / OpenAPI、TS checker 和 TS tests 证明，Python dataclass / validator
-  只证明 Python adapter 可导入、关键 guardrail 可用。
-- 真实 Python runtime island，例如 `packages/ragas-runner/tests`，可以继续使用
-  Python unittest。
+- `tests/` 目录保留给已准入的 Python runtime island。它不承载 TS package 的
+  Vitest 测试，也不为没有消费者的语言适配层保留 smoke suite。
+- 当前唯一 Python runtime island 是 `packages/ragas-runner`，其 `tests/` 可以
+  继续使用 Python unittest。
 - Python 测试不得使用 `load_tests` 聚合或 `from ... import *`。这些模式会隐藏
   discovery 范围，导致 CI 显示通过但实际 suite 被跳过。
 

@@ -153,7 +153,6 @@ pnpm web:build
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 pnpm ci:contracts
-pnpm ci:ingest
 pnpm ci:eval
 ```
 

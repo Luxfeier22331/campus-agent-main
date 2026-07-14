@@ -4,13 +4,16 @@
 	"private": true,
 	"type": "module",
 	"description": "Shared Worker-native application backend for campus-agent v2.",
-	"packageManager": "pnpm@10.26.1",
+	"packageManager": "pnpm@10.34.5",
 	"scripts": {
+		"build:worker": "rm -rf dist/worker && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec tsx ./scripts/run-with-local-env.ts wrangler dev -e local --name app-api-local --ip 127.0.0.1 --port 27031",
 		"deploy": "pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy",
 		"deploy:staging": "pnpm exec tsx ./scripts/deploy-staging.ts",
-		"test": "vitest run -c vitest.node.config.mts",
-		"test:node": "vitest run -c vitest.node.config.mts",
+		"test": "pnpm run test:node",
+		"test:node": "pnpm run test:node:fast && pnpm run test:node:isolated",
+		"test:node:fast": "vitest run -c vitest.node-fast.config.mts",
+		"test:node:isolated": "vitest run -c vitest.node-isolated.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 pnpm exec tsx ./scripts/run-with-local-env.ts vitest run -c vitest.shared-db.config.mts",
 		"typecheck": "tsc --noEmit"
@@ -18,7 +21,7 @@
 	"dependencies": {
 		"@better-auth/core": "1.6.23",
 		"@better-auth/oauth-provider": "1.6.23",
-		"@campus-agent/dining": "file:../../packages/domains/dining",
+		"@campus-agent/dining": "workspace:*",
 		"@hono/zod-openapi": "^1.4.0",
 		"@sentry/cloudflare": "^10.64.0",
 		"better-auth": "^1.6.23",
@@ -26,7 +29,7 @@
 		"drizzle-orm": "^0.45.2",
 		"fast-xml-parser": "^5.9.3",
 		"hono": "^4.12.28",
-		"ingestion-contracts": "file:../../packages/ingestion-contracts",
+		"ingestion-contracts": "workspace:*",
 		"pg": "^8.22.0",
 		"zod": "^4.4.3"
 	},

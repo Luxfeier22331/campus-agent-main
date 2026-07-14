@@ -80,8 +80,8 @@ pre-commit install
 pnpm repo:static
 pnpm ci:rust
 pnpm ci:contracts
-pnpm ci:ingest
 pnpm ci:eval
+pnpm ci:typescript
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
@@ -92,7 +92,7 @@ pnpm web:test:worker
 - `pnpm web:build` 是 full build lane；构建 campus-web docs surface 时需要已有 docs
   read-model sync manifest，或可访问 app-api operator database 的
   `APP_API_OPERATOR_DATABASE_URL` 等内部配置
-- `pnpm ci:web` 是 PR 阻塞用的 JS/TS affected typecheck + test lane；
+- `pnpm ci:typescript` 是 PR 阻塞用的 JS/TS affected typecheck + test lane；
   不包含 `pnpm web:build`
 - `pnpm web:test:integration` 只在触及 `app-api` shared DB / integration lane 时显式执行，并且需要
   shared DB / Hyperdrive local connection env
@@ -151,9 +151,14 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 - Dependabot PR 按依赖生态运行 `.github/workflows/pr.yml` 选择的 owner lanes；本地至少运行
   `pnpm ci:deps` 与受影响的 Node、Python、Go 或 Rust owner 验证
 - `pnpm ci:config` 直接运行 actionlint 与 zizmor；新增 GitHub Action 时优先使用
-  官方维护、固定版本的 action，并按 zizmor 结果处理权限与引用风险
-- PR 默认 secret scan 由 `gitleaks/gitleaks-action@v3` 执行；组织 / private
-  阶段需要配置 `GITLEAKS_LICENSE`，它不替代 GitHub Secret Protection 或历史泄漏审计
+  官方维护的 action，将引用固定到完整 commit SHA，并按 zizmor 结果处理权限与引用风险
+- PR 的 `static` job 使用固定 manifest digest 的 Gitleaks CLI 镜像扫描本次提交范围；
+  不需要 `GITLEAKS_LICENSE`，也不替代 GitHub Secret Protection 或历史泄漏审计
+- 当前 private repo 的可信 self-hosted runner 只运行受控分支和 PR。仓库开放 public PR
+  前必须把 PR 与 scheduled checks 切换到 GitHub-hosted runner，不能在集群宿主机执行
+  fork 提交的代码
+- 可信 CI 的 Turbo remote cache 必须配置至少 32 字节的
+  `TURBO_REMOTE_CACHE_SIGNATURE_KEY`；cache token 与签名 key 都不得暴露给 fork PR
 - CodeQL、Dependency Review 和 artifact attestation 需要先确认 private repo 的 GitHub
   security / supply-chain 功能可用；未确认前，不把这些检查写成无条件 PR blocker
 - release image、release bundle 或 deployment 产物类 PR 必须说明是否需要

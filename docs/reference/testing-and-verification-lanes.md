@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-07-10
+updated: 2026-07-13
 ---
 # Testing And Verification Lanes
 
@@ -16,14 +16,25 @@ configuration.
 
 ## CI Model
 
-GitHub Actions keeps one automatic PR / main workflow:
+GitHub Actions keeps one automatic PR workflow:
 `.github/workflows/pr.yml`.
 
 - Workflow responsibility: event trigger, changed-surface routing, GitHub-native
   security actions and the stable `required` aggregate job.
 - `dorny/paths-filter` is the only changed-surface classifier. Generic tools run
   directly in their jobs; domain and contract assertions run through owner
-  package/app lanes.
+  package/app lanes. The TypeScript lane routes all files under Node owner
+  directories instead of maintaining a source-extension allowlist; only each
+  owner directory's root `README.md` is excluded.
+- `changes` performs runner preflight, resolves the comparison base and emits
+  every lane and image decision from that single classifier invocation.
+- `static` always scans the pull-request commit range for secrets and runs the
+  repository hygiene lane. It conditionally adds workflow, Python, YAML, SQL,
+  Dockerfile, shell and dependency checks without repeating checkout or setup.
+- `node` shares one pnpm workspace install across the conditional Contracts,
+  affected TypeScript, Worker and Eval steps. `go`, `rust` and `infra` remain
+  separate owner jobs; `image-scan` builds only changed runtime images after
+  their source checks succeed.
 - Branch protection should require `pr / required`, not every conditional job
   name. Conditional jobs may be skipped when their surface is untouched.
 - Repository rulesets should protect `main` with pull requests,
@@ -35,8 +46,8 @@ GitHub Actions keeps one automatic PR / main workflow:
 - Skipped conditional jobs are acceptable only when changed-surface detection
   correctly marks the untouched surface as out of scope.
 
-GitHub Environments own deploy credential separation. `staging` may be used by
-`.github/workflows/deploy-staging.yml` after successful `pr` on `main`.
+GitHub Environments own deploy credential separation. `staging` is used by
+`.github/workflows/deploy-staging.yml` after a successful PR merges to `main`.
 The `staging` environment keeps only deploy credentials and deploy-time public
 configuration: `CLOUDFLARE_API_TOKEN` as a secret, and
 `CLOUDFLARE_ACCOUNT_ID`, `STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY`,
@@ -45,10 +56,10 @@ Execution-control staging upstream is a Worker VPC Service binding plus
 Kubernetes `cloudflared` connector, so GitHub deploy does not carry an
 execution-control public URL. Staging operator DB credentials and runtime
 secrets belong to ops smoke / closeout, Cloudflare Worker secrets or K8s secret
-delivery, not the GitHub staging deploy workflow. `production` is used only by
-`.github/workflows/production-preflight.yml` until real production deploy
-scripts and rollback are explicitly wired. Manual image build / push and
-controlled release validation stay outside ordinary PR blockers.
+delivery, not the GitHub staging deploy workflow. Production automation does
+not exist until real deploy, approval and rollback behavior are explicitly
+wired. Manual image publication and controlled release validation stay outside
+ordinary PR blockers.
 Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a GitHub
 Actions workflow.
 
@@ -70,9 +81,12 @@ its desired state.
 a weekly schedule and through manual dispatch. It is for drift / regression
 detection after PR-level affected checks have kept ordinary feedback cheap.
 
-- It runs `pnpm ci:repo`, `pnpm ci:web:full`, `pnpm ci:contracts`,
-  `pnpm ci:ingest`, `pnpm ci:eval`, `pnpm ci:go`, `pnpm ci:rust` and the
-  OSV-Scanner reusable workflow.
+- It runs `pnpm ci:repo`, `pnpm ci:typescript:full`, `pnpm ci:contracts`,
+  `pnpm ci:eval`, `pnpm ci:go`, `pnpm ci:rust` and the local OSV-Scanner
+  dependency job.
+- Repository, Contracts, TypeScript and Eval checks share one serial Node job
+  and one dependency installation. Go, Rust and dependency scanning retain
+  separate owner jobs.
 - It must not define `pull_request` triggers or participate in
   `pr / required`.
 - It may use explicitly allowed CI infrastructure credentials, such as Turbo
@@ -81,18 +95,47 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 - It is not a PR blocker, release closeout, deployment validation, eval scoring
   lane or image publishing lane.
 
+## CI Cache And Resource Policy
+
+- Turbo is the only task-result cache for JS/TS typecheck, unit-test, Worker
+  test and hermetic Worker build tasks. Package-external files read by a task
+  must be declared in that task's Turbo inputs, including root configuration
+  files and workspace package sources read from owner tests or builds.
+- Remote Turbo artifacts are HMAC signed. Trusted CI supplies a random
+  `TURBO_REMOTE_CACHE_SIGNATURE_KEY` of at least 32 bytes together with its
+  cache token; neither secret may be exposed to fork pull requests. Missing
+  remote-cache credentials must degrade to local execution, not fail a public
+  contribution.
+- Self-hosted CI runs Turbo with concurrency `1` and reuses persistent pnpm,
+  Go, uv, Cargo, BuildKit and Trivy caches without uploading language caches to
+  GitHub Actions. GitHub-hosted runners may use Actions dependency caches.
+- TypeScript jobs publish `scripts/ci/turbo-summary.sh` output to the GitHub job
+  summary so cache hits and executed tasks over 30 seconds remain visible.
+- Large Vitest owners stay at one worker. Files proven safe to share one module
+  environment use non-isolated configs; files with process-global mocks or
+  mutable module state use the `*.isolated.test.*` convention and a separate
+  config. Never disable isolation for an entire owner without running both
+  groups and proving that file-order changes cannot leak mocks.
+- Cloudflare Workers Vitest projects also set `fileParallelism: false` and
+  `maxWorkers: 1`. Turbo concurrency limits package tasks, not the number of
+  `workerd` processes that the Workers pool starts for test files.
+- Dependency and image vulnerability scans, integration tests and staging or
+  release checks never reuse a cached success result.
+- Do not cache or upload `node_modules`.
+- The current private-repository self-hosted runner is trusted infrastructure.
+  Before accepting public pull requests, move PR and scheduled checks to
+  GitHub-hosted runners; never execute untrusted fork code on the cluster host.
+
 ## Security / Supply Chain Lanes
 
 - Secret scanning:
-  - PR CI uses `gitleaks/gitleaks-action@v3` in the `secrets` job.
-  - Organization/private operation requires `GITLEAKS_LICENSE` in GitHub
-    Secrets until repository ownership / visibility no longer requires it.
+  - PR CI uses the pinned multi-architecture Gitleaks CLI image in the
+    `static` job and scans the PR commit range.
   - `pre-commit` also runs the Gitleaks staged-file hook for local hygiene.
   - It does not replace GitHub Secret Protection or historical leak response.
 - Dependency vulnerability scanning:
-  - PR and scheduled CI use the Google OSV-Scanner reusable workflows in
-    explicit lockfile mode for the pnpm, uv, Cargo and Go dependency graphs.
-  - `pnpm ci:deps` is the local CLI equivalent for manual verification.
+  - PR and scheduled CI run `pnpm ci:deps` in explicit lockfile mode for the
+    pnpm, uv, Cargo and Go dependency graphs.
   - Any vulnerability exception must live in `osv-scanner.toml` with advisory
     id, reason and `ignoreUntil`; do not hide exceptions in workflow logic.
   - Root pnpm override rationale and removal conditions live in
@@ -100,6 +143,9 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - Dependabot PRs should record the dependency lane result in the PR.
 - Workflow security:
   - `pnpm ci:config` directly runs actionlint and zizmor.
+  - Every external GitHub Action is pinned to a full commit SHA and every CI
+    tool container is pinned to a multi-architecture manifest digest. Keep the
+    readable release version in the adjacent comment or image tag.
   - The repo does not maintain a second workflow topology, action allowlist or
     semantic fixture framework.
 - CodeQL / Dependency Review / artifact attestations:
@@ -112,21 +158,21 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 
 - Always-on PR blockers:
   - `pnpm ci:repo`.
-  - `gitleaks/gitleaks-action@v3` in the `secrets` job.
+  - Gitleaks PR commit-range scan in the `static` job.
   - `pr / required`.
 - Conditional PR blockers from changed-surface detection:
   - actionlint and zizmor for `.github/**`.
   - Ruff/uv, yamllint, SQLFluff, Hadolint, ShellCheck and Kustomize/Conftest for
     their matching file surfaces.
-  - `pnpm ci:web`.
+  - `pnpm ci:typescript`.
   - `pnpm ci:worker`.
   - `pnpm ci:contracts`.
   - `pnpm ci:go`.
   - `pnpm ci:rust`.
   - `pnpm ci:eval`.
-  - `pnpm ci:ingest`.
   - OSV-Scanner dependency scan for dependency manifests, lockfiles and Go
     module files.
+  - Native image build and Trivy scan for affected first-party runtime images.
 
 ## Repo Lanes
 
@@ -151,15 +197,16 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - It proves automation shape, not business runtime behavior.
 - `pnpm ci:deps`
   - Local OSV-Scanner scan over the pnpm, uv, Cargo and Go dependency graphs.
-  - CI uses the OSV-Scanner reusable workflows rather than a repo-owned wrapper.
+  - PR and scheduled CI run the same command on their selected runner.
 - `pnpm ci:worker`
   - Worker owner tests, Worker runtime tests and hermetic Worker/app build smoke
     for app-api, campus-web and operator-console-web.
-  - Uses Wrangler dry-run for app-api and app-local build scripts for browser
-    Worker shells.
+  - Uses Turbo-owned Wrangler dry-run for app-api and app-local build tasks for
+    browser Worker shells; declared build outputs may be restored from signed
+    remote cache artifacts.
   - Does not run `campus-web build:docs`, staging deploy, production deploy or
     browser E2E.
-- `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:web:full`
+- `pnpm web:typecheck`, `pnpm web:test`, `pnpm ci:typescript:full`
   - JS/TS stable graph checks.
   - `pnpm web:test` is the stable default lane, not all Worker / integration
     tests.
@@ -177,25 +224,23 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 
 ## Conditional CI Lanes
 
-- `pnpm ci:web`
-  - Affected JS/TS typecheck / test lane for app, package and job code.
+- `pnpm ci:typescript`
+  - The only affected JS/TS typecheck / unit-test lane for app, package and job
+    code. Turbo owns task selection, dependency ordering and result caching.
 - `pnpm ci:worker`
   - Worker runtime test and Worker/app build lane for app-api, campus-web,
     operator-console-web and runtime config changes.
 - `pnpm ci:contracts`
-  - `packages/contracts` TS typecheck / Vitest contract tests, contract schema
-    generation/checks and a thin Python adapter smoke suite.
+  - Contract schema generation and canonical JSON Schema/OpenAPI checks.
+    TypeScript contract tests run once in `pnpm ci:typescript`.
 - `pnpm ci:go`
   - Execution-control Go static checks and tests.
 - `pnpm ci:rust`
   - Rust ingestion kernel formatting, Clippy checks and tests.
 - `pnpm ci:eval`
-  - Eval-langfuse typecheck/test/audit, isolated Ragas runner tests and app-api
-    Langfuse trace-id vector check.
-- `pnpm ci:ingest`
-  - `packages/ingestion-contracts` and `packages/ingest-core` typecheck/tests,
-    repository registry executability and the thin Python adapter smoke suite.
-- OSV-Scanner reusable workflow
+  - Eval-langfuse audit and isolated Ragas runner tests. Eval and app-api
+    TypeScript tests run once in `pnpm ci:typescript`.
+- OSV-Scanner dependency job
   - Dependency vulnerability lane for dependency manifests, lockfiles and Go
     module files.
 
@@ -208,11 +253,11 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 | Package-local `package.json` | owning surface lane, affected JS/TS lane and OSV-Scanner dependency scan | A local manifest must not fan out to unrelated Contracts, Worker, Eval or Ingest lanes. |
 | Root Python workspace files or `uv.lock` | Python and all Python-backed owner lanes plus OSV-Scanner dependency scan | Root dependency graph changes can affect every uv workspace package. |
 | Package-local `pyproject.toml` | Python, owning surface lane and OSV-Scanner dependency scan | A local manifest must not fan out to unrelated Python-backed owner lanes. |
-| `apps/execution-control/` or runtime tool config | `pnpm ci:go` plus contract / Worker lanes when runtime config changes | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
-| `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:go` and `pnpm ci:worker` | Treat runtime config as model-visible / runtime-facing until proven otherwise. |
+| Execution-control Go code, Go module / lint config, query-serving `serving-config.json` or a runtime artifact read by execution-control | `pnpm ci:go`; add contract / Worker lanes when their inputs also change | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
+| `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:typescript` and `pnpm ci:worker`; add `pnpm ci:go` only for execution-control, query-serving scope, tool schema / registry or workflow artifact inputs | Do not route unrelated runtime configuration through Go checks. |
 | `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:eval` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
-| ingestion contract package | `pnpm ci:ingest` plus `pnpm ci:web` when TS package code changes | Release / alias publish closeout stays in the owning ingestion runbook. |
-| ingestion apps, source collectors, ingest-core or configs | `pnpm ci:ingest`, plus `pnpm ci:web` for TS workspace code | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion contract package | `pnpm ci:contracts` plus `pnpm ci:typescript` | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion apps, source collectors, ingest-core or configs | `pnpm ci:typescript` | Release / alias publish closeout stays in the owning ingestion runbook. |
 | Rust ingestion kernels or Cargo workspace files | `pnpm ci:rust` | Run OSV-Scanner as well when Cargo manifests or the lockfile change. |
 | release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
@@ -268,15 +313,21 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - Manual dining-sync image build / optional GHCR push workflow.
   - It builds a local image, blocks on Trivy HIGH / CRITICAL findings, and
     generates an SBOM artifact when `push_image=true`.
-- `.github/workflows/execution-runtime-image.yml`
-  - Pull-request image build and vulnerability scan for `execution-control` and
-    `agent-runtime`; it has no package-write or environment-repository access.
+- `pr / image-scan`
+  - Builds and scans only affected `execution-control`, `agent-runtime`,
+    `app-api-schema`, `ops-web` and `transport-publisher` images.
+  - The trusted self-hosted path reuses one disk-bounded BuildKit builder and a
+    persistent Trivy database, then removes loaded PR image tags after scanning.
+  - It is included in `pr / required`.
 - `.github/workflows/execution-runtime-publish.yml`
-  - Pushes to `main`, or manual dispatch with `push_image=true`, publish
-    `${{ github.sha }}` tags and generate SBOM artifacts.
-  - A successful `main` build resolves both image digests and opens an
-    environment-repository pull request that updates source SHA, digests and
-    runtime release id. It never writes directly to environment `main`.
+  - A `main` push publishes only affected multi-architecture SHA candidates;
+    manual dispatch publishes all managed candidates.
+  - BuildKit attaches an OCI SBOM, then Trivy scans both amd64 and arm64 by
+    manifest digest. GitOps promotion starts only after every scan passes.
+  - The environment pull request updates only image entries that already exist
+    in GitOps and source refs only when Kubernetes bases changed. A changed K8s
+    source ref, `execution-control` image or `agent-runtime` image must match at
+    least one GitOps consumer; zero matches fail promotion.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
   - It is not a PR blocker and must not be treated as branch protection
@@ -285,11 +336,11 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - Scheduled / manual full repository health check.
   - It is not a PR blocker and does not replace staging release closeout.
 - `.github/workflows/deploy-staging.yml`
-  - Automatic staging deployment after successful `pr` on `main`, and
+  - Automatic staging deployment after a successful PR merges to `main`, and
     manual dispatch for a selected ref.
-  - It binds the GitHub `staging` environment, runs existing app-local staging
-    deploy scripts, then checks product-surface health. It does not check
-    execution runtime readiness before the GitOps promotion is merged.
+  - It deploys and checks only affected app-api, campus-web or operator console
+    surfaces. It does not check execution runtime readiness before the GitOps
+    promotion is merged.
   - Its GitHub secret surface is limited to Cloudflare deploy auth. App-api
     staging reaches execution-control through the committed
     `EXECUTION_CONTROL_PRIVATE` VPC Service binding and non-secret
@@ -297,14 +348,6 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     closeout paths.
   - Full staging validation is completed by the environment repository after
     promotion; this source workflow is not a PR blocker.
-- `.github/workflows/production-preflight.yml`
-  - Protected production release preflight through manual dispatch and the
-    GitHub `production` environment.
-  - It verifies the selected ref is on `main` history and runs Worker build
-    preflight. It does not deploy production until production app deploy scripts
-    and rollback are explicitly added.
-  - It does not validate Kubernetes deployment. K8s deployment validation
-    starts only after the environment GitOps bootstrap prerequisites are live.
 
 ## Rules
 

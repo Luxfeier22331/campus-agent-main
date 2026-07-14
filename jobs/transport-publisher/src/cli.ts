@@ -2,10 +2,10 @@
 
 import { readFile } from "node:fs/promises";
 import { stdin } from "node:process";
-import { readTransportPublisherDatabaseConfig } from "./database";
-import { PostgresTransportPublisher } from "./postgres-publisher";
-import { prepareTransportPublication } from "./publication";
-import { installCampusServicesSchema } from "./schema";
+import { readTransportPublisherDatabaseConfig } from "./database.ts";
+import { PostgresTransportPublisher } from "./postgres-publisher.ts";
+import { prepareTransportPublication } from "./publication.ts";
+import { installCampusServicesSchema } from "./schema.ts";
 
 async function readStdin(): Promise<string> {
 	const chunks: Buffer[] = [];

@@ -2,8 +2,6 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
-		environment: "node",
-		include: ["adapters/**/*.test.ts"],
-		fileParallelism: false,
+		projects: ["vitest.fast.config.mts", "vitest.isolated.config.mts"],
 	},
 });

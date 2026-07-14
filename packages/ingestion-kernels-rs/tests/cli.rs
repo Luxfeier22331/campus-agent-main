@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn run_kernel(args: &[&str], stdin: &str) -> std::process::Output {
-    let binary = std::env::var("CARGO_BIN_EXE_ingestion-kernel-runner")
-        .expect("CARGO_BIN_EXE_ingestion-kernel-runner");
+    let binary = env!("CARGO_BIN_EXE_ingestion-kernel-runner");
     let mut child = Command::new(binary)
         .args(args)
         .stdin(Stdio::piped())

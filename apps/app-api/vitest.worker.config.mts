@@ -11,11 +11,13 @@ export default defineProject({
 		}),
 	],
 	test: {
+		fileParallelism: false,
 		name: "app-api-worker",
 		include: [
 			"test/federation-runtime-readiness.test.ts",
 			"test/worker.test.ts",
 			"test/worker-scheduled-sweepers.test.ts",
 		],
+		maxWorkers: 1,
 	},
 });

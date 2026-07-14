@@ -1,0 +1,38 @@
+name: run-osv-scan
+description: Run OSV-Scanner with a checksum-verified release binary.
+inputs:
+  version:
+    description: OSV-Scanner release tag.
+    required: false
+    default: v2.3.8
+runs:
+  using: composite
+  steps:
+    - name: Scan dependencies
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}/${RUNNER_ARCH}" in
+          Linux/X64) asset=osv-scanner_linux_amd64 ;;
+          Linux/ARM64) asset=osv-scanner_linux_arm64 ;;
+          *) echo "Unsupported OSV-Scanner platform: ${RUNNER_OS}/${RUNNER_ARCH}" >&2; exit 1 ;;
+        esac
+
+        install_dir="${RUNNER_TOOL_CACHE}/osv-scanner/${VERSION}/${RUNNER_ARCH}"
+        binary="${install_dir}/osv-scanner"
+        if [[ ! -x "$binary" ]]; then
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          base_url="https://github.com/google/osv-scanner/releases/download/${VERSION}"
+          curl --fail --location --silent --show-error "${base_url}/${asset}" --output "${tmp_dir}/${asset}"
+          curl --fail --location --silent --show-error "${base_url}/osv-scanner_SHA256SUMS" --output "${tmp_dir}/SHA256SUMS"
+          grep "  ${asset}$" "${tmp_dir}/SHA256SUMS" > "${tmp_dir}/${asset}.sha256"
+          (cd "$tmp_dir" && sha256sum --check "${asset}.sha256")
+          mkdir -p "$install_dir"
+          install -m 0755 "${tmp_dir}/${asset}" "$binary"
+        fi
+
+        "$binary" --version
+        PATH="${install_dir}:${PATH}" "${GITHUB_WORKSPACE}/scripts/ci/osv-scan.sh"

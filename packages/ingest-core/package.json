@@ -15,7 +15,7 @@
 	"dependencies": {
 		"canonical-json": "^0.4.0",
 		"cheerio": "1.2.0",
-		"ingestion-contracts": "file:../ingestion-contracts",
+		"ingestion-contracts": "workspace:*",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {

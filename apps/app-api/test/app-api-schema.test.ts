@@ -62,6 +62,7 @@ describe("app-api schema installer", () => {
 		) as { dependencies: Record<string, string> };
 
 		expect(dockerfile).toContain("ops/db/schema.ts");
+		expect(dockerfile).toContain("--prod --no-optional");
 		expect(dockerfile).toContain("USER node");
 		expect(dockerfile).not.toContain("wrangler");
 		expect(Object.keys(packageManifest.dependencies).sort()).toEqual([
