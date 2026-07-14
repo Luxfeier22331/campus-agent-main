@@ -2,6 +2,12 @@ name: execution-runtime-publish
 
 on:
   workflow_dispatch:
+    inputs:
+      promote:
+        description: Open or update the staging GitOps promotion pull request
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       - main
@@ -108,6 +114,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "${{ inputs.promote || false }}" = "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Manual promotion is allowed only from main." >&2
+            exit 1
+          fi
           images=()
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             images=(execution-control agent-runtime app-api-schema ops-web transport-publisher)
@@ -189,20 +199,48 @@ jobs:
             repository="ghcr.io/${GITHUB_REPOSITORY,,}/${image}"
             tag="${repository}:${GITHUB_SHA}"
             metadata_file="build-metadata-${image}.json"
-            docker buildx build \
-              --file "$dockerfile" \
-              --platform linux/amd64,linux/arm64 \
-              --pull \
-              --push \
-              --sbom=true \
-              --metadata-file "$metadata_file" \
-              --tag "$tag" \
-              .
-            digest="$(
-              jq -er \
-                '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
-                "$metadata_file"
-            )"
+            inspect_file="inspect-${image}.json"
+            inspect_error="inspect-${image}.error"
+            if docker buildx imagetools inspect "$tag" --format '{{json .}}' \
+              > "$inspect_file" 2> "$inspect_error"; then
+              if ! jq -e '
+                (.manifest.mediaType == "application/vnd.oci.image.index.v1+json" or
+                  .manifest.mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+                (.manifest.digest | test("^sha256:[0-9a-f]{64}$")) and
+                ([.manifest.manifests[]? |
+                  select(.platform.os == "linux" and .platform.architecture == "amd64")] |
+                  length == 1) and
+                ([.manifest.manifests[]? |
+                  select(.platform.os == "linux" and .platform.architecture == "arm64")] |
+                  length == 1)
+              ' "$inspect_file" >/dev/null; then
+                echo "Existing immutable tag is incomplete or invalid: ${tag}." >&2
+                exit 1
+              fi
+              digest="$(jq -er '.manifest.digest' "$inspect_file")"
+              echo "Reusing ${tag}@${digest}."
+            else
+              if ! rg -qi 'manifest unknown|not found' "$inspect_error"; then
+                cat "$inspect_error" >&2
+                exit 1
+              fi
+              docker buildx build \
+                --file "$dockerfile" \
+                --platform linux/amd64,linux/arm64 \
+                --pull \
+                --push \
+                --sbom=true \
+                --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+                --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+                --metadata-file "$metadata_file" \
+                --tag "$tag" \
+                .
+              digest="$(
+                jq -er \
+                  '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
+                  "$metadata_file"
+              )"
+            fi
             for platform in linux/amd64 linux/arm64; do
               trivy image \
                 --cache-dir "$trivy_cache_dir" \
@@ -221,7 +259,8 @@ jobs:
 
       - name: Create GitOps promotion token
         if: >-
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || inputs.promote) &&
           (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
@@ -235,7 +274,8 @@ jobs:
 
       - name: Checkout GitOps repository
         if: >-
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || inputs.promote) &&
           (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
@@ -246,7 +286,8 @@ jobs:
 
       - name: Update GitOps desired state
         if: >-
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || inputs.promote) &&
           (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: source
         shell: bash
@@ -347,7 +388,9 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Detect GitOps changes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || inputs.promote)
         id: promotion
         shell: bash
         run: |

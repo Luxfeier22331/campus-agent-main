@@ -80,6 +80,22 @@ runtime 由环境仓 promotion pull request 与 Argo CD 承接。
 1. staging 验证只在环境仓 post-promotion workflow 确认 `app-api /readyz`
    报告目标 runtime release 后才视为完成。
 
+### 镜像发布失败后的恢复
+
+镜像以 source commit SHA 作为不可变 tag。发布任务中途失败时，不创建新 commit，
+在 `main` 上对同一个 SHA 手动运行 `execution-runtime-publish`：
+
+1. 保持 `promote=false`，先恢复缺失镜像。任务会复用已经完整发布的 amd64/arm64
+   manifest，只构建缺失 tag，并重新扫描两个平台。
+1. 如果已有 tag 缺平台或 manifest 无效，任务会停止，不覆盖该 tag；先调查 registry
+   状态，不能用重复构建掩盖不可变 tag 冲突。
+1. 所有镜像发布成功后，对同一个 `main` SHA 再运行一次并设置 `promote=true`，创建
+   或更新环境仓 promotion pull request。
+1. promotion 没有产生环境仓差异时，不应创建重复 pull request。
+
+恢复过程不得改用 mutable tag、手工改写现有 commit tag，或绕过环境仓直接修改
+集群。
+
 ## Production Release
 
 production 不从 feature branch 或 worktree 直接取 ref。

@@ -66,6 +66,10 @@ Actions workflow.
 First-party K8s images are published with the source commit SHA and selected in
 the environment repository by multi-architecture manifest digest. Mutable
 staging tags and node-local image cache state are not deployment inputs.
+Publishing the same commit again must reuse an existing valid amd64/arm64
+manifest, rerun both platform vulnerability scans and leave its immutable tag
+unchanged. A missing tag may be built; an incomplete or invalid existing tag
+must fail closed instead of being overwritten.
 
 K8s/GitOps deployment validation is gated by live infrastructure bootstrap.
 Do not treat source-repository bases as deployed truth. Claim deployment
@@ -97,6 +101,14 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 
 ## CI Cache And Resource Policy
 
+- Measure workflow queue time separately from job execution time. Runner queue
+  delay is capacity evidence; it must not be reported as a slow build or test.
+- Record both cold-cache and hot-cache execution time when evaluating a cache
+  or Runner change. A hot result alone does not prove a clean Runner can finish
+  within the expected time.
+- Review every step that executes for more than 30 seconds. Keep it only when
+  it owns required verification or release work, and document whether its cost
+  is expected to fall through a persistent cache.
 - Turbo is the only task-result cache for JS/TS typecheck, unit-test, Worker
   test and hermetic Worker build tasks. Package-external files read by a task
   must be declared in that task's Turbo inputs, including root configuration

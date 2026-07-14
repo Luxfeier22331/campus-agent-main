@@ -71,11 +71,24 @@ jobs:
           ref: ${{ steps.deploy_ref.outputs.ref }}
 
       - name: Verify ref is on main history
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          git merge-base --is-ancestor HEAD origin/main
+          candidate_sha="$(git rev-parse HEAD)"
+          comparison="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...main" \
+              --jq '.status'
+          )"
+          case "$comparison" in
+            identical|ahead) ;;
+            *)
+              echo "Ref ${candidate_sha} is not on main history (comparison: ${comparison})." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Detect changed applications
         if: github.event_name == 'push'
