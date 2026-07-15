@@ -1,25 +1,24 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: temporal.io/v1alpha1
+kind: WorkerDeployment
 metadata:
-  name: workflow-worker
+  name: execution-workflow
   labels:
-    app.kubernetes.io/name: workflow-worker
+    app.kubernetes.io/name: execution-workflow
     app.kubernetes.io/part-of: campus-agent
-    campus-agent.muc.wiki/temporal-task-queue: workflow
 spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: workflow-worker
+  workerOptions:
+    connectionRef:
+      name: campus-agent-temporal
+    temporalNamespace: default
+  rollout:
+    strategy: AllAtOnce
+  sunset:
+    scaledownDelay: 1h
+    deleteDelay: 24h
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: workflow-worker
+        app.kubernetes.io/name: execution-workflow
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
@@ -48,28 +47,27 @@ spec:
             limits:
               memory: 1Gi
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: temporal.io/v1alpha1
+kind: WorkerDeployment
 metadata:
-  name: activity-worker-core
+  name: execution-core
   labels:
-    app.kubernetes.io/name: activity-worker-core
+    app.kubernetes.io/name: execution-core
     app.kubernetes.io/part-of: campus-agent
-    campus-agent.muc.wiki/temporal-task-queue: activity-core
 spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-core
+  workerOptions:
+    connectionRef:
+      name: campus-agent-temporal
+    temporalNamespace: default
+  rollout:
+    strategy: AllAtOnce
+  sunset:
+    scaledownDelay: 1h
+    deleteDelay: 24h
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: activity-worker-core
+        app.kubernetes.io/name: execution-core
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
@@ -120,28 +118,27 @@ spec:
               - key: provider-config-projection.json
                 path: provider-config-projection.json
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: temporal.io/v1alpha1
+kind: WorkerDeployment
 metadata:
-  name: activity-worker-agent
+  name: execution-agent
   labels:
-    app.kubernetes.io/name: activity-worker-agent
+    app.kubernetes.io/name: execution-agent
     app.kubernetes.io/part-of: campus-agent
-    campus-agent.muc.wiki/temporal-task-queue: activity-agent
 spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-agent
+  workerOptions:
+    connectionRef:
+      name: campus-agent-temporal
+    temporalNamespace: default
+  rollout:
+    strategy: AllAtOnce
+  sunset:
+    scaledownDelay: 1h
+    deleteDelay: 24h
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: activity-worker-agent
+        app.kubernetes.io/name: execution-agent
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime

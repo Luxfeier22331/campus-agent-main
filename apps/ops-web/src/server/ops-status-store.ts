@@ -156,7 +156,7 @@ export interface OpsRequestObservabilityRow {
 	projectionLagMs: number | null;
 	refusalClass: string | null;
 	requestId: string;
-	scopeClass: string | null;
+	resolvedTargetsJson?: unknown;
 	semanticOutcome: string | null;
 	stageTimingJson?: unknown;
 	supportingSourcesJson?: unknown;

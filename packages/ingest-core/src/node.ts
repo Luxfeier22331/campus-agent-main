@@ -41,7 +41,7 @@ export function listIngestionTaskRegistryFiles(root: string): string[] {
 		if (entry.isDirectory()) {
 			return listIngestionTaskRegistryFiles(path);
 		}
-		return entry.name === "task-registry.v2.json" ? [path] : [];
+		return entry.name === "task-registry.v3.json" ? [path] : [];
 	});
 }
 

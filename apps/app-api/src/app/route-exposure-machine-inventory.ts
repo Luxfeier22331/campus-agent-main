@@ -34,44 +34,8 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/authenticated-notices/run-processing-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/official-web/release-task-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
 		path: "/api/internal/staging-smoke/auth/session",
 		callerClass: "machine-internal",
 		admission: "staging environment plus x-app-staging-smoke-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/wechat-official-account/runs",
-		callerClass: "collector-machine",
-		admission: "wechat official-account collector bearer token",
-	},
-	{
-		method: "POST",
-		path: "/api/wechat-official-account/runs/:runId/finalize",
-		callerClass: "collector-machine",
-		admission: "wechat official-account collector bearer token",
-	},
-	{
-		method: "POST",
-		path: "/api/wechat-official-account/runs/:runId/heartbeats",
-		callerClass: "collector-machine",
-		admission: "wechat official-account collector bearer token",
 	},
 ] as const satisfies readonly AppApiRouteExposure[];

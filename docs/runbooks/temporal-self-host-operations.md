@@ -1,127 +1,113 @@
 ---
 doc_type: runbook
 truth_scope: ops
-owner_boundary: temporal
+owner_boundary: temporal-platform
 status: active
-created: 2026-04-19
-updated: 2026-07-12
+created: 2026-07-03
+updated: 2026-07-13
 ---
-
 # Temporal Operations
 
-## 范围
+## Platform Baseline
 
-本文说明自托管 Temporal 的日常检查、worker queue 和 KEDA 故障定位。它不定义产品请求
-状态、发布验收循环或一次性 staging closeout。
+- Temporal Server `>= 1.29.1`
+- Temporal Worker Controller `>= 1.8.0`
+- KEDA `>= 2.20`
+- cert-manager available to the WorkerResourceTemplate webhook
 
-## 权威来源
+Worker Controller must be installed before runtime WorkerDeployments. Its Helm
+allowed-resource list must include KEDA `ScaledObject` and policy/v1
+`PodDisruptionBudget`; the controller and GitOps principal need RBAC for both.
 
-- workflow history、retry、timeout、cancel、Signal/Update：Temporal；
-- run/event/step/tool projection：execution-control PostgreSQL；
-- worker replica：KEDA/HPA 和 Kubernetes Deployment status；
-- 人工队列摘要：execution-control 内部 Temporal queue endpoint；
-- logs/metrics/traces：OpenTelemetry/OpenObserve。
+## Ownership
 
-不要从 app-api projection、telemetry 或 chat transcript 重建 Temporal history。
+- Argo CD: platform charts, Connections, WorkerDeployments,
+  WorkerResourceTemplates, ConfigMaps, Secrets, image digests, and sync order.
+- Temporal: workflow history, task routing, retry, timeout, heartbeat,
+  cancellation, and Worker Deployment version routing.
+- KEDA/HPA: replicas for each active worker build.
+- Applications: deterministic workflow/activity code and bounded projections.
 
-## Namespace
+Workflows never call Argo CD or Kubernetes. A deployment never rewrites
+workflow history or product projections.
 
-确认 namespace 已注册且 retention 符合环境策略：
+## Change Procedure
 
-```bash
-temporal operator namespace describe \
-  --address "$EXECUTION_CONTROL_TEMPORAL_ADDRESS" \
-  --namespace "$EXECUTION_CONTROL_TEMPORAL_NAMESPACE"
-```
+1. Confirm Temporal/KEDA/Worker Controller versions satisfy the baseline.
+2. Render source and environment Kustomize overlays.
+3. Run kubeconform with custom-resource schemas skipped or supplied.
+4. Select immutable image digests in GitOps.
+5. Let Argo CD apply the new WorkerDeployment pod template.
+6. Watch the target build register pollers and become current.
+7. Confirm old builds drain and their generated resources follow sunset policy.
 
-namespace bootstrap 由环境平台管理，不由 worker 启动时隐式创建。
+Do not patch controller-created version Deployments directly. Change the parent
+WorkerDeployment template and let the controller reconcile.
 
-## Worker Pollers
-
-固定队列：
-
-- `campus-agent.workflow`
-- `campus-agent.activity.core`
-- `campus-agent.activity.agent`
-
-检查 execution-control readiness：
-
-```bash
-curl -fsS "$EXECUTION_CONTROL_INTERNAL_BASE_URL/readyz" \
-  -H "x-internal-shared-secret: $EXECUTION_CONTROL_SHARED_SECRET"
-```
-
-`temporal_runtime.task_queue_pollers` 必须包含三个队列。Temporal 的 recent poller 窗口不是
-永久注册表；Deployment rollout 时允许短暂波动，但持续为零表示 worker 不可用。
-
-## Ops Web 队列接口
+## Status
 
 ```bash
-curl -fsS "$EXECUTION_CONTROL_INTERNAL_BASE_URL/internal/ops/temporal/task-queues" \
-  -H "authorization: Bearer $EXECUTION_CONTROL_METRICS_BEARER_TOKEN"
+kubectl get connection
+kubectl get workerdeployment -o wide
+kubectl get workerresourcetemplate
+kubectl get deployment,scaledobject,poddisruptionbudget
 ```
 
-响应展示 backlog、oldest task age 和 poller count。某个 Temporal source 不支持的指标为
-`null`，不是零。该结果不落 PostgreSQL，并在 Ops Web 进程内缓存 15 秒。
+For each WorkerDeployment verify:
 
-## KEDA/HPA
+- Ready/Progressing conditions;
+- target and current Build IDs;
+- registered task queues and pollers;
+- generated Deployment availability;
+- generated ScaledObject/HPA health;
+- generated PDB selector;
+- deprecated build drain status.
 
-每个 worker pool 必须恰好有一个 ScaledObject 和一个生成的 HPA：
+## Common Failures
 
-```bash
-kubectl -n "$NAMESPACE" get scaledobject,hpa,deploy \
-  -l app.kubernetes.io/part-of=campus-agent
-```
+`WaitingForPollers`:
 
-检查：
+- inspect worker startup;
+- verify both version variables are injected;
+- verify SDK versioning is enabled;
+- verify task queue and namespace;
+- verify `minReplicaCount` did not prevent bootstrap.
 
-- ScaledObject `Ready=True`、`Active` 与 backlog 一致；
-- HPA 没有持续 metric fetch error；
-- target Deployment 是对应 queue 的唯一 poller owner；
-- replica 在 0..3 范围；
-- scale down 遵守 300 秒 stabilization；
-- 长 activity 没有因缩容被强制中断。
+WorkerResourceTemplate rejected:
 
-KEDA 直接读取 Temporal。不要启动 temporal sampler、posture collector、Docker autoscaler，
-也不要手工写 queue/decision/actuation 表。
+- verify allowed-resource Helm values;
+- verify webhook TLS/cert-manager;
+- verify the applying principal and controller RBAC;
+- leave controller-owned target/selector fields as `{}`.
 
-## 常见故障
+KEDA metric failure:
 
-### Queue 有积压但副本为零
+- verify KEDA 2.20+;
+- verify Temporal endpoint and namespace;
+- verify task queue and `queueTypes`;
+- verify the `workerDeployment*FromEnv` fields resolve from the target pod.
 
-1. 检查 KEDA operator 和 metrics API；
-2. 检查 scaler endpoint、namespace、taskQueue 和 queueTypes；
-3. 检查 Temporal 网络和认证；
-4. 检查 HPA condition 和 Deployment scheduling event。
+Version does not drain:
 
-### 有副本但 poller 为零
+- inspect open pinned workflows and task queues in Temporal;
+- do not force-delete the old Deployment while workflows remain;
+- cancel/terminate workflows only according to product or ingestion policy.
 
-1. 检查 Pod readiness 和 worker command；
-2. 检查 queue 名称与 runtime config；
-3. 检查 Temporal namespace 和连接；
-4. 检查 worker 日志中的 registration/start failure。
+## Rollback
 
-### 队列接口不可用
-
-1. 检查 metrics bearer token；
-2. 检查 execution-control Temporal client；
-3. 直接使用 Temporal CLI/UI 验证 source；
-4. 不通过写数据库快照绕过故障。
+Rollback means selecting a known image/config pod template in GitOps. Worker
+Controller creates or selects the resulting build and Temporal routes new work
+according to the declared rollout. Do not reuse a Build ID for incompatible
+workflow code and do not manually edit Temporal routing behind the controller.
 
 ## Persistence
 
-Temporal persistence 和 visibility 数据库由 Temporal platform application 管理。备份、恢复、
-schema upgrade 和 retention 必须使用 Temporal/CNPG 对应 runbook，不与 `campus_agent` 产品
-schema installer 混用。
+Temporal persistence and visibility databases are platform data. Backups,
+restore, schema upgrades, and retention use Temporal/CNPG procedures and never
+share application schema migration jobs.
 
-## 变更验证
+## Related Documents
 
-配置或 worker 变更至少执行：
-
-1. Kustomize render 和 schema 校验；
-2. execution-control Go tests；
-3. 三个 Deployment/ScaledObject owner 对齐检查；
-4. readiness 和 queue endpoint 检查；
-5. 一个可取消的测试 workflow，确认 terminal projection 不漂移。
-
-仅修改文档或本地代码时不需要反复执行 staging release closeout。
+- `docs/decisions/adr-0078-worker-versioning.md`
+- `docs/architecture/system/k8s-runtime.md`
+- `docs/runbooks/ingestion.md`

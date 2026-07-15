@@ -3,7 +3,7 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const DEFAULT_ROLES = ["primary_agent", "rag_query_embedding", "rag_reranker"];
+const DEFAULT_ROLES = ["primary_agent", "rag_query_embedding"];
 
 interface SyncProviderArgs {
 	appApiBaseUrl: string;

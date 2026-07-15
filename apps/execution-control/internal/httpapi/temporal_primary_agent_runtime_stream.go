@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	runtimetelemetry "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -23,14 +23,14 @@ func (s *Server) callAgentRuntime(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	providerConfig providerConfigSnapshot,
 	finalModelContext map[string]any,
+	limits primaryAgentRuntimeLimits,
+	activityAttempt int,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	timeout := time.Duration(s.config.AgentRuntimeTimeoutMS) * time.Millisecond
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
+	timeout := primaryAgentTransportTimeout(limits.AgentDeadlineMS)
 	requestCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	payload := map[string]any{
+		"activity_attempt":   activityAttempt,
 		"run_id":             input.RunID,
 		"request_id":         run.RequestID,
 		"conversation_id":    input.ConversationID,
@@ -38,20 +38,15 @@ func (s *Server) callAgentRuntime(
 		"trace_id":           input.TraceID,
 		"input":              primaryAgentInputText(run),
 		"visible_tool_names": append([]string{}, input.VisibleToolNames...),
-		"allowed_knowledge_scopes": allowedKnowledgeScopesProjectionPayload(
-			input.AllowedKnowledgeScopes,
-		),
-		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
-		"provider_config":        providerConfig,
+		"knowledge_targets":  knowledgeTargetsProjectionPayload(input.KnowledgeTargets),
+		"limits":             primaryAgentRuntimeLimitsPayload(limits),
+		"provider_config":    primaryAgentProviderConfigPayload(providerConfig),
 	}
 	if strings.TrimSpace(input.ToolChoice) != "" {
 		payload["tool_choice"] = strings.TrimSpace(input.ToolChoice)
 	}
 	if len(finalModelContext) > 0 {
 		payload["final_model_context"] = finalModelContext
-	}
-	if memoryContext := temporalMemoryContextPayload(input.MemoryContext); memoryContext != nil {
-		payload["memory_context"] = memoryContext
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -64,12 +59,8 @@ func (s *Server) callAgentRuntime(
 	}
 	request.Header.Set("authorization", "Bearer "+s.config.AgentRuntimeSharedSecret)
 	request.Header.Set("content-type", "application/json")
-	for name, value := range runtimetelemetry.InjectExecutionTraceHeaders(
-		requestCtx,
-		run.RequestID,
-		run.TraceID,
-	) {
-		request.Header.Set(name, value)
+	for key, value := range telemetry.InjectExecutionTraceHeaders(requestCtx, run.RequestID, run.TraceID) {
+		request.Header.Set(key, value)
 	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -87,6 +78,30 @@ func (s *Server) callAgentRuntime(
 		)
 	}
 	return s.consumeAgentRuntimeStream(ctx, run, response.Body)
+}
+
+func primaryAgentTransportTimeout(deadlineMS int) time.Duration {
+	deadlineMS = positiveOrDefault(deadlineMS, defaultAgentDeadlineMS)
+	graceMS := deadlineMS / 10
+	if graceMS < 1 {
+		graceMS = 1
+	}
+	if graceMS > primaryAgentTransportGraceMS {
+		graceMS = primaryAgentTransportGraceMS
+	}
+	return time.Duration(deadlineMS+graceMS) * time.Millisecond
+}
+
+func primaryAgentProviderConfigPayload(config providerConfigSnapshot) map[string]any {
+	return map[string]any{
+		"profile_id": config.ProfileID,
+		"revision":   config.Revision,
+		"provider":   config.Provider,
+		"transport":  config.Transport,
+		"base_url":   config.BaseURL,
+		"model":      config.Model,
+		"api_key":    config.APIKey,
+	}
 }
 
 func (s *Server) consumeAgentRuntimeStream(
@@ -325,6 +340,19 @@ func agentRuntimeFailureFromResponse(
 }
 
 func primaryAgentRuntimeFailureKind(cause error) string {
+	var runtimeError agentRuntimeHTTPError
+	if errors.As(cause, &runtimeError) {
+		switch strings.TrimSpace(runtimeError.Code) {
+		case "invalid_request",
+			"context_budget_exceeded",
+			"agent_deadline_exceeded",
+			"max_turns_exceeded",
+			"provider_unavailable",
+			"tool_execution_failed",
+			"run_failed":
+			return strings.TrimSpace(runtimeError.Code)
+		}
+	}
 	if agentRuntimeErrorIsTimeout(cause) {
 		return "agent_runtime_timeout"
 	}
@@ -370,10 +398,9 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		ToolResults:            toolResults,
 		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(response.ToolRuntimeFingerprint),
 		Usage: temporalruntime.AgentUsageSummary{
-			CachedInputTokens:     response.Usage.CachedInputTokens,
-			EstimatedCostMicroUSD: response.Usage.EstimatedCostMicroUSD,
-			InputTokens:           response.Usage.InputTokens,
-			OutputTokens:          response.Usage.OutputTokens,
+			CachedInputTokens: response.Usage.CachedInputTokens,
+			InputTokens:       response.Usage.InputTokens,
+			OutputTokens:      response.Usage.OutputTokens,
 		},
 	}
 }

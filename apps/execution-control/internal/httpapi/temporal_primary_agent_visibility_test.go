@@ -46,7 +46,7 @@ func TestExecutePrimaryAgentActivityPassesCurrentModelVisibleTools(t *testing.T)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:institutional-account",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -72,7 +72,7 @@ func TestExecutePrimaryAgentActivityPassesCurrentModelVisibleTools(t *testing.T)
 	}
 }
 
-func TestExecutePrimaryAgentActivityPassesAllowedKnowledgeScopes(t *testing.T) {
+func TestExecutePrimaryAgentActivityPassesKnowledgeTargets(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 35, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -83,16 +83,16 @@ func TestExecutePrimaryAgentActivityPassesAllowedKnowledgeScopes(t *testing.T) {
 		now,
 		ragHandoffForDurableWorkerTest("转专业条件是什么？"),
 	)
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v3.json")
+	policyPath := filepath.Join(t.TempDir(), "query-serving-targets.v1.json")
 	if err := os.WriteFile(policyPath, []byte(`{
-		"schema_version": "query-serving-scopes-v3",
-		"scopes": [
+		"schema_version": "query-serving-targets-v1",
+		"targets": [
 			{
-				"scope": "student_rules",
-				"corpus": "regulations",
+				"target": "student_rules",
 				"collection": "student_rules",
 				"description": "学生规则、学籍、奖助处分等正式制度。",
-				"allowed_version_modes": ["current"]
+				"serving_config_path": "regulations/student_rules/serving-config.json",
+				"retrieval_top_k": 8
 			}
 		]
 	}`), 0o600); err != nil {
@@ -118,8 +118,8 @@ func TestExecutePrimaryAgentActivityPassesAllowedKnowledgeScopes(t *testing.T) {
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
-		QueryServingScopesPath:   policyPath,
+		AgentRuntimeDeadlineMS:   1000,
+		QueryServingTargetsPath:  policyPath,
 		TemporalWorkerIdentity:   "test:agent:knowledge-scopes",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -136,20 +136,17 @@ func TestExecutePrimaryAgentActivityPassesAllowedKnowledgeScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	scopes, ok := seenBody["allowed_knowledge_scopes"].([]any)
-	if !ok || len(scopes) != 1 {
-		t.Fatalf("allowed_knowledge_scopes missing or wrong type: %#v", seenBody)
+	targets, ok := seenBody["knowledge_targets"].([]any)
+	if !ok || len(targets) != 1 {
+		t.Fatalf("knowledge_targets missing or wrong type: %#v", seenBody)
 	}
-	scope, ok := scopes[0].(map[string]any)
+	target, ok := targets[0].(map[string]any)
 	if !ok {
-		t.Fatalf("allowed knowledge scope = %#v", scopes[0])
+		t.Fatalf("knowledge target = %#v", targets[0])
 	}
-	if scope["scope"] != "student_rules" || scope["description"] != "学生规则、学籍、奖助处分等正式制度。" {
-		t.Fatalf("allowed knowledge scope = %#v", scope)
-	}
-	modes, ok := scope["allowed_query_modes"].([]any)
-	if !ok || len(modes) != 1 || modes[0] != "current" {
-		t.Fatalf("allowed knowledge scope modes = %#v", scope["allowed_query_modes"])
+	if target["target"] != "student_rules" ||
+		target["description"] != "学生规则、学籍、奖助处分等正式制度。" {
+		t.Fatalf("knowledge target = %#v", target)
 	}
 }
 
@@ -184,7 +181,7 @@ func TestExecutePrimaryAgentActivityPreservesExplicitCampusServicesTool(t *testi
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:explicit-services",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)

@@ -9,25 +9,28 @@
 	},
 	"scripts": {
 		"dev": "node --experimental-strip-types ./src/server.ts",
+		"migrate": "tsx ./src/migrate.ts",
 		"start": "node --experimental-strip-types ./src/server.ts",
 		"start:api": "node --experimental-strip-types ./src/server.ts",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
-		"test": "vitest run",
+		"test": "pnpm run test:ingest",
+		"test:ingest": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1081.0",
+		"@temporalio/activity": "^1.20.1",
 		"@temporalio/client": "^1.20.1",
 		"@temporalio/worker": "^1.20.1",
 		"@temporalio/workflow": "^1.20.1",
 		"ingest-core": "workspace:*",
 		"ingestion-contracts": "workspace:*",
-		"pg": "^8.22.0"
+		"pg": "^8.22.0",
+		"tsx": "^4.23.0"
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.2",
 		"@types/pg": "^8.15.6",
-		"tsx": "^4.23.0",
 		"typescript": "^5.8.2",
 		"vitest": "^4.1.10"
 	},

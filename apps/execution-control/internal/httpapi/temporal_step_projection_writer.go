@@ -21,7 +21,6 @@ type temporalStepProjection struct {
 	CancelOutcome         execution.CancelOutcome
 	CompletedAt           time.Time
 	DurationMS            int64
-	EstimatedCostMicroUSD int64
 	FailCloseReason       string
 	InputTokens           int64
 	LateCompletionOutcome execution.LateCompletionOutcome
@@ -54,13 +53,6 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	if s == nil || s.runProjectionStore == nil {
 		return execution.ErrRunProjectionStoreNotConfigured
 	}
-	var completionErr error
-	if strings.TrimSpace(projection.Status) == "completed" &&
-		strings.TrimSpace(projection.StepID) != "finalization.write" {
-		if !temporalPostFinalizationStepAllowed(projection.StepID) {
-			completionErr = s.ensureTemporalStepCompletionAllowed(ctx, &projection)
-		}
-	}
 	attempt := projection.Attempt
 	if attempt <= 0 {
 		attempt = 1
@@ -70,26 +62,35 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	if attempt <= 0 {
 		attempt = 1
 	}
+	var completionErr error
+	if strings.TrimSpace(projection.Status) == "completed" &&
+		strings.TrimSpace(projection.StepID) != "finalization.write" {
+		if !temporalPostFinalizationStepAllowed(projection.StepID) {
+			completionErr = s.ensureTemporalStepCompletionAllowed(ctx, &projection)
+		}
+	}
 	updatedAt := projection.UpdatedAt
 	if updatedAt.IsZero() {
 		updatedAt = time.Now().UTC()
 	}
-	if _, err := s.runProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
-		StepID:               projection.StepID,
-		RunID:                projection.Run.RunID,
-		ConversationID:       projection.Run.ConversationID,
-		StepKind:             projection.StepKind,
-		Tool:                 projection.Tool,
-		Status:               projection.Status,
-		TaskQueue:            projection.TaskQueue,
-		WorkerID:             projection.WorkerID,
-		StartedAt:            projection.StartedAt,
-		CompletedAt:          projection.CompletedAt,
-		UpdatedAt:            updatedAt,
-		PayloadSchemaVersion: "run-step-projection-v1",
-		SanitizedPayload:     projection.Payload,
-	}); err != nil {
-		return err
+	if completionErr == nil {
+		if _, err := s.runProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
+			StepID:               projection.StepID,
+			RunID:                projection.Run.RunID,
+			ConversationID:       projection.Run.ConversationID,
+			StepKind:             projection.StepKind,
+			Tool:                 projection.Tool,
+			Status:               projection.Status,
+			TaskQueue:            projection.TaskQueue,
+			WorkerID:             projection.WorkerID,
+			StartedAt:            projection.StartedAt,
+			CompletedAt:          projection.CompletedAt,
+			UpdatedAt:            updatedAt,
+			PayloadSchemaVersion: "run-step-projection-v1",
+			SanitizedPayload:     projection.Payload,
+		}); err != nil {
+			return err
+		}
 	}
 	attemptID := temporalStepAttemptID(projection.Run.RunID, projection.StepID, attempt)
 	if _, err := s.runProjectionStore.UpsertStepAttempt(ctx, execution.StepAttemptProjection{
@@ -117,7 +118,6 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		InputTokens:           projection.InputTokens,
 		OutputTokens:          projection.OutputTokens,
 		CachedInputTokens:     projection.CachedInputTokens,
-		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
 		CancelOutcome:         projection.CancelOutcome,
 		TimeoutOutcome:        projection.TimeoutOutcome,
 		LateCompletionOutcome: projection.LateCompletionOutcome,
@@ -183,7 +183,6 @@ func temporalStepObservationEvent(projection temporalStepProjection) telemetry.E
 		ConversationID:        strings.TrimSpace(projection.Run.ConversationID),
 		DeploymentEnvironment: "",
 		Duration:              time.Duration(projection.DurationMS) * time.Millisecond,
-		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
 		FailCloseReason:       strings.TrimSpace(projection.FailCloseReason),
 		FailureKind:           firstNonEmptyText(projection.Payload["failure_kind"]),
 		InputTokens:           projection.InputTokens,
@@ -261,6 +260,19 @@ func (s *Server) ensureTemporalStepNotTerminal(
 	for _, step := range steps {
 		if step.StepID != projection.StepID || !temporalStepTerminal(step.Status) {
 			continue
+		}
+		attempts, err := s.runProjectionStore.ListStepAttempts(ctx, projection.Run.RunID)
+		if err != nil {
+			return err
+		}
+		latestAttempt := 0
+		for _, attempt := range attempts {
+			if attempt.StepID == projection.StepID && projectionActivityAttempt(attempt) > latestAttempt {
+				latestAttempt = projectionActivityAttempt(attempt)
+			}
+		}
+		if projection.ActivityAttempt > latestAttempt && latestAttempt > 0 {
+			return nil
 		}
 		markLateCompletionIgnored(
 			projection,
@@ -384,6 +396,15 @@ func (s *Server) withTemporalActivityEvidence(
 		projection.DurationMS = projection.CompletedAt.Sub(projection.StartedAt).Milliseconds()
 	}
 	return projection
+}
+
+func temporalActivityAttempt(ctx context.Context) int {
+	if activity.IsActivity(ctx) {
+		if attempt := int(activity.GetInfo(ctx).Attempt); attempt > 0 {
+			return attempt
+		}
+	}
+	return 1
 }
 
 func temporalActivityTypeForStep(stepID string) string {

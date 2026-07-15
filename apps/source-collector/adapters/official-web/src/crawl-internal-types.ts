@@ -1,4 +1,3 @@
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type {
 	OfficialWebFailureRecord,
 	OfficialWebHostSummaryRecord,
@@ -6,6 +5,7 @@ import type {
 	OfficialWebPageTargetMatch,
 	OfficialWebUrlResultRecord,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import type { OfficialWebDynamicShellDiscoveryAudit } from "./dynamic-shell-discovery.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
 
@@ -17,6 +17,7 @@ export interface CollectorSourcePackLineageOverride {
 }
 
 export interface CollectorRequestUserData {
+	configuredSeedUrl?: string | null;
 	discoveryMethod:
 		| "seed"
 		| "robots_sitemap"

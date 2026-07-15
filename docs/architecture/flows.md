@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-07-08
-updated: 2026-07-08
+updated: 2026-07-12
 ---
 # Architecture Flows
 
@@ -37,7 +37,7 @@ here.
 | --- | --- |
 | product runtime | `docs/architecture/system/product-runtime.md`, `docs/contracts/app-api/request-lifecycle.md` |
 | online answer execution | `docs/architecture/system/execution-agent-layer.md`, `docs/architecture/system/tool-routing.md`, `docs/architecture/system/durable-runtime.md`, `docs/contracts/tool-execution.md` |
-| ingestion data plane | `docs/architecture/system/data-plane.md`, `docs/architecture/domains/official-web/architecture.md`, `docs/architecture/domains/authenticated-notice/architecture.md`, `docs/runbooks/ingestion-control-clean-target.md` |
+| ingestion data plane | `docs/architecture/system/data-plane.md`, `docs/architecture/domains/official-web/architecture.md`, `docs/architecture/domains/authenticated-notice/architecture.md`, `docs/runbooks/ingestion.md` |
 | Knowledge Agent retrieval serving | `docs/architecture/system/retrieval-serving.md`, `docs/architecture/system/agentic-retrieval.md`, `docs/contracts/tool-execution.md` |
 | observability and eval loop | `docs/architecture/system/ops-observability.md`, `docs/architecture/system/langfuse.md`, `docs/architecture/system/learning-loop.md`, `docs/runbooks/eval-ragas.md` |
 
@@ -117,8 +117,8 @@ flowchart LR
   Handoff["official handoff()"]
   Knowledge["Knowledge Agent"]
   Search["internal knowledge_search"]
-  Admission["execution-control\nscope/version + release admission"]
-  Retrieval["embedding + Qdrant + optional rerank"]
+  Admission["execution-control\ntarget + access admission"]
+  Retrieval["embedding + Qdrant dense/sparse RRF"]
   Evidence["bounded evidence"]
   Final["finalization\nvalidate refs + generate sources"]
 
@@ -136,7 +136,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  Runtime["runtime traces + safe projections"]
+  Runtime["real product execution + projections"]
   OTel["OTel pipeline"]
   Langfuse["Langfuse traces / datasets / scores"]
   Ragas["Ragas runner"]
@@ -145,8 +145,10 @@ flowchart LR
   Docs["contracts + runbooks"]
 
   Runtime --> OTel
-  Runtime --> Langfuse
-  Langfuse --> Ragas
+  OTel --> Langfuse
+  Langfuse --> EvalAdapter
+  EvalAdapter -->|dataset-run-item link| Langfuse
+  EvalAdapter --> Ragas
   Ragas --> EvalAdapter
   EvalAdapter --> Langfuse
   Langfuse --> Operator

@@ -88,19 +88,22 @@ func (s *Server) failFinalizationActivity(
 	run execution.DurableRun,
 	tool string,
 	failureKind string,
+	failCloseReason string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Tool:          tool,
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
-		ResultKind:    "activity_failure",
-		StepID:        "finalization.write",
-		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
+		Tool:            tool,
+		FailureKind:     failureKind,
+		ProjectionRef:   temporalProjectionRef(run.RunID, "finalization/write"),
+		ResultKind:      "activity_failure",
+		StepID:          "finalization.write",
+		StepKind:        "finalization",
+		TaskQueue:       temporalruntime.ActivityTaskQueueCore,
+		FailCloseReason: failCloseReason,
 		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
+			"fail_close_reason": failCloseReason,
+			"failure_kind":      failureKind,
+			"message":           cause.Error(),
 		},
 	}, cause)
 	return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -282,9 +285,9 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_failed", "provider_profile_missing":
+	case "agent_runtime_failed", "provider_profile_missing", "provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "knowledge_search_failed", "retrieval_lookup_failed":
+	case "knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed":
 		return execution.DurableTerminalReasonRetrievalUnavailable
 	default:
 		return execution.DurableTerminalReasonWorkerUnavailable
@@ -318,7 +321,7 @@ func temporalRunFailureErrorPayload(failureKind string, cause error) map[string]
 	return map[string]any{
 		"code":      code,
 		"message":   message,
-		"retryable": true,
+		"retryable": false,
 	}
 }
 

@@ -11,51 +11,18 @@ func projectedPlanningForEval(results []execution.StepResultProjection) map[stri
 	if plannedSteps := projectedPlanningStepsFromRuntimeResults(results); len(plannedSteps) > 0 {
 		planning["planned_steps"] = stringsToAny(plannedSteps)
 	}
-	for _, result := range results {
-		if !strings.HasPrefix(result.StepID, "knowledge.search.") {
-			continue
+	if searchSequence := projectedKnowledgeSearchCalls(results, nil); len(searchSequence) > 0 {
+		planning["search_sequence"] = mapsToAny(searchSequence)
+		resolvedTargets := []string{}
+		for _, search := range searchSequence {
+			evalSafeArgs := optionalMapFromMap(search, "eval_safe_args")
+			appendUniqueProjectionString(&resolvedTargets, firstNonEmptyText(evalSafeArgs["target"]))
 		}
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		resolvedVersion := optionalMapFromMap(payload, "resolved_version")
-		mode := firstNonEmptyText(resolvedVersion["mode"])
-		if mode != "" {
-			planning["freshness_branch"] = mode
+		if len(resolvedTargets) > 0 {
+			planning["resolved_targets"] = stringsToAny(resolvedTargets)
 		}
-		if scope := firstNonEmptyText(payload["resolved_scope"]); scope != "" {
-			planning["decomposition"] = stringsToAny(projectedPlanningDecomposition(scope, mode, resolvedVersion))
-		}
-		break
 	}
 	return planning
-}
-
-func projectedPlanningDecomposition(scope string, mode string, resolvedVersion map[string]any) []string {
-	decomposition := []string{scope}
-	switch mode {
-	case "current":
-		decomposition = append(decomposition, "current")
-	case "historical":
-		if versionID := firstNonEmptyText(resolvedVersion["version_id"]); versionID != "" {
-			decomposition = append(decomposition, "historical:"+versionID)
-		} else {
-			decomposition = append(decomposition, "historical")
-		}
-	case "as_of":
-		if asOf := firstNonEmptyText(resolvedVersion["as_of"]); asOf != "" {
-			decomposition = append(decomposition, "as_of:"+asOf)
-		} else {
-			decomposition = append(decomposition, "as_of")
-		}
-	case "compare":
-		versionID := firstNonEmptyText(resolvedVersion["version_id"])
-		compareTo := firstNonEmptyText(resolvedVersion["compare_to_version_id"])
-		if versionID != "" && compareTo != "" {
-			decomposition = append(decomposition, "compare:"+versionID+":"+compareTo)
-		} else {
-			decomposition = append(decomposition, "compare")
-		}
-	}
-	return decomposition
 }
 
 func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
@@ -86,6 +53,16 @@ func hasStepResult(results []execution.StepResultProjection, stepID string) bool
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
 	rag := map[string]any{}
+	if answer := projectedRAGAnswer(results); answer != "" {
+		rag["answer"] = answer
+	}
+	contexts, contextIDs := projectedRAGRetrievedContexts(results)
+	if len(contexts) > 0 {
+		rag["retrieved_contexts"] = stringsToAny(contexts)
+	}
+	if len(contextIDs) > 0 {
+		rag["retrieved_context_ids"] = stringsToAny(contextIDs)
+	}
 	if titles := projectedRAGSourceTitles(results); len(titles) > 0 {
 		rag["source_titles"] = titles
 	}
@@ -93,6 +70,36 @@ func projectedRAGForEval(results []execution.StepResultProjection) map[string]an
 		rag["source_refs"] = refs
 	}
 	return rag
+}
+
+func projectedRAGAnswer(results []execution.StepResultProjection) string {
+	for _, result := range results {
+		if result.StepID != "finalization.write" {
+			continue
+		}
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		finalized := optionalMapFromMap(payload, "finalized_response")
+		if answer := firstNonEmptyText(finalized["answer_text"]); answer != "" {
+			return answer
+		}
+	}
+	return ""
+}
+
+func projectedRAGRetrievedContexts(results []execution.StepResultProjection) ([]string, []string) {
+	contexts := []string{}
+	contextIDs := []string{}
+	for _, result := range results {
+		if !strings.HasPrefix(result.StepID, "knowledge.search.") || result.Status != "completed" {
+			continue
+		}
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		for _, evidence := range mapListFromAny(payload["evidence"]) {
+			appendUniqueProjectionString(&contexts, firstNonEmptyText(evidence["snippet"]))
+			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(evidence["document_id"]))
+		}
+	}
+	return contexts, contextIDs
 }
 
 func projectedRAGSourceTitles(results []execution.StepResultProjection) []any {

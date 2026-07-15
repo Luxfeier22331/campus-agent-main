@@ -1,193 +1,171 @@
-import { type IngestionTaskRegistryCatalog, RegistryAdmissionError } from "ingest-core";
-import type { OfficialWebExecutionStatusService } from "./official-web-execution-status-service";
+import { ApplicationFailure, Context } from "@temporalio/activity";
+import type { IngestionArtifactRef } from "ingestion-contracts";
+import { validateIngestionTaskResult } from "ingestion-contracts";
+import type { IngestionObjectStore } from "./object-store";
 import {
-	ingestionTaskExecutionErrorCode,
-	ingestionTaskExecutionErrorMessage,
-	RegistryTaskContractMismatchError,
-	RegistryTaskNotDeclaredError,
-	RustKernelIdMissingError,
-	RustKernelNotRegisteredError,
-	type RustKernelRegistry,
-	runDeclaredIngestionTask,
-	TaskInputRefNotObjectStoreError,
-	TsTaskHandlerNotRegisteredError,
-	type TsTaskHandlerRegistry,
-} from "./task-executor";
-import type { IngestionArtifactRef, IngestionTaskRecord, IngestionTaskStore } from "./types";
+	type OfficialWebFreshnessService,
+	OfficialWebProjectionContractError,
+} from "./official-web-freshness";
+import {
+	IngestionResultArtifactContractError,
+	verifyIngestionTaskResultArtifact,
+} from "./result-artifact-verification";
+import { type RustKernelRegistry, requireRustKernelId } from "./task-executor";
+import type {
+	IngestionTaskExecutionSnapshot,
+	IngestionTaskRecord,
+	IngestionTaskResult,
+	IngestionTaskStore,
+} from "./types";
 
-export interface MarkIngestionTaskRunningInput {
-	taskId: string;
-	workflowRunId?: string | null;
+export interface RecordIngestionTaskStartedInput {
+	snapshot: IngestionTaskExecutionSnapshot;
+	workflowId: string;
+	workflowRunId: string;
 }
-
-export interface ExecuteIngestionTaskInput {
-	taskId: string;
-}
-
-export type ExecuteIngestionTaskResult =
-	| {
-			status: "completed";
-			artifactRefs: IngestionArtifactRef[];
-	  }
-	| {
-			status: "failed";
-			errorCode: string;
-			errorMessage: string;
-	  };
 
 export interface CompleteIngestionTaskInput {
-	taskId: string;
-	artifactRefs?: IngestionArtifactRef[];
+	result: IngestionTaskResult;
+	snapshot: IngestionTaskExecutionSnapshot;
 }
 
 export interface FailIngestionTaskInput {
-	taskId: string;
 	errorCode: string;
 	errorMessage: string;
+	taskId: string;
 }
 
 export interface CancelIngestionTaskInput {
-	taskId: string;
 	reason: string;
+	taskId: string;
 }
 
-export interface IngestionTaskActivities {
-	markIngestionTaskRunning(input: MarkIngestionTaskRunningInput): Promise<IngestionTaskRecord>;
-	executeIngestionTask(input: ExecuteIngestionTaskInput): Promise<ExecuteIngestionTaskResult>;
+export interface IngestionProjectionActivities {
+	prepareSourceCollectorTask(
+		snapshot: IngestionTaskExecutionSnapshot,
+	): Promise<IngestionArtifactRef | null>;
+	recordIngestionTaskStarted(input: RecordIngestionTaskStartedInput): Promise<IngestionTaskRecord>;
 	completeIngestionTask(input: CompleteIngestionTaskInput): Promise<IngestionTaskRecord>;
 	failIngestionTask(input: FailIngestionTaskInput): Promise<IngestionTaskRecord>;
 	cancelIngestionTask(input: CancelIngestionTaskInput): Promise<IngestionTaskRecord>;
 }
 
-export function createIngestionTaskActivities(input: {
-	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
-	registryCatalog: IngestionTaskRegistryCatalog;
-	rustKernels: RustKernelRegistry;
+export interface RustKernelActivities {
+	executeRustKernelTask(snapshot: IngestionTaskExecutionSnapshot): Promise<IngestionTaskResult>;
+}
+
+export interface SourceCollectorActivities {
+	executeSourceCollectorTask(
+		snapshot: IngestionTaskExecutionSnapshot,
+		preparationRef: IngestionArtifactRef | null,
+	): Promise<IngestionTaskResult>;
+}
+
+export function createIngestionProjectionActivities(input: {
+	objectStore: IngestionObjectStore;
+	officialWebFreshness?: OfficialWebFreshnessService;
 	store: IngestionTaskStore;
-	tsHandlers: TsTaskHandlerRegistry;
-}): IngestionTaskActivities {
+}): IngestionProjectionActivities {
 	return {
-		async markIngestionTaskRunning(
-			activityInput: MarkIngestionTaskRunningInput,
-		): Promise<IngestionTaskRecord> {
-			const task = await input.store.markTaskRunning(activityInput);
-			await maybeUpdateOfficialWebExecutionStatus(input.officialWebExecutionStatusService, task, {
-				executionRef: task.workflow_id,
-				status: "running",
-				updatedAt: task.updated_at,
-			});
-			return task;
+		async prepareSourceCollectorTask(snapshot) {
+			if (snapshot.task.registry_task_id !== "official_web.capture") {
+				return null;
+			}
+			if (!input.officialWebFreshness) {
+				throw new Error("official-web freshness service is not configured");
+			}
+			return input.officialWebFreshness.prepareTask(snapshot, Context.current().info.attempt);
 		},
-		async executeIngestionTask(
-			activityInput: ExecuteIngestionTaskInput,
-		): Promise<ExecuteIngestionTaskResult> {
-			const task = await requireTask(input.store, activityInput.taskId);
+		async recordIngestionTaskStarted(activityInput) {
+			return input.store.recordTaskStarted(activityInput);
+		},
+		async completeIngestionTask(activityInput) {
+			const validation = validateIngestionTaskResult(activityInput.result);
+			if (!validation.ok) {
+				throw ApplicationFailure.nonRetryable(
+					`invalid ingestion task result: ${validation.errors.join("; ")}`,
+					"invalid_ingestion_task_result",
+				);
+			}
+			assertResultMatchesSnapshot(activityInput.result, activityInput.snapshot);
 			try {
-				const registry = input.registryCatalog.requireRegistry(task);
-				const result = await runDeclaredIngestionTask({
-					registry,
-					rustKernels: input.rustKernels,
-					task,
-					tsHandlers: input.tsHandlers,
+				await verifyIngestionTaskResultArtifact({
+					objectStore: input.objectStore,
+					result: activityInput.result,
+					snapshot: activityInput.snapshot,
 				});
-				return { status: "completed", artifactRefs: result.artifactRefs ?? [] };
 			} catch (error) {
-				if (!isTerminalExecutionError(error)) {
+				if (error instanceof IngestionResultArtifactContractError) {
+					throw ApplicationFailure.nonRetryable(error.message, "invalid_ingestion_task_result");
+				}
+				throw error;
+			}
+			if (activityInput.result.registry_task_id === "official_web.capture") {
+				if (!input.officialWebFreshness) {
+					throw new Error("official-web freshness service is not configured");
+				}
+				try {
+					await input.officialWebFreshness.projectResult(
+						activityInput.result,
+						activityInput.snapshot,
+					);
+				} catch (error) {
+					if (error instanceof OfficialWebProjectionContractError) {
+						throw ApplicationFailure.nonRetryable(error.message, "invalid_ingestion_task_result");
+					}
 					throw error;
 				}
-				return {
-					status: "failed",
-					errorCode: terminalExecutionErrorCode(error),
-					errorMessage: ingestionTaskExecutionErrorMessage(error),
-				};
 			}
-		},
-		async completeIngestionTask(
-			activityInput: CompleteIngestionTaskInput,
-		): Promise<IngestionTaskRecord> {
-			const task = await input.store.completeTask(activityInput);
-			await maybeUpdateOfficialWebExecutionStatus(input.officialWebExecutionStatusService, task, {
-				executionRef: task.workflow_id,
-				status: "succeeded",
-				updatedAt: task.updated_at,
+			return input.store.completeTask({
+				result: activityInput.result,
+				taskId: activityInput.snapshot.task.task_id,
 			});
-			return task;
 		},
-		async failIngestionTask(activityInput: FailIngestionTaskInput): Promise<IngestionTaskRecord> {
-			const task = await input.store.failTask(activityInput);
-			await maybeUpdateOfficialWebExecutionStatus(input.officialWebExecutionStatusService, task, {
-				errorCode: activityInput.errorCode,
-				errorMessage: activityInput.errorMessage,
-				executionRef: task.workflow_id,
-				status: "failed",
-				updatedAt: task.updated_at,
-			});
-			return task;
+		async failIngestionTask(activityInput) {
+			return input.store.failTask(activityInput);
 		},
-		async cancelIngestionTask(
-			activityInput: CancelIngestionTaskInput,
-		): Promise<IngestionTaskRecord> {
+		async cancelIngestionTask(activityInput) {
 			return input.store.cancelTask(activityInput);
 		},
 	};
 }
 
-function isTerminalExecutionError(error: unknown): boolean {
-	return (
-		error instanceof RegistryAdmissionError ||
-		error instanceof RegistryTaskNotDeclaredError ||
-		error instanceof RegistryTaskContractMismatchError ||
-		error instanceof TsTaskHandlerNotRegisteredError ||
-		error instanceof RustKernelIdMissingError ||
-		error instanceof RustKernelNotRegisteredError ||
-		error instanceof TaskInputRefNotObjectStoreError
-	);
-}
-
-function terminalExecutionErrorCode(error: unknown): string {
-	if (error instanceof RegistryAdmissionError) {
-		return "registry_admission_failed";
+function assertResultMatchesSnapshot(
+	result: IngestionTaskResult,
+	snapshot: IngestionTaskExecutionSnapshot,
+): void {
+	if (
+		result.task_id !== snapshot.task.task_id ||
+		result.run_id !== snapshot.task.run_id ||
+		result.registry_task_id !== snapshot.task.registry_task_id ||
+		result.registry_task_id !== snapshot.registry_task.registry_task_id ||
+		result.output_contract !== snapshot.registry_task.output_contract
+	) {
+		throw ApplicationFailure.nonRetryable(
+			`ingestion task result identity does not match frozen snapshot: ${snapshot.task.task_id}`,
+			"invalid_ingestion_task_result",
+		);
 	}
-	return ingestionTaskExecutionErrorCode(error);
 }
 
-async function requireTask(
-	store: IngestionTaskStore,
-	taskId: string,
-): Promise<IngestionTaskRecord> {
-	const task = await store.getTask(taskId);
-	if (!task) {
-		throw new Error(`ingestion task not found: ${taskId}`);
-	}
-	return task;
-}
-
-async function maybeUpdateOfficialWebExecutionStatus(
-	service: OfficialWebExecutionStatusService | undefined,
-	task: IngestionTaskRecord,
-	payload: {
-		errorCode?: string;
-		errorMessage?: string;
-		executionRef: string;
-		status: "running" | "succeeded" | "failed";
-		updatedAt: string;
-	},
-): Promise<void> {
-	if (!(service && isOfficialWebSourceTruthMaterializeTask(task))) {
-		return;
-	}
-	await service.updateRunExecutionStatus({
-		payload,
-		runId: task.run_id,
-	});
-}
-
-function isOfficialWebSourceTruthMaterializeTask(task: IngestionTaskRecord): boolean {
-	return (
-		task.source_family === "official_web" &&
-		task.source_channel === "official_web" &&
-		task.corpus === "official_web" &&
-		task.registry_task_id === "source_truth_materialize" &&
-		task.task_kind === "source_truth_materialize"
-	);
+export function createRustKernelActivities(input: {
+	rustKernels: RustKernelRegistry;
+}): RustKernelActivities {
+	return {
+		async executeRustKernelTask(snapshot) {
+			const context = Context.current();
+			context.heartbeat({ phase: "starting", task_id: snapshot.task.task_id });
+			const heartbeat = setInterval(() => {
+				context.heartbeat({ phase: "running", task_id: snapshot.task.task_id });
+			}, 10_000);
+			try {
+				return await input.rustKernels.require(requireRustKernelId(snapshot))(snapshot, {
+					activityAttempt: context.info.attempt,
+					signal: context.cancellationSignal,
+				});
+			} finally {
+				clearInterval(heartbeat);
+			}
+		},
+	};
 }

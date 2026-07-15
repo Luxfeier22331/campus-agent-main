@@ -63,10 +63,9 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			}},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             28,
-				"output_tokens":            16,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 55,
+				"input_tokens":        28,
+				"output_tokens":       16,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -74,7 +73,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -221,10 +220,9 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 			}},
 			"terminal_reason": "agent_runtime_failed",
 			"usage": map[string]any{
-				"input_tokens":             20,
-				"output_tokens":            3,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 17,
+				"input_tokens":        20,
+				"output_tokens":       3,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -232,7 +230,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-failed",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -248,6 +246,9 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	})
 	if err == nil {
 		t.Fatal("expected failed SDK tool to fail primary agent activity")
+	}
+	if !strings.Contains(err.Error(), "fail_close_reason=tool_handler_failed") {
+		t.Fatalf("primary agent error = %v, want concrete tool fail_close_reason", err)
 	}
 	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-failed")
 	if listErr != nil {
@@ -322,7 +323,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-bad-args",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -404,7 +405,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnSdkToolArgumentMinimumDrift(t *
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-max-drift",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -469,7 +470,7 @@ func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnv
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-missing-envelope",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -538,10 +539,9 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 			}},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             18,
-				"output_tokens":            9,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 24,
+				"input_tokens":        18,
+				"output_tokens":       9,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -549,7 +549,7 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-unadmitted",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)

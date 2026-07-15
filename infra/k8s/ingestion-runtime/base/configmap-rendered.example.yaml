@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingestion-runtime-rendered-config
+data:
+  INGESTION_TEMPORAL_ADDRESS: temporal.default.svc.cluster.local:7233
+  INGESTION_TEMPORAL_NAMESPACE: default
+  INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE: campus-agent.ingestion.workflow
+  INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.control
+  INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.rust-kernel
+  INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.source-collector
+  OBJECT_STORE_ENDPOINT: http://campus-agent-object-store:9000
+  OBJECT_STORE_REGION: us-east-1
+  OBJECT_STORE_BUCKET_SOURCE: campus-agent-source
+  OBJECT_STORE_BUCKET_DERIVED: campus-agent-derived

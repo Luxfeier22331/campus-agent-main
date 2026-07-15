@@ -7,7 +7,7 @@ import {
 	writeCanonicalJsonLinesArtifact,
 } from "./artifacts.ts";
 import {
-	assertOptionalSha256Digest,
+	assertArtifactRefBytes,
 	buildObjectStoreArtifactRef,
 	type ObjectStore,
 	parseJsonArrayBytes,
@@ -40,10 +40,10 @@ export async function materializeAuthenticatedFileReleaseSourceTruthFromTask(inp
 	const manifestInput = parseS3Uri(input.task.input_ref);
 	const manifestBytes = await input.objectStore.getObject(manifestInput);
 	const manifestSha256 = sha256Hex(manifestBytes);
-	assertOptionalSha256Digest({
-		actualSha256: manifestSha256,
-		digest: input.task.input_ref.digest,
+	assertArtifactRefBytes({
+		bytes: manifestBytes,
 		label: "file-release manifest input_ref",
+		ref: input.task.input_ref,
 	});
 	const exportManifest = parseJsonObjectBytes(manifestBytes, "file-release manifest");
 	const parsedExportManifest = parseAuthenticatedFileReleaseManifest(exportManifest);
@@ -59,6 +59,7 @@ export async function materializeAuthenticatedFileReleaseSourceTruthFromTask(inp
 	const refs: IngestionArtifactRef[] = [
 		buildObjectStoreArtifactRef({
 			bucket: manifestInput.bucket,
+			byteSize: manifestBytes.byteLength,
 			key: manifestInput.key,
 			contentSha256: manifestSha256,
 		}),

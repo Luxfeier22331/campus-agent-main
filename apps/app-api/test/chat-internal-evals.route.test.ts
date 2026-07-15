@@ -73,6 +73,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 						],
 						terminal_reason: "answer",
 					},
+					resolvedTargets: ["student_rules"],
 					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_eval_01HQ",
@@ -96,12 +97,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				body: JSON.stringify({
 					prompt: "图书馆开放到几点？",
 					requestedTool: "knowledge_query",
-					scope: "student_rules",
-					versionQuery: {
-						compareToVersionId: "v2025-student-rules",
-						mode: "compare",
-						versionId: "v2024-student-rules",
-					},
 				}),
 				headers: {
 					baggage: inboundTraceHeaders.baggage,
@@ -160,6 +155,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					],
 					terminal_reason: "answer",
 				},
+				resolvedTargets: ["student_rules"],
 				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_eval_01HQ",
@@ -170,12 +166,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			payload: {
 				prompt: "图书馆开放到几点？",
 				requestedTool: "knowledge_query",
-				scope: "student_rules",
-				versionQuery: {
-					compareToVersionId: "v2025-student-rules",
-					mode: "compare",
-					versionId: "v2024-student-rules",
-				},
 			},
 			principal: expect.objectContaining({
 				actor: {
@@ -240,7 +230,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				body: JSON.stringify({
 					prompt: "我这个专业的基地班大二下有什么课",
 					requestedTool: "knowledge_query",
-					scope: "curriculum",
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -262,7 +251,6 @@ describe("POST /api/internal/evals/chat/requests", () => {
 			payload: {
 				prompt: "我这个专业的基地班大二下有什么课",
 				requestedTool: "knowledge_query",
-				scope: "curriculum",
 			},
 			principal: expect.objectContaining({
 				actor: {

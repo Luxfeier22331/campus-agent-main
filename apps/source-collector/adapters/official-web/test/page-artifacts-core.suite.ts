@@ -57,8 +57,6 @@ export function registerPageArtifactsCoreSuite() {
 		).toBe(true);
 		expect(pageArtifacts.files.map((item) => item.relativePath)).toEqual([
 			"capture/response.html",
-			"capture/response-headers.json",
-			"capture/fetch-metadata.json",
 			"provider/cheerio-basic/page-extraction.json",
 			"provider/cheerio-basic/discovered-links.jsonl",
 			"source-truth/page-manifest.json",
@@ -95,6 +93,37 @@ export function registerPageArtifactsCoreSuite() {
 		expect(indexArtifacts.pageManifest.normalizedCanonicalUrl).toBe("https://www.example.edu/");
 		expect(indexArtifacts.rawAssetId).toBe(homepageArtifacts.rawAssetId);
 		expect(indexArtifacts.rawVersionId).toBe(homepageArtifacts.rawVersionId);
+	});
+
+	it("keeps canonical source-truth bytes stable across crawl retries", () => {
+		const firstAttempt = buildDirectorySiteArtifactsForTest({
+			crawlRunId: "owrun_retry_001",
+			requestedUrl: "https://www.example.edu/admissions?id=9",
+			finalUrl: "https://www.example.edu/admissions?id=9",
+			declaredCanonicalUrl: "https://www.example.edu/admissions?id=9",
+			responseBody: SAMPLE_PAGE_HTML,
+			fetchedAt: "2026-03-29T08:00:00.000Z",
+		});
+		const retryAttempt = buildDirectorySiteArtifactsForTest({
+			crawlRunId: "owrun_retry_002",
+			requestedUrl: "https://www.example.edu/admissions?id=9",
+			finalUrl: "https://www.example.edu/admissions?id=9",
+			declaredCanonicalUrl: "https://www.example.edu/admissions?id=9",
+			responseBody: SAMPLE_PAGE_HTML,
+			fetchedAt: "2026-03-30T09:15:00.000Z",
+		});
+
+		const canonicalFiles = (artifacts: typeof firstAttempt) =>
+			artifacts.files
+				.filter((file) => file.relativePath.startsWith("source-truth/"))
+				.map((file) => ({
+					data: Array.from(file.data),
+					objectKey: file.objectKey,
+					relativePath: file.relativePath,
+				}));
+
+		expect(retryAttempt.observation).not.toEqual(firstAttempt.observation);
+		expect(canonicalFiles(retryAttempt)).toEqual(canonicalFiles(firstAttempt));
 	});
 
 	it("demotes directory service-link list items out of main content", () => {

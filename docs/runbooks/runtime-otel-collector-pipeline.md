@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-05-01
-updated: 2026-07-04
+updated: 2026-07-13
 ---
 # Runtime OTel Collector Pipeline
 
@@ -178,7 +178,7 @@ also materializes one Axiom monitor spec per enabled alert rule through
 `packages/contracts/scripts/contracts/materialize-observability-alerts.ts`. The repo still does not mirror
 external dashboard content into app-api.
 
-Fail-closed Langfuse env check:
+Explicit Langfuse fan-out config check:
 
 ```bash
 OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel \
@@ -187,22 +187,8 @@ OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4 \
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts check-collector-config --json
 ```
 
-Langfuse Ragas score smoke:
-
-```bash
-LANGFUSE_BASE_URL=https://langfuse.internal \
-LANGFUSE_PUBLIC_KEY=<project-public-key> \
-LANGFUSE_SECRET_KEY=<project-secret-key> \
-LANGFUSE_ENVIRONMENT=staging \
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-traces \
-  --trace-name online-answer \
-  --limit 5 \
-  --validate-only \
-  --json
-```
-
-Use `ragas-score-dataset` for Langfuse dataset-backed scoring. Remove
-`--validate-only` only when the run should write `ragas.*` scores to Langfuse.
+Ragas and product-backed dataset commands belong to `eval-ragas.md`; this
+Collector runbook does not duplicate them.
 
 Langfuse real trace closeout smoke:
 

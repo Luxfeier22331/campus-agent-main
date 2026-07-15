@@ -9,28 +9,14 @@ export {
 	S3ArtifactStore,
 } from "./artifact-store.ts";
 export type {
-	OfficialWebControlPlaneClient,
-	OfficialWebControlPlaneFinalizeResponse,
-	OfficialWebControlPlaneHeartbeatResponse,
-	OfficialWebControlPlanePlanResponse,
-	OfficialWebControlPlaneStartResponse,
-	OfficialWebFinalizeInput,
-	OfficialWebHeartbeatInput,
-	OfficialWebPlannerPageCandidate,
-	OfficialWebRunStartInput,
-	OfficialWebTerminalStatus,
-	OfficialWebTriggerType,
-} from "./control-plane.ts";
-export {
-	createOfficialWebControlPlaneClient,
-	OfficialWebControlPlaneTransportError,
-} from "./control-plane.ts";
-export type {
 	CrawlSiteOptions,
 	CrawlSiteResult,
-	ResolvedCollectorCrawlMainInput,
 } from "./crawl.ts";
-export { crawlMain, crawlSite, resolveCollectorCrawlMainInput } from "./crawl.ts";
+export { crawlSite } from "./crawl.ts";
+export {
+	buildConfiguredSeedCandidates,
+	type OfficialWebCrawlCandidate,
+} from "./crawl-candidates.ts";
 export type {
 	DynamicShellNetworkCapture,
 	OfficialWebDynamicShellDiscoverer,

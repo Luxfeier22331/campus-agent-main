@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import {
-	auditLangfuseEvalConfiguration,
-	collectLangfuseEvalStatus,
-} from "./audit/langfuse-eval-audit/core";
-import { runLangfuseEvalAuditSelfTest } from "./audit/langfuse-eval-audit/self-test";
+import { runAgentToolEval } from "./agent-tool-runner";
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
+import { buildEvalDatasetManifest } from "./dataset-manifest";
 import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
-import { buildRagDatasetManifest } from "./rag-dataset-manifest";
 import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
 import { type JsonObject, settingsFromEnv } from "./shared";
 import { deriveLangfuseTraceId } from "./trace";
@@ -29,40 +25,34 @@ export async function main(argv: string[]): Promise<number> {
 		}
 		return 0;
 	} catch (error) {
-		if (error instanceof CliExit) {
-			if (json) {
-				console.log(JSON.stringify(error.payload, null, 2));
-			} else {
-				console.log(JSON.stringify(error.payload));
-			}
-			return error.exitCode;
-		}
 		console.error(error instanceof Error ? error.message : String(error));
 		return 1;
 	}
 }
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
-	if (command === "audit") {
-		const report = auditLangfuseEvalConfiguration(optionalArg(args, "repo-root") ?? repoRoot());
-		if (!report.passed) {
-			throw new CliExit(report, 1);
-		}
-		return report;
-	}
-	if (command === "doctor") {
-		const status = collectLangfuseEvalStatus(optionalArg(args, "repo-root") ?? repoRoot());
-		if (!status.overall_ready) {
-			throw new CliExit(status, 1);
-		}
-		return status;
-	}
-	if (command === "self-test") {
-		const code = runLangfuseEvalAuditSelfTest();
-		if (code !== 0) {
-			throw new Error(`langfuse eval audit self-test failed with code ${code}`);
-		}
-		return { passed: true };
+	if (command === "agent-eval") {
+		return runAgentToolEval({
+			appApiBaseUrl:
+				optionalArg(args, "app-api-base-url") ??
+				required(optionalEnv("STAGING_APP_API_BASE_URL", "APP_API_BASE_URL"), "app-api-base-url"),
+			cookieHeader: optionalArg(args, "cookie-header") ?? optionalEnv("CAMPUS_EVAL_COOKIE_HEADER"),
+			datasetName: stringArg(args, "dataset"),
+			datasetVersion: optionalArg(args, "dataset-version"),
+			dryRun: Boolean(args["dry-run"]),
+			environment: environmentFromEnv(),
+			limit: numberArg(args, "limit") ?? undefined,
+			runPythonRagasAgentScoreBatch,
+			runPythonRagasScoreBatch,
+			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
+			settings: settingsFromEnv(),
+			stagingSmokeAuthSecret: optionalEnv(
+				"APP_API_STAGING_SMOKE_AUTH_SECRET",
+				"STAGING_APP_API_SMOKE_AUTH_SECRET",
+			),
+			stagingSmokeEmail: optionalEnv("CAMPUS_EVAL_SMOKE_EMAIL"),
+			validateOnly: Boolean(args["validate-only"]),
+		});
 	}
 	if (command === "ragas-score-traces") {
 		return runRagasTraceScoring({
@@ -122,9 +112,9 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			settings: settingsFromEnv(),
 		});
 	}
-	if (command === "build-rag-dataset-manifest") {
+	if (command === "build-dataset-manifest") {
 		const outputPath = stringArg(args, "output");
-		return buildRagDatasetManifest({
+		return buildEvalDatasetManifest({
 			assetRoot: optionalArg(args, "asset-root") ?? resolve(import.meta.dirname, "../assets"),
 			outputPath,
 			sourceGitHead: optionalArg(args, "source-git-head") ?? currentGitHead(),
@@ -188,6 +178,7 @@ function runPythonRagasScoreBatch(input: {
 		"python",
 		"-m",
 		"campus_ragas_runner",
+		"rag",
 		"--input",
 		input.inputPath,
 		"--output",
@@ -202,6 +193,33 @@ function runPythonRagasScoreBatch(input: {
 	}
 }
 
+function runPythonRagasAgentScoreBatch(input: {
+	inputPath: string;
+	outputPath: string;
+	runtimeConfigPath?: string;
+}): void {
+	const args = [
+		"run",
+		"--package",
+		"campus-ragas-runner",
+		"python",
+		"-m",
+		"campus_ragas_runner",
+		"agent",
+		"--input",
+		input.inputPath,
+		"--output",
+		input.outputPath,
+	];
+	if (input.runtimeConfigPath) {
+		args.push("--runtime-config", input.runtimeConfigPath);
+	}
+	const result = spawnSync("uv", args, { encoding: "utf-8", stdio: "pipe" });
+	if (result.status !== 0) {
+		throw new Error(`RAGAS agent scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
+	}
+}
+
 function currentGitHead(): string {
 	const result = spawnSync("git", ["rev-parse", "HEAD"], {
 		encoding: "utf-8",
@@ -211,21 +229,6 @@ function currentGitHead(): string {
 		throw new Error(`git rev-parse HEAD failed: ${(result.stderr || result.stdout || "").trim()}`);
 	}
 	return result.stdout.trim();
-}
-
-function repoRoot(): string {
-	return resolve(import.meta.dirname, "../..", "..");
-}
-
-class CliExit extends Error {
-	readonly exitCode: number;
-	readonly payload: JsonObject;
-
-	constructor(payload: JsonObject, exitCode: number) {
-		super("cli exit");
-		this.payload = payload;
-		this.exitCode = exitCode;
-	}
 }
 
 function stringArg(args: ParsedArgs, key: string): string {
@@ -266,6 +269,16 @@ function required(value: string | null, field: string): string {
 		throw new Error(`${field} is required`);
 	}
 	return value;
+}
+
+function optionalEnv(...names: string[]): string | null {
+	for (const name of names) {
+		const value = process.env[name]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return null;
 }
 
 function environmentFromEnv(env: NodeJS.ProcessEnv = process.env): string {

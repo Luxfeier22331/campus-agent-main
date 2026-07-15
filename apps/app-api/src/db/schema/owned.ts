@@ -40,39 +40,10 @@ export {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
-export {
-	crawlRuns,
-	officialWebRunAdmissionDecisions,
-	officialWebTargetArtifactVerificationSummaries,
-	officialWebTargetJobCandidates,
-	officialWebTargetJobs,
-	officialWebTargetPageAttempts,
-	officialWebTargetReleaseGates,
-	pageFreshness,
-	pageObservations,
-	runArtifacts,
-	runHeartbeats,
-	runOutbox,
-} from "./official-web";
-export {
-	authenticatedNoticeProcessingEventProjection,
-	authenticatedNoticeProcessingProjection,
-	authenticatedNoticeRunProcessingEventProjection,
-	authenticatedNoticeRunProcessingProjection,
-	officialWebReleaseTaskEventProjection,
-	officialWebReleaseTaskProjection,
-	officialWebRunProjection,
-	officialWebSiteProjection,
-} from "./operator";
 export { opsObservabilityReadAudit } from "./ops-observability";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 export { requestObservabilityFact } from "./runtime";
-export {
-	wechatOfficialAccountCaptureRuns,
-	wechatOfficialAccountRunArtifacts,
-	wechatOfficialAccountRunHeartbeats,
-} from "./wechat-official-account";
 
 import {
 	campusServicesOpsAuditEvents,
@@ -116,57 +87,16 @@ import {
 	identityPreferenceSettings,
 	identityProfiles,
 } from "./identity";
-import {
-	crawlRuns,
-	officialWebRunAdmissionDecisions,
-	officialWebTargetArtifactVerificationSummaries,
-	officialWebTargetJobCandidates,
-	officialWebTargetJobs,
-	officialWebTargetPageAttempts,
-	officialWebTargetReleaseGates,
-	pageFreshness,
-	pageObservations,
-	runArtifacts,
-	runHeartbeats,
-	runOutbox,
-} from "./official-web";
-import {
-	authenticatedNoticeProcessingEventProjection,
-	authenticatedNoticeProcessingProjection,
-	authenticatedNoticeRunProcessingEventProjection,
-	authenticatedNoticeRunProcessingProjection,
-	officialWebReleaseTaskEventProjection,
-	officialWebReleaseTaskProjection,
-	officialWebRunProjection,
-	officialWebSiteProjection,
-} from "./operator";
 import { opsObservabilityReadAudit } from "./ops-observability";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 import { requestObservabilityFact } from "./runtime";
-import {
-	wechatOfficialAccountCaptureRuns,
-	wechatOfficialAccountRunArtifacts,
-	wechatOfficialAccountRunHeartbeats,
-} from "./wechat-official-account";
 
 export const appApiOwnedSchema = {
 	campusServicesOpsSourceAttestations,
 	campusServicesOpsTransportOverrides,
 	campusServicesOpsReleases,
 	campusServicesOpsAuditEvents,
-	crawlRuns,
-	officialWebTargetJobs,
-	officialWebTargetJobCandidates,
-	officialWebTargetPageAttempts,
-	officialWebTargetArtifactVerificationSummaries,
-	officialWebTargetReleaseGates,
-	officialWebRunAdmissionDecisions,
-	pageObservations,
-	pageFreshness,
-	runHeartbeats,
-	runArtifacts,
-	runOutbox,
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -203,15 +133,4 @@ export const appApiOwnedSchema = {
 	providerConfigConnections,
 	providerConfigProfiles,
 	requestObservabilityFact,
-	officialWebRunProjection,
-	officialWebSiteProjection,
-	officialWebReleaseTaskProjection,
-	officialWebReleaseTaskEventProjection,
-	authenticatedNoticeProcessingProjection,
-	authenticatedNoticeProcessingEventProjection,
-	authenticatedNoticeRunProcessingProjection,
-	authenticatedNoticeRunProcessingEventProjection,
-	wechatOfficialAccountCaptureRuns,
-	wechatOfficialAccountRunHeartbeats,
-	wechatOfficialAccountRunArtifacts,
 };

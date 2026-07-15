@@ -27,7 +27,7 @@ Python 不再拥有 deterministic execution runtime truth。
 - Python worker 不消费 online Go canonical bridge envelope，也不作为 Temporal activity backend
 - 新增 Python 只能用于明确隔离的 offline ingestion / eval / tooling；不得恢复旧
   online serving bridge
-- Python 不拥有 online provider cancellation、token / estimated cost accounting、
+- Python 不拥有 online provider cancellation、token usage / cost accounting、
   sanitized projection、workflow truth 或 semantic orchestration
 
 ## Knowledge Boundary
@@ -39,7 +39,7 @@ Python 不再拥有 deterministic execution runtime truth。
 - Knowledge Agent 负责 query framing、bounded evidence consumption、answer
   synthesis 与 evidence-backed structured output
 - Knowledge Agent 只调用 internal `knowledge_search`
-- execution-control 负责 scope/version admission、embedding/Qdrant/rerank、bounded
+- execution-control 负责 target/access admission、embedding 与 Qdrant dense/sparse RRF、bounded
   evidence projection、terminal evidence validation 与 source generation
 
 整个 SDK run 是单个 Temporal Agent Activity。Python 不作为该 activity 的 backend，
@@ -53,7 +53,7 @@ Python 不再拥有 deterministic execution runtime truth。
 - Qdrant backend runtime adapter、embedding query cache、registry lookup、
   evidence shaping
 - retrieval request validation、result construction、merge / dedupe
-- retrieval runtime 不拥有 product tool admission，也不维护 query-enabled scope truth
+- retrieval runtime 不拥有 product tool admission，也不维护 query-serving target truth
 
 LlamaIndex 不是架构层，也不得进入 contracts、execution-control、panel/eval canonical
 truth。长期 online retrieval boundary 固定为 repo-owned DTO + Qdrant native adapter +
@@ -64,10 +64,8 @@ sanitized tool-call / evidence projection。
 embedding seam 使用 repo-owned protocol / DTO；后续不得为了便利重新引入
 LlamaIndex runtime coupling。
 
-当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与
-serving-config-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
-sentence-transformers rerank 作为 current
-serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 CPU hotspot 为前提。
+当前排序事实只有 Qdrant dense/sparse hybrid retrieval 与 native RRF fusion。Python
+不参与 online ranking。
 
 内部拆分规则：
 
@@ -147,29 +145,19 @@ captured `CurriculumCourseMapRenderedSample` inputs only; later rendering must
 be admitted as an explicit adapter runtime instead of reintroducing a default
 native rendering dependency.
 
-内部拆分规则：
-
-- projection modules 不再同时承载 DTO、常量、validation 与 build/release orchestration
-- 具体 projection 的 constants、models、validation、support helpers 分文件维护
-- internal notice consumption projection 的 status models 与 multimodal
-  consumption policy 分文件维护
-- projection build/release 主文件只保留领域编排和 source-channel 映射
-
 ## Guardrails
 
 - Repo governance scripts and common app scripts live in TypeScript. The
   top-level `scripts/` directory and app script directories for app-api,
   campus-web and operator-console-web must not add `.py`, `.mjs` or `.d.mts`
   implementations. Use `pnpm exec tsx` for these script entrypoints.
-- Python tests remain valid only when they exercise an admitted Python runtime
-  island. The current workspace admits only the isolated Ragas runner. Repo
-  governance, CI/workflow contracts,
-  Worker/app scripts, ingestion clean-target checks and other common tooling
-  must be tested through TS checks or the owning package tests, not root-level
-  Python unittest suites.
-- Root `uv.workspace.members` is a narrow Python boundary allowlist containing
-  only `packages/ragas-runner`. TS / Worker / Rust owners must not add
-  `pyproject.toml` workspace shells or re-enter `uv.lock`.
+- Python tests remain valid only for an admitted Python runtime island. The
+  current workspace admits only the isolated Ragas runner. Repo governance,
+  contracts, Worker/app scripts and ingestion checks use their owning TS/Rust
+  tests.
+- Root `uv.workspace.members` contains only `packages/ragas-runner`. TS,
+  Worker, Go and Rust owners must not add `pyproject.toml` workspace shells or
+  re-enter `uv.lock` without an admitted Python runtime boundary.
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
 - 不把 deterministic execution admission、evidence validation 或 source generation
   写回 Python
@@ -177,6 +165,6 @@ native rendering dependency.
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
 - 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略
-- 不用“provider stable”替代 provider adapter 的 latency、token、estimated cost、
-  request ref、cancel / timeout outcome projection
+- 不用“provider stable”替代 provider adapter 的 latency、token usage、request ref、
+  cancel / timeout outcome projection；模型成本由 Langfuse 根据 model 与 usage 计算
 - 不通过删除 Qdrant auth、弱化 data-plane boundary 或引入 fallback 来掩盖性能/诊断缺口

@@ -169,8 +169,8 @@ func (s *Server) workflowInputForQueuedRun(
 		Namespace:      s.config.TemporalNamespace,
 		PayloadSHA256:  hex.EncodeToString(payloadHash[:]),
 		PolicyVersions: map[string]string{
-			"knowledge_scope_registry": "query-serving-scopes-v3",
-			"tool_registry":            "tools.v4",
+			"knowledge_target_registry": "query-serving-targets-v1",
+			"tool_registry":             "tools.v5",
 		},
 		PersonalMemoryTimeoutSeconds: s.config.PersonalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,

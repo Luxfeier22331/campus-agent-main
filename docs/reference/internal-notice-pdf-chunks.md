@@ -70,7 +70,6 @@ These are eval outputs and must not become sample-set truth:
 - chunks
 - embeddings
 - vector collections
-- rerank cache
 - retrieval response cache
 
 Eval outputs should use a separate operations prefix:

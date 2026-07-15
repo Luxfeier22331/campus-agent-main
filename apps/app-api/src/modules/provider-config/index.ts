@@ -26,5 +26,4 @@ export type {
 	ProviderConfigValidationResult,
 	ProviderConfigValidatorInput,
 	ProviderConfigValidators,
-	RerankProviderRole,
 } from "./types";

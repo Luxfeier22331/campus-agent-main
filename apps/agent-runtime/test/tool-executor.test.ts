@@ -24,8 +24,6 @@ describe("execution-control tool executor", () => {
 		});
 		const argumentsJson = {
 			query_text: "学籍管理规定是什么",
-			scope: "student_rules",
-			version_query: null,
 		};
 
 		const result = await executor({
@@ -35,8 +33,8 @@ describe("execution-control tool executor", () => {
 				...toolRequest().tool,
 				name: "knowledge_query",
 				description: "Handoff this turn to governed RAG.",
-				payloadSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeQueryPayload"),
-				resultSchemaRef: schemaRef("knowledge-tool-contracts.v1", "KnowledgeAgentTerminalResult"),
+				payloadSchemaRef: schemaRef("knowledge-tool-contracts.v2", "KnowledgeQueryPayload"),
+				resultSchemaRef: schemaRef("knowledge-tool-contracts.v2", "KnowledgeAgentTerminalResult"),
 				handler: {
 					type: "agent_handoff",
 					target: "knowledge_agent",
@@ -228,6 +226,7 @@ describe("execution-control tool executor", () => {
 
 function toolRequest(): ToolExecutionRequest {
 	return {
+		activityAttempt: 1,
 		runId: "run-tool-executor",
 		traceId: "trace-tool-executor",
 		argumentsJson: { query_text: "校车下一班几点", intent: "next_departure" },

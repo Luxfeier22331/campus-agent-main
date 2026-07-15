@@ -16,6 +16,9 @@ func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
 	if options.StartToCloseTimeout != 180*time.Second {
 		t.Fatalf("primary agent StartToCloseTimeout = %s, want 180s", options.StartToCloseTimeout)
 	}
+	if options.HeartbeatTimeout != 30*time.Second {
+		t.Fatalf("primary agent HeartbeatTimeout = %s, want 30s", options.HeartbeatTimeout)
+	}
 }
 
 func TestMemoryActivityOptionsUseRuntimeConfigTimeoutAndHeartbeat(t *testing.T) {

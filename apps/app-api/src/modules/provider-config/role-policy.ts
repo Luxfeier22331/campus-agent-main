@@ -5,7 +5,6 @@ import type {
 	ProviderConfigKind,
 	ProviderConfigProfile,
 	ProviderConfigRole,
-	RerankProviderRole,
 } from "./types";
 
 const PROMPT_ROLES = new Set<PromptProviderRole>([
@@ -20,8 +19,6 @@ const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>([
 	"index_embedding",
 	"rag_query_embedding",
 ]);
-const RERANK_ROLES = new Set<RerankProviderRole>(["rag_reranker"]);
-
 export function roleForKind(value: string, kind: ProviderConfigKind): ProviderConfigRole | null {
 	if (kind === "prompt" && PROMPT_ROLES.has(value as PromptProviderRole)) {
 		return value as PromptProviderRole;
@@ -29,17 +26,13 @@ export function roleForKind(value: string, kind: ProviderConfigKind): ProviderCo
 	if (kind === "embedding" && EMBEDDING_ROLES.has(value as EmbeddingProviderRole)) {
 		return value as EmbeddingProviderRole;
 	}
-	if (kind === "rerank" && RERANK_ROLES.has(value as RerankProviderRole)) {
-		return value as RerankProviderRole;
-	}
 	return null;
 }
 
 export function runtimeRole(value: string): ProviderConfigRole | null {
 	if (
 		PROMPT_ROLES.has(value as PromptProviderRole) ||
-		EMBEDDING_ROLES.has(value as EmbeddingProviderRole) ||
-		RERANK_ROLES.has(value as RerankProviderRole)
+		EMBEDDING_ROLES.has(value as EmbeddingProviderRole)
 	) {
 		return value as ProviderConfigRole;
 	}

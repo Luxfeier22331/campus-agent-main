@@ -11,14 +11,7 @@ export function runDoctorEnvSelfTest(): number {
 		!renderedSpecs.includes("EXECUTION_PROMPT_MODEL"),
 		"retired execution prompt model leaked",
 	);
-	expect(
-		renderedSpecs.includes("INTERNAL_NOTICE_MULTIMODAL_API_KEY"),
-		"internal notice multimodal API key missing",
-	);
-	expect(
-		!renderedSpecs.includes("INTERNAL_NOTICE_MULTIMODAL_BASE_URL"),
-		"retired internal notice multimodal base URL leaked",
-	);
+	expect(!renderedSpecs.includes("INTERNAL_NOTICE_"), "retired internal notice runtime leaked");
 	selfTestExecutionControlReady();
 	selfTestExecutionControlMissing();
 	selfTestQuerySurface();

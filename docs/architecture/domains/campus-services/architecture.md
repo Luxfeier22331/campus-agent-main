@@ -74,8 +74,8 @@ opening gate.
 
 A campus-services tool is open only when all registries agree:
 
-- `configs/runtime/tools.v4.json` has `exposure: "model_visible"`
-- `configs/runtime/tool-function-schemas.v1.json` has an available strict schema
+- `configs/runtime/tools.v5.json` has `exposure: "model_visible"`
+- `configs/runtime/tool-function-schemas.v2.json` has an available strict schema
 - `configs/runtime/workflow-artifacts.v2.json` binds the tool to bounded
   runtime artifacts
 - Go readyz/runtime tests and product-path gates pass

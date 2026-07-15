@@ -105,7 +105,6 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 		runID,
 		conversationID,
 		"knowledge_query",
-		"student_rules",
 	)
 }
 
@@ -113,11 +112,10 @@ func durableRunCreateBodyWithToolForTest(
 	runID string,
 	conversationID string,
 	requestedTool string,
-	scope string,
 ) string {
 	executionPayload := map[string]any{
-		"execution_contract_version": "tool_execution_v1",
-		"response_contract":          "execution_finalization_response_v2",
+		"execution_contract_version": "tool_execution_v2",
+		"response_contract":          "execution_finalization_response_v3",
 		"user_goal":                  "hello",
 		"request_id":                 "req-" + runID,
 		"conversation_id":            conversationID,
@@ -131,7 +129,6 @@ func durableRunCreateBodyWithToolForTest(
 				},
 			},
 		},
-		"version_query": map[string]any{},
 	}
 	body := map[string]any{
 		"run_id":          runID,
@@ -148,9 +145,6 @@ func durableRunCreateBodyWithToolForTest(
 	}
 	if requestedTool != "" {
 		executionPayload["requested_tool"] = requestedTool
-	}
-	if scope != "" {
-		executionPayload["scope"] = scope
 	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
@@ -176,8 +170,8 @@ func createHTTPAPIQueuedDurableRunForTest(
 	}
 	metadata := map[string]any{
 		"execution_payload": map[string]any{
-			"execution_contract_version": "tool_execution_v1",
-			"response_contract":          "execution_finalization_response_v2",
+			"execution_contract_version": "tool_execution_v2",
+			"response_contract":          "execution_finalization_response_v3",
 			"user_goal":                  userGoal,
 			"request_id":                 "req-executor-001",
 			"conversation_id":            conversationID,
@@ -193,7 +187,6 @@ func createHTTPAPIQueuedDurableRunForTest(
 					},
 				},
 			},
-			"version_query": map[string]any{},
 		},
 	}
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{

@@ -3,18 +3,20 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0054
-status: accepted
+status: superseded
 created: 2026-06-11
 updated: 2026-07-13
 supersedes: []
 partially_superseded_by:
   - adr-0048-temporal.md
+superseded_by: adr-0077-ingestion.md
 ---
 # ADR-0054 Ingestion Control Plane And Kernel Boundary
 
 ## 状态
 
-Accepted on 2026-06-11.
+Superseded by ADR-0077 on 2026-07-13. This file is historical context and no
+longer defines current ingestion contracts or runtime ownership.
 
 2026-07-02 update: the self-built claim / lease / retry / dead-letter executor
 part of this ADR is superseded by Temporal-owned workflow / activity execution

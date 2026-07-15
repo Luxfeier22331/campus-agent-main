@@ -82,3 +82,6 @@ secret.local.yaml
 sealed-secrets-*.pem
 sealed-secrets-key.backup.yaml
 sealed-secrets-key.*.backup.yaml
+
+# Turborepo
+.turbo

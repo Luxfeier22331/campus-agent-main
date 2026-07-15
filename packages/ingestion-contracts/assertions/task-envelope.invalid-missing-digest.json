@@ -1,0 +1,11 @@
+{
+	"schema_version": "ingestion_task_envelope.v3",
+	"task_id": "task_invalid",
+	"run_id": "run_invalid",
+	"registry_task_id": "curriculum.curriculum_plan.chunk_prepare",
+	"input_ref": {
+		"byte_size": 128,
+		"kind": "object_store",
+		"uri": "s3://campus-agent-derived/curriculum/curriculum_plan/document-units.jsonl"
+	}
+}

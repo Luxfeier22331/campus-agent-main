@@ -1,0 +1,17 @@
+{
+	"schema_version": "ingestion_task_result.v1",
+	"task_id": "task_curriculum_chunk_001",
+	"run_id": "run_curriculum_20260611",
+	"registry_task_id": "curriculum.curriculum_plan.chunk_prepare",
+	"output_contract": "ingestion_chunk_set.v1",
+	"result_ref": {
+		"byte_size": 256,
+		"kind": "object_store",
+		"uri": "s3://campus-agent-derived/ingestion-results/curriculum/run-001/task-001.json",
+		"digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	},
+	"summary": {
+		"chunk_count": 42,
+		"kernel_id": "chunk-document-units"
+	}
+}

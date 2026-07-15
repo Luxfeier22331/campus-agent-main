@@ -5,9 +5,10 @@ owner_boundary: docs/decisions
 decision_id: ADR-0024
 status: accepted
 created: 2026-04-03
-updated: 2026-07-05
+updated: 2026-07-13
 partially_superseded_by:
   - adr-0063-internal-portal-source-channel-name.md
+  - adr-0077-ingestion.md
 ---
 # ADR-0024 Authenticated Notice Source Channel
 
@@ -25,16 +26,16 @@ ADR-0063 只替代 source channel 名称，不废弃本文关于一级 source ch
 ## 当前状态说明
 
 本文保留 source-channel 建模与 collector ownership 的历史 rationale。当前 merged
-truth 已经从 bootstrap import seam 收口为 `apps/ingestion-control` 读取 source bucket
-中的 `authenticated_notice_capture_release.v1` object-store handoff；`run_id` /
-run ledger 只作 audit、idempotency、operator projection 与 correlation metadata。
+truth 已经切到 `internal_portal.notice.capture` Temporal activity。请求、capture
+release 与 result manifest 都通过 digest-pinned object refs 传递；旧 run ledger、
+app-api command 和独立 closeout lifecycle 已由 ADR-0077 删除。
 
-因此，下文关于 bootstrap importer、`packages/ingestion-core`、
+因此，下文关于 bootstrap importer、旧 Python ingestion package、
 `apps/ingestion-worker` 或 collector export JSON 的第一阶段接入描述，不得被解释为当前
 executor input contract 或当前 data-plane owner。当前实现由
 `apps/ingestion-control` 执行 task lifecycle，TS `packages/ingest-core` 提供
-runtime-neutral parser/helper；Python `packages/ingestion-core` 只保留
-file/OCR/Office adapter island。
+runtime-neutral parser/helper；旧 Python ingestion package 与
+`apps/ingestion-worker` 均不在 active workspace。
 
 ## 背景
 

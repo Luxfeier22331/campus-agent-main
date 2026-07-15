@@ -1,5 +1,4 @@
 import type { CheerioCrawlingContext, RequestOptions } from "crawlee";
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import {
 	admitOfficialWebUrl,
 	buildOfficialWebUrlResultRecord,
@@ -9,6 +8,7 @@ import {
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebUrlResultRecord,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import type { CollectorRequestUserData } from "./crawl-internal-types.ts";
 
 export interface InitialRequestDiscoveryResult {
@@ -26,6 +26,7 @@ export function buildInitialRequests(input: {
 }): InitialRequestDiscoveryResult {
 	const candidates: Array<{
 		url: string;
+		configuredSeedUrl?: string | null;
 		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
 		discoveredFromUrl?: string | null;
 		knownPage?: OfficialWebPlannerPageCandidate;
@@ -35,6 +36,7 @@ export function buildInitialRequests(input: {
 	for (const page of input.plannerPages) {
 		candidates.push({
 			url: page.normalizedCanonicalUrl,
+			configuredSeedUrl: page.configuredSeedUrl ?? null,
 			discoveryMethod: page.discoveryMethod,
 			discoveredFromUrl: page.discoveredFromUrl,
 			knownPage: page,
@@ -74,6 +76,7 @@ export function buildInitialRequests(input: {
 		requests.set(request.url, {
 			...request,
 			userData: {
+				configuredSeedUrl: requestUserData.configuredSeedUrl ?? null,
 				discoveryMethod: requestUserData.discoveryMethod,
 				discoveredFromUrl: requestUserData.discoveredFromUrl,
 				depth: requestUserData.depth,
@@ -144,6 +147,7 @@ function buildAdmittedCollectorRequest(input: {
 	bundle: OfficialWebConfigBundle;
 	candidate: {
 		url: string;
+		configuredSeedUrl?: string | null;
 		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
 		discoveredFromUrl?: string | null;
 		knownPage?: OfficialWebPlannerPageCandidate;
@@ -190,6 +194,7 @@ function buildAdmittedCollectorRequest(input: {
 		url: admission.normalizedUrl,
 		uniqueKey: admission.normalizedUrl,
 		userData: {
+			configuredSeedUrl: input.candidate.configuredSeedUrl ?? null,
 			discoveryMethod: input.candidate.discoveryMethod,
 			conditionalHeaders: buildConditionalHeaders(selectPrimaryKnownPage(incomingKnownPages), {
 				disabled: input.disableConditionalHeaders,

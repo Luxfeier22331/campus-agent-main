@@ -278,7 +278,7 @@ chunk 组装必须严格区分三层：
 ### Answer-ready 语义片段
 
 `student_rules_semantic_v3` 的在线检索目标不是只生成“不过长的结构块”，还必须生成可被
-retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。该 evidence contract
+retrieval/fusion/answer synthesis 直接使用的 answer-ready evidence。该 evidence contract
 是 regulation-family 通用 contract；学生手册只是当前完整落地的 handbook profile。
 
 当前 student rules 的 regulation-aware chunking 会在正文结构识别后补充：
@@ -399,7 +399,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - `regulations/student_rules` task registry 的 `document_units_validate` /
   `chunk_prepare` 阶段；确定性文件检查由 Rust kernel 承接，task lifecycle
-  由 ingestion-control `ts_control` closeout 承接。
+  由 ingestion-control Temporal workflow 和 control activity 投影承接。
 
 当前核心指标：
 
@@ -496,7 +496,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - [configs/ingestion/regulations/student_rules/serving-config.json](../../configs/ingestion/regulations/student_rules/serving-config.json)
 - [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
-- [configs/ingestion/regulations/student_rules/task-registry.v2.json](../../configs/ingestion/regulations/student_rules/task-registry.v2.json)
+- [configs/ingestion/regulations/student_rules/task-registry.v3.json](../../configs/ingestion/regulations/student_rules/task-registry.v3.json)
 - [packages/ingest-core/src/collection-profiles.ts](../../packages/ingest-core/src/collection-profiles.ts)
 - [packages/ingest-core/src/kernel-artifacts.ts](../../packages/ingest-core/src/kernel-artifacts.ts)
 - [packages/ingestion-kernels-rs/src/lib.rs](../../packages/ingestion-kernels-rs/src/lib.rs)

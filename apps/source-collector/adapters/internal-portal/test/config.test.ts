@@ -15,26 +15,16 @@ describe("internal portal source collector config", () => {
 				"apps/source-collector/adapters/internal-portal/config/notice-types.json",
 			),
 		).toBe(true);
-		expect(
-			config.exportsDir.endsWith("apps/source-collector/adapters/internal-portal/runtime/exports"),
-		).toBe(true);
 		expect(config.requestMaxRetries).toBe(3);
 		expect(
 			config.authStorageStatePath.endsWith(
 				"apps/source-collector/adapters/internal-portal/runtime/auth/storageState.json",
 			),
 		).toBe(true);
-		expect(config.attachmentFetchStatusDatabaseUrl).toBeNull();
-		expect(config.attachmentFetchStatusDisabled).toBe(false);
-		expect(config.attachmentFetchRequestManifestPath).toBeNull();
 		expect(config.defaultInlineVisualCapture).toBe(false);
 		expect(config.authJsessionId).toBeNull();
 		expect(config.authNginxCookie).toBeNull();
-		expect(config.collectionMode).toBe("incremental");
-		expect(config.internalPortalRunLedgerDatabaseUrl).toBeNull();
-		expect(config.internalPortalRunLedgerDisabled).toBe(false);
 		expect(config.historicalBackfillMaxPagesPerType).toBeNull();
-		expect(config.writeLocalExports).toBe(false);
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
@@ -46,21 +36,12 @@ describe("internal portal source collector config", () => {
 			INTERNAL_PORTAL_PAGE_URL: "https://portal.example.edu/page/99#/",
 			INTERNAL_PORTAL_BYPASS_PROXY: "false",
 			INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
-			INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DATABASE_URL: "postgresql://runtime.example/postgres",
-			INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DISABLE: "true",
-			INTERNAL_PORTAL_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH:
-				"/tmp/attachment-fetch-request-manifest.json",
 			INTERNAL_PORTAL_DEFAULT_INLINE_VISUAL_CAPTURE: "false",
-			INTERNAL_PORTAL_COLLECTION_MODE: "backfill",
-			INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL: "postgresql://ledger.example/postgres",
-			INTERNAL_PORTAL_RUN_LEDGER_DISABLE: "true",
 			INTERNAL_PORTAL_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE: "500",
-			INTERNAL_PORTAL_NOTICE_TYPE_ALLOWLIST: "9982, 6,9982",
 			INTERNAL_PORTAL_REQUEST_MAX_RETRIES: "5",
 			INTERNAL_PORTAL_RUNTIME_DIR: "/tmp/collector-runtime",
 			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".example.edu",
 			INTERNAL_PORTAL_SSO_TGC: "sso-token",
-			INTERNAL_PORTAL_WRITE_LOCAL_EXPORTS: "true",
 		});
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
@@ -72,21 +53,11 @@ describe("internal portal source collector config", () => {
 		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoCookieDomain).toBe(".example.edu");
 		expect(config.authSsoTgcToken).toBe("sso-token");
-		expect(config.noticeTypeAllowlist).toEqual(["9982", "6"]);
-		expect(config.attachmentFetchStatusDatabaseUrl).toBe("postgresql://runtime.example/postgres");
-		expect(config.attachmentFetchStatusDisabled).toBe(true);
-		expect(config.attachmentFetchRequestManifestPath).toBe(
-			"/tmp/attachment-fetch-request-manifest.json",
-		);
 		expect(config.defaultInlineVisualCapture).toBe(false);
-		expect(config.collectionMode).toBe("backfill");
-		expect(config.internalPortalRunLedgerDatabaseUrl).toBe("postgresql://ledger.example/postgres");
-		expect(config.internalPortalRunLedgerDisabled).toBe(true);
 		expect(config.historicalBackfillMaxPagesPerType).toBe(500);
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
-		expect(config.writeLocalExports).toBe(true);
 	});
 
 	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {

@@ -1,94 +1,47 @@
-# institutional_rules collection config
+# institutional_rules collection
 
-This directory holds the repo-tracked config scaffold for the
-`institutional_rules` collection within the `regulations` corpus.
+This directory defines the physical `regulations/institutional_rules`
+collection used by the public `institutional_rules` knowledge target.
 
-- `serving-config.json`: canonical serving gate for the regulation target
-  collection
-- `canonical-profile.json`: canonical identity and provenance truth for promoted
-  regulation documents
-- `chunk-profile.json`: chunk-preparation contract for canonical regulation text
-- `query-planning.json`: runtime policy-object registry for title-targeted
-  retrieval planning; it is not a qrels assertion
-- `source-projections.v1.json`: promotion-facing projection scaffold from
-  `campus_notices/internal_notice`
-- `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`:
-  source-side routing scaffold for promotion decisions
-- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`:
-  freeze that source-triage notices and regulation-owned documents are different
-  collection layers
-- `docs/reference/institutional-rules-promotion.md`:
-  target identity and acceptance truth
+## Files
 
-Current serving truth:
+- `serving-config.json`: query-serving and Qdrant contract
+- `canonical-profile.json`: document identity and provenance fields
+- `chunk-profile.json`: canonical document chunking profile
+- `query-planning.json`: title-aware retrieval hints
+- `task-registry.v3.json`: executable ingestion tasks
 
-- serving stage: `query_serving`
-- retrieval enabled: `true`
-- query enabled by default: `true`
-- serving alias: `institutional_rules`
-- collection prefix: `institutional_rules`
+## Runtime
 
-Collection boundary:
+- `configs/runtime/query-serving-targets.v1.json` maps the
+  `institutional_rules` target to this collection.
+- The collection is `query_serving`, uses the `institutional_rules` Qdrant
+  alias, and admits public or campus-restricted evidence.
+- Query serving requires the alias to exist and its dense and sparse vector
+  configuration to match the active embedding profile.
 
-- this collection accepts regulation-owned canonical text promoted from
-  source-triage layers
-- promoted documents may still carry `document_nature` such as
-  `institutional_regulation`, `annual_cycle_rule`, or
-  `time_bound_operational_rule`
-- wrapper notices remain in `campus_notices/internal_notice`
-- promotion must preserve provenance back to source notice ids while explicitly
-  separating `source_notice_document_id` from `semantic_owner_document_id`
+## Ingestion
 
-Current scaffold note:
+The active registry starts from canonical `document-units` and exposes two
+deterministic tasks:
 
-- this directory freezes the target-side promotion scaffold from
-  `campus_notices/internal_notice` into `regulations/institutional_rules`
-- the old Python promotion manifest / export / scan path has been retired from
-  the active workspace; future promotion execution must be rebuilt as an
-  admitted ingestion-control handler or deterministic kernel-backed task before
-  it can publish
-- local-only target acceptance chunk preparation is no longer a Python worker
-  command surface; rebuild it as a registry-declared `rust_kernel` /
-  `ts_control` task before opening new release automation
-- the current boundary has moved into release-managed `query_serving`
-- query-serving publish must still pass the deterministic release acceptance gate
-  before alias mutation
-- qrels validation for this projection-derived scope uses
-  `retrieval-eval-manifest.v1.json` because this collection does not have a static
-  split manifest
+- `document_units_validate`
+- `chunk_prepare`
 
-Current materialization truth:
+Source materialization, indexing, and alias publication are not task entries in
+this collection registry. No placeholder promotion declaration is retained.
 
-- target `document_id` is derived from `regulation_work_title + issuing_org +
-  semantic scope`, not from `notice_id`
-- projected/materialized `title` now uses `regulation_display_title` when
-  available
-- current execution preserves these regulation title/version metadata fields:
-  - `regulation_work_title`
-  - `regulation_edition_label`
-  - `regulation_display_title`
-  - `source_title_literal`
-- `regulation_title_normalized` remains as normalized source-facing title
-  metadata
-- duplicate wrapper/attachment notices that resolve to the same canonical
-  regulation keep one promoted target document while aggregating duplicate
-  provenance in metadata
-- scope refresh replaces the full `regulations/institutional_rules` registry
-  scope on each materialization run
-- annual-cycle and time-bound rules no longer stay in this collection as target
-  scope; they materialize into `regulations/scoped_rules`
+Canonical regulation identity is based on the regulation work, issuer, and
+semantic applicability rather than a wrapper notice id. Promotion preserves
+source notice provenance while keeping `source_notice_document_id` separate
+from `semantic_owner_document_id`.
 
-Display convention note:
+Display metadata keeps these meanings distinct:
 
-- ADR-0040 freezes the long-term split between `regulation_work_title`,
-  `regulation_edition_label`, and `regulation_display_title`
-- the slash form `<work title> / <edition label>` is a repo-local display
-  convention inferred from work/version separation needs; it is not presented as
-  a literal external metadata standard
-- `regulation_display_title` keeps the full `edition_label` semantics instead of
-  collapsing to a bare year
-  - `... / 2026版` and `... / 2026年修订` are valid current forms
-  - `... / 2026` is not the current accepted display-title format
-- year-bearing but non-edition signals such as `2026届`, status qualifiers such
-  as `暂行/试行`, and file-number signals such as `民大校发〔2025〕104号` must not be
-  reclassified as `regulation_edition_label`
+- `regulation_work_title`: stable work identity
+- `regulation_edition_label`: edition or revision label
+- `regulation_display_title`: rendered work and edition title
+- `source_title_literal`: source-facing title
+
+Annual-cycle and time-bound rules belong to `regulations/scoped_rules`, not
+this collection.

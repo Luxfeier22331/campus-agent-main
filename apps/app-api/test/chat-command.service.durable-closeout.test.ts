@@ -60,7 +60,7 @@ function answerResponsePayload(text = "国家奖学金每学年评审一次。")
 			selected_tools: ["knowledge_query"],
 			terminal_reason: "answer",
 		},
-		resolved_scope: "student_rules",
+		resolved_targets: ["student_rules"],
 		result: {
 			sources: [
 				{
@@ -590,14 +590,12 @@ describe("chat command durable stream closeout", () => {
 				requestFingerprintSha256: "fingerprint_0001",
 				requestId: "req_0001",
 				requestedTool: "knowledge_query",
-				requestedScope: null,
 				runId: "run_0001",
 				safetyIdentifier: "safety_0001",
 				surface: "campus_web",
 				traceId: "trace_0001",
 				turnSequence: 1,
 				userMessageId: "msg_user_0001",
-				versionQuery: null,
 			},
 		]);
 		const service = buildChatCommandService({

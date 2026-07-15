@@ -20,7 +20,7 @@
 		"apps/source-collector/adapters/internal-portal/.env.example": 45,
 		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39,
-		"env/commands/ingestion-control-runtime.env.example": 18,
+		"env/commands/ingestion-control-runtime.env.example": 19,
 		"env/commands/provider-config-seed.env.example": 18
 	},
 	"keys": {
@@ -67,12 +67,6 @@
 			"retired": true
 		},
 		"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS": {
-			"owner": "execution-control-runtime-config",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
-		"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH": {
 			"owner": "execution-control-runtime-config",
 			"scopes": [],
 			"secret": false,
@@ -252,26 +246,6 @@
 			"secret": false,
 			"retired": true
 		},
-		"RERANK_BASE_URL": {
-			"owner": "local-provider-seed",
-			"scopes": ["command"],
-			"secret": false
-		},
-		"RERANK_API_KEY": {
-			"owner": "local-provider-seed",
-			"scopes": ["command"],
-			"secret": true
-		},
-		"RERANK_MODEL": {
-			"owner": "local-provider-seed",
-			"scopes": ["command"],
-			"secret": false
-		},
-		"RERANK_PATH": {
-			"owner": "local-provider-seed",
-			"scopes": ["command"],
-			"secret": false
-		},
 		"DEPLOYMENT_ENVIRONMENT": {
 			"owner": "runtime-observability",
 			"scopes": ["infra", "staging-local"],
@@ -294,37 +268,27 @@
 		},
 		"INGESTION_CONTROL_ADMIN_TOKEN": {
 			"owner": "ingestion-control-service-auth",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
 			"secret": true
 		},
 		"INGESTION_CONTROL_APP_API_PROJECTION_TOKEN": {
 			"owner": "ingestion-control-service-auth",
-			"scopes": ["app-api", "command"],
-			"secret": true
-		},
-		"INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN": {
-			"owner": "ingestion-control-service-auth",
-			"scopes": ["command", "source-collector"],
-			"secret": true
-		},
-		"INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN": {
-			"owner": "ingestion-control-service-auth",
-			"scopes": ["command"],
-			"secret": true
-		},
-		"INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN": {
-			"owner": "ingestion-control-service-auth",
-			"scopes": ["command"],
+			"scopes": ["app-api", "command", "ingestion-control"],
 			"secret": true
 		},
 		"INGESTION_CONTROL_DATABASE_URL": {
 			"owner": "ingestion-control-runtime-secret",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
 			"secret": true
 		},
 		"INGESTION_TASK_REGISTRY_ROOT": {
 			"owner": "ingestion-control-runtime",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"INGESTION_KERNEL_TOKENIZER_JSON_PATH": {
+			"owner": "ingestion-control-runtime",
+			"scopes": ["command", "ingestion-control"],
 			"secret": false
 		},
 		"INGESTION_CONTROL_HOST": {
@@ -339,22 +303,32 @@
 		},
 		"INGESTION_TEMPORAL_ADDRESS": {
 			"owner": "ingestion-control-temporal-runtime",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control", "source-collector"],
 			"secret": false
 		},
 		"INGESTION_TEMPORAL_NAMESPACE": {
 			"owner": "ingestion-control-temporal-runtime",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control", "source-collector"],
 			"secret": false
 		},
 		"INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE": {
 			"owner": "ingestion-control-temporal-runtime",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
 			"secret": false
 		},
 		"INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE": {
 			"owner": "ingestion-control-temporal-runtime",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command", "ingestion-control"],
+			"secret": false
+		},
+		"INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE": {
+			"owner": "ingestion-control-temporal-runtime",
+			"scopes": ["command", "ingestion-control", "source-collector"],
 			"secret": false
 		},
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS": {
@@ -477,11 +451,6 @@
 			"scopes": ["app-api"],
 			"secret": true
 		},
-		"APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN": {
-			"owner": "worker-secret",
-			"scopes": ["app-api"],
-			"secret": true
-		},
 		"SENTRY_DSN": {
 			"owner": "worker-secret",
 			"scopes": ["app-api", "campus-web", "operator-console-web"],
@@ -495,16 +464,6 @@
 		"APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET": {
 			"owner": "app-api-process-secret",
 			"scopes": ["app-api"],
-			"secret": true
-		},
-		"INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DATABASE_URL": {
-			"owner": "source-collector-secret",
-			"scopes": ["source-collector"],
-			"secret": true
-		},
-		"INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL": {
-			"owner": "source-collector-secret",
-			"scopes": ["source-collector"],
 			"secret": true
 		},
 		"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN": {
@@ -525,6 +484,11 @@
 		"OBJECT_STORE_BUCKET_SOURCE": {
 			"owner": "object-store-source-runtime",
 			"scopes": ["app-api", "command", "ingestion-control", "source-collector"],
+			"secret": false
+		},
+		"OBJECT_STORE_BUCKET_DERIVED": {
+			"owner": "object-store-derived-runtime",
+			"scopes": ["campus-web", "command", "ingestion-control"],
 			"secret": false
 		},
 		"OBJECT_STORE_SOURCE_ACCESS_KEY": {
@@ -549,18 +513,18 @@
 		},
 		"OBJECT_STORE_DERIVED_ACCESS_KEY": {
 			"owner": "object-store-derived-secret",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
 			"secret": true
 		},
 		"OBJECT_STORE_DERIVED_SECRET_KEY": {
 			"owner": "object-store-derived-secret",
-			"scopes": ["command"],
+			"scopes": ["command", "ingestion-control"],
 			"secret": true
 		},
-		"OFFICIAL_WEB_SERVICE_TOKEN": {
-			"owner": "source-collector-secret",
+		"OFFICIAL_WEB_CONFIG_ROOT": {
+			"owner": "source-collector-runtime",
 			"scopes": ["source-collector"],
-			"secret": true
+			"secret": false
 		},
 		"OPERATOR_CONSOLE_APP_API_SHARED_SECRET": {
 			"owner": "worker-secret",
@@ -572,12 +536,17 @@
 			"scopes": ["operator-console-web"],
 			"secret": false
 		},
-		"FEEDWE_PASSWORD": {
+		"FEEDWE_BASE_URL": {
+			"owner": "source-collector-runtime",
+			"scopes": ["source-collector"],
+			"secret": false
+		},
+		"FEEDWE_EMAIL": {
 			"owner": "source-collector-secret",
 			"scopes": ["source-collector"],
 			"secret": true
 		},
-		"WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN": {
+		"FEEDWE_PASSWORD": {
 			"owner": "source-collector-secret",
 			"scopes": ["source-collector"],
 			"secret": true
@@ -612,11 +581,6 @@
 			"scopes": ["command"],
 			"secret": true
 		},
-		"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": {
-			"owner": "internal-notice-read-model-secret",
-			"scopes": ["command"],
-			"secret": true
-		},
 		"OTEL_COLLECTOR_SENTRY_AUTH_VALUE": {
 			"owner": "runtime-observability",
 			"scopes": ["infra"],
@@ -631,6 +595,21 @@
 			"owner": "runtime-observability",
 			"scopes": ["infra"],
 			"secret": true
+		},
+		"OTEL_EXPORTER_OTLP_ENDPOINT": {
+			"owner": "runtime-observability",
+			"scopes": ["command", "infra"],
+			"secret": false
+		},
+		"OTEL_EXPORTER_OTLP_HEADERS": {
+			"owner": "runtime-observability",
+			"scopes": ["command", "infra"],
+			"secret": true
+		},
+		"OTEL_SERVICE_NAME": {
+			"owner": "runtime-observability",
+			"scopes": ["command", "infra"],
+			"secret": false
 		}
 	},
 	"allowed_prefixes": {
@@ -654,7 +633,6 @@
 		"FEEDWE_": ["source-collector"],
 		"INGESTION_QDRANT_": [],
 		"INTERNAL_PORTAL_": ["source-collector"],
-		"INTERNAL_NOTICE_": ["command"],
 		"LLM_": ["command"],
 		"OBJECT_STORE_": ["app-api", "campus-web", "command", "source-collector"],
 		"OCR_": [],

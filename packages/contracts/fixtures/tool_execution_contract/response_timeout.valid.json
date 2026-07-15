@@ -4,7 +4,7 @@
 	"answer_text": "",
 	"follow_up_question": "",
 	"confidence": "low",
-	"resolved_scope": null,
+	"resolved_targets": [],
 	"session_update": null,
 	"result": null,
 	"error": {

@@ -1,15 +1,18 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { PutObjectCommand, type PutObjectCommandInput, S3Client } from "@aws-sdk/client-s3";
+import { S3Client } from "@aws-sdk/client-s3";
 import type { StoredArtifactRef as CoreStoredArtifactRef } from "ingest-core";
-import { sha256Hex } from "ingest-core";
+import { assertStoredArtifactIdentity, sha256Hex } from "ingest-core";
+import { createOrVerifyS3Object } from "../../../src/s3-create-or-verify.ts";
 
 export const DEFAULT_S3_MAX_ATTEMPTS = 4;
 export type StoredArtifactRef = CoreStoredArtifactRef;
 
 export interface OfficialWebArtifactStore {
-	putObject(input: {
+	close?(): Promise<void> | void;
+	createOrVerifyObject(input: {
+		abortSignal?: AbortSignal;
 		objectKey: string;
 		data: Uint8Array;
 		contentType: string;
@@ -32,7 +35,8 @@ export class FilesystemArtifactStore implements OfficialWebArtifactStore {
 		this.rootDir = rootDir;
 	}
 
-	async putObject(input: {
+	async createOrVerifyObject(input: {
+		abortSignal?: AbortSignal;
 		objectKey: string;
 		data: Uint8Array;
 		contentType: string;
@@ -40,10 +44,25 @@ export class FilesystemArtifactStore implements OfficialWebArtifactStore {
 	}): Promise<StoredArtifactRef> {
 		const targetPath = resolve(this.rootDir, input.objectKey);
 		mkdirSync(dirname(targetPath), { recursive: true });
-		writeFileSync(targetPath, input.data);
+		const contentSha256 = sha256Hex(input.data);
+		try {
+			writeFileSync(targetPath, input.data, { flag: "wx" });
+		} catch (error) {
+			if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+				throw error;
+			}
+			const existing = readFileSync(targetPath);
+			assertStoredArtifactIdentity({
+				actualByteSize: existing.byteLength,
+				actualContentSha256: sha256Hex(existing),
+				expectedByteSize: input.data.byteLength,
+				expectedContentSha256: contentSha256,
+				uri: targetPath,
+			});
+		}
 		return {
 			objectKey: input.objectKey,
-			contentSha256: sha256Hex(input.data),
+			contentSha256,
 			byteSize: input.data.byteLength,
 			recordCount: input.recordCount,
 		};
@@ -52,34 +71,41 @@ export class FilesystemArtifactStore implements OfficialWebArtifactStore {
 
 export class S3ArtifactStore implements OfficialWebArtifactStore {
 	private readonly bucket: string;
-	private readonly client: Pick<S3Client, "send">;
+	private readonly client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 
 	constructor(input: {
 		bucket: string;
-		client: Pick<S3Client, "send">;
+		client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 	}) {
 		this.bucket = input.bucket;
 		this.client = input.client;
 	}
 
-	async putObject(input: {
+	close(): void {
+		this.client.destroy?.();
+	}
+
+	async createOrVerifyObject(input: {
+		abortSignal?: AbortSignal;
 		objectKey: string;
 		data: Uint8Array;
 		contentType: string;
 		recordCount?: number;
 	}): Promise<StoredArtifactRef> {
-		const commandInput: PutObjectCommandInput = {
-			Bucket: this.bucket,
-			Key: input.objectKey,
-			Body: input.data,
-			ContentType: input.contentType,
-			ContentLength: input.data.byteLength,
-		};
-		await this.client.send(new PutObjectCommand(commandInput));
+		const stored = await createOrVerifyS3Object({
+			abortSignal: input.abortSignal,
+			body: input.data,
+			bucket: this.bucket,
+			client: this.client,
+			contentType: input.contentType,
+			key: input.objectKey,
+		});
 		return {
 			objectKey: input.objectKey,
-			contentSha256: sha256Hex(input.data),
-			byteSize: input.data.byteLength,
+			contentSha256: stored.contentSha256,
+			byteSize: stored.byteSize,
+			etag: stored.etag,
+			versionId: stored.versionId,
 			recordCount: input.recordCount,
 		};
 	}

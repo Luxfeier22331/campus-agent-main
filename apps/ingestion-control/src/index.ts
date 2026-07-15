@@ -1,4 +1,5 @@
 export {
+	createIngestionTaskExecutionSnapshot,
 	createIngestionTaskRegistryCatalog,
 	IngestionTaskRegistryCatalog,
 	RegistryAdmissionError,
@@ -11,11 +12,20 @@ export {
 	loadIngestionTaskRegistryFromFile,
 } from "ingest-core/node";
 export {
-	createIngestionTaskActivities,
-	type ExecuteIngestionTaskResult,
-	type IngestionTaskActivities,
+	createIngestionProjectionActivities,
+	createRustKernelActivities,
+	type IngestionProjectionActivities,
+	type RustKernelActivities,
+	type SourceCollectorActivities,
 } from "./activities";
 export { createIngestionControlHandler, type IngestionControlHandler } from "./http";
+export { InMemoryIngestionTaskStore } from "./in-memory-store";
+export {
+	applyIngestionControlMigrations,
+	type IngestionControlMigration,
+	loadIngestionControlMigrations,
+	runIngestionControlMigrations,
+} from "./migrate";
 export {
 	createS3IngestionObjectStore,
 	createS3IngestionObjectStoreFromEnv,
@@ -23,12 +33,24 @@ export {
 	type IngestionObjectStoreEnvironment,
 } from "./object-store";
 export {
+	createOfficialWebFreshnessService,
+	createPostgresOfficialWebFreshnessStore,
+	type OfficialWebFreshnessCandidate,
+	type OfficialWebFreshnessService,
+	type OfficialWebFreshnessStore,
+	type OfficialWebPageObservation,
+} from "./official-web-freshness";
+export {
+	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
-	ensureIngestionControlPostgresSchema,
 	type PgClientLike,
 	type PgPoolLike,
 	type PgQueryable,
 } from "./postgres-store";
+export {
+	IngestionResultArtifactContractError,
+	verifyIngestionTaskResultArtifact,
+} from "./result-artifact-verification";
 export {
 	createDefaultRustKernelRegistry,
 	type DefaultRustKernelRegistryOptions,
@@ -37,46 +59,38 @@ export {
 	type RustKernelCommandRunner,
 } from "./rust-kernel-runner";
 export {
-	ingestionTaskExecutionErrorCode,
-	ingestionTaskExecutionErrorMessage,
-	RegistryTaskContractMismatchError,
-	RegistryTaskNotDeclaredError,
 	type RustKernelHandler,
-	RustKernelIdMissingError,
 	RustKernelNotRegisteredError,
 	RustKernelRegistry,
-	runDeclaredIngestionTask,
-	TaskInputRefNotObjectStoreError,
-	type TsTaskHandler,
-	type TsTaskHandlerIdentity,
-	TsTaskHandlerNotRegisteredError,
-	TsTaskHandlerRegistry,
-	type TsTaskHandlerResult,
 } from "./task-executor";
 export {
 	type ClosableIngestionWorkflowStarter,
 	createTemporalIngestionWorkflowStarter,
+	IngestionWorkflowIdentityConflictError,
 	type IngestionWorkflowStarter,
 	type IngestionWorkflowStartResult,
+	ingestionWorkflowId,
 } from "./temporal-client";
 export {
 	buildIngestionTemporalConfig,
 	DEFAULT_INGESTION_CONTROL_ACTIVITY_TASK_QUEUE,
+	DEFAULT_INGESTION_RUST_KERNEL_ACTIVITY_TASK_QUEUE,
+	DEFAULT_INGESTION_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE,
 	DEFAULT_INGESTION_WORKFLOW_TASK_QUEUE,
 	type IngestionTemporalConfig,
 } from "./temporal-config";
 export type {
 	IngestionArtifactRef,
-	IngestionExecutorKind,
-	IngestionTaskAdmissionResult,
-	IngestionTaskCloseout,
 	IngestionTaskEnvelope,
+	IngestionTaskExecutionSnapshot,
 	IngestionTaskOperatorProjection,
 	IngestionTaskOperatorProjectionList,
 	IngestionTaskProjectionFilters,
 	IngestionTaskRecord,
 	IngestionTaskRegistry,
 	IngestionTaskRegistryTask,
+	IngestionTaskResult,
 	IngestionTaskStore,
 	IngestionWorkflowStatus,
 } from "./types";
+export { resolveWorkerDeploymentOptions } from "./worker-versioning";

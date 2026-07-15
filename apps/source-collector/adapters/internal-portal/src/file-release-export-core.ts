@@ -1,7 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-
-import { sha256Hex } from "ingest-core";
+import { encodeObjectKeySegment, sha256Hex } from "ingest-core";
 
 import {
 	type FetchAttachmentBinaryResult,
@@ -13,7 +10,7 @@ import {
 	fetchFileReleaseTypes,
 	isAttachmentDownloadTerminalUnavailableError,
 } from "./api.js";
-import { sanitizeObjectKeySegment } from "./artifact-keys.js";
+import { bindApiContextCancellation } from "./api-context-cancellation.js";
 import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
 import {
 	type AttachmentDownloadOutcome,
@@ -36,18 +33,8 @@ import {
 	resolveFileReleaseFilename,
 	resolveReleasedFileContentType,
 	safeBasename,
-	toTimestampLabel,
 } from "./file-release-export-helpers.js";
-import {
-	buildCollectorFileReleaseRunLedgerRecord,
-	buildInternalPortalRunFailedLedgerRecord,
-	buildInternalPortalRunId,
-	buildInternalPortalRunStartedLedgerRecord,
-	type InternalPortalRunLedgerRecord,
-	type InternalPortalRunLedgerStore,
-} from "./internal-portal-run-ledger.js";
 import { createApiContextFromStorageState } from "./portal.js";
-import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
 	ApiRequestContextLike,
 	BundleFileReleaseRecord,
@@ -62,6 +49,7 @@ import type {
 } from "./types.js";
 
 export interface CollectFileReleaseBundleInput {
+	abortSignal?: AbortSignal;
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
@@ -108,22 +96,14 @@ export interface CollectFileReleaseBundleResult {
 	};
 }
 
-export interface WriteFileReleaseArtifactsInput {
-	bundleRecords: BundleFileReleaseRecord[];
-	exportManifest: FileReleaseExportManifest;
-	outputDir: string;
-}
-
-export interface WriteFileReleaseArtifactsResult {
-	bundlePath: string;
-	manifestPath: string;
-}
-
 export interface UploadFileReleaseArtifactsInput {
+	abortSignal?: AbortSignal;
+	activityAttempt: number;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	bundleRecords: unknown[];
 	exportedAt: string;
 	exportManifest: unknown;
+	runId: string;
 	siteId: string;
 }
 
@@ -137,25 +117,6 @@ export interface UploadFileReleaseArtifactsResult {
 	manifestObjectKey: string;
 	manifestRef: StoredArtifactRef;
 	sourceBucket: string;
-}
-
-export interface RunFileReleaseExportInput {
-	artifactStore?: AuthenticatedNoticeArtifactStore;
-	collectBundle: () => Promise<CollectFileReleaseBundleResult>;
-	internalPortalRunLedgerStore?: InternalPortalRunLedgerStore;
-	exportedAt: string;
-	outputDir?: string;
-	runId?: string;
-	siteId: string;
-	sourceHomeUrl: string;
-	writeLocalArtifacts: boolean;
-}
-
-export interface RunFileReleaseExportResult {
-	ledgerRecord: InternalPortalRunLedgerRecord;
-	result: CollectFileReleaseBundleResult;
-	uploadedArtifactRefs: UploadFileReleaseArtifactsResult;
-	written: WriteFileReleaseArtifactsResult | null;
 }
 
 export function buildFileReleaseRecord(input: {
@@ -237,10 +198,12 @@ export function buildFileReleaseRecord(input: {
 export async function collectFileReleaseBundle(
 	input: CollectFileReleaseBundleInput,
 ): Promise<CollectFileReleaseBundleResult> {
+	input.abortSignal?.throwIfAborted();
 	const createApiContext =
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveInternalPortalConfig(process.env)));
 	const apiContext = await createApiContext();
+	const disposeApiContext = bindApiContextCancellation(apiContext, input.abortSignal);
 	const fetchPage =
 		input.fetchFileReleasePage ?? ((pageInput) => fetchFileReleasePage({ ...pageInput }));
 	const fetchDetail =
@@ -259,7 +222,9 @@ export async function collectFileReleaseBundle(
 	const targetFileReleaseId = input.targetFileReleaseId ?? null;
 
 	try {
+		input.abortSignal?.throwIfAborted();
 		const collected = await runFileReleaseCrawleeCollection({
+			abortSignal: input.abortSignal,
 			apiContext,
 			exportedAt: input.exportedAt,
 			fetchFileReleaseCodeTypes: fetchCodeTypes,
@@ -295,6 +260,7 @@ export async function collectFileReleaseBundle(
 						uploadedCount: 0,
 					}
 				: await materializeReleasedFiles({
+						abortSignal: input.abortSignal,
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
 						bundleRecords,
@@ -334,42 +300,32 @@ export async function collectFileReleaseBundle(
 			},
 		};
 	} finally {
-		await apiContext.dispose();
+		await disposeApiContext();
 	}
-}
-
-export function writeFileReleaseArtifacts(
-	input: WriteFileReleaseArtifactsInput,
-): WriteFileReleaseArtifactsResult {
-	fs.mkdirSync(input.outputDir, { recursive: true });
-	const timestamp = toTimestampLabel(input.exportManifest.exported_at);
-	const bundlePath = path.join(input.outputDir, `file-releases-bundle-${timestamp}.json`);
-	const manifestPath = path.join(input.outputDir, `file-releases-manifest-${timestamp}.json`);
-
-	fs.writeFileSync(bundlePath, `${JSON.stringify(input.bundleRecords, null, 2)}\n`, "utf-8");
-	fs.writeFileSync(manifestPath, `${JSON.stringify(input.exportManifest, null, 2)}\n`, "utf-8");
-
-	return {
-		bundlePath,
-		manifestPath,
-	};
 }
 
 export async function uploadFileReleaseArtifacts(
 	input: UploadFileReleaseArtifactsInput,
 ): Promise<UploadFileReleaseArtifactsResult> {
-	const timestamp = toTimestampLabel(input.exportedAt);
+	input.abortSignal?.throwIfAborted();
+	if (!Number.isSafeInteger(input.activityAttempt) || input.activityAttempt <= 0) {
+		throw new Error("activityAttempt must be a positive integer");
+	}
 	const prefix = [
 		INTERNAL_PORTAL_SOURCE_CHANNEL,
+		encodeObjectKeySegment(input.siteId),
 		"runs",
-		sanitizeObjectKeySegment(input.siteId),
-		timestamp,
+		encodeObjectKeySegment(input.runId),
+		"attempts",
+		String(input.activityAttempt),
+		"file-release",
 	].join("/");
 	const bundleObjectKey = `${prefix}/file-releases-bundle.json`;
 	const manifestObjectKey = `${prefix}/file-releases-manifest.json`;
 	const bundlePayload = serializeJsonArtifactPayload(input.bundleRecords);
 	const manifestPayload = serializeJsonArtifactPayload(input.exportManifest);
-	const bundleRef = await input.artifactStore.putObject({
+	const bundleRef = await input.artifactStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
 		objectKey: bundleObjectKey,
 		data: bundlePayload,
 		contentType: "application/json",
@@ -380,7 +336,9 @@ export async function uploadFileReleaseArtifacts(
 			source_surface: "file_release",
 		},
 	});
-	const manifestRef = await input.artifactStore.putObject({
+	input.abortSignal?.throwIfAborted();
+	const manifestRef = await input.artifactStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
 		objectKey: manifestObjectKey,
 		data: manifestPayload,
 		contentType: "application/json",
@@ -391,6 +349,7 @@ export async function uploadFileReleaseArtifacts(
 			source_surface: "file_release",
 		},
 	});
+	input.abortSignal?.throwIfAborted();
 	return {
 		bundleByteSize: bundleRef.byteSize,
 		bundleContentSha256: bundleRef.contentSha256,
@@ -406,91 +365,6 @@ export async function uploadFileReleaseArtifacts(
 
 function serializeJsonArtifactPayload(value: unknown): Uint8Array {
 	return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf-8");
-}
-
-export async function runFileReleaseExport(
-	input: RunFileReleaseExportInput,
-): Promise<RunFileReleaseExportResult> {
-	const runId =
-		input.runId ?? buildInternalPortalRunId(input.exportedAt, input.siteId, "file_release");
-	await input.internalPortalRunLedgerStore?.upsertRun(
-		buildInternalPortalRunStartedLedgerRecord({
-			collectionMode: "file_release_export",
-			runId,
-			siteId: input.siteId,
-			sourceHomeUrl: input.sourceHomeUrl,
-			sourceSurface: "file_release",
-			startedAt: input.exportedAt,
-		}),
-	);
-	let terminalLedgerWritten = false;
-	try {
-		const result = await input.collectBundle();
-		const written = input.writeLocalArtifacts
-			? writeFileReleaseArtifacts({
-					bundleRecords: result.bundleRecords,
-					exportManifest: result.exportManifest,
-					outputDir: input.outputDir ?? process.cwd(),
-				})
-			: null;
-		if (!input.artifactStore) {
-			throw new Error("authenticated notice source-bucket artifact store is required");
-		}
-		const uploadedArtifactRefs = await uploadFileReleaseArtifacts({
-			artifactStore: input.artifactStore,
-			bundleRecords: result.bundleRecords,
-			exportedAt: input.exportedAt,
-			exportManifest: result.exportManifest,
-			siteId: input.siteId,
-		});
-		const ledgerRecord = buildCollectorFileReleaseRunLedgerRecord({
-			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
-			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
-			bundlePath: written?.bundlePath ?? null,
-			bundleRecords: result.bundleRecords,
-			exportedAt: input.exportedAt,
-			manifest: result.exportManifest,
-			manifestArtifactRef: uploadedArtifactRefs.manifestRef,
-			manifestObjectKey: uploadedArtifactRefs.manifestObjectKey,
-			manifestPath: written?.manifestPath ?? null,
-			runId,
-			siteId: input.siteId,
-			sourceHomeUrl: input.sourceHomeUrl,
-		});
-		await input.internalPortalRunLedgerStore?.upsertRun(ledgerRecord);
-		terminalLedgerWritten = true;
-		assertVerifiedRunHandoff(ledgerRecord);
-		return {
-			ledgerRecord,
-			result,
-			uploadedArtifactRefs,
-			written,
-		};
-	} catch (error) {
-		if (!terminalLedgerWritten) {
-			await input.internalPortalRunLedgerStore?.upsertRun(
-				buildInternalPortalRunFailedLedgerRecord({
-					collectionMode: "file_release_export",
-					failureReason: formatSafeErrorMessage(error),
-					finishedAt: new Date().toISOString(),
-					runId,
-					siteId: input.siteId,
-					sourceHomeUrl: input.sourceHomeUrl,
-					sourceSurface: "file_release",
-					startedAt: input.exportedAt,
-				}),
-			);
-		}
-		throw error;
-	}
-}
-
-function assertVerifiedRunHandoff(record: InternalPortalRunLedgerRecord): void {
-	if (record.status !== "success" || record.verificationStatus !== "verified") {
-		throw new Error(
-			`internal portal handoff verification failed: ${record.failureReason ?? record.verificationStatus}`,
-		);
-	}
 }
 
 export function buildAuthenticatedNoticeFileReleaseCaptureKey(input: {
@@ -515,6 +389,7 @@ export function buildAuthenticatedNoticeFileReleaseCaptureKey(input: {
 }
 
 async function materializeReleasedFiles(input: {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	bundleRecords: BundleFileReleaseRecord[];
@@ -522,6 +397,7 @@ async function materializeReleasedFiles(input: {
 	requestMaxRetries: number;
 	siteId: string;
 }): Promise<{ bundleRecords: BundleFileReleaseRecord[]; uploadedCount: number }> {
+	input.abortSignal?.throwIfAborted();
 	const bundleRecords: BundleFileReleaseRecord[] = [];
 	let uploadedCount = 0;
 	const downloadRequests = input.bundleRecords.flatMap((record) => {
@@ -549,12 +425,14 @@ async function materializeReleasedFiles(input: {
 		downloadRequests.length === 0
 			? new Map<string, AttachmentDownloadOutcome>()
 			: await runAttachmentCrawleeDownloadOutcomes({
+					abortSignal: input.abortSignal,
 					apiContext: input.apiContext,
 					requestMaxRetries: input.requestMaxRetries,
 					requests: downloadRequests,
 				});
 
 	for (const record of input.bundleRecords) {
+		input.abortSignal?.throwIfAborted();
 		const candidateUrl =
 			record.released_file.final_url ??
 			record.released_file.normalized_source_url ??
@@ -569,6 +447,7 @@ async function materializeReleasedFiles(input: {
 		}
 
 		try {
+			input.abortSignal?.throwIfAborted();
 			const cacheKey = fileReleaseDownloadCacheKey(candidateUrl);
 			const downloadOutcome = downloadResults.get(cacheKey);
 			if (!downloadOutcome) {
@@ -595,7 +474,8 @@ async function materializeReleasedFiles(input: {
 				filename: resolvedFilename,
 				year: inferYearLabel(record.file_release.filetime),
 			});
-			const stored = await input.artifactStore.putObject({
+			const stored = await input.artifactStore.createOrVerifyObject({
+				abortSignal: input.abortSignal,
 				objectKey,
 				data: result.body,
 				contentType: resolvedContentType,
@@ -604,6 +484,7 @@ async function materializeReleasedFiles(input: {
 					"source-surface": "file_release",
 				},
 			});
+			input.abortSignal?.throwIfAborted();
 			uploadedCount += 1;
 			bundleRecords.push({
 				...record,
@@ -627,6 +508,7 @@ async function materializeReleasedFiles(input: {
 				},
 			});
 		} catch (error) {
+			input.abortSignal?.throwIfAborted();
 			const message = error instanceof Error ? error.message : String(error);
 			if (isAttachmentDownloadTerminalUnavailableError(error)) {
 				bundleRecords.push({

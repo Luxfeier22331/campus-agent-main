@@ -1,9 +1,9 @@
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import {
 	buildOfficialWebPageObservationRecord,
 	type OfficialWebPageObservationRecord,
 	type OfficialWebRunIntent,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
 
 export function buildPageObservationFromCollectedPage(
@@ -11,39 +11,47 @@ export function buildPageObservationFromCollectedPage(
 	crawlRunId: string,
 	runIntent: OfficialWebRunIntent,
 	page: CollectedPageArtifact,
+	configuredSeedUrl: string | null = null,
 ): OfficialWebPageObservationRecord {
 	return buildOfficialWebPageObservationRecord({
+		configuredSeedUrl,
 		siteId,
 		crawlRunId,
 		runIntent,
 		rawAssetId: page.rawAssetId,
 		rawVersionId: page.rawVersionId,
 		host: page.pageManifest.host,
-		requestedUrl: page.pageManifest.requestedUrl,
-		finalUrl: page.pageManifest.finalUrl,
+		requestedUrl: page.observation.requestedUrl,
+		finalUrl: page.observation.finalUrl,
 		normalizedCanonicalUrl: page.pageManifest.normalizedCanonicalUrl,
 		pageFamily: page.pageManifest.pageFamily,
 		pageTitleNormalized: page.pageManifest.pageTitleNormalized,
-		discoveryMethod: page.pageManifest.discoveryMethod,
-		discoveredFromUrl: page.pageManifest.discoveredFromUrl,
-		httpStatus: page.pageManifest.httpStatus,
-		contentType: page.pageManifest.contentType,
-		etag: page.pageManifest.etag,
-		lastModified: page.pageManifest.lastModified,
+		discoveryMethod: page.observation.discoveryMethod,
+		discoveredFromUrl: page.observation.discoveredFromUrl,
+		httpStatus: page.observation.httpStatus,
+		contentType: page.observation.contentType,
+		crawlPolicyVersion: page.observation.crawlPolicyVersion,
+		credentialsMode: page.observation.credentialsMode,
+		declaredCanonicalUrl: page.observation.declaredCanonicalUrl,
+		etag: page.observation.etag,
+		hostPolicyVersion: page.observation.hostPolicyVersion,
+		lastModified: page.observation.lastModified,
+		redirectChain: page.observation.redirectChain,
 		responseBodyHash: page.pageManifest.responseBodyHash,
 		mainContentHash: page.pageManifest.mainContentHash,
 		disposition: "fetched",
-		observedAt: page.pageManifest.fetchedAt,
-		targetCandidateId: page.pageManifest.targetCandidateId,
-		targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
-		targetId: page.pageManifest.targetMatches?.[0]?.targetId,
-		targetJobId: page.pageManifest.targetJobId,
-		targetMatches: page.pageManifest.targetMatches,
+		observedAt: page.observation.fetchedAt,
+		targetCandidateId: page.targeting.targetCandidateId,
+		targetDeclarationVersion: page.targeting.targetDeclarationVersion,
+		targetId: page.targeting.targetMatches[0]?.targetId,
+		targetJobId: page.targeting.targetJobId,
+		targetMatches: page.targeting.targetMatches,
 	});
 }
 
 export function buildKnownPageObservation(input: {
 	crawlRunId: string;
+	configuredSeedUrl?: string | null;
 	disposition: "deleted" | "fetch_failed" | "not_modified";
 	finalUrl: string;
 	httpStatus: number | null;
@@ -53,6 +61,7 @@ export function buildKnownPageObservation(input: {
 	runIntent: OfficialWebRunIntent;
 }): OfficialWebPageObservationRecord {
 	return buildOfficialWebPageObservationRecord({
+		configuredSeedUrl: input.configuredSeedUrl ?? null,
 		siteId: input.knownPage.siteId,
 		crawlRunId: input.crawlRunId,
 		runIntent: input.runIntent,
@@ -68,8 +77,13 @@ export function buildKnownPageObservation(input: {
 		discoveredFromUrl: input.knownPage.discoveredFromUrl,
 		httpStatus: input.httpStatus,
 		contentType: input.knownPage.contentType,
+		crawlPolicyVersion: null,
+		credentialsMode: null,
+		declaredCanonicalUrl: null,
 		etag: input.knownPage.etag,
+		hostPolicyVersion: null,
 		lastModified: input.knownPage.lastModified,
+		redirectChain: [],
 		responseBodyHash:
 			input.disposition === "not_modified" ? input.knownPage.responseBodyHash : null,
 		mainContentHash: input.disposition === "not_modified" ? input.knownPage.mainContentHash : null,

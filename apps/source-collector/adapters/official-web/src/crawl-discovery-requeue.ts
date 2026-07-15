@@ -1,4 +1,3 @@
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import {
 	buildOfficialWebFailureRecord,
 	type OfficialWebConfigBundle,
@@ -8,6 +7,7 @@ import {
 	type OfficialWebHostPolicy,
 	type OfficialWebHostSummaryRecord,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import { buildConditionalHeaders } from "./crawl-discovery-requests.ts";
 import type { CollectorRequestUserData } from "./crawl-internal-types.ts";
 import type {
@@ -58,7 +58,7 @@ export function buildListingRequeueRequests(input: {
 
 		const knownPage = input.plannerPageLookup.get(link.normalizedUrl);
 		const inheritedTargetLineages = shouldInheritTargetLineagesFromPage(input.page, knownPage)
-			? [...(input.page.pageManifest.targetMatches ?? [])]
+			? [...input.page.targeting.targetMatches]
 			: undefined;
 		if (
 			input.targetWorksetOnly &&
@@ -101,10 +101,10 @@ function shouldInheritTargetLineagesFromPage(
 	if (!isSourcePackExpansionRequeuePage(page)) {
 		return false;
 	}
-	if (page.pageManifest.targetMatches == null || page.pageManifest.targetMatches.length === 0) {
+	if (page.targeting.targetMatches.length === 0) {
 		return false;
 	}
-	return page.pageManifest.targetMatches.every(
+	return page.targeting.targetMatches.every(
 		(match) => match.sourcePackEntryId != null && match.sourcePackId != null,
 	);
 }
@@ -116,7 +116,7 @@ function shouldPromoteSourcePackExpansionLink(
 	if (!isSourcePackExpansionRequeuePage(page)) {
 		return true;
 	}
-	const targetMatches = page.pageManifest.targetMatches ?? [];
+	const targetMatches = page.targeting.targetMatches;
 	if (!isRegulationPreviewSeedTargetMatches(targetMatches)) {
 		return true;
 	}
@@ -124,7 +124,7 @@ function shouldPromoteSourcePackExpansionLink(
 }
 
 function isRegulationPreviewSeedTargetMatches(
-	targetMatches: NonNullable<CollectedPageArtifact["pageManifest"]["targetMatches"]>,
+	targetMatches: CollectedPageArtifact["targeting"]["targetMatches"],
 ): boolean {
 	if (targetMatches.length === 0) {
 		return false;
@@ -183,6 +183,7 @@ function mainContentLinkSet(page: CollectedPageArtifact): Set<string> {
 }
 
 export async function buildDynamicShellRequeueRequests(input: {
+	abortSignal?: AbortSignal;
 	bundle: OfficialWebConfigBundle;
 	depth: number;
 	dynamicShellDiscoverer: OfficialWebDynamicShellDiscoverer;
@@ -206,13 +207,16 @@ export async function buildDynamicShellRequeueRequests(input: {
 	}
 
 	try {
+		input.abortSignal?.throwIfAborted();
 		const discoveryResult = normalizeDynamicShellDiscovererOutput(
 			await input.dynamicShellDiscoverer({
+				abortSignal: input.abortSignal,
 				bundle: input.bundle,
 				hostPolicy: input.hostPolicy,
 				page: input.page,
 			}),
 		);
+		input.abortSignal?.throwIfAborted();
 		if (discoveryResult.promotedUrls.length === 0) {
 			return {
 				requests: [],
@@ -261,6 +265,7 @@ export async function buildDynamicShellRequeueRequests(input: {
 			audits: discoveryResult.audit.sourceUrl.length > 0 ? [discoveryResult.audit] : [],
 		};
 	} catch (error) {
+		input.abortSignal?.throwIfAborted();
 		input.hostSummary.failures += 1;
 		input.failures.push(
 			buildOfficialWebFailureRecord({
@@ -307,7 +312,7 @@ function isSourcePackExpansionRequeuePage(page: CollectedPageArtifact): boolean 
 	if (page.pageManifest.pageFamily !== "directory_page") {
 		return false;
 	}
-	const targetMatches = page.pageManifest.targetMatches ?? [];
+	const targetMatches = page.targeting.targetMatches;
 	if (targetMatches.length === 0) {
 		return false;
 	}

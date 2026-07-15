@@ -1,5 +1,6 @@
 import { BasicCrawler, type BasicCrawlingContext, type RequestOptions } from "crawlee";
 import { sha256Hex } from "ingest-core";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 
 import { type FetchAttachmentBinaryResult, fetchAttachmentBinary } from "./api.js";
 import { createAuthenticatedNoticeCrawlerConfiguration } from "./crawlee-runtime.js";
@@ -52,6 +53,7 @@ export type AttachmentDownloadOutcome =
 	  };
 
 export interface AttachmentDownloadRunnerInput {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	externalVisualFetcher?: ExternalVisualFetcher;
 	requestMaxRetries: number;
@@ -59,6 +61,7 @@ export interface AttachmentDownloadRunnerInput {
 }
 
 export type ExternalVisualFetcher = (input: {
+	abortSignal?: AbortSignal;
 	attachmentUrl: string;
 	sendRequest: NonNullable<AttachmentDownloadRequestHandlerContext["sendRequest"]>;
 }) => Promise<FetchAttachmentBinaryResult>;
@@ -113,10 +116,12 @@ export async function runAttachmentCrawleeDownloadOutcomes(
 ): Promise<Map<string, AttachmentDownloadOutcome>> {
 	const outcomes = new Map<string, AttachmentDownloadOutcome>();
 	const requestHandler = async (context: AttachmentDownloadRequestHandlerContext) => {
+		input.abortSignal?.throwIfAborted();
 		const userData = normalizeRequestUserData(context.request.userData);
 		const result =
 			userData.fetchMode === "trusted_external_visual"
 				? await (input.externalVisualFetcher ?? fetchExternalVisualBinary)({
+						abortSignal: input.abortSignal,
 						attachmentUrl: userData.attachmentUrl,
 						sendRequest: requireSendRequest(context),
 					})
@@ -124,6 +129,7 @@ export async function runAttachmentCrawleeDownloadOutcomes(
 						apiContext: input.apiContext,
 						attachmentUrl: userData.attachmentUrl,
 					});
+		input.abortSignal?.throwIfAborted();
 		outcomes.set(userData.cacheKey, {
 			status: "fulfilled",
 			result,
@@ -140,7 +146,11 @@ export async function runAttachmentCrawleeDownloadOutcomes(
 		maxRequestRetries: input.requestMaxRetries,
 		requestHandler,
 	});
-	await crawler.run(input.requests.map(buildAttachmentDownloadRequest));
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: input.requests.map(buildAttachmentDownloadRequest),
+	});
 	return outcomes;
 }
 
@@ -180,6 +190,7 @@ function createDefaultAttachmentDownloadCrawler(input: {
 	return {
 		run: async (requests: RequestOptions<AttachmentDownloadRequestUserData>[]) =>
 			await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 
@@ -210,13 +221,16 @@ function requireSendRequest(
 }
 
 async function fetchExternalVisualBinary(input: {
+	abortSignal?: AbortSignal;
 	attachmentUrl: string;
 	sendRequest: NonNullable<AttachmentDownloadRequestHandlerContext["sendRequest"]>;
 }): Promise<FetchAttachmentBinaryResult> {
+	input.abortSignal?.throwIfAborted();
 	const response = await input.sendRequest({
 		responseType: "buffer",
 		url: input.attachmentUrl,
 	});
+	input.abortSignal?.throwIfAborted();
 	const contentType = normalizeHeaderValue(response.headers?.["content-type"]);
 	const normalizedContentType = normalizeContentType(contentType);
 	if (!normalizedContentType?.startsWith("image/")) {

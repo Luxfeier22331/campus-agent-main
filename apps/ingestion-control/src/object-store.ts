@@ -1,70 +1,118 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { type ObjectStore, sha256Hex } from "ingest-core";
+import {
+	GetObjectCommand,
+	HeadObjectCommand,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
+import {
+	type ArtifactWriteInput,
+	type ArtifactWriteResult,
+	assertStoredArtifactIdentity,
+	type ObjectStore,
+	type ObjectStoreLocation,
+	sha256Hex,
+} from "ingest-core";
 
-export type IngestionObjectStore = ObjectStore;
+export interface IngestionObjectStore extends ObjectStore {
+	readonly derivedBucket: string;
+	close?(): Promise<void> | void;
+	getObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<Uint8Array>;
+	headObject(
+		input: ObjectStoreLocation & { abortSignal?: AbortSignal },
+	): Promise<{ byteSize: number | null; contentSha256: string | null }>;
+	createOrVerifyObject(
+		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
+	): Promise<ArtifactWriteResult>;
+}
 
 export interface IngestionObjectStoreEnvironment {
+	OBJECT_STORE_BUCKET_DERIVED?: string;
 	OBJECT_STORE_BUCKET_SOURCE?: string;
+	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
 	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
 	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
 
+type S3ClientLike = Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
+
 export function createS3IngestionObjectStore(input: {
 	bucket: string;
-	client: Pick<S3Client, "send">;
+	client: S3ClientLike;
 }): IngestionObjectStore {
-	return new S3IngestionObjectStore(input);
+	return new S3IngestionObjectStore(new Map([[input.bucket, input.client]]), input.bucket);
 }
 
 export function createS3IngestionObjectStoreFromEnv(
 	env: IngestionObjectStoreEnvironment = process.env,
 ): IngestionObjectStore | undefined {
 	const endpoint = env.OBJECT_STORE_ENDPOINT?.trim();
-	const accessKey = env.OBJECT_STORE_SOURCE_ACCESS_KEY?.trim();
-	const secretKey = env.OBJECT_STORE_SOURCE_SECRET_KEY?.trim();
-	const configuredCount = [endpoint, accessKey, secretKey].filter(Boolean).length;
+	const sourceAccessKey = env.OBJECT_STORE_SOURCE_ACCESS_KEY?.trim();
+	const sourceSecretKey = env.OBJECT_STORE_SOURCE_SECRET_KEY?.trim();
+	const derivedAccessKey = env.OBJECT_STORE_DERIVED_ACCESS_KEY?.trim();
+	const derivedSecretKey = env.OBJECT_STORE_DERIVED_SECRET_KEY?.trim();
+	const configuredCount = [
+		endpoint,
+		sourceAccessKey,
+		sourceSecretKey,
+		derivedAccessKey,
+		derivedSecretKey,
+	].filter(Boolean).length;
 
 	if (configuredCount === 0) {
 		return;
 	}
-	if (!(endpoint && accessKey && secretKey)) {
+	if (!(endpoint && sourceAccessKey && sourceSecretKey && derivedAccessKey && derivedSecretKey)) {
 		throw new Error(
-			"OBJECT_STORE_ENDPOINT plus OBJECT_STORE_SOURCE_ACCESS_KEY and OBJECT_STORE_SOURCE_SECRET_KEY are required for source-bucket ingestion tasks.",
+			"ingestion worker requires OBJECT_STORE_ENDPOINT plus source and derived object-store credentials",
 		);
 	}
-
-	return createS3IngestionObjectStore({
-		bucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
-		client: new S3Client({
+	const sourceBucket = env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source";
+	const derivedBucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
+	if (sourceBucket === derivedBucket) {
+		throw new Error("source and derived object-store buckets must be distinct");
+	}
+	const region = env.OBJECT_STORE_REGION?.trim() || "us-east-1";
+	const createClient = (accessKeyId: string, secretAccessKey: string) =>
+		new S3Client({
 			endpoint,
-			region: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
-			credentials: {
-				accessKeyId: accessKey,
-				secretAccessKey: secretKey,
-			},
+			region,
+			credentials: { accessKeyId, secretAccessKey },
 			forcePathStyle: true,
-		}),
-	});
+		});
+	return new S3IngestionObjectStore(
+		new Map([
+			[sourceBucket, createClient(sourceAccessKey, sourceSecretKey)],
+			[derivedBucket, createClient(derivedAccessKey, derivedSecretKey)],
+		]),
+		derivedBucket,
+	);
 }
 
 class S3IngestionObjectStore implements IngestionObjectStore {
-	private readonly bucket: string;
-	private readonly client: Pick<S3Client, "send">;
+	readonly derivedBucket: string;
+	private readonly clients: ReadonlyMap<string, S3ClientLike>;
 
-	constructor(input: { bucket: string; client: Pick<S3Client, "send"> }) {
-		this.bucket = input.bucket;
-		this.client = input.client;
+	constructor(clients: ReadonlyMap<string, S3ClientLike>, derivedBucket: string) {
+		this.clients = clients;
+		this.derivedBucket = derivedBucket;
 	}
 
-	async getObject(input: { bucket: string; key: string }): Promise<Uint8Array> {
-		this.requireBucket(input.bucket);
-		const result = await this.client.send(
+	close(): void {
+		for (const client of new Set(this.clients.values())) {
+			client.destroy?.();
+		}
+	}
+
+	async getObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<Uint8Array> {
+		const result = await this.requireClient(input.bucket).send(
 			new GetObjectCommand({
 				Bucket: input.bucket,
 				Key: input.key,
 			}),
+			{ abortSignal: input.abortSignal },
 		);
 		const body = result.Body;
 		if (!body) {
@@ -76,35 +124,78 @@ class S3IngestionObjectStore implements IngestionObjectStore {
 		throw new Error(`object body is not byte-readable: s3://${input.bucket}/${input.key}`);
 	}
 
-	async putObject(input: {
-		bucket: string;
-		key: string;
-		body: Uint8Array;
-		contentType: string;
-	}): Promise<{ byteSize: number; contentSha256: string }> {
-		this.requireBucket(input.bucket);
+	async createOrVerifyObject(
+		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
+	): Promise<ArtifactWriteResult> {
 		const contentSha256 = sha256Hex(input.body);
-		await this.client.send(
-			new PutObjectCommand({
-				Bucket: input.bucket,
-				Key: input.key,
-				Body: input.body,
-				ContentLength: input.body.byteLength,
-				ContentType: input.contentType,
-				Metadata: {
-					"content-sha256": contentSha256,
-				},
-			}),
-		);
+		try {
+			await this.requireClient(input.bucket).send(
+				new PutObjectCommand({
+					Bucket: input.bucket,
+					Key: input.key,
+					Body: input.body,
+					ContentLength: input.body.byteLength,
+					ContentType: input.contentType,
+					IfNoneMatch: "*",
+					Metadata: { ...input.metadata, "content-sha256": contentSha256 },
+				}),
+				{ abortSignal: input.abortSignal },
+			);
+		} catch (error) {
+			if (!isPreconditionFailed(error)) {
+				throw error;
+			}
+			const existing = await this.headObject(input);
+			assertStoredArtifactIdentity({
+				actualByteSize: existing.byteSize,
+				actualContentSha256: existing.contentSha256,
+				expectedByteSize: input.body.byteLength,
+				expectedContentSha256: contentSha256,
+				uri: `s3://${input.bucket}/${input.key}`,
+			});
+		}
 		return {
 			byteSize: input.body.byteLength,
 			contentSha256,
 		};
 	}
 
-	private requireBucket(bucket: string): void {
-		if (bucket !== this.bucket) {
-			throw new Error(`object bucket mismatch: expected ${this.bucket}, got ${bucket}`);
-		}
+	async headObject(
+		input: ObjectStoreLocation & { abortSignal?: AbortSignal },
+	): Promise<{ byteSize: number | null; contentSha256: string | null }> {
+		const result = await this.requireClient(input.bucket).send(
+			new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
+			{ abortSignal: input.abortSignal },
+		);
+		return {
+			byteSize: result.ContentLength ?? null,
+			contentSha256: result.Metadata?.["content-sha256"] ?? result.Metadata?.content_sha256 ?? null,
+		};
 	}
+
+	private requireClient(bucket: string): S3ClientLike {
+		const client = this.clients.get(bucket);
+		if (!client) {
+			throw new Error(`object bucket is not configured for ingestion: ${bucket}`);
+		}
+		return client;
+	}
+}
+
+function isPreconditionFailed(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const candidate = error as {
+		$metadata?: { httpStatusCode?: number };
+		Code?: string;
+		code?: string;
+		name?: string;
+	};
+	return (
+		candidate.$metadata?.httpStatusCode === 412 ||
+		candidate.name === "PreconditionFailed" ||
+		candidate.Code === "PreconditionFailed" ||
+		candidate.code === "PreconditionFailed"
+	);
 }

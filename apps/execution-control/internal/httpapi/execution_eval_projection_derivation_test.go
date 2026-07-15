@@ -57,20 +57,21 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		ResultID:             "agent.primary:result:1",
 		StepID:               "agent.primary",
 		RunID:                run.RunID,
-		AttemptID:            "agent.primary:attempt:1",
+		AttemptID:            temporalStepAttemptID(run.RunID, "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
 		ProjectionRef:        "projection://runs/run-temporal-derived-eval/agent/primary/result",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
+			"activity_attempt": 1,
 			"context_usage": map[string]any{
 				"memory_recall_state":                 "completed",
 				"previous_tool_result_count":          float64(1),
 				"previous_evidence_count":             float64(1),
 				"previous_evidence_source_hash_count": float64(1),
 			},
-			"selected_tools": []any{"knowledge_query", "knowledge_search"},
+			"selected_tools": []any{"knowledge_query"},
 			"tool_results": []any{
 				map[string]any{
 					"arguments_json_sha256":    "sha256:args",
@@ -78,10 +79,11 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 					"arguments_schema_version": "knowledge_search.args.v1",
 					"payload_kind":             "knowledge_search",
 					"result": map[string]any{
-						"outcome":        "found",
-						"resolved_scope": "student_rules",
+						"outcome":          "found",
+						"retrieval_target": "student_rules",
+						"include_history":  false,
 					},
-					"result_ref": "projection://runs/run-temporal-derived-eval/knowledge/search/search-1",
+					"result_ref": "projection://runs/run-temporal-derived-eval/knowledge/search/1",
 					"status":     "completed",
 					"tool_name":  "knowledge_search",
 				},
@@ -91,23 +93,29 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "knowledge.search.search-1:result:1",
-		StepID:               "knowledge.search.search-1",
+		ResultID:             "knowledge.search.1:result:1",
+		StepID:               "knowledge.search.1",
 		RunID:                run.RunID,
-		AttemptID:            "knowledge.search.search-1:attempt:1",
+		AttemptID:            temporalStepAttemptID(run.RunID, "knowledge.search.1", 1),
 		Status:               "completed",
 		ResultKind:           "knowledge_search_result",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/knowledge/search/search-1",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/knowledge/search/1",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"evidence_refs":  []any{"evidence://student-rules/scholarship"},
-			"invocation_id":  "search-1",
-			"outcome":        "found",
-			"resolved_scope": "student_rules",
-			"resolved_version": map[string]any{
-				"mode": "current",
+			"activity_attempt": 1,
+			"evidence": []any{
+				map[string]any{
+					"document_id": "handbook:scholarship-policy",
+					"snippet":     "国家奖学金评审需要满足学习成绩和综合测评要求。",
+				},
 			},
+			"evidence_refs":    []any{"evidence://student-rules/scholarship"},
+			"include_history":  false,
+			"invocation_id":    "search-1",
+			"outcome":          "found",
+			"retrieval_target": "student_rules",
+			"search_ordinal":   1,
 		},
 	}); err != nil {
 		t.Fatalf("upsert knowledge search result: %v", err)
@@ -161,13 +169,31 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if titles, _ := rag["source_titles"].([]any); len(titles) != 1 || titles[0] != "本科生国家奖学金评审办法" {
 		t.Fatalf("rag.source_titles = %#v", rag["source_titles"])
 	}
-	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
-	if planning["freshness_branch"] != "current" {
-		t.Fatalf("planning.freshness_branch = %#v", planning["freshness_branch"])
+	if rag["answer"] != "学习成绩、综合测评和奖励标准都需要满足。" {
+		t.Fatalf("rag.answer = %#v", rag["answer"])
 	}
-	if decomposition, _ := planning["decomposition"].([]any); len(decomposition) != 2 ||
-		decomposition[0] != "student_rules" || decomposition[1] != "current" {
-		t.Fatalf("planning.decomposition = %#v", planning["decomposition"])
+	contexts, _ := rag["retrieved_contexts"].([]any)
+	if len(contexts) != 1 || contexts[0] != "国家奖学金评审需要满足学习成绩和综合测评要求。" {
+		t.Fatalf("rag.retrieved_contexts = %#v", rag["retrieved_contexts"])
+	}
+	contextIDs, _ := rag["retrieved_context_ids"].([]any)
+	if len(contextIDs) != 1 || contextIDs[0] != "handbook:scholarship-policy" {
+		t.Fatalf("rag.retrieved_context_ids = %#v", rag["retrieved_context_ids"])
+	}
+	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
+	resolvedTargets, _ := planning["resolved_targets"].([]any)
+	if len(resolvedTargets) != 1 || resolvedTargets[0] != "student_rules" {
+		t.Fatalf("planning.resolved_targets = %#v", planning["resolved_targets"])
+	}
+	searchSequence, _ := planning["search_sequence"].([]any)
+	if len(searchSequence) != 1 {
+		t.Fatalf("planning.search_sequence = %#v", planning["search_sequence"])
+	}
+	search := expectRecord(t, searchSequence[0], "planning.search_sequence[0]")
+	searchArgs := expectRecord(t, search["eval_safe_args"], "planning.search_sequence[0].eval_safe_args")
+	if search["search_ordinal"] != float64(1) ||
+		searchArgs["target"] != "student_rules" || searchArgs["include_history"] != false {
+		t.Fatalf("planning search = %#v", search)
 	}
 	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
 		steps[0] != "agent.primary" || steps[1] != "knowledge.search" || steps[2] != "finalization.write" {
@@ -187,7 +213,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	}
 }
 
-func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTokens(t *testing.T) {
+func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesHistorySearchIntent(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -195,14 +221,14 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
-		"run-temporal-derived-as-of-eval",
-		"conv-temporal-derived-as-of-eval",
+		"run-temporal-derived-history-eval",
+		"conv-temporal-derived-history-eval",
 		now,
 		ragHandoffForDurableWorkerTest("2024 年 9 月时学生公寓管理规则是什么"),
 	)
 	if _, err := store.TransitionRun(
 		context.Background(),
-		"run-temporal-derived-as-of-eval",
+		"run-temporal-derived-history-eval",
 		execution.DurableRunStatusAdmitted,
 		"",
 		now,
@@ -211,7 +237,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	}
 	if _, err := store.TransitionRun(
 		context.Background(),
-		"run-temporal-derived-as-of-eval",
+		"run-temporal-derived-history-eval",
 		execution.DurableRunStatusRunning,
 		"",
 		now,
@@ -220,7 +246,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	}
 	run, err := store.TransitionRun(
 		context.Background(),
-		"run-temporal-derived-as-of-eval",
+		"run-temporal-derived-history-eval",
 		execution.DurableRunStatusCompleted,
 		execution.DurableTerminalReasonAnswerCompleted,
 		now,
@@ -229,23 +255,39 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 		t.Fatalf("complete run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "knowledge.search.search-as-of:result:1",
-		StepID:               "knowledge.search.search-as-of",
+		ResultID:             "agent.primary:result:1",
+		StepID:               "agent.primary",
 		RunID:                run.RunID,
-		AttemptID:            "knowledge.search.search-as-of:attempt:1",
+		AttemptID:            temporalStepAttemptID(run.RunID, "agent.primary", 1),
 		Status:               "completed",
-		ResultKind:           "knowledge_search_result",
-		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/knowledge/search/search-as-of",
+		ResultKind:           "agent_final_output",
+		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/agent/primary/result",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"outcome":        "found",
-			"resolved_scope": "student_rules",
-			"resolved_version": map[string]any{
-				"as_of":      "2024-09-01",
-				"mode":       "as_of",
-				"version_id": "student-rules-2024-09",
-			},
+			"activity_attempt": 1,
+			"selected_tools":   []any{"knowledge_query"},
+		},
+	}); err != nil {
+		t.Fatalf("upsert agent result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "knowledge.search.1:result:1",
+		StepID:               "knowledge.search.1",
+		RunID:                run.RunID,
+		AttemptID:            temporalStepAttemptID(run.RunID, "knowledge.search.1", 1),
+		Status:               "completed",
+		ResultKind:           "knowledge_search_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/knowledge/search/1",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload: map[string]any{
+			"activity_attempt": 1,
+			"include_history":  true,
+			"invocation_id":    "search-history-1",
+			"outcome":          "found",
+			"retrieval_target": "student_rules",
+			"search_ordinal":   1,
 		},
 	}); err != nil {
 		t.Fatalf("upsert knowledge search result: %v", err)
@@ -254,7 +296,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-temporal-derived-as-of-eval/steps",
+		"/internal/execution/runs/run-temporal-derived-history-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -267,20 +309,17 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	body := decodeBody(t, response)
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
-	if planning["freshness_branch"] != "as_of" {
-		t.Fatalf("planning.freshness_branch = %#v", planning["freshness_branch"])
+	searchSequence, _ := planning["search_sequence"].([]any)
+	if len(searchSequence) != 1 {
+		t.Fatalf("planning.search_sequence = %#v", planning["search_sequence"])
 	}
-	decomposition, _ := planning["decomposition"].([]any)
-	if len(decomposition) != 2 || decomposition[0] != "student_rules" || decomposition[1] != "as_of:2024-09-01" {
-		t.Fatalf("planning.decomposition = %#v", planning["decomposition"])
-	}
-	for _, token := range decomposition {
-		if token == "current_policy" {
-			t.Fatalf("planning.decomposition must not mark as_of as current: %#v", decomposition)
-		}
+	search := expectRecord(t, searchSequence[0], "planning.search_sequence[0]")
+	searchArgs := expectRecord(t, search["eval_safe_args"], "planning.search_sequence[0].eval_safe_args")
+	if searchArgs["target"] != "student_rules" || searchArgs["include_history"] != true {
+		t.Fatalf("planning history search = %#v", search)
 	}
 	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 1 || steps[0] != "knowledge.search" {
+	if len(steps) != 2 || steps[0] != "agent.primary" || steps[1] != "knowledge.search" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 }

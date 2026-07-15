@@ -57,6 +57,7 @@ func rejectRetiredPromptRuntimeSettings() error {
 		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
 		"EXECUTION_PROMPT_MODEL",
 		"SUPERVISOR_PROMPT_MODEL",
+		"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {

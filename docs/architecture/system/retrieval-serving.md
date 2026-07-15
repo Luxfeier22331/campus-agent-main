@@ -4,109 +4,76 @@ truth_scope: execution
 owner_boundary: retrieval-serving
 status: active
 created: 2026-04-21
-updated: 2026-07-11
+updated: 2026-07-13
 ---
-# Retrieval Serving Architecture
+# Retrieval Serving
 
 ## Boundary
 
-This document owns indexed knowledge-serving admission and evidence retrieval.
+This document owns server-side target admission and indexed evidence retrieval.
 It does not own top-level tool selection or answer synthesis.
 
-The primary agent enters the Knowledge Agent through `knowledge_query`. Only the
-Knowledge Agent can invoke internal `knowledge_search`.
+## Target Registry
 
-## Current Scope Registry
-
-`configs/runtime/query-serving-scopes.v3.json` is the canonical mapping from
-model-facing scope to corpus, collection and allowed version modes. The current
-admitted scopes are:
+`configs/runtime/query-serving-targets.v1.json` is the canonical mapping from a
+Knowledge Agent target to one `collection`, one server-owned serving config
+and one retrieval limit. The registry does not declare `corpus`.
+Current targets are:
 
 - `student_rules`;
 - `institutional_rules`;
 - `curriculum`.
 
-Tool schemas may guide arguments, but they do not publish a scope. Missing,
-unknown or unversioned registry truth fails closed.
+Targets are semantic serving surfaces, not corpus aliases. The registry's
+`collection` is a consistency assertion against the referenced serving config,
+not a model-visible vector-store control. A target is available only when both
+files validate and the collection values match. `official_web` is absent and
+unavailable.
 
 ## Search Pipeline
 
-Each `knowledge_search` call follows this bounded internal sequence:
-
 ```text
-run-bound request validation
--> scope/version admission
--> serving profile and release/alias compatibility
+run and access validation
+-> target resolution
+-> serving config validation
 -> query embedding
--> Qdrant filtered lookup
--> optional admitted rerank
+-> Qdrant dense and sparse prefetch
+-> Qdrant native RRF fusion
+-> current/history and visibility filtering
 -> bounded evidence shaping
--> sanitized result projection
+-> sanitized search projection
 ```
 
-This sequence is an internal query implementation, not a Temporal activity
-graph. Tool execution remains inside the single SDK Agent Activity.
+This is an internal query inside the SDK Agent Activity, not a Temporal graph.
 
-## Version Semantics
+## Current And Historical Documents
 
-Supported version modes are `current`, `historical`, `as_of` and `compare`, as
-admitted per scope.
+`include_history=false` requires `is_current=true`. `include_history=true`
+allows admitted historical document versions in the same target. Returned
+evidence may include its source `version_id` for citation and comparison.
 
-- `current` uses serving config and current-version filters.
-- `historical` resolves one explicit visible version.
-- `as_of` resolves exactly one version covering the requested timestamp.
-- `compare` resolves two different visible versions and requires evidence for
-  both sides.
+## Serving Truth
 
-Version resolution occurs before Qdrant lookup. Missing or ambiguous resolution
-fails closed; the Knowledge Agent cannot repair version truth in prose.
+The target registry points to a serving config that owns offline `corpus`
+metadata, collection, Qdrant alias, embedding provider/model/dimensions,
+dense/sparse vector names, retrieval enablement, revision tracks and visibility
+policy. Execution-control validates the complete embedding/vector profile
+before querying. Those fields are runtime-internal and never tool arguments.
 
-## Serving And Release Truth
+An index build, schema declaration or reader publication does not open a
+target. Unknown targets, disabled serving configs, vector mismatch or missing
+access projection fail closed.
 
-Canonical documents, document units, chunks, physical collections, release
-manifests and serving aliases remain separate truth layers. Reader publication
-does not open knowledge serving.
+## Evidence And Observability
 
-Query serving requires compatible:
-
-- scope registry entry;
-- collection serving profile;
-- embedding model and dimensions;
-- release metadata;
-- current alias or explicitly resolved historical version;
-- visibility and source-trust policy.
-
-An index build or schema declaration alone never opens a scope.
-
-## Evidence Boundary
-
-The internal result exposes only bounded answer-bearing evidence with stable
-evidence refs, version identity, source identity and safe snippets. It does not
-expose raw Qdrant points, provider payloads, unrestricted page text or index
-credentials.
-
-The Knowledge Agent produces the semantic answer. Execution-control
-finalization verifies evidence refs and derives browser-safe sources.
-
-## Official Web
-
-`official_web` has not completed its canonical document, chunk, index, release
-manifest and alias publication chain. It is absent from the active scope
-registry and cannot be queried online.
-
-There is no live-source branch, public-web provider or general web fallback.
-Future official-web serving requires a completed offline release and an
-explicit scope-registry change.
-
-## Observability
-
-Sanitized observation may include resolved scope/version, provider/model-safe
-identity, latency, candidate/evidence counts, result kind/ref and fail-close
-reason. Raw query vectors, source bodies and provider responses stay internal.
+Search returns bounded, answer-bearing evidence and stable refs. Sanitized
+projection may include target, history mode, search ordinal, latency,
+candidate/evidence counts, document ids and safe snippets. Raw query vectors,
+source bodies, credentials and backend payloads remain internal.
 
 ## Related Documents
 
 - `agentic-retrieval.md`
-- `tool-routing.md`
-- `../../contracts/tool-execution.md`
-- `../../reference/runtime-serving-and-index-terms.md`
+- `data-plane.md`
+- `../../contracts/tool-read-model.md`
+- `../../decisions/adr-0075-target-based-knowledge-search.md`

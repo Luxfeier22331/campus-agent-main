@@ -7,7 +7,7 @@ It owns:
 - the app-api/execution-control run and finalization OpenAPI contract;
 - runtime-neutral tool payload/result schemas;
 - runtime registry and configuration artifact schemas;
-- shared fixtures and generated TypeScript/Go consumers;
+- shared fixtures and generated TypeScript/Go consumers.
 
 It does not own runtime framework types, provider clients, Temporal workflow
 implementation, retrieval backend details, object-store records or browser
@@ -17,7 +17,7 @@ transport wrappers.
 
 - `docs/contracts/schemas/tool-execution.openapi.yaml` defines run create,
   read, event, step, cancel and finalization wire shapes.
-- `schemas/knowledge-tool-contracts.v1.schema.json` defines the internal
+- `schemas/knowledge-tool-contracts.v2.schema.json` defines the internal
   `knowledge_search` payload/result contract. `knowledge_query` is the
   model-visible OpenAI Agents SDK handoff target, not a Go RAG graph.
 - `schemas/campus-services-tool-contracts.v1.schema.json` and
@@ -27,7 +27,7 @@ transport wrappers.
 - `schemas/contract-schema-registry.v1.json` registers machine-readable
   schemas consumed by runtime catalogs and contract checks.
 - `schemas/runtime-*.schema.json` covers runtime tool registries, function
-  schemas, workflow artifacts, execution configuration, query-serving scopes,
+  schemas, workflow artifacts, execution configuration, query-serving targets,
   latency budgets and environment policy.
 
 Runtime catalog `payload_schema_ref` and `result_schema_ref` values must

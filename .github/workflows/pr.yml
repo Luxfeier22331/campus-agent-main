@@ -18,6 +18,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      app_api_migration: ${{ steps.filter.outputs.app_api_migration }}
       base_sha: ${{ github.event.pull_request.base.sha }}
       config: ${{ steps.filter.outputs.config }}
       contracts: ${{ steps.filter.outputs.contracts }}
@@ -27,6 +28,7 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       go_deps: ${{ steps.filter.outputs.go_deps }}
       infra: ${{ steps.filter.outputs.infra }}
+      ingest: ${{ steps.filter.outputs.ingest }}
       images: ${{ steps.images.outputs.images }}
       node_deps: ${{ steps.filter.outputs.node_deps }}
       python: ${{ steps.filter.outputs.python }}
@@ -74,6 +76,15 @@ jobs:
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
         with:
           filters: |
+            app_api_migration:
+              - 'apps/app-api/db/shared-product-schema/**'
+              - 'apps/app-api/drizzle/**'
+              - 'apps/app-api/ops/db/schema.ts'
+              - 'apps/app-api/package.json'
+              - 'apps/app-api/src/script-support/shared-db/shared-product-database-bootstrap.ts'
+              - 'apps/app-api/test/app-api-migration-upgrade.integration.test.ts'
+              - 'apps/app-api/vitest.shared-db.config.mts'
+              - 'turbo.json'
             config:
               - '.github/**'
             contracts:
@@ -138,6 +149,17 @@ jobs:
               - 'infra/gitops/**'
               - 'infra/k8s/**'
               - 'infra/policies/**'
+            ingest:
+              - 'apps/ingestion-control/**'
+              - '!apps/ingestion-control/README.md'
+              - 'apps/source-collector/**'
+              - '!apps/source-collector/README.md'
+              - 'configs/ingestion/**'
+              - 'configs/sources/**'
+              - 'packages/ingest-core/**'
+              - '!packages/ingest-core/README.md'
+              - 'packages/ingestion-contracts/**'
+              - '!packages/ingestion-contracts/README.md'
             eval:
               - 'packages/eval-langfuse/**'
               - 'packages/ragas-runner/**'
@@ -160,9 +182,9 @@ jobs:
               - 'apps/execution-control/.golangci.yml'
               - 'configs/ingestion/**/serving-config.json'
               - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-scopes.v3.json'
-              - 'configs/runtime/tool-function-schemas.v1.json'
-              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/query-serving-targets.v1.json'
+              - 'configs/runtime/tool-function-schemas.v2.json'
+              - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
               - 'packages/contracts/fixtures/tool_execution_contract/**'
               - 'scripts/ci/go-check.sh'
@@ -239,9 +261,9 @@ jobs:
               - 'apps/execution-control/**'
               - 'configs/ingestion/**'
               - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-scopes.v3.json'
-              - 'configs/runtime/tool-function-schemas.v1.json'
-              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/query-serving-targets.v1.json'
+              - 'configs/runtime/tool-function-schemas.v2.json'
+              - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
               - 'packages/contracts/fixtures/tool_execution_contract/**'
             image_agent_runtime:
@@ -250,9 +272,43 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'apps/agent-runtime/**'
-              - 'configs/runtime/tool-function-schemas.v1.json'
-              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/tool-function-schemas.v2.json'
+              - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
+            image_ingestion_control:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+            image_ingestion_control_worker:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+              - 'packages/ingestion-kernels-rs/**'
+            image_source_collector:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/source-collector/**'
+              - 'configs/ingestion/**'
+              - 'configs/sources/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
             image_app_api_schema:
               - '.dockerignore'
               - 'package.json'
@@ -286,13 +342,19 @@ jobs:
           AGENT_RUNTIME: ${{ steps.filter.outputs.image_agent_runtime }}
           APP_API_SCHEMA: ${{ steps.filter.outputs.image_app_api_schema }}
           EXECUTION_CONTROL: ${{ steps.filter.outputs.image_execution_control }}
+          INGESTION_CONTROL: ${{ steps.filter.outputs.image_ingestion_control }}
+          INGESTION_CONTROL_WORKER: ${{ steps.filter.outputs.image_ingestion_control_worker }}
           OPS_WEB: ${{ steps.filter.outputs.image_ops_web }}
+          SOURCE_COLLECTOR: ${{ steps.filter.outputs.image_source_collector }}
           TRANSPORT_PUBLISHER: ${{ steps.filter.outputs.image_transport_publisher }}
         run: |
           set -euo pipefail
           images=()
           [[ "$EXECUTION_CONTROL" == "true" ]] && images+=(execution-control)
           [[ "$AGENT_RUNTIME" == "true" ]] && images+=(agent-runtime)
+          [[ "$INGESTION_CONTROL" == "true" ]] && images+=(ingestion-control)
+          [[ "$INGESTION_CONTROL_WORKER" == "true" ]] && images+=(ingestion-control-worker)
+          [[ "$SOURCE_COLLECTOR" == "true" ]] && images+=(source-collector)
           [[ "$APP_API_SCHEMA" == "true" ]] && images+=(app-api-schema)
           [[ "$OPS_WEB" == "true" ]] && images+=(ops-web)
           [[ "$TRANSPORT_PUBLISHER" == "true" ]] && images+=(transport-publisher)
@@ -500,9 +562,22 @@ jobs:
           }
           trap cleanup_images EXIT
           while IFS= read -r image; do
+            target=""
             case "$image" in
               execution-control) dockerfile=apps/execution-control/Dockerfile ;;
               agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
+              ingestion-control)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=api
+                ;;
+              ingestion-control-worker)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=worker
+                ;;
+              source-collector)
+                dockerfile=apps/source-collector/Dockerfile
+                target=runtime
+                ;;
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
               ops-web) dockerfile=apps/ops-web/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
@@ -510,7 +585,77 @@ jobs:
             esac
             tag="${IMAGE_ROOT,,}/${image}:${GITHUB_SHA}"
             built_tags+=("$tag")
-            docker buildx build --pull --load --file "$dockerfile" --tag "$tag" .
+            build_args=(--pull --load --file "$dockerfile" --tag "$tag")
+            if [ -n "$target" ]; then
+              build_args+=(--target "$target")
+            fi
+            docker buildx build "${build_args[@]}" .
+            case "$image" in
+              ingestion-control)
+                docker run --rm --entrypoint /bin/sh "$tag" -c '
+                  test ! -e /usr/local/bin/ingestion-kernel-runner
+                  test ! -e /opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json
+                  ! command -v npm
+                  ! command -v corepack
+                  ! command -v pnpm
+                  ! command -v yarn
+                  test ! -e /app/apps/ingestion-control/node_modules/@types
+                  ! find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
+                    \( -name "vitest@*" -o -name "typescript@*" \) \
+                    | grep -q .
+                '
+                if docker image inspect "$tag" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+                  | grep -q '^INGESTION_KERNEL_TOKENIZER_JSON_PATH='; then
+                  echo "API image must not expose the kernel tokenizer path" >&2
+                  exit 1
+                fi
+                ;;
+              ingestion-control-worker)
+                docker run --rm --entrypoint /bin/sh "$tag" -c '
+                  test -x /usr/local/bin/ingestion-kernel-runner
+                  echo "83cdf8c3a34f68862319cb1810ee7b1e2c0a44e0864ae930194ddb76bb7feb8d  /opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json" \
+                    | sha256sum -c -
+                  ! command -v npm
+                  ! command -v corepack
+                  ! command -v pnpm
+                  ! command -v yarn
+                  test ! -e /app/apps/ingestion-control/node_modules/@types
+                  ! find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
+                    \( -name "vitest@*" -o -name "typescript@*" \) \
+                    | grep -q .
+                '
+                ;;
+              source-collector)
+                docker run --rm --entrypoint /bin/sh "$tag" -c '
+                  test -x /usr/bin/tini
+                  ! command -v npm
+                  ! command -v corepack
+                  ! command -v pnpm
+                  ! command -v yarn
+                  test ! -e /workspace/apps/source-collector/node_modules/@types
+                  find /ms-playwright -mindepth 1 -maxdepth 1 -type d \
+                    -name "chromium_headless_shell-*" | grep -q .
+                  ! find /ms-playwright -mindepth 1 -maxdepth 1 -type d \
+                    \( -name "chromium-*" -o -name "firefox-*" -o -name "webkit-*" \) \
+                    | grep -q .
+                  ! find /workspace/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
+                    \( -name "vitest@*" -o -name "typescript@*" \) \
+                    | grep -q .
+                '
+                docker run --rm --read-only --tmpfs /tmp:rw,size=256m --shm-size=512m \
+                  --entrypoint /workspace/apps/source-collector/node_modules/.bin/tsx \
+                  "$tag" -e '
+                    import { chromium } from "playwright";
+                    void (async () => {
+                      const browser = await chromium.launch({ headless: true });
+                      const page = await browser.newPage();
+                      await page.setContent("<main>collector-ready</main>");
+                      if ((await page.textContent("main")) !== "collector-ready") process.exit(1);
+                      await browser.close();
+                    })();
+                  '
+                ;;
+            esac
             trivy image \
               --cache-dir "$trivy_cache_dir" \
               --scanners vuln \
@@ -527,6 +672,7 @@ jobs:
       needs.static.result == 'success' && (
         needs.changes.outputs.contracts == 'true' ||
         needs.changes.outputs.eval == 'true' ||
+        needs.changes.outputs.ingest == 'true' ||
         needs.changes.outputs.node_deps == 'true' ||
         needs.changes.outputs.python_deps == 'true' ||
         needs.changes.outputs.typescript == 'true' ||
@@ -576,6 +722,20 @@ jobs:
           )
         run: scripts/ci/turbo-summary.sh
 
+      - name: Run ingestion lane
+        if: needs.changes.outputs.ingest == 'true' || needs.changes.outputs.node_deps == 'true'
+        run: |
+          rm -rf .turbo/runs
+          pnpm ci:ingest
+
+      - name: Summarize ingestion lane
+        if: >-
+          always() && (
+            needs.changes.outputs.ingest == 'true' ||
+            needs.changes.outputs.node_deps == 'true'
+          )
+        run: scripts/ci/turbo-summary.sh
+
       - name: Check app-api Worker
         if: needs.changes.outputs.worker_app_api == 'true'
         run: >-
@@ -599,7 +759,57 @@ jobs:
           needs.changes.outputs.eval == 'true' ||
           needs.changes.outputs.node_deps == 'true' ||
           needs.changes.outputs.python_deps == 'true'
-        run: pnpm ci:eval
+        run: |
+          rm -rf .turbo/runs
+          pnpm ci:eval
+
+      - name: Summarize eval lane
+        if: >-
+          always() && (
+            needs.changes.outputs.eval == 'true' ||
+            needs.changes.outputs.node_deps == 'true' ||
+            needs.changes.outputs.python_deps == 'true'
+          )
+        run: scripts/ci/turbo-summary.sh
+
+  app-api-migration:
+    needs: [changes, static]
+    if: >-
+      needs.static.result == 'success' && (
+        needs.changes.outputs.app_api_migration == 'true' ||
+        needs.changes.outputs.node_deps == 'true'
+      )
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_DB: campus_agent_migration_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campus_agent_migration_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432/tcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Verify app-api migration upgrade
+        env:
+          APP_API_MIGRATION_TEST_DATABASE_URL: >-
+            postgresql://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campus_agent_migration_test
+        run: pnpm ci:app-api-migration
 
   go:
     needs: [changes, static]
@@ -685,6 +895,7 @@ jobs:
       - changes
       - static
       - node
+      - app-api-migration
       - infra
       - image-scan
       - go
@@ -702,6 +913,7 @@ jobs:
             "${{ needs.changes.result }}" \
             "${{ needs.static.result }}" \
             "${{ needs.node.result }}" \
+            "${{ needs.app-api-migration.result }}" \
             "${{ needs.infra.result }}" \
             "${{ needs.image-scan.result }}" \
             "${{ needs.go.result }}" \

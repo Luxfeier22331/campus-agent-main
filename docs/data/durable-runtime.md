@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: apps/execution-control
 status: active
 created: 2026-06-04
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 # Durable Agent Runtime Schema
 
@@ -40,8 +40,9 @@ Step projection describes the four workflow phases:
 - `memory_append`.
 
 Attempt projection may include Temporal queue/worker identity, attempt number,
-timestamps, duration, retry/cancel/timeout outcome, provider/model-safe identity,
-usage and estimated cost.
+timestamps, duration, retry/cancel/timeout outcome, provider/model-safe identity
+and input/output/cached token usage. Model cost is calculated by Langfuse and is
+not a durable PostgreSQL projection field.
 
 Result projection contains status, result kind/ref, fail-close reason and safe
 metadata. It does not turn SDK-internal handoffs or function calls into a second
@@ -56,7 +57,7 @@ metadata may include:
 - available and selected model-visible tools;
 - Knowledge Agent handoff occurrence;
 - SDK function-tool invocation summaries;
-- provider response id and safe LLM I/O fingerprint;
+- provider response id and model/provider identity;
 - input, output and cached token counts;
 - structured terminal outcome.
 
@@ -69,7 +70,7 @@ Each internal `knowledge_search` invocation is correlated to the run and SDK
 invocation id. Safe projection includes:
 
 - admitted query shape/hash;
-- resolved scope and version;
+- resolved target, history mode and search ordinal;
 - found/no-evidence outcome;
 - bounded evidence refs and source identity;
 - result ref, latency and fail-close reason.

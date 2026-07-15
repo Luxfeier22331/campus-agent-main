@@ -54,7 +54,6 @@ capability truth。
   - `../contracts/app-api/chat.md`
 - official-web：
   - `../architecture/domains/official-web/architecture.md`
-  - `../contracts/app-api/official-web.md`
   - `../data/official-web.md`
 - dining：
   - `../architecture/domains/dining/architecture.md`

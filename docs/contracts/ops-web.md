@@ -161,7 +161,8 @@ updated: 2026-07-11
 - `modelSummary`：可为空的 `provider`、`model`、`promptId`、`promptVersion`、
   `templateSha256`。
 - `toolSummary`：可为空的 `requestedTool`、`selectedTool`。
-- `outcomeSummary`：可为空的 `semanticOutcome`、`refusalClass`、`scopeClass`。
+- `outcomeSummary`：可为空的 `semanticOutcome`、`refusalClass`，以及
+  `resolvedTargets[]`。
 - `policySummary`：可为空的 `aclDecision`、`aclAnomalyCode`、`failClosed`。
 - `sources[]`：`canonicalUrl`、`sourceTitle`，以及可为空的 `sourceKind`、
   `targetKind`、`versionId`；最多十项。

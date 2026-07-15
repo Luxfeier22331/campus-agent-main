@@ -4,156 +4,119 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-04-23
-updated: 2026-06-29
+updated: 2026-07-13
 ---
-# Eval Ragas
+# Ragas
 
-<!-- markdownlint-disable MD013 -->
+## Local Verification
 
-## Purpose
+```bash
+pnpm ci:eval
+```
 
-This runbook records the active Langfuse/Ragas scoring automation.
+This runs TypeScript adapter tests and the isolated Python Ragas tests. It does
+not call Langfuse or model providers.
 
-Active repo commands:
-
-- `pnpm --dir packages/eval-langfuse exec tsx src/cli.ts doctor --json`
-- `pnpm --dir packages/eval-langfuse exec tsx src/cli.ts audit --json`
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-traces`
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts ragas-score-dataset`
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts build-rag-dataset-manifest`
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs`
-- `pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-datasets`
-
-The following command names and surfaces are not active automation:
-
-- `run-experiment`
-- `sync-annotation-queue`
-- `export-review-results`
-- `build-online-answer-results`
-- `build-runtime-config-results`
-- `build-score-report-from-online-answer`
-- `build-score-report-from-runtime-config`
-- `publish-score-report`
-- `run-ragas-scoring`
-- `build-ragas-sample-batch`
-- `closeout-staging`
-- app-api online-answer-path collector aliases
-
-## Execution Surface
-
-Ragas/Langfuse scoring is an internal eval shell/runtime lane. It is not
-exposed as a GitHub Actions workflow.
-
-Run scoring from a configured internal eval environment that has the repo
-workspace, Node, Python, uv, Langfuse credentials, model credentials and optional
-Ragas runtime config available. GitHub Actions must not own this scoring lane.
-
-Use `--validate-only` for dry validation. Without `--validate-only`, the command
-may write `ragas.*` scores to Langfuse through the configured internal eval
-credentials.
-
-## Ragas Trace Scoring
+## Build And Sync Datasets
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
-  ragas-score-traces \
-  --trace-name <optional-trace-name> \
-  --tag <optional-trace-tag> \
-  --release <optional-release> \
-  --limit <positive-int> \
-  --runtime-config <optional-ragas-runtime-config.json> \
-  --validate-only \
+  build-dataset-manifest \
+  --output .tmp/langfuse-datasets.json \
   --json
-```
 
-The TS adapter queries Langfuse traces, extracts only eval-safe fields from
-trace/observation metadata, invokes `packages/ragas-runner`, and publishes or
-validates Langfuse score payloads.
-
-## Ragas Dataset Scoring
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
-  ragas-score-dataset \
-  --dataset <langfuse-dataset-name> \
-  --dataset-version <optional-version> \
-  --limit <positive-int> \
-  --runtime-config <optional-ragas-runtime-config.json> \
-  --validate-only \
-  --json
-```
-
-Dataset items must be materialized before scoring. A materialized item contains
-or links to safe RAG eval projection fields: question or `user_input`, answer,
-retrieved contexts, optional retrieved/reference context ids, trace id and
-dataset item identity.
-
-Repo qrels assets do not contain generated answers or retrieved context text,
-so qrels-only dataset items fail closed. They can be synced as Langfuse dataset
-truth, then materialized by a dataset run or linked trace / observation before
-`ragas-score-dataset` is invoked.
-
-## Score Config Sync
-
-The registry is:
-
-```text
-packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json
-```
-
-It currently contains active `ragas.*` score configs:
-
-- `ragas.faithfulness`
-- `ragas.answer_relevancy`
-- `ragas.context_precision`
-- `ragas.context_recall`
-- `ragas.context_precision_without_reference`
-- `ragas.id_context_precision`
-- `ragas.id_context_recall`
-
-Dry-run:
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts sync-score-configs \
-  --registry packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json \
-  --dry-run --json
-```
-
-Remove `--dry-run` to create missing Langfuse score configs.
-
-## Dataset Manifest And Sync
-
-Build a manifest from active repo RAG eval assets:
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
-  build-rag-dataset-manifest \
-  --output .tmp/langfuse-rag-dataset-manifest.json \
-  --json
-```
-
-The builder includes:
-
-- qrels and golden qrels assets as `rag_qrels`
-- answer-quality assets as `answer_quality`
-
-`rag_qrels` dataset items carry query identity and `reference_context_ids`.
-They deliberately do not invent `answer` or `retrieved_contexts`.
-
-```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   sync-datasets \
-  --dataset-manifest <langfuse-dataset-manifest.json> \
+  --dataset-manifest .tmp/langfuse-datasets.json \
   --dry-run \
   --json
 ```
 
-Dataset manifests should point at repo eval assets that can become Langfuse
-dataset items. Current accepted kinds are RAG / answer-quality / agent dataset
-shapes handled by `packages/eval-langfuse/src/platform.ts`;
-`online_answer_path` profile shape is not accepted.
+Remove `--dry-run` only when the target Langfuse project is correct. The
+manifest creates one dataset per `cases.v1.json` below both
+`assets/datasets/agent` and `assets/datasets/rag`.
 
-Langfuse experiments and annotation queues remain official platform workflows.
-This repo does not maintain custom experiment-manifest or review-manifest
-automation; use Langfuse SDK/UI workflows directly when those surfaces are
-needed.
+## Sync Score Configs
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  sync-score-configs --dry-run --json
+```
+
+Only names in
+`packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json` may
+be published.
+
+## Score Traces
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  ragas-score-traces \
+  --trace-name <trace-name> \
+  --release <release> \
+  --limit <count> \
+  --validate-only \
+  --json
+```
+
+The TypeScript adapter selects Langfuse traces, builds safe Ragas samples,
+invokes `packages/ragas-runner` and validates score payloads. Remove
+`--validate-only` to publish registered scores.
+
+## Score Dataset Runs
+
+Run the dataset through the real product path and publish Agent plus applicable
+RAG scores:
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  agent-eval \
+  --app-api-base-url <app-api-url> \
+  --dataset campus/rag/student_rules \
+  --limit <count> \
+  --json
+```
+
+Use `--dataset campus/agent/routing` for the primary-agent routing benchmark.
+RAG datasets additionally publish applicable answer/context metrics.
+
+Provide `CAMPUS_EVAL_COOKIE_HEADER`, or configure
+`APP_API_STAGING_SMOKE_AUTH_SECRET` so the runner can mint an authenticated
+session. Optional setup turns run in the same conversation as the target turn.
+The runner links the target product trace with Langfuse
+`POST /api/public/dataset-run-items`, then publishes Ragas Agent/RAG scores and
+the registered deterministic BOOLEAN scores. The returned dataset run id stays
+in internal sample lineage. Each score request carries exactly one
+`observationId` or `traceId` and does not send dataset item/run ids to
+`POST /api/public/scores`.
+
+To rescore already materialized Langfuse items:
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  ragas-score-dataset \
+  --dataset campus/rag/student_rules \
+  --limit <count> \
+  --validate-only \
+  --json
+```
+
+Dataset scoring requires materialized answer and retrieved contexts from a
+dataset run or linked trace. Repo case truth alone is not a generated run and
+must fail closed when those fields are absent.
+
+## Trace Verification
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  verify-trace \
+  --product-trace-id <trace-id> \
+  --session-id <conversation-id> \
+  --user-id <safe-user-id> \
+  --release <release> \
+  --json
+```
+
+Run external scoring only from an approved eval environment with Langfuse and
+model credentials. It is not a normal feature-development check or automatic
+release gate.

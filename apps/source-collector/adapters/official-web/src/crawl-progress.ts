@@ -1,4 +1,4 @@
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,

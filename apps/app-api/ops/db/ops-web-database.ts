@@ -30,7 +30,7 @@ const OPS_WEB_GRANT_STATEMENTS = [
 			"acl_anomaly_code", "acl_decision", "completed_at", "duration_ms", "fail_closed",
 			"measured_at",
 			"model_name", "model_provider", "prompt_id", "prompt_version", "projection_lag_ms",
-			"refusal_class", "request_id", "scope_class", "semantic_outcome", "stage_timing_json",
+			"refusal_class", "request_id", "resolved_targets_json", "semantic_outcome", "stage_timing_json",
 			"supporting_sources_json", "template_sha256", "trace_available", "updated_at",
 			"workflow_trace_summary_json"
 	) ON TABLE "runtime"."request_observability_fact" TO "ops_web"`,
@@ -143,7 +143,7 @@ const REQUIRED_SELECTS = [
 						"projection_lag_ms",
 						"refusal_class",
 						"request_id",
-						"scope_class",
+						"resolved_targets_json",
 						"semantic_outcome",
 						"stage_timing_json",
 						"supporting_sources_json",

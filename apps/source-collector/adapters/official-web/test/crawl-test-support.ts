@@ -14,7 +14,7 @@ import { buildOfficialWebTargetMatchForTest } from "./test-support";
 export {
 	buildOfficialWebPlannerPageForTest,
 	buildOfficialWebTargetMatchForTest,
-	createTargetWorksetControlPlaneForTest,
+	buildTargetWorksetCandidatesForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
 	SAMPLE_NEWS_HOME_PAGE_HTML,
@@ -37,23 +37,6 @@ export function getCrawlSite(): CrawlSiteFn {
 		throw new TypeError("collector.crawlSite must be a function");
 	}
 	return crawlSite as CrawlSiteFn;
-}
-
-type ResolveCollectorCrawlMainInputFn = (
-	argv: string[],
-	env: Record<string, string | undefined>,
-) => unknown;
-
-export function getResolveCollectorCrawlMainInput(): ResolveCollectorCrawlMainInputFn {
-	const resolveCollectorCrawlMainInput = (
-		collector as unknown as {
-			resolveCollectorCrawlMainInput?: ResolveCollectorCrawlMainInputFn;
-		}
-	).resolveCollectorCrawlMainInput;
-	if (typeof resolveCollectorCrawlMainInput !== "function") {
-		throw new TypeError("collector.resolveCollectorCrawlMainInput must be a function");
-	}
-	return resolveCollectorCrawlMainInput as ResolveCollectorCrawlMainInputFn;
 }
 
 type BuildCollectedPageArtifactsFn = typeof pageArtifactsModule.buildCollectedPageArtifacts;

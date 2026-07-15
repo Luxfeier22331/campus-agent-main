@@ -242,19 +242,15 @@ describe("chat command durable runtime cutover", () => {
 			"tenant_id",
 			"trace",
 			"user_goal",
-			"version_query",
 		]);
 		expect(executionPayload).toMatchObject({
-			execution_contract_version: "tool_execution_v1",
-			response_contract: "execution_finalization_response_v2",
+			execution_contract_version: "tool_execution_v2",
+			response_contract: "execution_finalization_response_v3",
 			tenant_id: "tenant-main",
 			trace: {
 				trace_id: "trace_0001",
 			},
 			user_goal: "示例大学本科学生国家奖学金评审办法",
-			version_query: {
-				mode: "current",
-			},
 		});
 		expect(createRunInput).not.toHaveProperty("selectedTool");
 		expect(createRunInput).not.toHaveProperty("requestedTool");
@@ -277,9 +273,6 @@ describe("chat command durable runtime cutover", () => {
 							trace_id: "trace_0001",
 						},
 						user_goal: "示例大学本科学生国家奖学金评审办法",
-						version_query: {
-							mode: "current",
-						},
 					}),
 				}),
 				ownerUserId: "user_01HQ",

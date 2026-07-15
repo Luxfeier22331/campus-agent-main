@@ -4,31 +4,27 @@ import { AppApiRouteError } from "../../http";
 
 export type { IngestionTaskEnvelope } from "ingestion-contracts";
 
-const IngestionTaskStatusSchema = z.enum([
-	"accepted",
-	"running",
-	"completed",
-	"failed",
-	"canceled",
-]);
+const IngestionTaskStatusSchema = z.enum(["running", "completed", "failed", "canceled"]);
 
 const IngestionTaskOperatorProjectionSchema = z
 	.object({
-		schema_version: z.literal("ingestion_task_operator_projection.v1"),
+		schema_version: z.literal("ingestion_task_operator_projection.v2"),
 		task_id: z.string(),
 		run_id: z.string(),
-		source_family: z.string(),
-		source_channel: z.string(),
-		corpus: z.string(),
-		collection: z.string(),
 		registry_task_id: z.string(),
-		task_kind: z.string(),
+		executor_kind: z.enum(["source_collector", "rust_kernel"]),
+		source_family: z.string().nullable(),
+		source_channel: z.string().nullable(),
+		corpus: z.string().nullable(),
+		collection: z.string().nullable(),
 		status: IngestionTaskStatusSchema,
 		created_at: z.string(),
 		updated_at: z.string(),
-		terminal_status: IngestionTaskStatusSchema.nullable(),
-		outcome_kind: z.enum(["success", "error"]).nullable(),
-		artifact_count: z.number().int().nonnegative(),
+		result_contract: z.string().nullable(),
+		has_result: z.boolean(),
+		summary: z
+			.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+			.nullable(),
 		last_error_code: z.string().nullable(),
 		last_error_message: z.string().nullable(),
 		workflow_id: z.string(),

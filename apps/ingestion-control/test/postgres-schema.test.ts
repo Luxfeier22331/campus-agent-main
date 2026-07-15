@@ -1,0 +1,106 @@
+import { describe, expect, it } from "vitest";
+import { assertIngestionControlPostgresSchema } from "../src/postgres-store";
+
+const columns = [
+	"task_id",
+	"run_id",
+	"registry_task_id",
+	"executor_kind",
+	"source_family",
+	"source_channel",
+	"corpus",
+	"collection",
+	"input_ref_json",
+	"input_contract",
+	"output_contract",
+	"created_at",
+	"status",
+	"workflow_id",
+	"workflow_run_id",
+	"updated_at",
+	"result_ref_json",
+	"result_contract",
+	"summary_json",
+	"error_code",
+	"error_message",
+];
+
+const freshnessColumns = [
+	"site_id",
+	"normalized_canonical_url",
+	"host",
+	"page_family",
+	"page_title_normalized",
+	"discovery_method",
+	"discovered_from_url",
+	"last_fetch_disposition",
+	"last_http_status",
+	"content_type",
+	"etag",
+	"last_modified",
+	"response_body_hash",
+	"main_content_hash",
+	"last_seen_at",
+	"last_changed_at",
+	"last_not_modified_at",
+	"cadence_class",
+	"priority_score",
+	"next_eligible_fetch_at",
+	"last_successful_run_id",
+	"last_change_reason",
+	"created_at",
+	"updated_at",
+];
+
+const seedStateColumns = [
+	"site_id",
+	"configured_seed_url",
+	"normalized_canonical_url",
+	"last_observed_run_id",
+	"last_seen_at",
+	"created_at",
+	"updated_at",
+];
+
+const migrationColumns = ["migration_id", "content_sha256", "applied_at"];
+
+describe("ingestion-control schema assertion", () => {
+	it("is read-only and accepts only the migrated task projection", async () => {
+		const statements: string[] = [];
+		await assertIngestionControlPostgresSchema({
+			async query(sql) {
+				statements.push(sql);
+				return {
+					rows: (sql.includes("schema_migrations")
+						? migrationColumns
+						: sql.includes("official_web_url_freshness")
+							? freshnessColumns
+							: sql.includes("official_web_seed_state")
+								? seedStateColumns
+								: columns
+					).map((column_name) => ({ column_name })),
+				};
+			},
+		});
+		expect(statements).toHaveLength(4);
+		for (const statement of statements) {
+			expect(statement).toContain("information_schema.columns");
+			expect(statement).not.toMatch(/CREATE|ALTER|DROP/iu);
+		}
+	});
+
+	it("rejects legacy closeout storage", async () => {
+		await expect(
+			assertIngestionControlPostgresSchema({
+				async query(sql) {
+					return {
+						rows: (sql.includes("schema_migrations")
+							? migrationColumns
+							: [...columns, "closeout_json"]
+						).map((column_name) => ({ column_name })),
+					};
+				},
+			}),
+		).rejects.toThrow("retired column: closeout_json");
+	});
+});

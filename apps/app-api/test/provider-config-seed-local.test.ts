@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 const appDir = resolve(__dirname, "..");
 
 describe("local provider-config seed script", () => {
-	it("seeds prompt, Hindsight, embedding, and rerank profiles from local provider env", async () => {
+	it("seeds prompt, Hindsight, and embedding profiles from local provider env", async () => {
 		const server = new RecordingProviderConfigServer();
 		await server.listen();
 		try {
@@ -19,8 +19,6 @@ describe("local provider-config seed script", () => {
 					EMBEDDING_API_KEY: "embedding-key",
 					LLM_API_KEY: "llm-key",
 					LLM_MODEL: "gpt-shared",
-					RERANK_API_KEY: "rerank-key",
-					RERANK_MODEL: "gte-reranker",
 				},
 			});
 
@@ -40,13 +38,6 @@ describe("local provider-config seed script", () => {
 					features: ["embedding"],
 					featureConfig: {},
 					provider: "openai-compatible",
-				},
-				{
-					apiKey: "rerank-key",
-					baseUrl: "https://ai.gitee.com/v1",
-					features: ["rerank"],
-					featureConfig: { rerank: { path: "/rerank" } },
-					provider: "gitee",
 				},
 			]);
 			expect(server.profileBodies()).toEqual([
@@ -95,15 +86,9 @@ describe("local provider-config seed script", () => {
 					role: "eval_ragas_embedding",
 					transport: "embeddings",
 				}),
-				expect.objectContaining({
-					kind: "rerank",
-					model: "gte-reranker",
-					role: "rag_reranker",
-					transport: "gitee_rerank",
-				}),
 			]);
-			expect(server.validationPaths()).toHaveLength(8);
-			expect(server.activationPaths()).toHaveLength(8);
+			expect(server.validationPaths()).toHaveLength(7);
+			expect(server.activationPaths()).toHaveLength(7);
 		} finally {
 			await server.close();
 		}
@@ -147,10 +132,6 @@ async function runSeedScript(input: {
 		"LLM_API_KEY",
 		"LLM_BASE_URL",
 		"LLM_MODEL",
-		"RERANK_API_KEY",
-		"RERANK_BASE_URL",
-		"RERANK_MODEL",
-		"RERANK_PATH",
 	]) {
 		delete env[key];
 	}

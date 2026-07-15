@@ -14,7 +14,6 @@ export interface WorkerFetchBindingLike {
 export interface Env {
 	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
-	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN?: string;
 	BETTER_AUTH_SECRET?: string;
 	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;

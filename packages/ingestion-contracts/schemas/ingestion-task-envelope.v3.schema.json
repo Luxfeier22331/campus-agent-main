@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.muc.wiki/contracts/ingestion-task-envelope.v3.schema.json",
+	"title": "Ingestion task envelope v3",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "task_id", "run_id", "registry_task_id", "input_ref"],
+	"properties": {
+		"schema_version": { "const": "ingestion_task_envelope.v3" },
+		"task_id": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+		},
+		"run_id": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+		},
+		"registry_task_id": {
+			"type": "string",
+			"maxLength": 128,
+			"pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+		},
+		"input_ref": { "$ref": "#/$defs/object_store_ref" }
+	},
+	"$defs": {
+		"object_store_ref": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "uri", "digest", "byte_size"],
+			"properties": {
+				"kind": { "const": "object_store" },
+				"uri": { "type": "string", "maxLength": 4096, "pattern": "^s3://[^/]+/.+" },
+				"digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+				"byte_size": { "type": "integer", "minimum": 0 }
+			}
+		}
+	}
+}

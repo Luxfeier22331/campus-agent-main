@@ -17,7 +17,6 @@ const (
 	providerConfigRoleIndexEmbedding    providerConfigRole = "index_embedding"
 	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
 	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
-	providerConfigRoleRAGReranker       providerConfigRole = "rag_reranker"
 )
 
 type providerConfigSnapshot struct {
@@ -159,9 +158,6 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 	if isEmbeddingProviderConfigRole(role) && snapshot.Dimensions <= 0 {
 		return errors.New("embedding provider config snapshot dimensions is required")
 	}
-	if isRerankProviderConfigRole(role) && strings.TrimSpace(snapshot.Kind) != "rerank" {
-		return errors.New("rerank provider config snapshot kind must be rerank")
-	}
 	return nil
 }
 
@@ -172,10 +168,6 @@ func isEmbeddingProviderConfigRole(role providerConfigRole) bool {
 	default:
 		return false
 	}
-}
-
-func isRerankProviderConfigRole(role providerConfigRole) bool {
-	return role == providerConfigRoleRAGReranker
 }
 
 func (s *Server) resolveProviderConfigSnapshot(

@@ -17,6 +17,8 @@ func (s *Server) AppendConversationMemoryActivity(
 	ctx context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "memory.append", 10*time.Second)
+	defer stopHeartbeat()
 	recordTemporalActivityHeartbeat(ctx, "memory.append.started")
 	run, err := s.temporalActivityRunAllowTerminal(ctx, input.RunID, input.TraceID)
 	if err != nil {

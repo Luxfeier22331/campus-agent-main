@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	assertObjectStoreSha256Digest,
-	assertOptionalSha256Digest,
+	assertArtifactRefBytes,
 	assertSha256Digest,
 	buildDocumentArtifactKey,
 	buildObjectStoreArtifactRef,
@@ -108,12 +107,14 @@ describe("ingest artifact helpers", () => {
 		});
 		const artifactRef = buildObjectStoreArtifactRef({
 			bucket: "campus-agent-source",
+			byteSize: 42,
 			key: "official_web/run/source-truth-bundle.json",
 			contentSha256: "0".repeat(64),
 		});
 
 		expect(uri).toBe("s3://campus-agent-source/official_web/run/source-truth-bundle.json");
 		expect(artifactRef).toEqual({
+			byte_size: 42,
 			kind: "object_store",
 			uri,
 			digest: `sha256:${"0".repeat(64)}`,
@@ -176,20 +177,31 @@ describe("ingest artifact helpers", () => {
 				actualSha256: "0".repeat(64),
 			}),
 		).toThrow("capture release digest must use sha256");
+		const bytes = new TextEncoder().encode("capture release");
 		expect(() =>
-			assertObjectStoreSha256Digest({
+			assertArtifactRefBytes({
+				bytes,
 				label: "capture release",
-				ref: { kind: "object_store", uri: "s3://bucket/key", digest: `sha256:${"1".repeat(64)}` },
-				actualSha256: "0".repeat(64),
+				ref: {
+					byte_size: bytes.byteLength,
+					kind: "object_store",
+					uri: "s3://bucket/key",
+					digest: `sha256:${"1".repeat(64)}`,
+				},
 			}),
 		).toThrow("capture release digest mismatch");
 		expect(() =>
-			assertOptionalSha256Digest({
+			assertArtifactRefBytes({
+				bytes,
 				label: "capture release",
-				digest: undefined,
-				actualSha256: "0".repeat(64),
+				ref: {
+					byte_size: bytes.byteLength + 1,
+					kind: "object_store",
+					uri: "s3://bucket/key",
+					digest: sha256Digest(bytes),
+				},
 			}),
-		).not.toThrow();
+		).toThrow("capture release byte size mismatch");
 		expect(() => parseS3Uri("s3://bucket")).toThrow("invalid s3 uri: s3://bucket");
 	});
 });

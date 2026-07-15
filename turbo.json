@@ -33,6 +33,22 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
+		"test:eval": {
+			"dependsOn": ["^test:eval"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"test:ingest": {
+			"dependsOn": ["^test:ingest"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"test:migration-integration": {
+			"cache": false,
+			"passThroughEnv": ["APP_API_MIGRATION_TEST_DATABASE_URL"]
+		},
 		"test:worker": {
 			"dependsOn": ["^test"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
@@ -45,8 +61,8 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v1.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v4.json",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
 				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
 			],
 			"outputLogs": "new-only"
@@ -213,6 +229,16 @@
 			],
 			"outputLogs": "new-only"
 		},
+		"ingest-core#test:ingest": {
+			"dependsOn": ["^test:ingest"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"ingestion-control#test": {
 			"dependsOn": ["^test"],
 			"inputs": [
@@ -223,8 +249,28 @@
 			],
 			"outputLogs": "new-only"
 		},
+		"ingestion-control#test:ingest": {
+			"dependsOn": ["^test:ingest"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"eval-langfuse#test": {
 			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"eval-langfuse#test:eval": {
+			"dependsOn": ["^test:eval"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -302,6 +348,16 @@
 		},
 		"source-collector#test": {
 			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"source-collector#test:ingest": {
+			"dependsOn": ["^test:ingest"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",

@@ -12,8 +12,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm install --frozen-lockfile --prod --filter agent-runtime
 
 COPY apps/agent-runtime ./apps/agent-runtime
-COPY configs/runtime/tools.v4.json ./configs/runtime/tools.v4.json
-COPY configs/runtime/tool-function-schemas.v1.json ./configs/runtime/tool-function-schemas.v1.json
+COPY configs/runtime/tools.v5.json ./configs/runtime/tools.v5.json
+COPY configs/runtime/tool-function-schemas.v2.json ./configs/runtime/tool-function-schemas.v2.json
 COPY configs/runtime/workflow-artifacts.v2.json ./configs/runtime/workflow-artifacts.v2.json
 
 FROM node:24.15-bookworm-slim AS runtime
@@ -22,7 +22,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
   AGENT_RUNTIME_HOST=0.0.0.0 \
   AGENT_RUNTIME_PORT=27062 \
-  AGENT_RUNTIME_TOOL_REGISTRY_PATH=configs/runtime/tools.v4.json
+  AGENT_RUNTIME_TOOL_REGISTRY_PATH=configs/runtime/tools.v5.json
 
 RUN apt-get update \
   && apt-get upgrade -y \

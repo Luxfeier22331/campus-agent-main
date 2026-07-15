@@ -23,12 +23,15 @@ updated: 2026-07-12
 主要字段分组：
 
 - 关联：`request_id`、`trace_id`、`conversation_id`、`safety_identifier`；
-- 请求：`surface`、principal 类型、requested/selected tool、scope 和 version query 摘要；
+- 请求：`surface`、principal 类型和 requested/selected tool；
 - 结果：`status`、`error_code`、`semantic_outcome`、`refusal_class`、ACL 结果；
 - 时序：started/completed/measured/updated 时间、总耗时和 projection lag；
-- 诊断：来源摘要、stage timing 和 workflow trace summary；
+- 诊断：`resolved_targets[]`、来源摘要、stage timing 和 workflow trace summary；
 - 模型：provider、model、prompt id/version 和 template hash；
-- 评测：answer eval 与 LLM I/O fingerprint。
+
+该表不保存 caller 请求的 scope/version query、answer eval fingerprint、LLM I/O
+fingerprint、debug trace ref 或请求级观测配置。`resolved_targets_json` 是执行完成后由
+服务端确认的事实，不是 app-api 输入或检索授权参数。
 
 app-api 在接收 turn 时创建记录，在最终写入时更新同一记录。允许的状态与
 `chat.turn_dispatches` 保持一致。

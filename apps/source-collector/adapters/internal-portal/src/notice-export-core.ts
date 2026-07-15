@@ -1,26 +1,16 @@
-import fs from "node:fs";
-import path from "node:path";
+import { encodeObjectKeySegment } from "ingest-core";
 import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api.js";
 import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
 
 export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
 
-import { sanitizeObjectKeySegment } from "./artifact-keys.js";
+import { bindApiContextCancellation } from "./api-context-cancellation.js";
 import type { ExternalVisualFetcher } from "./attachment-crawlee-runner.js";
-import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import {
 	type AttachmentFetchAdmission,
 	materializeBundleAttachments,
 } from "./attachment-materialization.js";
 import { resolveInternalPortalConfig } from "./config.js";
-import {
-	buildInternalPortalRunFailedLedgerRecord,
-	buildInternalPortalRunId,
-	buildInternalPortalRunLedgerRecord,
-	buildInternalPortalRunStartedLedgerRecord,
-	type InternalPortalRunLedgerRecord,
-	type InternalPortalRunLedgerStore,
-} from "./internal-portal-run-ledger.js";
 import { runNoticeCrawleeCollection } from "./notice-crawlee-runner.js";
 import {
 	buildCategories,
@@ -32,11 +22,9 @@ import {
 	normalizeNullableText,
 	normalizeRequiredNoticeId,
 	normalizeRequiredText,
-	toTimestampLabel,
 } from "./notice-export-helpers.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
-import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
 	ApiRequestContextLike,
 	BundleNoticeRecord,
@@ -52,10 +40,10 @@ import type {
 } from "./types.js";
 
 export interface CollectNoticeExportBundleInput {
+	abortSignal?: AbortSignal;
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
 	externalVisualFetcher?: ExternalVisualFetcher;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
-	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	defaultInlineVisualCapture?: boolean;
 	backfillMaxPagesPerType?: number | null;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
@@ -103,17 +91,6 @@ export interface CollectNoticeExportBundleResult {
 	};
 }
 
-export interface WriteNoticeExportArtifactsInput {
-	bundleRecords: BundleNoticeRecord[];
-	exportManifest: NoticeExportManifest;
-	outputDir: string;
-}
-
-export interface WriteNoticeExportArtifactsResult {
-	bundlePath: string;
-	manifestPath: string;
-}
-
 export interface NoticeExportArtifactObjectRefs {
 	bundleByteSize: number;
 	bundleContentSha256: string;
@@ -131,33 +108,14 @@ export interface NoticeExportArtifactObjectRefs {
 }
 
 export interface UploadNoticeExportArtifactsInput {
+	abortSignal?: AbortSignal;
+	activityAttempt: number;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	bundleRecords: unknown[];
 	exportedAt: string;
 	exportManifest: unknown;
+	runId: string;
 	siteId: string;
-}
-
-export interface RunNoticeExportInput {
-	artifactStore?: AuthenticatedNoticeArtifactStore;
-	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
-	collectBundle: () => Promise<CollectNoticeExportBundleResult>;
-	collectionMode: NoticeCollectionMode;
-	internalPortalRunLedgerStore?: InternalPortalRunLedgerStore;
-	exportedAt: string;
-	verifiedRunEnqueue?: (input: { ledgerRecord: InternalPortalRunLedgerRecord }) => Promise<void>;
-	outputDir?: string;
-	runId?: string;
-	siteId: string;
-	sourceHomeUrl: string;
-	writeLocalArtifacts: boolean;
-}
-
-export interface RunNoticeExportResult {
-	ledgerRecord: InternalPortalRunLedgerRecord;
-	result: CollectNoticeExportBundleResult;
-	uploadedArtifactRefs: NoticeExportArtifactObjectRefs;
-	written: WriteNoticeExportArtifactsResult | null;
 }
 
 export function buildBundleRecord(input: {
@@ -249,6 +207,7 @@ export function buildBundleRecord(input: {
 export async function collectNoticeExportBundle(
 	input: CollectNoticeExportBundleInput,
 ): Promise<CollectNoticeExportBundleResult> {
+	input.abortSignal?.throwIfAborted();
 	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
 	const runAdmission = buildNoticeRunAdmission({
 		backfillMaxPagesPerType: input.backfillMaxPagesPerType,
@@ -266,6 +225,7 @@ export async function collectNoticeExportBundle(
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveInternalPortalConfig(process.env)));
 	const apiContext = await createApiContext();
+	const disposeApiContext = bindApiContextCancellation(apiContext, input.abortSignal);
 	const fetchPage = input.fetchNoticePage ?? ((pageInput) => fetchNoticePage({ ...pageInput }));
 	const fetchSelects =
 		input.fetchNoticeSelects ?? ((selectInput) => fetchNoticeSelects({ ...selectInput }));
@@ -290,7 +250,9 @@ export async function collectNoticeExportBundle(
 	};
 
 	try {
+		input.abortSignal?.throwIfAborted();
 		collected = await runNoticeCrawleeCollection({
+			abortSignal: input.abortSignal,
 			apiContext,
 			backfillMaxPagesPerType: input.backfillMaxPagesPerType ?? null,
 			collectionMode,
@@ -314,10 +276,10 @@ export async function collectNoticeExportBundle(
 						uploadedAttachmentCount: 0,
 					}
 				: await materializeBundleAttachments({
+						abortSignal: input.abortSignal,
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
 						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
-						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 						defaultInlineVisualCapture: input.defaultInlineVisualCapture,
 						externalVisualFetcher: input.externalVisualFetcher,
 						bundleRecords: collected.bundleRecords,
@@ -326,8 +288,9 @@ export async function collectNoticeExportBundle(
 						siteId: input.siteId,
 					});
 	} finally {
-		await apiContext.dispose();
+		await disposeApiContext();
 	}
+	input.abortSignal?.throwIfAborted();
 	if (fullScopeRequested && collected.stats.pageBudgetExhausted) {
 		throw new Error("page_budget_exhausted");
 	}
@@ -365,33 +328,6 @@ export async function collectNoticeExportBundle(
 	};
 }
 
-export function parseSelectedNoticeSpecs(raw: string | undefined): SelectedNoticeSpec[] {
-	const normalized = String(raw ?? "").trim();
-	if (!normalized) {
-		return [];
-	}
-	const specs: SelectedNoticeSpec[] = [];
-	for (const token of normalized.split(",")) {
-		const parts = token
-			.split(":")
-			.map((part) => part.trim())
-			.filter(Boolean);
-		if (parts.length < 2) {
-			throw new Error("INTERNAL_PORTAL_SELECTED_NOTICES entries must use notice_id:notice_type");
-		}
-		const noticeId = Number(parts[0]);
-		if (!Number.isInteger(noticeId) || noticeId <= 0) {
-			throw new Error(`invalid selected notice id: ${parts[0]}`);
-		}
-		specs.push({
-			noticeId,
-			noticeType: parts[1],
-			noticeTypeName: parts[2],
-		});
-	}
-	return normalizeSelectedNoticeSpecs(specs);
-}
-
 function normalizeSelectedNoticeSpecs(specs: SelectedNoticeSpec[]): SelectedNoticeSpec[] {
 	const normalized: SelectedNoticeSpec[] = [];
 	const seen = new Set<string>();
@@ -420,38 +356,29 @@ function normalizeNoticeTypes(values: string[]): string[] {
 	return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
-export function writeNoticeExportArtifacts(
-	input: WriteNoticeExportArtifactsInput,
-): WriteNoticeExportArtifactsResult {
-	fs.mkdirSync(input.outputDir, { recursive: true });
-	const timestamp = toTimestampLabel(input.exportManifest.exported_at);
-	const bundlePath = path.join(input.outputDir, `notices-bundle-${timestamp}.json`);
-	const manifestPath = path.join(input.outputDir, `export-manifest-${timestamp}.json`);
-
-	fs.writeFileSync(bundlePath, `${JSON.stringify(input.bundleRecords, null, 2)}\n`, "utf-8");
-	fs.writeFileSync(manifestPath, `${JSON.stringify(input.exportManifest, null, 2)}\n`, "utf-8");
-
-	return {
-		bundlePath,
-		manifestPath,
-	};
-}
-
 export async function uploadNoticeExportArtifacts(
 	input: UploadNoticeExportArtifactsInput,
 ): Promise<NoticeExportArtifactObjectRefs> {
+	input.abortSignal?.throwIfAborted();
+	if (!Number.isSafeInteger(input.activityAttempt) || input.activityAttempt <= 0) {
+		throw new Error("activityAttempt must be a positive integer");
+	}
 	const prefix = [
 		"internal_portal",
+		encodeObjectKeySegment(input.siteId),
 		"runs",
-		sanitizeObjectKeySegment(input.siteId),
-		toTimestampLabel(input.exportedAt),
+		encodeObjectKeySegment(input.runId),
+		"attempts",
+		String(input.activityAttempt),
+		"notice",
 	].join("/");
 	const bundleObjectKey = `${prefix}/notices-bundle.json`;
 	const manifestObjectKey = `${prefix}/export-manifest.json`;
 	const captureReleaseObjectKey = `${prefix}/capture-release.json`;
 	const bundlePayload = serializeJsonArtifactPayload(input.bundleRecords);
 	const manifestPayload = serializeJsonArtifactPayload(input.exportManifest);
-	const bundleRef = await input.artifactStore.putObject({
+	const bundleRef = await input.artifactStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
 		objectKey: bundleObjectKey,
 		data: bundlePayload,
 		contentType: "application/json",
@@ -461,7 +388,9 @@ export async function uploadNoticeExportArtifacts(
 			source_channel: "internal_portal",
 		},
 	});
-	const manifestRef = await input.artifactStore.putObject({
+	input.abortSignal?.throwIfAborted();
+	const manifestRef = await input.artifactStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
 		objectKey: manifestObjectKey,
 		data: manifestPayload,
 		contentType: "application/json",
@@ -471,15 +400,19 @@ export async function uploadNoticeExportArtifacts(
 			source_channel: "internal_portal",
 		},
 	});
+	input.abortSignal?.throwIfAborted();
 	const captureReleasePayload = serializeJsonArtifactPayload(
 		buildAuthenticatedNoticeCaptureRelease({
+			activityAttempt: input.activityAttempt,
 			bundleRef,
 			exportedAt: input.exportedAt,
 			manifestRef,
+			runId: input.runId,
 			siteId: input.siteId,
 		}),
 	);
-	const captureReleaseRef = await input.artifactStore.putObject({
+	const captureReleaseRef = await input.artifactStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
 		objectKey: captureReleaseObjectKey,
 		data: captureReleasePayload,
 		contentType: "application/json",
@@ -489,6 +422,7 @@ export async function uploadNoticeExportArtifacts(
 			source_channel: "internal_portal",
 		},
 	});
+	input.abortSignal?.throwIfAborted();
 	return {
 		bundleByteSize: bundleRef.byteSize,
 		bundleContentSha256: bundleRef.contentSha256,
@@ -507,12 +441,13 @@ export async function uploadNoticeExportArtifacts(
 }
 
 function buildAuthenticatedNoticeCaptureRelease(input: {
+	activityAttempt: number;
 	bundleRef: StoredArtifactRef;
 	exportedAt: string;
 	manifestRef: StoredArtifactRef;
+	runId: string;
 	siteId: string;
 }): Record<string, unknown> {
-	const timestamp = toTimestampLabel(input.exportedAt);
 	const bundleRef = sourceObjectRef("notices_bundle", input.bundleRef);
 	const exportManifestRef = sourceObjectRef("export_manifest", input.manifestRef);
 	return {
@@ -520,7 +455,7 @@ function buildAuthenticatedNoticeCaptureRelease(input: {
 		source_channel: "internal_portal",
 		source_surface: "notice",
 		site_id: input.siteId,
-		capture_id: `capture:${input.siteId}:notice:${timestamp}`,
+		capture_id: `capture:${input.siteId}:notice:${input.runId}:attempt:${input.activityAttempt}`,
 		exported_at: input.exportedAt,
 		bundle_ref: withoutRole(bundleRef),
 		export_manifest_ref: withoutRole(exportManifestRef),
@@ -546,89 +481,4 @@ function withoutRole(ref: Record<string, unknown>): Record<string, unknown> {
 
 function serializeJsonArtifactPayload(value: unknown): Uint8Array {
 	return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf-8");
-}
-
-export async function runNoticeExport(input: RunNoticeExportInput): Promise<RunNoticeExportResult> {
-	const runId = input.runId ?? buildInternalPortalRunId(input.exportedAt, input.siteId, "notice");
-	await input.internalPortalRunLedgerStore?.upsertRun(
-		buildInternalPortalRunStartedLedgerRecord({
-			collectionMode: input.collectionMode,
-			runId,
-			siteId: input.siteId,
-			sourceHomeUrl: input.sourceHomeUrl,
-			sourceSurface: "notice",
-			startedAt: input.exportedAt,
-		}),
-	);
-	let terminalLedgerWritten = false;
-	try {
-		const result = await input.collectBundle();
-		const written = input.writeLocalArtifacts
-			? writeNoticeExportArtifacts({
-					bundleRecords: result.bundleRecords,
-					exportManifest: result.exportManifest,
-					outputDir: input.outputDir ?? process.cwd(),
-				})
-			: null;
-		if (!input.artifactStore) {
-			throw new Error("authenticated notice source-bucket artifact store is required");
-		}
-		const uploadedArtifactRefs = await uploadNoticeExportArtifacts({
-			artifactStore: input.artifactStore,
-			bundleRecords: result.bundleRecords,
-			exportedAt: input.exportedAt,
-			exportManifest: result.exportManifest,
-			siteId: input.siteId,
-		});
-		const ledgerRecord = buildInternalPortalRunLedgerRecord({
-			attachmentFetchAdmissions: input.attachmentFetchAdmissions,
-			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
-			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
-			bundlePath: written?.bundlePath ?? null,
-			bundleRecords: result.bundleRecords,
-			collectionMode: result.exportManifest.run.mode,
-			exportedAt: input.exportedAt,
-			manifest: result.exportManifest,
-			manifestArtifactRef: uploadedArtifactRefs.manifestRef,
-			manifestObjectKey: uploadedArtifactRefs.manifestObjectKey,
-			manifestPath: written?.manifestPath ?? null,
-			runId,
-			siteId: input.siteId,
-			sourceHomeUrl: input.sourceHomeUrl,
-		});
-		await input.internalPortalRunLedgerStore?.upsertRun(ledgerRecord);
-		terminalLedgerWritten = true;
-		assertVerifiedRunHandoff(ledgerRecord);
-		await input.verifiedRunEnqueue?.({ ledgerRecord });
-		return {
-			ledgerRecord,
-			result,
-			uploadedArtifactRefs,
-			written,
-		};
-	} catch (error) {
-		if (!terminalLedgerWritten) {
-			await input.internalPortalRunLedgerStore?.upsertRun(
-				buildInternalPortalRunFailedLedgerRecord({
-					collectionMode: input.collectionMode,
-					failureReason: formatSafeErrorMessage(error),
-					finishedAt: new Date().toISOString(),
-					runId,
-					siteId: input.siteId,
-					sourceHomeUrl: input.sourceHomeUrl,
-					sourceSurface: "notice",
-					startedAt: input.exportedAt,
-				}),
-			);
-		}
-		throw error;
-	}
-}
-
-function assertVerifiedRunHandoff(record: InternalPortalRunLedgerRecord): void {
-	if (record.status !== "success" || record.verificationStatus !== "verified") {
-		throw new Error(
-			`internal portal handoff verification failed: ${record.failureReason ?? record.verificationStatus}`,
-		);
-	}
 }

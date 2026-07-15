@@ -13,7 +13,7 @@ export type WeChatArticlePageKind = "article" | "verification" | "non_article" |
 export type WeChatArticleMediaCaptureStatus = "captured" | "fetch_failed";
 
 export interface WeChatOfficialAccountArticleManifest {
-	schemaVersion: "wechat_official_account_article_manifest.v2";
+	schemaVersion: "wechat_official_account_article_manifest.v3";
 	sourceChannel: typeof WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL;
 	accountName: string;
 	accountSlug: string;
@@ -25,7 +25,6 @@ export interface WeChatOfficialAccountArticleManifest {
 	articleIdentityBasis: WeChatArticleIdentityBasis;
 	provider: typeof WECHAT_OFFICIAL_ACCOUNT_PROVIDER;
 	providerArticleId: string | null;
-	capturedAt: string;
 	titleRaw: string;
 	titleNormalized: string;
 	publishTime: string | null;
@@ -58,7 +57,7 @@ export interface WeChatOfficialAccountContentBlockRow {
 }
 
 export interface WeChatOfficialAccountMediaRefRow {
-	schemaVersion: "wechat_official_account_media_ref.v2";
+	schemaVersion: "wechat_official_account_media_ref.v3";
 	rawAssetId: string;
 	rawVersionId: string;
 	mediaRefId: string;
@@ -72,7 +71,6 @@ export interface WeChatOfficialAccountMediaRefRow {
 	contentSha256: string | null;
 	mimeType: string | null;
 	byteSize: number | null;
-	capturedAt: string | null;
 	fetchErrorMessage: string | null;
 }
 

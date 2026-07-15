@@ -15,7 +15,7 @@ import { buildCollectedPageArtifacts } from "../src/page-artifacts";
 import { buildCollectorQcReport } from "../src/qc-report";
 import {
 	buildOfficialWebTargetMatchForTest,
-	createTargetWorksetControlPlaneForTest,
+	buildTargetWorksetCandidatesForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_HOME_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
@@ -283,7 +283,7 @@ async function writeOutputDir(input: {
 		outputDir,
 		crawlRunId: input.crawlRunId,
 		localArtifactsOnly: true,
-		controlPlaneClient: createTargetWorksetControlPlaneForTest({
+		crawlCandidates: buildTargetWorksetCandidatesForTest({
 			runId: input.crawlRunId,
 		}),
 		crawlHosts: async () => ({

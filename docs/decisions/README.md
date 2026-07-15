@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: active
 created: 2026-04-12
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 # Decisions
 
@@ -46,17 +46,16 @@ owner-boundary 映射。
 - 文档治理：`adr-0038-documentation-information-architecture-and-lifecycle.md`、
   `adr-0039-reference-and-runbook-historical-lifecycle.md`
 - Temporal execution substrate：`adr-0048-temporal.md`
-- K8s / KEDA execution runtime：`adr-0056-k8s-keda.md`
+- Temporal Worker Controller and versioning：`adr-0078-worker-versioning.md`
 - Source / environment repository boundary：
-  `adr-0070-source-and-environment-repository-boundary.md`
+  `adr-0074-source-and-environment-repository-boundary.md`
 - Agents SDK knowledge handoff：
-  `adr-0071-primary-agent-knowledge-tool-routing.md`
+  `adr-0075-target-based-knowledge-search.md`
 - Operator Console long-term surface：`adr-0055-unified-operator-console-surface.md`
 - Self-hosted runtime diagnosis：`adr-0072-self-hosted-ops-web.md`
 - Eval runtime and Ragas / Langfuse：`adr-0061-eval-runtime.md`、
-  `adr-0062-ragas-langfuse.md`
-- Ingestion control-plane and kernels：
-  `adr-0054-ingestion-control-plane-and-kernel-boundary.md`
+  `adr-0062-ragas-langfuse.md`、`adr-0076-langfuse-trace-data.md`
+- Temporal ingestion：`adr-0077-ingestion.md`
 
 ## 维护规则
 

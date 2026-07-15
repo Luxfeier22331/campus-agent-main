@@ -20,9 +20,9 @@ field details live in split data documents.
 - `app-api/auth-chat-docs-profile.md`
   - Auth, chat, docs and profile: app auth, chat, docs and memory tables
 - `app-api/runtime.md`
-  - Runtime: request execution and runtime projection tables
+  - Runtime: request observability projection
 - `app-api/operator.md`
-  - Operator: operator projection, audit, metric and quality tables
+  - Operator ingestion API projection consumed from ingestion-control
 - `identity-platform.md`
   - App-owned identity product schema; separate from Better Auth runtime tables
 - `dining.md`
@@ -45,12 +45,12 @@ field details live in split data documents.
 - `app_auth.*`
 - `chat.*`
 - `runtime.*`
-- `operator.*`
-- `official_web.*`
 - `docs.*`
 - `profile.*`
 - `identity.*`
 - `dining.*`
+- `observability.*`
+- `provider_config.*`
 
 已冻结并 materialized 的 app-owned product schema：
 
@@ -66,18 +66,17 @@ field details live in split data documents.
 - `campus_services_ops.*` 是 `campus_services` 人工校对、override draft、release
   snapshot 与 audit event 的 app-api owned ops schema；它不保存 raw notice/chat evidence，也不
   替代 execution-control typed runtime read model。
-- `official_web` shared data schema 单独冻结在
-  `docs/data/app-api/official-web.md`；当前 collector control-plane writer owner
-  是 `apps/ingestion-control`，`apps/app-api` 只拥有 operator read/projection 与
-  release-gate operator ledger。
-- 本文继续只覆盖 browser-facing app surfaces、chat dispatch 事实与 app-api owned
-  operator configuration；source-channel 专用 schema 另见各 domain data contract
+- offline source-channel data belongs to ingestion-control/object storage and
+  is not part of the app-api schema.
+- operator ingestion routes consume the bounded `ingestion_control.tasks`
+  projection through ingestion-control; app-api owns no `operator.*` schema.
+- 本文继续只覆盖 browser-facing app surfaces、chat dispatch 事实与 app-api-owned
+  product/operation configuration；source-channel 专用 schema 另见各 domain data contract
 
 ## Global Rules
 
 - 所有业务主键使用 opaque text id；不要把自增整数暴露成长期 API 依赖
 - `chat.*` 是 conversation、message 与 turn dispatch truth
-- `operator.*` 是受控配置和 source-processing projection，不是 chat history truth
 - app-api 在 `runtime.*` 中只拥有 request observability projection，不拥有 execution run truth
 - 第一版不单独建立 operator end-user 用户系统表
 - 本索引不冻结物理拆库、托管商、Drizzle migration 文件名、
@@ -91,15 +90,12 @@ field details live in split data documents.
 - `campus_services_ops.*`
 - `chat.*`
 - `runtime.*`
-- `operator.*`
 - `docs.*`
 - `profile.*`
 - `identity.*`
 - `dining.*`
-
-历史 app-api Drizzle baseline 中包含 `official_web.*`，但它不再表示 app-api 是
-collector control-plane writer owner；具体规则另见
-`docs/data/app-api/official-web.md`。
+- `observability.*`
+- `provider_config.*`
 
 `campus_services_ops.*` 的表级 shape 另见
 `docs/data/campus-services-ops.md`。
@@ -121,9 +117,8 @@ collector control-plane writer owner；具体规则另见
   baseline，覆盖 app-facing product、projection 与 operator surfaces。
 - `apps/app-api/db/shared-product-schema/chat_current.sql` 是
   shared-product `chat.*` bootstrap baseline。
-- `official_web.*` 的 collector control-plane durable writes 由
-  `apps/ingestion-control` 执行；app-api schema export 只服务 operator projection、
-  release-gate ledger 和 query/type safety，不得恢复 collector write path。
+- source collector lifecycle and artifacts are absent from app-api schemas;
+  app-api reads only the ingestion-control bounded task projection.
 - `drizzle.app_api_migrations` 记录 app-api Drizzle migration chain，不与
   shared-product SQL baseline 混用同一 journal 语义。
 

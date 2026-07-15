@@ -42,7 +42,7 @@ describe("contract schema registry", () => {
 				.map((path) => readJson(path).$id)
 				.filter((id): id is string => typeof id === "string"),
 		);
-		const tools = readJson("configs/runtime/tools.v4.json").tools as Record<string, unknown>[];
+		const tools = readJson("configs/runtime/tools.v5.json").tools as Record<string, unknown>[];
 
 		for (const tool of tools) {
 			for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
@@ -57,8 +57,8 @@ describe("contract schema registry", () => {
 	});
 
 	it("keeps the runtime tool catalog aligned with model-visible schemas", () => {
-		const tools = readJson("configs/runtime/tools.v4.json").tools as Record<string, unknown>[];
-		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v1.json")
+		const tools = readJson("configs/runtime/tools.v5.json").tools as Record<string, unknown>[];
+		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v2.json")
 			.tools as Record<string, unknown>[];
 		const toolIds = readToolContractEnum("ToolID");
 		const modelVisibleToolNames = readToolContractEnum("ModelVisibleToolName");

@@ -171,8 +171,8 @@ function buildPageAuditEntry(page: CollectedPageArtifact): OfficialWebPageQualit
 		pageFamily: page.pageManifest.pageFamily,
 		pageFamilyConfidence: page.pageManifest.pageFamilyConfidence,
 		pageFamilyReason: page.pageManifest.pageFamilyReason,
-		targetMatches: page.pageManifest.targetMatches,
-		consumerRetentionDecision: page.pageManifest.consumerRetentionDecision,
+		targetMatches: page.targeting.targetMatches,
+		consumerRetentionDecision: page.targeting.consumerRetentionDecision,
 		counts: {
 			blockCount: page.pageManifest.blockCount,
 			mainContentBlockCount: page.pageManifest.mainContentBlockCount,

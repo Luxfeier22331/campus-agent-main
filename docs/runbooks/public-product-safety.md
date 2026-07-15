@@ -17,7 +17,8 @@ updated: 2026-07-12
 ## 信号
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
-- `runtime.request_observability_fact`：ACL、scope、refusal、semantic outcome 和 trace refs；
+- `runtime.request_observability_fact`：ACL、resolved targets、refusal、semantic outcome
+  和 trace correlation；
 - OpenObserve：辅助日志和调用链，不是 throttle truth。
 
 ## 固定阈值
@@ -32,7 +33,8 @@ updated: 2026-07-12
 
 1. 在 Ops Web 按时间、状态、requestId、traceId 或 safety 关联摘要定位请求。
 2. 确认 turn dispatch 的 terminal 状态和 `error_code`。
-3. 使用 observability fact 判断 ACL、scope、remote-content suspicion 或 provider filter。
+3. 使用 observability fact 判断 ACL、resolved targets、remote-content suspicion 或
+   provider filter。
 4. 需要深入排查时按 request/trace 时间窗口读取 OpenObserve；审计失败时不返回原始记录。
 5. 只记录 sanitized request/trace id、pattern code、时间窗口和结论。
 

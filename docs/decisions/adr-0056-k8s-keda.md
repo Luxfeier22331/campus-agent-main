@@ -3,17 +3,19 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0056
-status: accepted
+status: superseded
 created: 2026-06-16
 updated: 2026-07-12
 supersedes:
   - adr-0043-docker-runtime.md
+superseded_by: adr-0078-worker-versioning.md
 ---
 # ADR-0056 Kubernetes + KEDA Execution Runtime
 
 ## 状态
 
-Accepted on 2026-06-16.
+Superseded by ADR-0078 on 2026-07-13. This file records the static
+Deployment/ScaledObject design that preceded Temporal Worker Controller.
 
 ## 当前边界
 

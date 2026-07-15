@@ -38,15 +38,14 @@ function finalizedWrite(): FinalizeRequestWrite {
 		turnDispatch: {
 			completedAt: "2026-06-04T01:02:06.000Z",
 			errorCode: null,
-			requestedScope: null,
 			requestId: "req_01HQ",
+			resolvedTargets: ["student_rules"],
 			runId: "run_01HQ",
 			safetyIdentifier: "safety_01HQ",
 			selectedTool: "knowledge_query",
 			status: "completed",
 			turnSequence: 1,
 			updatedAt: "2026-06-04T01:02:06.000Z",
-			versionQuery: null,
 		},
 		requestObservabilityFact: {
 			aclAnomalyCode: null,
@@ -68,11 +67,9 @@ function finalizedWrite(): FinalizeRequestWrite {
 			promptVersion: null,
 			refusalClass: null,
 			requestedTool: "knowledge_query",
-			requestedScopeSummary: null,
 			requestId: "req_01HQ",
-			resolvedScopeSummary: null,
+			resolvedTargets: ["student_rules"],
 			safetyIdentifier: "safety_01HQ",
-			scopeClass: null,
 			selectedTool: "knowledge_query",
 			semanticOutcome: null,
 			startedAt: "2026-06-04T01:02:03.000Z",
@@ -85,36 +82,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			stageTiming: {
 				"agent.runtime_ms": 320,
 			},
-			answerEvalFingerprint: {
-				answerFingerprintSha256:
-					"sha256:1212121212121212121212121212121212121212121212121212121212121212",
-				branchIdentity: {
-					branchKind: "tool_routed",
-					promptId: "primary_agent",
-					schemaVersion: "answer_branch_identity.v1",
-					workflowMode: "single_step",
-				},
-				llmCallSite: "agent.primary",
-				llmIoFingerprintSha256:
-					"sha256:1313131313131313131313131313131313131313131313131313131313131313",
-				outputSchemaId: "primary_agent_terminal_output.v1",
-				providerProfileRevision: "primary_agent:provider_profile_primary:3",
-				requestId: "req_01HQ",
-				runId: "run_01HQ",
-				runtimeRelease: "execution-control@test",
-				schemaVersion: "answer_eval_fingerprint.v1",
-				selectedTool: "knowledge_query",
-				selectedTools: ["knowledge_query"],
-				stageTimingProfileSha256:
-					"sha256:1414141414141414141414141414141414141414141414141414141414141414",
-				terminalOutcome: "grounded_answer",
-				toolRuntimeCombinedSha256:
-					"sha256:1515151515151515151515151515151515151515151515151515151515151515",
-				traceId: "trace_01HQ",
-			},
 			updatedAt: "2026-06-04T01:02:06.000Z",
-			versionQueryMode: null,
-			versionQuerySummary: null,
 		},
 		sessionSlots: [],
 	};
@@ -338,10 +306,7 @@ describe("pg chat command store", () => {
 		);
 		expect(insertValues).toHaveBeenCalledWith(
 			expect.objectContaining({
-				answerEvalFingerprintJson: expect.objectContaining({
-					schemaVersion: "answer_eval_fingerprint.v1",
-					runId: "run_01HQ",
-				}),
+				resolvedTargetsJson: ["student_rules"],
 				stageTimingJson: {
 					"agent.runtime_ms": 320,
 				},

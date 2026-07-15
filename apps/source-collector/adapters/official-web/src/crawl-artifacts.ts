@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { sha256Hex } from "ingest-core";
 import type { OfficialWebArtifactStore } from "./artifact-store.ts";
 import {
 	type buildOfficialWebCrawlRunRecord,
@@ -120,6 +121,8 @@ export function writeCollectorArtifacts(
 }
 
 export async function uploadCollectorArtifacts(input: {
+	abortSignal?: AbortSignal;
+	activityAttempt: number;
 	siteId: string;
 	crawlRunId: string;
 	artifactStore: OfficialWebArtifactStore;
@@ -130,12 +133,15 @@ export async function uploadCollectorArtifacts(input: {
 	let artifactUploadCount = 0;
 
 	for (const runArtifact of input.runArtifacts) {
+		input.abortSignal?.throwIfAborted();
 		const objectKey = buildOfficialWebRunArtifactKey({
+			activityAttempt: input.activityAttempt,
 			siteId: input.siteId,
 			crawlRunId: input.crawlRunId,
 			artifactName: runArtifact.artifactName,
 		});
-		const stored = await input.artifactStore.putObject({
+		const stored = await input.artifactStore.createOrVerifyObject({
+			abortSignal: input.abortSignal,
 			objectKey,
 			data: runArtifact.data,
 			contentType: runArtifact.contentType,
@@ -152,8 +158,11 @@ export async function uploadCollectorArtifacts(input: {
 	}
 
 	for (const page of input.pages) {
+		input.abortSignal?.throwIfAborted();
 		for (const file of page.files) {
-			await input.artifactStore.putObject({
+			input.abortSignal?.throwIfAborted();
+			await input.artifactStore.createOrVerifyObject({
+				abortSignal: input.abortSignal,
 				objectKey: file.objectKey,
 				data: file.data,
 				contentType: file.contentType,
@@ -162,6 +171,7 @@ export async function uploadCollectorArtifacts(input: {
 			artifactUploadCount += 1;
 		}
 	}
+	input.abortSignal?.throwIfAborted();
 
 	return {
 		uploadedArtifacts,
@@ -186,33 +196,27 @@ export function buildRunSourceTruthBundle(
 			rawVersionId: page.rawVersionId,
 			normalizedCanonicalUrl: page.pageManifest.normalizedCanonicalUrl,
 			pageFamily: page.pageManifest.pageFamily,
-			sourcePackId: page.pageManifest.sourcePackId,
-			sourcePackEntryId: page.pageManifest.sourcePackEntryId,
-			compositionGroup: page.pageManifest.compositionGroup,
-			compositionRole: page.pageManifest.compositionRole,
-			pageManifestObjectKey: findPageFileObjectKey(page, "source-truth/page-manifest.json"),
-			contentBlocksObjectKey: findPageFileObjectKey(page, "source-truth/content-blocks.jsonl"),
-			providerExtractionObjectKey: findPageFileObjectKey(
-				page,
-				"provider/cheerio-basic/page-extraction.json",
-			),
-			discoveredLinksObjectKey: findPageFileObjectKey(
-				page,
-				"provider/cheerio-basic/discovered-links.jsonl",
-			),
-			responseHtmlObjectKey: findPageFileObjectKey(page, "capture/response.html"),
+			sourcePackId: page.targeting.sourcePackId,
+			sourcePackEntryId: page.targeting.sourcePackEntryId,
+			compositionGroup: page.targeting.compositionGroup,
+			compositionRole: page.targeting.compositionRole,
+			pageManifestRef: findPageFileRef(page, "source-truth/page-manifest.json"),
+			contentBlocksRef: findPageFileRef(page, "source-truth/content-blocks.jsonl"),
+			providerExtractionRef: findPageFileRef(page, "provider/cheerio-basic/page-extraction.json"),
+			discoveredLinksRef: findPageFileRef(page, "provider/cheerio-basic/discovered-links.jsonl"),
+			responseHtmlRef: findPageFileRef(page, "capture/response.html"),
 			responseBodyHash: page.pageManifest.responseBodyHash,
 			blockCount: page.contentBlocks.length,
-			consumerMatches: page.pageManifest.consumerMatches ?? [],
-			consumerRetentionDecision: page.pageManifest.consumerRetentionDecision,
-			consumerRejectionReason: page.pageManifest.consumerRejectionReason ?? null,
-			targetJobId: page.pageManifest.targetJobId,
-			targetCandidateId: page.pageManifest.targetCandidateId,
-			targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
-			targetMatches: page.pageManifest.targetMatches,
-			materializationPolicy: page.pageManifest.materializationPolicy,
-			selectedWriteTarget: page.pageManifest.selectedWriteTarget,
-			reviewPolicy: page.pageManifest.reviewPolicy,
+			consumerMatches: page.targeting.consumerMatches,
+			consumerRetentionDecision: page.targeting.consumerRetentionDecision,
+			consumerRejectionReason: page.targeting.consumerRejectionReason,
+			targetJobId: page.targeting.targetJobId,
+			targetCandidateId: page.targeting.targetCandidateId,
+			targetDeclarationVersion: page.targeting.targetDeclarationVersion,
+			targetMatches: page.targeting.targetMatches,
+			materializationPolicy: page.targeting.materializationPolicy,
+			selectedWriteTarget: page.targeting.selectedWriteTarget,
+			reviewPolicy: page.targeting.reviewPolicy,
 		})),
 	});
 }
@@ -272,14 +276,25 @@ function buildPageObservationIdentityKey(observation: OfficialWebPageObservation
 	].join("::");
 }
 
-function findPageFileObjectKey(page: CollectedPageArtifact, relativePath: string): string {
+function findPageFileRef(
+	page: CollectedPageArtifact,
+	relativePath: string,
+): {
+	byteSize: number;
+	contentSha256: string;
+	objectKey: string;
+} {
 	const file = page.files.find((item) => item.relativePath === relativePath);
 	if (!file) {
 		throw new Error(
 			`missing page artifact ${relativePath} for ${page.rawAssetId}/${page.rawVersionId}`,
 		);
 	}
-	return file.objectKey;
+	return {
+		byteSize: file.data.byteLength,
+		contentSha256: sha256Hex(file.data),
+		objectKey: file.objectKey,
+	};
 }
 
 function toJsonLines(records: readonly object[]): string {

@@ -9,9 +9,15 @@ import {
 	type AgentToolEvalToolCall,
 	validateAgentToolEvalDataset,
 } from "./agent-tool-eval";
+import {
+	type ExecutionRunEvalProjection,
+	parseExecutionRunEvalProjection,
+} from "./execution-projection";
 import { createLangfuseEvalClient } from "./langfuse-client";
 import {
 	buildLangfuseScoresFromRagasAgentScoreBatch,
+	buildLangfuseScoresFromRagasScoreBatch,
+	type LangfuseScoreItem,
 	publishLangfuseScores,
 } from "./score-publisher";
 import {
@@ -24,7 +30,8 @@ import {
 	stringField,
 	writeJsonObject,
 } from "./shared";
-import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
+import type { ToolTrajectory } from "./tool-trajectory";
+import { deriveLangfuseTraceId } from "./trace";
 
 interface ProductStreamEvent {
 	data: JsonObject;
@@ -50,6 +57,11 @@ export interface AgentToolEvalInput {
 	fetchImpl?: typeof fetch;
 	limit?: number;
 	runPythonRagasAgentScoreBatch: (input: {
+		inputPath: string;
+		outputPath: string;
+		runtimeConfigPath?: string;
+	}) => void;
+	runPythonRagasScoreBatch: (input: {
 		inputPath: string;
 		outputPath: string;
 		runtimeConfigPath?: string;
@@ -82,59 +94,143 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			smokeEmail: input.stagingSmokeEmail,
 		}));
 	const evalRunId = stableId("agent-tool-eval", input.environment, randomUUID());
-	const sampleItems: JsonObject[] = [];
+	const agentSampleItems: JsonObject[] = [];
+	const ragSampleItems: JsonObject[] = [];
+	const deterministicScoreItems: LangfuseScoreItem[] = [];
 
 	for (const item of cases) {
+		let conversationId: string | undefined;
+		for (const setupTurn of item.setup_turns) {
+			const setupTerminal = await submitChatStream({
+				baseUrl: appApiBaseUrl,
+				conversationId,
+				cookieHeader,
+				fetchImpl,
+				prompt: setupTurn,
+			});
+			conversationId = setupTerminal.conversationId;
+		}
 		const terminal = await submitChatStream({
 			baseUrl: appApiBaseUrl,
+			conversationId,
 			cookieHeader,
 			fetchImpl,
 			prompt: item.query,
 		});
-		const trajectory = await fetchToolTrajectory({
+		const projection = await fetchExecutionProjection({
 			baseUrl: appApiBaseUrl,
 			cookieHeader,
 			fetchImpl,
 			runId: terminal.runId,
 			terminal,
 		});
-		sampleItems.push(agentRagasSample({ item, terminal, trajectory }));
+		const langfuseTraceId = deriveLangfuseTraceId(terminal.traceId);
+		const datasetRunItem = await langfuse.createDatasetRunItem({
+			datasetItemId: item.dataset_item_id,
+			...(input.datasetVersion ? { datasetVersion: input.datasetVersion } : {}),
+			runName: evalRunId,
+			traceId: langfuseTraceId,
+		});
+		const datasetRunId = datasetRunIdentity({
+			datasetItemId: item.dataset_item_id,
+			langfuseTraceId,
+			payload: datasetRunItem,
+		});
+		agentSampleItems.push(
+			agentRagasSample({
+				datasetRunId,
+				item,
+				langfuseTraceId,
+				terminal,
+				trajectory: projection.toolTrajectory,
+			}),
+		);
+		const ragSample = ragRagasSample({
+			datasetRunId,
+			item,
+			langfuseTraceId,
+			projection,
+			terminal,
+		});
+		if (ragSample) {
+			ragSampleItems.push(ragSample);
+		}
+		deterministicScoreItems.push(
+			...deterministicScores({
+				datasetRunId,
+				evalRunId,
+				item,
+				langfuseTraceId,
+				projection,
+				terminal,
+			}),
+		);
 	}
 
 	const workDir = mkdtempSync(join(tmpdir(), "campus-agent-tool-eval-"));
-	const sampleBatchPath = join(workDir, "ragas-agent-samples.json");
-	const scoreBatchPath = join(workDir, "ragas-agent-scores.json");
+	const agentSampleBatchPath = join(workDir, "ragas-agent-samples.json");
+	const agentScoreBatchPath = join(workDir, "ragas-agent-scores.json");
+	const ragSampleBatchPath = join(workDir, "ragas-samples.json");
+	const ragScoreBatchPath = join(workDir, "ragas-scores.json");
 	try {
-		writeJsonObject(sampleBatchPath, {
+		writeJsonObject(agentSampleBatchPath, {
 			eval_run_id: evalRunId,
-			items: sampleItems,
+			items: agentSampleItems,
 			schema_version: "ragas_agent_sample_batch.v1",
 		});
 		input.runPythonRagasAgentScoreBatch({
-			inputPath: sampleBatchPath,
-			outputPath: scoreBatchPath,
+			inputPath: agentSampleBatchPath,
+			outputPath: agentScoreBatchPath,
 			runtimeConfigPath: input.runtimeConfigPath,
 		});
-		const scorePlan = buildLangfuseScoresFromRagasAgentScoreBatch({
-			ragasAgentScoreBatchPath: scoreBatchPath,
-			ragasAgentScoreBatchPayload: loadJsonObject(scoreBatchPath),
+		const agentScorePlan = buildLangfuseScoresFromRagasAgentScoreBatch({
+			ragasAgentScoreBatchPath: agentScoreBatchPath,
+			ragasAgentScoreBatchPayload: loadJsonObject(agentScoreBatchPath),
 			sourceKind: "langfuse_dataset",
 		});
+		assertEvalRunId(agentScorePlan.evalRunId, evalRunId, "Ragas agent score batch");
+		const scoreItems = [...agentScorePlan.scoreItems, ...deterministicScoreItems];
+		const omittedItems = [...agentScorePlan.omittedItems];
+		let sourceResultDenominator =
+			agentScorePlan.sourceResultDenominator + deterministicScoreItems.length;
+		if (ragSampleItems.length > 0) {
+			writeJsonObject(ragSampleBatchPath, {
+				eval_run_id: evalRunId,
+				items: ragSampleItems,
+				schema_version: "ragas_sample_batch.v1",
+			});
+			input.runPythonRagasScoreBatch({
+				inputPath: ragSampleBatchPath,
+				outputPath: ragScoreBatchPath,
+				runtimeConfigPath: input.runtimeConfigPath,
+			});
+			const ragScorePlan = buildLangfuseScoresFromRagasScoreBatch({
+				ragasScoreBatchPath: ragScoreBatchPath,
+				ragasScoreBatchPayload: loadJsonObject(ragScoreBatchPath),
+				sourceKind: "langfuse_dataset",
+			});
+			assertEvalRunId(ragScorePlan.evalRunId, evalRunId, "Ragas score batch");
+			scoreItems.push(...ragScorePlan.scoreItems);
+			omittedItems.push(...ragScorePlan.omittedItems);
+			sourceResultDenominator += ragScorePlan.sourceResultDenominator;
+		}
 		const publish = await publishLangfuseScores({
 			dryRun: input.dryRun,
-			evalRunId: scorePlan.evalRunId,
+			evalRunId,
 			fetchImpl,
-			omittedItems: scorePlan.omittedItems,
-			scoreItems: scorePlan.scoreItems,
+			omittedItems,
+			scoreItems,
 			settings: input.settings,
-			sourceResultDenominator: scorePlan.sourceResultDenominator,
+			sourceResultDenominator,
 			validateOnly: input.validateOnly,
 		});
 		return {
 			...publish,
+			agent_sample_count: agentSampleItems.length,
 			case_count: cases.length,
 			dataset_name: input.datasetName,
 			environment: input.environment,
+			rag_sample_count: ragSampleItems.length,
 			schema_version: "agent_tool_eval_run.v1",
 			source_kind: "langfuse_dataset",
 		};
@@ -144,7 +240,9 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 }
 
 function agentRagasSample(input: {
+	datasetRunId: string;
 	item: AgentToolEvalCase;
+	langfuseTraceId: string;
 	terminal: TerminalAnswer;
 	trajectory: ToolTrajectory;
 }): JsonObject {
@@ -153,7 +251,7 @@ function agentRagasSample(input: {
 		argument_mode: input.item.argument_mode,
 		case_id: input.item.case_id,
 		dataset_item_id: input.item.dataset_item_id,
-		dataset_run_id: input.item.dataset_run_id,
+		dataset_run_id: input.datasetRunId,
 		metadata: {
 			argument_mode: input.item.argument_mode,
 			...(input.item.case_family ? { case_family: input.item.case_family } : {}),
@@ -166,15 +264,138 @@ function agentRagasSample(input: {
 			input.item.argument_mode,
 		),
 		tool_calls: observedToolCalls(input.trajectory, input.item.argument_mode),
-		trace_id: input.terminal.traceId,
+		trace_id: input.langfuseTraceId,
 	};
+}
+
+function ragRagasSample(input: {
+	datasetRunId: string;
+	item: AgentToolEvalCase;
+	langfuseTraceId: string;
+	projection: ExecutionRunEvalProjection;
+	terminal: TerminalAnswer;
+}): JsonObject | null {
+	if (input.projection.retrievedContexts.length === 0) {
+		return null;
+	}
+	return {
+		answer: input.projection.answer ?? input.terminal.answerText,
+		case_id: input.item.case_id,
+		contexts: input.projection.retrievedContexts,
+		dataset_item_id: input.item.dataset_item_id,
+		dataset_run_id: input.datasetRunId,
+		metadata: {
+			surface_key:
+				input.item.surface_key ?? input.projection.toolTrajectory.surface ?? "app-api.chat",
+		},
+		question: input.item.query,
+		reference: input.item.reference,
+		reference_context_ids: input.item.reference_context_ids,
+		reference_contexts: input.item.reference_contexts,
+		retrieved_context_ids: input.projection.retrievedContextIds,
+		trace_id: input.langfuseTraceId,
+	};
+}
+
+function deterministicScores(input: {
+	datasetRunId: string;
+	evalRunId: string;
+	item: AgentToolEvalCase;
+	langfuseTraceId: string;
+	projection: ExecutionRunEvalProjection;
+	terminal: TerminalAnswer;
+}): LangfuseScoreItem[] {
+	const scores: LangfuseScoreItem[] = [];
+	if (input.item.expected_outcome) {
+		const passed = input.terminal.resultKind === input.item.expected_outcome;
+		scores.push(
+			booleanScore({
+				caseItem: input.item,
+				datasetRunId: input.datasetRunId,
+				evalKind: "execution",
+				evalRunId: input.evalRunId,
+				langfuseTraceId: input.langfuseTraceId,
+				name: "execution.outcome_match",
+				passed,
+			}),
+		);
+	}
+	if (input.item.forbidden_context_ids.length > 0) {
+		const retrieved = new Set(input.projection.retrievedContextIds);
+		const passed = input.item.forbidden_context_ids.every((contextId) => !retrieved.has(contextId));
+		scores.push(
+			booleanScore({
+				caseItem: input.item,
+				datasetRunId: input.datasetRunId,
+				evalKind: "retrieval",
+				evalRunId: input.evalRunId,
+				langfuseTraceId: input.langfuseTraceId,
+				name: "retrieval.forbidden_context_absent",
+				passed,
+			}),
+		);
+	}
+	return scores;
+}
+
+function booleanScore(input: {
+	caseItem: AgentToolEvalCase;
+	datasetRunId: string;
+	evalKind: string;
+	evalRunId: string;
+	langfuseTraceId: string;
+	name: string;
+	passed: boolean;
+}): LangfuseScoreItem {
+	return {
+		case_id: input.caseItem.case_id,
+		comment: input.passed ? "dataset expectation matched" : "dataset expectation did not match",
+		data_type: "BOOLEAN",
+		dataset_item_id: input.caseItem.dataset_item_id,
+		dataset_run_id: input.datasetRunId,
+		idempotency_key: stableId("lfscore", input.evalRunId, input.caseItem.case_id, input.name),
+		metadata: {
+			case_id: input.caseItem.case_id,
+			eval_kind: input.evalKind,
+			metric_key: input.name,
+			source_kind: "langfuse_dataset",
+			surface_key: input.caseItem.surface_key ?? "app-api.chat",
+			verdict: input.passed ? "pass" : "fail",
+		},
+		name: input.name,
+		trace_id: input.langfuseTraceId,
+		value: input.passed ? 1 : 0,
+	};
+}
+
+function datasetRunIdentity(input: {
+	datasetItemId: string;
+	langfuseTraceId: string;
+	payload: JsonObject;
+}): string {
+	if (
+		stringField(input.payload.datasetItemId, "dataset run item.datasetItemId") !==
+		input.datasetItemId
+	) {
+		throw new Error("dataset run item datasetItemId does not match the evaluated case");
+	}
+	if (stringField(input.payload.traceId, "dataset run item.traceId") !== input.langfuseTraceId) {
+		throw new Error("dataset run item traceId does not match the product trace");
+	}
+	return stringField(input.payload.datasetRunId, "dataset run item.datasetRunId");
+}
+
+function assertEvalRunId(actual: string, expected: string, source: string): void {
+	if (actual !== expected) {
+		throw new Error(`${source} eval_run_id does not match the product eval run`);
+	}
 }
 
 function observedToolCalls(
 	trajectory: ToolTrajectory,
 	argumentMode: AgentToolEvalArgumentMode,
 ): AgentToolEvalToolCall[] {
-	return trajectory.tool_calls.map((call) => ({
+	return [...trajectory.tool_calls, ...trajectory.internal_tool_calls].map((call) => ({
 		args: argumentMode === "eval_safe_args" ? { ...(call.eval_safe_args ?? {}) } : {},
 		name: call.tool_name,
 	}));
@@ -237,17 +458,21 @@ async function mintCookieIfRequested(input: {
 
 async function submitChatStream(input: {
 	baseUrl: string;
+	conversationId?: string;
 	cookieHeader: string;
 	fetchImpl: typeof fetch;
 	prompt: string;
 }): Promise<TerminalAnswer> {
 	const response = await input.fetchImpl(new URL("/api/chat/requests/stream", input.baseUrl), {
-		body: JSON.stringify({ prompt: input.prompt }),
+		body: JSON.stringify({
+			...(input.conversationId ? { conversationId: input.conversationId } : {}),
+			prompt: input.prompt,
+		}),
 		headers: {
 			accept: "text/event-stream",
 			"content-type": "application/json",
 			cookie: input.cookieHeader,
-			"idempotency-key": stableId("agent-tool-eval", input.prompt, Date.now()),
+			"idempotency-key": stableId("agent-tool-eval", input.prompt, randomUUID()),
 		},
 		method: "POST",
 		signal: AbortSignal.timeout(180_000),
@@ -343,13 +568,13 @@ function terminalAnswer(event: ProductStreamEvent, runId: string | null): Termin
 	};
 }
 
-async function fetchToolTrajectory(input: {
+async function fetchExecutionProjection(input: {
 	baseUrl: string;
 	cookieHeader: string;
 	fetchImpl: typeof fetch;
 	runId: string | null;
 	terminal: TerminalAnswer;
-}): Promise<ToolTrajectory> {
+}): Promise<ExecutionRunEvalProjection> {
 	const runId = optionalString(input.runId);
 	if (!runId) {
 		throw new Error("tool trajectory requires request.accepted runId");
@@ -369,13 +594,9 @@ async function fetchToolTrajectory(input: {
 		throw new Error(`run steps failed (${response.status}): ${await response.text()}`);
 	}
 	const payload = mapping((await response.json()) as unknown, "run steps payload");
-	const evalProjection = mapping(
-		payload.agentRuntimeEvalProjection,
-		"run steps agentRuntimeEvalProjection",
-	);
-	const trajectory = parseToolTrajectory(evalProjection.tool_trajectory);
-	assertToolTrajectoryMatchesTerminal(trajectory, input.terminal);
-	return trajectory;
+	const projection = parseExecutionRunEvalProjection(payload);
+	assertToolTrajectoryMatchesTerminal(projection.toolTrajectory, input.terminal);
+	return projection;
 }
 
 function assertToolTrajectoryMatchesTerminal(

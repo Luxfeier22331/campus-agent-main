@@ -26,8 +26,8 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		{stepID: "memory.recall", durationMS: 110},
 		{stepID: "agent.primary", durationMS: 120},
 		{stepID: "sdk_tool.execute.transport_schedule_lookup.1", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "transport_schedule_lookup"}},
-		{stepID: "knowledge.search.search-1", durationMS: 170},
-		{stepID: "knowledge.search.search-2", durationMS: 180},
+		{stepID: "knowledge.search.1", durationMS: 170},
+		{stepID: "knowledge.search.2", durationMS: 180},
 		{stepID: "finalization.write", durationMS: 230},
 	} {
 		upsertStageTimingAttempt(t, store, run.RunID, index+1, attempt.stepID, attempt.durationMS, attempt.sanitizedPayload, now)
@@ -46,17 +46,6 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	assertStageTimingField(t, timing, "tool.transport_schedule_lookup_ms", 140)
 	assertStageTimingField(t, timing, "knowledge.search_ms", 350)
 	assertStageTimingField(t, timing, "finalization.write_ms", 230)
-	for _, retiredField := range []string{
-		"rag.plan_ms",
-		"rag.lookup_ms",
-		"rag.rerank_ms",
-		"rag.synthesis_ms",
-		"rag.grounding_ms",
-	} {
-		if _, ok := timing[retiredField]; ok {
-			t.Fatalf("stage_timing retained retired field %s: %#v", retiredField, timing)
-		}
-	}
 }
 
 func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {

@@ -42,22 +42,6 @@
 			"description": "RAGAS context precision without reference score. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
 		},
 		{
-			"name": "ragas.id_context_precision",
-			"data_type": "NUMERIC",
-			"owner": "packages/ragas-runner",
-			"eval_kinds": ["ragas"],
-			"value_range": [0, 1],
-			"description": "RAGAS ID-based context precision score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
-		},
-		{
-			"name": "ragas.id_context_recall",
-			"data_type": "NUMERIC",
-			"owner": "packages/ragas-runner",
-			"eval_kinds": ["ragas"],
-			"value_range": [0, 1],
-			"description": "RAGAS ID-based context recall score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
-		},
-		{
 			"name": "ragas.tool_call_accuracy.name_only",
 			"data_type": "NUMERIC",
 			"owner": "packages/ragas-runner",
@@ -96,6 +80,20 @@
 			"eval_kinds": ["ragas_agent"],
 			"value_range": [0, 1],
 			"description": "RAGAS agent goal accuracy score using a reference outcome."
+		},
+		{
+			"name": "execution.outcome_match",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["execution"],
+			"description": "Whether the product execution terminal outcome matches the dataset expectation."
+		},
+		{
+			"name": "retrieval.forbidden_context_absent",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["retrieval"],
+			"description": "Whether retrieval excluded every context explicitly forbidden by the dataset case."
 		}
 	]
 }

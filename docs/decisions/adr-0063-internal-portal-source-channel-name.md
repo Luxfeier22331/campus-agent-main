@@ -5,7 +5,8 @@ owner_boundary: docs/decisions
 decision_id: ADR-0063
 status: accepted
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-13
+partially_superseded_by: ADR-0077
 supersedes:
   - adr-0024-authenticated-notice-source-channel
 ---
@@ -40,6 +41,10 @@ canonical source channel 改名为 `internal_portal`。
 - run ledger table：`ingestion_projection.authenticated_notice_collector_run`
 - run lease table：`ingestion_projection.authenticated_notice_collector_lease`
 
+ADR-0077 后续删除了 run ledger、run lease 和 source-specific closeout；上述
+两个表名只记录本 ADR 接受时的历史决策。当前仍生效的是 `internal_portal`
+source channel 与 `notice` / `file_release` surface 命名。
+
 本 ADR 只 supersede ADR-0024 中的 source-channel 名称。ADR-0024 仍保留“为什么这是一级 source
 channel，而不是 `official_web` 或 collector 本地 export 格式”的历史 rationale。
 
@@ -58,11 +63,8 @@ materializer 时必须 fail closed。如果确实需要 replay 历史 artifact�
 字段，再用新的 object ref admission。
 
 `authenticated_notice_collector_export_v2` 与
-`authenticated_notice_file_release_export_v1` 是已落盘 artifact schema name；
-`ingestion_projection.authenticated_notice_collector_run` 与
-`ingestion_projection.authenticated_notice_collector_lease` 是已落盘 PG table
-identifier。它们保留为 legacy contract / table identifier，不代表当前 source channel
-或 runtime app 名称。
+`authenticated_notice_file_release_export_v1` 是 artifact schema name。旧 run
+ledger / lease table 已由 ADR-0077 退役，不是当前 schema 或兼容接口。
 
 active runtime env、Python module、adapter test description 与 source-collector
 文档应使用 internal-portal 语义。旧 `AUTHENTICATED_NOTICE_COLLECTOR_*` env 不作为

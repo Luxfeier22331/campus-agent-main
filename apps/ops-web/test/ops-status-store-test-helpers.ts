@@ -127,7 +127,7 @@ export function requestObservabilityRow(): OpsRequestObservabilityRow {
 		projectionLagMs: 120,
 		refusalClass: null,
 		requestId: "req_pg_001",
-		scopeClass: "campus",
+		resolvedTargetsJson: ["student_rules"],
 		semanticOutcome: "answer",
 		stageTimingJson: { "agent.primary_ms": 1400, "request.total_ms": 4200 },
 		supportingSourcesJson: [

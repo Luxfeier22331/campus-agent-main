@@ -91,8 +91,8 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 	server.temporalStarter = &fakeTemporalStarter{}
 	body := strings.Replace(
 		durableRunCreateBodyForTest("run-unknown-payload", "conv-unknown-payload"),
-		`"user_goal":"hello",`,
-		`"user_goal":"hello","unexpected":true,`,
+		`"user_goal":"hello"`,
+		`"user_goal":"hello","unexpected":true`,
 		1,
 	)
 	response := httptest.NewRecorder()
@@ -118,7 +118,6 @@ func TestExecutionRunCreateRejectsUnknownExplicitToolHint(t *testing.T) {
 		"run-campus-closed",
 		"conv-campus-closed",
 		"unpublished_tool",
-		"",
 	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
@@ -146,7 +145,6 @@ func TestExecutionRunCreateStartsExplicitModelVisibleToolWithBoundedVisibleSet(t
 		"run-campus-open",
 		"conv-campus-open",
 		"transport_schedule_lookup",
-		"",
 	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
@@ -218,14 +216,13 @@ func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T)
 			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 			"metadata":{
 				"execution_payload":{
-					"execution_contract_version":"tool_execution_v1",
-					"response_contract":"execution_finalization_response_v2",
+					"execution_contract_version":"tool_execution_v2",
+					"response_contract":"execution_finalization_response_v3",
 					"user_goal":"hi 你是谁",
 					"request_id":"req-temporal-neutral",
 					"conversation_id":"conv-temporal-neutral",
 					"trace":{"trace_id":"trace-temporal-neutral"},
-					"context":{"actor":{"user_id":"user-temporal-neutral"}},
-					"version_query":{}
+					"context":{"actor":{"user_id":"user-temporal-neutral"}}
 					}
 				}
 			}`),
@@ -542,7 +539,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:             "agent.primary:attempt:1",
+		AttemptID:             temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
 		StepID:                "agent.primary",
 		RunID:                 "run-temporal-trajectory",
 		Attempt:               1,
@@ -566,7 +563,6 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		InputTokens:           120,
 		OutputTokens:          42,
 		CachedInputTokens:     10,
-		EstimatedCostMicroUSD: 321,
 		CancelOutcome:         execution.CancelOutcomeNotRequested,
 		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
 		LateCompletionOutcome: execution.LateCompletionOutcomeIgnoredAfterTimeout,
@@ -585,27 +581,28 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		ResultID:             "agent.primary:result:1",
 		StepID:               "agent.primary",
 		RunID:                "run-temporal-trajectory",
-		AttemptID:            "agent.primary:attempt:1",
+		AttemptID:            temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
 		ProjectionRef:        "projection://runs/run-temporal-trajectory/agent/primary/result",
 		CreatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
+			"activity_attempt":    1,
 			"result_ref":          "projection://runs/run-temporal-trajectory/agent/primary/result",
 			"raw_provider_result": "must not leak",
-			"selected_tools":      []any{"knowledge_query", "knowledge_search"},
+			"selected_tools":      []any{"knowledge_query"},
 			"tool_results": []any{
 				map[string]any{
 					"arguments_json_sha256": "sha256:knowledge-search",
 					"authorization":         "nested authorization must not leak",
 					"payload_kind":          "knowledge_search",
 					"result": map[string]any{
-						"outcome":        "found",
-						"resolved_scope": "student_rules",
-						"source_body":    "nested source body must not leak",
+						"outcome":          "found",
+						"retrieval_target": "student_rules",
+						"source_body":      "nested source body must not leak",
 					},
-					"result_ref": "projection://runs/run-temporal-trajectory/knowledge/search/search-1",
+					"result_ref": "projection://runs/run-temporal-trajectory/knowledge/search/1",
 					"status":     "completed",
 					"tool_name":  "knowledge_search",
 				},
@@ -657,7 +654,6 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"input_tokens":            float64(120),
 		"output_tokens":           float64(42),
 		"cached_input_tokens":     float64(10),
-		"estimated_cost_microusd": float64(321),
 		"cancel_outcome":          string(execution.CancelOutcomeNotRequested),
 		"timeout_outcome":         string(execution.TimeoutOutcomeNotTimedOut),
 		"late_completion_outcome": string(execution.LateCompletionOutcomeIgnoredAfterTimeout),
@@ -673,7 +669,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("results = %#v, want one result", body["results"])
 	}
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v1" {
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v2" {
 		t.Fatalf("eval projection schema = %#v", evalProjection["schema_version"])
 	}
 	evalRun := expectRecord(t, evalProjection["run"], "agent_runtime_eval_projection.run")
@@ -691,7 +687,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("eval tool calls = %#v, want one tool call", evalTrajectory["tool_calls"])
 	}
 	toolCall := expectRecord(t, toolCalls[0], "agent_runtime_eval_projection.trajectory.tool_calls[0]")
-	if toolCall["selected_tool"] != "knowledge_query" {
+	if toolCall["tool_name"] != "knowledge_query" || toolCall["result_kind"] != "agent_handoff" {
 		t.Fatalf("eval tool call = %#v", toolCall)
 	}
 	serialized := response.Body.String()

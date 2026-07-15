@@ -11,31 +11,22 @@ import (
 const (
 	DefaultDensePrefetchLimit  = 20
 	DefaultSparsePrefetchLimit = 20
-	DefaultRRFK                = 60
-	DefaultRetrievalTopK       = 3
 	DefaultDenseVectorName     = "dense"
 	DefaultSparseVectorName    = "sparse"
 )
 
 type ServingConfig struct {
-	ChunkPolicyVersion        string
-	CleaningPolicyVersion     string
 	Collection                string
 	Corpus                    string
-	CurrentOnly               bool
 	DensePrefetchLimit        int
 	DenseVectorName           string
-	DocumentSupportLimit      int
-	DocumentSupportStrategy   string
 	EmbeddingQueryInstruction string
+	EmbeddingDimensions       int
+	EmbeddingModel            string
+	EmbeddingProvider         string
+	EmbeddingVectorName       string
 	QdrantAliasName           string
-	QueryEnabledByDefault     bool
-	RerankerEnabledByDefault  bool
 	RetrievalEnabled          bool
-	RetrievalTopK             int
-	RRFDenseWeight            float64
-	RRFK                      int
-	RRFSparseWeight           float64
 	ServingRevisionTracks     []string
 	ServingStage              string
 	ServingVisibilityLevels   []string
@@ -45,65 +36,57 @@ type ServingConfig struct {
 }
 
 type servingConfigPayload struct {
-	ChunkPolicyVersion        string   `json:"chunk_profile_version"`
-	CleaningPolicyVersion     string   `json:"cleaning_policy_version"`
-	Collection                string   `json:"collection"`
-	Corpus                    string   `json:"corpus"`
-	CurrentOnly               bool     `json:"current_only"`
-	DensePrefetchLimit        int      `json:"dense_prefetch_limit"`
-	DocumentSupportLimit      int      `json:"document_support_limit"`
-	DocumentSupportStrategy   string   `json:"document_support_strategy"`
-	EmbeddingQueryInstruction string   `json:"embedding_query_instruction"`
-	QdrantAliasName           string   `json:"qdrant_alias_name"`
-	QdrantDenseVectorName     string   `json:"qdrant_dense_vector_name"`
-	QdrantSparseVectorName    string   `json:"qdrant_sparse_vector_name"`
-	QueryEnabledByDefault     bool     `json:"query_enabled_by_default"`
-	RerankerEnabledByDefault  bool     `json:"reranker_enabled_by_default"`
-	RetrievalEnabled          bool     `json:"retrieval_enabled"`
-	RetrievalTopK             int      `json:"retrieval_top_k"`
-	RRFDenseWeight            float64  `json:"rrf_dense_weight"`
-	RRFK                      int      `json:"rrf_k"`
-	RRFSparseWeight           float64  `json:"rrf_sparse_weight"`
-	ServingRevisionTracks     []string `json:"serving_revision_tracks"`
-	ServingStage              string   `json:"serving_stage"`
-	ServingVisibilityLevels   []string `json:"serving_visibility_levels"`
-	ServingVisibilityScopes   []string `json:"serving_visibility_scopes"`
-	SparsePrefetchLimit       int      `json:"sparse_prefetch_limit"`
+	Collection                string `json:"collection"`
+	Corpus                    string `json:"corpus"`
+	DensePrefetchLimit        int    `json:"dense_prefetch_limit"`
+	EmbeddingQueryInstruction string `json:"embedding_query_instruction"`
+	EmbeddingProfile          struct {
+		DenseVectorName string `json:"dense_vector_name"`
+		Dimensions      int    `json:"dimensions"`
+		Model           string `json:"model"`
+		Provider        string `json:"provider"`
+	} `json:"embedding_profile"`
+	QdrantAliasName         string   `json:"qdrant_alias_name"`
+	QdrantDenseVectorName   string   `json:"qdrant_dense_vector_name"`
+	QdrantSparseVectorName  string   `json:"qdrant_sparse_vector_name"`
+	RetrievalEnabled        bool     `json:"retrieval_enabled"`
+	ServingRevisionTracks   []string `json:"serving_revision_tracks"`
+	ServingStage            string   `json:"serving_stage"`
+	ServingVisibilityLevels []string `json:"serving_visibility_levels"`
+	ServingVisibilityScopes []string `json:"serving_visibility_scopes"`
+	SparsePrefetchLimit     int      `json:"sparse_prefetch_limit"`
 }
 
-func LoadServingConfig(configRoot string, corpus string, collection string) (ServingConfig, error) {
+func LoadServingConfigPath(configRoot string, relativePath string) (ServingConfig, error) {
 	root := strings.TrimSpace(configRoot)
 	if root == "" {
 		root = defaultServingConfigRoot()
 	}
-	path := filepath.Join(root, strings.TrimSpace(corpus), strings.TrimSpace(collection), "serving-config.json")
+	relativePath = filepath.Clean(strings.TrimSpace(relativePath))
+	if relativePath == "." || filepath.IsAbs(relativePath) || strings.Contains(relativePath, "..") {
+		return ServingConfig{}, fmt.Errorf("serving config path %q is invalid", relativePath)
+	}
+	path := filepath.Join(root, relativePath)
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return ServingConfig{}, fmt.Errorf("read serving config %s/%s: %w", corpus, collection, err)
+		return ServingConfig{}, fmt.Errorf("read serving config %s: %w", relativePath, err)
 	}
 	var payload servingConfigPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return ServingConfig{}, fmt.Errorf("parse serving config %s/%s: %w", corpus, collection, err)
+		return ServingConfig{}, fmt.Errorf("parse serving config %s: %w", relativePath, err)
 	}
 	config := ServingConfig{
-		ChunkPolicyVersion:        strings.TrimSpace(payload.ChunkPolicyVersion),
-		CleaningPolicyVersion:     strings.TrimSpace(payload.CleaningPolicyVersion),
 		Collection:                strings.TrimSpace(payload.Collection),
 		Corpus:                    strings.TrimSpace(payload.Corpus),
-		CurrentOnly:               payload.CurrentOnly,
 		DensePrefetchLimit:        defaultPositive(payload.DensePrefetchLimit, DefaultDensePrefetchLimit),
 		DenseVectorName:           defaultString(payload.QdrantDenseVectorName, DefaultDenseVectorName),
-		DocumentSupportLimit:      defaultPositive(payload.DocumentSupportLimit, 24),
-		DocumentSupportStrategy:   defaultString(payload.DocumentSupportStrategy, "followup_query"),
 		EmbeddingQueryInstruction: strings.TrimSpace(payload.EmbeddingQueryInstruction),
+		EmbeddingDimensions:       payload.EmbeddingProfile.Dimensions,
+		EmbeddingModel:            strings.TrimSpace(payload.EmbeddingProfile.Model),
+		EmbeddingProvider:         strings.TrimSpace(payload.EmbeddingProfile.Provider),
+		EmbeddingVectorName:       strings.TrimSpace(payload.EmbeddingProfile.DenseVectorName),
 		QdrantAliasName:           strings.TrimSpace(payload.QdrantAliasName),
-		QueryEnabledByDefault:     payload.QueryEnabledByDefault,
-		RerankerEnabledByDefault:  payload.RerankerEnabledByDefault,
 		RetrievalEnabled:          payload.RetrievalEnabled,
-		RetrievalTopK:             defaultPositive(payload.RetrievalTopK, DefaultRetrievalTopK),
-		RRFDenseWeight:            defaultPositiveFloat(payload.RRFDenseWeight, 1.0),
-		RRFK:                      defaultPositive(payload.RRFK, DefaultRRFK),
-		RRFSparseWeight:           defaultPositiveFloat(payload.RRFSparseWeight, 1.0),
 		ServingRevisionTracks:     normalizeStringSlice(payload.ServingRevisionTracks),
 		ServingStage:              strings.TrimSpace(payload.ServingStage),
 		ServingVisibilityLevels:   normalizeStringSlice(payload.ServingVisibilityLevels),
@@ -111,7 +94,7 @@ func LoadServingConfig(configRoot string, corpus string, collection string) (Ser
 		SparsePrefetchLimit:       defaultPositive(payload.SparsePrefetchLimit, DefaultSparsePrefetchLimit),
 		SparseVectorName:          defaultString(payload.QdrantSparseVectorName, DefaultSparseVectorName),
 	}
-	if err := validateServingConfig(config, corpus, collection); err != nil {
+	if err := validateServingConfig(config, relativePath); err != nil {
 		return ServingConfig{}, err
 	}
 	return config, nil
@@ -140,52 +123,49 @@ func defaultServingConfigRoot() string {
 	return filepath.Join("configs", "ingestion")
 }
 
-func validateServingConfig(config ServingConfig, corpus string, collection string) error {
-	if config.Corpus != strings.TrimSpace(corpus) || config.Collection != strings.TrimSpace(collection) {
-		return fmt.Errorf(
-			"serving config scope mismatch: got %s/%s want %s/%s",
-			config.Corpus,
-			config.Collection,
-			corpus,
-			collection,
-		)
+func validateServingConfig(config ServingConfig, relativePath string) error {
+	if config.Corpus == "" || config.Collection == "" {
+		return fmt.Errorf("serving config %s corpus and collection are required", relativePath)
 	}
 	if config.ServingStage != "query_serving" {
-		return fmt.Errorf("serving config %s/%s is not query_serving", corpus, collection)
+		return fmt.Errorf("serving config %s is not query_serving", relativePath)
 	}
 	if !config.RetrievalEnabled {
-		return fmt.Errorf("serving config %s/%s retrieval is disabled", corpus, collection)
+		return fmt.Errorf("serving config %s retrieval is disabled", relativePath)
 	}
 	if config.QdrantAliasName == "" {
-		return fmt.Errorf("serving config %s/%s qdrant_alias_name is required", corpus, collection)
+		return fmt.Errorf("serving config %s qdrant_alias_name is required", relativePath)
 	}
 	if config.DenseVectorName == "" || config.SparseVectorName == "" {
-		return fmt.Errorf("serving config %s/%s qdrant vector names are required", corpus, collection)
+		return fmt.Errorf("serving config %s qdrant vector names are required", relativePath)
+	}
+	if config.EmbeddingProvider == "" || config.EmbeddingModel == "" || config.EmbeddingDimensions <= 0 {
+		return fmt.Errorf("serving config %s embedding_profile is required", relativePath)
+	}
+	if config.EmbeddingVectorName != config.DenseVectorName {
+		return fmt.Errorf(
+			"serving config %s embedding_profile dense_vector_name must match qdrant_dense_vector_name",
+			relativePath,
+		)
 	}
 	if len(config.ServingVisibilityLevels) == 0 {
-		return fmt.Errorf("serving config %s/%s serving_visibility_levels is required", corpus, collection)
+		return fmt.Errorf("serving config %s serving_visibility_levels is required", relativePath)
 	}
 	for _, level := range config.ServingVisibilityLevels {
 		switch level {
 		case "public", "restricted":
 		default:
-			return fmt.Errorf("serving config %s/%s has unsupported serving visibility level %q", corpus, collection, level)
+			return fmt.Errorf("serving config %s has unsupported serving visibility level %q", relativePath, level)
 		}
 	}
-	if containsString(config.ServingVisibilityLevels, "restricted") && len(config.ServingVisibilityScopes) == 0 {
-		return fmt.Errorf("serving config %s/%s serving_visibility_scopes is required for restricted visibility", corpus, collection)
+	if containsString(config.ServingVisibilityLevels, "restricted") &&
+		len(config.ServingVisibilityScopes) == 0 {
+		return fmt.Errorf("serving config %s serving_visibility_scopes is required", relativePath)
 	}
 	return nil
 }
 
 func defaultPositive(value int, fallback int) int {
-	if value > 0 {
-		return value
-	}
-	return fallback
-}
-
-func defaultPositiveFloat(value float64, fallback float64) float64 {
 	if value > 0 {
 		return value
 	}

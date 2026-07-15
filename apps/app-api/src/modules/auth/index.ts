@@ -27,7 +27,6 @@ export type {
 	ExecutionAuthorizationRetrievalFilter,
 	InternalEvalPrincipalInput,
 	ResolvedAppPrincipal,
-	WeChatOfficialAccountCollectorPrincipal,
 } from "./principal";
 export {
 	buildExecutionAuthorizationContext,
@@ -38,5 +37,4 @@ export {
 	mapSessionToAppPrincipal,
 	mapSessionToCampusMemberPrincipal,
 	resolveRequestPrincipal,
-	resolveWeChatOfficialAccountCollectorPrincipal,
 } from "./principal";

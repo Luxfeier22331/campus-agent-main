@@ -178,7 +178,7 @@ collection，也没有 `serving-config.json`。
 
 - `place_catalog` 当前是 agent-private truth，不是公开 query surface
 - 它不会通过默认 retrieval-serving alias 对外开放
-- `app-api` 也不应把它伪装成 `requested_scope`
+- `app-api` 也不应把它伪装成 query-serving target
 - 当前产品路径也不应把它伪装成已开放的导航回答能力
 
 ## 首发范围

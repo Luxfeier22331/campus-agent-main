@@ -4,26 +4,28 @@ import {
 	loadCollectionChunkProfilesFromRoot,
 	loadIngestionTaskRegistryCatalogFromRoot,
 } from "ingest-core/node";
-import { createIngestionTaskActivities } from "./activities";
-import { loadAuthenticatedNoticeFamilyConfigFromRegistryRoot } from "./authenticated-notice-config";
+import { createIngestionProjectionActivities, createRustKernelActivities } from "./activities";
 import {
 	createS3IngestionObjectStoreFromEnv,
 	type IngestionObjectStore,
 	type IngestionObjectStoreEnvironment,
 } from "./object-store";
-import { buildOfficialWebExecutionStatusService } from "./official-web-execution-status-service";
 import {
-	createPgOfficialWebProjectionStore,
-	ensureOfficialWebPostgresSchema,
-} from "./official-web-projection-store";
+	createOfficialWebFreshnessService,
+	createPostgresOfficialWebFreshnessStore,
+} from "./official-web-freshness";
 import {
+	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
-	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
 import { buildIngestionControlRuntimeConfig } from "./runtime";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
+import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
-import { createDefaultTsTaskHandlerRegistry } from "./ts-task-handlers";
+import { resolveWorkerDeploymentOptions } from "./worker-versioning";
+
+const WORKER_DATABASE_CONNECTION_TIMEOUT_MS = 10_000;
+const WORKER_DATABASE_QUERY_TIMEOUT_MS = 4 * 60_000;
 
 export async function startIngestionTemporalWorkers(
 	env: Record<string, string | undefined> = process.env,
@@ -31,58 +33,93 @@ export async function startIngestionTemporalWorkers(
 	const runtimeConfig = buildIngestionControlRuntimeConfig(env);
 	const temporalConfig = buildIngestionTemporalConfig(env);
 	const { Pool } = await import("pg");
-	const pool = new Pool({ connectionString: runtimeConfig.databaseUrl });
-	await ensureIngestionControlPostgresSchema(pool);
-	await ensureOfficialWebPostgresSchema(pool);
+	const pool = new Pool({
+		connectionString: runtimeConfig.databaseUrl,
+		connectionTimeoutMillis: WORKER_DATABASE_CONNECTION_TIMEOUT_MS,
+		query_timeout: WORKER_DATABASE_QUERY_TIMEOUT_MS,
+		statement_timeout: WORKER_DATABASE_QUERY_TIMEOUT_MS,
+	});
 	const objectStore = requireTemporalWorkerObjectStore(env);
-	const store = createPostgresIngestionTaskStore({ pool });
-	const officialWebProjectionStore = createPgOfficialWebProjectionStore({ pool });
-	const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(runtimeConfig.registryRoot);
-	const chunkProfiles = loadCollectionChunkProfilesFromRoot(runtimeConfig.registryRoot);
-	const authenticatedNoticeFamilyConfig = loadAuthenticatedNoticeFamilyConfigFromRegistryRoot(
-		runtimeConfig.registryRoot,
-	);
-	const connection = await NativeConnection.connect({ address: temporalConfig.address });
-	const workflowWorker = await Worker.create({
-		connection,
-		namespace: temporalConfig.namespace,
-		taskQueue: temporalConfig.workflowTaskQueue,
-		workflowsPath: fileURLToPath(
-			new URL("./workflows/ingestion-task-workflow.ts", import.meta.url),
-		),
-	});
-	const controlActivityWorker = await Worker.create({
-		activities: createIngestionTaskActivities({
-			officialWebExecutionStatusService: buildOfficialWebExecutionStatusService({
-				store: officialWebProjectionStore,
-			}),
-			registryCatalog,
-			rustKernels: createDefaultRustKernelRegistry({ chunkProfiles, objectStore }),
-			store,
-			tsHandlers: createDefaultTsTaskHandlerRegistry({
-				authenticatedNoticeFamilyConfig,
-				authenticatedNoticeObjectStore: objectStore,
-				officialWebObjectStore: objectStore,
-				wechatOfficialAccountObjectStore: objectStore,
-			}),
-		}),
-		connection,
-		namespace: temporalConfig.namespace,
-		taskQueue: temporalConfig.controlActivityTaskQueue,
-	});
-
-	const workflowRun = workflowWorker.run();
-	const controlActivityRun = controlActivityWorker.run();
+	let connection: NativeConnection | null = null;
+	const workers: Worker[] = [];
+	const runs: Promise<void>[] = [];
 	try {
-		await Promise.all([workflowRun, controlActivityRun]);
+		await assertIngestionControlPostgresSchema(pool);
+		const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(runtimeConfig.registryRoot);
+		const rustKernels = createDefaultRustKernelRegistry({
+			chunkProfiles: loadCollectionChunkProfilesFromRoot(runtimeConfig.registryRoot),
+			objectStore,
+			runnerPath: env.INGESTION_KERNEL_RUNNER_PATH,
+			tokenizerJsonPath: env.INGESTION_KERNEL_TOKENIZER_JSON_PATH,
+		});
+		assertRustKernelRegistryCoversTasks(registryCatalog.registeredTasks(), rustKernels);
+		connection = await NativeConnection.connect({ address: temporalConfig.address });
+		const common = {
+			connection,
+			namespace: temporalConfig.namespace,
+			shutdownGraceTime: "50 seconds" as const,
+			workerDeploymentOptions: resolveWorkerDeploymentOptions(env),
+		};
+		await createAndRunWorker(workers, runs, {
+			...common,
+			maxConcurrentWorkflowTaskExecutions: 16,
+			taskQueue: temporalConfig.workflowTaskQueue,
+			workflowsPath: fileURLToPath(
+				new URL("./workflows/ingestion-task-workflow.ts", import.meta.url),
+			),
+		});
+		await createAndRunWorker(workers, runs, {
+			...common,
+			activities: createIngestionProjectionActivities({
+				objectStore,
+				officialWebFreshness: createOfficialWebFreshnessService({
+					objectStore,
+					store: createPostgresOfficialWebFreshnessStore({ pool }),
+				}),
+				store: createPostgresIngestionTaskStore({ pool }),
+			}),
+			maxConcurrentActivityTaskExecutions: 8,
+			taskQueue: temporalConfig.controlActivityTaskQueue,
+		});
+		await createAndRunWorker(workers, runs, {
+			...common,
+			activities: createRustKernelActivities({ rustKernels }),
+			maxConcurrentActivityTaskExecutions: 1,
+			taskQueue: temporalConfig.rustKernelActivityTaskQueue,
+		});
+		await Promise.all(runs);
 	} catch (error) {
-		workflowWorker.shutdown();
-		controlActivityWorker.shutdown();
-		await Promise.allSettled([workflowRun, controlActivityRun]);
+		shutdownRunningWorkers(workers);
+		await Promise.allSettled(runs);
 		throw error;
 	} finally {
-		await pool.end();
-		await connection.close();
+		try {
+			await connection?.close();
+		} finally {
+			try {
+				await pool.end();
+			} finally {
+				await objectStore.close?.();
+			}
+		}
+	}
+}
+
+async function createAndRunWorker(
+	workers: Worker[],
+	runs: Promise<void>[],
+	options: Parameters<typeof Worker.create>[0],
+): Promise<void> {
+	const worker = await Worker.create(options);
+	workers.push(worker);
+	runs.push(worker.run());
+}
+
+function shutdownRunningWorkers(workers: Worker[]): void {
+	for (const worker of workers) {
+		if (worker.getState() === "RUNNING") {
+			worker.shutdown();
+		}
 	}
 }
 

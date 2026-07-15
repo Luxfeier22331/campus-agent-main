@@ -12,8 +12,9 @@
 		"request_timeout_ms",
 		"request_body_limit_bytes",
 		"shutdown_grace_ms",
-		"query_serving_scopes_path",
+		"query_serving_targets_path",
 		"tool_read_model_timeout_ms",
+		"agent_runtime",
 		"otel",
 		"knowledge_search",
 		"personal_memory"
@@ -46,13 +47,16 @@
 			"type": "integer",
 			"minimum": 1
 		},
-		"query_serving_scopes_path": {
+		"query_serving_targets_path": {
 			"type": "string",
 			"minLength": 1
 		},
 		"tool_read_model_timeout_ms": {
 			"type": "integer",
 			"minimum": 1
+		},
+		"agent_runtime": {
+			"$ref": "#/$defs/AgentRuntime"
 		},
 		"otel": {
 			"$ref": "#/$defs/OTel"
@@ -80,6 +84,26 @@
 		}
 	},
 	"$defs": {
+		"AgentRuntime": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"deadline_ms",
+				"max_output_tokens",
+				"max_turns",
+				"max_knowledge_searches",
+				"current_input_char_limit",
+				"final_model_context_char_limit"
+			],
+			"properties": {
+				"deadline_ms": { "type": "integer", "minimum": 1 },
+				"max_output_tokens": { "type": "integer", "minimum": 1 },
+				"max_turns": { "type": "integer", "minimum": 1 },
+				"max_knowledge_searches": { "type": "integer", "minimum": 1, "maximum": 3 },
+				"current_input_char_limit": { "type": "integer", "minimum": 1 },
+				"final_model_context_char_limit": { "type": "integer", "minimum": 1 }
+			}
+		},
 		"OTel": {
 			"type": "object",
 			"additionalProperties": false,

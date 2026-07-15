@@ -6,5 +6,7 @@ export default defineConfig({
 		include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
 		setupFiles: ["test/setup.ts"],
 		exclude: ["test/worker.test.ts"],
+		fileParallelism: false,
+		maxWorkers: 1,
 	},
 });

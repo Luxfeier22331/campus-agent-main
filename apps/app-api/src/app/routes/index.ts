@@ -16,12 +16,10 @@ import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
 import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
-import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerProviderConfigRoutes } from "./provider-config";
 import { registerRuntimeRoutes } from "./runtime";
-import { registerWeChatOfficialAccountRoutes } from "./wechat-official-account";
 
 export function registerAppRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
@@ -81,18 +79,6 @@ export function registerAppRoutes(input: {
 		getPrincipal: input.getPrincipal,
 	});
 	registerProfileMemoryRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
-	registerOfficialWebRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
-	registerWeChatOfficialAccountRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

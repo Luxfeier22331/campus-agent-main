@@ -65,17 +65,17 @@ func executePrimaryAgent(
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
 	agentInput := ExecutePrimaryAgentActivityInput{
-		AllowedKnowledgeScopes: nil,
-		ConversationID:         input.ConversationID,
-		MemoryContext:          memoryContext(memory),
-		MemoryProjectionRefs:   memoryProjectionRefs(memory),
-		RequestID:              input.RequestID,
-		RequestedTool:          requestedTool,
-		RunID:                  input.RunID,
-		ToolChoice:             primaryAgentToolChoice(requestedTool),
-		TraceID:                input.TraceID,
-		TurnID:                 input.TurnID,
-		VisibleToolNames:       append([]string{}, input.VisibleToolNames...),
+		ConversationID:       input.ConversationID,
+		KnowledgeTargets:     nil,
+		MemoryContext:        memoryContext(memory),
+		MemoryProjectionRefs: memoryProjectionRefs(memory),
+		RequestID:            input.RequestID,
+		RequestedTool:        requestedTool,
+		RunID:                input.RunID,
+		ToolChoice:           primaryAgentToolChoice(requestedTool),
+		TraceID:              input.TraceID,
+		TurnID:               input.TurnID,
+		VisibleToolNames:     append([]string{}, input.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)
@@ -128,6 +128,7 @@ func primaryAgentActivityOptions(base workflow.ActivityOptions) workflow.Activit
 	options := base
 	options.TaskQueue = ActivityTaskQueueAgent
 	options.StartToCloseTimeout = 180 * time.Second
+	options.HeartbeatTimeout = 30 * time.Second
 	return options
 }
 

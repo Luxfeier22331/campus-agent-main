@@ -338,14 +338,12 @@ function toolExecutionInputFromRunCreate(
 		conversationId: getString(payload.conversation_id) ?? input.conversationId,
 		requestId: getString(payload.request_id) ?? input.requestId,
 		requestedTool: getString(payload.requested_tool),
-		requestedScope: getString(payload.scope),
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
 		traceHeaders: input.traceHeaders,
 		traceId: getTraceId(payload) ?? input.traceId ?? "",
 		userGoal: getString(payload.user_goal) ?? "",
-		versionQuery: getRecord(payload.version_query) as ToolExecutionInput["versionQuery"],
 	};
 }
 
@@ -633,7 +631,7 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 		...(response.observability
 			? { observability: observabilityWireFromToolResponse(response.observability) }
 			: {}),
-		resolved_scope: response.resolvedScope ?? null,
+		resolved_targets: response.resolvedTargets,
 		result: response.result ?? null,
 		selected_tool: response.selectedTool,
 		session_update: response.sessionUpdate
@@ -688,7 +686,7 @@ function executionErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
-		resolvedScope: null,
+		resolvedTargets: [],
 		result: null,
 		selectedTool: null,
 		sessionUpdate: null,

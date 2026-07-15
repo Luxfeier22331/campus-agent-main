@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-const toolFunctionSchemaVersion = "tool-function-schemas-v1"
+const toolFunctionSchemaVersion = "tool-function-schemas-v2"
 
-const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v1.json"
+const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v2.json"
 
 type toolFunctionSchemaFile struct {
 	SchemaVersion string               `json:"schema_version"`

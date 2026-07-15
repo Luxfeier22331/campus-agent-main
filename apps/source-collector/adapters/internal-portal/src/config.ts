@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { parse as parseDomain } from "tldts";
-import type { NoticeCollectionMode } from "./types.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(packageRoot, "../../../..");
@@ -16,30 +15,19 @@ const REQUIRED_NO_PROXY_HOSTS = [
 const RETIRED_INTERNAL_PORTAL_ENV_PREFIX = "AUTHENTICATED_NOTICE_";
 
 export interface InternalPortalConfig {
-	packageRoot: string;
-	repoRoot: string;
 	runtimeDir: string;
-	attachmentFetchRequestManifestPath: string | null;
-	attachmentFetchStatusDatabaseUrl: string | null;
-	attachmentFetchStatusDisabled: boolean;
 	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
 	authJsessionId: string | null;
 	authNginxCookie: string | null;
 	authSsoCookieDomain: string | null;
 	authSsoTgcToken: string | null;
-	collectionMode: NoticeCollectionMode;
-	internalPortalRunLedgerDatabaseUrl: string | null;
-	internalPortalRunLedgerDisabled: boolean;
-	exportsDir: string;
 	historicalBackfillMaxPagesPerType: number | null;
-	noticeTypeAllowlist: string[] | null;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
 	portalPageUrl: string;
 	sourceHomeUrl: string;
 	siteId: string;
-	writeLocalExports: boolean;
 	requestMaxRetries: number;
 	authCheckNoticeType: string;
 	authCheckPageSize: number;
@@ -77,19 +65,7 @@ export function resolveInternalPortalConfig(
 	const bypassProxyForPortal = shouldBypassProxyForPortal(source.INTERNAL_PORTAL_BYPASS_PROXY);
 	const authSsoTgcToken = normalizeOptionalSecret(source.INTERNAL_PORTAL_SSO_TGC);
 	return {
-		packageRoot,
-		repoRoot,
 		runtimeDir,
-		attachmentFetchRequestManifestPath: normalizeOptionalPath(
-			source.INTERNAL_PORTAL_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH,
-		),
-		attachmentFetchStatusDatabaseUrl: normalizeOptionalSecret(
-			source.INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DATABASE_URL,
-		),
-		attachmentFetchStatusDisabled: parseBooleanFlag(
-			source.INTERNAL_PORTAL_ATTACHMENT_FETCH_STATUS_DISABLE,
-			false,
-		),
 		defaultInlineVisualCapture: parseBooleanFlag(
 			source.INTERNAL_PORTAL_DEFAULT_INLINE_VISUAL_CAPTURE,
 			false,
@@ -103,19 +79,9 @@ export function resolveInternalPortalConfig(
 			ssoToken: authSsoTgcToken,
 		}),
 		authSsoTgcToken,
-		collectionMode: parseCollectionMode(source.INTERNAL_PORTAL_COLLECTION_MODE),
-		internalPortalRunLedgerDatabaseUrl: normalizeOptionalSecret(
-			source.INTERNAL_PORTAL_RUN_LEDGER_DATABASE_URL,
-		),
-		internalPortalRunLedgerDisabled: parseBooleanFlag(
-			source.INTERNAL_PORTAL_RUN_LEDGER_DISABLE,
-			false,
-		),
-		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
 			source.INTERNAL_PORTAL_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
 		),
-		noticeTypeAllowlist: parseOptionalStringList(source.INTERNAL_PORTAL_NOTICE_TYPE_ALLOWLIST),
 		noticeTypesPath: path.resolve(
 			String(
 				source.INTERNAL_PORTAL_NOTICE_TYPES_PATH ||
@@ -130,7 +96,6 @@ export function resolveInternalPortalConfig(
 		siteId:
 			String(source.INTERNAL_PORTAL_SITE_ID || "synthetic_internal_portal").trim() ||
 			"synthetic_internal_portal",
-		writeLocalExports: parseBooleanFlag(source.INTERNAL_PORTAL_WRITE_LOCAL_EXPORTS, false),
 		requestMaxRetries: parsePositiveInteger(source.INTERNAL_PORTAL_REQUEST_MAX_RETRIES, 3),
 		authCheckNoticeType: String(source.INTERNAL_PORTAL_AUTH_CHECK_NOTICE_TYPE || "5").trim() || "5",
 		authCheckPageSize: parsePositiveInteger(source.INTERNAL_PORTAL_AUTH_CHECK_PAGE_SIZE, 3),
@@ -139,32 +104,13 @@ export function resolveInternalPortalConfig(
 	};
 }
 
-function parseOptionalStringList(raw: string | undefined): string[] | null {
-	const tokens = [
-		...new Set(
-			(raw ?? "")
-				.split(",")
-				.map((token) => token.trim())
-				.filter(Boolean),
-		),
-	];
-	return tokens.length > 0 ? tokens : null;
-}
-
 function normalizeOptionalSecret(raw: string | undefined): string | null {
 	const normalized = String(raw ?? "").trim();
 	return normalized ? normalized : null;
 }
 
-function normalizeOptionalPath(raw: string | undefined): string | null {
-	const normalized = String(raw ?? "").trim();
-	return normalized ? path.resolve(normalized) : null;
-}
-
 export function ensureRuntimeDirs(config: InternalPortalConfig): void {
-	for (const relativePath of ["auth", "raw", "logs", "exports", "blob-store"]) {
-		fs.mkdirSync(path.join(config.runtimeDir, relativePath), { recursive: true });
-	}
+	fs.mkdirSync(path.join(config.runtimeDir, "auth"), { recursive: true });
 }
 
 function parsePositiveInteger(raw: string | undefined, defaultValue: number): number {
@@ -197,19 +143,6 @@ function parseBooleanFlag(raw: string | undefined, defaultValue: boolean): boole
 		return false;
 	}
 	return defaultValue;
-}
-
-function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {
-	const normalized = String(raw ?? "")
-		.trim()
-		.toLowerCase();
-	if (!normalized) {
-		return "incremental";
-	}
-	if (normalized === "incremental" || normalized === "backfill" || normalized === "selected") {
-		return normalized;
-	}
-	throw new Error("INTERNAL_PORTAL_COLLECTION_MODE must be incremental, backfill, or selected");
 }
 
 function mergeNoProxyValue(raw: string | undefined): string {

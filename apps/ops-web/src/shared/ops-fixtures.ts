@@ -115,7 +115,7 @@ function requestDetail(
 		},
 		outcomeSummary: {
 			refusalClass: null,
-			scopeClass: "campus",
+			resolvedTargets: ["student_rules"],
 			semanticOutcome: input.stepStatus === "FAILED" ? "runtime_error" : "answer",
 		},
 		policySummary: {

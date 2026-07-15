@@ -18,7 +18,6 @@ describe("WeChat official-account article source-truth", () => {
 				title: "示例出行快讯｜加车！实践周班车合集来啦～",
 				url: "https://mp.weixin.qq.com/s/synthetic-schedule-article#wechat_redirect",
 			},
-			capturedAt: "2026-04-27T08:00:00.000Z",
 			page: {
 				bodyBlocks: [
 					"有乘车需求的同学注意啦",
@@ -85,7 +84,7 @@ describe("WeChat official-account article source-truth", () => {
 		});
 
 		expect(material.manifest).toMatchObject({
-			schemaVersion: "wechat_official_account_article_manifest.v2",
+			schemaVersion: "wechat_official_account_article_manifest.v3",
 			bodyState: "captured",
 			captureBoundary: "real_mp_weixin_page",
 			capturedInlineImageCount: 1,
@@ -115,21 +114,21 @@ describe("WeChat official-account article source-truth", () => {
 		expect(material.mediaRefs).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					schemaVersion: "wechat_official_account_media_ref.v2",
+					schemaVersion: "wechat_official_account_media_ref.v3",
 					resourceRole: "cover_image",
 					captureStatus: "captured",
 					mimeType: "image/jpeg",
 					objectKey: expect.stringContaining("/capture/media/cover/"),
 				}),
 				expect.objectContaining({
-					schemaVersion: "wechat_official_account_media_ref.v2",
+					schemaVersion: "wechat_official_account_media_ref.v3",
 					resourceRole: "inline_image",
 					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 					captureStatus: "captured",
 					contentSha256: "b".repeat(64),
 				}),
 				expect.objectContaining({
-					schemaVersion: "wechat_official_account_media_ref.v2",
+					schemaVersion: "wechat_official_account_media_ref.v3",
 					resourceRole: "inline_image",
 					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
 					captureStatus: "fetch_failed",
@@ -157,7 +156,6 @@ describe("WeChat official-account article source-truth", () => {
 				title: "验证页样例",
 				url: "https://mp.weixin.qq.com/s/verify-wall",
 			},
-			capturedAt: "2026-04-27T08:00:00.000Z",
 			page: {
 				bodyBlocks: [],
 				contentType: "text/html; charset=utf-8",
@@ -177,7 +175,7 @@ describe("WeChat official-account article source-truth", () => {
 		});
 
 		expect(material.manifest).toMatchObject({
-			schemaVersion: "wechat_official_account_article_manifest.v2",
+			schemaVersion: "wechat_official_account_article_manifest.v3",
 			bodyState: "fetch_failed",
 			captureBoundary: "real_mp_weixin_page",
 			capturedInlineImageCount: 0,
@@ -191,5 +189,63 @@ describe("WeChat official-account article source-truth", () => {
 		]);
 		expect(material.contentBlocks.some((item) => item.blockRole === "body_paragraph")).toBe(false);
 		expect(validateWeChatOfficialAccountArticleSourceTruth(material)).toEqual([]);
+	});
+
+	it("keeps canonical manifest and media refs stable across capture retries", () => {
+		const buildMaterial = (fetchedAt: string, capturedAt: string) =>
+			buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
+				accountName: "示例大学学生会",
+				accountSlug: "示例大学学生会",
+				article: {
+					id: "feedwe-article-retry",
+					publishDate: "2026-04-26 09:15:01",
+					title: "实践周班车安排",
+					url: "https://mp.weixin.qq.com/s/retry-stability",
+				},
+				page: {
+					bodyBlocks: ["4月27日至5月5日期间通勤车辆有所调整。"],
+					contentType: "text/html; charset=utf-8",
+					coverImageUrl: "https://mmbiz.qpic.cn/example/cover.jpg",
+					fetchedAt,
+					finalUrl: "https://mp.weixin.qq.com/s/retry-stability",
+					inlineImageUrls: [],
+					pageKind: "article",
+					parserVersion: "wechat-page-parser.v1",
+					publishTime: "2026-04-26T01:15:01.000Z",
+					publishTimeSource: "window.ct",
+					statusCode: 200,
+					summary: "实践周交通通知",
+					title: "实践周班车安排",
+				},
+				mediaCaptures: [
+					{
+						byteSize: 1_024,
+						captureStatus: "captured",
+						capturedAt,
+						contentSha256: "c".repeat(64),
+						finalUrl: "https://mmbiz.qpic.cn/example/cover.jpg",
+						fetchErrorMessage: null,
+						mimeType: "image/jpeg",
+						normalizedSourceUrl: "https://mmbiz.qpic.cn/example/cover.jpg",
+						objectKey: "wechat_official_account/示例大学学生会/canonical/cover.jpg",
+						sourceUrl: "https://mmbiz.qpic.cn/example/cover.jpg",
+					},
+				],
+			});
+		const firstAttempt = buildMaterial("2026-04-27T08:01:00.000Z", "2026-04-27T08:01:03.000Z");
+		const retryAttempt = buildMaterial("2026-04-28T09:10:00.000Z", "2026-04-28T09:10:03.000Z");
+		const canonicalBytes = (material: typeof firstAttempt) =>
+			material.artifacts
+				.filter((artifact) =>
+					["source_truth_article_manifest", "source_truth_media_refs"].includes(
+						artifact.artifactType,
+					),
+				)
+				.map((artifact) => ({
+					data: Array.from(artifact.data),
+					objectKey: artifact.objectKey,
+				}));
+
+		expect(canonicalBytes(retryAttempt)).toEqual(canonicalBytes(firstAttempt));
 	});
 });

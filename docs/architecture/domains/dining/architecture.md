@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-07-04
+updated: 2026-07-13
 ---
 # Dining Domain Architecture
 
@@ -491,8 +491,3 @@ boundary:
 - real-time queue or live opening status
 - menu portion/spec labels or sale status
 - payment/order integration
-
-Current worktree scope also does not include:
-
-- dining data quality evaluation pipeline
-- model-visible `dining_lookup` registration

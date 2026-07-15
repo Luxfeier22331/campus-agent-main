@@ -14,7 +14,6 @@ import type {
 export const KIND_LABEL: Record<ProviderConfigKind, string> = {
 	embedding: "向量模型",
 	prompt: "生成模型",
-	rerank: "重排模型",
 };
 
 export const ROLE_LABEL: Record<ProviderConfigRole, string> = {
@@ -26,7 +25,6 @@ export const ROLE_LABEL: Record<ProviderConfigRole, string> = {
 	index_embedding: "索引构建向量化",
 	primary_agent: "主问答生成",
 	rag_query_embedding: "知识检索向量化",
-	rag_reranker: "知识检索重排",
 };
 
 export const STATUS_LABEL = {
@@ -46,7 +44,6 @@ export const FEATURE_PRESET_LABEL = {
 	embedding: "向量模型",
 	prompt: "生成模型",
 	prompt_embedding: "生成模型 + 向量模型",
-	rerank: "重排模型",
 } as const;
 
 export const ROLE_OPTIONS = [
@@ -86,7 +83,7 @@ export interface ProfileFormState {
 export const connectionFormSchema = z.object({
 	apiKey: z.string().min(1, "请输入密钥。"),
 	baseUrl: z.string().url("请输入有效的服务端点。"),
-	featurePreset: z.enum(["prompt", "embedding", "prompt_embedding", "rerank"]),
+	featurePreset: z.enum(["prompt", "embedding", "prompt_embedding"]),
 	provider: z.enum(["openai", "openai-compatible"]),
 });
 
@@ -129,9 +126,6 @@ export function initialProfileForm(): ProfileFormState {
 }
 
 export function kindForRole(role: ProviderConfigRole): ProviderConfigKind {
-	if (role === "rag_reranker") {
-		return "rerank";
-	}
 	return role.endsWith("_embedding") ? "embedding" : "prompt";
 }
 

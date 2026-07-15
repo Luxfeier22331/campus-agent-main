@@ -33,7 +33,6 @@ import {
 	defaultEmbeddingCompatibilityCheck,
 	defaultValidateEmbeddingProvider,
 	defaultValidatePromptProvider,
-	defaultValidateRerankProvider,
 	validateByKind,
 } from "./validators";
 
@@ -47,7 +46,7 @@ export interface ProviderConfigServiceDependencies {
 	validators?: Partial<ProviderConfigValidators>;
 }
 
-const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank"]);
+const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function buildProviderConfigService(
@@ -68,7 +67,6 @@ export function buildProviderConfigService(
 		validateEmbedding:
 			dependencies.validators?.validateEmbedding ?? defaultValidateEmbeddingProvider,
 		validatePrompt: dependencies.validators?.validatePrompt ?? defaultValidatePromptProvider,
-		validateRerank: dependencies.validators?.validateRerank ?? defaultValidateRerankProvider,
 	};
 
 	return {
@@ -509,7 +507,7 @@ async function normalizeUpdatePayload(
 
 function normalizeKind(value: unknown): ProviderConfigKind {
 	const normalized = normalizeRequiredString(value, "kind");
-	if (normalized !== "prompt" && normalized !== "embedding" && normalized !== "rerank") {
+	if (normalized !== "prompt" && normalized !== "embedding") {
 		throw validationError("kind is not supported.", { field: "kind" });
 	}
 	return normalized;
@@ -582,7 +580,7 @@ function normalizeTransport(value: unknown, kind: ProviderConfigKind): string {
 }
 
 function normalizeDimensions(value: unknown, kind: ProviderConfigKind): number | null {
-	if (kind === "prompt" || kind === "rerank") {
+	if (kind === "prompt") {
 		return null;
 	}
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {

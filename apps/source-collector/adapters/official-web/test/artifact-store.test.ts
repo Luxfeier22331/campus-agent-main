@@ -13,7 +13,16 @@ import {
 describe("official-web artifact store", () => {
 	it("uploads objects to the configured source bucket and returns artifact refs", async () => {
 		const client = {
-			send: vi.fn().mockResolvedValue({}),
+			send: vi.fn().mockImplementation((command) =>
+				command.constructor.name === "HeadObjectCommand"
+					? Promise.resolve({
+							ContentLength: data.byteLength,
+							Metadata: {
+								"content-sha256": createHash("sha256").update(data).digest("hex"),
+							},
+						})
+					: Promise.resolve({}),
+			),
 		};
 		const store = new S3ArtifactStore({
 			bucket: "campus-agent-source",
@@ -21,14 +30,14 @@ describe("official-web artifact store", () => {
 		});
 		const data = new TextEncoder().encode('{"schemaVersion":"official_web_crawl_run.v1"}');
 
-		const result = await store.putObject({
+		const result = await store.createOrVerifyObject({
 			objectKey: "official_web/campus_public/runs/owrun_01JQTEST/crawl-run.json",
 			data,
 			contentType: "application/json",
 			recordCount: 1,
 		});
 
-		expect(client.send).toHaveBeenCalledTimes(1);
+		expect(client.send).toHaveBeenCalledTimes(2);
 		const command = client.send.mock.calls[0]?.[0];
 		expect(command?.input).toMatchObject({
 			Bucket: "campus-agent-source",
@@ -37,7 +46,7 @@ describe("official-web artifact store", () => {
 			ContentType: "application/json",
 			ContentLength: data.byteLength,
 		});
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			objectKey: "official_web/campus_public/runs/owrun_01JQTEST/crawl-run.json",
 			contentSha256: createHash("sha256").update(data).digest("hex"),
 			byteSize: data.byteLength,
@@ -55,11 +64,11 @@ describe("official-web artifact store", () => {
 			client,
 		});
 		const data = new TextEncoder().encode(
-			'{"schemaVersion":"official_web_source_truth_bundle.v1"}',
+			'{"schemaVersion":"official_web_source_truth_bundle.v2"}',
 		);
 
 		await expect(
-			store.putObject({
+			store.createOrVerifyObject({
 				objectKey: "official_web/campus_public/runs/owrun_01JQTEST/source-truth-bundle.json",
 				data,
 				contentType: "application/json",

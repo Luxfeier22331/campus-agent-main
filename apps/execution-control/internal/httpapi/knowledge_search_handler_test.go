@@ -29,22 +29,23 @@ func (f *fakeKnowledgeSearchExecutor) Search(
 	return f.result, f.err
 }
 
-func TestKnowledgeSearchHandlerUsesRunBoundScopeAndProjectsEvidence(t *testing.T) {
+func TestKnowledgeSearchHandlerResolvesTargetAndProjectsEvidence(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newToolReadModelAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	executor := &fakeKnowledgeSearchExecutor{result: retrievalruntime.SearchResult{
-		RunID:           "run-knowledge-search",
-		InvocationID:    "call-search-1",
-		ResolvedScope:   "curriculum",
-		ResolvedVersion: retrievalruntime.ResolvedVersion{Mode: "current"},
 		Evidence: []retrievalruntime.Evidence{
 			{
-				EvidenceRef:  "evidence://sha256/test",
-				Title:        "计算机科学与技术专业培养方案",
-				Snippet:      "毕业最低学分为 160 学分。",
-				CanonicalURL: "https://example.edu/curriculum/2024",
-				VersionID:    "2024",
+				EvidenceRef:     "evidence://sha256/test",
+				RetrievalTarget: "curriculum",
+				DocumentID:      "curriculum-2024",
+				ChunkID:         "graduation-credits",
+				Title:           "计算机科学与技术专业培养方案",
+				Snippet:         "毕业最低学分为 160 学分。",
+				CanonicalURL:    "https://example.edu/curriculum/2024",
+				VersionID:       "2024",
+				Rank:            1,
+				FusionScore:     0.91,
 			},
 		},
 	}}
@@ -56,13 +57,13 @@ func TestKnowledgeSearchHandlerUsesRunBoundScopeAndProjectsEvidence(t *testing.T
 		http.MethodPost,
 		"/internal/query/knowledge/search",
 		strings.NewReader(`{
-			"payload":{"query_text":"毕业学分要求"},
+			"payload":{"query_text":"毕业学分要求","target":"curriculum","include_history":false},
 			"access_context":{
+				"activity_attempt":1,
 				"run_id":"run-knowledge-search",
 				"trace_id":"trace-knowledge-search",
 				"invocation_id":"call-search-1",
-				"knowledge_scope":"curriculum",
-				"version_query":{"mode":"current","as_of":null,"version_id":null,"compare_to_version_id":null}
+				"search_ordinal":1
 			}
 		}`),
 	)
@@ -77,11 +78,13 @@ func TestKnowledgeSearchHandlerUsesRunBoundScopeAndProjectsEvidence(t *testing.T
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["outcome"] != "found" || body["resolved_scope"] != "curriculum" {
+	if body["outcome"] != "found" || body["retrieval_target"] != "curriculum" {
 		t.Fatalf("body = %#v", body)
 	}
-	if executor.request.Scope != "curriculum" || executor.request.Corpus != "curriculum" || executor.request.Collection != "curriculum_plan" {
-		t.Fatalf("search request scope = %#v", executor.request)
+	if executor.request.Target != "curriculum" ||
+		executor.request.ServingConfigPath != "curriculum/curriculum_plan/serving-config.json" ||
+		executor.request.TopK != 8 {
+		t.Fatalf("search request target = %#v", executor.request)
 	}
 	if executor.request.RetrievalAccess.VisibilityLevel != "public" {
 		t.Fatalf("retrieval access = %#v", executor.request.RetrievalAccess)
@@ -90,7 +93,8 @@ func TestKnowledgeSearchHandlerUsesRunBoundScopeAndProjectsEvidence(t *testing.T
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
 	}
-	if len(steps) != 1 || steps[0].StepKind != "retrieval" {
+	if len(steps) != 1 || steps[0].StepKind != "retrieval" ||
+		steps[0].StepID != "knowledge.search.1" {
 		t.Fatalf("steps = %#v", steps)
 	}
 	results, err := store.ListStepResults(context.Background(), "run-knowledge-search")
@@ -99,6 +103,10 @@ func TestKnowledgeSearchHandlerUsesRunBoundScopeAndProjectsEvidence(t *testing.T
 	}
 	if len(results) != 1 || results[0].ResultKind != "knowledge_search_result" {
 		t.Fatalf("results = %#v", results)
+	}
+	if results[0].SanitizedPayload["retrieval_target"] != "curriculum" ||
+		results[0].SanitizedPayload["search_ordinal"] != 1 {
+		t.Fatalf("result payload = %#v", results[0].SanitizedPayload)
 	}
 }
 
@@ -115,13 +123,13 @@ func TestKnowledgeSearchHandlerRejectsTraceDriftBeforeSearch(t *testing.T) {
 		http.MethodPost,
 		"/internal/query/knowledge/search",
 		strings.NewReader(`{
-			"payload":{"query_text":"毕业学分要求"},
+			"payload":{"query_text":"毕业学分要求","target":"curriculum","include_history":false},
 			"access_context":{
+				"activity_attempt":1,
 				"run_id":"run-knowledge-search",
 				"trace_id":"wrong-trace",
 				"invocation_id":"call-search-1",
-				"knowledge_scope":"curriculum",
-				"version_query":{"mode":"current","as_of":null,"version_id":null,"compare_to_version_id":null}
+				"search_ordinal":1
 			}
 		}`),
 	)

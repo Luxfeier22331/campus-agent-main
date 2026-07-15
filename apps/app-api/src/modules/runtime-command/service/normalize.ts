@@ -1,12 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { RequestedScope, ToolExecutionResponse } from "../../integration";
-import {
-	normalizeVersionQuery,
-	type VersionQuery,
-	VersionQueryValidationError,
-} from "../../version-query";
+import type { ToolExecutionResponse } from "../../integration";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
 import { resultSources } from "./normalize-source-items";
@@ -36,8 +31,6 @@ export function defaultComputeFingerprint(input: {
 	conversationDiscriminator: string;
 	prompt: string;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
-	versionQuery: VersionQuery | null;
 }): string {
 	return createHash("sha256")
 		.update(
@@ -45,8 +38,6 @@ export function defaultComputeFingerprint(input: {
 				conversationDiscriminator: input.conversationDiscriminator,
 				prompt: input.prompt,
 				requestedTool: input.requestedTool,
-				requestedScope: input.requestedScope,
-				versionQuery: input.versionQuery,
 			}),
 		)
 		.digest("hex");
@@ -102,8 +93,6 @@ function assertSupportedPayloadFields(
 	const supportedFields = new Set(["conversationId", "prompt"]);
 	if (requestKind === "internal_eval") {
 		supportedFields.add("requestedTool");
-		supportedFields.add("scope");
-		supportedFields.add("versionQuery");
 	}
 	for (const field of Object.keys(payload as Record<string, unknown>)) {
 		if (supportedFields.has(field)) {
@@ -116,11 +105,6 @@ function assertSupportedPayloadFields(
 			status: 422,
 		});
 	}
-}
-
-function normalizeKnowledgeScope(value: unknown): RequestedScope | null {
-	const scope = normalizeString(value);
-	return scope || null;
 }
 
 function resolveSafetyIdentifierSource(principal: ResolvedAppPrincipal): string | null {
@@ -195,31 +179,10 @@ export function resolveValidatedPayload(
 		input.requestKind === "internal_eval"
 			? normalizeRequestedTool(internalPayload.requestedTool)
 			: null;
-	const requestedScope =
-		input.requestKind === "internal_eval" ? normalizeKnowledgeScope(internalPayload.scope) : null;
-	let versionQuery: VersionQuery | null;
-	try {
-		versionQuery =
-			input.requestKind === "internal_eval"
-				? normalizeVersionQuery(internalPayload.versionQuery)
-				: null;
-	} catch (error) {
-		if (error instanceof VersionQueryValidationError) {
-			throw createPreAcceptError({
-				code: "validation_failed",
-				details: { field: error.field },
-				message: error.message,
-				status: 422,
-			});
-		}
-		throw error;
-	}
 
 	return {
 		conversationId,
 		prompt,
 		requestedTool,
-		requestedScope,
-		versionQuery,
 	};
 }

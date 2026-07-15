@@ -53,8 +53,9 @@ projection、自研 autoscaler、HPA 决策或 Temporal workflow history。
 
 ## 与 KEDA 的关系
 
-KEDA Temporal scaler 直接读取 Temporal 队列并控制 worker Deployment。该内部接口只服务
-人工观测，不参与扩缩容决策，不写 actuation/posture 记录，也不能调用 Kubernetes API。
+KEDA Temporal scaler 直接读取 Temporal 队列并控制 Worker Controller 生成的
+versioned Deployment。该内部接口只服务人工观测，不参与扩缩容决策，不写
+actuation/posture 记录，也不能调用 Kubernetes API。
 
 ## 错误
 
@@ -66,4 +67,4 @@ KEDA Temporal scaler 直接读取 Temporal 队列并控制 worker Deployment。�
 
 - `apps/execution-control/internal/httpapi/temporal_task_queues.go`
 - `apps/ops-web/src/server/temporal-task-queue-client.ts`
-- `infra/k8s/execution-runtime/base/keda-scaledobjects.yaml`
+- `infra/k8s/execution-runtime/base/worker-resources.yaml`

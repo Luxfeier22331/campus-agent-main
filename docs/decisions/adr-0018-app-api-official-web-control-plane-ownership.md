@@ -5,7 +5,8 @@ owner_boundary: docs/decisions
 decision_id: ADR-0018
 status: superseded
 created: 2026-03-29
-updated: 2026-07-05
+updated: 2026-07-13
+superseded_by: adr-0077-ingestion.md
 ---
 # ADR-0018 App API Official Web Control-Plane Ownership
 
@@ -14,24 +15,13 @@ ingestion-control task admission ownership
 
 ## 当前边界说明
 
-本 ADR 关于 `apps/app-api` 拥有 official-web collector control plane 的结论已被
-2026-07 的 ingestion-control clean target supersede。当前 active truth 是：
-
-- `apps/ingestion-control` 拥有 official-web collector service admission、crawl-run
-  ledger、heartbeat/finalize、target workset resolution、task admission 与 Temporal
-  execution。
-- `apps/app-api` 只保留 official-web operator query、stable-reference release gate
-  command ledger 与 operator-safe projection surface。
-
-当前边界以 `docs/architecture/domains/official-web/architecture.md`、
-`docs/contracts/app-api/official-web.md` 与
-`docs/runbooks/ingestion-control-clean-target.md` 为准。下文仅保留历史决策背景。
-
-2026-06-30 后，official-web 不再保留 app-api 专用 terminal handoff receiver。
-`apps/app-api` 的 projection drain 直接从 terminal run outbox 与
-`source_truth_bundle` artifact ref admission ingestion-control task。历史文档中的
-“ingestion handoff”只应理解为 outbox-driven task admission，不表示还存在
-`official_web_*_handoff.v1` wrapper contract。
+本 ADR 已被 ADR-0077 完整替代。`apps/app-api` 不拥有 official-web route、table、
+command ledger、release gate 或 task lifecycle；`apps/ingestion-control` 只拥有通用
+Temporal task admission、bounded projection 与 URL freshness state，collector activity
+由 `apps/source-collector` 执行。当前边界以
+`docs/architecture/domains/official-web/architecture.md`、
+`docs/data/official-web.md` 与 `docs/runbooks/ingestion.md` 为准。下文仅保留历史决策
+背景，不描述当前运行入口。
 
 ## 背景
 
@@ -230,11 +220,10 @@ offline executor / release task runtime 的表述只作为历史背景保留。
 - `ingestion_dispatch_ref` 保存 ingestion-control task id；字段名是历史 schema
   命名，不代表仍有独立 official-web handoff object
 - `apps/ingestion-control` 的 official-web `source_truth_materialize` handler
-  读取 `official_web_source_truth_bundle.v1`，验证 referenced page source-truth
+  读取 `official_web_source_truth_bundle.v2`，验证 referenced page source-truth
   objects，并以 artifact refs close out
 
 ## 相关文档
 
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/contracts/app-api/official-web.md`
-- `docs/data/app-api/official-web.md`
+- `docs/data/official-web.md`

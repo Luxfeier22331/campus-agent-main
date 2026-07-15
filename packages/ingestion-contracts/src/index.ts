@@ -3,13 +3,16 @@ import addFormats from "ajv-formats";
 import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.schema.json" with {
 	type: "json",
 };
-import releaseManifestSchema from "../schemas/ingestion-release-manifest.v1.schema.json" with {
+import releaseManifestSchema from "../schemas/ingestion-release-manifest.v2.schema.json" with {
 	type: "json",
 };
-import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v2.schema.json" with {
+import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v3.schema.json" with {
 	type: "json",
 };
-import taskRegistrySchema from "../schemas/ingestion-task-registry.v2.schema.json" with {
+import taskRegistrySchema from "../schemas/ingestion-task-registry.v3.schema.json" with {
+	type: "json",
+};
+import taskResultSchema from "../schemas/ingestion-task-result.v1.schema.json" with {
 	type: "json",
 };
 
@@ -33,18 +36,20 @@ export type IngestionArtifactRefKind = "object_store";
 export interface IngestionArtifactRef {
 	kind: IngestionArtifactRefKind;
 	uri: string;
-	digest?: string;
+	digest: string;
+	byte_size: number;
 }
 
 export interface IngestionReleaseManifestArtifact {
 	kind: string;
 	uri: string;
 	digest: string;
+	byte_size: number;
 	[key: string]: unknown;
 }
 
 export interface IngestionReleaseManifest {
-	schema_version: "ingestion_release_manifest.v1";
+	schema_version: "ingestion_release_manifest.v2";
 	release_id: string;
 	corpus: string;
 	collection: string;
@@ -52,47 +57,57 @@ export interface IngestionReleaseManifest {
 	[key: string]: unknown;
 }
 
-export type IngestionTaskKind =
-	| "source_truth_materialize"
-	| "document_units_validate"
-	| "chunk_prepare"
-	| "release_manifest_validate";
-
 export interface IngestionTaskEnvelope {
-	schema_version: "ingestion_task_envelope.v2";
+	schema_version: "ingestion_task_envelope.v3";
 	task_id: string;
 	run_id: string;
-	source_family: string;
-	source_channel: string;
-	corpus: string;
-	collection: string;
 	registry_task_id: string;
-	task_kind: IngestionTaskKind;
 	input_ref: IngestionArtifactRef;
-	input_contract: string;
-	output_contract: string;
-	idempotency_key: string;
-	created_by: string;
-	created_at: string;
 }
 
-export type IngestionTaskExecutorKind = "rust_kernel" | "ts_control";
+export type IngestionTaskExecutorKind = "rust_kernel" | "source_collector";
+
+export interface IngestionTaskSourceIdentity {
+	family: string;
+	channel: string;
+}
+
+export interface IngestionTaskTargetIdentity {
+	corpus: string;
+	collection: string;
+}
 
 export interface IngestionTaskRegistryTask {
 	registry_task_id: string;
-	task_kind: IngestionTaskKind;
 	executor_kind: IngestionTaskExecutorKind;
 	kernel_id?: string;
 	input_contract: string;
 	output_contract: string;
+	source?: IngestionTaskSourceIdentity;
+	target?: IngestionTaskTargetIdentity;
 }
 
 export interface IngestionTaskRegistry {
-	schema_version: "ingestion_task_registry.v2";
-	source_family: string;
-	corpus: string;
-	collection: string;
+	schema_version: "ingestion_task_registry.v3";
 	tasks: IngestionTaskRegistryTask[];
+}
+
+export interface IngestionTaskExecutionSnapshot {
+	schema_version: "ingestion_task_execution_snapshot.v1";
+	task: IngestionTaskEnvelope;
+	registry_task: IngestionTaskRegistryTask;
+}
+
+export type IngestionTaskSummaryValue = string | number | boolean | null;
+
+export interface IngestionTaskResult {
+	schema_version: "ingestion_task_result.v1";
+	task_id: string;
+	run_id: string;
+	registry_task_id: string;
+	output_contract: string;
+	result_ref: IngestionArtifactRef;
+	summary: Record<string, IngestionTaskSummaryValue>;
 }
 
 const ajv = new Ajv2020({
@@ -110,6 +125,7 @@ const taskEnvelopeValidator = ajv.compile(
 const taskRegistryValidator = ajv.compile(
 	taskRegistrySchema,
 ) as ValidateFunction<IngestionTaskRegistry>;
+const taskResultValidator = ajv.compile(taskResultSchema) as ValidateFunction<IngestionTaskResult>;
 const canonicalDocumentUnitValidator = ajv.compile(
 	canonicalDocumentUnitSchema,
 ) as ValidateFunction<CanonicalDocumentUnit>;
@@ -123,6 +139,18 @@ export function validateIngestionTaskEnvelope(value: unknown): ValidationResult 
 
 export function validateIngestionTaskRegistry(value: unknown): ValidationResult {
 	return validateWith(taskRegistryValidator, value);
+}
+
+export function validateIngestionTaskResult(value: unknown): ValidationResult {
+	const result = validateWith(taskResultValidator, value);
+	if (!result.ok) {
+		return result;
+	}
+	const summary = (value as IngestionTaskResult).summary;
+	if (new TextEncoder().encode(JSON.stringify(summary)).byteLength > 4096) {
+		return { ok: false, errors: ["summary must not exceed 4096 bytes"] };
+	}
+	return { ok: true };
 }
 
 export function validateCanonicalDocumentUnit(value: unknown): ValidationResult {

@@ -29,7 +29,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
 					error: null,
 					followUpQuestion: "",
-					resolvedScope: "curriculum",
+					resolvedTargets: ["curriculum"],
 					sessionUpdate: {
 						upsertSlots: [
 							{
@@ -67,7 +67,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "第二学期有中国法制史。",
 					error: null,
 					followUpQuestion: "",
-					resolvedScope: "curriculum",
+					resolvedTargets: ["curriculum"],
 					sessionUpdate: {
 						upsertSlots: [
 							{
@@ -208,7 +208,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "",
 					error: null,
 					followUpQuestion: "你想看哪个民族班？",
-					resolvedScope: "curriculum",
+					resolvedTargets: ["curriculum"],
 					sessionUpdate: {
 						upsertSlots: [
 							{
@@ -260,7 +260,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 					answerText: "民大的民族班有法学、信息与计算科学、计算机科学与技术。",
 					error: null,
 					followUpQuestion: "",
-					resolvedScope: "curriculum",
+					resolvedTargets: ["curriculum"],
 					sessionUpdate: null,
 					result: {
 						diagnostics: {
@@ -306,7 +306,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 						"思想政治理论课包括习近平新时代中国特色社会主义思想概论、马克思主义基本原理、中华民族共同体概论等课程。",
 					error: null,
 					followUpQuestion: "",
-					resolvedScope: "curriculum",
+					resolvedTargets: ["curriculum"],
 					sessionUpdate: null,
 					result: {
 						diagnostics: {

@@ -1,5 +1,6 @@
 import { BasicCrawler, CheerioCrawler, type RequestOptions } from "crawlee";
 import { sha256Hex } from "ingest-core";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 import {
 	buildCapturedArticleMediaPayload,
 	type CapturedArticleMediaPayload,
@@ -20,6 +21,7 @@ const WECHAT_MEDIA_REQUEST_HEADERS = {
 };
 
 export async function runWeChatArticlePageCrawleeCapture(input: {
+	abortSignal?: AbortSignal;
 	articleUrl: string;
 	crawlerFactory?: WeChatArticlePageCrawlerFactory;
 	now?: () => Date;
@@ -29,6 +31,7 @@ export async function runWeChatArticlePageCrawleeCapture(input: {
 	const results = new Map<string, CapturedWeChatOfficialAccountArticlePage>();
 	const failedRequests: Error[] = [];
 	const requestHandler = async (context: WeChatArticlePageCrawlerRequestHandlerContext) => {
+		input.abortSignal?.throwIfAborted();
 		const fetchedAt = now().toISOString();
 		const finalUrl = context.request.loadedUrl?.trim() || context.request.url.trim();
 		const contentType =
@@ -70,6 +73,7 @@ export async function runWeChatArticlePageCrawleeCapture(input: {
 			rawHtml: html,
 			statusCode,
 		});
+		input.abortSignal?.throwIfAborted();
 	};
 	const failedRequestHandler = async (
 		context: WeChatArticlePageCrawlerRequestHandlerContext,
@@ -85,13 +89,17 @@ export async function runWeChatArticlePageCrawleeCapture(input: {
 		requestMaxRetries: input.requestMaxRetries ?? 1,
 	});
 	const uniqueKey = buildWeChatArticlePageUniqueKey(input.articleUrl);
-	await crawler.run([
-		{
-			headers: WECHAT_ARTICLE_REQUEST_HEADERS,
-			uniqueKey,
-			url: input.articleUrl,
-		},
-	]);
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: [
+			{
+				headers: WECHAT_ARTICLE_REQUEST_HEADERS,
+				uniqueKey,
+				url: input.articleUrl,
+			},
+		],
+	});
 	if (failedRequests.length > 0) {
 		throw failedRequests[0];
 	}
@@ -103,6 +111,7 @@ export async function runWeChatArticlePageCrawleeCapture(input: {
 }
 
 export async function runWeChatMediaCrawleeCapture(input: {
+	abortSignal?: AbortSignal;
 	articleSourceUrl: string;
 	coverImageUrl: string | null;
 	crawlerFactory?: WeChatMediaCrawlerFactory;
@@ -116,6 +125,7 @@ export async function runWeChatMediaCrawleeCapture(input: {
 	}
 	const results = new Map<string, CapturedArticleMediaPayload>();
 	const requestHandler = async (context: WeChatMediaCrawlerRequestHandlerContext) => {
+		input.abortSignal?.throwIfAborted();
 		const userData = parseWeChatMediaUserData(context.request.userData);
 		const capturedAt = input.now().toISOString();
 		const response = await context.sendRequest({
@@ -125,6 +135,7 @@ export async function runWeChatMediaCrawleeCapture(input: {
 			},
 			responseType: "buffer",
 		});
+		input.abortSignal?.throwIfAborted();
 		const contentType = normalizeImageContentType(
 			normalizeHeaderValue(response.headers?.["content-type"]),
 		);
@@ -167,7 +178,11 @@ export async function runWeChatMediaCrawleeCapture(input: {
 		requestHandler,
 		requestMaxRetries: input.requestMaxRetries ?? 1,
 	});
-	await crawler.run(requests);
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests,
+	});
 	return requests.map((request) => {
 		const captured = results.get(String(request.uniqueKey));
 		if (!captured) {
@@ -202,6 +217,7 @@ export interface WeChatArticlePageCrawlerFactoryInput {
 
 export type WeChatArticlePageCrawlerFactory = (input: WeChatArticlePageCrawlerFactoryInput) => {
 	run(requests: RequestOptions[]): Promise<unknown>;
+	stop?(reason?: string): Promise<void>;
 };
 
 export interface WeChatMediaCrawlerRequestHandlerContext {
@@ -228,6 +244,7 @@ export interface WeChatMediaCrawlerFactoryInput {
 
 export type WeChatMediaCrawlerFactory = (input: WeChatMediaCrawlerFactoryInput) => {
 	run(requests: RequestOptions[]): Promise<unknown>;
+	stop?(reason?: string): Promise<void>;
 };
 
 function createDefaultWeChatArticlePageCrawler(input: WeChatArticlePageCrawlerFactoryInput) {
@@ -271,6 +288,7 @@ function createDefaultWeChatArticlePageCrawler(input: WeChatArticlePageCrawlerFa
 	);
 	return {
 		run: async (requests: RequestOptions[]) => await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 
@@ -308,6 +326,7 @@ function createDefaultWeChatMediaCrawler(input: WeChatMediaCrawlerFactoryInput) 
 	);
 	return {
 		run: async (requests: RequestOptions[]) => await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 

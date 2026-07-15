@@ -17,21 +17,10 @@ const REQUIRED_TABLES = [
 	"app_auth.user",
 	"chat.turn_dispatches",
 	"observability.ops_observability_read_audit",
-	"operator.authenticated_notice_processing_projection",
 	"runtime.request_observability_fact",
 ] as const;
-const RETIRED_TABLES = [
-	"operator.request_audit_projection",
-	"operator.request_projection",
-	"operator.temporal_task_queue_current",
-	"operator.temporal_task_queue_snapshot",
-	"operator.worker_autoscaler_actuation",
-	"operator.worker_autoscaler_decision",
-	"operator.worker_autoscaler_decision_current",
-	"operator.worker_autoscaler_posture",
-	"runtime.projection_outbox",
-	"runtime.request_execution",
-] as const;
+const RETIRED_TABLES = ["runtime.projection_outbox", "runtime.request_execution"] as const;
+const RETIRED_SCHEMAS = ["official_web", "operator", "wechat_official_account"] as const;
 
 async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): Promise<void> {
 	const required = await pool.query<{ qualified_name: string | null }>(
@@ -55,6 +44,20 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	if (retired.rows.length > 0) {
 		throw new Error(
 			`retired app-api tables are still present: ${retired.rows.map((row) => row.qualified_name).join(", ")}`,
+		);
+	}
+
+	const retiredSchemas = await pool.query<{ schema_name: string }>(
+		`select schema_name
+		 from unnest($1::text[]) as retired(schema_name)
+		 where to_regnamespace(schema_name) is not null`,
+		[RETIRED_SCHEMAS],
+	);
+	if (retiredSchemas.rows.length > 0) {
+		throw new Error(
+			`retired app-api schemas are still present: ${retiredSchemas.rows
+				.map((row) => row.schema_name)
+				.join(", ")}`,
 		);
 	}
 
@@ -90,6 +93,7 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 			envOverrides.BETTER_AUTH_SECRET?.trim() || "schema-install-only-not-a-runtime-secret-2026",
 	};
 	const env = readSharedProductBootstrapEnv(bootstrapEnv);
+	const bootstrap = await bootstrapSharedProductDatabase(bootstrapEnv);
 	const pool = createSharedProductPool(env);
 	try {
 		await migrate(drizzle(pool), {
@@ -97,7 +101,6 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		});
-		const bootstrap = await bootstrapSharedProductDatabase(bootstrapEnv);
 		await pool.query("BEGIN");
 		try {
 			await applyAppApiGrants(pool);

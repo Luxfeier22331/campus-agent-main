@@ -5,13 +5,14 @@ owner_boundary: docs/decisions
 decision_id: ADR-0065
 status: accepted
 created: 2026-07-03
-updated: 2026-07-10
+updated: 2026-07-13
 ---
 # ADR-0065 GitOps Argo CD And Helm Boundary
 
 ## Context
 
-ADR-0056 accepted Kubernetes + KEDA as the production target substrate for the
+ADR-0078 supersedes ADR-0056 and accepts Temporal Worker Controller + KEDA as
+the production worker substrate for the
 execution runtime, but it intentionally did not decide Helm vs Kustomize vs raw
 manifests. The repository now needs a durable deployment-management boundary
 before K8s staging is promoted from target manifests into live operations.
@@ -41,7 +42,7 @@ The initial third-party Helm applications are:
 - optional `platform-external-secrets` when the deployment selects External
   Secrets Operator as its secret delivery backend
 
-ADR-0070 governs repository ownership: the application repository retains
+ADR-0074 governs repository ownership: the application repository retains
 reusable first-party Kustomize bases, while concrete Applications, overlays and
 third-party Helm values live in the deployment environment repository.
 

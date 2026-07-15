@@ -22,7 +22,7 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 	material: WeChatOfficialAccountArticleSourceTruthMaterial,
 ): WeChatOfficialAccountSourceTruthValidationIssue[] {
 	const issues: WeChatOfficialAccountSourceTruthValidationIssue[] = [];
-	if (material.manifest.schemaVersion !== "wechat_official_account_article_manifest.v2") {
+	if (material.manifest.schemaVersion !== "wechat_official_account_article_manifest.v3") {
 		issues.push({ code: "invalid_schema", message: "article manifest schemaVersion is invalid" });
 	}
 	if (material.manifest.sourceChannel !== WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL) {
@@ -81,7 +81,7 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 		});
 	}
 	for (const mediaRef of material.mediaRefs) {
-		if (mediaRef.schemaVersion !== "wechat_official_account_media_ref.v2") {
+		if (mediaRef.schemaVersion !== "wechat_official_account_media_ref.v3") {
 			issues.push({
 				code: "invalid_media_ref_schema",
 				message: `media ref ${mediaRef.mediaRefId} schemaVersion is invalid`,

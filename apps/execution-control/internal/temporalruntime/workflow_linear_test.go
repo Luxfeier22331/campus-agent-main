@@ -38,13 +38,12 @@ func TestToolExecutionWorkflowOwnsOnlyTheDurableFourStageShell(t *testing.T) {
 		Return(ExecutePrimaryAgentActivityOutput{
 			AgentResultRef: agentResultRef,
 			RunID:          runID,
-			SelectedTools:  []string{"knowledge_search"},
+			SelectedTools:  []string{"knowledge_query"},
 			Status:         "completed",
 			TerminalEnvelope: map[string]any{
-				"answer_text":    "毕业最低学分要求为 160 学分。",
-				"evidence_refs":  []any{"evidence://sha256/example"},
-				"kind":           "answer",
-				"resolved_scope": "curriculum",
+				"answer_text":   "毕业最低学分要求为 160 学分。",
+				"evidence_refs": []any{"evidence://sha256/example"},
+				"kind":          "answer",
 			},
 			TerminalReason: "answer_completed",
 		}, nil)

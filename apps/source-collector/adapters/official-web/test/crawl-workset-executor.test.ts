@@ -1,7 +1,5 @@
 import { load } from "cheerio";
 import { describe, expect, it } from "vitest";
-
-import type { OfficialWebPlannerPageCandidate } from "../src/control-plane";
 import {
 	buildOfficialWebCrawlPlan,
 	findOfficialWebHostPolicy,
@@ -9,6 +7,7 @@ import {
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebUrlResultRecord,
 } from "../src/core/index.ts";
+import type { OfficialWebCrawlCandidate } from "../src/crawl-candidates";
 import { buildInitialRequests, collectNavigationRequests } from "../src/crawl-discovery-requests";
 import { buildListingRequeueRequests } from "../src/crawl-discovery-requeue";
 import { buildPageObservationFromCollectedPage } from "../src/crawl-observations";
@@ -16,8 +15,8 @@ import { buildCollectedPageArtifacts } from "../src/page-artifacts";
 import { writeTestConfigRoot } from "./test-support";
 
 function buildPlannerPage(
-	overrides: Partial<OfficialWebPlannerPageCandidate> = {},
-): OfficialWebPlannerPageCandidate {
+	overrides: Partial<OfficialWebCrawlCandidate> = {},
+): OfficialWebCrawlCandidate {
 	return {
 		cadenceClass: "target_candidate",
 		consumerFamily: "academic_calendar_candidate",
@@ -601,7 +600,7 @@ describe("official web target workset executor", () => {
 			),
 		});
 
-		expect(page.pageManifest).toMatchObject({
+		expect(page.targeting).toMatchObject({
 			targetJobId: "owtarget_calendar",
 			targetCandidateId: "owcand_calendar",
 			targetDeclarationVersion: "campus_public_target_source_map_v2",
@@ -609,8 +608,8 @@ describe("official web target workset executor", () => {
 			selectedWriteTarget: "calendar/academic_calendar",
 			reviewPolicy: "selected_write_requires_review",
 		});
-		expect(Object.keys(page.pageManifest)).not.toContain("target_job_id");
-		expect(page.pageManifest.targetMatches?.[0]).toMatchObject({
+		expect(Object.keys(page.targeting)).not.toContain("target_job_id");
+		expect(page.targeting.targetMatches[0]).toMatchObject({
 			consumerFamily: "academic_calendar_candidate",
 			worksetReason: "target_candidate_due",
 		});
@@ -679,13 +678,13 @@ describe("official web target workset executor", () => {
 			),
 		});
 
-		expect(page.pageManifest.targetMatches?.map((match) => match.targetId).sort()).toEqual([
+		expect(page.targeting.targetMatches.map((match) => match.targetId).sort()).toEqual([
 			"official-web-academic-calendar",
 			"official-web-institutional-rules",
 		]);
-		expect(page.pageManifest.targetJobId).toBe("owtarget_calendar");
-		expect(page.pageManifest.targetCandidateId).toBe("owcand_calendar");
-		expect(page.pageManifest.selectedWriteTarget).toBe("calendar/academic_calendar");
+		expect(page.targeting.targetJobId).toBe("owtarget_calendar");
+		expect(page.targeting.targetCandidateId).toBe("owcand_calendar");
+		expect(page.targeting.selectedWriteTarget).toBe("calendar/academic_calendar");
 	});
 
 	it("carries target lineage from page manifests into app-api page observations", () => {

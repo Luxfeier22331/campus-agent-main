@@ -86,11 +86,11 @@ a weekly schedule and through manual dispatch. It is for drift / regression
 detection after PR-level affected checks have kept ordinary feedback cheap.
 
 - It runs `pnpm ci:repo`, `pnpm ci:typescript:full`, `pnpm ci:contracts`,
-  `pnpm ci:eval`, `pnpm ci:go`, `pnpm ci:rust` and the local OSV-Scanner
-  dependency job.
-- Repository, Contracts, TypeScript and Eval checks share one serial Node job
-  and one dependency installation. Go, Rust and dependency scanning retain
-  separate owner jobs.
+  `pnpm ci:ingest`, `pnpm ci:eval`, `pnpm ci:go`, `pnpm ci:rust` and the local
+  OSV-Scanner dependency job.
+- Repository, Contracts, TypeScript, Ingest and Eval checks share one serial
+  Node job and one dependency installation. Go, Rust and dependency scanning
+  retain separate owner jobs.
 - It must not define `pull_request` triggers or participate in
   `pr / required`.
 - It may use explicitly allowed CI infrastructure credentials, such as Turbo
@@ -118,6 +118,10 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   cache token; neither secret may be exposed to fork pull requests. Missing
   remote-cache credentials must degrade to local execution, not fail a public
   contribution.
+- A developer can authorize local remote caching with `pnpm turbo login` and
+  `pnpm turbo link --scope <team>`. Reading signed CI artifacts additionally
+  requires the same `TURBO_REMOTE_CACHE_SIGNATURE_KEY` through the developer's
+  secret manager; the key must not be committed to an env file.
 - Self-hosted CI runs Turbo with concurrency `1` and reuses persistent pnpm,
   Go, uv, Cargo, BuildKit and Trivy caches without uploading language caches to
   GitHub Actions. GitHub-hosted runners may use Actions dependency caches.
@@ -146,13 +150,16 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - `pre-commit` also runs the Gitleaks staged-file hook for local hygiene.
   - It does not replace GitHub Secret Protection or historical leak response.
 - Dependency vulnerability scanning:
+  - GitHub Dependabot alerts monitor the default-branch dependency graph.
   - PR and scheduled CI run `pnpm ci:deps` in explicit lockfile mode for the
     pnpm, uv, Cargo and Go dependency graphs.
   - Any vulnerability exception must live in `osv-scanner.toml` with advisory
     id, reason and `ignoreUntil`; do not hide exceptions in workflow logic.
   - Root pnpm override rationale and removal conditions live in
     `docs/reference/dependency-overrides.md`.
-  - Dependabot PRs should record the dependency lane result in the PR.
+  - Dependabot opens one monthly grouped GitHub Actions version-update PR.
+    Application, runtime and image dependency upgrades are owner-initiated;
+    automated security-update PRs remain disabled.
 - Workflow security:
   - `pnpm ci:config` directly runs actionlint and zizmor.
   - Every external GitHub Action is pinned to a full commit SHA and every CI
@@ -181,7 +188,9 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - `pnpm ci:contracts`.
   - `pnpm ci:go`.
   - `pnpm ci:rust`.
+  - `pnpm ci:ingest`.
   - `pnpm ci:eval`.
+  - App-api PostgreSQL migration upgrade integration for migration inputs.
   - OSV-Scanner dependency scan for dependency manifests, lockfiles and Go
     module files.
   - Native image build and Trivy scan for affected first-party runtime images.
@@ -237,21 +246,33 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 ## Conditional CI Lanes
 
 - `pnpm ci:typescript`
-  - The only affected JS/TS typecheck / unit-test lane for app, package and job
-    code. Turbo owns task selection, dependency ordering and result caching.
+  - Affected JS/TS typecheck / unit-test lane for general app, package and job
+    code. Eval and ingestion owners are excluded because their package tasks
+    run in dedicated Turbo lanes. Turbo owns task selection and result caching.
 - `pnpm ci:worker`
   - Worker runtime test and Worker/app build lane for app-api, campus-web,
     operator-console-web and runtime config changes.
 - `pnpm ci:contracts`
   - Contract schema generation and canonical JSON Schema/OpenAPI checks.
-    TypeScript contract tests run once in `pnpm ci:typescript`.
+    Ingestion contract behavior runs in `pnpm ci:ingest`; other TypeScript
+    contract tests run in `pnpm ci:typescript`.
 - `pnpm ci:go`
   - Execution-control Go static checks and tests.
 - `pnpm ci:rust`
   - Rust ingestion kernel formatting, Clippy checks and tests.
+- `pnpm ci:ingest`
+  - Turbo package lane for `ingestion-contracts`, `ingest-core`,
+    `ingestion-control` and `source-collector` typecheck/tests.
+  - A second unchanged run must be cacheable; external source/ingestion config
+    inputs are declared by their owning tasks.
 - `pnpm ci:eval`
-  - Eval-langfuse audit and isolated Ragas runner tests. Eval and app-api
-    TypeScript tests run once in `pnpm ci:typescript`.
+  - Turbo package lane for eval-langfuse typecheck/tests and isolated Ragas
+    runner tests.
+- `pnpm ci:app-api-migration`
+  - Non-cacheable PostgreSQL integration that proves both immutable baseline
+    upgrade with retained rows and a clean current-schema install.
+  - PR CI runs it only when App API migrations or their task/config inputs
+    change.
 - OSV-Scanner dependency job
   - Dependency vulnerability lane for dependency manifests, lockfiles and Go
     module files.
@@ -268,8 +289,9 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 | Execution-control Go code, Go module / lint config, query-serving `serving-config.json` or a runtime artifact read by execution-control | `pnpm ci:go`; add contract / Worker lanes when their inputs also change | Temporal dev-server / deployment smoke remains explicit, not automatic PR default. |
 | `configs/runtime/` | `pnpm ci:contracts`, `pnpm ci:typescript` and `pnpm ci:worker`; add `pnpm ci:go` only for execution-control, query-serving scope, tool schema / registry or workflow artifact inputs | Do not route unrelated runtime configuration through Go checks. |
 | `packages/eval-langfuse/`, `packages/ragas-runner/` or eval docs/contracts | `pnpm ci:eval` | Ragas/Langfuse scoring is executed by the internal eval shell/runtime, not by GitHub Actions. |
-| ingestion contract package | `pnpm ci:contracts` plus `pnpm ci:typescript` | Release / alias publish closeout stays in the owning ingestion runbook. |
-| ingestion apps, source collectors, ingest-core or configs | `pnpm ci:typescript` | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion contract package | `pnpm ci:contracts` plus `pnpm ci:ingest` | Release / alias publish closeout stays in the owning ingestion runbook. |
+| ingestion apps, source collectors, ingest-core or configs | `pnpm ci:ingest` | Release / alias publish closeout stays in the owning ingestion runbook. |
+| App API Drizzle migration or migration integration config | `pnpm ci:app-api-migration` plus the owning TypeScript lane | Uses a disposable PostgreSQL database and never caches success. |
 | Rust ingestion kernels or Cargo workspace files | `pnpm ci:rust` | Run OSV-Scanner as well when Cargo manifests or the lockfile change. |
 | release image / deploy / deployment validation | owning PR lane plus explicit manual / environment lane record | Artifact attestation / SBOM / SLSA only apply to real release artifacts after the required GitHub feature is available. |
 
@@ -281,6 +303,8 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
   - App-api Worker runtime lane.
 - `pnpm --dir apps/app-api test:shared-db-integration`
   - Shared Postgres / Better Auth integration lane.
+- `pnpm ci:app-api-migration`
+  - Disposable PostgreSQL baseline-upgrade and clean-install migration lane.
 - `pnpm --dir apps/campus-web test`
   - Campus-web Worker lane.
 - `pnpm --dir apps/campus-web test:e2e`
@@ -327,7 +351,10 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     generates an SBOM artifact when `push_image=true`.
 - `pr / image-scan`
   - Builds and scans only affected `execution-control`, `agent-runtime`,
+    `ingestion-control`, `ingestion-control-worker`, `source-collector`,
     `app-api-schema`, `ops-web` and `transport-publisher` images.
+  - Ingestion images also run target-specific content checks; source-collector
+    launches Chromium with a read-only root filesystem.
   - The trusted self-hosted path reuses one disk-bounded BuildKit builder and a
     persistent Trivy database, then removes loaded PR image tags after scanning.
   - It is included in `pr / required`.
@@ -340,6 +367,8 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     in GitOps and source refs only when Kubernetes bases changed. A changed K8s
     source ref, `execution-control` image or `agent-runtime` image must match at
     least one GitOps consumer; zero matches fail promotion.
+  - Ingestion images remain optional promotion candidates until the environment
+    repository declares their staging consumers.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
   - It is not a PR blocker and must not be treated as branch protection

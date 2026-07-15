@@ -29,7 +29,6 @@ type Event struct {
 	ConversationID        string
 	DeploymentEnvironment string
 	Duration              time.Duration
-	EstimatedCostMicroUSD int64
 	FailCloseReason       string
 	FailureKind           string
 	InputTokens           int64
@@ -238,10 +237,6 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	)
 	span.End()
 	e.recordMetric(event)
-	if err := e.flush(ctx); err != nil {
-		e.recordFailure(err.Error())
-		return err
-	}
 	e.recordExport()
 	return nil
 }
@@ -363,23 +358,6 @@ func (e *Emitter) unavailable(message string) error {
 	return err
 }
 
-func (e *Emitter) flush(ctx context.Context) error {
-	if e == nil {
-		return nil
-	}
-	if e.tracerProvider != nil {
-		if err := e.tracerProvider.ForceFlush(ctx); err != nil {
-			return errors.Join(ErrTelemetryUnavailable, err)
-		}
-	}
-	if e.metricsEnabled && e.meterProvider != nil {
-		if err := e.meterProvider.ForceFlush(ctx); err != nil {
-			return errors.Join(ErrTelemetryUnavailable, err)
-		}
-	}
-	return nil
-}
-
 func (e *Emitter) setLastError(value string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -429,14 +407,12 @@ func langfuseGenerationAttributes(event Event) []attribute.KeyValue {
 	}
 	if event.InputTokens <= 0 &&
 		event.OutputTokens <= 0 &&
-		event.CachedInputTokens <= 0 &&
-		event.EstimatedCostMicroUSD <= 0 {
+		event.CachedInputTokens <= 0 {
 		return nil
 	}
 	attrs := []attribute.KeyValue{
 		attribute.String("langfuse.observation.type", "generation"),
 		attribute.String("langfuse.observation.usage_details", langfuseUsageDetails(event)),
-		attribute.String("langfuse.observation.cost_details", langfuseCostDetails(event.EstimatedCostMicroUSD)),
 	}
 	if modelName != "" {
 		attrs = append(attrs, attribute.String("langfuse.observation.model.name", modelName))
@@ -455,11 +431,6 @@ func langfuseUsageDetails(event Event) string {
 		`,"output":` +
 		strconv.FormatInt(event.OutputTokens, 10) +
 		`}`
-}
-
-func langfuseCostDetails(estimatedCostMicroUSD int64) string {
-	totalUSD := float64(estimatedCostMicroUSD) / 1_000_000
-	return `{"total":` + strconv.FormatFloat(totalUSD, 'f', -1, 64) + `}`
 }
 
 func parseHeaders(value string) map[string]string {

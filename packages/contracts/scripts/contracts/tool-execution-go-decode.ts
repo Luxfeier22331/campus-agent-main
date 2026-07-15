@@ -57,7 +57,7 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 \t\t"confidence",
 \t\t"result",
 \t\t"error",
-\t\t"resolved_scope",
+\t\t"resolved_targets",
 \t\t"session_update",
 \t\t"trace_id",
 \t}); err != nil {
@@ -120,12 +120,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 \tif wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
 \t\treturn fmt.Errorf("requested_tool is invalid")
 \t}
-\tif wire.RequestedTool == RequestedToolKnowledgeQuery && wire.Scope == "" {
-\t\treturn fmt.Errorf("scope is required for requested_tool knowledge_query")
-\t}
-\tif wire.RequestedTool != RequestedToolKnowledgeQuery && wire.Scope != "" {
-\t\treturn fmt.Errorf("scope requires requested_tool knowledge_query")
-\t}
 \tif wire.Trace.TraceID == "" {
 \t\treturn fmt.Errorf("trace.trace_id is required")
 \t}
@@ -134,41 +128,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 \t}
 \tif _, ok := wire.Context["profile_memory"]; ok {
 \t\treturn fmt.Errorf("context.profile_memory is not an active online recall field")
-\t}
-\tif wire.VersionQuery == nil {
-\t\treturn fmt.Errorf("version_query is required")
-\t}
-\tif err := wire.VersionQuery.Validate(); err != nil {
-\t\treturn fmt.Errorf("version_query: %w", err)
-\t}
-\treturn nil
-}
-
-func (wire VersionQueryWire) Validate() error {
-\tmode := wire.Mode
-\tif mode == "" {
-\t\tmode = "current"
-\t}
-\tswitch mode {
-\tcase "current", "historical", "as_of", "compare":
-\tdefault:
-\t\treturn fmt.Errorf("mode is invalid")
-\t}
-\tif mode == "as_of" {
-\t\tif wire.AsOf == "" {
-\t\t\treturn fmt.Errorf("as_of is required when mode is as_of")
-\t\t}
-\t} else if wire.AsOf != "" {
-\t\treturn fmt.Errorf("as_of is only allowed when mode is as_of")
-\t}
-\tif mode != "historical" && mode != "compare" && wire.VersionID != "" {
-\t\treturn fmt.Errorf("version_id is only allowed for historical or compare mode")
-\t}
-\tif mode != "compare" && wire.CompareToVersionID != "" {
-\t\treturn fmt.Errorf("compare_to_version_id is only allowed when mode is compare")
-\t}
-\tif wire.CompareToVersionID != "" && wire.VersionID == "" {
-\t\treturn fmt.Errorf("version_id is required when compare_to_version_id is set")
 \t}
 \treturn nil
 }
@@ -273,6 +232,19 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t}
 \tif wire.TraceID == "" {
 \t\treturn fmt.Errorf("trace_id is required")
+\t}
+\tif wire.ResolvedTargets == nil {
+\t\treturn fmt.Errorf("resolved_targets is required")
+\t}
+\tseenTargets := map[string]bool{}
+\tfor index, target := range wire.ResolvedTargets {
+\t\tif target == "" {
+\t\t\treturn fmt.Errorf("resolved_targets[%d] is required", index)
+\t\t}
+\t\tif seenTargets[target] {
+\t\t\treturn fmt.Errorf("resolved_targets[%d] is duplicated", index)
+\t\t}
+\t\tseenTargets[target] = true
 \t}
 \tif wire.Error != nil {
 \t\tif code, ok := wire.Error["code"].(string); !ok || code == "" {

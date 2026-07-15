@@ -2,7 +2,6 @@ import { readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { load } from "cheerio";
 import { describe, expect, it } from "vitest";
-import type { OfficialWebControlPlaneClient } from "../src/control-plane";
 import {
 	buildOfficialWebCrawlPlan,
 	findOfficialWebHostPolicy,
@@ -11,8 +10,9 @@ import {
 import * as collector from "../src/index.ts";
 import * as pageArtifactsModule from "../src/page-artifacts";
 import {
+	buildOfficialWebPlannerPageForTest,
 	buildOfficialWebTargetMatchForTest,
-	createTargetWorksetControlPlaneForTest,
+	buildTargetWorksetCandidatesForTest,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,
 } from "./crawl-test-support";
@@ -79,7 +79,7 @@ describe("source-collector official-web adapter validate", () => {
 			outputDir,
 			crawlRunId: "owrun_validate_001",
 			localArtifactsOnly: true,
-			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+			crawlCandidates: buildTargetWorksetCandidatesForTest({
 				runId: "owrun_validate_001",
 			}),
 			crawlHosts: async () => ({
@@ -185,7 +185,7 @@ describe("source-collector official-web adapter validate", () => {
 			outputDir,
 			crawlRunId: "owrun_validate_002",
 			localArtifactsOnly: true,
-			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+			crawlCandidates: buildTargetWorksetCandidatesForTest({
 				runId: "owrun_validate_002",
 			}),
 			crawlHosts: async () => ({
@@ -226,7 +226,7 @@ describe("source-collector official-web adapter validate", () => {
 
 		const bundlePath = resolve(outputDir, "source-truth-bundle.json");
 		const bundlePayload = JSON.parse(readFileSync(bundlePath, "utf-8")) as {
-			pages: Array<{ contentBlocksObjectKey: string }>;
+			pages: Array<{ contentBlocksRef: { objectKey: string } }>;
 		};
 		const contentBlocksPath = resolve(
 			outputDir,
@@ -241,7 +241,7 @@ describe("source-collector official-web adapter validate", () => {
 		if (!firstBundlePage) {
 			throw new Error("bundle payload page is required");
 		}
-		firstBundlePage.contentBlocksObjectKey = "official_web/bad/object-key.jsonl";
+		firstBundlePage.contentBlocksRef.objectKey = "official_web/bad/object-key.jsonl";
 		writeFileSync(bundlePath, JSON.stringify(bundlePayload, null, 2));
 
 		const report = await validateCollectorOutput(outputDir);
@@ -313,7 +313,7 @@ describe("source-collector official-web adapter validate", () => {
 			outputDir,
 			crawlRunId: "owrun_validate_003",
 			localArtifactsOnly: true,
-			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+			crawlCandidates: buildTargetWorksetCandidatesForTest({
 				runId: "owrun_validate_003",
 			}),
 			crawlHosts: async () => ({
@@ -453,56 +453,13 @@ describe("source-collector official-web adapter validate", () => {
 			outputDir,
 			crawlRunId: "owrun_validate_target_missing_lineage",
 			localArtifactsOnly: true,
-			controlPlaneClient: {
-				startRun: async () => ({
-					run: {
-						runId: "owrun_validate_target_missing_lineage",
-						siteId: "campus_public",
-						startedAt: "2026-05-01T08:00:00.000Z",
-						status: "accepted",
-					},
+			crawlCandidates: [
+				buildOfficialWebPlannerPageForTest({
+					normalizedCanonicalUrl: "https://www.example.edu/calendar/",
+					targetJobId: "owtarget_calendar",
+					consumerFamily: "academic_calendar_candidate",
 				}),
-				resolvePlan: async () => ({
-					plan: {
-						duePages: [
-							{
-								host: "www.example.edu",
-								normalizedCanonicalUrl: "https://www.example.edu/calendar/",
-								targetJobId: "owtarget_calendar",
-								consumerFamily: "academic_calendar_candidate",
-							},
-						],
-						hostFilter: ["www.example.edu"],
-						maxPagesPerHost: 1,
-						maxTotalPages: 1,
-						resolvedAt: "2026-05-01T08:00:00.000Z",
-						runIntent: "baseline",
-						siteId: "campus_public",
-						summary: {
-							duePages: 1,
-							listingPages: 0,
-							repairPages: 0,
-							selectedHosts: 1,
-							staticPages: 1,
-							targetJobs: 1,
-							worksetRows: 1,
-						},
-					},
-				}),
-				sendHeartbeat: async () => ({
-					run: {
-						runId: "owrun_validate_target_missing_lineage",
-						status: "running",
-					},
-				}),
-				finalizeRun: async () => ({
-					run: {
-						runId: "owrun_validate_target_missing_lineage",
-						status: "completed",
-						finishedAt: "2026-05-01T08:00:01.000Z",
-					},
-				}),
-			} as unknown as OfficialWebControlPlaneClient,
+			],
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

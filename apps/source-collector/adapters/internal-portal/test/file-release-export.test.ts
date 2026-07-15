@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
 	buildFileReleaseRecord,
 	collectFileReleaseBundle,
-	resolveFileReleaseExportFiltersFromEnv,
 	resolveFileReleaseFilename,
 	resolveReleasedFileContentType,
 } from "../src/file-release-export.js";
@@ -466,22 +465,6 @@ describe("internal portal source collector file release export", () => {
 		).rejects.toThrow("target file_release_id 351119 was not found in file_release export scope");
 	});
 
-	it("parses targeted file release export filters from env", () => {
-		expect(
-			resolveFileReleaseExportFiltersFromEnv({
-				INTERNAL_PORTAL_FILE_RELEASE_MAX_ITEMS: "5",
-				INTERNAL_PORTAL_FILE_RELEASE_MAX_PAGES: "2",
-				INTERNAL_PORTAL_FILE_RELEASE_PAGE_SIZE: "20",
-				INTERNAL_PORTAL_FILE_RELEASE_TARGET_ID: "351119",
-			}),
-		).toEqual({
-			maxFileReleases: 5,
-			maxPages: 2,
-			pageSize: 20,
-			targetFileReleaseId: 351119,
-		});
-	});
-
 	it("materializes released files into object-backed rows when an artifact store is configured", async () => {
 		const storedObjects: Array<{
 			contentType: string;
@@ -494,7 +477,7 @@ describe("internal portal source collector file release export", () => {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						contentType,
 						data: Buffer.from(data).toString("utf-8"),
@@ -627,7 +610,7 @@ describe("internal portal source collector file release export", () => {
 				attachmentArtifactStore: {
 					storageProvider: "object_store",
 					headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-					putObject: async () => {
+					createOrVerifyObject: async () => {
 						throw new Error("unexpected upload");
 					},
 				},

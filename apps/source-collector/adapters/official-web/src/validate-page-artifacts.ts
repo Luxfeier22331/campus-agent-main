@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sha256Hex } from "ingest-core";
 
 import {
 	buildOfficialWebSourceArtifactKey,
@@ -55,7 +56,7 @@ export function validateBundlePage(
 
 	assertBundleObjectKey(
 		issues,
-		page.pageManifestObjectKey,
+		page.pageManifestRef.objectKey,
 		buildOfficialWebSourceArtifactKey({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -67,7 +68,7 @@ export function validateBundlePage(
 	);
 	assertBundleObjectKey(
 		issues,
-		page.contentBlocksObjectKey,
+		page.contentBlocksRef.objectKey,
 		buildOfficialWebSourceArtifactKey({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -79,7 +80,7 @@ export function validateBundlePage(
 	);
 	assertBundleObjectKey(
 		issues,
-		page.providerExtractionObjectKey,
+		page.providerExtractionRef.objectKey,
 		buildOfficialWebSourceArtifactKey({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -92,7 +93,7 @@ export function validateBundlePage(
 	);
 	assertBundleObjectKey(
 		issues,
-		page.discoveredLinksObjectKey,
+		page.discoveredLinksRef.objectKey,
 		buildOfficialWebSourceArtifactKey({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -105,7 +106,7 @@ export function validateBundlePage(
 	);
 	assertBundleObjectKey(
 		issues,
-		page.responseHtmlObjectKey,
+		page.responseHtmlRef.objectKey,
 		buildOfficialWebSourceArtifactKey({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -115,6 +116,28 @@ export function validateBundlePage(
 		page,
 		"capture/response.html",
 	);
+
+	for (const [ref, relativePath] of [
+		[page.responseHtmlRef, "capture/response.html"],
+		[page.providerExtractionRef, "provider/cheerio-basic/page-extraction.json"],
+		[page.discoveredLinksRef, "provider/cheerio-basic/discovered-links.jsonl"],
+		[page.pageManifestRef, "source-truth/page-manifest.json"],
+		[page.contentBlocksRef, "source-truth/content-blocks.jsonl"],
+	] as const) {
+		const path = pagePaths[relativePath];
+		if (!existsSync(path)) {
+			continue;
+		}
+		const bytes = readFileSync(path);
+		if (bytes.byteLength !== ref.byteSize || sha256Hex(bytes) !== ref.contentSha256) {
+			issues.push({
+				severity: "error",
+				category: "correctness",
+				code: "bundle_artifact_identity_mismatch",
+				message: `bundle artifact identity mismatch for ${page.rawAssetId}/${page.rawVersionId}: ${relativePath}`,
+			});
+		}
+	}
 
 	if (existsSync(pagePaths["source-truth/page-manifest.json"])) {
 		validatePageManifest(outputDir, page, pagePaths, issues, options);
@@ -178,7 +201,6 @@ function validatePageManifest(
 	}
 
 	validateTargetLineage({
-		manifest,
 		page,
 		issues,
 		requireTargetLineage: Boolean(options.requireTargetLineage),
@@ -214,68 +236,29 @@ function validatePageManifest(
 }
 
 function validateTargetLineage(input: {
-	manifest: OfficialWebPageManifest;
 	page: OfficialWebSourceTruthBundle["pages"][number];
 	issues: CollectorValidationIssue[];
 	requireTargetLineage: boolean;
 }): void {
-	const rawManifest = input.manifest as unknown as Record<string, unknown>;
-	const snakeCaseKeys = [
-		"target_job_id",
-		"target_candidate_id",
-		"target_declaration_version",
-		"target_matches",
-		"consumer_retention_decision",
-		"materialization_policy",
-		"selected_write_target",
-		"review_policy",
-	].filter((key) => key in rawManifest);
-	if (snakeCaseKeys.length > 0) {
-		input.issues.push({
-			severity: "error",
-			category: "correctness",
-			code: "target_lineage_snake_case",
-			message: `page manifest uses snake_case target lineage keys for ${input.page.rawAssetId}/${input.page.rawVersionId}: ${snakeCaseKeys.join(", ")}`,
-		});
-	}
-
-	if (input.requireTargetLineage && !hasCompleteTargetLineage(input.manifest)) {
+	if (input.requireTargetLineage && !hasCompleteTargetLineage(input.page)) {
 		input.issues.push({
 			severity: "error",
 			category: "correctness",
 			code: "target_lineage_missing",
 			message: `page manifest is missing target lineage for ${input.page.rawAssetId}/${input.page.rawVersionId}`,
 		});
-		return;
-	}
-
-	if (
-		hasCompleteTargetLineage(input.manifest) &&
-		(input.page.targetJobId !== input.manifest.targetJobId ||
-			input.page.targetCandidateId !== input.manifest.targetCandidateId ||
-			input.page.targetDeclarationVersion !== input.manifest.targetDeclarationVersion ||
-			input.page.materializationPolicy !== input.manifest.materializationPolicy ||
-			input.page.selectedWriteTarget !== input.manifest.selectedWriteTarget ||
-			input.page.reviewPolicy !== input.manifest.reviewPolicy)
-	) {
-		input.issues.push({
-			severity: "error",
-			category: "correctness",
-			code: "target_lineage_mismatch",
-			message: `bundle target lineage does not match page manifest for ${input.page.rawAssetId}/${input.page.rawVersionId}`,
-		});
 	}
 }
 
-function hasCompleteTargetLineage(manifest: OfficialWebPageManifest): boolean {
+function hasCompleteTargetLineage(page: OfficialWebSourceTruthBundle["pages"][number]): boolean {
 	return Boolean(
-		manifest.targetJobId &&
-			manifest.targetDeclarationVersion &&
-			Array.isArray(manifest.targetMatches) &&
-			manifest.targetMatches.length > 0 &&
-			manifest.materializationPolicy &&
-			typeof manifest.selectedWriteTarget === "string" &&
-			manifest.reviewPolicy,
+		page.targetJobId &&
+			page.targetDeclarationVersion &&
+			Array.isArray(page.targetMatches) &&
+			page.targetMatches.length > 0 &&
+			page.materializationPolicy &&
+			typeof page.selectedWriteTarget === "string" &&
+			page.reviewPolicy,
 	);
 }
 

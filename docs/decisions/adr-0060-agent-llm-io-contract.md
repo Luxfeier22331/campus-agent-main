@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0060
 status: accepted
 created: 2026-06-19
-updated: 2026-06-19
+updated: 2026-07-13
 ---
 # ADR-0060 Agent LLM I/O Contract
 
@@ -146,6 +146,12 @@ Knowledge Agent structured output 至少应表达：
 
 它们不得拼进 developer message 或 role instructions。
 
+当前实现使用 `final_model_context.v2` 和 OpenAI Agents SDK
+`AgentInputItem[]`：历史 user/assistant turns 保留角色；session state、previous
+evidence/tool result 与 personal memory 作为明确标注的 context data items；当前用户
+消息作为最后一个 user item 只出现一次。Knowledge Agent 的 admitted target ids/
+descriptions 是 runtime-owned instructions，handoff query 不拼入 instructions。
+
 ### 决策 6：provider refusal / incomplete / schema failure fail-close
 
 Responses API 或 SDK 返回以下状态时，prompt consumer 必须 fail-close：
@@ -161,11 +167,25 @@ Responses API 或 SDK 返回以下状态时，prompt consumer 必须 fail-close�
 fail-close 结果必须进入 sanitized projection；不得伪装成 empty answer、medium
 confidence 或 generic no-answer。
 
+### 决策 7：运行边界由 typed runtime limits 控制
+
+Execution-control 必须在每次 Agent Activity 请求中提供 SDK deadline、maximum
+turns、maximum output tokens、maximum knowledge searches、current input character
+limit 与 prior context character limit。Agent-runtime 不从 request-scoped env 或隐式
+默认值推断这些边界。
+
+Runtime terminal error 使用稳定 code：`context_budget_exceeded`、
+`agent_deadline_exceeded`、`max_turns_exceeded`、`provider_unavailable`、
+`tool_execution_failed`、`run_failed`。JSON 与 SSE 终态使用同一 shape；Temporal 已经
+拥有 Activity retry 语义，因此返回 execution-control 的终态错误标记为
+non-retryable。
+
 ## 结果
 
 当前 online contract 覆盖 primary direct outcome、official Knowledge Agent
-handoff、SDK function tools 与同一 terminal envelope。Execution-control 只执行
-schema/evidence/source validation 和 deterministic projection。
+handoff、SDK function tools、`final_model_context.v2` structured SDK input 与同一
+terminal envelope。Execution-control 执行字符预算、schema/evidence/source
+validation 和 deterministic projection，不在 prompt 中重建动态上下文。
 
 ## 不决定
 

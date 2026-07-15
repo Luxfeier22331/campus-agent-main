@@ -1,6 +1,7 @@
 import { resolveCandidateUrl } from "./dynamic-shell-discovery-url-extraction.ts";
 
 export async function resolvePromotedUrlsWithHtmlRedirects(input: {
+	abortSignal?: AbortSignal;
 	urls: string[];
 	userAgent: string;
 	fetchImpl?: typeof fetch;
@@ -9,7 +10,9 @@ export async function resolvePromotedUrlsWithHtmlRedirects(input: {
 	const resolved = new Set<string>();
 
 	for (const url of input.urls) {
+		input.abortSignal?.throwIfAborted();
 		const redirectTarget = await maybeResolveHtmlRedirectTarget({
+			abortSignal: input.abortSignal,
 			url,
 			userAgent: input.userAgent,
 			fetchImpl,
@@ -21,6 +24,7 @@ export async function resolvePromotedUrlsWithHtmlRedirects(input: {
 }
 
 async function maybeResolveHtmlRedirectTarget(input: {
+	abortSignal?: AbortSignal;
 	url: string;
 	userAgent: string;
 	fetchImpl: typeof fetch;
@@ -37,8 +41,10 @@ async function maybeResolveHtmlRedirectTarget(input: {
 			accept: "text/html,application/xhtml+xml",
 		},
 		redirect: "follow",
+		signal: input.abortSignal,
 	});
 	const bodyText = await response.text();
+	input.abortSignal?.throwIfAborted();
 	return extractHtmlRedirectTarget(bodyText, input.url);
 }
 

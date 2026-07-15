@@ -106,7 +106,7 @@ export const OpsRequestDetailResponseSchema = z.object({
 	}),
 	outcomeSummary: z.object({
 		refusalClass: z.string().min(1).nullable(),
-		scopeClass: z.string().min(1).nullable(),
+		resolvedTargets: z.array(z.string().min(1)),
 		semanticOutcome: z.string().min(1).nullable(),
 	}),
 	policySummary: z.object({

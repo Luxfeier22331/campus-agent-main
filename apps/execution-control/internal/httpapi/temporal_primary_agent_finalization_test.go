@@ -34,14 +34,18 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
 		for key, value := range map[string]any{
+			"activity_attempt":      1,
 			"agent_result_ref":      agentResultRef,
 			"final_output":          "你好，我是校园问答助手。",
 			"terminal_envelope":     map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id":  "resp-primary-agent-finalization",
-			"llm_io_fingerprint":    primaryAgentFingerprintForFinalizationTest("run-primary-agent-finalization"),
+			"model_name":            "gpt-4.1",
+			"model_provider":        "openai",
+			"prompt_trace":          primaryAgentPromptTraceForFinalizationTest(),
 			"raw_prompt":            "system prompt should never be projected",
 			"provider_request_body": map[string]any{"authorization": "Bearer forbidden"},
 			"selected_tools":        []string{"transport_schedule_lookup"},
+			"status":                "completed",
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
@@ -55,10 +59,9 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 				"agent.runtime_ms": float64(42),
 			},
 			"usage": map[string]any{
-				"input_tokens":             12,
-				"output_tokens":            8,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 42,
+				"input_tokens":        12,
+				"output_tokens":       8,
+				"cached_input_tokens": 0,
 			},
 		} {
 			metadata[key] = value
@@ -124,32 +127,13 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if !ok {
 		t.Fatalf("observability = %#v", finalizationResponse["observability"])
 	}
-	fingerprint, ok := observability["llm_io_fingerprint"].(map[string]any)
-	if !ok {
-		t.Fatalf("observability.llm_io_fingerprint = %#v", observability["llm_io_fingerprint"])
+	if observability["model_name"] != "gpt-4.1" || observability["model_provider"] != "openai" {
+		t.Fatalf("model observability = %#v", observability)
 	}
-	if fingerprint["schema_version"] != "llm_io_fingerprint.v1" ||
-		fingerprint["run_id"] != "run-primary-agent-finalization" ||
-		fingerprint["trace_id"] != "trace-executor-001" {
-		t.Fatalf("llm_io_fingerprint = %#v", fingerprint)
-	}
-	answerFingerprint, ok := observability["answer_eval_fingerprint"].(map[string]any)
-	if !ok {
-		t.Fatalf("observability.answer_eval_fingerprint = %#v", observability["answer_eval_fingerprint"])
-	}
-	if answerFingerprint["schema_version"] != "answer_eval_fingerprint.v1" ||
-		answerFingerprint["llm_call_site"] != "agent.primary" ||
-		answerFingerprint["selected_tool"] != "transport_schedule_lookup" ||
-		answerFingerprint["terminal_outcome"] != "grounded_answer" {
-		t.Fatalf("answer_eval_fingerprint = %#v", answerFingerprint)
-	}
-	branchIdentity, ok := answerFingerprint["branch_identity"].(map[string]any)
-	if !ok {
-		t.Fatalf("answer_eval_fingerprint.branch_identity = %#v", answerFingerprint["branch_identity"])
-	}
-	if branchIdentity["prompt_id"] != "primary_agent" ||
-		branchIdentity["branch_kind"] != "tool_routed" {
-		t.Fatalf("branch identity = %#v, want primary agent prompt plus tool_routed branch", branchIdentity)
+	promptTrace, ok := observability["prompt_trace"].(map[string]any)
+	if !ok || promptTrace["schema_version"] != "agent_runtime_prompt_trace.v1" ||
+		promptTrace["prompt_id"] != "primary_agent" {
+		t.Fatalf("prompt_trace = %#v", observability["prompt_trace"])
 	}
 	encodedResponse, err := json.Marshal(finalizationResponse)
 	if err != nil {
@@ -232,19 +216,22 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	}
 	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
 		for key, value := range map[string]any{
+			"activity_attempt":     1,
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "请问你要查询哪条校车线路或哪个校区？",
 			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要查询哪条校车线路或哪个校区？"},
 			"provider_response_id": "resp-primary-agent-clarification",
-			"llm_io_fingerprint":   primaryAgentFingerprintForFinalizationTest("run-primary-agent-clarification"),
+			"model_name":           "gpt-4.1",
+			"model_provider":       "openai",
+			"prompt_trace":         primaryAgentPromptTraceForFinalizationTest(),
 			"selected_tools":       []string{},
+			"status":               "completed",
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "clarification_required",
 			"usage": map[string]any{
-				"input_tokens":             10,
-				"output_tokens":            9,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 18,
+				"input_tokens":        10,
+				"output_tokens":       9,
+				"cached_input_tokens": 0,
 			},
 		} {
 			metadata[key] = value
@@ -309,45 +296,80 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	}
 }
 
-func primaryAgentFingerprintForFinalizationTest(runID string) map[string]any {
-	toolRuntime := testToolRuntimeFingerprintMap()
-	modelParams := modelParamsProjection(map[string]any{
-		"model":       "gpt-4.1",
-		"provider":    "openai",
-		"tool_config": map[string]any{"tool_choice": "auto"},
-		"transport":   "responses",
+func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 12, 30, 0, 0, time.UTC)
+	const runID = "run-primary-agent-failed-tool-finalization"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		runID,
+		"conv-primary-agent-failed-tool-finalization",
+		now,
+		ragHandoffForDurableWorkerTest("今晚还有校车吗"),
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:failed-tool"})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
+	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+		"agent_result_ref":  agentResultRef,
+		"final_output":      "不应完成此答案。",
+		"selected_tools":    []string{"transport_schedule_lookup"},
+		"status":            "completed",
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "不应完成此答案。"},
+		"terminal_reason":   "answer_completed",
+		"tool_results": []map[string]any{{
+			"fail_close_reason": "tool_handler_failed",
+			"status":            "failed",
+			"tool_name":         "transport_schedule_lookup",
+		}},
 	})
-	promptID := "primary_agent"
-	promptTemplateSHA256 := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	renderedPromptSHA256 := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+	_, err := server.WriteFinalizationActivity(
+		context.Background(),
+		temporalruntime.WriteFinalizationActivityInput{
+			AgentResultRef: agentResultRef,
+			RunID:          runID,
+			TraceID:        "trace-executor-001",
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "fail_close_reason=tool_handler_failed") {
+		t.Fatalf("write finalization error = %v, want failed tool reason", err)
+	}
+	failedRun, getErr := store.GetRun(context.Background(), runID)
+	if getErr != nil {
+		t.Fatalf("get failed run: %v", getErr)
+	}
+	if failedRun.Status != execution.DurableRunStatusFailed {
+		t.Fatalf("run status = %q, want failed", failedRun.Status)
+	}
+	results, listErr := store.ListStepResults(context.Background(), runID)
+	if listErr != nil {
+		t.Fatalf("list step results: %v", listErr)
+	}
+	var finalizationResult *execution.StepResultProjection
+	for index := range results {
+		if results[index].StepID == "finalization.write" {
+			finalizationResult = &results[index]
+		}
+	}
+	if finalizationResult == nil {
+		t.Fatalf("failed finalization result missing: %#v", results)
+		return
+	}
+	if finalizationResult.ResultKind != "activity_failure" ||
+		finalizationResult.SanitizedPayload["failure_kind"] != "agent_tool_result_failed" ||
+		finalizationResult.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
+		t.Fatalf("failed finalization result = %#v", finalizationResult)
+	}
+}
+
+func primaryAgentPromptTraceForFinalizationTest() map[string]any {
 	return map[string]any{
-		"schema_version":                  "llm_io_fingerprint.v1",
-		"run_id":                          runID,
-		"request_id":                      "req-primary-agent-finalization",
-		"trace_id":                        "trace-executor-001",
-		"runtime_release":                 "execution-control@test",
-		"llm_call_site":                   "agent.primary",
-		"provider_profile_revision":       "primary_agent:provider_profile_primary:3",
-		"provider":                        "openai",
-		"model":                           "gpt-4.1",
-		"model_params_hash":               modelParams["params_sha256"],
-		"model_params_projection":         modelParams,
-		"prompt_id":                       promptID,
-		"prompt_registry_attestation":     promptRegistryAttestation(promptID, promptTemplateSHA256, primaryAgentPromptVariablesSchemaVersion, primaryAgentOutputSchemaID),
-		"prompt_template_sha256":          promptTemplateSHA256,
-		"prompt_variables_schema_version": "final_model_context.v1",
-		"rendered_prompt_sha256":          renderedPromptSHA256,
-		"provider_request_safe_hash":      providerRequestSafeHash(map[string]any{"model": "gpt-4.1", "prompt_id": promptID, "rendered_prompt_sha256": renderedPromptSHA256}),
-		"tool_catalog_sha256":             "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		"tool_schema_sha256":              "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		"tool_runtime_fingerprint":        toolRuntime,
-		"tool_runtime_attestation":        toolRuntimeAttestation("apps/agent-runtime", toolRuntime),
-		"workflow_artifact_sha256":        "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-		"context_envelope_sha256":         "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-		"memory_selection_sha256":         "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-		"evidence_packet_sha256":          "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-		"output_schema_id":                primaryAgentOutputSchemaID,
-		"primary_attestation":             primaryAttestation("primary_agent_call", "apps/agent-runtime", map[string]any{"prompt_id": promptID, "tool_runtime_fingerprint": toolRuntime}),
+		"schema_version":         "agent_runtime_prompt_trace.v1",
+		"prompt_id":              "primary_agent",
+		"prompt_template_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"rendered_prompt_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 	}
 }
 
@@ -391,10 +413,10 @@ func addDefaultAgentRuntimeAttestationForTest(payload map[string]any) {
 func testToolRuntimeFingerprintMap() map[string]any {
 	return map[string]any{
 		"schema_version":                     "tool_runtime_fingerprint.v1",
-		"tools_schema_version":               "tool-registry-v4",
+		"tools_schema_version":               "tool-registry-v5",
 		"tools_registry_version":             "2026-06-26",
 		"tools_sha256":                       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		"function_schema_version":            "tool-function-schemas-v1",
+		"function_schema_version":            "tool-function-schemas-v2",
 		"function_schema_sha256":             "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		"workflow_artifact_schema_version":   "workflow-artifact-registry-v2",
 		"workflow_artifact_registry_version": "2026-05-07",

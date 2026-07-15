@@ -5,7 +5,7 @@ export default defineProject({
 		environment: "node",
 		exclude: ["adapters/**/*.isolated.test.ts"],
 		fileParallelism: false,
-		include: ["adapters/**/*.test.ts"],
+		include: ["adapters/**/*.test.ts", "test/**/*.test.ts"],
 		isolate: false,
 		maxWorkers: 1,
 		name: "source-collector-fast",

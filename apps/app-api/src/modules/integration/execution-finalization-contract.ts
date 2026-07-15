@@ -37,7 +37,7 @@ export interface ExecutionFinalizationResponseWire {
 	error: { code: string; message: string; retryable: boolean } | null;
 	follow_up_question: string;
 	observability?: Record<string, unknown> | null;
-	resolved_scope: string | null;
+	resolved_targets: string[];
 	result: Record<string, unknown> | null;
 	selected_tool: string | null;
 	session_update: {

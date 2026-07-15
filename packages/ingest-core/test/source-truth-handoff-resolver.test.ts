@@ -7,25 +7,47 @@ import {
 	sha256Hex,
 } from "../src/index.ts";
 
+function pinnedRef(objectKey: string, bytes: Uint8Array) {
+	return {
+		byteSize: bytes.byteLength,
+		contentSha256: sha256Hex(bytes),
+		objectKey,
+	};
+}
+
 describe("source-truth handoff resolvers", () => {
 	it("verifies official web bundle refs and returns stable object-store refs", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
-		objectStore.putJson("official-web/run-001/page-manifest.json", {
-			schemaVersion: "official_web_page_manifest.v1",
+		const pageManifestBytes = objectStore.putJson("official-web/run-001/page-manifest.json", {
+			schemaVersion: "official_web_page_manifest.v2",
 		});
-		objectStore.putText("official-web/run-001/content-blocks.jsonl", '{"text":"hello"}\n');
+		const contentBlocksBytes = objectStore.putText(
+			"official-web/run-001/content-blocks.jsonl",
+			'{"text":"hello"}\n',
+		);
+		const pageManifestRef = pinnedRef("official-web/run-001/page-manifest.json", pageManifestBytes);
+		const contentBlocksRef = pinnedRef(
+			"official-web/run-001/content-blocks.jsonl",
+			contentBlocksBytes,
+		);
 		const bundleBytes = objectStore.putJson("official-web/run-001/source-truth-bundle.json", {
-			schemaVersion: "official_web_source_truth_bundle.v1",
+			schemaVersion: "official_web_source_truth_bundle.v2",
 			sourceChannel: "official_web",
 			crawlRunId: "run-001",
 			pages: [
 				{
-					pageManifestObjectKey: "official-web/run-001/page-manifest.json",
-					contentBlocksObjectKey: "official-web/run-001/content-blocks.jsonl",
+					pageManifestRef,
+					contentBlocksRef,
+					providerExtractionRef: pageManifestRef,
+					discoveredLinksRef: contentBlocksRef,
+					responseHtmlRef: pageManifestRef,
 				},
 				{
-					pageManifestObjectKey: "official-web/run-001/page-manifest.json",
-					contentBlocksObjectKey: "official-web/run-001/content-blocks.jsonl",
+					pageManifestRef,
+					contentBlocksRef,
+					providerExtractionRef: pageManifestRef,
+					discoveredLinksRef: contentBlocksRef,
+					responseHtmlRef: pageManifestRef,
 				},
 			],
 		});
@@ -34,23 +56,29 @@ describe("source-truth handoff resolvers", () => {
 			resolveOfficialWebSourceTruthRefsFromTask({
 				objectStore,
 				task: officialWebTask({
+					byteSize: bundleBytes.byteLength,
 					digest: `sha256:${sha256Hex(bundleBytes)}`,
 					runId: "run-001",
 				}),
 			}),
 		).resolves.toEqual([
 			{
+				byte_size: bundleBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/official-web/run-001/source-truth-bundle.json",
 				digest: `sha256:${sha256Hex(bundleBytes)}`,
 			},
 			{
+				byte_size: pageManifestBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/official-web/run-001/page-manifest.json",
+				digest: `sha256:${sha256Hex(pageManifestBytes)}`,
 			},
 			{
+				byte_size: contentBlocksBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/official-web/run-001/content-blocks.jsonl",
+				digest: `sha256:${sha256Hex(contentBlocksBytes)}`,
 			},
 		]);
 	});
@@ -58,7 +86,7 @@ describe("source-truth handoff resolvers", () => {
 	it("fails closed when official web bundle run id does not match the task", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		const bundleBytes = objectStore.putJson("official-web/run-001/source-truth-bundle.json", {
-			schemaVersion: "official_web_source_truth_bundle.v1",
+			schemaVersion: "official_web_source_truth_bundle.v2",
 			sourceChannel: "official_web",
 			crawlRunId: "different-run",
 			pages: [],
@@ -68,6 +96,7 @@ describe("source-truth handoff resolvers", () => {
 			resolveOfficialWebSourceTruthRefsFromTask({
 				objectStore,
 				task: officialWebTask({
+					byteSize: bundleBytes.byteLength,
 					digest: `sha256:${sha256Hex(bundleBytes)}`,
 					runId: "run-001",
 				}),
@@ -116,27 +145,32 @@ describe("source-truth handoff resolvers", () => {
 			resolveWeChatOfficialAccountSourceTruthRefsFromTask({
 				objectStore,
 				task: wechatTask({
+					byteSize: releaseBytes.byteLength,
 					digest: `sha256:${sha256Hex(releaseBytes)}`,
 					runId: "run-001",
 				}),
 			}),
 		).resolves.toEqual([
 			{
+				byte_size: releaseBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/wechat/run-001/capture-release.json",
 				digest: `sha256:${sha256Hex(releaseBytes)}`,
 			},
 			{
+				byte_size: manifestBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/wechat/run-001/article-manifest.json",
 				digest: `sha256:${sha256Hex(manifestBytes)}`,
 			},
 			{
+				byte_size: contentBlocksBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/wechat/run-001/content-blocks.jsonl",
 				digest: `sha256:${sha256Hex(contentBlocksBytes)}`,
 			},
 			{
+				byte_size: mediaRefsBytes.byteLength,
 				kind: "object_store",
 				uri: "s3://campus-agent-source/wechat/run-001/media-refs.jsonl",
 				digest: `sha256:${sha256Hex(mediaRefsBytes)}`,
@@ -180,6 +214,7 @@ describe("source-truth handoff resolvers", () => {
 			resolveWeChatOfficialAccountSourceTruthRefsFromTask({
 				objectStore,
 				task: wechatTask({
+					byteSize: releaseBytes.byteLength,
 					digest: `sha256:${sha256Hex(releaseBytes)}`,
 					runId: "run-001",
 				}),
@@ -188,51 +223,41 @@ describe("source-truth handoff resolvers", () => {
 	});
 });
 
-function officialWebTask(input: { digest: string; runId: string }): IngestionTaskEnvelope {
+function officialWebTask(input: {
+	byteSize: number;
+	digest: string;
+	runId: string;
+}): IngestionTaskEnvelope {
 	return {
-		schema_version: "ingestion_task_envelope.v2",
+		schema_version: "ingestion_task_envelope.v3",
 		task_id: `task-official-web-${input.runId}`,
 		run_id: input.runId,
-		source_family: "official_web",
-		source_channel: "official_web",
-		corpus: "official_web",
-		collection: "stable_reference",
-		registry_task_id: "source_truth_materialize",
-		task_kind: "source_truth_materialize",
+		registry_task_id: "official_web.capture",
 		input_ref: {
+			byte_size: input.byteSize,
 			kind: "object_store",
 			uri: "s3://campus-agent-source/official-web/run-001/source-truth-bundle.json",
 			digest: input.digest,
 		},
-		input_contract: "official_web_source_truth_bundle.v1",
-		output_contract: "official_web_stable_reference_source_truth.v1",
-		idempotency_key: `official-web/${input.runId}`,
-		created_by: "test",
-		created_at: "2026-07-04T00:00:00.000Z",
 	};
 }
 
-function wechatTask(input: { digest: string; runId: string }): IngestionTaskEnvelope {
+function wechatTask(input: {
+	byteSize: number;
+	digest: string;
+	runId: string;
+}): IngestionTaskEnvelope {
 	return {
-		schema_version: "ingestion_task_envelope.v2",
+		schema_version: "ingestion_task_envelope.v3",
 		task_id: `task-wechat-${input.runId}`,
 		run_id: input.runId,
-		source_family: "wechat_official_account",
-		source_channel: "wechat_official_account",
-		corpus: "campus_notices",
-		collection: "wechat_public_notice",
-		registry_task_id: "source_truth_materialize",
-		task_kind: "source_truth_materialize",
+		registry_task_id: "wechat_official_account.capture",
 		input_ref: {
+			byte_size: input.byteSize,
 			kind: "object_store",
 			uri: "s3://campus-agent-source/wechat/run-001/capture-release.json",
 			digest: input.digest,
 		},
-		input_contract: "wechat_official_account_capture_release.v1",
-		output_contract: "wechat_official_account_source_truth.v1",
-		idempotency_key: `wechat/${input.runId}`,
-		created_by: "test",
-		created_at: "2026-07-04T00:00:00.000Z",
 	};
 }
 
@@ -255,7 +280,7 @@ class InMemoryObjectStore implements ObjectStore {
 		return object;
 	}
 
-	async putObject(input: {
+	async createOrVerifyObject(input: {
 		bucket: string;
 		key: string;
 		body: Uint8Array;

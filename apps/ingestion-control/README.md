@@ -1,125 +1,103 @@
-# campus-ingestion-control
+# ingestion-control
 
-Internal task control plane for ingestion/data-plane execution.
+Temporal-backed control plane for offline ingestion tasks.
 
-This app owns the ingestion Temporal runtime boundary. Runtime-neutral package
-helpers may be reused here, but Temporal workflow/activity execution,
-object-store access, handler registration, registry-aware activity invocation
-and terminal closeout stay in this app boundary. The registry-aware task
-dispatcher and stable execution error-code mapping are owned here because they
-bind registry validation to concrete TS handlers, Rust kernels, object-store
-access and task closeout storage.
+## Ownership
 
-This package is the first implementation slice of the target ingestion runtime:
+This app owns:
 
-- admits validated ingestion task envelopes
-- owns task idempotency, Temporal workflow start and terminal closeout
-- dispatches registry-declared `ts_control` / `rust_kernel` task handlers
-- records terminal closeout state
-- exposes redacted operator task projections
-- keeps execution out of `apps/app-api`
-- materializes `campus_notices/internal_notice` source truth from
-  `authenticated_notice_capture_release.v1` object-store input refs
-- materializes `authenticated_documents/file_release_source` source truth from
-  verified `internal_portal_file_release_export_v1` object-store input refs
-- verifies `official_web_source_truth_bundle.v1` object-store input refs
-  for `official_web/stable_reference` and `official_web/fresh_news`
+- authenticated task admission through `ingestion_task_envelope.v3`;
+- registry snapshot validation through `ingestion_task_registry.v3`;
+- one Temporal workflow per task;
+- PostgreSQL task, official-web URL freshness, and configured-seed projections;
+- control activities and the Rust kernel process bridge;
+- terminal projection from a single object-store-backed
+  `ingestion_task_result.v1`.
 
-Runtime mode is Postgres-backed and fail-closed:
-
-- `INGESTION_CONTROL_DATABASE_URL` is required
-- `INGESTION_TASK_REGISTRY_ROOT` is required and must point at repo task
-  registries, for example `configs/ingestion`; task admission fails closed
-  before storage when the registry entry or output contract is missing
-- `INGESTION_CONTROL_HOST` defaults to `0.0.0.0`
-- `INGESTION_CONTROL_PORT` defaults to `8000`
-- `INGESTION_CONTROL_ADMIN_TOKEN` protects task admission and task detail
-  reads
-- `INGESTION_CONTROL_APP_API_PROJECTION_TOKEN` protects redacted operator task
-  projection reads consumed by `apps/app-api`
-- `INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN` protects official-web run
-  lifecycle writes
-- `INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN` protects
-  official-web ingestion execution status updates
-- `INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN` protects official-web
-  projection drain work
-- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_SOURCE_ACCESS_KEY`,
-  `OBJECT_STORE_SOURCE_SECRET_KEY` and optional `OBJECT_STORE_BUCKET_SOURCE`
-  configure source-bucket access for object-store backed task handlers
-- `INGESTION_KERNEL_RUNNER_PATH` optionally points to the
-  `ingestion-kernel-runner` binary; if omitted, ingestion-control expects it on
-  `PATH`
-- `INGESTION_KERNEL_TOKENIZER_JSON_PATH` points at the local Hugging Face
-  `tokenizer.json` used by token-aware `chunk-document-units`; if omitted,
-  tokenizer-dependent kernels are not registered and matching tasks fail closed
-- `INGESTION_TEMPORAL_ADDRESS` is required
-- `INGESTION_TEMPORAL_NAMESPACE` defaults to `default`
-- `INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE` defaults to
-  `campus-agent.ingestion.workflow`
-- `INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE` defaults to
-  `campus-agent.ingestion.activity.control`
-
-Registry-declared `ts_control` tasks are not replaced by generic closeout
-skeletons. If a collection-specific handler is not registered, the task fails
-closed. Runtime execution also rejects non-`object_store` task input refs before
-handler dispatch; collector-run tokens, local files and Postgres row refs are
-not default source-truth materialization inputs.
-
-Registry-declared Rust kernels use the source-bucket object-store bridge and the
-Rust binary from `packages/ingestion-kernels-rs`. Without object-store access,
-default Rust kernels are not registered and tasks fail closed with
-`rust_kernel_not_registered`; ingestion-control does not provide JS or Python
-stand-ins for deterministic kernels.
-The bridge treats stdout `error_count > 0` as a failed kernel run even when the
-binary exits with code 0, and it does not write a kernel artifact for reported
-kernel errors.
-`chunk-document-units` resolves collection-specific token budgets from
-`chunk-profile.json` files under `INGESTION_TASK_REGISTRY_ROOT`; the Temporal
-worker parses those profiles in TypeScript and passes resolved numeric CLI
-arguments to the Rust runner. `chunk-document-units` and
-`validate-document-units` / `validate-release-manifest` can run without
-tokenizer configuration.
+It does not crawl providers, run a second scheduler, keep a run ledger, publish
+online query targets, or execute Python fallback handlers. Source capture runs
+in `apps/source-collector`; deterministic file kernels run through
+`packages/ingestion-kernels-rs`.
 
 ## Runtime Roles
 
-`apps/ingestion-control` is a self-hosted internal service package, not a
-Cloudflare Worker.
-
-| Role | Command | Runtime responsibility |
+| Role | Command | Responsibility |
 | --- | --- | --- |
-| `ingestion-control-api` | `pnpm --filter ingestion-control start:api` | HTTP control-plane surface for task admission, Temporal workflow start, readiness and operator-safe projections. |
-| `ingestion-control-temporal-worker` | `node --experimental-strip-types apps/ingestion-control/src/temporal-worker.ts` inside the shared container image; `pnpm --filter ingestion-control start:temporal-worker` for local dev | Temporal workflow/activity worker process for registry-aware execution and terminal closeout. |
+| HTTP API | `pnpm --filter ingestion-control start:api` | Validate a v3 envelope, freeze the registry task, start Temporal, and expose bounded task projections. |
+| Temporal worker | `pnpm --filter ingestion-control start:temporal-worker` | Poll workflow, control-activity, and Rust-kernel queues and write terminal projections. |
+| Schema migration | `pnpm --filter ingestion-control migrate` | Apply ordered SQL migrations under one advisory lock and verify the migration journal. |
 
-The API and worker roles may share the same package or image, but they must be
-deployed as different runtime processes and scaled independently.
+Production keeps these roles in one package but publishes separate image
+targets:
 
-Local control-plane run:
+| Image | Docker target | Consumer |
+| --- | --- | --- |
+| `ingestion-control` | `api` | HTTP Deployment and schema migration command. |
+| `ingestion-control-worker` | `worker` | Temporal WorkerDeployment with the Rust runner and frozen embedding tokenizer. |
+
+The source-collector activity queue is polled by the separate
+`source-collector` image. Kubernetes production workers are managed through
+Temporal Worker Controller `WorkerDeployment` resources; the controller
+injects `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_WORKER_BUILD_ID` together.
+Local workers may omit both variables and run unversioned.
+
+Canonical queues:
+
+- `campus-agent.ingestion.workflow`
+- `campus-agent.ingestion.activity.control`
+- `campus-agent.ingestion.activity.rust-kernel`
+- `campus-agent.ingestion.activity.source-collector`
+
+## HTTP Surface
+
+- `POST /internal/ingestion/tasks`: admin-token task admission.
+- `GET /internal/ingestion/tasks/:taskId`: admin-token task detail.
+- `GET /internal/ingestion/operator-projection/tasks`: app-api projection token.
+- `GET /healthz`: process liveness.
+- `GET /readyz`: live PostgreSQL and Temporal dependency readiness.
+
+There are no source-specific lifecycle routes. A collector is invoked only by
+the workflow through its activity task queue.
+
+## Storage
+
+`migrations/0001_tasks.sql` defines the current schema. PostgreSQL stores the
+bounded task projection plus latest official-web URL and configured-seed state.
+Temporal is the workflow truth; object storage is the artifact truth. Source
+capture uses the source bucket, while Rust kernels use separate derived-bucket
+credentials for canonical inputs and deterministic outputs. The process fails
+at startup when the required database schema is absent or still contains
+retired lease/task-kind columns.
+
+Object writes are create-or-verify and every cross-runtime ref contains a
+SHA-256 digest plus byte size. Preparation, Rust-kernel and terminal result
+artifacts are attempt-scoped under
+`runs/<run-id>/attempts/<activity-attempt>/`; a retry cannot overwrite bytes
+from an earlier attempt. Official-web freshness upserts order observations by
+`(observed_at, last_observed_run_id)` so equal timestamps converge
+deterministically instead of allowing a late run to overwrite a newer one.
+
+## Local Run
+
+Start Temporal, PostgreSQL, and the object store, apply the current migration,
+then load `env/commands/ingestion-control-runtime.env.example` into the shell.
 
 ```bash
-export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
-export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
-export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
-export INGESTION_CONTROL_ADMIN_TOKEN=local-admin-token
-export INGESTION_CONTROL_APP_API_PROJECTION_TOKEN=local-app-api-projection-token
-export INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN=local-official-web-token
-export INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN=local-official-web-execution-status-token
-export INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN=local-official-web-projection-token
+pnpm --filter ingestion-control migrate
 pnpm --filter ingestion-control start:api
+pnpm --filter ingestion-control start:temporal-worker
+pnpm --filter source-collector start:temporal-worker
 ```
 
-The in-memory store is retained only for tests and contract development; it is
-not the service runtime default.
-
-Local Temporal worker run:
+Local image builds use the same Dockerfile with explicit targets:
 
 ```bash
-export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
-export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
-export INGESTION_TEMPORAL_ADDRESS=127.0.0.1:7233
-pnpm --filter ingestion-control start:temporal-worker
+docker build --target api -f apps/ingestion-control/Dockerfile -t ingestion-control .
+docker build --target worker -f apps/ingestion-control/Dockerfile -t ingestion-control-worker .
 ```
 
-The API command starts the HTTP control-plane surface. The Temporal worker
-command starts the long-running workflow/activity worker process. They must
-remain separate runtime processes and must not be hidden inside `apps/app-api`
-or collector processes.
+## Verification
+
+```bash
+pnpm ci:ingest
+```

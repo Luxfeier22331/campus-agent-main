@@ -4,6 +4,7 @@ import canonicalStringify from "canonical-json";
 import type {
 	IngestionArtifactRef,
 	IngestionTaskEnvelope,
+	IngestionTaskExecutionSnapshot,
 	IngestionTaskRegistry,
 	IngestionTaskRegistryTask,
 } from "ingestion-contracts";
@@ -30,6 +31,13 @@ export interface ArtifactWriteResult {
 	contentSha256: string;
 }
 
+export class ArtifactCollisionError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "ArtifactCollisionError";
+	}
+}
+
 export interface StoredArtifactRef {
 	bucket?: string;
 	objectKey: string;
@@ -49,12 +57,28 @@ export interface StoredArtifactHead {
 	versionId?: string | null;
 }
 
+export function assertStoredArtifactIdentity(input: {
+	actualByteSize: number | null;
+	actualContentSha256: string | null;
+	expectedByteSize: number;
+	expectedContentSha256: string;
+	uri: string;
+}): void {
+	const actualSha256 = input.actualContentSha256?.trim().toLowerCase() ?? null;
+	const expectedSha256 = input.expectedContentSha256.trim().toLowerCase();
+	if (input.actualByteSize !== input.expectedByteSize || actualSha256 !== expectedSha256) {
+		throw new ArtifactCollisionError(
+			`artifact identity collision at ${input.uri}: expected sha256 ${expectedSha256} and ${input.expectedByteSize} bytes, got ${actualSha256 ?? "missing"} and ${input.actualByteSize ?? "missing"} bytes`,
+		);
+	}
+}
+
 export interface ObjectStoreReader {
 	getObject(input: ObjectStoreLocation): Promise<Uint8Array>;
 }
 
 export interface ObjectStoreWriter {
-	putObject(input: ArtifactWriteInput): Promise<ArtifactWriteResult>;
+	createOrVerifyObject(input: ArtifactWriteInput): Promise<ArtifactWriteResult>;
 }
 
 export type ObjectStore = ObjectStoreReader & ObjectStoreWriter;
@@ -125,10 +149,10 @@ export function sha256Digest(value: Uint8Array | string): Sha256Digest {
 
 export function assertSha256Digest(input: {
 	actualSha256: string;
-	digest?: string | null;
+	digest: string;
 	label: string;
 }): void {
-	if (!input.digest?.trim()) {
+	if (!input.digest.trim()) {
 		throw new Error(`${input.label} digest is required`);
 	}
 	if (!input.digest.startsWith("sha256:")) {
@@ -139,27 +163,33 @@ export function assertSha256Digest(input: {
 	}
 }
 
-export function assertOptionalSha256Digest(input: {
-	actualSha256: string;
-	digest?: string | null;
-	label: string;
-}): void {
-	if (!input.digest?.trim()) {
-		return;
-	}
-	assertSha256Digest(input);
-}
-
-export function assertObjectStoreSha256Digest(input: {
-	actualSha256: string;
+export function assertArtifactRefBytes(input: {
+	bytes: Uint8Array;
 	label: string;
 	ref: IngestionArtifactRef;
 }): void {
 	assertSha256Digest({
-		actualSha256: input.actualSha256,
+		actualSha256: sha256Hex(input.bytes),
 		digest: input.ref.digest,
 		label: input.label,
 	});
+	assertArtifactByteSize({
+		actualByteSize: input.bytes.byteLength,
+		byteSize: input.ref.byte_size,
+		label: input.label,
+	});
+}
+
+export function assertArtifactByteSize(input: {
+	actualByteSize: number;
+	byteSize: number;
+	label: string;
+}): void {
+	if (input.actualByteSize !== input.byteSize) {
+		throw new Error(
+			`${input.label} byte size mismatch: expected ${input.byteSize}, got ${input.actualByteSize}`,
+		);
+	}
 }
 
 export function buildS3Uri(input: ObjectStoreLocation): string {
@@ -199,6 +229,7 @@ export function parseS3Uri(refOrUri: string | Pick<IngestionArtifactRef, "kind" 
 
 export function buildObjectStoreArtifactRef(input: {
 	bucket: string;
+	byteSize: number;
 	contentSha256: string;
 	key: string;
 }): IngestionArtifactRef {
@@ -206,7 +237,31 @@ export function buildObjectStoreArtifactRef(input: {
 		kind: "object_store",
 		uri: buildS3Uri(input),
 		digest: toSha256Digest(input.contentSha256),
+		byte_size: input.byteSize,
 	};
+}
+
+export function encodeObjectKeySegment(value: string): string {
+	if (!value || value.trim() !== value) {
+		throw new Error("object key identity segment must be non-empty and trimmed");
+	}
+	return encodeURIComponent(value).replace(
+		/[!'()*]/gu,
+		(character) => `%${character.codePointAt(0)?.toString(16).toUpperCase()}`,
+	);
+}
+
+export function decodeObjectKeySegment(value: string): string {
+	let decoded: string;
+	try {
+		decoded = decodeURIComponent(value);
+	} catch (error) {
+		throw new Error("object key identity segment is not valid percent encoding", { cause: error });
+	}
+	if (encodeObjectKeySegment(decoded) !== value) {
+		throw new Error("object key identity segment is not canonically encoded");
+	}
+	return decoded;
 }
 
 export function canonicalJsonString(value: unknown): string {
@@ -353,6 +408,22 @@ export function parseIngestionTaskEnvelope(value: unknown): IngestionTaskEnvelop
 	return value as IngestionTaskEnvelope;
 }
 
+export function createIngestionTaskExecutionSnapshot(input: {
+	task: IngestionTaskEnvelope;
+	registryTask: IngestionTaskRegistryTask;
+}): IngestionTaskExecutionSnapshot {
+	if (input.task.registry_task_id !== input.registryTask.registry_task_id) {
+		throw new RegistryAdmissionError(
+			`registry task mismatch: ${input.task.registry_task_id} != ${input.registryTask.registry_task_id}`,
+		);
+	}
+	return {
+		schema_version: "ingestion_task_execution_snapshot.v1",
+		task: structuredClone(input.task),
+		registry_task: structuredClone(input.registryTask),
+	};
+}
+
 export function formatZodIssues(issues: readonly ZodIssue[], rootLabel = "payload"): string[] {
 	return issues.map((issue) => {
 		const path = zodPath(rootLabel, issue.path);
@@ -361,68 +432,48 @@ export function formatZodIssues(issues: readonly ZodIssue[], rootLabel = "payloa
 }
 
 export class IngestionTaskRegistryCatalog {
-	readonly #registries = new Map<string, IngestionTaskRegistry>();
+	readonly #tasks = new Map<
+		string,
+		{ registry: IngestionTaskRegistry; task: IngestionTaskRegistryTask }
+	>();
 
 	constructor(registries: readonly IngestionTaskRegistry[]) {
 		for (const registry of registries) {
-			const key = registryKey({
-				source_family: registry.source_family,
-				corpus: registry.corpus,
-				collection: registry.collection,
-			});
-			if (this.#registries.has(key)) {
-				throw new Error(`duplicate ingestion task registry: ${key}`);
+			for (const task of registry.tasks) {
+				if (this.#tasks.has(task.registry_task_id)) {
+					throw new Error(`duplicate ingestion task declaration: ${task.registry_task_id}`);
+				}
+				this.#tasks.set(task.registry_task_id, { registry, task });
 			}
-			assertUniqueRegistryTasks(key, registry);
-			this.#registries.set(key, registry);
 		}
 	}
 
 	requireTask(task: IngestionTaskEnvelope): IngestionTaskRegistryTask {
-		const { registryTask } = this.#requireRegistryTask(task);
-		if (task.task_kind !== registryTask.task_kind) {
+		return this.requireTaskById(task.registry_task_id);
+	}
+
+	requireTaskById(registryTaskId: string): IngestionTaskRegistryTask {
+		const entry = this.#tasks.get(registryTaskId);
+		if (!entry) {
 			throw new RegistryAdmissionError(
-				`task kind mismatch for ${task.registry_task_id}: expected ${registryTask.task_kind}, got ${task.task_kind}`,
+				`task is not declared by ingestion registry: ${registryTaskId}`,
 			);
 		}
-		if (task.input_contract !== registryTask.input_contract) {
-			throw new RegistryAdmissionError(
-				`input contract mismatch for ${task.registry_task_id}: expected ${registryTask.input_contract}, got ${task.input_contract}`,
-			);
-		}
-		if (task.output_contract !== registryTask.output_contract) {
-			throw new RegistryAdmissionError(
-				`output contract mismatch for ${task.registry_task_id}: expected ${registryTask.output_contract}, got ${task.output_contract}`,
-			);
-		}
-		return registryTask;
+		return entry.task;
 	}
 
 	requireRegistry(task: IngestionTaskEnvelope): IngestionTaskRegistry {
-		return this.#requireRegistryTask(task).registry;
+		const entry = this.#tasks.get(task.registry_task_id);
+		if (!entry) {
+			throw new RegistryAdmissionError(
+				`task is not declared by ingestion registry: ${task.registry_task_id}`,
+			);
+		}
+		return entry.registry;
 	}
 
-	#requireRegistryTask(task: IngestionTaskEnvelope): {
-		key: string;
-		registry: IngestionTaskRegistry;
-		registryTask: IngestionTaskRegistryTask;
-	} {
-		const key = registryKey(task);
-		const registry = this.#registries.get(key);
-		if (!registry) {
-			throw new RegistryAdmissionError(
-				`task collection is not declared by ingestion registry: ${key}`,
-			);
-		}
-		const registryTask = registry.tasks.find(
-			(candidate) => candidate.registry_task_id === task.registry_task_id,
-		);
-		if (!registryTask) {
-			throw new RegistryAdmissionError(
-				`task is not declared by ingestion registry: ${key}/${task.registry_task_id}`,
-			);
-		}
-		return { key, registry, registryTask };
+	registeredTasks(): IngestionTaskRegistryTask[] {
+		return [...this.#tasks.values()].map((entry) => entry.task);
 	}
 }
 
@@ -449,20 +500,6 @@ function toSha256Digest(value: string): Sha256Digest {
 		throw new Error("sha256 digest must use lowercase hex");
 	}
 	return digest as Sha256Digest;
-}
-
-function registryKey(input: { source_family: string; corpus: string; collection: string }): string {
-	return [input.source_family, input.corpus, input.collection].join("/");
-}
-
-function assertUniqueRegistryTasks(key: string, registry: IngestionTaskRegistry): void {
-	const seen = new Set<string>();
-	for (const task of registry.tasks) {
-		if (seen.has(task.registry_task_id)) {
-			throw new Error(`duplicate ingestion task declaration: ${key}/${task.registry_task_id}`);
-		}
-		seen.add(task.registry_task_id);
-	}
 }
 
 function parseJsonBytes(value: Uint8Array, label: string): unknown {

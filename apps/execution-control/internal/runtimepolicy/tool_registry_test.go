@@ -10,8 +10,8 @@ import (
 const (
 	transportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
 	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
-	knowledgePayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeQueryPayload"
-	knowledgeResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json#/$defs/KnowledgeAgentTerminalResult"
+	knowledgePayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v2.schema.json#/$defs/KnowledgeQueryPayload"
+	knowledgeResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v2.schema.json#/$defs/KnowledgeAgentTerminalResult"
 )
 
 func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
@@ -61,7 +61,7 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-registry-v4",
+		  "schema_version": "tool-registry-v5",
 		  "registry_version": "test",
 		  "tools": [`+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`,
 		            `+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`]
@@ -87,7 +87,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 		{
 			name: "unregistered schema ref",
 			body: `{
-			  "schema_version": "tool-registry-v4",
+			  "schema_version": "tool-registry-v5",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
@@ -169,7 +169,7 @@ func validKnowledgeHandoffToolJSON(name string, endpoint string) string {
 }
 
 func registryJSON(toolJSON string) string {
-	return `{"schema_version":"tool-registry-v4","registry_version":"test","tools":[` + toolJSON + `]}`
+	return `{"schema_version":"tool-registry-v5","registry_version":"test","tools":[` + toolJSON + `]}`
 }
 
 func validToolJSON(
@@ -207,7 +207,7 @@ func boolJSON(value bool) string {
 
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "tools.v4.json")
+	path := filepath.Join(t.TempDir(), "tools.v5.json")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}

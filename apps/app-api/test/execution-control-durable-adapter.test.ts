@@ -70,7 +70,6 @@ function durableRunStepsPayload(
 				cancel_outcome: "not_requested",
 				completed_at: "2026-06-04T01:02:04.100Z",
 				duration_ms: 100,
-				estimated_cost_microusd: 321,
 				fail_close_reason: "current_state_unverifiable",
 				input_tokens: 120,
 				late_completion_outcome: "ignored_after_timeout",

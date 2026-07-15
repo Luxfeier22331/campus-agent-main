@@ -3,45 +3,65 @@ package httpapi
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 type primaryAgentEvidenceClosure struct {
-	ResolvedScope string
-	SessionUpdate *SessionUpdateWire
-	Sources       []map[string]any
+	ResolvedTargets []string
+	SessionUpdate   *SessionUpdateWire
+	Sources         []map[string]any
 }
 
 type trustedKnowledgeEvidence struct {
-	CanonicalURL string
-	EvidenceRef  string
-	Snippet      string
-	Title        string
-	VersionID    string
+	CanonicalURL    string
+	ChunkID         string
+	DocumentID      string
+	EvidenceRef     string
+	RetrievalTarget string
+	Snippet         string
+	Title           string
+	VersionID       string
+}
+
+type trustedKnowledgeSearch struct {
+	Evidence []map[string]any
+	Ordinal  int
+	Outcome  string
+	Target   string
 }
 
 func primaryAgentEvidenceClosureForFinalization(
-	run execution.DurableRun,
 	agentResult map[string]any,
 	envelope map[string]any,
+	stepResults []execution.StepResultProjection,
 ) (primaryAgentEvidenceClosure, error) {
 	if err := validatePublicTerminalText(envelope); err != nil {
 		return primaryAgentEvidenceClosure{}, err
 	}
+	successfulAttempt, ok := positiveIntValue(agentResult["activity_attempt"])
+	if !ok {
+		return primaryAgentEvidenceClosure{}, fmt.Errorf("agent activity_attempt is required")
+	}
 	runtimeSelectedTools := stringSliceFromAny(agentResult["selected_tools"])
-	searches := cloneAnyMapFromMetadata(run.Metadata["knowledge_searches"])
+	searches, err := trustedKnowledgeSearches(stepResults, successfulAttempt)
+	if err != nil {
+		return primaryAgentEvidenceClosure{}, err
+	}
 	evidenceRefs := stringSliceFromAny(envelope["evidence_refs"])
-	resolvedScope := strings.TrimSpace(stringValue(envelope["resolved_scope"]))
 	knowledgeBranch := containsString(runtimeSelectedTools, "knowledge_query") ||
-		containsString(runtimeSelectedTools, "knowledge_search") || len(searches) > 0 ||
-		len(evidenceRefs) > 0 || resolvedScope != ""
+		len(searches) > 0 || len(evidenceRefs) > 0
 	if !knowledgeBranch {
 		if len(cloneAnyMapFromMetadata(envelope["session_update"])) > 0 {
 			return primaryAgentEvidenceClosure{}, fmt.Errorf("session_update requires the knowledge agent branch")
 		}
-		return primaryAgentEvidenceClosure{Sources: []map[string]any{}}, nil
+		return primaryAgentEvidenceClosure{
+			ResolvedTargets: []string{},
+			Sources:         []map[string]any{},
+		}, nil
 	}
 
 	kind := primaryAgentTerminalKind(envelope)
@@ -52,38 +72,9 @@ func primaryAgentEvidenceClosureForFinalization(
 		return primaryAgentEvidenceClosure{}, fmt.Errorf("knowledge terminal %s requires at least one knowledge search", kind)
 	}
 
-	allowedEvidence, searchScope, err := trustedKnowledgeSearchEvidence(searches)
+	allowedEvidence, resolvedTargets, err := trustedKnowledgeSearchEvidence(searches)
 	if err != nil {
 		return primaryAgentEvidenceClosure{}, err
-	}
-	if resolvedScope != "" && searchScope != "" && resolvedScope != searchScope {
-		return primaryAgentEvidenceClosure{}, fmt.Errorf(
-			"terminal resolved_scope %q does not match run knowledge search scope %q",
-			resolvedScope,
-			searchScope,
-		)
-	}
-	if kind == "answer" && resolvedScope == "" {
-		return primaryAgentEvidenceClosure{}, fmt.Errorf("knowledge answer resolved_scope is required")
-	}
-	if kind == "unsupported_by_evidence" && resolvedScope == "" {
-		return primaryAgentEvidenceClosure{}, fmt.Errorf("unsupported_by_evidence resolved_scope is required")
-	}
-	if resolvedScope == "" {
-		resolvedScope = searchScope
-	}
-
-	if kind == "unsupported_by_evidence" {
-		if len(evidenceRefs) != 0 {
-			return primaryAgentEvidenceClosure{}, fmt.Errorf("unsupported_by_evidence must not include evidence_refs")
-		}
-		if len(allowedEvidence) != 0 {
-			return primaryAgentEvidenceClosure{}, fmt.Errorf("unsupported_by_evidence requires searches with no evidence")
-		}
-		return primaryAgentEvidenceClosure{
-			ResolvedScope: resolvedScope,
-			Sources:       []map[string]any{},
-		}, nil
 	}
 	if kind == "clarification_required" {
 		if len(evidenceRefs) != 0 {
@@ -93,81 +84,146 @@ func primaryAgentEvidenceClosureForFinalization(
 			return primaryAgentEvidenceClosure{}, fmt.Errorf("clarification_required must not include session_update")
 		}
 		return primaryAgentEvidenceClosure{
-			ResolvedScope: resolvedScope,
-			Sources:       []map[string]any{},
+			ResolvedTargets: resolvedTargets,
+			Sources:         []map[string]any{},
 		}, nil
 	}
-	if len(evidenceRefs) == 0 {
+	if kind == "answer" && len(evidenceRefs) == 0 {
 		return primaryAgentEvidenceClosure{}, fmt.Errorf("knowledge answer requires evidence_refs")
 	}
 
-	seen := map[string]struct{}{}
-	sources := make([]map[string]any, 0, len(evidenceRefs))
-	for _, evidenceRef := range evidenceRefs {
-		evidenceRef = strings.TrimSpace(evidenceRef)
-		if _, duplicate := seen[evidenceRef]; duplicate {
-			return primaryAgentEvidenceClosure{}, fmt.Errorf("knowledge answer evidence_ref %q is duplicated", evidenceRef)
+	sources, err := publicSourcesForEvidenceRefs(evidenceRefs, allowedEvidence)
+	if err != nil {
+		return primaryAgentEvidenceClosure{}, err
+	}
+	if kind == "unsupported_by_evidence" {
+		if len(cloneAnyMapFromMetadata(envelope["session_update"])) > 0 {
+			return primaryAgentEvidenceClosure{}, fmt.Errorf("unsupported_by_evidence must not include session_update")
 		}
-		seen[evidenceRef] = struct{}{}
-		evidence, ok := allowedEvidence[evidenceRef]
-		if !ok {
-			return primaryAgentEvidenceClosure{}, fmt.Errorf(
-				"knowledge answer evidence_ref %q was not produced by this run",
-				evidenceRef,
-			)
-		}
-		sources = append(sources, publicSourceFromKnowledgeEvidence(evidence, resolvedScope))
+		return primaryAgentEvidenceClosure{
+			ResolvedTargets: resolvedTargets,
+			Sources:         sources,
+		}, nil
 	}
 	sessionUpdate, err := primaryAgentSessionUpdate(envelope)
 	if err != nil {
 		return primaryAgentEvidenceClosure{}, err
 	}
 	return primaryAgentEvidenceClosure{
-		ResolvedScope: resolvedScope,
-		SessionUpdate: sessionUpdate,
-		Sources:       sources,
+		ResolvedTargets: resolvedTargets,
+		SessionUpdate:   sessionUpdate,
+		Sources:         sources,
 	}, nil
 }
 
-func trustedKnowledgeSearchEvidence(
-	searches map[string]any,
-) (map[string]trustedKnowledgeEvidence, string, error) {
-	evidenceByRef := map[string]trustedKnowledgeEvidence{}
-	resolvedScope := ""
-	for invocationID, rawSearch := range searches {
-		search := cloneAnyMapFromMetadata(rawSearch)
-		result := cloneAnyMapFromMetadata(search["result"])
-		if len(result) == 0 {
-			return nil, "", fmt.Errorf("knowledge search %q result metadata is required", invocationID)
+func trustedKnowledgeSearches(
+	stepResults []execution.StepResultProjection,
+	successfulAttempt int,
+) ([]trustedKnowledgeSearch, error) {
+	searches := make([]trustedKnowledgeSearch, 0)
+	seenOrdinals := map[int]bool{}
+	for _, result := range stepResults {
+		if result.ResultKind != "knowledge_search_result" {
+			continue
 		}
-		scope := strings.TrimSpace(stringValue(result["resolved_scope"]))
-		if scope == "" {
-			return nil, "", fmt.Errorf("knowledge search %q resolved_scope is required", invocationID)
+		if result.AttemptID != temporalStepAttemptID(result.RunID, result.StepID, successfulAttempt) {
+			continue
 		}
-		if resolvedScope != "" && resolvedScope != scope {
-			return nil, "", fmt.Errorf("run knowledge searches resolved_scope values do not match")
+		if result.Status != "completed" {
+			return nil, fmt.Errorf("knowledge search step %s is not completed", result.StepID)
 		}
-		resolvedScope = scope
-		evidenceItems := knowledgeEvidenceMaps(result["evidence"])
-		outcome := strings.TrimSpace(stringValue(result["outcome"]))
-		if (outcome == "found") != (len(evidenceItems) > 0) {
-			return nil, "", fmt.Errorf("knowledge search %q outcome and evidence are inconsistent", invocationID)
+		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
+		ordinal, ok := positiveIntValue(payload["search_ordinal"])
+		if !ok || ordinal > config.MaxKnowledgeSearches {
+			return nil, fmt.Errorf("knowledge search step %s search_ordinal is invalid", result.StepID)
+		}
+		if result.StepID != fmt.Sprintf("knowledge.search.%d", ordinal) {
+			return nil, fmt.Errorf("knowledge search step %s does not match ordinal %d", result.StepID, ordinal)
+		}
+		if seenOrdinals[ordinal] {
+			return nil, fmt.Errorf("knowledge search ordinal %d is duplicated", ordinal)
+		}
+		seenOrdinals[ordinal] = true
+		target := strings.TrimSpace(stringValue(payload["retrieval_target"]))
+		if target == "" {
+			return nil, fmt.Errorf("knowledge search step %s retrieval_target is required", result.StepID)
+		}
+		outcome := strings.TrimSpace(stringValue(payload["outcome"]))
+		evidence := knowledgeEvidenceMaps(payload["evidence"])
+		if (outcome == "found") != (len(evidence) > 0) {
+			return nil, fmt.Errorf("knowledge search step %s outcome and evidence are inconsistent", result.StepID)
 		}
 		if outcome != "found" && outcome != "no_evidence" {
-			return nil, "", fmt.Errorf("knowledge search %q outcome %q is invalid", invocationID, outcome)
+			return nil, fmt.Errorf("knowledge search step %s outcome %q is invalid", result.StepID, outcome)
 		}
-		for index, item := range evidenceItems {
-			evidence, err := trustedKnowledgeEvidenceFromMap(item)
+		searches = append(searches, trustedKnowledgeSearch{
+			Evidence: evidence,
+			Ordinal:  ordinal,
+			Outcome:  outcome,
+			Target:   target,
+		})
+	}
+	sort.Slice(searches, func(left int, right int) bool {
+		return searches[left].Ordinal < searches[right].Ordinal
+	})
+	return searches, nil
+}
+
+func trustedKnowledgeSearchEvidence(
+	searches []trustedKnowledgeSearch,
+) (map[string]trustedKnowledgeEvidence, []string, error) {
+	evidenceByRef := map[string]trustedKnowledgeEvidence{}
+	resolvedTargets := make([]string, 0, len(searches))
+	seenTargets := map[string]bool{}
+	for _, search := range searches {
+		if !seenTargets[search.Target] {
+			seenTargets[search.Target] = true
+			resolvedTargets = append(resolvedTargets, search.Target)
+		}
+		for index, item := range search.Evidence {
+			evidence, err := trustedKnowledgeEvidenceFromMap(item, search.Target)
 			if err != nil {
-				return nil, "", fmt.Errorf("knowledge search %q evidence[%d]: %w", invocationID, index, err)
+				return nil, nil, fmt.Errorf(
+					"knowledge search %d evidence[%d]: %w",
+					search.Ordinal,
+					index,
+					err,
+				)
 			}
 			if existing, exists := evidenceByRef[evidence.EvidenceRef]; exists && existing != evidence {
-				return nil, "", fmt.Errorf("knowledge evidence_ref %q has conflicting metadata", evidence.EvidenceRef)
+				return nil, nil, fmt.Errorf(
+					"knowledge evidence_ref %q has conflicting metadata",
+					evidence.EvidenceRef,
+				)
 			}
 			evidenceByRef[evidence.EvidenceRef] = evidence
 		}
 	}
-	return evidenceByRef, resolvedScope, nil
+	return evidenceByRef, resolvedTargets, nil
+}
+
+func publicSourcesForEvidenceRefs(
+	evidenceRefs []string,
+	allowedEvidence map[string]trustedKnowledgeEvidence,
+) ([]map[string]any, error) {
+	seen := map[string]bool{}
+	sources := make([]map[string]any, 0, len(evidenceRefs))
+	for _, evidenceRef := range evidenceRefs {
+		evidenceRef = strings.TrimSpace(evidenceRef)
+		if seen[evidenceRef] {
+			return nil, fmt.Errorf("knowledge answer evidence_ref %q is duplicated", evidenceRef)
+		}
+		seen[evidenceRef] = true
+		evidence, ok := allowedEvidence[evidenceRef]
+		if !ok {
+			return nil, fmt.Errorf(
+				"knowledge answer evidence_ref %q was not produced by this run",
+				evidenceRef,
+			)
+		}
+		sources = append(sources, publicSourceFromKnowledgeEvidence(evidence))
+	}
+	return sources, nil
 }
 
 func knowledgeEvidenceMaps(value any) []map[string]any {
@@ -187,16 +243,29 @@ func knowledgeEvidenceMaps(value any) []map[string]any {
 	}
 }
 
-func trustedKnowledgeEvidenceFromMap(item map[string]any) (trustedKnowledgeEvidence, error) {
+func trustedKnowledgeEvidenceFromMap(
+	item map[string]any,
+	searchTarget string,
+) (trustedKnowledgeEvidence, error) {
 	evidence := trustedKnowledgeEvidence{
-		CanonicalURL: strings.TrimSpace(stringValue(item["canonical_url"])),
-		EvidenceRef:  strings.TrimSpace(stringValue(item["evidence_ref"])),
-		Snippet:      strings.TrimSpace(stringValue(item["snippet"])),
-		Title:        strings.TrimSpace(stringValue(item["title"])),
-		VersionID:    strings.TrimSpace(stringValue(item["version_id"])),
+		CanonicalURL:    strings.TrimSpace(stringValue(item["canonical_url"])),
+		ChunkID:         strings.TrimSpace(stringValue(item["chunk_id"])),
+		DocumentID:      strings.TrimSpace(stringValue(item["document_id"])),
+		EvidenceRef:     strings.TrimSpace(stringValue(item["evidence_ref"])),
+		RetrievalTarget: strings.TrimSpace(stringValue(item["retrieval_target"])),
+		Snippet:         strings.TrimSpace(stringValue(item["snippet"])),
+		Title:           strings.TrimSpace(stringValue(item["title"])),
+		VersionID:       strings.TrimSpace(stringValue(item["version_id"])),
 	}
-	if evidence.EvidenceRef == "" || evidence.Title == "" || evidence.Snippet == "" || evidence.CanonicalURL == "" {
-		return trustedKnowledgeEvidence{}, fmt.Errorf("evidence_ref, title, snippet, and canonical_url are required")
+	if evidence.EvidenceRef == "" || evidence.DocumentID == "" || evidence.ChunkID == "" ||
+		evidence.Title == "" || evidence.Snippet == "" || evidence.CanonicalURL == "" ||
+		evidence.RetrievalTarget == "" {
+		return trustedKnowledgeEvidence{}, fmt.Errorf(
+			"evidence_ref, retrieval_target, document_id, chunk_id, title, snippet, and canonical_url are required",
+		)
+	}
+	if evidence.RetrievalTarget != searchTarget {
+		return trustedKnowledgeEvidence{}, fmt.Errorf("retrieval_target does not match search target")
 	}
 	if !publicKnowledgeSourceURL(evidence.CanonicalURL) {
 		return trustedKnowledgeEvidence{}, fmt.Errorf("canonical_url is not a public source URL")
@@ -205,40 +274,36 @@ func trustedKnowledgeEvidenceFromMap(item map[string]any) (trustedKnowledgeEvide
 }
 
 func publicKnowledgeSourceURL(value string) bool {
-	if strings.HasPrefix(value, "/docs/") && !strings.Contains(value, "..") && !strings.HasPrefix(value, "//") {
+	if strings.HasPrefix(value, "/docs/") && !strings.Contains(value, "..") &&
+		!strings.HasPrefix(value, "//") {
 		return true
 	}
 	parsed, err := url.ParseRequestURI(value)
 	return err == nil && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")
 }
 
-func publicSourceFromKnowledgeEvidence(
-	evidence trustedKnowledgeEvidence,
-	resolvedScope string,
-) map[string]any {
+func publicSourceFromKnowledgeEvidence(evidence trustedKnowledgeEvidence) map[string]any {
 	sourceKind := "document"
-	switch resolvedScope {
+	switch evidence.RetrievalTarget {
 	case "curriculum":
 		sourceKind = "curriculum"
-	case "student_rules", "institutional_rules", "scoped_rules":
+	case "student_rules", "institutional_rules":
 		sourceKind = "regulation"
 	}
-	targetKind := "public_web_url"
 	source := map[string]any{
-		"canonical_url": evidence.CanonicalURL,
-		"snippet":       evidence.Snippet,
-		"source_kind":   sourceKind,
-		"source_title":  evidence.Title,
-		"target_kind":   targetKind,
-		"title":         evidence.Title,
+		"canonical_url":    evidence.CanonicalURL,
+		"retrieval_target": evidence.RetrievalTarget,
+		"snippet":          evidence.Snippet,
+		"source_kind":      sourceKind,
+		"source_title":     evidence.Title,
+		"target_kind":      "public_web_url",
+		"title":            evidence.Title,
+		"version_id":       evidence.VersionID,
 	}
 	if strings.HasPrefix(evidence.CanonicalURL, "/docs/") {
 		source["target_kind"] = "canonical_reader"
 	} else {
 		source["url"] = evidence.CanonicalURL
-	}
-	if evidence.VersionID != "" {
-		source["version_id"] = evidence.VersionID
 	}
 	return source
 }
@@ -262,7 +327,8 @@ func primaryAgentSessionUpdate(envelope map[string]any) (*SessionUpdateWire, err
 		name := strings.TrimSpace(stringValue(slot["name"]))
 		value := strings.TrimSpace(stringValue(slot["value"]))
 		if slot["confirmed"] != true || value == "" ||
-			(name != "curriculum_program" && name != "curriculum_program_family" && name != "curriculum_semester") {
+			(name != "curriculum_program" && name != "curriculum_program_family" &&
+				name != "curriculum_semester") {
 			return nil, fmt.Errorf("session_update.upsert_slots[%d] is invalid", index)
 		}
 		if _, duplicate := seen[name]; duplicate {

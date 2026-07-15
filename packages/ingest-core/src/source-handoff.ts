@@ -2,10 +2,8 @@ import type { IngestionArtifactRef, IngestionTaskEnvelope } from "ingestion-cont
 import { z } from "zod";
 
 import {
-	assertOptionalSha256Digest,
-	assertSha256Digest,
+	assertArtifactRefBytes,
 	buildObjectStoreArtifactRef,
-	buildS3Uri,
 	formatZodIssues,
 	type ObjectStoreReader,
 	parseJsonObjectBytes,
@@ -30,8 +28,11 @@ export interface AuthenticatedFileReleaseManifest {
 }
 
 export interface OfficialWebSourceTruthBundlePage {
-	contentBlocksObjectKey: string;
-	pageManifestObjectKey: string;
+	contentBlocksRef: SourceObjectRef;
+	discoveredLinksRef: SourceObjectRef;
+	pageManifestRef: SourceObjectRef;
+	providerExtractionRef: SourceObjectRef;
+	responseHtmlRef: SourceObjectRef;
 }
 
 export interface OfficialWebSourceTruthBundle {
@@ -90,13 +91,33 @@ const OfficialWebSourceTruthBundleSchema = z.object({
 	crawlRunId: z.string().trim().min(1),
 	pages: z.array(
 		z.object({
-			contentBlocksObjectKey: SafeObjectKeySchema,
-			pageManifestObjectKey: SafeObjectKeySchema,
+			contentBlocksRef: pinnedOfficialWebRefSchema(),
+			discoveredLinksRef: pinnedOfficialWebRefSchema(),
+			pageManifestRef: pinnedOfficialWebRefSchema(),
+			providerExtractionRef: pinnedOfficialWebRefSchema(),
+			responseHtmlRef: pinnedOfficialWebRefSchema(),
 		}),
 	),
-	schemaVersion: z.literal("official_web_source_truth_bundle.v1"),
+	schemaVersion: z.literal("official_web_source_truth_bundle.v2"),
 	sourceChannel: z.string().trim().min(1),
 });
+
+function pinnedOfficialWebRefSchema() {
+	return z
+		.object({
+			byteSize: z.number().int().nonnegative(),
+			contentSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+			objectKey: SafeObjectKeySchema,
+		})
+		.transform(
+			(value): SourceObjectRef => ({
+				bucket: "",
+				byteSize: value.byteSize,
+				contentSha256: value.contentSha256,
+				key: value.objectKey,
+			}),
+		);
+}
 
 const WeChatOfficialAccountArticleSourceTruthRefSchema = z.object({
 	article_stable_id: z.string().trim().min(1),
@@ -218,10 +239,10 @@ export async function resolveOfficialWebSourceTruthRefsFromTask(input: {
 	const bundleInput = parseS3Uri(input.task.input_ref);
 	const bundleBytes = await input.objectStore.getObject(bundleInput);
 	const bundleDigest = sha256Hex(bundleBytes);
-	assertSha256Digest({
-		actualSha256: bundleDigest,
-		digest: input.task.input_ref.digest,
+	assertArtifactRefBytes({
+		bytes: bundleBytes,
 		label: "official web source truth bundle input_ref",
+		ref: input.task.input_ref,
 	});
 	const bundle = parseOfficialWebSourceTruthBundle(
 		parseJsonObjectBytes(bundleBytes, "official web source truth bundle"),
@@ -236,25 +257,38 @@ export async function resolveOfficialWebSourceTruthRefsFromTask(input: {
 	const refs: IngestionArtifactRef[] = [
 		buildObjectStoreArtifactRef({
 			bucket: bundleInput.bucket,
+			byteSize: bundleBytes.byteLength,
 			key: bundleInput.key,
 			contentSha256: bundleDigest,
 		}),
 	];
 	const seen = new Set<string>();
 	for (const page of bundle.pages) {
-		for (const key of [page.pageManifestObjectKey, page.contentBlocksObjectKey]) {
-			if (seen.has(key)) {
+		for (const declaredRef of [
+			page.pageManifestRef,
+			page.contentBlocksRef,
+			page.providerExtractionRef,
+			page.discoveredLinksRef,
+			page.responseHtmlRef,
+		]) {
+			if (seen.has(declaredRef.key)) {
 				continue;
 			}
-			seen.add(key);
-			await input.objectStore.getObject({
+			seen.add(declaredRef.key);
+			const objectRef = { ...declaredRef, bucket: bundleInput.bucket };
+			const bytes = await input.objectStore.getObject({
 				bucket: bundleInput.bucket,
-				key,
+				key: objectRef.key,
 			});
-			refs.push({
-				kind: "object_store",
-				uri: buildS3Uri({ bucket: bundleInput.bucket, key }),
-			});
+			verifySourceObjectRefBytes(objectRef, bytes, "official web page artifact");
+			refs.push(
+				buildObjectStoreArtifactRef({
+					bucket: bundleInput.bucket,
+					byteSize: bytes.byteLength,
+					contentSha256: sha256Hex(bytes),
+					key: objectRef.key,
+				}),
+			);
 		}
 	}
 	return refs;
@@ -267,10 +301,10 @@ export async function resolveWeChatOfficialAccountSourceTruthRefsFromTask(input:
 	const sourceInput = parseS3Uri(input.task.input_ref);
 	const releaseBytes = await input.objectStore.getObject(sourceInput);
 	const releaseDigest = sha256Hex(releaseBytes);
-	assertOptionalSha256Digest({
-		actualSha256: releaseDigest,
-		digest: input.task.input_ref.digest,
+	assertArtifactRefBytes({
+		bytes: releaseBytes,
 		label: "WeChat capture release input_ref",
+		ref: input.task.input_ref,
 	});
 	const release = parseWeChatOfficialAccountCaptureRelease(
 		parseJsonObjectBytes(releaseBytes, "WeChat capture release"),
@@ -282,6 +316,7 @@ export async function resolveWeChatOfficialAccountSourceTruthRefsFromTask(input:
 	const refs: IngestionArtifactRef[] = [
 		buildObjectStoreArtifactRef({
 			bucket: sourceInput.bucket,
+			byteSize: releaseBytes.byteLength,
 			key: sourceInput.key,
 			contentSha256: releaseDigest,
 		}),
@@ -305,6 +340,7 @@ export async function resolveWeChatOfficialAccountSourceTruthRefsFromTask(input:
 			refs.push(
 				buildObjectStoreArtifactRef({
 					bucket: objectRef.bucket,
+					byteSize: objectBytes.byteLength,
 					key: objectRef.key,
 					contentSha256: sha256Hex(objectBytes),
 				}),

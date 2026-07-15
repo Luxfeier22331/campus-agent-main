@@ -84,10 +84,10 @@ package 级测试默认使用 TS-first 布局：
 
 - TS package 的单元 / contract / schema 测试放在 owner package 的 `test/`
   目录，并通过该 package 的 `test` / `typecheck` script 进入。
-- `tests/` 目录保留给已准入的 Python runtime island。它不承载 TS package 的
-  Vitest 测试，也不为没有消费者的语言适配层保留 smoke suite。
-- 当前唯一 Python runtime island 是 `packages/ragas-runner`，其 `tests/` 可以
-  继续使用 Python unittest。
+- `tests/` 目录只用于有真实调用者的 Python runtime island；当前仅
+  `packages/ragas-runner/tests` 使用 Python unittest。
+- 共享 contract truth 由 JSON Schema / OpenAPI、TS checker 和 owner TS tests
+  证明，不维护无调用者的 Python mirror 或 adapter smoke。
 - Python 测试不得使用 `load_tests` 聚合或 `from ... import *`。这些模式会隐藏
   discovery 范围，导致 CI 显示通过但实际 suite 被跳过。
 

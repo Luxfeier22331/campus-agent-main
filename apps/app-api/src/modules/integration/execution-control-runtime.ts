@@ -155,7 +155,6 @@ export interface ExecutionControlStepAttempt {
 	cancelOutcome: string;
 	completedAt: string;
 	durationMs: number;
-	estimatedCostMicrousd: number;
 	failCloseReason: string;
 	inputTokens: number;
 	lateCompletionOutcome: string;
@@ -664,7 +663,6 @@ function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAt
 		cancelOutcome: readRequiredString(record, "cancel_outcome"),
 		completedAt: readRequiredString(record, "completed_at"),
 		durationMs: readRequiredNumber(record, "duration_ms"),
-		estimatedCostMicrousd: readRequiredNumber(record, "estimated_cost_microusd"),
 		failCloseReason: readRequiredString(record, "fail_close_reason"),
 		inputTokens: readRequiredNumber(record, "input_tokens"),
 		lateCompletionOutcome: readRequiredString(record, "late_completion_outcome"),

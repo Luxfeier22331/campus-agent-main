@@ -1,0 +1,139 @@
+apiVersion: temporal.io/v1alpha1
+kind: WorkerDeployment
+metadata:
+  name: ingestion-control-worker
+  labels:
+    app.kubernetes.io/name: ingestion-control-worker
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  workerOptions:
+    connectionRef:
+      name: ingestion-temporal
+    temporalNamespace: default
+  rollout:
+    strategy: AllAtOnce
+  sunset:
+    scaledownDelay: 1h
+    deleteDelay: 24h
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ingestion-control-worker
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: ingestion-runtime
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/ingestion-control-worker:replace-me
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          envFrom:
+            - configMapRef:
+                name: ingestion-runtime-rendered-config
+            - secretRef:
+                name: ingestion-control-database-secrets
+            - secretRef:
+                name: ingestion-object-store-secrets
+          env:
+            - name: INGESTION_TASK_REGISTRY_ROOT
+              value: /app/configs/ingestion
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+---
+apiVersion: temporal.io/v1alpha1
+kind: WorkerDeployment
+metadata:
+  name: source-collector-worker
+  labels:
+    app.kubernetes.io/name: source-collector-worker
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  workerOptions:
+    connectionRef:
+      name: ingestion-temporal
+    temporalNamespace: default
+  rollout:
+    strategy: AllAtOnce
+  sunset:
+    scaledownDelay: 1h
+    deleteDelay: 24h
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: source-collector-worker
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: ingestion-runtime
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 90
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/source-collector:replace-me
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          envFrom:
+            - configMapRef:
+                name: ingestion-runtime-rendered-config
+            - secretRef:
+                name: source-collector-object-store-secrets
+            - secretRef:
+                name: source-collector-provider-secrets
+          env:
+            - name: INGESTION_TASK_REGISTRY_ROOT
+              value: /workspace/configs/ingestion
+            - name: OFFICIAL_WEB_CONFIG_ROOT
+              value: /workspace/configs/sources/official_web
+          volumeMounts:
+            - name: browser-shared-memory
+              mountPath: /dev/shm
+            - name: crawlee-storage
+              mountPath: /workspace/apps/source-collector/storage
+            - name: runtime-tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: browser-shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
+        - name: crawlee-storage
+          emptyDir: {}
+        - name: runtime-tmp
+          emptyDir: {}

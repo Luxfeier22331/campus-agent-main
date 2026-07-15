@@ -1,7 +1,7 @@
-export type ProviderConfigKind = "embedding" | "prompt" | "rerank";
+export type ProviderConfigKind = "embedding" | "prompt";
 export type ProviderConfigTransport = "chat_completions" | "embeddings" | "responses";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
-export type ProviderConfigFeature = "embedding" | "prompt" | "rerank";
+export type ProviderConfigFeature = "embedding" | "prompt";
 export type ProviderConfigRole =
 	| "eval_judge_llm"
 	| "eval_ragas_embedding"
@@ -10,8 +10,7 @@ export type ProviderConfigRole =
 	| "hindsight_llm"
 	| "index_embedding"
 	| "primary_agent"
-	| "rag_query_embedding"
-	| "rag_reranker";
+	| "rag_query_embedding";
 
 export interface ProviderConfigConnection {
 	baseUrl: string;

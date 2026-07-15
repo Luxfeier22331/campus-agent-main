@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { runCaptureCli } from "../src/capture-cli.ts";
 import {
 	captureFeedWeHistory,
 	normalizeWeChatAccountSlug,
@@ -24,7 +23,7 @@ describe("FeedWe capture", () => {
 				}),
 		);
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
+			async createOrVerifyObject(input) {
 				return {
 					byteSize: input.data.byteLength,
 					contentSha256: "f".repeat(64),
@@ -36,7 +35,9 @@ describe("FeedWe capture", () => {
 
 		await expect(
 			captureFeedWeHistory({
+				activityAttempt: 1,
 				accountName: "示例大学学生会",
+				captureRunId: "run-invalid-json",
 				artifactStore,
 				fetchImplementation,
 				maxArticles: 1,
@@ -52,6 +53,49 @@ describe("FeedWe capture", () => {
 			code: "provider_response_invalid",
 			message: "FeedWe response must be valid JSON.",
 		});
+	});
+
+	it("passes Activity cancellation to the in-flight FeedWe request", async () => {
+		const controller = new AbortController();
+		let observedSignal: AbortSignal | null = null;
+		const fetchImplementation = vi.fn(
+			async (_url: string | URL | Request, init?: RequestInit) =>
+				await new Promise<Response>((_resolve, reject) => {
+					observedSignal = init?.signal ?? null;
+					observedSignal?.addEventListener("abort", () => reject(observedSignal?.reason), {
+						once: true,
+					});
+				}),
+		);
+		const running = captureFeedWeHistory({
+			abortSignal: controller.signal,
+			activityAttempt: 1,
+			accountName: "示例大学学生会",
+			captureRunId: "run-cancelled",
+			artifactStore: {
+				async createOrVerifyObject(input) {
+					return {
+						byteSize: input.data.byteLength,
+						contentSha256: "f".repeat(64),
+						objectKey: input.objectKey,
+					};
+				},
+			},
+			fetchImplementation,
+			maxArticles: 1,
+			maxPages: 1,
+			provider: {
+				baseUrl: "https://www.feedwe.top",
+				email: "collector@example.com",
+				password: "super-secret-password",
+			},
+			size: 1,
+		});
+
+		controller.abort();
+
+		await expect(running).rejects.toMatchObject({ name: "AbortError" });
+		expect(observedSignal).toBe(controller.signal);
 	});
 
 	it("captures real article HTML and image artifacts before materializing source-truth", async () => {
@@ -146,7 +190,7 @@ describe("FeedWe capture", () => {
 			);
 		const writes: Array<{ objectKey: string; text: string }> = [];
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
+			async createOrVerifyObject(input) {
 				const text = new TextDecoder().decode(input.data);
 				writes.push({ objectKey: input.objectKey, text });
 				return {
@@ -218,7 +262,9 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
+			activityAttempt: 1,
 			accountName: "示例大学学生会",
+			captureRunId: "run-history",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -300,7 +346,7 @@ describe("FeedWe capture", () => {
 					/^wechat_official_account\/示例大学学生会\/2026\/raw_[a-f0-9]{16}\/provider\/feedwe\/provider-response\.jsonl$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/示例大学学生会\/2026\/raw_[a-f0-9]{16}\/capture\/feedwe-request-summary\.json$/,
+					/^wechat_official_account\/[^/]+\/runs\/run-history\/attempts\/1\/pages\/[01]\/feedwe-request-summary\.json$/,
 				),
 				expect.stringMatching(
 					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/article-manifest\.json$/,
@@ -316,10 +362,10 @@ describe("FeedWe capture", () => {
 		expect(objectKeys).toEqual(
 			expect.arrayContaining([
 				expect.stringMatching(
-					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
+					/^wechat_official_account\/[^/]+\/runs\/run-history\/attempts\/1\/articles\/woa_article_[a-f0-9]{24}\/wechat-article-page\.html$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
+					/^wechat_official_account\/[^/]+\/runs\/run-history\/attempts\/1\/articles\/woa_article_[a-f0-9]{24}\/wechat-article-fetch-metadata\.json$/,
 				),
 				expect.stringMatching(
 					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/provider\/wechat-page-parser\/page-extraction\.json$/,
@@ -328,17 +374,15 @@ describe("FeedWe capture", () => {
 					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/original\.(jpg|png)$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/示例大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/fetch-metadata\.json$/,
+					/^wechat_official_account\/[^/]+\/runs\/run-history\/attempts\/1\/articles\/woa_article_[a-f0-9]{24}\/media\/[a-z0-9-]+\/fetch-metadata\.json$/,
 				),
 			]),
 		);
 		expect(objectKeys).toHaveLength(26);
 		expect(writes.some((item) => item.objectKey.includes("/source-truth/"))).toBe(true);
+		expect(writes.some((item) => item.objectKey.endsWith("/wechat-article-page.html"))).toBe(true);
 		expect(
-			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-page.html")),
-		).toBe(true);
-		expect(
-			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json")),
+			writes.some((item) => item.objectKey.endsWith("/wechat-article-fetch-metadata.json")),
 		).toBe(true);
 		expect(
 			writes.some((item) =>
@@ -353,7 +397,7 @@ describe("FeedWe capture", () => {
 		).toBe(true);
 		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/article-manifest.json"))?.text,
-		).toContain('"schemaVersion": "wechat_official_account_article_manifest.v2"');
+		).toContain('"schemaVersion": "wechat_official_account_article_manifest.v3"');
 		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/media-refs.jsonl"))?.text,
 		).toContain('"captureStatus":"captured"');
@@ -431,7 +475,7 @@ describe("FeedWe capture", () => {
 				),
 			);
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
+			async createOrVerifyObject(input) {
 				return {
 					byteSize: input.data.byteLength,
 					contentSha256: "e".repeat(64),
@@ -451,7 +495,9 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
+			activityAttempt: 1,
 			accountName: "示例大学学生会",
+			captureRunId: "run-budget",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -533,7 +579,7 @@ describe("FeedWe capture", () => {
 			);
 		const writes: Array<{ objectKey: string; text: string }> = [];
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
+			async createOrVerifyObject(input) {
 				const text = new TextDecoder().decode(input.data);
 				writes.push({ objectKey: input.objectKey, text });
 				return {
@@ -555,7 +601,9 @@ describe("FeedWe capture", () => {
 		});
 
 		const result = await captureFeedWeHistory({
+			activityAttempt: 1,
 			accountName: "示例大学学生会",
+			captureRunId: "run-verification",
 			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
@@ -588,11 +636,10 @@ describe("FeedWe capture", () => {
 			sourceTruthArtifacts: 3,
 		});
 		expect(
-			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json"))
-				?.text,
+			writes.find((item) => item.objectKey.endsWith("/wechat-article-fetch-metadata.json"))?.text,
 		).toContain('"pageKind": "verification"');
 		expect(
-			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))?.text,
+			writes.find((item) => item.objectKey.endsWith("/wechat-article-page.html"))?.text,
 		).toContain("环境异常");
 		expect(
 			writes.find((item) =>
@@ -605,115 +652,5 @@ describe("FeedWe capture", () => {
 		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/content-blocks.jsonl"))?.text,
 		).toContain('"blockRole":"summary"');
-	});
-
-	it("finalizes failed app-api runs with redacted terminal errors", async () => {
-		const password = "feedwe-live-password";
-		const serviceToken = "collector-service-secret";
-		const startRun = vi.fn().mockResolvedValue({
-			run: { runId: "wcrun_01JQ" },
-		});
-		const finalizeRun = vi.fn().mockResolvedValue({});
-		const capture = vi.fn().mockRejectedValue(
-			Object.assign(new Error(`FeedWe denied password ${password}`), {
-				code: "provider_http_error",
-			}),
-		);
-		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
-				return {
-					byteSize: input.data.byteLength,
-					contentSha256: "f".repeat(64),
-					objectKey: input.objectKey,
-					recordCount: input.recordCount,
-				};
-			},
-		};
-		const nowValues = [new Date("2026-04-27T08:00:00.000Z"), new Date("2026-04-27T08:01:00.000Z")];
-		let nowIndex = 0;
-
-		await expect(
-			runCaptureCli(
-				["--account", "示例大学学生会"],
-				{
-					FEEDWE_EMAIL: "collector@example.com",
-					FEEDWE_PASSWORD: password,
-					WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL: "https://app-api.internal",
-					WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN: serviceToken,
-				},
-				{
-					capture,
-					createArtifactStore: () => artifactStore,
-					createControlPlaneClient: () => ({
-						finalizeRun,
-						sendHeartbeat: vi.fn(),
-						startRun,
-					}),
-					now: () => nowValues[Math.min(nowIndex++, nowValues.length - 1)],
-					writeOutput: vi.fn(),
-				},
-			),
-		).rejects.toThrow("FeedWe denied password [REDACTED]");
-
-		expect(startRun).toHaveBeenCalledWith(
-			expect.objectContaining({
-				accountName: "示例大学学生会",
-				accountSlug: "示例大学学生会",
-				providerBaseUrl: "https://www.feedwe.top",
-			}),
-		);
-		expect(finalizeRun).toHaveBeenCalledWith({
-			artifacts: [],
-			error: {
-				code: "provider_http_error",
-				message: "FeedWe denied password [REDACTED]",
-			},
-			finishedAt: "2026-04-27T08:01:00.000Z",
-			runId: "wcrun_01JQ",
-			summary: {
-				artifactUploads: 0,
-				articlesSeen: 0,
-				failures: 1,
-				pagesFetched: 0,
-			},
-			terminalStatus: "failed",
-			traceId: undefined,
-		});
-		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(password);
-		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(serviceToken);
-	});
-
-	it("fails early when control-plane is required but not configured", async () => {
-		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
-				return {
-					byteSize: input.data.byteLength,
-					contentSha256: "f".repeat(64),
-					objectKey: input.objectKey,
-					recordCount: input.recordCount,
-				};
-			},
-		};
-		const capture = vi.fn();
-
-		await expect(
-			runCaptureCli(
-				["--account", "示例大学学生会", "--require-control-plane"],
-				{
-					FEEDWE_EMAIL: "collector@example.com",
-					FEEDWE_PASSWORD: "feedwe-live-password",
-				},
-				{
-					capture,
-					createArtifactStore: () => artifactStore,
-					createControlPlaneClient: () => {
-						throw new Error("control-plane client should not be created");
-					},
-					writeOutput: vi.fn(),
-				},
-			),
-		).rejects.toThrow("wechat collector control plane is required");
-
-		expect(capture).not.toHaveBeenCalled();
 	});
 });

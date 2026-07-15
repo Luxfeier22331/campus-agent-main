@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	buildOfficialWebPlannerPageForTest,
-	createTargetWorksetControlPlaneForTest,
+	buildTargetWorksetCandidatesForTest,
 	writeTestConfigRoot,
 } from "./test-support";
 
@@ -34,9 +34,7 @@ describe("source-collector official-web adapter multi-host crawl", () => {
 				return created;
 			};
 
-			vi.doMock("crawlee", async () => {
-				const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
-
+			vi.doMock("crawlee", () => {
 				class FakeConfiguration {}
 
 				class FakeCheerioCrawler {
@@ -87,7 +85,6 @@ describe("source-collector official-web adapter multi-host crawl", () => {
 				}
 
 				return {
-					...actual,
 					Configuration: FakeConfiguration,
 					RequestQueue: {
 						open: vi.fn(async (name?: string) => getQueue(name)),
@@ -208,7 +205,7 @@ describe("source-collector official-web adapter multi-host crawl", () => {
 				outputDir,
 				crawlRunId: "owrun_multi_host_queue",
 				localArtifactsOnly: true,
-				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				crawlCandidates: buildTargetWorksetCandidatesForTest({
 					runId: "owrun_multi_host_queue",
 					duePages: [
 						buildOfficialWebPlannerPageForTest({
@@ -253,7 +250,7 @@ describe("source-collector official-web adapter multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_unknown_host_filter",
-				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				crawlCandidates: buildTargetWorksetCandidatesForTest({
 					runId: "owrun_unknown_host_filter",
 					duePages: [
 						buildOfficialWebPlannerPageForTest({

@@ -1,60 +1,37 @@
-# student_rules collection config
+# student_rules collection
 
-This directory holds the repo-tracked config scaffolding for the `student_rules`
-collection within the `regulations` corpus.
+This directory defines the physical `regulations/student_rules` collection
+used by the public `student_rules` knowledge target.
 
-- `serving-config.json`: canonical serving truth for ingestion/query gating
-- `split-manifest.v1.json`: repo-tracked scaffold for handbook logical document
-  boundaries
-- `canonical-profile.json`: canonical identity and metadata truth for handbook
-  documents
-- `chunk-profile.json`: chunking config record for handbook
-  document-level `document-units.jsonl`
+## Files
 
-Current serving truth:
+- `serving-config.json`: query-serving and Qdrant contract
+- `split-manifest.v1.json`: synthetic public split-manifest fixture
+- `canonical-profile.json`: document identity and metadata fields
+- `chunk-profile.json`: document chunking profile
+- `task-registry.v3.json`: executable ingestion tasks
 
-- serving stage: `query_serving`
-- query enabled: `true`
-- serving alias: `student_rules`
-- collection prefix: `student_rules`
-- release manifests: `regulations/releases/student_rules/{release_id}/...`
+## Runtime
 
-Stable handbook-specific owner docs:
+- `configs/runtime/query-serving-targets.v1.json` maps the `student_rules`
+  target to this collection.
+- The collection is `query_serving` and uses the `student_rules` Qdrant alias.
+- Query serving requires a published alias whose vector configuration matches
+  the active embedding profile.
 
-- `docs/policies/student-rules-chunking.md`:
-  source normalization, split, document identity, chunk budgeting, short-text
-  aggregation, header policy, and validation gate truth
+## Ingestion
 
-The historical handbook input was source-bucket `provider-response.jsonl`.
-`layout-elements.jsonl` remains the source-truth artifact before document
-splitting, but branch tip does not keep a Python handbook cleanup materializer.
-Current executable registry tasks start from already-materialized canonical
-`document-units`; a future document materializer must be added as a real TS
-handler or Rust kernel bridge before it re-enters `apps/ingestion-control`.
-
-Current OCR ingestion stores document-level artifacts under `regulations/documen
-ts/student_rules/{title_slug}-{docid8}/{revision_track}/{year}/...`. Chunk
-text/vector payload are not written back to object storage; online chunk truth
-lives in Qdrant under release-managed physical collections. The canonical replay
-source filename is `学生手册_2018.pdf`.
-
-`student_rules` no longer fans out handbook phone pages, service guides or
-service catalogs into campus-services runtime collections. Those guide/contact
-facts are wiki-maintained product content, not repo-owned runtime truth. The
-handbook split truth keeps regulations-facing logical documents and derived
-regulation appendices only.
-
-The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with
-real document ranges before document-level materialization re-enters
-`apps/ingestion-control`. The active task registry only keeps executable Rust
-kernel steps over already-materialized canonical `document-units`:
+The active registry starts from canonical `document-units` and exposes two
+deterministic tasks:
 
 - `document_units_validate`
 - `chunk_prepare`
 
-Document materialization, structured projection publish, and alias publish are
-not active registry tasks for `regulations/student_rules`. Add them back only in
-the same change that adds the real handler or kernel bridge. The retired Python
-raw-ingestion CLI and Python handbook cleanup materializer are not active
-ingestion entry paths; missing TS handlers or Rust kernels fail closed instead
-of spawning those old paths.
+Source parsing, document materialization, indexing, and alias publication are
+not task entries in this collection registry. The checked-in split manifest is
+a synthetic public fixture; private source artifacts provide deployment data.
+
+Handbook-specific normalization, identity, chunk budgets, header handling, and
+validation rules are defined in `docs/policies/student-rules-chunking.md`.
+Student rules contain regulation-facing documents and appendices only; phone
+directories and service catalogs belong to their owning product domains.

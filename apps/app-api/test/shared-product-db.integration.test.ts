@@ -330,7 +330,6 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 				body: JSON.stringify({
 					conversationId: createPayload.conversation.id,
 					prompt: "法学民族班培养方案里大二下有什么课",
-					requestedScope: "curriculum",
 				}),
 			}),
 		);
@@ -347,7 +346,6 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 				body: JSON.stringify({
 					conversationId: createPayload.conversation.id,
 					prompt: "那大一下呢",
-					requestedScope: "curriculum",
 				}),
 			}),
 		);

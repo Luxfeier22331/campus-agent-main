@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from unittest.mock import patch
 
 from campus_ragas_runner.score_batch import (
     RagasProjection,
     RagasResult,
     RagasRunnerSettings,
-    _build_metrics,
-    _load_public_id_metric_builders,
+    _score_with_official_ragas_metrics,
     build_ragas_scorer,
     run_ragas_score_batch,
 )
@@ -78,7 +79,59 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 payload["items"][0]["errors"][0]["metric_name"], "ragas.context_recall"
             )
 
-    def test_omits_context_recall_without_reference(self) -> None:
+    def test_omits_missing_and_non_finite_scores_from_json_output(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            work_dir = Path(raw_dir)
+            input_path = work_dir / "samples.json"
+            output_path = work_dir / "scores.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "ragas_sample_batch.v1",
+                        "eval_run_id": "ragas-non-finite-001",
+                        "items": [
+                            {
+                                "case_id": "case-001",
+                                "trace_id": "trace-001",
+                                "question": "What are the library opening hours?",
+                                "answer": "The library is open from 08:00 to 22:00.",
+                                "contexts": ["The library opening hours are 08:00-22:00."],
+                                "reference": "The library opening hours are 08:00-22:00.",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_scorer(_projection: RagasProjection) -> tuple[RagasResult, ...]:
+                return (
+                    RagasResult(metric_name="faithfulness"),
+                    RagasResult(metric_name="answer_relevancy", score=float("nan")),
+                    RagasResult(metric_name="context_precision", score=float("inf")),
+                )
+
+            run_ragas_score_batch(
+                input_path=input_path,
+                output_path=output_path,
+                scorer_factory=lambda: fake_scorer,
+            )
+
+            raw_output = output_path.read_text(encoding="utf-8")
+            payload = json.loads(raw_output)
+            self.assertEqual(payload["items"][0]["scores"], {})
+            self.assertEqual(
+                [error["metric_name"] for error in payload["items"][0]["errors"]],
+                [
+                    "ragas.faithfulness",
+                    "ragas.answer_relevancy",
+                    "ragas.context_precision",
+                ],
+            )
+            self.assertNotIn("NaN", raw_output)
+            self.assertNotIn("Infinity", raw_output)
+
+    def test_omits_reference_context_metrics_without_reference_answer(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "samples.json"
@@ -114,16 +167,21 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             )
 
             self.assertEqual(
-                captured[0].metadata["metric_applicability"], {"context_recall": False}
+                captured[0].metadata["metric_applicability"],
+                {"context_precision": False, "context_recall": False},
             )
             payload = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(
                 payload["items"][0]["errors"],
                 [
                     {
+                        "metric_name": "ragas.context_precision",
+                        "reason": "missing reference answer for context_precision",
+                    },
+                    {
                         "metric_name": "ragas.context_recall",
-                        "reason": "missing reference for context_recall",
-                    }
+                        "reason": "missing reference answer for context_recall",
+                    },
                 ],
             )
 
@@ -240,40 +298,97 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "embedding_dimensions is not supported"):
             build_ragas_scorer(settings)
 
-    def test_uses_official_no_reference_context_precision_metric(self) -> None:
-        from ragas.llms.base import InstructorBaseRagasLLM
-
-        class FakeInstructorLLM(InstructorBaseRagasLLM):
-            def generate(self, prompt, response_model):  # type: ignore[no-untyped-def]
-                raise AssertionError("metric construction must not call generate")
-
-            async def agenerate(self, prompt, response_model):  # type: ignore[no-untyped-def]
-                raise AssertionError("metric construction must not call agenerate")
-
+    def test_closes_async_clients_inside_each_scoring_event_loop(self) -> None:
+        settings = RagasRunnerSettings(
+            llm_api_key="sk-test",
+            llm_model="gpt-4o-mini",
+            llm_base_url=None,
+            embedding_api_key="sk-test",
+            embedding_model="text-embedding-3-small",
+            embedding_base_url=None,
+            embedding_dimensions=None,
+            timeout_seconds=180,
+            max_workers=1,
+        )
         projection = RagasProjection(
             case_id="case-001",
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=("The library opening hours are 08:00-22:00.",),
-            reference="",
+            reference="The library opening hours are 08:00-22:00.",
         )
+        clients: list[FakeAsyncOpenAI] = []
 
-        metrics = _build_metrics(
-            metric_names=("context_precision",),
-            llm=FakeInstructorLLM(),
-            embeddings=object(),
-            projection=projection,
+        class FakeAsyncOpenAI:
+            def __init__(self, **_kwargs: object) -> None:
+                self.closed = False
+                clients.append(self)
+
+            async def __aenter__(self) -> FakeAsyncOpenAI:
+                return self
+
+            async def __aexit__(self, *_args: object) -> None:
+                self.closed = True
+
+        async def fake_metrics(*_args: object, **_kwargs: object) -> tuple[RagasResult, ...]:
+            return (RagasResult(metric_name="faithfulness", score=1.0),)
+
+        with (
+            patch("openai.AsyncOpenAI", FakeAsyncOpenAI),
+            patch("ragas.llms.llm_factory", return_value=object()),
+            patch("ragas.embeddings.base.embedding_factory", return_value=object()),
+            patch(
+                "campus_ragas_runner.score_batch._score_with_official_ragas_metrics",
+                new=fake_metrics,
+            ),
+        ):
+            scorer = build_ragas_scorer(settings)
+            scorer(projection)
+            scorer(projection)
+
+        self.assertEqual(len(clients), 4)
+        self.assertTrue(all(client.closed for client in clients))
+
+    def test_calls_official_metric_collection_ascore(self) -> None:
+        projection = RagasProjection(
+            case_id="case-001",
+            user_input="What are the library opening hours?",
+            response="The library is open from 08:00 to 22:00.",
+            retrieved_contexts=("The library opening hours are 08:00-22:00.",),
+            reference="The library opening hours are 08:00-22:00.",
         )
+        calls: list[tuple[object, ...]] = []
 
-        self.assertEqual(len(metrics), 1)
-        self.assertEqual(metrics[0][0], "context_precision")
-        self.assertEqual(type(metrics[0][1]).__name__, "ContextPrecisionWithoutReference")
+        class FakeFaithfulness:
+            def __init__(self, *, llm: object) -> None:
+                self.llm = llm
 
-    def test_public_id_metrics_do_not_import_ragas_private_modules(self) -> None:
-        precision, recall = _load_public_id_metric_builders()
+            async def ascore(self, *args: object) -> float:
+                calls.append(args)
+                return 0.75
 
-        self.assertIsNone(precision)
-        self.assertIsNone(recall)
+        with patch("ragas.metrics.collections.Faithfulness", FakeFaithfulness):
+            results = asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=("faithfulness",),
+                    llm=object(),
+                    embeddings=object(),
+                )
+            )
+
+        self.assertEqual(results[0].metric_name, "faithfulness")
+        self.assertEqual(results[0].score, 0.75)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    projection.user_input,
+                    projection.response,
+                    list(projection.retrieved_contexts),
+                )
+            ],
+        )
 
 
 if __name__ == "__main__":

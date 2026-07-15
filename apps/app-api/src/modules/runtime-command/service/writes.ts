@@ -7,7 +7,6 @@ import {
 	toConversationResponse,
 } from "../../chat";
 import type {
-	RequestedScope,
 	ToolExecutionConversationContext,
 	ToolExecutionPreviousEvidenceRef,
 	ToolExecutionPreviousToolResultRef,
@@ -17,7 +16,6 @@ import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
 } from "../../request-observability";
-import type { VersionQuery } from "../../version-query";
 import { buildExecutionSessionProjection } from "../curriculum-session";
 import type { AcceptRequestWrite, FinalizeRequestWrite, TurnDispatchStatus } from "../store";
 import { normalizeChatResponseStructuredParts, sanitizePublicAssistantText } from "./normalize";
@@ -170,9 +168,7 @@ export function buildAcceptedWrite(input: {
 	requestFingerprintSha256: string | null;
 	requestId: string;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
 	runId: string | null;
-	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
@@ -225,8 +221,7 @@ export function buildAcceptedWrite(input: {
 			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
 			requestedTool: input.requestedTool,
-			requestedScope: input.requestedScope,
-			versionQuery: input.versionQuery,
+			resolvedTargets: [],
 			selectedTool: null,
 			status: "accepted",
 			errorCode: null,
@@ -239,19 +234,12 @@ export function buildAcceptedWrite(input: {
 			principal: input.principal,
 			requestId: input.requestId,
 			requestedTool: input.requestedTool,
-			requestedScope: input.requestedScope,
-			resolvedScope: null,
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.now,
 			surface: input.surface,
 			traceId: input.traceId,
-			versionQuery: input.versionQuery,
 		}),
 	};
-}
-
-function resolveFinalizedScope(input: { response: ToolExecutionResponse }): RequestedScope | null {
-	return input.response.resolvedScope?.trim() || null;
 }
 
 function requireFinalizationRunId(value: string | null): string {
@@ -296,10 +284,8 @@ export function buildFinalizedWrite(input: {
 	projectionCloseoutMs?: number | null;
 	requestId: string;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
 	response: ToolExecutionResponse;
 	runId: string | null;
-	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
 	startedAt: string;
@@ -327,9 +313,7 @@ export function buildFinalizedWrite(input: {
 		selectedTool: input.response.selectedTool,
 		status: input.response.status,
 	});
-	const resolvedScope = resolveFinalizedScope({
-		response: normalizedExecutionResponse,
-	});
+	const resolvedTargets = [...normalizedExecutionResponse.resolvedTargets];
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
 	let errorCode: string | null = null;
@@ -446,8 +430,7 @@ export function buildFinalizedWrite(input: {
 			requestId: input.requestId,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedScope: input.requestedScope,
-			versionQuery: input.versionQuery,
+			resolvedTargets,
 			selectedTool: input.response.selectedTool,
 			status,
 			errorCode,
@@ -464,8 +447,7 @@ export function buildFinalizedWrite(input: {
 			projectionCloseoutMs: input.projectionCloseoutMs,
 			requestId: input.requestId,
 			requestedTool: input.requestedTool,
-			requestedScope: input.requestedScope,
-			resolvedScope,
+			resolvedTargets,
 			response: normalizedExecutionResponse,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
@@ -474,7 +456,6 @@ export function buildFinalizedWrite(input: {
 			streamBrowserTtftMs: input.streamBrowserTtftMs,
 			surface: input.surface,
 			traceId: normalizedTraceId,
-			versionQuery: input.versionQuery,
 		}),
 		sessionSlots:
 			status === "completed"

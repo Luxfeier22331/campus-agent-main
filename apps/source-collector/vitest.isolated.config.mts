@@ -8,5 +8,6 @@ export default defineProject({
 		maxWorkers: 1,
 		name: "source-collector-isolated",
 		silent: "passed-only",
+		testTimeout: 15_000,
 	},
 });

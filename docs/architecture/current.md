@@ -48,11 +48,9 @@ projection`
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
 
-`collector -> ingestion-control official-web/source-channel control-plane ->
-ingestion-control-api task admission`
-
-`ingestion-control Temporal workflow/activity worker registry-aware execution
--> source truth / projection / document/index release`
+`digest-pinned source request -> ingestion-control v3 admission -> Temporal ->
+source-collector or Rust-kernel activity -> object-store result manifest ->
+bounded ingestion task projection`
 
 `Feishu/Lark Base catalog tables -> jobs/dining-sync catalog-observations ->
 dining.source_observations(source_type=feishu_catalog) ->
@@ -86,8 +84,9 @@ dining.review_projections -> app-api /api/dining/* reader`
   Temporal start/cancel/query seam、memory activities、internal query admission、
   evidence/source validation 与 sanitized projection writeback
 - Docker Compose execution runtime 只保留 local diagnostics；长期 production
-  target substrate 已由 ADR-0056 与 Kubernetes execution runtime architecture
-  收口为 K8s + KEDA。应用仓只保留 namespace-neutral Kustomize base；
+  target substrate 已由 ADR-0078 与 Kubernetes execution runtime architecture
+  固定为 Temporal Worker Controller + KEDA。应用仓只保留 namespace-neutral
+  Kustomize base；
   真实 Application、overlay、Helm values 与 encrypted secret inventory 由
   deployment environment repository 管理。live staging/production substrate
   不能只由本文文档措辞推断，必须看 environment revision、Argo/K8s status、runtime
@@ -111,24 +110,29 @@ dining.review_projections -> app-api /api/dining/* reader`
 - 当前代码事实中，`knowledge_query` 是 model-visible SDK handoff。Primary
   agent 选择它后通过官方 `handoff()` 进入同一 SDK run 内的 Knowledge Agent；
   Knowledge Agent 只可调用 internal-only `knowledge_search`。`knowledge_search`
-  由 execution-control 执行 scope/version admission、embedding、Qdrant lookup、
-  optional rerank 与 bounded evidence projection。
+  由 execution-control 注入 query-serving targets，并执行 target/access admission、
+  embedding、Qdrant dense/sparse RRF lookup 与 bounded evidence projection。
 - Temporal 不把 SDK handoff、function-tool call 或 Knowledge Agent 执行展开为
-  额外 activity/queue。SDK `maxTurns` 只限制单次 SDK run 的 turn 数，不改变
+  额外 activity/queue。`execution-control` 的 `agent_runtime` 配置统一提供 SDK run
+  deadline、`maxTurns`、output token、knowledge search 与字符预算；这些限制不改变
   四阶段 workflow。
+- `final_model_context.v2` 只承载历史轮次、session state、上一轮 evidence/tool
+  摘要与 bounded memory。它们以 SDK input items 进入模型，当前用户消息只作为最后
+  一个 user item 出现一次；动态上下文不拼入 developer instructions。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Hindsight self-host runtime；
   app-api chat submit 不再读取 PG `profile.memory_items` 并全量注入
   `context.profile_memory`。Qdrant 只承载 institutional RAG。
 - Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、
   execution-control `/steps`、app-api operator summary 与 Operator Console
   trajectory 已承载 activity metadata、queue wait、duration、provider/model、
-  token/cost、cancel/timeout outcome 字段。`provider_execution_summary_v1` 与
+  token usage、cancel/timeout outcome 字段。模型成本由 Langfuse 根据 model 与
+  usage 计算，不在 PostgreSQL projection 维护自研估算字段。`provider_execution_summary_v1` 与
   activity timeout / context cancel 可以投影为 first-class
   `activity_timeout` / `activity_context_canceled` outcome。
 - 当前 `knowledge_search` 由 Go Qdrant native adapter 执行，Qdrant 仍是
-  self-hosted authenticated private data-plane；embedding 与 rerank provider 调用
-  使用 Go cancellable HTTP context。语义答案与 evidence-backed structured output
-  由 Knowledge Agent 生成。
+  self-hosted authenticated private data-plane；embedding provider 调用使用 Go
+  cancellable HTTP context。语义答案与 evidence-backed structured output 由
+  Knowledge Agent 生成。
 - 当前 cancel / timeout / late-completion 证据由 Temporal activity context、Go
   lookup/provider adapter、user cancel projection closeout 和 sanitized step attempt
   projection 承接；repo-local projection path 已能记录
@@ -139,63 +143,45 @@ dining.review_projections -> app-api /api/dining/* reader`
 - model-visible 与 internal tools 都只在 OpenAI Agents SDK tool loop 内执行；
   internal query 仍由 owning service fail closed，不走 Python serving shortcut。
 - online query path 与 offline data plane 持续分层
-- `apps/app-api` 不拥有 official-web selected-write / release task state machine；
-  Temporal workflow start、registry-aware activity dispatch、materialize、publish、
-  terminal closeout 与失败状态属于 `apps/ingestion-control`
+- `apps/app-api` 不拥有 source collector command、run ledger 或 official-web
+  lifecycle。ingestion-control 负责 v3 admission、Temporal workflow start 与 bounded
+  projection；source-collector 只作为 Temporal Activity Worker 采集并写 object-store
+  artifacts
 - `jobs/*` 只承载一次性或定时 deployable runtime；不得把长驻 product backend、
   browser surface、shared package 逻辑或 online request handler 塞进 job
 - `apps/ingestion-control` 是 self-hosted internal ingestion control-plane package，不是
   Cloudflare Worker。HTTP control-plane surface 与 Temporal workflow/activity
   worker 是不同 runtime role，不得藏进 `apps/app-api` 或 collector 进程。
-- `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
-  source-truth schema、collector principal、run ledger 与 offline projection handoff
-  shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
+- `wechat_official_account` 已进入 offline source capture：当前有 source-truth artifact
+  和 Temporal source-collector task，但没有 app-api collector principal/run ledger，
+  也不是 query-enabled surface
 - 当前 public product endpoint 固定为 `https://campus.muc.wiki`；staging browser endpoint
   固定为 `https://campus-staging.mucwiki-edge.link`。
 
 ## 当前 Serving Surface
 
-当前 query-enabled surface 固定为：
+`configs/runtime/query-serving-targets.v1.json` 当前开放三个 Knowledge Agent
+target：
 
-- `regulations/student_rules`
-- `regulations/institutional_rules`
-- `curriculum/curriculum_plan`
+- `student_rules` -> collection `student_rules` ->
+  `regulations/student_rules/serving-config.json`
+- `institutional_rules` -> collection `institutional_rules` ->
+  `regulations/institutional_rules/serving-config.json`
+- `curriculum` -> collection `curriculum_plan` ->
+  `curriculum/curriculum_plan/serving-config.json`
 
-这里的 query-enabled surface 是 runtime admission / policy truth。`official_web`
-当前仍未完成 source-truth -> canonical documents -> chunks -> index -> release
-manifest -> alias publish 闭环，因此不进入 online `knowledge_search` scope
-admission，也没有 live web-search fallback。
-official-web 的消费链路边界以
+The registry does not repeat `corpus`; corpus remains offline/serving metadata.
+Execution-control validates that each registry collection matches its serving
+config before query execution.
+
+其他 serving config、data-plane collection 或 source channel 不会因为存在而自动成为
+online target。`official_web` 尚未完成 canonical document、chunk、index 与 alias publish
+链路，因此没有 query-serving target，也没有 live web-search fallback。其边界以
 `docs/architecture/domains/official-web/architecture.md` 为准。
 
-当前非默认公开查询面：
-
-- `campus_notices/internal_notice` authenticated notice source-channel triage
-  collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
-  `regulations/*`
-- `regulations/scoped_rules` notice-derived scoped-rule holding collection；当前
-  posture 已进入 retrieval-ready `query_serving` data plane，但仍保持
-  `query_enabled_by_default=false`，repo 已冻结其作为 `annual_cycle_rule` /
-  `time_bound_operational_rule` 的统一下游承接面；默认用户入口仍不放行这个 scope
-- `curriculum/course_facts` agent-internal retrieval
-  surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `curriculum/program_family_facts` agent-internal retrieval surface；用于培养方案家族成员关
-  系与别名治理，`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `curriculum/program_semester_facts` agent-internal retrieval surface；用于
-  single-program + single-semester
-  课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `campus_services/transport_schedule` 当前保持 `tool_read_model_serving`：只通过
-  admitted structured tool 消费 current projection/read model，不进入 generic retrieval
-  默认 query scope
-- `calendar/academic_calendar` 当前是 offline-preparation 数据资产；不作为
-  campus-services runtime tool
-
-当前非 serving capture-only scope：
-
-- `authenticated_documents/file_release_source` authenticated notice
-  `file_release` object-backed source holding；由 ingestion-control materialize 后供
-  owner-specific downstream admission / operator 排障消费，`query_enabled=false`，不生成默认
-  query-serving release
+`campus_services/transport_schedule` 通过独立 model-visible structured tool 消费 typed
+read model，不属于 generic knowledge retrieval。`calendar/academic_calendar` 仍是
+offline-preparation 数据资产。
 
 ## 当前 App 边界
 
@@ -261,16 +247,8 @@ official-web 的消费链路边界以
   preferences / federation policy boundary；当前 `/api/me/overview`、
   `/api/me/identity`、`/api/me/access`、`/api/me/preferences` 与
   `PATCH /api/me/preferences` 是 account center product projection surface
-- 对 `official_web`，只拥有 operator projection/query 与 stable-reference release gate
-  approve/reject ledger；不拥有 collector command ingress、crawl-run ledger、
-  selected-write admission/task truth 或 release executor callback surface
-- 承接 authenticated notice processing 的 operator-safe projection ingest 与
-  list/detail
-  query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
-  action
-- 承接 `wechat_official_account` source channel 的 command ingress、collector principal
-  admission、run ledger 与 source artifact registration；当前只拥有 source/data/control-plane
-  truth，不打开默认 product query/runtime serving
+- 只通过 ingestion-control integration 读取 bounded ingestion task projection；不拥有
+  official-web、authenticated-notice 或 WeChat collector command/ledger/schema
 - 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
 ### `apps/execution-control`
@@ -298,16 +276,16 @@ official-web 的消费链路边界以
   Agent 唯一可调用的 internal-only tool。Raw retrieval endpoint、collection、top-k
   与 provider-specific tool 均不对 primary agent 或 browser 暴露。
   runtime catalog 的 tool payload/result schema ref 只允许指向已登记 JSON
-  Schema `$id#/$defs/...`；仓库不维护第二套语言本地契约模型。
-  当前 runtime-supported tools 通过 `tools.v4`、`tool-function-schemas.v1` 与
+  Schema `$id#/$defs/...`；active runtime 不再维护 Python contract mirror。
+  当前 runtime-supported tools 通过 `tools.v5`、`tool-function-schemas.v2` 与
   `workflow-artifacts.v2` 暴露给 `agent.primary`，并由 execution-control internal
   query endpoint 执行；Go runtime 通过 tool registry / function schema / endpoint
   drift test 约束可调用性。存在 ToolSpec 或 contract 不等于 model-visible；
   runtime config 不再承担独立工具 allowlist，只配置依赖、预算与观测。
   每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
-  Temporal activity metadata、queue wait、duration、provider/model、token/cost、
-  cancel/timeout outcome 字段。
+  Temporal activity metadata、queue wait、duration、provider/model、token usage、
+  cancel/timeout outcome 字段；Langfuse 承担模型成本计算与分析。
 - 当前 public durable chat path 已具备 primary-agent-first metadata、primary agent
   direct/no-tool terminal branch、model-selected `knowledge_query` handoff
   和 agent-result finalization。`campus_services` 已有 internal-query 基底；
@@ -326,9 +304,9 @@ official-web 的消费链路边界以
   refs、step metadata 与 safe
   summaries，不携带 raw projection payload。execution payload 只承载 request facts
   与可选 trusted hint，不承载第二套 planner decision object。
-- 拥有 runtime tool registry 与 query-serving scope registry admission；
+- 拥有 runtime tool registry 与 query-serving target registry admission；
   当前实现位于 `apps/execution-control/internal/runtimepolicy`，缺失、版本漂移或
-  未发布 scope 必须 fail closed。工具选择由 primary-agent tool loop 完成，不存在
+  未发布 target 必须 fail closed。工具选择由 primary-agent tool loop 完成，不存在
   平行 intent policy 或 classifier。
 - finalization 校验 terminal output、已投影 evidence refs 与 source identity，生成
   browser-safe sources 后写入终态；它不调用模型，也不改写 answer text
@@ -346,30 +324,27 @@ official-web 的消费链路边界以
 ### `apps/ingestion-control`
 
 - internal ingestion/data-plane task control plane
-- 拥有 task admission、registry validation、Temporal workflow start、terminal
-  closeout 与 operator-safe projection snapshot
-- 拥有 `official_web` collector command ingress、crawl-run ledger、target workset
-  resolution 与 source-truth materialization task admission
+- 拥有 v3 task admission、registry snapshot、Temporal workflow start、control/Rust
+  activities、terminal projection 与 official-web URL freshness
 - HTTP server 是 control-plane surface；Temporal workflow / activity workers 是
   独立 self-hosted runtime processes，不是 Cloudflare Worker。
-- registry-aware activity 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
-  kernel 时 fail closed，不回退 Python collection CLI
-- Python 只允许作为 explicit library / service dependency 由 TS handler 调用，
-  例如 MinerU / OCR / Office / ML extraction adapter
+- active executor 仅 `source_collector` 与 `rust_kernel`；未注册实现或 contract
+  mismatch 时 fail closed，不回退 Python collection CLI
+- PostgreSQL 只保存 bounded task projection 与 latest URL freshness；Temporal 和
+  object storage 分别拥有 workflow truth 与 artifact truth
 
 ### `apps/source-collector`
 
 - TS-owned source-channel collector runtime
 - 当前承载 `internal-portal`、`official-web` 与 `wechat-official-account` adapters
-- 各 adapter 负责 source-channel capture、source-bucket artifact 写入与对应
-  control-plane run lifecycle 上报；`official-web` 上报 `apps/ingestion-control`，
-  `wechat-official-account` 仍上报 `apps/app-api`
-- 不拥有 operator ledger、online request truth、ingestion-control task lifecycle 或
-  source-truth materialization truth
+- 作为 Temporal Activity Worker 消费四个 `source_collector` registry tasks，负责
+  source capture、source-bucket artifacts 与一个 digest-pinned result manifest
+- 不暴露 HTTP control plane，不调用 app-api，不拥有 run ledger、workflow start 或
+  terminal PostgreSQL projection
 - adapter 内部可使用 Crawlee 承接 crawl queue / retry / concurrency；Crawlee request
   identity 不替代 source-bucket handoff contract
-- 具备独立 Docker image entrypoint；不得作为 execution-runtime K8s workload 混入
-  execution-control / Temporal worker plane
+- 具备独立 Temporal worker Docker image，并通过 ingestion-runtime WorkerDeployment
+  部署；不得混入 online execution worker plane
 
 ## 当前 Job 边界
 
@@ -395,7 +370,7 @@ official-web 的消费链路边界以
 
 - `apps/agent-runtime` 当前拥有唯一 OpenAI Agents SDK agent/tool loop；primary
   agent 与 Knowledge Agent 在同一次 SDK run 内通过 official handoff 连接
-- `apps/execution-control` 当前拥有 Temporal durable envelope、scope/version
+- `apps/execution-control` 当前拥有 Temporal durable envelope、target/access
   admission、`knowledge_search` retrieval、bounded evidence/source validation 与
   fail-close finalization projection
 - 当前没有 model-visible place tool 或 execution contract。place catalog 仅由
@@ -405,8 +380,8 @@ official-web 的消费链路边界以
   model-visible tool 只有 `transport_schedule_lookup`。generic service status、
   service guide、contact directory、process guide 与 academic calendar 不属于当前
   campus-services runtime surface。
-- repo-owned internal `knowledge_search` seam 负责 metadata pre-filter、embedding、
-  Qdrant lookup、optional rerank 与 bounded evidence shaping
+- repo-owned internal `knowledge_search` seam 负责 access filter、embedding、
+  Qdrant dense/sparse RRF lookup 与 bounded evidence shaping
 - `apps/ingestion-control` ingestion task control plane and Temporal worker
   runtime；TS `packages/ingest-core` 提供 runtime-neutral ingestion helpers；
   未来 OCR / file extraction 需重新 admission 为 explicit adapter boundary

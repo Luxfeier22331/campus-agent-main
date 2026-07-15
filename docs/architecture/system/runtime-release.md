@@ -48,8 +48,8 @@ identity injection -> post-deploy smoke -> release closeout artifact`
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local
-  diagnostics runtime projection；production target deploy substrate 已由 ADR-0056
-  固定为 Kubernetes + KEDA。live staging/production substrate 必须由 applied resources、
+  diagnostics runtime projection；production target deploy substrate 已由 ADR-0078
+  固定为 Temporal Worker Controller + KEDA。live staging/production substrate 必须由 applied resources、
   runtime env、operator projection 与 release closeout artifact 共同确认。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
@@ -175,14 +175,15 @@ Execution runtime 的 release gate 长期至少覆盖：
 Kubernetes production target 还必须覆盖：
 
 - execution-control Service 只允许 trusted app-api / operator runtime caller 访问
-- workflow-worker 与每个 activity-worker Deployment 均有 readiness、liveness、
-  resource request / limit 与 rollout strategy
-- 每个 Temporal task queue 只有一个 owner Deployment 与一个 KEDA ScaledObject
+- 每个 worker role 都由 WorkerDeployment 生成 versioned Deployment，并具备 resource
+  request/limit、rollout 与 sunset policy
+- 每个 active build 通过 WorkerResourceTemplate 获得对应 ScaledObject 与 PDB
 - KEDA operator / metrics server healthy，HPA 不存在 metric fetch failure
 - ScaledObject 明确 min/max replicas、target queue size、polling interval、cooldown
   与 HPA scale-down behavior
 - execution-control 队列接口能读取 fresh Temporal queue 状态，Kubernetes 能读取
-  ScaledObject/HPA condition 和 Deployment replica
+  WorkerDeployment/WorkerResourceTemplate/ScaledObject/HPA condition 和 versioned
+  Deployment replica
 
 这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 app-api chat
 finalization、Ops Web request correlation 或 browser smoke。

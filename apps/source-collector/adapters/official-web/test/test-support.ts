@@ -1,12 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type {
-	OfficialWebControlPlaneClient,
-	OfficialWebControlPlanePlanResponse,
-	OfficialWebPlannerPageCandidate,
-} from "../src/control-plane";
 import type { OfficialWebPageTargetMatch } from "../src/core/index.ts";
+import type { OfficialWebCrawlCandidate } from "../src/crawl-candidates";
 
 export { writeTestConfigRoot } from "./test-config-root";
 
@@ -131,8 +127,8 @@ export const SAMPLE_VISIBLE_CONTENT_PANEL_PAGE_HTML = `
 `.trim();
 
 export function buildOfficialWebPlannerPageForTest(
-	overrides: Partial<OfficialWebPlannerPageCandidate> = {},
-): OfficialWebPlannerPageCandidate {
+	overrides: Partial<OfficialWebCrawlCandidate> = {},
+): OfficialWebCrawlCandidate {
 	return {
 		cadenceClass: "target_candidate",
 		consumerFamily: "stable_reference_candidate",
@@ -194,62 +190,12 @@ export function buildOfficialWebTargetMatchForTest(
 	};
 }
 
-export function createTargetWorksetControlPlaneForTest(
-	input: { duePages?: OfficialWebPlannerPageCandidate[]; runId?: string } = {},
-): OfficialWebControlPlaneClient {
-	const runId = input.runId ?? "owrun_target_workset_test";
+export function buildTargetWorksetCandidatesForTest(
+	input: { duePages?: OfficialWebCrawlCandidate[]; runId?: string } = {},
+): OfficialWebCrawlCandidate[] {
+	void input.runId;
 	const duePages = input.duePages ?? [buildOfficialWebPlannerPageForTest()];
-	const plan: OfficialWebControlPlanePlanResponse["plan"] = {
-		duePages,
-		hostFilter: [...new Set(duePages.map((page) => page.host))],
-		maxPagesPerHost: 10,
-		maxTotalPages: 10,
-		resolvedAt: "2026-05-01T08:00:00.000Z",
-		runIntent: "baseline",
-		siteId: "campus_public",
-		summary: {
-			duePages: duePages.length,
-			listingPages: 0,
-			repairPages: 0,
-			selectedHosts: new Set(duePages.map((page) => page.host)).size,
-			staticPages: duePages.length,
-			targetJobs: duePages.length,
-			worksetRows: duePages.length,
-		},
-	};
-
-	return {
-		async startRun() {
-			return {
-				run: {
-					runId,
-					siteId: "campus_public",
-					status: "accepted",
-					startedAt: "2026-05-01T08:00:00.000Z",
-				},
-			};
-		},
-		async resolvePlan() {
-			return { plan };
-		},
-		async sendHeartbeat() {
-			return {
-				run: {
-					runId,
-					status: "running",
-				},
-			};
-		},
-		async finalizeRun() {
-			return {
-				run: {
-					runId,
-					status: "completed",
-					finishedAt: "2026-05-01T08:05:00.000Z",
-				},
-			};
-		},
-	};
+	return duePages;
 }
 export const SAMPLE_ONCLICK_NEWS_HOME_PAGE_HTML = `
 <!doctype html>

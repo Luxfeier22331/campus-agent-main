@@ -256,8 +256,7 @@ Rules:
 - `conversationId` is optional; when absent, app-api may lazy-create the
   canonical conversation in the same command path.
 - `prompt` is required and trimmed server-side.
-- Public chat rejects `requestedTool`, `scope`, `versionQuery` and every
-  other routing field. App-api forwards authenticated conversation facts;
+- Public chat accepts no routing fields. App-api forwards authenticated conversation facts;
   `execution-control` provides the admitted tool catalog and
   `agent.primary` decides whether to call a tool.
 - Forced `knowledge_query` execution is available only through the trusted

@@ -40,7 +40,17 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	agentResult, err := temporalAgentResultFromRun(run, input.AgentResultRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", err)
+		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", "", err)
+	}
+	if toolName, failCloseReason, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
+		return s.failFinalizationActivity(
+			ctx,
+			run,
+			toolName,
+			"agent_tool_result_failed",
+			failCloseReason,
+			err,
+		)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
@@ -73,7 +83,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		},
 	)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", err)
+		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
 	}
 	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
 		"agent_result_ref": input.AgentResultRef,
@@ -139,6 +149,29 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}, nil
 }
 
+func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, string, error) {
+	status := strings.TrimSpace(stringValue(agentResult["status"]))
+	if status != "completed" {
+		return "", "agent_runtime_incomplete", fmt.Errorf("agent result status is %q", status)
+	}
+	for _, toolResult := range primaryAgentToolResultMaps(agentResult["tool_results"]) {
+		if primaryAgentToolResultStatus(toolResult) != "failed" {
+			continue
+		}
+		toolName := strings.TrimSpace(stringValue(toolResult["tool_name"]))
+		reason := strings.TrimSpace(stringValue(toolResult["fail_close_reason"]))
+		if reason == "" {
+			reason = "tool_execution_failed"
+		}
+		return toolName, reason, fmt.Errorf(
+			"agent tool result %s failed with fail_close_reason=%s",
+			toolName,
+			reason,
+		)
+	}
+	return "", "", nil
+}
+
 func (s *Server) primaryAgentFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
@@ -149,7 +182,15 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if !validPrimaryAgentTerminalEnvelope(envelope) {
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
-	evidenceClosure, err := primaryAgentEvidenceClosureForFinalization(run, agentResult, envelope)
+	stepResults, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	evidenceClosure, err := primaryAgentEvidenceClosureForFinalization(
+		agentResult,
+		envelope,
+		stepResults,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -169,10 +210,6 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if err != nil {
 		return nil, err
 	}
-	llmIOFingerprint, ok := primaryAgentSafeLLMIOFingerprint(agentResult)
-	if !ok {
-		return nil, fmt.Errorf("agent llm_io_fingerprint is required")
-	}
 	workflowMode := primaryAgentWorkflowMode(selectedTools)
 	workflowTraceSummary := map[string]any{
 		"workflow_mode":             workflowMode,
@@ -189,21 +226,13 @@ func (s *Server) primaryAgentFinalizedResponse(
 		"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
 	}
 	observability := map[string]any{
-		"agent_runtime":      "openai_agents_sdk",
-		"llm_io_fingerprint": llmIOFingerprint,
-		"selected_tools":     selectedTools,
-		"terminal_reason":    terminalKind,
+		"agent_runtime":   "openai_agents_sdk",
+		"model_name":      agentResult["model_name"],
+		"model_provider":  agentResult["model_provider"],
+		"prompt_trace":    cloneAnyMapFromMetadata(agentResult["prompt_trace"]),
+		"selected_tools":  selectedTools,
+		"terminal_reason": terminalKind,
 	}
-	observability["answer_eval_fingerprint"] = answerEvalFingerprint(answerEvalFingerprintInput{
-		BranchKind:       primaryAgentAnswerBranchKind(terminalKind, selectedTools),
-		LLMIOFingerprint: llmIOFingerprint,
-		RunID:            run.RunID,
-		SelectedTool:     selectedTool,
-		SelectedTools:    selectedTools,
-		StageTiming:      stageTiming,
-		TerminalOutcome:  primaryAgentAnswerTerminalOutcome(status, terminalKind),
-		WorkflowMode:     workflowMode,
-	})
 	result := map[string]any{
 		"provider_response_id": agentResult["provider_response_id"],
 		"selected_tools":       selectedTools,
@@ -218,21 +247,13 @@ func (s *Server) primaryAgentFinalizedResponse(
 		FollowUpQuestion:     followUpQuestion,
 		Confidence:           confidence,
 		StageTiming:          stageTiming,
-		ResolvedScope:        optionalStringPointer(evidenceClosure.ResolvedScope),
+		ResolvedTargets:      append([]string{}, evidenceClosure.ResolvedTargets...),
 		Result:               result,
 		SessionUpdate:        evidenceClosure.SessionUpdate,
 		Observability:        observability,
 		WorkflowTraceSummary: workflowTraceSummary,
 		TraceID:              run.TraceID,
 	}), nil
-}
-
-func optionalStringPointer(value string) *string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil
-	}
-	return &value
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {

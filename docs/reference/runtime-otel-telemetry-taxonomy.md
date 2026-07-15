@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-05-01
-updated: 2026-07-06
+updated: 2026-07-13
 ---
 # Runtime OTel Telemetry Taxonomy
 
@@ -38,30 +38,35 @@ This taxonomy follows the OpenTelemetry direction that:
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
 | `apps/execution-control` | yes | Online trace owner for request admission, four-phase Temporal workflow/activity attempts, internal queries, evidence/source validation, finalization, error and telemetry self-health |
-| `apps/agent-runtime` | yes | Continue the execution trace with allowlisted Agents SDK run, agent, generation, tool, handoff and guardrail facts; never export model, tool, evidence or memory payloads |
 | `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
-| `apps/ops-web` | no in the current implementation | Read allowlisted PostgreSQL summaries and fixed OpenObserve queries; never become a telemetry ingestion path or generic query proxy |
 | Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
-| Knowledge search runtime | runtime adapter only | Emit sanitized search observations; no OTel/OpenObserve/Sentry/Axiom dependency in contracts |
+| Knowledge search runtime | runtime adapter only | Emit sanitized search observations; no OTel/Sentry/Axiom dependency in contracts |
 | `packages/ingest-core` | no by default | Runtime-neutral ingestion helper logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
-| `packages/contracts` | no | No OTel, Collector, OpenObserve, Sentry or Axiom types |
+| `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
-| OpenObserve | sink/query platform only | Self-hosted runtime logs, metrics and traces queried through fixed Ops Web server paths; not request-state truth |
 | Sentry | sink only | Error, trace and performance debugging; not an Operator Console database |
 | Axiom | sink only | Runtime logs/events, query dashboards and trend analysis through Collector exporter; not an app-api dashboard cache |
-| Langfuse | sink/platform only | Sanitized LLM traces, datasets, scores and review workflows; not an app-api score or trace store |
+| Langfuse | sink/platform only | LLM traces, controlled debug observations, datasets, scores and review workflows; not an app-api score or trace store |
 
 ## Signal Taxonomy
 
 Event names are low-cardinality and stable. Dynamic identifiers belong in attributes only when
 explicitly allowed below.
 
-Runtime observability has one data class: sanitized telemetry. OTel spans, logs,
-metrics, repo observations, stage timing, safe fingerprints and Operator
-projections all use explicit allowlists. No telemetry path admits raw model I/O,
-source bodies, tool payloads or memory text.
+Runtime observability has two data classes:
+
+- `bounded product telemetry`: sanitized OTel/log/metric/event data, repo
+  observations, stage timing and sink correlation used by app-api, Operator
+  Console, Sentry and Axiom.
+- `trusted Langfuse trace`: sampled model/tool execution detail, including
+  user/session association, model I/O, memory context and authorized retrieved
+  facts.
+
+Metrics, log labels and Operator projections use bounded product telemetry.
+They never copy Langfuse observation bodies. Credentials and secrets are
+forbidden in both classes.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
@@ -69,18 +74,17 @@ source bodies, tool payloads or memory text.
 | `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control private upstream transport failure |
 | `execution.activity.started` | `apps/execution-control` / Go activity worker | Temporal activity attempt started with task queue, worker identity and request correlation |
-| Agents SDK lifecycle spans | `apps/agent-runtime` | Allowlisted run, agent, generation, response, function, handoff and guardrail spans with model name, token counts, bounded agent/tool names and terminal status only |
-| `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token/cost and cancel/timeout outcome |
+| `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token usage and cancel/timeout outcome |
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/execution-control` / internal `knowledge_search` | Sanitized scope/version, latency, evidence-count and outcome observation |
+| `retrieval.runtime_observation` | `apps/execution-control` / internal `knowledge_search` | Sanitized target/history, latency, evidence-count and outcome observation |
 | `ingestion.run.started` | `apps/ingestion-control` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-control` | Run count summary, duration, cost estimate, release id and audit result |
 | `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
-| `index.release.audit` | `apps/ingestion-control` | Payload index, manifest, point payload and release guard audit result |
+| `index.release.audit` | `apps/ingestion-control` | Payload index, manifest, point payload and release validation result |
 | `index.release.publish` | `apps/ingestion-control` | Alias/current pointer publish attempt and result |
-| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; recorded as operational degradation without failing the answer path |
+| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; configured product answer paths fail closed |
 | `telemetry.export.dropped` | runtime / adapter | Explicitly sampled telemetry count |
 
 ## Allowed Attribute Groups
@@ -125,19 +129,12 @@ source bodies, tool payloads or memory text.
 - `http_status`
 - `sample_ratio`
 
-### LLM Fingerprint Attributes
+### Langfuse Generation Attributes
 
-- `llm.call_site`
-- `llm.provider`
-- `llm.model`
-- `llm.prompt_id`
-- `llm.prompt_registry_version`
-- `llm.prompt_template_sha256`
-- `llm.rendered_prompt_sha256`
-- `llm.model_params_hash`
-- `llm.provider_request_safe_hash`
-- `llm.tool_runtime_combined_sha256`
-- `llm.primary_attestation_kind`
+- `langfuse.observation.type`
+- `langfuse.observation.model.name`
+- `langfuse.observation.usage_details`
+- `langfuse.observation.metadata.step_id`
 
 ### Retrieval Attributes
 
@@ -162,9 +159,6 @@ source bodies, tool payloads or memory text.
 - `as_of`
 - `no_hit`
 - `low_confidence`
-- `release_metadata_drift`
-- `reranker_failed`
-- `reranker_failure_kind`
 
 `top_source_ids` and other document identifiers may be recorded only in event/log payloads with a
 small bounded count for debugging sinks. They must not be promoted to metric labels.
@@ -218,10 +212,11 @@ small bounded count for debugging sinks. They must not be promoted to metric lab
 - `telemetry.last_error_kind`
 - `telemetry.sample_ratio`
 
-## Forbidden Fields
+## Data Boundaries
 
-The following must not be sent to repo-owned runtime OTel attributes, event
-bodies, OpenObserve records, Sentry contexts or Axiom events by default:
+The following content does not belong in repo-owned runtime attributes, metric
+labels, app-api projections, Operator Console responses, Sentry contexts or
+Axiom events:
 
 - raw prompt
 - raw query text
@@ -232,25 +227,25 @@ bodies, OpenObserve records, Sentry contexts or Axiom events by default:
 - canonical document body
 - OCR/raw parser text
 - raw long-term memory
-- raw JWT
-- cookie
-- authorization header
-- access envelope
-- SSO / authenticated portal token
-- API key
-- database URL with credentials
-- object store secret
-- provider secret
-- phone number, email, student id or national id in clear text
-- full exporter endpoint URL if it contains credentials or query tokens
-- provider request safe-hash canonicalization input
-- model params projection input before allowlist filtering
+- arbitrary high-cardinality user identifiers as metric labels.
 
-No temporary override admits a forbidden field. Agent-runtime keeps OpenAI
-Agents SDK sensitive tracing disabled, maps allowlisted SDK facts to OTel, and
-exports through the environment-owned Collector. App-api and Operator Console
-receive only repo-owned `stage_timing.v1`, safe fingerprints and request
-correlation; they do not receive SDK span bodies or sink-specific trace refs.
+Trusted Langfuse traces are the exception for model input/output, memory and
+authorized retrieved content. This is an observability ownership boundary, not
+a separate capture policy. The following remain forbidden everywhere:
+
+- authorization headers, cookies and JWTs;
+- API keys, passwords, client secrets, access/refresh tokens and provider
+  secrets;
+- database URLs containing credentials;
+- object-store secrets;
+- exporter URLs containing credentials or secret query parameters.
+
+Agent-runtime enables OpenInference and the official Langfuse OTel processor at
+process startup when a standard OTLP traces endpoint is configured. There is no
+app-api-owned or request-scoped observability configuration. The repo-owned
+projection surface carries only trace correlation, `stage_timing.v1`,
+model/provider identity and bounded prompt trace fields; Langfuse observation
+bodies stay in Langfuse.
 
 ## Stage Timing Projection
 
@@ -300,8 +295,6 @@ Runtime adapters or Collector/backend aggregation may derive these low-cardinali
   - `campus.execution_control.runtime_errors`
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state
 - retrieval no-hit / low-confidence / forbidden-hit count
-- release metadata drift count
-- reranker failed count
 - ingestion run count by source family/collection/status
 - chunk and embedding count summary
 - embedding cache hit/miss count

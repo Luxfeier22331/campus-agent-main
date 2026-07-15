@@ -14,11 +14,6 @@ export {
 	type WeChatOfficialAccountCaptureArtifactRef,
 } from "./capture.ts";
 export {
-	createWeChatOfficialAccountControlPlaneClient,
-	type WeChatOfficialAccountControlPlaneClient,
-	WeChatOfficialAccountControlPlaneTransportError,
-} from "./control-plane.ts";
-export {
 	type FeedWeArticlesPage,
 	type FeedWeArticlesRequest,
 	type FeedWeAuthenticatedSession,

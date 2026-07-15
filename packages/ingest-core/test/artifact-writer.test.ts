@@ -18,6 +18,7 @@ describe("canonical artifact writers", () => {
 		});
 
 		expect(ref).toEqual({
+			byte_size: 13,
 			kind: "object_store",
 			uri: "s3://campus-agent-source/runs/source-truth/manifest.json",
 			digest: `sha256:${sha256Hex(new TextEncoder().encode('{"a":1,"b":2}'))}`,
@@ -80,7 +81,7 @@ class InMemoryObjectStore {
 		return object.body;
 	}
 
-	async putObject(input: {
+	async createOrVerifyObject(input: {
 		bucket: string;
 		key: string;
 		body: Uint8Array;

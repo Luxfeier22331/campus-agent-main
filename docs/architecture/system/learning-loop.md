@@ -15,7 +15,7 @@ updated: 2026-07-06
 它回答：
 
 - 用户真实使用如何成为改进候选
-- `stage_timing.v1`、safe fingerprint、反馈、RAG / tool 评分如何协作
+- `stage_timing.v1`、trace correlation、反馈、RAG / tool 评分如何协作
 - Langfuse、`packages/eval-langfuse`、`app-api` 和 Operator Console 各自承担什么
 - 哪些数据不得进入 repo-owned projection、Operator Console 或自动训练链路
 
@@ -33,7 +33,7 @@ updated: 2026-07-06
 
 ```text
 online usage
--> turn dispatch / run observability / stage timing / safe fingerprints / feedback
+-> turn dispatch / run observability / stage timing / trace correlation / feedback
 -> candidate selector
 -> Langfuse annotation / dataset / scores
 -> improvement action attribution
@@ -65,9 +65,10 @@ Langfuse 是 LLM trace、annotation、dataset、score、experiment 和人工复�
 扩展成 raw prompt、raw answer、raw transcript、raw provider payload 或 raw sink payload
 的 app-api 副本。
 
-线上链路不保留 raw prompt、raw answer、raw provider payload、raw tool IO 或 raw
-memory context。复现和评估使用批准的数据集、脱敏 Langfuse trace 投影、
-`llm_io_fingerprint.v1` 与版本化配置，而不是生产 raw model-I/O replay。
+App-api、Temporal metadata 和 PostgreSQL projection 不复制 raw prompt、raw answer、
+raw provider payload、raw tool IO 或 raw memory context。受信任的 Langfuse trace 可按
+`docs/contracts/langfuse-runtime.md` 保存真实模型执行数据。复现和评估使用批准的数据集、
+trace correlation 与版本化运行配置，不维护自研生产 replay 或 fingerprint 平面。
 
 ## Candidate Selection
 
@@ -126,11 +127,10 @@ annotation queue sync、review manifest、quality dashboard 或 broad eval works
 生产 trace 可以成为 dataset item 的来源，但必须经过 explicit mapping、脱敏和字段 allowlist。
 进入 dataset 不等于进入训练集；进入 dataset 也不等于 release verdict。
 
-Badcase reproduction uses approved Langfuse datasets or trace projection plus
-`llm_io_fingerprint.v1` identity. The fingerprint identifies prompt, provider,
-model params, tool/runtime and context hashes without retaining rendered
-messages, provider bodies, evidence bodies or memory text. Exact replay that
-requires raw production model I/O is not an active capability.
+Badcase reproduction uses approved Langfuse datasets or a trace-backed dataset
+item linked by the product trace id. Versioned prompt, model and runtime
+metadata travel with the dataset/run record. The repository does not maintain
+a second fingerprint or exact-replay identity plane.
 
 ## Improvement Actions
 
@@ -172,19 +172,19 @@ token cost。
 
 ## Ownership Map
 
-- `apps/agent-runtime`：将 allowlisted Agents SDK span facts 映射到 OTel，并产出 stage
-  timing；不保存 repo-owned learning-loop state 或 raw model I/O。
+- `apps/agent-runtime`：通过 OpenInference 和官方 Langfuse OTel processor 发出 Agents
+  SDK trace，并产出 stage timing；不保存 repo-owned learning-loop state。
 - `apps/execution-control`：拥有 run / step / finalization projection、Temporal runtime
-  correlation、tool outcome、安全 observability envelope 与 LLM I/O fingerprint。
-- `apps/app-api`：保存 message feedback、request observability fact 与 Ops Index；不保存
+  correlation、tool outcome 与 bounded observability projection。
+- `apps/app-api`：保存 message feedback、request observability fact 与产品请求关联；不保存
   raw Langfuse / Sentry / Axiom payload 或 sink-specific trace projection。
 - `packages/eval-langfuse`：拥有 Langfuse dataset / score config sync、safe Ragas projection、
   score publishing、learning-loop dataset candidate publishing 和 trace verification adapter。
 - `packages/ragas-runner`：只运行上游 RAGAS scorer，不拥有候选选择、case truth、发布判定或
   Langfuse publishing。
 - Langfuse：承载 trace、annotation、dataset、score、experiment 和 score analytics。
-- Operator Console：只展示最小运行状态、request correlation 和 stage timing 摘要；不承载
-  learning-loop review UI。
+- Ops Web：只展示最小运行状态、request correlation 和 stage timing 摘要；不承载
+  learning-loop review UI。Operator Console 不承担请求观测查询。
 
 ## Forbidden Shapes
 

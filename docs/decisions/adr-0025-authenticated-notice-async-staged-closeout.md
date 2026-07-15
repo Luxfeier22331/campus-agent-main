@@ -9,6 +9,7 @@ updated: 2026-07-04
 superseded_by:
   - adr-0054-ingestion-control-plane-and-kernel-boundary.md
   - adr-0063-internal-portal-source-channel-name.md
+  - adr-0077-ingestion.md
   - docs/architecture/domains/authenticated-notice/architecture.md
 ---
 # ADR-0025 Authenticated Notice Async Staged Closeout
@@ -183,4 +184,4 @@ promoter 的职责固定为：
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
 - `docs/architecture/system/data-plane.md`
-- `docs/runbooks/ingestion-control-clean-target.md`
+- `docs/runbooks/ingestion.md`

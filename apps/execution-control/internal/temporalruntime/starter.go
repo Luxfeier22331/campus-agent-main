@@ -382,6 +382,32 @@ func WorkerOptionsForProfile(profile WorkerProfile) (worker.Options, error) {
 	return options, nil
 }
 
+func ApplyWorkerDeploymentVersioning(
+	options worker.Options,
+	deploymentName string,
+	buildID string,
+) (worker.Options, error) {
+	deploymentName = strings.TrimSpace(deploymentName)
+	buildID = strings.TrimSpace(buildID)
+	if deploymentName == "" && buildID == "" {
+		return options, nil
+	}
+	if deploymentName == "" || buildID == "" {
+		return worker.Options{}, errors.New(
+			"TEMPORAL_DEPLOYMENT_NAME and TEMPORAL_WORKER_BUILD_ID must be configured together",
+		)
+	}
+	options.DeploymentOptions = worker.DeploymentOptions{
+		UseVersioning: true,
+		Version: worker.WorkerDeploymentVersion{
+			DeploymentName: deploymentName,
+			BuildID:        buildID,
+		},
+		DefaultVersioningBehavior: workflow.VersioningBehaviorPinned,
+	}
+	return options, nil
+}
+
 func NewTemporalClient(ctx context.Context, address string, namespace string, workerID string) (client.Client, error) {
 	address = strings.TrimSpace(address)
 	namespace = strings.TrimSpace(namespace)

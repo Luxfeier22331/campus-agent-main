@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/campus-web
 status: active
 created: 2026-06-02
-updated: 2026-06-22
+updated: 2026-07-13
 ---
 # Identity Browser Experience Architecture
 
@@ -151,4 +151,3 @@ provider truth, not to the browser shell.
 - `docs/architecture/system/identity-platform.md`
 - `docs/architecture/system/mucwiki-login.md`
 - `docs/contracts/app-api/identity.md`
-- `apps/campus-web/README.md`

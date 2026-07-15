@@ -302,31 +302,3 @@ export function safeBasename(value: string): string {
 export function toTimestampLabel(value: string): string {
 	return new Date(value).toISOString().replace(/[-:]/g, "").replace(".000", "");
 }
-
-export function parsePositiveInteger(
-	raw: string | undefined,
-	defaultValue: number | null,
-): number | null {
-	if (!raw?.trim()) {
-		return defaultValue;
-	}
-	const parsed = Number(raw);
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return defaultValue;
-	}
-	return Math.floor(parsed);
-}
-
-export function resolveFileReleaseExportFiltersFromEnv(env: NodeJS.ProcessEnv): {
-	maxFileReleases: number | null;
-	maxPages: number | null;
-	pageSize: number;
-	targetFileReleaseId: number | null;
-} {
-	return {
-		pageSize: parsePositiveInteger(env.INTERNAL_PORTAL_FILE_RELEASE_PAGE_SIZE, 100) ?? 100,
-		maxPages: parsePositiveInteger(env.INTERNAL_PORTAL_FILE_RELEASE_MAX_PAGES, null),
-		maxFileReleases: parsePositiveInteger(env.INTERNAL_PORTAL_FILE_RELEASE_MAX_ITEMS, null),
-		targetFileReleaseId: parsePositiveInteger(env.INTERNAL_PORTAL_FILE_RELEASE_TARGET_ID, null),
-	};
-}

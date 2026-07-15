@@ -31,7 +31,7 @@ function providerConnection(
 		connectionId: "provider_connection_1",
 		createdAt: "2026-06-16T00:00:00.000Z",
 		featureConfig: {},
-		features: ["prompt", "embedding", "rerank"],
+		features: ["prompt", "embedding"],
 		provider: "openai-compatible",
 		revision: 1,
 		secretConfigured: true,
@@ -45,8 +45,7 @@ function providerProfile(
 	overrides: Partial<ProviderConfigProfile> & Pick<ProviderConfigProfile, "profileId" | "role">,
 ): ProviderConfigProfile {
 	const { profileId, role, ...restOverrides } = overrides;
-	const kind =
-		role === "rag_reranker" ? "rerank" : role.endsWith("_embedding") ? "embedding" : "prompt";
+	const kind = role.endsWith("_embedding") ? "embedding" : "prompt";
 	return {
 		active: false,
 		baseUrl: "https://provider.example/v1",
@@ -54,7 +53,7 @@ function providerProfile(
 		createdAt: "2026-06-16T00:00:00.000Z",
 		dimensions: kind === "embedding" ? 2560 : null,
 		kind,
-		model: kind === "embedding" ? "embedding-test" : kind === "rerank" ? "rerank-test" : "gpt-test",
+		model: kind === "embedding" ? "embedding-test" : "gpt-test",
 		profileId,
 		provider: "openai-compatible",
 		revision: 1,
@@ -129,12 +128,6 @@ describe("provider config UI", () => {
 						status: "draft",
 					}),
 					providerProfile({
-						active: true,
-						profileId: "provider_profile_active",
-						role: "rag_reranker",
-						status: "active",
-					}),
-					providerProfile({
 						profileId: "provider_profile_rag_embedding",
 						role: "rag_query_embedding",
 					}),
@@ -195,7 +188,6 @@ describe("provider config UI", () => {
 		expect(screen.queryByText("Model")).not.toBeInTheDocument();
 		expect(screen.queryByText("Dimensions")).not.toBeInTheDocument();
 		expect(screen.queryByText("Timeout ms")).not.toBeInTheDocument();
-		expect(await screen.findByRole("row", { name: /知识检索重排/ })).toHaveTextContent("已启用");
 	});
 
 	it("shows validation failures on the affected profile row", async () => {

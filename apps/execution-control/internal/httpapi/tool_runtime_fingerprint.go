@@ -13,10 +13,10 @@ import (
 const toolRuntimeFingerprintSchemaVersion = "tool_runtime_fingerprint.v1"
 
 const (
-	defaultToolRegistryRelativePath             = "configs/runtime/tools.v4.json"
-	defaultToolFunctionSchemaRelativePath       = "configs/runtime/tool-function-schemas.v1.json"
+	defaultToolRegistryRelativePath             = "configs/runtime/tools.v5.json"
+	defaultToolFunctionSchemaRelativePath       = "configs/runtime/tool-function-schemas.v2.json"
 	defaultWorkflowArtifactRegistryRelativePath = "configs/runtime/workflow-artifacts.v2.json"
-	packagedToolRegistryPath                    = "/etc/campus-agent/tools.v4.json"
+	packagedToolRegistryPath                    = "/etc/campus-agent/tools.v5.json"
 	packagedWorkflowArtifactRegistryPath        = "/etc/campus-agent/workflow-artifacts.v2.json"
 )
 

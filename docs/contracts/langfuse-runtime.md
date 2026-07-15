@@ -4,106 +4,93 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-07-11
+updated: 2026-07-12
 ---
-# Langfuse Runtime Observability Contract
+# Langfuse Runtime
 
-## Contract Boundary
+## Boundary
 
-This contract defines the safe telemetry that may reach Langfuse through the
-OTel Collector. It does not define app-api HTTP shapes, Temporal history or
-shared DTOs.
+Langfuse consumes OpenTelemetry traces and eval scores. It does not own product
+HTTP contracts, Temporal lifecycle, PostgreSQL run projection or repo dataset
+truth.
 
-Langfuse receives two kinds of data:
+## Runtime Integration
 
-- sanitized runtime traces emitted as standard OTLP;
-- datasets, annotations and scores written by `packages/eval-langfuse`.
+Execution-control emits sanitized Go OTel spans through the standard OTLP HTTP
+exporter. Agent-runtime uses:
 
-Neither kind becomes product truth, Temporal truth or release authority.
+- OpenInference instrumentation for OpenAI Agents SDK;
+- the official `@langfuse/otel` span processor;
+- the standard OpenTelemetry Node tracer provider and OTLP exporter.
 
-## Transport
+Services propagate W3C `traceparent` and `baggage`. Exporter destination and
+headers come from standard `OTEL_EXPORTER_OTLP_*` environment variables;
+`OTEL_SERVICE_NAME` identifies the service. Request payloads and app-api
+observability configuration do not carry Langfuse endpoint or Basic Auth.
 
-- Runtime services export OTLP to the environment-owned Collector endpoint.
-- Only the Collector stores Langfuse ingestion credentials and exports to the
-  Langfuse OTLP endpoint.
-- Runtime services must not construct Langfuse URLs, authorization headers or
-  sink-specific deep links.
-- `traceparent`, `tracestate` and `baggage` use W3C propagation across HTTP and
-  Temporal boundaries.
-- OTLP export failure must not fail an online answer.
+Providers flush on process shutdown, not after every span or request.
 
-## Safe Trace Fields
+## Trace Activation And Correlation
 
-Langfuse-bound traces may include:
+Tracing is deployment-owned and process-scoped. Agent-runtime starts the
+official instrumentation when a standard OTLP traces endpoint is configured;
+without an exporter it runs without telemetry. Product requests do not carry
+an observability mode, sample ratio, exporter configuration or sink reference.
 
-- service name, version, release and deployment environment;
-- request, conversation, run, workflow, trace, span, step and activity ids;
-- route template, task queue, activity attempt and terminal status;
-- agent, handoff, guardrail and tool names;
-- model/provider identity and provider response id;
-- token counts and bounded duration fields;
-- selected tool, source count, failure class and fail-close reason;
-- safe hash and version fields from `llm_io_fingerprint.v1` and
-  `answer_eval_fingerprint.v1`.
+An enabled trace includes OpenAI Agents SDK model input/output through the
+official instrumentation path. The propagated W3C trace id is the correlation
+key used by product projections and eval jobs. Product contracts do not store
+Langfuse URLs, synthetic trace refs or delivery proof for any sink.
 
-Repo-owned `stage_timing.v1` remains the canonical request-stage latency
-projection. External spans may diagnose latency but do not replace it.
+## Trace Data
 
-## Agents SDK Mapping
+Self-hosted Langfuse is a trusted internal observability system. A sampled trace
+may contain user/session association, model input/output, memory context and
+authorized retrieval facts needed to inspect the real agent execution.
+Credentials and secrets such as authorization headers, cookies, API keys,
+passwords, database credentials and object-store secrets are forbidden.
 
-`apps/agent-runtime` must:
+App-api, Ops Web and Operator Console do not copy Langfuse trace bodies. Their
+PostgreSQL projection remains bounded to correlation identity, model/provider
+identity, `agent_runtime_prompt_trace.v1` and stage timing. A trace correlation
+field does not prove successful export or storage in Langfuse.
 
-- set `traceIncludeSensitiveData=false`;
-- replace the SDK default exporter with the repo-owned OTel processor;
-- map SDK data through an allowlist rather than serializing SDK span objects;
-- preserve the inbound active OTel context as the parent context;
-- export through the standard OTLP HTTP exporter outside request callbacks.
+`tool_trajectory.v2` and `agent_runtime_eval_projection.v2` remain repo-owned
+contracts. Langfuse can store correlated traces and scores but cannot redefine
+those shapes.
 
-The safe mapping may emit agent/tool/model names, response ids, token counts and
-error status. It must not emit rendered messages, generated text, tool
-arguments, tool results, guardrail payloads, source bodies or memory text.
+## Dataset Runs And Scores
 
-## Eval Projection
+Dataset evaluation executes the real product path. For each target turn,
+`packages/eval-langfuse`:
 
-Ragas and deterministic scorer inputs may contain only data approved for eval
-storage:
+1. keeps optional setup turns in one product conversation;
+1. reads `agent_runtime_eval_projection.v2` from the completed run;
+1. derives the Langfuse trace id from the product trace id;
+1. creates `/api/public/dataset-run-items` with `runName`, `datasetItemId` and
+   the real trace id;
+1. retains the returned dataset run identity as internal case lineage;
+1. sends RAG and agent samples to the narrow Ragas runner and publishes the
+   registered scores.
 
-- case, trace, observation and dataset item identity;
-- question, answer and retrieved/reference contexts from approved datasets or
-  sanitized trace projection;
-- retrieved/reference context ids;
-- metric applicability and release metadata;
-- sanitized `tool_trajectory.v1` fields.
+The runner does not use Langfuse `runExperiment`, because the product request
+already created the canonical trace and a second experiment callback would
+create a synthetic execution trace.
 
-Unknown score names, missing correlation, incomplete dataset materialization or
-forbidden fields must fail closed. Score metadata must remain bounded and must
-not copy trace or source bodies.
+`packages/eval-langfuse` publishes scores synchronously through
+`POST /api/public/scores`. Each payload targets exactly one Langfuse object: an
+observation when one was materialized, otherwise its trace. `datasetItemId` and
+`datasetRunId` are dataset-run lineage and are not score API target fields. The
+active families are Ragas RAG metrics, Ragas agent/tool metrics,
+`execution.outcome_match` and `retrieval.forbidden_context_absent`.
 
-## Forbidden Payloads
+Unknown score names, missing correlation or Langfuse write failures fail the
+publishing command. Score metadata is allowlisted and remains scalar; answer
+and context text belong in the dataset item, product trace and Ragas sample,
+not score metadata.
 
-The following values must not enter runtime OTLP, Langfuse score metadata,
-app-api observability projection or Operator Console responses:
+## Availability
 
-- raw prompts, generated answers or transcripts;
-- provider request/response bodies or stream deltas;
-- tool arguments/results and retrieved source bodies;
-- raw memory text or Hindsight internal ids/refs;
-- cookies, JWTs, authorization headers, API keys and provider secrets;
-- database URLs and object-store credentials;
-- unbounded error text or user identifiers as metric labels.
-
-## Verification
-
-- Agent-runtime tests verify the allowlisted span mapping and sensitive-data
-  exclusion.
-- Execution-control tests verify W3C propagation and safe finalization fields.
-- Collector validation verifies OTLP routing, redaction and Langfuse export.
-- `packages/eval-langfuse` tests verify trace identity and forbidden fields.
-
-## Related Documents
-
-- `docs/architecture/system/langfuse.md`
-- `docs/contracts/stage-timing.md`
-- `docs/contracts/tool-trajectory.md`
-- `docs/reference/runtime-otel-telemetry-taxonomy.md`
-- `docs/runbooks/runtime-otel-collector-pipeline.md`
+Langfuse export and eval commands are offline observability work. Langfuse
+availability never blocks online answer completion; Temporal and PostgreSQL
+remain execution lifecycle truth.

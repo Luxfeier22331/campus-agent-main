@@ -1,48 +1,22 @@
-# stable_reference collection config
+# stable_reference collection
 
-This directory holds the repo-tracked serving config for the `stable_reference`
-collection within the `official_web` corpus.
+This directory defines the offline `official_web/stable_reference` collection
+for long-lived public web pages such as institutional, department, and contact
+references.
 
-- source-level crawl ownership remains under
-  `configs/sources/official_web/muc_public/`
-- this collection profile describes the stable-reference serving scope for
-  public-web content derived from `official_web` source truth
+## Current Boundary
 
-Profile declaration:
+- `serving-config.json` is `offline_preparation` with retrieval disabled.
+- The collection is absent from
+  `configs/runtime/query-serving-targets.v1.json`; `knowledge_query` cannot
+  select or search it.
+- Qdrant names in the serving config reserve artifact identity only and do not
+  assert that an online alias exists.
+- Formal regulations and curriculum documents remain in their owning corpora.
 
-- serving stage: `query_serving`
-- serving surface: `stable_reference`
-- query policy: default-open in runtime scope when a published alias exists
-- freshness-sensitive queries supported: `false`
-- live-search expansion allowed: `false`
-- required metadata fields: `none`
-- primary evidence page families: `repo policy decides by stable-reference
-  semantics; not restricted to news-only detail pages`
-- listing-page role: `n/a`
-- serving alias: `official_web_stable_reference`
-- collection prefix: `official_web_stable_reference`
-- repo-tracked split manifest:
-  `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
-- repo-tracked retrieval qrels: the eval-langfuse-owned
-  `official_web_stable_reference` retrieval dataset
+## Ingestion
 
-Boundary notes:
-
-- this collection is reserved for public-web stable reference pages such as
-  institution overview, department/contact pages, and long-lived explanatory
-  content
-- brand-history, school-history-person, celebrity-biography, and promotional
-  honor pages are not part of the default stable-reference answer denominator;
-  keep them in source/inventory audit truth unless a dedicated brand-history
-  surface is admitted
-- config declares the intended alias `official_web_stable_reference`; a target is
-  query-ready only after document units, chunks, index, release manifest and
-  alias publish evidence exist
-- it is the only default query-enabled official-web surface; `fresh_news`
-  remains explicitly out of the default online answer path
-- it is not a mirror for formal regulations or formal curriculum documents;
-  those continue to belong to `regulations/*` and `curriculum/*`
-- replay and QC now target explicit active collections
-- current `source_truth_materialize` tasks only verify source-truth refs; they
-  do not by themselves create stable-reference documents, chunks, indexes or a
-  published alias
+This collection has no executable task registry. `official_web.capture` only
+produces source artifacts and URL freshness state. Canonical document,
+chunk/index, release, and serving publication must be implemented together
+before this collection can gain executable tasks or become an online target.

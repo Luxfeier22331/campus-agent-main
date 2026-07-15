@@ -3,11 +3,10 @@ import {
 	agentRunResultWire,
 	agentRunStreamResponse,
 	authorized,
-	errorMessage,
 	jsonResponse,
 } from "./http-response.ts";
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
-import { runWithExtractedTraceContext } from "./telemetry.ts";
+import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 const providerConfigSchema = z.object({
 	profile_id: z.string().min(1).optional(),
@@ -17,7 +16,6 @@ const providerConfigSchema = z.object({
 	base_url: z.string().min(1).optional(),
 	model: z.string().min(1),
 	api_key: z.string().min(1),
-	timeout_ms: z.number().int().positive().optional(),
 });
 
 const memoryContextSchema = z.object({
@@ -30,28 +28,26 @@ const memoryContextSchema = z.object({
 	selected_memory_count: z.number().int().nonnegative(),
 });
 
-const allowedKnowledgeScopeSchema = z.object({
-	scope: z.string().min(1),
+const knowledgeTargetSchema = z.object({
+	target: z.string().min(1),
 	description: z.string().min(1),
-	allowed_query_modes: z.array(z.string().min(1)).default([]),
 });
 
 const truncationSummarySchema = z.object({
-	schema_version: z.literal("truncation_summary.v1"),
+	schema_version: z.literal("truncation_summary.v2"),
 	policy_version: z.string().min(1),
 	reason: z.string().min(1),
+	context_chars_before: z.number().int().nonnegative(),
+	context_chars_after: z.number().int().nonnegative(),
 	model_visible_before_count: z.number().int().nonnegative(),
 	model_visible_after_count: z.number().int().nonnegative(),
 	runtime_only_before_count: z.number().int().nonnegative(),
 	runtime_only_after_count: z.number().int().nonnegative(),
-	token_estimate_before: z.number().int().nonnegative(),
-	token_estimate_after: z.number().int().nonnegative(),
 	dropped_category_counts: z.record(z.string().min(1), z.number().int().nonnegative()),
 });
 
 const finalModelContextSchema = z.object({
-	schema_version: z.literal("final_model_context.v1"),
-	current_user_message: z.string().min(1),
+	schema_version: z.literal("final_model_context.v2"),
 	recent_turns: z
 		.array(
 			z.object({
@@ -110,21 +106,36 @@ const finalModelContextSchema = z.object({
 				run_id: z.string().min(1),
 				status: z.string().min(1),
 				summary: z.string().optional(),
+				tool: z.string().min(1),
 			}),
 		)
 		.default([]),
+	memory_context: memoryContextSchema.optional(),
 	usage_summary: z.object({
+		context_chars: z.number().int().nonnegative(),
+		current_input_chars: z.number().int().nonnegative(),
 		memory_recall_state: z.enum(["completed", "skipped"]),
 		model_visible_item_count: z.number().int().nonnegative(),
 		runtime_only_item_count: z.number().int().nonnegative(),
-		token_estimate: z.number().int().nonnegative(),
 		truncation_reason: z.string().min(1).optional(),
 		truncation_summary: truncationSummarySchema.optional(),
 	}),
 });
 
+const runtimeLimitsSchema = z
+	.object({
+		agent_deadline_ms: z.number().int().positive(),
+		context_char_limit: z.number().int().positive(),
+		current_input_char_limit: z.number().int().positive(),
+		max_knowledge_searches: z.number().int().positive().max(3),
+		max_output_tokens: z.number().int().positive(),
+		max_turns: z.number().int().positive(),
+	})
+	.strict();
+
 const runRequestSchema = z
 	.object({
+		activity_attempt: z.number().int().positive(),
 		run_id: z.string().min(1),
 		request_id: z.string().min(1),
 		conversation_id: z.string().min(1),
@@ -132,20 +143,45 @@ const runRequestSchema = z
 		trace_id: z.string().min(1),
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
-		allowed_knowledge_scopes: z.array(allowedKnowledgeScopeSchema).optional(),
+		knowledge_targets: z.array(knowledgeTargetSchema).optional(),
 		tool_choice: z.literal("knowledge_query").optional(),
 		provider_config: providerConfigSchema,
+		limits: runtimeLimitsSchema,
 		final_model_context: finalModelContextSchema.optional(),
-		memory_context: memoryContextSchema.optional(),
-		memory_projection_refs: z.array(z.string().min(1)).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, context) => {
+		if ([...value.input].length > value.limits.current_input_char_limit) {
+			context.addIssue({
+				code: "custom",
+				message: "input exceeds limits.current_input_char_limit",
+				path: ["input"],
+			});
+		}
+		if (
+			value.final_model_context &&
+			finalModelContextCharacterCount(value.final_model_context) > value.limits.context_char_limit
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "final_model_context exceeds limits.context_char_limit",
+				path: ["final_model_context"],
+			});
+		}
+	});
+
+function finalModelContextCharacterCount(context: z.infer<typeof finalModelContextSchema>): number {
+	const { usage_summary: _usageSummary, ...modelContext } = context;
+	return [...JSON.stringify(modelContext)].length;
+}
 
 function mapTruncationSummary(summary: z.infer<typeof truncationSummarySchema> | undefined) {
 	if (!summary) {
 		return;
 	}
 	return {
+		contextCharsAfter: summary.context_chars_after,
+		contextCharsBefore: summary.context_chars_before,
 		droppedCategoryCounts: summary.dropped_category_counts,
 		modelVisibleAfterCount: summary.model_visible_after_count,
 		modelVisibleBeforeCount: summary.model_visible_before_count,
@@ -154,18 +190,13 @@ function mapTruncationSummary(summary: z.infer<typeof truncationSummarySchema> |
 		runtimeOnlyAfterCount: summary.runtime_only_after_count,
 		runtimeOnlyBeforeCount: summary.runtime_only_before_count,
 		schemaVersion: summary.schema_version,
-		tokenEstimateAfter: summary.token_estimate_after,
-		tokenEstimateBefore: summary.token_estimate_before,
 	};
 }
 
-function mapAllowedKnowledgeScopes(
-	scopes: z.infer<typeof allowedKnowledgeScopeSchema>[] | undefined,
-) {
-	return scopes?.map((scope) => ({
-		allowedQueryModes: [...scope.allowed_query_modes],
-		description: scope.description,
-		scope: scope.scope,
+function mapKnowledgeTargets(targets: z.infer<typeof knowledgeTargetSchema>[] | undefined) {
+	return targets?.map((target) => ({
+		description: target.description,
+		target: target.target,
 	}));
 }
 
@@ -179,187 +210,71 @@ export type AgentRuntimeHandler = (request: Request) => Promise<Response>;
 export function createAgentRuntimeHandler(
 	options: AgentRuntimeHandlerOptions,
 ): AgentRuntimeHandler {
-	return async (request) =>
-		runWithExtractedTraceContext(request.headers, async () => {
-			const url = new URL(request.url);
-			if (request.method === "GET" && url.pathname === "/healthz") {
-				return jsonResponse(200, { status: "ok" });
+	return async (request) => {
+		const url = new URL(request.url);
+		if (request.method === "GET" && url.pathname === "/readyz") {
+			return jsonResponse(200, { status: "ok" });
+		}
+		if (request.method === "POST" && url.pathname === "/internal/agent-runs") {
+			if (!authorized(request, options.sharedSecret)) {
+				return jsonResponse(401, {
+					error: {
+						code: "unauthorized",
+						message: "Internal worker authorization failed.",
+					},
+				});
 			}
-			if (request.method === "GET" && url.pathname === "/readyz") {
-				return jsonResponse(200, { status: "ready" });
+			let parsed: z.infer<typeof runRequestSchema>;
+			try {
+				parsed = runRequestSchema.parse(await request.json());
+			} catch (error) {
+				return jsonResponse(400, {
+					error: requestValidationError(error),
+				});
 			}
-			if (request.method === "POST" && url.pathname === "/internal/agent-runs") {
-				if (!authorized(request, options.sharedSecret)) {
-					return jsonResponse(401, {
-						error: {
-							code: "unauthorized",
-							message: "Internal worker authorization failed.",
-						},
-					});
-				}
-				let parsed: z.infer<typeof runRequestSchema>;
-				try {
-					parsed = runRequestSchema.parse(await request.json());
-				} catch (error) {
-					return jsonResponse(400, {
-						error: {
-							code: "invalid_request",
-							message: error instanceof Error ? error.message : "Invalid request body.",
-						},
-					});
-				}
-				let result: PrimaryAgentRunResult;
-				try {
-					result = await options.runtime.run({
-						runId: parsed.run_id,
-						requestId: parsed.request_id,
-						conversationId: parsed.conversation_id,
-						turnId: parsed.turn_id,
-						traceId: parsed.trace_id,
-						input: parsed.input,
-						visibleToolNames: parsed.visible_tool_names,
-						allowedKnowledgeScopes: mapAllowedKnowledgeScopes(parsed.allowed_knowledge_scopes),
-						toolChoice: parsed.tool_choice,
-						providerConfig: {
-							profileId: parsed.provider_config.profile_id,
-							revision: parsed.provider_config.revision,
-							provider: parsed.provider_config.provider,
-							transport: parsed.provider_config.transport,
-							baseUrl: parsed.provider_config.base_url,
-							model: parsed.provider_config.model,
-							apiKey: parsed.provider_config.api_key,
-							timeoutMs: parsed.provider_config.timeout_ms,
-						},
-						finalModelContext: parsed.final_model_context
-							? {
-									schemaVersion: parsed.final_model_context.schema_version,
-									currentUserMessage: parsed.final_model_context.current_user_message,
-									recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
-										messageId: turn.message_id,
-										role: turn.role,
-										content: turn.content,
-									})),
-									previousEvidence: parsed.final_model_context.previous_evidence.map(
-										(evidence) => ({
-											accessScope: evidence.access_scope,
-											contentHash: evidence.content_hash,
-											documentId: evidence.document_id,
-											evidenceId: evidence.evidence_id,
-											sectionTitle: evidence.section_title,
-											snapshotId: evidence.snapshot_id,
-											snippet: evidence.snippet,
-											sourceId: evidence.source_id,
-											title: evidence.title,
-											versionId: evidence.version_id,
-										}),
-									),
-									previousToolResults: parsed.final_model_context.previous_tool_results.map(
-										(result) => ({
-											contentHash: result.content_hash,
-											projectionRef: result.projection_ref,
-											requestId: result.request_id,
-											resultKind: result.result_kind,
-											runId: result.run_id,
-											status: result.status,
-											summary: result.summary,
-										}),
-									),
-									sessionState: parsed.final_model_context.session_state
-										? {
-												confirmedSlots:
-													parsed.final_model_context.session_state.confirmed_slots.map((slot) => ({
-														confirmed: slot.confirmed,
-														name: slot.name,
-														value: slot.value,
-													})),
-												selectedNoticeRef: parsed.final_model_context.session_state
-													.selected_notice_ref
-													? {
-															noticeId:
-																parsed.final_model_context.session_state.selected_notice_ref
-																	.notice_id,
-															sourceFamily:
-																parsed.final_model_context.session_state.selected_notice_ref
-																	.source_family,
-															targetSurface:
-																parsed.final_model_context.session_state.selected_notice_ref
-																	.target_surface,
-															title:
-																parsed.final_model_context.session_state.selected_notice_ref.title,
-														}
-													: null,
-												turnCount: parsed.final_model_context.session_state.turn_count,
-											}
-										: undefined,
-									usageSummary: {
-										memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
-										modelVisibleItemCount:
-											parsed.final_model_context.usage_summary.model_visible_item_count,
-										runtimeOnlyItemCount:
-											parsed.final_model_context.usage_summary.runtime_only_item_count,
-										tokenEstimate: parsed.final_model_context.usage_summary.token_estimate,
-										truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
-										truncationSummary: mapTruncationSummary(
-											parsed.final_model_context.usage_summary.truncation_summary,
-										),
-									},
-								}
-							: undefined,
-						memoryContext: parsed.memory_context
-							? {
-									contextBlock: parsed.memory_context.context_block,
-									memoryRef: parsed.memory_context.memory_ref,
-									provider: parsed.memory_context.provider,
-									retrievalMode: parsed.memory_context.retrieval_mode,
-									schemaVersion: parsed.memory_context.schema_version,
-									selectedMemoryChars: parsed.memory_context.selected_memory_chars,
-									selectedMemoryCount: parsed.memory_context.selected_memory_count,
-								}
-							: undefined,
-						memoryProjectionRefs: parsed.memory_projection_refs,
-						signal: request.signal,
-					});
-				} catch (error) {
-					return jsonResponse(500, {
-						error: {
-							code: "agent_runtime_failed",
-							message: errorMessage(error),
-						},
-					});
-				}
-				return jsonResponse(200, agentRunResultWire(result));
-			}
-			if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
-				if (!authorized(request, options.sharedSecret)) {
-					return jsonResponse(401, {
-						error: {
-							code: "unauthorized",
-							message: "Internal worker authorization failed.",
-						},
-					});
-				}
-				let parsed: z.infer<typeof runRequestSchema>;
-				try {
-					parsed = runRequestSchema.parse(await request.json());
-				} catch (error) {
-					return jsonResponse(400, {
-						error: {
-							code: "invalid_request",
-							message: error instanceof Error ? error.message : "Invalid request body.",
-						},
-					});
-				}
-				return agentRunStreamResponse(
-					options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, request.signal)),
+			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
+			let result: PrimaryAgentRunResult;
+			try {
+				result = await options.runtime.run(
+					runtimeInputFromParsedRunRequest(parsed, signals.signal),
 				);
+			} catch (error) {
+				return jsonResponse(500, {
+					error: agentRuntimeErrorPayload(error, { deadlineSignal: signals.deadlineSignal }),
+				});
 			}
-			return jsonResponse(404, {
-				error: {
-					code: "not_found",
-					message: "Route not found.",
-				},
-			});
+			return jsonResponse(200, agentRunResultWire(result));
+		}
+		if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
+			if (!authorized(request, options.sharedSecret)) {
+				return jsonResponse(401, {
+					error: {
+						code: "unauthorized",
+						message: "Internal worker authorization failed.",
+					},
+				});
+			}
+			let parsed: z.infer<typeof runRequestSchema>;
+			try {
+				parsed = runRequestSchema.parse(await request.json());
+			} catch (error) {
+				return jsonResponse(400, {
+					error: requestValidationError(error),
+				});
+			}
+			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
+			return agentRunStreamResponse(
+				options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, signals.signal)),
+				{ deadlineSignal: signals.deadlineSignal },
+			);
+		}
+		return jsonResponse(404, {
+			error: {
+				code: "not_found",
+				message: "Route not found.",
+			},
 		});
+	};
 }
 
 function runtimeInputFromParsedRunRequest(
@@ -367,6 +282,7 @@ function runtimeInputFromParsedRunRequest(
 	signal: AbortSignal,
 ): Parameters<PrimaryAgentRuntime["run"]>[0] {
 	return {
+		activityAttempt: parsed.activity_attempt,
 		runId: parsed.run_id,
 		requestId: parsed.request_id,
 		conversationId: parsed.conversation_id,
@@ -374,7 +290,7 @@ function runtimeInputFromParsedRunRequest(
 		traceId: parsed.trace_id,
 		input: parsed.input,
 		visibleToolNames: parsed.visible_tool_names,
-		allowedKnowledgeScopes: mapAllowedKnowledgeScopes(parsed.allowed_knowledge_scopes),
+		knowledgeTargets: mapKnowledgeTargets(parsed.knowledge_targets),
 		toolChoice: parsed.tool_choice,
 		providerConfig: {
 			profileId: parsed.provider_config.profile_id,
@@ -384,12 +300,18 @@ function runtimeInputFromParsedRunRequest(
 			baseUrl: parsed.provider_config.base_url,
 			model: parsed.provider_config.model,
 			apiKey: parsed.provider_config.api_key,
-			timeoutMs: parsed.provider_config.timeout_ms,
+		},
+		limits: {
+			agentDeadlineMs: parsed.limits.agent_deadline_ms,
+			contextCharLimit: parsed.limits.context_char_limit,
+			currentInputCharLimit: parsed.limits.current_input_char_limit,
+			maxKnowledgeSearches: parsed.limits.max_knowledge_searches,
+			maxOutputTokens: parsed.limits.max_output_tokens,
+			maxTurns: parsed.limits.max_turns,
 		},
 		finalModelContext: parsed.final_model_context
 			? {
 					schemaVersion: parsed.final_model_context.schema_version,
-					currentUserMessage: parsed.final_model_context.current_user_message,
 					recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
 						messageId: turn.message_id,
 						role: turn.role,
@@ -415,6 +337,7 @@ function runtimeInputFromParsedRunRequest(
 						runId: result.run_id,
 						status: result.status,
 						summary: result.summary,
+						tool: result.tool,
 					})),
 					sessionState: parsed.final_model_context.session_state
 						? {
@@ -439,12 +362,26 @@ function runtimeInputFromParsedRunRequest(
 								turnCount: parsed.final_model_context.session_state.turn_count,
 							}
 						: undefined,
+					memoryContext: parsed.final_model_context.memory_context
+						? {
+								contextBlock: parsed.final_model_context.memory_context.context_block,
+								memoryRef: parsed.final_model_context.memory_context.memory_ref,
+								provider: parsed.final_model_context.memory_context.provider,
+								retrievalMode: parsed.final_model_context.memory_context.retrieval_mode,
+								schemaVersion: parsed.final_model_context.memory_context.schema_version,
+								selectedMemoryChars:
+									parsed.final_model_context.memory_context.selected_memory_chars,
+								selectedMemoryCount:
+									parsed.final_model_context.memory_context.selected_memory_count,
+							}
+						: undefined,
 					usageSummary: {
+						contextChars: parsed.final_model_context.usage_summary.context_chars,
+						currentInputChars: parsed.final_model_context.usage_summary.current_input_chars,
 						memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
 						modelVisibleItemCount:
 							parsed.final_model_context.usage_summary.model_visible_item_count,
 						runtimeOnlyItemCount: parsed.final_model_context.usage_summary.runtime_only_item_count,
-						tokenEstimate: parsed.final_model_context.usage_summary.token_estimate,
 						truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
 						truncationSummary: mapTruncationSummary(
 							parsed.final_model_context.usage_summary.truncation_summary,
@@ -452,18 +389,29 @@ function runtimeInputFromParsedRunRequest(
 					},
 				}
 			: undefined,
-		memoryContext: parsed.memory_context
-			? {
-					contextBlock: parsed.memory_context.context_block,
-					memoryRef: parsed.memory_context.memory_ref,
-					provider: parsed.memory_context.provider,
-					retrievalMode: parsed.memory_context.retrieval_mode,
-					schemaVersion: parsed.memory_context.schema_version,
-					selectedMemoryChars: parsed.memory_context.selected_memory_chars,
-					selectedMemoryCount: parsed.memory_context.selected_memory_count,
-				}
-			: undefined,
-		memoryProjectionRefs: parsed.memory_projection_refs,
 		signal,
+	};
+}
+
+function requestValidationError(error: unknown) {
+	const contextBudgetExceeded =
+		error instanceof z.ZodError &&
+		error.issues.some(
+			(issue) =>
+				issue.code === "custom" &&
+				(issue.path[0] === "input" || issue.path[0] === "final_model_context"),
+		);
+	return {
+		code: contextBudgetExceeded ? "context_budget_exceeded" : "invalid_request",
+		message: error instanceof Error ? error.message : "Invalid request body.",
+		retryable: false,
+	};
+}
+
+function runtimeSignals(parent: AbortSignal, deadlineMs: number) {
+	const deadlineSignal = AbortSignal.timeout(deadlineMs);
+	return {
+		deadlineSignal,
+		signal: AbortSignal.any([parent, deadlineSignal]),
 	};
 }

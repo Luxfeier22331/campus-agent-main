@@ -1,0 +1,15 @@
+{
+	"schema_version": "truncation_summary.v2",
+	"policy_version": "primary_agent_context.v2",
+	"reason": "context_policy_limit",
+	"context_chars_before": 32800,
+	"context_chars_after": 16000,
+	"model_visible_before_count": 14,
+	"model_visible_after_count": 8,
+	"runtime_only_before_count": 0,
+	"runtime_only_after_count": 0,
+	"dropped_category_counts": {
+		"recent_turns": 6
+	},
+	"dropped_raw_messages": ["raw user message"]
+}

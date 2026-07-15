@@ -221,12 +221,8 @@ Connection summary shape:
 {
   "connection": {
     "baseUrl": "https://provider.example/v1",
-    "tools": ["embedding", "rerank"],
-    "toolConfig": {
-      "rerank": {
-        "path": "/configured-rerank"
-      }
-    },
+    "features": ["prompt", "embedding"],
+    "featureConfig": {},
     "connectionId": "provider_connection_...",
     "provider": "openai-compatible",
     "revision": 1,
@@ -276,7 +272,6 @@ Accepted roles:
   `eval_ragas_llm`, `eval_judge_llm`
 - embedding: `rag_query_embedding`, `index_embedding`,
   `hindsight_embedding`, `eval_ragas_embedding`
-- rerank: `rag_reranker`
 
 `primary_agent` covers the complete OpenAI Agents SDK run, including Knowledge
 Agent handoff. No separate online answer-generation or public-web provider role
@@ -297,10 +292,6 @@ Rules:
 - raw API keys may appear only in create/update command bodies and app-api
   encrypted connection persistence; they must never appear in operator list
   responses
-- `rag_reranker` is consumed only when a collection serving config explicitly
-  opts in to reranking; missing provider config, missing configured rerank path,
-  provider error or incomplete score response fails closed
-
 Internal provider projection export:
 
 ```text

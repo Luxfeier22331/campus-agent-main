@@ -24,7 +24,7 @@ branch tip 作为默认操作说明。
     recovery 与 triage 入口。
 - `forward-worker-smoke.md`
 - `main-release.md`
-- `ingestion-control-clean-target.md`
+- `ingestion.md`
   - 当前 ingestion/data-plane operational 入口。
 
 ## Collaboration / Workstreams
@@ -59,25 +59,24 @@ branch tip 作为默认操作说明。
 ## Authenticated Notice / Internal Notice
 
 - `notice-release-auth-window.md`
-- `ingestion-control-clean-target.md`
+- `ingestion.md`
   - authenticated notice / internal notice 的 ingestion task lifecycle 入口；
     current notice mainline 使用 explicit object-store capture-release input。
 
 ## Official Web
 
-- `ingestion-control-clean-target.md`
-  - official-web ingestion / release task lifecycle 入口。
+- `ingestion.md`
+  - official-web offline capture task 入口。
 
 ## Collection rebuild checklists
 
 - `rag-release.md`
-  - current RAG collection rebuild / release acceptance entry for
-    `student_rules` and `curriculum_plan`
+  - target-based RAG release review over owning runtime tests and Langfuse
+    dataset runs
 
 ## Eval / Acceptance automation
 
 - `eval-ragas.md`
-- `eval-operations-governance.md`
 
 ## Historical Material
 

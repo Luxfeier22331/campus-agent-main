@@ -1,4 +1,4 @@
-import { sha256Hex } from "ingest-core";
+import { encodeObjectKeySegment, sha256Hex } from "ingest-core";
 import type { StoredArtifactRef, WeChatOfficialAccountArtifactStore } from "./artifact-store.ts";
 import { type CapturedArticleMediaPayload, inferImageExtension } from "./capture-media.ts";
 import {
@@ -27,8 +27,11 @@ import {
 } from "./wechat-crawlee-runners.ts";
 
 export interface CaptureFeedWeHistoryInput {
+	abortSignal?: AbortSignal;
+	activityAttempt: number;
 	accountName: string;
 	accountSlug?: string;
+	captureRunId: string;
 	artifactStore: WeChatOfficialAccountArtifactStore;
 	begin?: string;
 	fetchImplementation?: typeof fetch;
@@ -88,8 +91,10 @@ const textEncoder = new TextEncoder();
 export async function captureFeedWeHistory(
 	input: CaptureFeedWeHistoryInput,
 ): Promise<CaptureFeedWeHistoryResult> {
+	input.abortSignal?.throwIfAborted();
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const now = input.now ?? (() => new Date());
+	const artifactStore = bindArtifactStoreCancellation(input.artifactStore, input.abortSignal);
 	const accountName = input.accountName.trim();
 	if (!accountName) {
 		throw new Error("accountName is required.");
@@ -100,6 +105,12 @@ export async function captureFeedWeHistory(
 	if (!Number.isInteger(input.maxArticles) || input.maxArticles < 1) {
 		throw new Error("maxArticles must be a positive integer.");
 	}
+	if (!Number.isSafeInteger(input.activityAttempt) || input.activityAttempt <= 0) {
+		throw new Error("activityAttempt must be a positive integer.");
+	}
+	if (!input.captureRunId.trim()) {
+		throw new Error("captureRunId is required.");
+	}
 	const pageSize = input.size;
 	if (!Number.isInteger(pageSize) || pageSize < 1) {
 		throw new Error("size must be a positive integer.");
@@ -107,15 +118,18 @@ export async function captureFeedWeHistory(
 
 	const accountSlug = input.accountSlug?.trim() || normalizeWeChatAccountSlug(accountName);
 	const session = await loginFeedWe({
+		abortSignal: input.abortSignal,
 		fetchImplementation,
 		provider: input.provider,
 	});
 	const authMe = await fetchFeedWeAuthMe({
+		abortSignal: input.abortSignal,
 		fetchImplementation,
 		provider: input.provider,
 		token: session.token,
 	});
 	const subscriptions = await fetchFeedWeSubscriptions({
+		abortSignal: input.abortSignal,
 		fetchImplementation,
 		provider: input.provider,
 		token: session.token,
@@ -142,8 +156,10 @@ export async function captureFeedWeHistory(
 	let planningOutcome: FeedWeCapturePlanningOutcome = "complete";
 
 	for (let pageIndex = 0; pageIndex < input.maxPages; pageIndex += 1) {
+		input.abortSignal?.throwIfAborted();
 		const capturedAt = now().toISOString();
 		const page = await fetchFeedWeArticlesPage({
+			abortSignal: input.abortSignal,
 			fetchImplementation,
 			provider: input.provider,
 			request: {
@@ -160,12 +176,15 @@ export async function captureFeedWeHistory(
 		const pageMaterials: WeChatOfficialAccountArticleSourceTruthMaterial[] = [];
 		const pageCaptureRefs: WeChatOfficialAccountCaptureArtifactRef[] = [];
 		for (const article of pageArticles) {
+			input.abortSignal?.throwIfAborted();
 			const capturedPage = await captureWeChatArticlePage({
+				abortSignal: input.abortSignal,
 				article,
 				crawlerFactory: input.articlePageCrawlerFactory,
 				now,
 			});
 			const capturedMedia = await runWeChatMediaCrawleeCapture({
+				abortSignal: input.abortSignal,
 				articleSourceUrl: capturedPage.finalUrl || resolveArticleUrl(article) || "",
 				coverImageUrl: capturedPage.coverImageUrl,
 				crawlerFactory: input.mediaCrawlerFactory,
@@ -177,14 +196,15 @@ export async function captureFeedWeHistory(
 					accountName,
 					accountSlug,
 					article,
-					capturedAt,
 					page: capturedPage,
 					mediaCaptures: capturedMedia,
 				});
 			const mediaCaptureResult = await writeWeChatArticlePageCaptureArtifacts({
+				activityAttempt: input.activityAttempt,
 				article,
-				artifactStore: input.artifactStore,
+				artifactStore,
 				capturedAt,
+				captureRunId: input.captureRunId,
 				material: provisionalMaterial,
 				mediaCaptures: capturedMedia,
 				page: capturedPage,
@@ -193,7 +213,6 @@ export async function captureFeedWeHistory(
 				accountName,
 				accountSlug,
 				article,
-				capturedAt,
 				page: capturedPage,
 				mediaCaptures: mediaCaptureResult.mediaCaptures,
 			});
@@ -222,12 +241,15 @@ export async function captureFeedWeHistory(
 		).length;
 
 		const stored = await writeFeedWePageArtifacts({
+			activityAttempt: input.activityAttempt,
 			accountName,
 			accountSlug,
-			artifactStore: input.artifactStore,
+			artifactStore,
 			authMe,
 			capturedAt,
+			captureRunId: input.captureRunId,
 			page,
+			pageIndex,
 			pageArticles,
 			pageMaterials,
 			providerBaseUrl: input.provider.baseUrl,
@@ -239,6 +261,7 @@ export async function captureFeedWeHistory(
 			session,
 			subscription,
 		});
+		input.abortSignal?.throwIfAborted();
 		artifacts.push(...stored, ...pageCaptureRefs);
 		articlesMaterialized += pageArticles.length;
 
@@ -255,6 +278,7 @@ export async function captureFeedWeHistory(
 			planningOutcome = "page_budget_exhausted";
 		}
 	}
+	input.abortSignal?.throwIfAborted();
 
 	return {
 		accountSlug,
@@ -296,6 +320,7 @@ export function normalizeWeChatAccountSlug(value: string): string {
 }
 
 async function captureWeChatArticlePage(input: {
+	abortSignal?: AbortSignal;
 	article: unknown;
 	crawlerFactory?: WeChatArticlePageCrawlerFactory;
 	now: () => Date;
@@ -310,11 +335,13 @@ async function captureWeChatArticlePage(input: {
 	}
 	try {
 		return await runWeChatArticlePageCrawleeCapture({
+			abortSignal: input.abortSignal,
 			articleUrl,
 			crawlerFactory: input.crawlerFactory,
 			now: input.now,
 		});
 	} catch (error) {
+		input.abortSignal?.throwIfAborted();
 		return buildSyntheticFetchErrorPage({
 			articleUrl,
 			fetchedAt: input.now().toISOString(),
@@ -323,10 +350,29 @@ async function captureWeChatArticlePage(input: {
 	}
 }
 
+function bindArtifactStoreCancellation(
+	artifactStore: WeChatOfficialAccountArtifactStore,
+	abortSignal?: AbortSignal,
+): WeChatOfficialAccountArtifactStore {
+	if (!abortSignal) {
+		return artifactStore;
+	}
+	return {
+		async createOrVerifyObject(input) {
+			abortSignal.throwIfAborted();
+			const stored = await artifactStore.createOrVerifyObject({ ...input, abortSignal });
+			abortSignal.throwIfAborted();
+			return stored;
+		},
+	};
+}
+
 async function writeWeChatArticlePageCaptureArtifacts(input: {
+	activityAttempt: number;
 	article: unknown;
 	artifactStore: WeChatOfficialAccountArtifactStore;
 	capturedAt: string;
+	captureRunId: string;
 	material: WeChatOfficialAccountArticleSourceTruthMaterial;
 	mediaCaptures: CapturedArticleMediaPayload[];
 	page: CapturedWeChatOfficialAccountArticlePage;
@@ -336,7 +382,7 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 	mediaCaptures: CapturedWeChatOfficialAccountArticleMedia[];
 }> {
 	const articlePrefix = buildArticlePrefix(input.material);
-	const capturePrefix = buildArticleCapturePrefix(input.material);
+	const observationPrefix = buildArticleObservationPrefix(input);
 	const metadata = {
 		schemaVersion: "wechat_official_account_article_fetch_metadata.v1",
 		accountSlug: input.material.accountSlug,
@@ -364,25 +410,25 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 		rawHtmlCaptured: Boolean(input.page.rawHtml),
 		fetchErrorMessage: input.page.fetchErrorMessage ?? null,
 	};
-	const metadataRef = await input.artifactStore.putObject({
+	const metadataRef = await input.artifactStore.createOrVerifyObject({
 		contentType: "application/json",
 		data: textEncoder.encode(`${JSON.stringify(metadata, null, 2)}\n`),
-		objectKey: `${capturePrefix}/wechat-article-fetch-metadata.json`,
+		objectKey: `${observationPrefix}/wechat-article-fetch-metadata.json`,
 		recordCount: 1,
 	});
 	const refs: WeChatOfficialAccountCaptureArtifactRef[] = [
 		{ ...metadataRef, artifactType: "page_fetch_metadata" },
 	];
 	if (input.page.rawHtml) {
-		const pageRef = await input.artifactStore.putObject({
+		const pageRef = await input.artifactStore.createOrVerifyObject({
 			contentType: input.page.contentType ?? "text/html; charset=utf-8",
 			data: textEncoder.encode(input.page.rawHtml),
-			objectKey: `${capturePrefix}/wechat-article-page.html`,
+			objectKey: `${observationPrefix}/wechat-article-page.html`,
 			recordCount: 1,
 		});
 		refs.push({ ...pageRef, artifactType: "page_raw_html" });
 	}
-	const extractionRef = await input.artifactStore.putObject({
+	const extractionRef = await input.artifactStore.createOrVerifyObject({
 		contentType: "application/json",
 		data: textEncoder.encode(
 			`${JSON.stringify(
@@ -416,14 +462,15 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 	const finalizedMediaCaptures: CapturedWeChatOfficialAccountArticleMedia[] = [];
 	let mediaArtifactCount = 0;
 	for (const media of input.mediaCaptures) {
-		const mediaPrefix = `${capturePrefix}/media/${media.objectKeySeed}`;
+		const mediaPrefix = `${articlePrefix}/capture/media/${media.objectKeySeed}`;
+		const mediaObservationPrefix = `${observationPrefix}/media/${media.objectKeySeed}`;
 		let objectKey: string | null = null;
 		if (media.captureStatus === "captured" && media.imageBytes && media.contentType) {
 			objectKey = `${mediaPrefix}/original${inferImageExtension({
 				contentType: media.contentType,
 				sourceUrl: media.finalUrl ?? media.normalizedSourceUrl,
 			})}`;
-			const storedObject = await input.artifactStore.putObject({
+			const storedObject = await input.artifactStore.createOrVerifyObject({
 				contentType: media.contentType,
 				data: media.imageBytes,
 				objectKey,
@@ -449,10 +496,10 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 			capturedAt: media.capturedAt,
 			fetchErrorMessage: media.fetchErrorMessage,
 		};
-		const storedMetadata = await input.artifactStore.putObject({
+		const storedMetadata = await input.artifactStore.createOrVerifyObject({
 			contentType: "application/json",
 			data: textEncoder.encode(`${JSON.stringify(metadataObject, null, 2)}\n`),
-			objectKey: `${mediaPrefix}/fetch-metadata.json`,
+			objectKey: `${mediaObservationPrefix}/fetch-metadata.json`,
 			recordCount: 1,
 		});
 		refs.push({ ...storedMetadata, artifactType: "captured_media_metadata" });
@@ -474,12 +521,15 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 }
 
 async function writeFeedWePageArtifacts(input: {
+	activityAttempt: number;
 	accountName: string;
 	accountSlug: string;
 	artifactStore: WeChatOfficialAccountArtifactStore;
 	authMe: FeedWeAuthMe;
 	capturedAt: string;
+	captureRunId: string;
 	page: FeedWeArticlesPage;
+	pageIndex: number;
 	pageArticles: unknown[];
 	pageMaterials: WeChatOfficialAccountArticleSourceTruthMaterial[];
 	providerBaseUrl: string;
@@ -498,7 +548,7 @@ async function writeFeedWePageArtifacts(input: {
 	const rawVersionId = `raw_${sha256Hex(providerData).slice(0, 16)}`;
 	const year = extractPageYear(input.page, input.capturedAt);
 	const sourcePrefix = `wechat_official_account/${input.accountSlug}/${year}/${rawVersionId}`;
-	const providerRef = await input.artifactStore.putObject({
+	const providerRef = await input.artifactStore.createOrVerifyObject({
 		contentType: "application/x-ndjson",
 		data: providerData,
 		objectKey: `${sourcePrefix}/provider/feedwe/provider-response.jsonl`,
@@ -552,10 +602,10 @@ async function writeFeedWePageArtifacts(input: {
 			2,
 		)}\n`,
 	);
-	const summaryRef = await input.artifactStore.putObject({
+	const summaryRef = await input.artifactStore.createOrVerifyObject({
 		contentType: "application/json",
 		data: summaryData,
-		objectKey: `${sourcePrefix}/capture/feedwe-request-summary.json`,
+		objectKey: `${buildWeChatRunAttemptPrefix(input)}/pages/${input.pageIndex}/feedwe-request-summary.json`,
 		recordCount: 1,
 	});
 	const sourceTruthRefs = await writeWeChatOfficialAccountSourceTruthArtifacts({
@@ -576,7 +626,7 @@ async function writeWeChatOfficialAccountSourceTruthArtifacts(input: {
 	const refs: WeChatOfficialAccountCaptureArtifactRef[] = [];
 	for (const material of input.materials) {
 		for (const artifact of material.artifacts) {
-			const stored = await input.artifactStore.putObject({
+			const stored = await input.artifactStore.createOrVerifyObject({
 				contentType: artifact.contentType,
 				data: artifact.data,
 				objectKey: artifact.objectKey,
@@ -595,10 +645,31 @@ function buildArticlePrefix(material: WeChatOfficialAccountArticleSourceTruthMat
 	return `wechat_official_account/${material.accountSlug}/${material.year}/${material.rawVersionId}`;
 }
 
-function buildArticleCapturePrefix(
-	material: WeChatOfficialAccountArticleSourceTruthMaterial,
-): string {
-	return `${buildArticlePrefix(material)}/capture`;
+function buildArticleObservationPrefix(input: {
+	activityAttempt: number;
+	captureRunId: string;
+	material: WeChatOfficialAccountArticleSourceTruthMaterial;
+}): string {
+	return `${buildWeChatRunAttemptPrefix({
+		accountSlug: input.material.accountSlug,
+		activityAttempt: input.activityAttempt,
+		captureRunId: input.captureRunId,
+	})}/articles/${encodeObjectKeySegment(input.material.articleStableId)}`;
+}
+
+function buildWeChatRunAttemptPrefix(input: {
+	accountSlug: string;
+	activityAttempt: number;
+	captureRunId: string;
+}): string {
+	return [
+		"wechat_official_account",
+		encodeObjectKeySegment(input.accountSlug),
+		"runs",
+		encodeObjectKeySegment(input.captureRunId),
+		"attempts",
+		String(input.activityAttempt),
+	].join("/");
 }
 
 function buildSyntheticFetchErrorPage(input: {

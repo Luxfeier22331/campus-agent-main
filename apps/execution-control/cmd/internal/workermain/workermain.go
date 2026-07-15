@@ -22,6 +22,8 @@ const (
 	RoleWorkflow Role = "workflow"
 	RoleCore     Role = "activity-core"
 	RoleAgent    Role = "activity-agent"
+
+	temporalWorkerStopTimeout = 50 * time.Second
 )
 
 func Run(role Role) {
@@ -156,7 +158,12 @@ func workerOptionsForRole(
 	}
 	options = temporalruntime.ApplyTracingToWorkerOptions(options, tracing)
 	options.OnFatalError = onFatalError
-	return options, nil
+	options.WorkerStopTimeout = temporalWorkerStopTimeout
+	return temporalruntime.ApplyWorkerDeploymentVersioning(
+		options,
+		os.Getenv("TEMPORAL_DEPLOYMENT_NAME"),
+		os.Getenv("TEMPORAL_WORKER_BUILD_ID"),
+	)
 }
 
 func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {

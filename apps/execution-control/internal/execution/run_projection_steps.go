@@ -178,9 +178,8 @@ func validateStepAttemptProjection(attempt StepAttemptProjection) error {
 	}
 	if attempt.InputTokens < 0 ||
 		attempt.OutputTokens < 0 ||
-		attempt.CachedInputTokens < 0 ||
-		attempt.EstimatedCostMicroUSD < 0 {
-		return fmt.Errorf("%w: token and cost fields must be non-negative", ErrInvalidStepAttempt)
+		attempt.CachedInputTokens < 0 {
+		return fmt.Errorf("%w: token fields must be non-negative", ErrInvalidStepAttempt)
 	}
 	if err := validateCancelOutcome(attempt.CancelOutcome); err != nil {
 		return err

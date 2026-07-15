@@ -11,10 +11,10 @@ export function testToolRuntimeFingerprint() {
 	return {
 		combinedSha256: "sha256:9999999999999999999999999999999999999999999999999999999999999999",
 		functionSchemaSha256: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		functionSchemaVersion: "tool-function-schemas-v1" as const,
+		functionSchemaVersion: "tool-function-schemas-v2" as const,
 		schemaVersion: "tool_runtime_fingerprint.v1" as const,
 		toolsRegistryVersion: "test",
-		toolsSchemaVersion: "tool-registry-v4" as const,
+		toolsSchemaVersion: "tool-registry-v5" as const,
 		toolsSha256: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		workflowArtifactRegistryVersion: "test",
 		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2" as const,

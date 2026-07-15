@@ -1,11 +1,6 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type {
-	ToolExecutionAnswerEvalFingerprint,
-	ToolExecutionLlmIoFingerprint,
-	ToolExecutionWorkflowTraceSummary,
-} from "../../modules/integration/tool-execution-types";
+import type { ToolExecutionWorkflowTraceSummary } from "../../modules/integration/tool-execution-types";
 import type { ObservedSourceTraceEntry } from "../../modules/source-trace";
-import type { VersionQueryMode } from "../../modules/version-query";
 
 const runtime = pgSchema("runtime");
 
@@ -22,10 +17,7 @@ export const requestObservabilityFact = runtime.table(
 		policyProjectionVersion: text("policy_projection_version"),
 		policyReason: text("policy_reason"),
 		requestedTool: text("requested_tool"),
-		requestedScopeSummary: text("requested_scope_summary"),
-		versionQueryMode: text("version_query_mode").$type<VersionQueryMode | null>(),
-		versionQuerySummary: text("version_query_summary"),
-		resolvedScopeSummary: text("resolved_scope_summary"),
+		resolvedTargetsJson: jsonb("resolved_targets_json").$type<string[]>().notNull().default([]),
 		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
@@ -38,7 +30,6 @@ export const requestObservabilityFact = runtime.table(
 			.default([]),
 		refusalClass: text("refusal_class"),
 		semanticOutcome: text("semantic_outcome"),
-		scopeClass: text("scope_class"),
 		aclDecision: text("acl_decision"),
 		aclAnomalyCode: text("acl_anomaly_code"),
 		failClosed: boolean("fail_closed"),
@@ -49,12 +40,6 @@ export const requestObservabilityFact = runtime.table(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default({}),
-		answerEvalFingerprintJson: jsonb(
-			"answer_eval_fingerprint_json",
-		).$type<ToolExecutionAnswerEvalFingerprint | null>(),
-		llmIoFingerprintJson: jsonb(
-			"llm_io_fingerprint_json",
-		).$type<ToolExecutionLlmIoFingerprint | null>(),
 		modelProvider: text("model_provider"),
 		modelName: text("model_name"),
 		promptId: text("prompt_id"),

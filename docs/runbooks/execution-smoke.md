@@ -40,7 +40,8 @@ updated: 2026-07-11
   - Temporal
 - `worker-autoscaler` 和 `temporal-task-queue-sampler` 已删除，不得作为 smoke opt-in。
   Temporal UI 与 self-hosted Langfuse 属于各自平台排障/评测面，不属于默认 smoke runtime。
-  模型可见工具由 `tools.v4` 和 execution-control runtime config 控制。
+  模型可见工具由 `tools.v5`、`tool-function-schemas.v2` 和 execution-control
+  runtime config 控制。
 - `execution-control` 不作为 public staging surface；`app-api-staging` 通过
   Cloudflare Worker VPC Service binding 访问 K8s 内的 ClusterIP Service
 - `cloudflared-execution-control` connector 在 staging K8s 内运行，使用

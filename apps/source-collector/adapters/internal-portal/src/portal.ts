@@ -28,8 +28,12 @@ export async function createApiContextFromStorageState(
 	dependencies: CreateApiContextFromStorageStateDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
 	ensureRuntimeDirs(config);
-	const storageState = requireStoredAuthStorageState(config.authStorageStatePath);
-	const mergedStorageState = mergeSeededCookies(storageState, resolveSeedCookies(config), {
+	const seededCookies = resolveSeedCookies(config);
+	const storageState = resolveStoredAuthStorageState(
+		config.authStorageStatePath,
+		seededCookies.length > 0,
+	);
+	const mergedStorageState = mergeSeededCookies(storageState, seededCookies, {
 		preferSeeded: true,
 	});
 	writeStoredAuthStorageState(config.authStorageStatePath, mergedStorageState);
@@ -58,11 +62,19 @@ function readStoredAuthStorageState(storageStatePath: string): PortalStorageStat
 	return parsed;
 }
 
-function requireStoredAuthStorageState(storageStatePath: string): PortalStorageState {
-	if (!fs.existsSync(storageStatePath)) {
-		throw new Error(`auth storage state is required: ${storageStatePath}`);
+function resolveStoredAuthStorageState(
+	storageStatePath: string,
+	hasSeededCookies: boolean,
+): PortalStorageState {
+	if (fs.existsSync(storageStatePath)) {
+		return readStoredAuthStorageState(storageStatePath);
 	}
-	return readStoredAuthStorageState(storageStatePath);
+	if (hasSeededCookies) {
+		return { cookies: [], origins: [] };
+	}
+	throw new Error(
+		`auth storage state or explicit portal cookies are required: ${storageStatePath}`,
+	);
 }
 
 function writeStoredAuthStorageState(

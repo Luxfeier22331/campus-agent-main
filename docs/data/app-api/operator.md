@@ -4,72 +4,32 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-07-12
+updated: 2026-07-13
 ---
+# App API Operator Data
 
-# App API Operator Schema
+App-api does not own source-processing lifecycle tables. The operator ingestion
+route reads the bounded projection from ingestion-control:
 
-## 文档边界
+```text
+GET /api/operator/ingestion/tasks
+-> ingestion-control /internal/ingestion/operator-projection/tasks
+-> ingestion_control.tasks
+```
 
-`operator.*` 只保存 source-processing 的受控读取投影。它不保存在线问答请求、Temporal
-任务队列样本、自研 autoscaler 决策、通用指标或 trace 镜像。
+The response contains task/source/target identity, terminal status, timestamps,
+result presence, bounded summary/error, and Temporal workflow identity. It does
+not expose object-store refs, raw source content, provider credentials, or
+Temporal history.
 
-## Official Web
+There are no app-api `official_web`, `wechat_official_account`, authenticated
+notice processing, source run, release-task, or collector ledger tables.
 
-当前表：
+Online request diagnosis belongs to self-hosted Ops Web and its explicitly
+allowed PostgreSQL/OpenObserve reads; it is not recreated in `operator.*`.
 
-- `operator.official_web_run_projection`
-- `operator.official_web_site_projection`
-- `operator.official_web_release_task_projection`
-- `operator.official_web_release_task_event_projection`
+## Executable Sources
 
-这些表提供站点、采集运行、ingestion dispatch/execution 和 release task 的状态、错误、
-时间线和受控 artifact 摘要。原始页面、原始 artifact 和 ingestion owner truth 不复制进
-operator schema。
-
-## Authenticated Notice
-
-当前表：
-
-- `operator.authenticated_notice_processing_projection`
-- `operator.authenticated_notice_processing_event_projection`
-- `operator.authenticated_notice_run_processing_projection`
-- `operator.authenticated_notice_run_processing_event_projection`
-
-notice projection 以 notice 为查询入口；run projection 以 source run 为查询入口。两者只
-保存生命周期、队列状态、下游摘要、错误、次数、时间线和版本字段，不保存原始通知正文、
-认证材料或完整 workflow history。
-
-## HTTP 读取面
-
-app-api 当前只暴露：
-
-- authenticated notice processing list/detail；
-- authenticated notice run processing list/detail；
-- official web release task list/detail；
-- ingestion task list。
-
-路由清单以 `apps/app-api/src/app/routes/operator.ts` 为准。存在数据库表不自动打开浏览器
-接口。
-
-## 已退役形态
-
-以下表和读取面不属于当前 schema：
-
-- `operator.request_projection`
-- `operator.request_audit_projection`
-- `operator.temporal_task_queue_current`
-- `operator.temporal_task_queue_snapshot`
-- `operator.worker_autoscaler_*`
-- `operator.quality_grade_projection`
-- `operator.trace_backlink_projection`
-
-在线请求排查属于 self-hosted Ops Web。它直接关联 `chat.turn_dispatches`、
-`chat.messages`、`runtime.agent_runs` 和 `runtime.request_observability_fact`；operator console
-不再代理 request list/detail。
-
-## 可执行来源
-
-- `apps/app-api/src/db/schema/operator.ts`
 - `apps/app-api/src/app/routes/operator.ts`
-- `apps/app-api/src/app/route-exposure-operator-inventory.ts`
+- `apps/app-api/src/modules/integration/ingestion-control.ts`
+- `apps/ingestion-control/src/postgres-store.ts`

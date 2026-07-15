@@ -34,8 +34,8 @@ The primary agent selects admitted function tools or official handoff targets
 inside that SDK run. For governed knowledge questions it uses the SDK
 `handoff()` API to enter the Knowledge Agent. The Knowledge Agent can call only
 the internal `knowledge_search` tool.
-Execution-control admits scope/version requests, runs embedding/Qdrant/rerank
-lookup, projects bounded evidence, validates terminal evidence refs, generates
+Execution-control admits target/access requests, runs embedding and Qdrant
+dense/sparse RRF lookup, projects bounded evidence, validates terminal evidence refs, generates
 sources and writes finalization. It does not run a separate knowledge queue,
 RAG graph, synthesis provider or replanning loop.
 

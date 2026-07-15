@@ -16,7 +16,7 @@ Current public/product surfaces include:
 - federation endpoints
 - chat request submit/stream, run event/step reads and feedback writes
 - operator request, observability and domain projection APIs
-- official-web, dining, provider-config and campus-services operation routes
+- dining, provider-config and campus-services operation routes
 - docs reader import/export and read-model APIs
 
 Endpoint-level wire truth belongs in `docs/contracts/app-api/`; this README is
@@ -25,15 +25,15 @@ only the app entry point.
 ## Data And Runtime Ownership
 
 `app-api` owns the Worker-side product schemas for auth, chat, runtime request
-ledger/outbox, operator projections, official-web control-plane projections,
-profile projection and related operation surfaces.
+observability, profile projection and related product operation surfaces.
+Operator ingestion routes proxy ingestion-control's bounded projection; app-api
+does not recreate source-processing lifecycle tables.
 
 Durable schema and database ownership live in:
 
 - `docs/data/app-api/README.md`
 - `docs/data/app-api/runtime.md`
 - `docs/data/app-api/operator.md`
-- `docs/data/app-api/official-web.md`
 - `docs/data/postgres-ownership.md`
 
 `APP_API_DB` and `APP_API_DB_FRESH` are two Hyperdrive lanes to the same shared
@@ -52,10 +52,11 @@ package lifecycle scripts:
 - `ops/db/bootstrap-shared-product-database.ts`
 - `ops/db/ensure-app-auth-role-search-path.ts`
 
-The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
-`profile.*`, `runtime.*`, `operator.*`, `official_web.*`, `dining.*`,
-`docs.*`, `campus_services_ops.*`, `observability.*`, `provider_config.*` and
-`wechat_official_account.*` schemas as documented in `docs/data/app-api/`.
+The shared product database includes app-api-owned `profile.*`, `runtime.*`,
+`dining.*`, `docs.*`, `identity.*`, `campus_services_ops.*`, `observability.*`
+and `provider_config.*` schemas. The separately managed shared-product
+baselines provide `app_auth.*` and `chat.*`, as documented in
+`docs/data/app-api/`.
 
 ## References
 
@@ -65,8 +66,8 @@ The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
 - app-api contracts: `docs/contracts/app-api/README.md`
 - app-api data: `docs/data/app-api/README.md`
 - operator ownership: `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
-- official-web ownership: `docs/architecture/domains/official-web/architecture.md`,
-  `docs/data/app-api/official-web.md`
+- offline official-web ownership:
+  `docs/architecture/domains/official-web/architecture.md`
 - dining domain/data ownership: `docs/architecture/domains/dining/architecture.md`,
   `docs/data/dining.md`
 
@@ -79,6 +80,7 @@ pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:node
 pnpm --dir apps/app-api test:worker
 pnpm --dir apps/app-api test:shared-db-integration
+pnpm ci:app-api-migration
 pnpm --dir apps/app-api typecheck
 ```
 
@@ -97,12 +99,14 @@ fan out database URLs from the root worktree `.env`.
 
 ## Deployment Notes
 
-Apply app-api Drizzle migrations with the direct management connection before
-deploying a Worker revision that depends on the new schema:
+Apply the complete App API schema installer with the direct management
+connection before deploying a Worker revision that depends on the new schema.
+It converges current auth/chat baselines, applies the immutable Drizzle journal
+and then grants runtime roles:
 
 ```bash
 APP_API_OPERATOR_DATABASE_URL="$DIRECT_DATABASE_URL" \
-  pnpm --dir apps/app-api exec drizzle-kit migrate --config drizzle.config.ts
+  pnpm --dir apps/app-api exec tsx ops/db/schema.ts
 ```
 
 Do not run migrations through Hyperdrive or from the long-running Worker. After

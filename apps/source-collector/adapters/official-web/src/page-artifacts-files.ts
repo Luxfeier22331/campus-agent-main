@@ -17,17 +17,7 @@ const encoder = new TextEncoder();
 export function buildPageArtifactFiles(input: {
 	rawAssetId: string;
 	rawVersionId: string;
-	requestedUrl: string;
-	finalUrl: string;
-	declaredCanonicalUrl: string | null;
-	normalizedCanonicalUrl: string;
-	urlIdentityBasis: OfficialWebPageManifest["urlIdentityBasis"];
-	fetchedAt: string;
-	httpStatus: number;
-	contentType: string;
 	responseBody: string;
-	serializedHeaders: Record<string, string | string[]>;
-	redirectChain: string[];
 	pageManifest: OfficialWebPageManifest;
 	contentBlocks: OfficialWebContentBlockRow[];
 	discoveredLinks: OfficialWebDiscoveredLinkRecord[];
@@ -46,48 +36,6 @@ export function buildPageArtifactFiles(input: {
 			}),
 			contentType: "text/html; charset=utf-8",
 			body: input.responseBody,
-		}),
-		buildFileArtifact({
-			rawAssetId: input.rawAssetId,
-			rawVersionId: input.rawVersionId,
-			relativePath: "capture/response-headers.json",
-			objectKey: buildOfficialWebSourceArtifactKey({
-				rawAssetId: input.rawAssetId,
-				rawVersionId: input.rawVersionId,
-				stage: "capture",
-				filename: "response-headers.json",
-			}),
-			contentType: "application/json",
-			body: JSON.stringify(input.serializedHeaders, null, 2),
-		}),
-		buildFileArtifact({
-			rawAssetId: input.rawAssetId,
-			rawVersionId: input.rawVersionId,
-			relativePath: "capture/fetch-metadata.json",
-			objectKey: buildOfficialWebSourceArtifactKey({
-				rawAssetId: input.rawAssetId,
-				rawVersionId: input.rawVersionId,
-				stage: "capture",
-				filename: "fetch-metadata.json",
-			}),
-			contentType: "application/json",
-			body: JSON.stringify(
-				{
-					schemaVersion: "official_web_fetch_metadata.v1",
-					requestedUrl: input.requestedUrl,
-					finalUrl: input.finalUrl,
-					declaredCanonicalUrl: input.declaredCanonicalUrl,
-					normalizedCanonicalUrl: input.normalizedCanonicalUrl,
-					urlIdentityBasis: input.urlIdentityBasis,
-					fetchedAt: input.fetchedAt,
-					httpStatus: input.httpStatus,
-					contentType: input.contentType,
-					redirectChain: input.redirectChain,
-					headers: input.serializedHeaders,
-				},
-				null,
-				2,
-			),
 		}),
 		buildFileArtifact({
 			rawAssetId: input.rawAssetId,

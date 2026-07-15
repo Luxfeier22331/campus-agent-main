@@ -4,104 +4,92 @@ truth_scope: execution
 owner_boundary: knowledge-agent
 status: active
 created: 2026-04-21
-updated: 2026-07-11
+updated: 2026-07-13
 ---
-# Knowledge Agent Retrieval Architecture
+# Knowledge Agent Retrieval
 
 ## Boundary
 
-This document owns how the Knowledge Agent consumes governed institutional
-evidence. The Knowledge Agent runs inside the same OpenAI Agents SDK run as the
-primary agent and can call only internal `knowledge_search`.
+This document owns how the Knowledge Agent plans bounded searches and consumes
+governed evidence. The Knowledge Agent runs inside the same OpenAI Agents SDK
+run as the primary agent.
 
-It does not define a Temporal retrieval graph, planner contract, synthesis
-activity, specialist queue or replanning state.
+It does not define a Temporal retrieval graph, external planner, synthesis
+activity or specialist queue.
 
-## Entry
+## Entry And Context
 
-The primary agent selects model-visible `knowledge_query` and the SDK invokes
-official `handoff()` to the Knowledge Agent. The handoff carries a strict user
-query, knowledge scope and version query admitted for the run.
+The primary agent selects the official `knowledge_query` handoff with
+`{query_text}`. Execution-control supplies the Knowledge Agent with the active
+target ids and descriptions from
+`configs/runtime/query-serving-targets.v1.json`.
 
-The Knowledge Agent receives no raw collection name, vector-store handle,
-provider credential, source body or ingestion control surface.
+The agent does not receive corpus, collection, serving config path, Qdrant
+alias, embedding profile, top-k or source body.
 
-## Knowledge Search
+## Search Loop
 
-`knowledge_search` is an internal-only SDK function tool. Execution-control
-validates:
+The Knowledge Agent can call only `knowledge_search`:
 
-- run, request, trace and invocation identity;
-- scope against `query-serving-scopes.v3`;
-- version mode and explicit version fields;
-- serving config, release metadata and current alias compatibility;
-- bounded top-k and result-size limits.
+```json
+{
+  "query_text": "focused retrieval query",
+  "target": "student_rules",
+  "include_history": false
+}
+```
 
-After admission, execution-control performs query embedding, Qdrant lookup,
-optional rerank and bounded evidence shaping. Missing or inconsistent serving
-truth fails closed.
+It searches one target at a time and stops as soon as evidence is sufficient.
+A later search may reformulate the query or switch target only when the first
+result is insufficient. `include_history=true` is reserved for an explicit
+prior-version, as-of-date or comparison question.
+
+The maximum search count comes from execution-control `agent_runtime` config;
+current profiles use three. Repeating the same normalized target, query and
+history mode returns `duplicate_query` and consumes one search slot. Search
+budget exhaustion returns `search_budget_exhausted`.
+
+The agent must answer from evidence returned during the run and include every
+supporting evidence ref. A successful search without sufficient evidence ends
+as `unsupported_by_evidence`; model memory cannot fill the gap.
+
+## Search Admission
+
+Execution-control validates:
+
+- run, request, trace, invocation and search ordinal identity;
+- target membership in the active target registry;
+- retrieval visibility and entitlement projection;
+- target serving config and Qdrant alias/vector compatibility;
+- current-only or history-inclusive filtering;
+- evidence and result size bounds.
+
+It then performs query embedding and Qdrant dense/sparse retrieval with native
+RRF fusion and bounded evidence shaping.
 
 ## Evidence Contract
 
-Each result returns:
+Each result contains `found`, `no_evidence`, `duplicate_query` or
+`search_budget_exhausted`, the resolved target, history mode, candidate/discard
+counts, retriever modes, a safe search ref and at most 20 evidence items.
 
-- resolved scope and version;
-- an explicit found/no-evidence outcome;
-- bounded evidence items with stable evidence refs and source identity;
-- a sanitized result reference for projection correlation.
+Evidence contains stable evidence, document and chunk ids; target; title; a
+bounded snippet; canonical URL; optional version id; rank; and fusion score.
+Raw vectors, Qdrant points and provider responses never enter SDK context.
 
-Candidate internals, raw provider scores, raw Qdrant payloads and unrestricted
-source text do not enter the SDK context.
+## Finalization And Eval
 
-## Agent Semantics
+Execution-control validates terminal evidence refs against completed searches
+and derives `resolved_targets[]` plus browser-safe sources. It does not edit the
+answer.
 
-The Knowledge Agent owns query framing, use of returned evidence, clarification
-when the governed question is underspecified, answer synthesis and structured
-terminal output.
-
-It may call `knowledge_search` again within the SDK turn budget when the SDK
-loop requires another admitted search. That is an ordinary function-tool call,
-not a Temporal replan. Every call remains within the handoff scope/version
-boundary and cannot open another tool or source surface.
-
-The Knowledge Agent must return unsupported-by-evidence when admitted evidence
-cannot support an answer. It cannot fill evidence gaps from model memory.
-
-## Final Evidence Validation
-
-Execution-control finalization validates all terminal evidence refs against the
-projected results from this run. It derives browser-safe sources from trusted
-evidence metadata and rejects forged, missing or cross-scope references.
-
-Finalization does not edit the answer. App-api stores and streams the finalized
-answer and sources without rewriting them.
-
-## Official Web
-
-`official_web` remains an offline source channel. It is not in the active scope
-registry and cannot be queried by `knowledge_search`. No public-web provider,
-live lookup or general-web fallback is available.
-
-Future official-web knowledge serving requires canonical documents, chunks,
-index, release manifest, alias publication and an explicit scope-registry
-change before the Knowledge Agent can retrieve it.
-
-## Evaluation
-
-Evaluation separates:
-
-- primary-agent handoff selection;
-- handoff argument quality;
-- `knowledge_search` scope/version and evidence retrieval quality;
-- Knowledge Agent answer/evidence quality;
-- finalization source-integrity failures.
-
-SDK traces may support diagnosis, but repo-owned datasets, qrels and sanitized
-projections remain canonical eval truth.
+`tool_trajectory.v2` records the public handoff separately from internal search
+calls. `agent_runtime_eval_projection.v2` adds answer, retrieved contexts,
+document ids and resolved targets for Langfuse/Ragas evaluation.
 
 ## Related Documents
 
-- `agent-framework.md`
 - `retrieval-serving.md`
 - `tool-routing.md`
-- `../../contracts/tool-execution.md`
+- `../../contracts/tool-trajectory.md`
+- `../../reference/eval.md`

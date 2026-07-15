@@ -36,7 +36,7 @@ func TestCallAgentRuntimeForwardsExecutionTraceHeaders(t *testing.T) {
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 	})
 	run := execution.DurableRun{
 		RunID:     "run-trace-propagation-001",
@@ -49,6 +49,8 @@ func TestCallAgentRuntimeForwardsExecutionTraceHeaders(t *testing.T) {
 		temporalruntime.ExecutePrimaryAgentActivityInput{RunID: run.RunID},
 		providerConfigSnapshot{},
 		nil,
+		server.primaryAgentRuntimeLimits(),
+		1,
 	)
 	if err != nil {
 		t.Fatalf("call agent runtime: %v", err)

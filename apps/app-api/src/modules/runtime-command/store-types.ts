@@ -1,14 +1,8 @@
 import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
-import type { RequestedScope } from "../integration";
-import type {
-	ToolExecutionAnswerEvalFingerprint,
-	ToolExecutionLlmIoFingerprint,
-	ToolExecutionWorkflowTraceSummary,
-} from "../integration/tool-execution-types";
+import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
 import type { AbuseThrottleReason } from "../safety-ops-policy";
 import type { ObservedSourceTraceEntry } from "../source-trace";
-import type { VersionQuery, VersionQueryMode } from "../version-query";
 import type { ChatCommandResponse } from "./service";
 
 export type TurnDispatchStatus =
@@ -53,8 +47,7 @@ export interface TurnDispatchWrite {
 	runId: string | null;
 	safetyIdentifier?: string | null;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
-	versionQuery: VersionQuery | null;
+	resolvedTargets: string[];
 	selectedTool: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
@@ -68,14 +61,13 @@ export type FinalizeTurnDispatchWrite = Pick<
 	| "completedAt"
 	| "errorCode"
 	| "requestId"
-	| "requestedScope"
+	| "resolvedTargets"
 	| "runId"
 	| "safetyIdentifier"
 	| "selectedTool"
 	| "status"
 	| "turnSequence"
 	| "updatedAt"
-	| "versionQuery"
 >;
 
 export interface RequestObservabilityFactWrite {
@@ -89,10 +81,7 @@ export interface RequestObservabilityFactWrite {
 	policyProjectionVersion: string | null;
 	policyReason: string | null;
 	requestedTool: string | null;
-	requestedScopeSummary: string | null;
-	versionQueryMode: VersionQueryMode | null;
-	versionQuerySummary: string | null;
-	resolvedScopeSummary: string | null;
+	resolvedTargets: string[];
 	selectedTool: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
@@ -102,14 +91,11 @@ export interface RequestObservabilityFactWrite {
 	supportingSources: ObservedSourceTraceEntry[];
 	refusalClass: string | null;
 	semanticOutcome: string | null;
-	scopeClass: string | null;
 	aclDecision: string | null;
 	aclAnomalyCode: string | null;
 	failClosed: boolean | null;
 	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	stageTiming?: Record<string, unknown>;
-	answerEvalFingerprint?: ToolExecutionAnswerEvalFingerprint | null;
-	llmIoFingerprint?: ToolExecutionLlmIoFingerprint | null;
 	modelProvider: string | null;
 	modelName: string | null;
 	promptId: string | null;
@@ -161,14 +147,12 @@ export interface AcceptedDurableRequestCloseout {
 	requestFingerprintSha256: string | null;
 	requestId: string;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
 	runId: string;
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
-	versionQuery: VersionQuery | null;
 }
 
 export interface AbuseControlState {

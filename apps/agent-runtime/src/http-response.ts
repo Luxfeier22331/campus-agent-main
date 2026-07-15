@@ -1,7 +1,9 @@
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
+import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
 	events: ReturnType<PrimaryAgentRuntime["stream"]>,
+	options: { deadlineSignal?: AbortSignal } = {},
 ): Response {
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
@@ -22,10 +24,10 @@ export function agentRunStreamResponse(
 				}
 			} catch (error) {
 				controller.enqueue(
-					encodeSseEvent("error", {
-						code: "agent_runtime_failed",
-						message: errorMessage(error),
-					}),
+					encodeSseEvent(
+						"error",
+						agentRuntimeErrorPayload(error, { deadlineSignal: options.deadlineSignal }),
+					),
 				);
 			} finally {
 				controller.close();
@@ -86,7 +88,6 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 			input_tokens: result.usage.inputTokens,
 			output_tokens: result.usage.outputTokens,
 			cached_input_tokens: result.usage.cachedInputTokens ?? 0,
-			estimated_cost_micro_usd: result.usage.estimatedCostMicroUsd ?? 0,
 		},
 	};
 }
@@ -124,7 +125,6 @@ function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"
 		follow_up_question: envelope.followUpQuestion,
 		reason: envelope.reason,
 		evidence_refs: envelope.evidenceRefs,
-		resolved_scope: envelope.resolvedScope,
 		session_update: envelope.sessionUpdate
 			? {
 					upsert_slots: envelope.sessionUpdate.upsertSlots.map((slot) => ({

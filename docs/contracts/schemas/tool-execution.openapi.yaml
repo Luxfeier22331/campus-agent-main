@@ -1,12 +1,12 @@
 openapi: 3.1.1
 info:
   title: campus-agent tool execution contract
-  version: tool-execution-v1
+  version: tool-execution-v2
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
-  execution_contract_version: tool_execution_v1
-  response_contract: execution_finalization_response_v2
-  workflow_trace_summary_version: workflow-trace-summary-v5
+  execution_contract_version: tool_execution_v2
+  response_contract: execution_finalization_response_v3
+  workflow_trace_summary_version: workflow-trace-summary-v6
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
@@ -329,7 +329,6 @@ components:
         - cancel_outcome
         - completed_at
         - duration_ms
-        - estimated_cost_microusd
         - fail_close_reason
         - input_tokens
         - late_completion_outcome
@@ -374,9 +373,6 @@ components:
         completed_at:
           type: string
         duration_ms:
-          type: integer
-          minimum: 0
-        estimated_cost_microusd:
           type: integer
           minimum: 0
         fail_close_reason:
@@ -728,11 +724,6 @@ components:
             $ref: "#/components/schemas/ConversationPreviousToolResultRef"
         session_state:
           $ref: "#/components/schemas/SafeObject"
-    KnowledgeScopeID:
-      type:
-        - string
-        - "null"
-      description: Model-facing knowledge scope id admitted by execution-control.
     SessionUpdateSlot:
       type: object
       additionalProperties: false
@@ -761,22 +752,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SessionUpdateSlot"
-    VersionQuery:
-      type: object
-      additionalProperties: false
-      properties:
-        mode:
-          enum:
-            - current
-            - historical
-            - as_of
-            - compare
-        as_of:
-          type: string
-        version_id:
-          type: string
-        compare_to_version_id:
-          type: string
     ExecutionPayload:
       type: object
       additionalProperties: false
@@ -788,12 +763,11 @@ components:
         - request_id
         - trace
         - context
-        - version_query
       properties:
         execution_contract_version:
-          const: tool_execution_v1
+          const: tool_execution_v2
         response_contract:
-          const: execution_finalization_response_v2
+          const: execution_finalization_response_v3
         user_goal:
           type: string
         conversation_id:
@@ -806,14 +780,10 @@ components:
             - type: "null"
         requested_tool:
           $ref: "#/components/schemas/RequestedTool"
-        scope:
-          $ref: "#/components/schemas/KnowledgeScopeID"
         trace:
           $ref: "#/components/schemas/TraceContext"
         context:
           $ref: "#/components/schemas/ExecutionRequestContext"
-        version_query:
-          $ref: "#/components/schemas/VersionQuery"
     ExecutionRequestContext:
       type: object
       additionalProperties: true
@@ -887,7 +857,7 @@ components:
         - confidence
         - result
         - error
-        - resolved_scope
+        - resolved_targets
         - session_update
         - trace_id
       properties:
@@ -915,8 +885,12 @@ components:
           oneOf:
             - $ref: "#/components/schemas/SafeObject"
             - type: "null"
-        resolved_scope:
-          $ref: "#/components/schemas/KnowledgeScopeID"
+        resolved_targets:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
         session_update:
           oneOf:
             - $ref: "#/components/schemas/SessionUpdate"

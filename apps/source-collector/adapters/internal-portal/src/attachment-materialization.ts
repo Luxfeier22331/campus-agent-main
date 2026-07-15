@@ -16,7 +16,6 @@ import {
 	type ExternalVisualFetcher,
 	runAttachmentCrawleeDownloadOutcomes,
 } from "./attachment-crawlee-runner.js";
-import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import type {
 	ApiRequestContextLike,
 	BundleAttachmentObservation,
@@ -30,11 +29,11 @@ const DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS = new Set(["mmbiz.qpic.cn"]);
 const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface MaterializeBundleAttachmentsInput {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	externalVisualFetcher?: ExternalVisualFetcher;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
-	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	defaultInlineVisualCapture?: boolean;
 	bundleRecords: BundleNoticeRecord[];
 	observedAt: string;
@@ -86,21 +85,16 @@ const FETCH_REQUIRED_ATTACHMENT_POLICIES = new Set<AttachmentCapturePolicy>([
 	"fetch_required_for_admitted_owner",
 ]);
 
-type TerminalUnavailableAttachmentStatus = Awaited<
-	ReturnType<AuthenticatedNoticeAttachmentFetchStatusStore["getTerminalUnavailable"]>
->;
-
 interface AttachmentDownloadPlan {
 	requests: Map<string, AttachmentDownloadRequestSpec>;
-	terminalStatuses: Map<string, TerminalUnavailableAttachmentStatus>;
 }
 
 export async function materializeBundleAttachments(
 	input: MaterializeBundleAttachmentsInput,
 ): Promise<MaterializeBundleAttachmentsResult> {
+	input.abortSignal?.throwIfAborted();
 	const fetchAdmissions = buildFetchAdmissionMap(input.attachmentFetchAdmissions ?? []);
 	const downloadPlan = await buildAttachmentDownloadPlan({
-		attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 		bundleRecords: input.bundleRecords,
 		defaultInlineVisualCapture: input.defaultInlineVisualCapture,
 		fetchAdmissions,
@@ -110,6 +104,7 @@ export async function materializeBundleAttachments(
 		downloadPlan.requests.size === 0
 			? new Map<string, AttachmentDownloadOutcome>()
 			: await runAttachmentCrawleeDownloadOutcomes({
+					abortSignal: input.abortSignal,
 					apiContext: input.apiContext,
 					externalVisualFetcher: input.externalVisualFetcher,
 					requestMaxRetries: input.requestMaxRetries,
@@ -119,6 +114,7 @@ export async function materializeBundleAttachments(
 	const materializedResults: MaterializedAttachment[] = [];
 
 	for (const record of input.bundleRecords) {
+		input.abortSignal?.throwIfAborted();
 		const linksById = new Map(record.links.map((link) => [link.id, { ...link }]));
 		const attachmentsById = new Map<number, BundleAttachmentObservation>();
 		const attachmentRefIdByAttachmentId = new Map<number, string>();
@@ -135,6 +131,7 @@ export async function materializeBundleAttachments(
 		});
 
 		for (const attachment of record.attachments) {
+			input.abortSignal?.throwIfAborted();
 			const clonedAttachment = { ...attachment };
 			const attachmentRefId =
 				attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
@@ -173,6 +170,7 @@ export async function materializeBundleAttachments(
 
 			const cacheKey = `${materializationCandidate.fetchMode}:${candidateUrl}`;
 			const materialized = await materializeSingleAttachment({
+				abortSignal: input.abortSignal,
 				artifactStore: input.artifactStore,
 				attachment: clonedAttachment,
 				attachmentRefId,
@@ -184,14 +182,6 @@ export async function materializeBundleAttachments(
 				requireVisualContent: !fetchAdmission,
 				resolveDownload: async () => resolveDownloadOutcome(downloadOutcomes, cacheKey),
 				siteId: input.siteId,
-				terminalStatus:
-					downloadPlan.terminalStatuses.get(
-						materializationPlanKey({
-							attachmentRefId,
-							cacheKey,
-							noticeId: String(record.notice_id),
-						}),
-					) ?? null,
 				year: inferAuthenticatedNoticeYear(record),
 			});
 			materializedResults.push(materialized);
@@ -227,6 +217,7 @@ export async function materializeBundleAttachments(
 }
 
 async function materializeSingleAttachment(input: {
+	abortSignal?: AbortSignal;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	attachment: BundleAttachmentObservation;
 	attachmentRefId: string;
@@ -238,36 +229,12 @@ async function materializeSingleAttachment(input: {
 	requireVisualContent: boolean;
 	resolveDownload: () => Promise<FetchAttachmentBinaryResult>;
 	siteId: string;
-	terminalStatus: TerminalUnavailableAttachmentStatus;
 	year: string | null;
 }): Promise<MaterializedAttachment> {
-	if (input.terminalStatus) {
-		const message = `terminal_unavailable:${input.terminalStatus.terminalReason}`;
-		return {
-			attachment: {
-				...input.attachment,
-				provenance_status: "terminal_unavailable",
-				ingest_status: "terminal_unavailable",
-				terminal_reason: input.terminalStatus.terminalReason,
-				last_error_class: "terminal_unavailable",
-				last_http_status: input.terminalStatus.lastHttpStatus,
-				last_error: message,
-				updated_at: input.observedAt,
-			},
-			uploaded: false,
-			linkPatch: {
-				status_code: input.terminalStatus.lastHttpStatus,
-				content_type: null,
-				downloaded: false,
-				download_path: null,
-				file_size: null,
-				fetched_at: input.observedAt,
-				error_message: message,
-			},
-		};
-	}
 	try {
+		input.abortSignal?.throwIfAborted();
 		const result = await input.resolveDownload();
+		input.abortSignal?.throwIfAborted();
 		const contentSha256 = sha256Hex(result.body);
 		const initialFilename = resolveAttachmentFilename({
 			attachmentFilename: input.attachment.original_filename,
@@ -335,12 +302,14 @@ async function materializeSingleAttachment(input: {
 				: {
 						"content-sha256": contentSha256,
 					};
-		const stored = await input.artifactStore.putObject({
+		const stored = await input.artifactStore.createOrVerifyObject({
+			abortSignal: input.abortSignal,
 			objectKey,
 			data: result.body,
 			contentType: resolvedContentType,
 			metadata,
 		});
+		input.abortSignal?.throwIfAborted();
 		const updatedAttachment: BundleAttachmentObservation = {
 			...input.attachment,
 			original_filename: resolvedFilename,
@@ -373,6 +342,7 @@ async function materializeSingleAttachment(input: {
 			},
 		};
 	} catch (error) {
+		input.abortSignal?.throwIfAborted();
 		const message = error instanceof Error ? error.message : String(error);
 		if (isAttachmentDownloadTerminalUnavailableError(error)) {
 			const terminalMessage = `terminal_unavailable:${error.terminalReason}`;
@@ -491,14 +461,12 @@ function isDefaultInlineVisualCaptureCandidate(input: {
 }
 
 async function buildAttachmentDownloadPlan(input: {
-	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	bundleRecords: BundleNoticeRecord[];
 	defaultInlineVisualCapture?: boolean;
 	fetchAdmissions: Map<string, AttachmentFetchAdmission>;
 	siteId: string;
 }): Promise<AttachmentDownloadPlan> {
 	const requests = new Map<string, AttachmentDownloadRequestSpec>();
-	const terminalStatuses = new Map<string, TerminalUnavailableAttachmentStatus>();
 	for (const record of input.bundleRecords) {
 		const attachmentRefIdByAttachmentId = new Map<number, string>();
 		const relationByAttachmentId = new Map<
@@ -544,23 +512,6 @@ async function buildAttachmentDownloadPlan(input: {
 				continue;
 			}
 			const cacheKey = `${materializationCandidate.fetchMode}:${candidateUrl}`;
-			const planKey = materializationPlanKey({
-				attachmentRefId,
-				cacheKey,
-				noticeId: String(record.notice_id),
-			});
-			const terminalStatus = input.attachmentFetchStatusStore
-				? await input.attachmentFetchStatusStore.getTerminalUnavailable({
-						siteId: input.siteId,
-						noticeId: String(record.notice_id),
-						attachmentRefId,
-						sourceUrl: candidateUrl,
-					})
-				: null;
-			terminalStatuses.set(planKey, terminalStatus);
-			if (terminalStatus) {
-				continue;
-			}
 			if (!requests.has(cacheKey)) {
 				requests.set(cacheKey, {
 					attachmentUrl: candidateUrl,
@@ -573,16 +524,7 @@ async function buildAttachmentDownloadPlan(input: {
 	}
 	return {
 		requests,
-		terminalStatuses,
 	};
-}
-
-function materializationPlanKey(input: {
-	attachmentRefId: string;
-	cacheKey: string;
-	noticeId: string;
-}): string {
-	return `${input.noticeId}:${input.attachmentRefId}:${input.cacheKey}`;
 }
 
 function resolveDownloadOutcome(

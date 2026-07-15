@@ -1,700 +1,246 @@
 ---
 doc_type: architecture
-truth_scope: data
-owner_boundary: docs/architecture/system
+truth_scope: system
+owner_boundary: ingestion-data-plane
 status: active
 created: 2026-04-02
-updated: 2026-07-09
+updated: 2026-07-14
 ---
-# Data Plane Architecture
+# Ingestion Data Plane
 
-## 文档边界
+## Boundary
 
-本文冻结 repo 级 data plane / source-truth supporting architecture。
+This document describes the current offline ingestion runtime. It does not
+define online retrieval, product routes, source-specific browser APIs, or
+future publication steps.
 
-它回答的是：
-
-- canonical upstream chain 是什么
-- raw、source truth、projection、document truth、chunk/index 分别属于谁
-- 哪些规则是 repo 级 shared contract，哪些属于 collection-specific strategy
-
-补充约束：
-
-- 当前 merged truth 的开放 surface 与产品执行状态不在本文维护，统一看
-  `docs/architecture/current.md` 与 `.planning/`
-- 本文中的 “scope” 指 canonical data-plane support 范围，不等于 query-enabled 或 rollout 已完成
-- full agentic retrieval 的长期 target truth 另见
-  `docs/architecture/system/agentic-retrieval.md`
-
-## Canonical Chain
-
-repo 级 canonical data-plane chain 固定为：
-
-`raw asset -> provider output -> source truth -> declared projections ->
-canonical document artifacts -> document-units -> chunks -> index`
-
-这条链路适用于：
-
-- institutional document OCR ingestion
-- `official_web` source channel
-- 其他后续 source-shared collection / corpus
-
-source-channel collector 到 canonical data-plane 的 clean runtime chain 固定为：
+The accepted path is:
 
 ```text
-source-channel collector
--> S3-compatible source bucket artifact pack + run ledger
-   + source-channel task input refs
--> app-api product/operator admission when a product control plane is required
--> ingestion-control-api task admission with object-store input refs
--> ingestion-control Temporal workflow/activity worker
-   registry-aware execute / closeout
--> source truth / projection / document / release artifacts
--> app-api / execution-control / operator-safe projection consumers
+digest-pinned request in object storage
+-> ingestion-control HTTP admission
+-> one Temporal workflow
+-> source-collector or Rust-kernel activity
+-> digest-pinned result manifest in object storage
+-> bounded PostgreSQL projection
 ```
+
+There is no parallel scheduler, task lease table, collector callback API,
+source-specific run ledger, or Python executor.
+
+## Ownership
+
+| Owner | Responsibilities | Must not own |
+| --- | --- | --- |
+| `apps/ingestion-control` API | v3 envelope validation, registry snapshot, Temporal workflow start, task query, operator projection | provider capture, browser routes, activity execution in the API process |
+| `apps/ingestion-control` worker | workflow, control activities, Rust process bridge, terminal projection, official-web freshness preparation/projection | source provider clients, online publication |
+| `apps/source-collector` | Crawlee/Playwright/provider capture, source artifact writes, source result manifest | workflow start, PostgreSQL lifecycle truth, app-api commands |
+| `packages/ingestion-contracts` | canonical JSON Schemas and validators | Temporal, database, object-store, or provider clients |
+| `packages/ingest-core` | runtime-neutral refs, hashes, parsers, artifact writers, registry audit | concrete runtime lifecycle or infrastructure clients |
+| `packages/ingestion-kernels-rs` | deterministic file-level validation and chunk preparation | network, provider, database, object-store, or workflow ownership |
+
+## Contracts
+
+### Task envelope
+
+`ingestion_task_envelope.v3` contains:
+
+- `task_id`
+- `run_id`
+- `registry_task_id`
+- `input_ref` with `s3://` URI and `sha256:` digest
+
+Callers cannot choose executor, source/target identity, input contract, or
+output contract. Ingestion-control resolves those fields from the registry and
+passes an immutable `ingestion_task_execution_snapshot.v1` to Temporal.
+
+### Registry
+
+`ingestion_task_registry.v3` supports two executor kinds:
+
+- `source_collector`
+- `rust_kernel`
+
+Every entry must match the default executable inventory in
+`packages/ingest-core`. A declaration without a concrete handler/kernel or
+with mismatched contracts fails repository validation.
+
+### Result
+
+Every executor returns `ingestion_task_result.v1`:
+
+- task/run/registry identity;
+- declared output contract;
+- one digest-pinned result-manifest ref;
+- a bounded scalar summary.
+
+Every object-store ref includes a `sha256:` digest and `byte_size`.
+`ingestion_release_manifest.v2` applies the same requirement to every release
+artifact.
+
+Detailed page, notice, attachment, document, chunk, and error artifacts remain
+in object storage. They are not copied into Temporal history or PostgreSQL.
+
+### Object identity
+
+All ingestion writers use create-or-verify semantics. A new object is written
+with conditional create; if the key already exists, its stored digest and byte
+size must match. Different bytes at the same key fail closed.
+
+Execution-specific preparation, provider observations, raw responses, kernel
+outputs and result manifests use
+`runs/<encoded-run-id>/attempts/<activity-attempt>/...`. Canonical source-truth
+keys remain content-addressed. The same Official Web page or WeChat article
+captured by another run/attempt must therefore produce byte-identical
+canonical manifests and rows; timestamps, redirects, headers and fetch errors
+belong to attempt observations.
+
+## Workflow
 
 ```mermaid
-flowchart LR
-  Collector["source-channel collector"]
-  SourceBucket["S3-compatible source bucket\nartifact pack + run ledger + task input refs"]
-  AppAPI["app-api\noptional product/operator seam"]
-  IngestionAPI["ingestion-control-api\nadmission + registry validation"]
-  Temporal["Temporal\nworkflow command + task queues"]
-  Worker["ingestion-control-temporal-worker\nregistry-aware activity execution"]
-  TSHandlers["ts_control handlers\ncollection-specific materialization"]
-  RustKernels["rust_kernel bridge\nfile validation + chunk prep"]
-  Artifacts["source truth / projections /\ndocument / release artifacts"]
-  Consumers["app-api / execution-control /\noperator-safe projections"]
+sequenceDiagram
+  participant Caller
+  participant API as ingestion-control API
+  participant Temporal
+  participant Control as control activity
+  participant Executor as source collector / Rust kernel
+  participant S3 as object storage
+  participant PG as PostgreSQL projection
 
-  Collector --> SourceBucket
-  SourceBucket --> AppAPI
-  SourceBucket --> IngestionAPI
-  AppAPI --> IngestionAPI
-  IngestionAPI --> Temporal
-  Temporal --> Worker
-  Worker --> TSHandlers
-  Worker --> RustKernels
-  TSHandlers --> Artifacts
-  RustKernels --> Artifacts
-  Artifacts --> Consumers
+  Caller->>S3: write request + SHA-256
+  Caller->>API: POST v3 task envelope
+  API->>API: validate envelope + freeze registry task
+  API->>Temporal: start ingestion/<task_id>
+  Temporal->>Control: record started projection
+  Control->>PG: insert running task
+  opt official_web.capture
+    Temporal->>Control: prepare due URL candidates
+    Control->>PG: read latest URL freshness
+    Control->>S3: write preparation manifest
+  end
+  Temporal->>Executor: execute immutable snapshot
+  Executor->>S3: verify input digest, write artifacts + result manifest
+  Executor-->>Temporal: result ref + bounded summary
+  Temporal->>Control: validate and complete
+  Control->>PG: update terminal projection
 ```
 
-collector 只能把外部 source 转换成可审计 artifact pack、run ledger 与
-source-channel input refs。需要 capture-release handoff object 的来源必须把它建模成
-typed object-store task input；不需要 handoff object 的来源（例如
-`official_web_source_truth_bundle.v1`）不得额外引入 terminal handoff wrapper。collector
-不拥有 source-truth mutation、document registry、chunk/index release 或 Qdrant alias
-publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此成为
-ingestion executor。
+The workflow retries start/preparation projection activities up to five times
+and executor activities up to three times. Terminal complete/fail/cancel
+projection activities have no maximum-attempt cap: Temporal keeps retrying
+transient projection failures so workflow history and PostgreSQL cannot settle
+on contradictory terminal states. Once an executor returns a result, completion
+projection runs in a non-cancellable scope; that is the terminal commit point.
+Source capture has a 12-hour start-to-close timeout; Rust kernels have a 2-hour
+timeout. Both heartbeat every 30 seconds or faster. Cancellation before the
+commit point closes the bounded projection from a non-cancellable cleanup
+scope.
 
-`ingestion-control-api` 与 `ingestion-control-temporal-worker` 是自部署
-`apps/ingestion-control` 的两个 runtime role。前者是 HTTP control-plane service；
-后者是 Temporal workflow/activity worker process。这里的 worker 不表示 Cloudflare Worker，也不得
-把 ingestion lifecycle 藏进 `apps/app-api` 或 collector 进程。
-`ingestion-control-api` 的 internal HTTP routes 按调用者能力使用 scoped service
-token：task admission/detail 属于 admin token，operator projection 读取属于
-app-api projection token，official-web collector lifecycle、projection drain 与
-ingestion execution status write 分别使用各自 token。`apps/app-api` 只能读取
-ingestion-control 返回的 redacted operator projection，不得消费 raw task input refs、
-artifact payloads 或 source-bucket details。
+After a source or kernel activity fails, the workflow writes the failed task
+projection and rethrows the original failure, so Temporal remains `Failed`.
+Cancellation follows the same rule: it writes the canceled projection and
+preserves Temporal's `Canceled` outcome. A successful workflow therefore means
+that its completed PostgreSQL projection was also written.
 
-学校或来源差异必须停在 source adapter 层。repo 当前目标是 fork-friendly source adapter
-boundary，而不是 plugin 平台：自部署 fork 可以替换自己的 collector adapter，但应保持
-source bucket artifact pack、source-channel typed task input object、
-ingestion-control task envelope 与 canonical source-truth contract 不变。
+Activity progress uses heartbeats. Large observations and detailed progress
+use object-store artifacts, not workflow signals or per-item database rows.
 
-## Target Deployment Shape
+## Active Tasks
 
-ingestion / collector 的最终部署形态由 runtime ownership 决定，不由 package
-layout 决定。下表定义目标拓扑；它不宣称当前 K8s / GitOps manifest 已覆盖所有单元。
+Source collector tasks:
 
-| Unit | Deployed | Runtime shape | Scheduling / scaling owner | Owns | Must not own |
-| --- | --- | --- | --- | --- | --- |
-| `apps/source-collector` | Yes | Crawlee-capable source adapter runtime image | Kubernetes Job / CronJob, Temporal activity-invoked process, or explicit operator harness | source auth, crawl / capture, source-bucket artifact pack, run ledger, task input refs | source-truth mutation, task admission, terminal closeout, Qdrant alias publish |
-| `ingestion-control-api` | Yes | self-hosted internal HTTP service process from `apps/ingestion-control` | service Deployment or equivalent request-driven scaling | task admission, registry validation, idempotency, Temporal workflow start, ready / metrics, operator-safe projection | crawl / capture, workflow / activity execution, source adapter auth |
-| `ingestion-control-temporal-worker` | Yes | Temporal workflow / activity worker process from `apps/ingestion-control` | Temporal task queue backlog / worker saturation; KEDA Temporal scaler when deployed on Kubernetes | registry-aware workflow / activity execution, `ts_control` dispatch, Rust kernel bridge, explicit adapter calls, terminal closeout | HTTP admission, product ingress, collector run lifecycle |
-| `packages/ingest-core` | No | runtime-neutral TS ingestion helper package | package import only | artifact refs, object-store interfaces, `s3://` URI helpers, source-channel handoff DTOs, canonical JSON / JSONL writers, pure validation / parser / materialization helpers, default executor inventory audit | Temporal, Crawlee, concrete S3 / Postgres / Qdrant clients, provider transport, env bootstrap |
-| `packages/ingestion-contracts` | No | runtime-neutral contract package | package import only | task envelope, task registry, closeout DTOs and validators | task lifecycle, storage clients, workflow / activity execution |
-| `packages/ingestion-kernels-rs` | No standalone service | deterministic kernel binary / library called by ingestion-control worker | called from registered worker activity | file-level validation, chunk preparation, release manifest checks | source-channel semantics, Postgres / S3 / Qdrant clients, operator workflow |
-| Python adapters | Optional | package library or private adapter service dependency behind explicit TS handler | called only by admitted TS handler | MinerU / OCR / ML / Office / domain extraction adapters | default worker runtime, task workflow, closeout, registry fallback executor |
+| Registry task | Input | Output |
+| --- | --- | --- |
+| `official_web.capture` | `official_web_capture_request.v1` | `official_web_source_manifest.v1` |
+| `internal_portal.notice.capture` | `internal_portal_notice_capture_request.v1` | `authenticated_notice_source_manifest.v1` |
+| `internal_portal.file_release.capture` | `internal_portal_file_release_capture_request.v1` | `authenticated_file_release_source_manifest.v1` |
+| `wechat_official_account.capture` | `wechat_official_account_capture_request.v1` | `wechat_official_account_source_manifest.v1` |
 
-The production service chain therefore stays:
+Rust tasks are declared only for the current curriculum and regulation
+collections and use `validate-document-units` or `chunk-document-units`.
+There are no placeholder release, alias-publish, vector-write, or source
+materialization tasks.
 
-```text
-scheduled or workflow-invoked source-collector
--> source bucket artifact pack + run ledger + task input refs
--> optional app-api product/operator control-plane seam
--> ingestion-control-api admission
--> Temporal workflow
--> ingestion-control-temporal-worker registry-aware execution
--> source truth / projection / document / release artifacts
--> app-api / execution-control / operator-safe projection consumers
+## Official Web Freshness
+
+`official_web.capture` is an offline source task. Before collection, the control
+activity selects due URLs from
+`ingestion_control.official_web_url_freshness` and reads configured seed
+identity from `ingestion_control.official_web_seed_state`. The collector
+combines due canonical URLs with configured seeds that have never been
+observed. The preparation manifest is written to object storage and
+digest-pinned before crossing the activity boundary.
+
+On successful completion, ingestion-control finds the page-observation
+artifact through the result manifest, verifies every digest, and upserts the
+latest state per `(site_id, normalized_canonical_url)`. Observations are
+ordered by `(observed_at, last_observed_run_id)` so equal timestamps converge
+deterministically. PostgreSQL does not keep
+page bodies, artifact inventories, crawl-run history, target worksets, or
+release gates. Configured seed identity is projected separately by
+`(site_id, configured_seed_url)` because a seed can redirect to another
+canonical URL and multiple seeds can resolve to the same page.
+
+Official web is not query-enabled. Its source artifacts do not imply canonical
+documents, chunks, an index alias, or a serving target.
+
+## Persistence
+
+- Temporal: canonical workflow state, attempts, retry, timeout, heartbeat, and
+  cancellation.
+- Object storage: requests, preparations, source artifacts, kernel artifacts,
+  and result manifests.
+- Source collectors and official-web freshness use source-bucket credentials;
+  Rust kernels use separate derived-bucket credentials for canonical inputs
+  and deterministic outputs.
+- PostgreSQL `ingestion_control.tasks`: bounded operator/query projection.
+- PostgreSQL `ingestion_control.official_web_url_freshness`: latest URL state
+  used for the next crawl decision.
+- PostgreSQL `ingestion_control.official_web_seed_state`: configured seed to
+  last-observed canonical URL mapping used to avoid redundant bootstrap fetches.
+
+The runtime asserts the current schema at startup. It does not create or relax
+tables at runtime and does not interpret retired lease/task-kind columns. The
+separate migration command owns `ingestion_control.schema_migrations`; startup
+also requires that journal so raw, untracked SQL application is not accepted as
+deployment truth.
+
+## Deployment
+
+`infra/k8s/ingestion-runtime/base` defines:
+
+- the replicated ingestion-control HTTP Deployment and Service;
+- `ingestion-control-worker` WorkerDeployment;
+- `source-collector-worker` WorkerDeployment;
+- per-version KEDA ScaledObjects and PDBs through WorkerResourceTemplate;
+- ServiceAccount, Connection, and NetworkPolicy resources.
+
+The ingestion image workflows publish three production artifacts from the two
+runtime packages: `ingestion-control` for the API and migrations,
+`ingestion-control-worker` for workflow/control/Rust activities, and
+`source-collector` for source activities. GitOps chooses immutable digests,
+namespace, Temporal endpoint/namespace, database, object-store, provider
+secrets, and environment-specific network patches.
+
+## Publication Boundary
+
+Completing an ingestion task does not publish an online target. Query serving
+requires a separate, complete chain that produces canonical documents,
+accepted chunks/index data, a release manifest, and an admitted serving target.
+No task or config file may infer that chain exists.
+
+## Verification
+
+```bash
+pnpm ci:contracts
+pnpm ci:ingest
+pnpm ci:rust
+kubectl kustomize infra/k8s/ingestion-runtime/base
 ```
 
-`apps/source-collector` can be run as manual or scheduled work because capture
-has an external source lifecycle. `apps/ingestion-control` remains a self-hosted
-control-plane service because task admission, workflow start and terminal
-closeout need stable internal state, diagnostics and failure semantics.
-
-## Object Store Posture
-
-The object store is a private S3-compatible data-plane substrate for source and
-derived artifacts. It is not an Agent, browser or public API surface.
-
-- staging uses the GitOps-managed `object-store` Kubernetes Service and a
-  persistent single-node volume; local development may use the Compose
-  `object-store` service
-- canonical buckets are `campus-agent-source` and `campus-agent-derived`; the
-  retired `campus-rag-*` names are not compatibility aliases
-- collectors receive source-bucket credentials, while materializers and
-  readers receive only the bucket credentials required by their runtime role
-- the Kubernetes service has no public ingress; host-side maintenance uses a
-  bounded `kubectl port-forward`
-- application contracts expose `OBJECT_STORE_*` and `s3://` artifact refs, not
-  MinIO deployment, policy or storage types
-- object-store bootstrap owns bucket and policy creation; application startup
-  must fail closed when required buckets or scoped credentials are unavailable
-
-Official-web source-channel projection preserves selected write target metadata
-from collector observations into terminal run events. Ingestion-control admits
-`official_web/stable_reference` or `official_web/fresh_news`
-tasks only from an explicit `official_web/<collection>` target. The current
-registry task name `source_truth_materialize` is a compatibility name: the
-implemented official-web behavior is source-truth ref verification/handoff until
-a real document materializer exists. It must fail closed when terminal metadata
-has no official-web target, has multiple official-web collection targets, or
-names an unsupported collection; terminal official-web runs must not default
-implicitly to `stable_reference`.
-
-## Qdrant Private Data-Plane Posture
-
-Qdrant 是 data-plane index substrate，不是 product/API surface。当前 staging /
-production posture 固定为 `self-hosted authenticated private data-plane`：
-
-- `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 必须保留为 private data-plane
-  secrets；本地部署不等于无认证部署
-- online execution runtime 只接收 read-only `QDRANT_QUERY_API_KEY`，ingestion /
-  backup / restore 才使用 admin `QDRANT_API_KEY`
-- execution-control personal memory 不再接入 Qdrant write path；个人记忆写入由 Hindsight
-  runtime 承担
-- staging `QDRANT_URL` 指向 Kubernetes private Service；local development may
-  use the Compose data-plane endpoint. Neither endpoint is a browser, panel,
-  docs, chat or public smoke surface
-- authenticated staging and production Qdrant transport uses HTTPS and
-  `QDRANT_TLS_CA_CERT_PATH`; external `api_key + http://` is not an acceptable
-  data-plane transport
-- Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
-  只消费已发布 alias / serving config，不直接把 Qdrant physical collection 名提升为
-  product truth
-
-## Personal Memory Data Plane
-
-Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Hindsight
-self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
-
-固定边界：
-
-- personal memory graph、retain / recall / reflect、async operation status 与
-  institutional RAG collection 隔离
-- online recall 使用 `PERSONAL_MEMORY_BASE_URL` / `PERSONAL_MEMORY_API_SECRET`
-- explicit profile memory upsert / disable / owner disable / RTBF 通过
-  execution-control internal Hindsight command 完成
-- staging / production 必须使用 HTTPS Hindsight endpoint；local dev 可使用 compose 内网
-  `http://hindsight-api:8888`
-- Hindsight API、Hindsight worker、Postgres / pgvector、operation records 与 provider
-  配置是 Hindsight runtime 内部组件，不是
-  `campus-agent` data-plane contract
-- payload contract 由 `docs/architecture/system/memory-plane.md` 维护，不由
-  institutional RAG release manifest 维护
-
-personal memory projection 只允许保存 compact text、routing metadata 和 internal
-`episode_uuid` ref；不得保存 raw transcript、raw profile DB row、raw provider response、
-auth material 或 unrestricted private notes。
-
-## Relation To Online Knowledge Retrieval
-
-Online `knowledge_search` 只读取已发布的 canonical index，不改变 data-plane chain：
-
-- canonical document truth 始终沿 `source truth -> document artifacts ->
-  document-units -> chunks -> index`
-- execution-control 在 admitted scope/version 内执行 embedding、Qdrant lookup、
-  rerank、bounded evidence validation 与 source generation
-- query-time state 不写回 source truth，也不能跳过 canonical document、release
-  acceptance 或 serving alias boundary
-- 未完成离线发布并加入 scope registry 的 source channel 不得通过 live query 或
-  provider fallback 进入在线链路
-
-## Source-Truth Rules
-
-source truth 的长期硬约束：
-
-- source truth 是 provider-agnostic shared upstream
-- 一份 raw source asset 只生成一份 canonical source truth
-- 一份 source truth 可以 fan-out 到多份 projection / collection / corpus
-- source truth 不提前携带 document / chunk / retrieval 语义
-- 后续 replay / rebuild 从 source truth 继续，而不是返回 raw 重消费
-
-不同 `source_channel` 可以拥有各自的 source-specific contract 与 canonical source
-unit，只要不破坏这条 shared chain。
-
-当前已接受的 source-specific contract 包括：
-
-- `official_web` page-level source truth，详见
-  `docs/data/official-web.md`
-- `internal_portal` notice-level source truth，详见
-  `docs/data/authenticated-notice.md`
-
-这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
-
-## Target Runtime Ownership And Language Boundaries
-
-长期 ingestion/data-plane runtime 采用控制面、执行壳、deterministic kernel 与 provider /
-domain adapter 分层，而不是把当前 Python ingestion scripts 扩成目标 runtime。
-
-目标任务生命周期固定为：
-
-```text
-admit
--> register
--> start Temporal workflow
--> execute registry-aware activity
--> materialize
--> validate
--> publish
--> terminal closeout
-```
-
-固定 owner：
-
-- `apps/app-api` 只拥有 product/operator ingress、operator-safe projection read model
-  与 release gate command；不拥有 ingestion task admission、executor state mutation、
-  executor callback、source truth write、document/index materialization 或 Qdrant alias
-  publish。`apps/app-api` 也不是 Python workspace package；需要 Python mirror /
-  projection helper 时应进入 `packages/contracts` 等稳定 package，而不是回到 Worker app
-  下新增 Python 包。
-- ingestion control plane 以自部署服务运行，不是 Cloudflare Worker。它可以由同一
-  package / image 提供 `ingestion-control-api` 与 `ingestion-control-temporal-worker`
-  两个 runtime role，但 API surface 与 Temporal workflow/activity worker process
-  必须作为不同进程部署和扩缩。
-- `ingestion-control-api` 拥有 task admission、task registry validation、
-  idempotency、operator-safe projection read model 与 ready / metrics surface。
-- `apps/ingestion-control` 拥有 task admission、Temporal workflow start、
-  registry-aware activity dispatch、telemetry closeout 与 redacted operator
-  projection snapshot。
-- `apps/ingestion-control` 的 Temporal workflow / activity worker 是 durable
-  run-level orchestration shell；它消费已 admission 的 task，按 registry 中的
-  `ts_control` / `rust_kernel` executor kind 调用 TS handlers 或 deterministic
-  kernels，并把 terminal outcome 暴露为可诊断 closeout。缺失 handler / kernel 必须
-  fail closed。
-- `ts_control` handler 是默认 source-truth materialization owner；source-specific
-  artifact resolver 与 source-truth materialization 只有在真实 handler 已存在时才进入
-  registry。`source_truth_materialize` 作为当前 compatibility task name 不得被复制为新
-  target lifecycle 命名；后续 document / chunk / index / release 步骤必须用真实 lifecycle
-  handler 和清晰 task kind 表达。缺少真实 handler / kernel 的生命周期步骤不得进入 active
-  registry；默认 closeout skeleton 不代表 collection migration complete。
-- task kind contract 只保留当前 active runtime 能执行或能 fail-closed 诊断的
-  data-plane lifecycle 语义。当前 active task kind 分层为：
-  `source_truth_materialize` 交给 TS control handler；
-  `document_units_validate` / `chunk_prepare` / `release_manifest_validate` 交给
-  deterministic Rust kernel bridge。post-source projection、read-model 与 derived-scope
-  materialization 不再作为 active task kind 保留；需要时必须在同一变更中重新设计
-  collection-specific handler、contract artifact、registry entry 与 executability gate。
-  active registry 只能声明 executability audit 已确认存在 handler / kernel 的 task；
-  新增枚举不能作为 registry 占位。
-- Python 不作为 app-level worker runtime、default package library 或 fallback executor。
-  需要 Python 生态的 MinerU / OCR / ML / domain extraction 能力时，必须重新建模为
-  explicit TS handler 调用的 private adapter service 或明确 admission 的窄 package，
-  并返回 canonical artifacts / document units。
-- Regulation semantic、answer-role、answer-ready contract helper、student handbook
-  cleanup、layout cleanup、file asset routing 或 extraction metadata 如需新增，必须按
-  collection-local TS handler、deterministic Rust kernel 或显式 adapter contract
-  admission。
-- `packages/ingest-core` 是已存在的 runtime-neutral TypeScript ingestion helper
-  package。它只能承载 artifact refs、object-store interface、`s3://` URI helper、
-  source-channel handoff DTO、Zod-backed TS boundary parsers、canonical JSON /
-  JSONL artifact writer、纯 validation / parser / materialization helper、default
-  executor inventory audit 与 collection-local domain helpers；不能承载 Temporal、
-  Crawlee、S3 / Postgres / Qdrant concrete client、provider HTTP client、
-  registry-aware runtime dispatcher、concrete handler registry、execution error-code
-  mapping 或 executor fallback。active task execution 必须拒绝非 `object_store`
-  input ref；`inline` /
-  `local_file` / `postgres_row` 只允许留在 contract / test / explicit dev assertion
-  语境，不得作为 source-truth materialization 主链路。
-- `packages/ingestion-contracts` 继续拥有 ingestion task envelope、task registry 与
-  closeout DTO，以及 `canonical_document_units.v1` schema。TS ingest core helper
-  可以消费这些 contracts，但不得替代 `apps/ingestion-control` 的 admission /
-  workflow / closeout ownership。TypeScript validator 使用 Ajv，Python boundary test
-  package 只能通过 `jsonschema` 消费同一份 JSON Schema；不得再维护手写字段 validator。
-  canonical document units 固定使用 `doc_id` / `version_id` / `chunk_id` /
-  `root_unit_id` / `text` / `clean_text` / `metadata` / `anchor`，Rust kernel
-  `chunk-document-units` 输出 chunk 也使用 `doc_id`。旧 `document_id` / `unit_id`
-  输入形状不得作为 `canonical_document_units.v1` 兼容路径保留。
-- Rust 只承接 profiling 已证明值得下沉的 deterministic batch kernels，例如 JSONL
-  streaming、document-units validation、chunk packing、hash / dedup / diff、release
-  manifest validation 与 embedding batch input preparation；Rust kernel 不拥有
-  source-channel semantics、operator workflow 或 provider adapter contract。
-- Python 只允许作为重新 admission 的 MinerU / OCR / ML / domain extraction
-  adapter 或 offline eval tooling。Python adapter 产物必须回到 canonical source
-  truth / document artifact / projection contract 后才能被下游消费。Python adapter
-  code 不得从 env 构造 provider HTTP client、拥有 provider polling lifecycle 或作为
-  ingestion executor；provider execution 必须通过显式 TS handler、注入的 private
-  adapter 或外部服务边界进入。reader-facing course-map supplement 的 schema
-  validation、asset packaging 与发布 helper 由 TS `packages/ingest-core` 承接。
-- Python 不拥有默认 Postgres connection runtime。Python data-plane code 只能保留连接
-  URL validation / normalization、SQL shape test 与显式隔离 adapter；registry /
-  projection 的实际数据库 mutation owner 必须回到 TS/Go runtime 或重新 admission 的
-  adapter boundary。
-- Python 不拥有默认 tokenizer、chunk profile、chunk preparation 或 LlamaIndex
-  runtime。collection runtime / chunk profile payload 由 TS `packages/ingest-core`
-  解析；默认 `document_units_validate`、`chunk_prepare` 与
-  `release_manifest_validate` 由 `apps/ingestion-control` 调用 Rust kernel 执行。
-  Curriculum document-units generation / validation / chunk preparation 也不得
-  留在或恢复为 Python `curriculum_chunk_units*` /
-  `curriculum_document_units*` 模块；缺失能力必须作为 TS handler 或 Rust kernel
-  补齐。
-  如需 Qwen3 budgeting，只能在 deterministic kernel boundary 内使用本地
-  `tokenizer.json` + Hugging Face `tokenizers`；不得回退到 Python
-  `transformers` runtime、Python tokenizer cache、semantic chunker、process
-  pipeline 或联网下载。embedding / chunk node seam 使用 repo-owned protocol /
-  DTO。
-- Python 不再保留 concrete Qdrant 或 S3-compatible object-store client
-  lifecycle；现存 Qdrant 字样仅允许作为 profile DTO / config-validation 语义，不得代表
-  client ownership。新工作不得继续把 collection lifecycle、alias publish、
-  object-store runtime client creation 或 audit closeout 扩建在 Python 默认路径上。
-- 学校特定 collector adapter 可以使用 TS、Python 或其他 repo-approved runtime
-  实现采集，但它的唯一 data-plane handoff 是 source bucket artifact pack 和
-  capture-release object；不能因语言或部署便利绕过 ingestion-control。
-
-`provider_response_replay` 只能作为 local rebuild、audit 或 diagnostic input。长期
-rebuild / replay 的主路径必须从 canonical source truth、
-canonical document artifacts 或 `document-units` 继续，不得把 provider response
-或 raw asset replay 提升为 canonical rebuild owner。
-
-## Ingestion Execution Rules
-
-repo 级 ingestion 清理边界固定为：
-
-- Source unit、source bucket layout、input/output contracts、operator projection
-  boundary 与 forbidden shapes 必须先冻结；task registry 只声明 default runtime 已能执行的
-  handler / kernel。
-- 每个 admitted collection 必须有真实 `ts_control` handler 或 Rust kernel bridge，读取
-  object-store input，产出 contract artifact，并由 ingestion-control Temporal
-  workflow/activity worker 完成 terminal closeout。
-- deterministic file-level work 只有在 output equivalence 与 profiling 都满足 adoption
-  gate 时才下沉到 Rust。
-- Python 仅作为 MinerU / OCR / ML / legacy Office / domain extraction adapter；adapter
-  输出必须回到 source-truth、document artifact 或 projection contract。
-- 旧 Python import / closeout / replay / repair / smoke CLI 与 runbook executable path
-  不是 active ingestion lifecycle；仍需要的能力必须按 TS/Rust target runtime 或 Python
-  adapter 重新建模。
-
-固定门槛：
-
-- collection task registry 必须对应 default runtime 已实现的 handler / kernel bridge；
-  registry 存在本身不能证明 collection rollout complete。
-- capture / provider-extract task contract 已从 active registry contract 中移除；
-  重新接入时必须和 collection-specific Temporal handler 同步设计、同步落地，不得先以
-  enum 或 registry 占位。
-- post-source projection / read-model / derived-scope materialization 不得以 generic
-  task kind、Python import/replay/publish CLI 或 report-only handler 形式保留；需要时
-  必须作为 collection-specific TS handler 或明确 adapter contract 重新 admission。
-- `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth
-  materialization 的主输入；mainline handoff 必须是 source bucket `object_store` refs。
-- 双路径只允许在有明确外部迁移约束时短期存在；默认不新增 fallback、兼容 shim 或
-  silent replay path。
-- source-truth replay、local attachment blob-root backfill、provider comparison、
-  runtime smoke 与 document canonical markdown backfill 如需恢复，必须重新设计为
-  Temporal activity、Crawlee collector 或显式 provider activity。
-
-## Shared File-Asset Loader Boundary
-
-对 file-like asset，repo 级 data plane 固定允许插入一条 shared subchain：
-
-`source-truth relation or file descriptor -> optional normalization ->
-extraction/provider artifacts -> terminal outcome or canonical child document
-artifacts`
-
-固定规则：
-
-- 这条 subchain 不改变 repo 的 canonical chain，只是把 file-like asset handling 从
-  source-specific path 统一为 shared contract
-- source unit 继续由 source channel 定义；`official_web` 仍是 page-level
-  source-truth，`internal_portal` 仍是 notice-level source-truth
-- shared file asset loader 当前只保留 architecture boundary。后续若在 TS ingest core
-  或 adapter service 中重新落地，仍必须保持 runtime-neutral contract，不得携带
-  concrete storage / database / Temporal / Crawlee runtime。
-- binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment
-  posture 固定看 `docs/architecture/system/file-asset-loader.md`
-- remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的
-  data-plane layer
-
-## Regulation Canonical Cleaning Boundary
-
-对 authenticated-notice 派生的 regulation target，清洗固定属于 ingestion data plane 的
-canonical materialization 阶段，而不是 document site publish、chunk preparation 或 RAG
-release 阶段。
-
-固定规则：
-
-- source truth / owner text 保留原始可追溯语义；清洗后的正式消费产物是 target
-  canonical markdown 与 document-units
-- materialization 必须在写入 registry 前完成 wrapper removal、page artifact removal、
-  OCR soft-wrap repair 与中文可读性标点归一，并产出 normalization quality/provenance
-- document-units metadata 必须携带 `normalizer_version`、`cleaning_policy_version`、
-  `document_units_schema_version` 与 `normalization_quality`
-- 非 `passed` 的 normalization quality 不得写入 selected source materialization；需要回到
-  manual review / owner recovery / cleaner hardening
-- 下游 reader publish 与 RAG release 只能消费 registry 指向的 canonical artifacts /
-  document-units，不允许在下游重新修正文
-
-历史 regulation notice 的修复同样必须回到 canonical materialization：已采集但早于当前
-cleaner 的 historical selected cohorts 不能由 chunk/RAG/document-site 层临时清洗；
-应通过 selected canonical backfill 从 admission/source owner text 重新生成 canonical
-markdown 与 document-units，再进入 reader publish 或 RAG release。backfill 本身只更新
-canonical artifacts / registry truth，不打开 query serving、RAG release alias 或 public
-citation。
-
-历史 regulation denominator 扩面时，校级/院级边界必须在 data plane 中显式保留：
-`regulations/institutional_rules` 是唯一可在后续显式 gate 中进入 document-site/RAG
-consumption 的 regulation target；`regulations/scoped_rules` 只允许生成
-canonical/document-units/chunk-only audit evidence，不进入 document-site read-model、RAG
-release candidate、embedding/index 或 serving alias。
-
-## Offline Release Task Boundary
-
-对于 `official_web` 这类需要从 preview / candidate 推进到 current read model 的 source channel，
-release task state machine 固定属于 ingestion data plane。
-
-固定规则：
-
-- `apps/ingestion-control` 定义并执行 release task lifecycle：Temporal workflow start、
-  registry-aware activity dispatch、publish 状态语义，以及 operator-safe projection
-  snapshot closeout
-- registry-aware activity worker 读取对象存储 source-truth bundle，产出 canonical projection
-  或 document/index release，并在状态变化后上报 redacted projection snapshot
-- `apps/app-api` 不拥有 release task admission、executor read、executor callback
-  或 selected-write task 状态；它只暴露已经入库的 operator projections、
-  stable-reference operator approve/reject command ledger；它可以接收
-  ingestion-control 的 operator-safe release task projection snapshot，用于 panel
-  只读展示
-- Panel 只能消费 app-api/operator projection 或未来 ingestion 投影，不直接调用
-  release task mutation route
-
-`calendar/academic_calendar` 当前是 ingestion-owned offline data asset /
-preparation scope：官方网页 one-time source-pack 可以提供校历网页/图片 source
-evidence，但当前不开放 `academic_calendar_lookup` runtime tool，也不打开 RAG
-query-serving alias。该 projection 的 read-model record 必须显式区分
-`teaching_week`、`named_event`、`term_window` 与 `class_day_override`；
-命名事件区间内部使用 start-inclusive / end-exclusive，同时保留面向用户的
-display start/end 日期与 source title/url。
-
-## Derived Collection Rebuild
-
-当某个 collection 的上游已经不是 raw/source-truth，而是另一条 canonical document scope 的
-`document-units` 时，固定规则为：
-
-- materialization / rebuild 从 canonical `document-units` 开始，不返回 raw source
-  bucket 或 provider replay
-- 派生 collection 仍要把自己的 canonical document artifacts、registry rows 与 release
-  manifest 独立落盘
-- 派生 collection 的 indexing / alias publish 继续走 release-managed registry scope 流程
-
-当前已接受实例：
-
-- `curriculum/curriculum_plan -> curriculum/program_semester_facts`
-
-## Published Reader Assets
-
-对已 admission 的 canonical docs site，repo 级 data plane 允许从 canonical document
-artifacts 派生一条 product-delivery 子链：
-
-`canonical document artifacts -> reader projection -> published reader assets`
-
-固定规则：
-
-- published reader assets 属于 derived artifact，不改变 canonical chain
-- 长期真相继续落在对象存储，而不是 repo tracked `assets/` 目录
-- public docs deploy 只把公开子集同步到 Worker static assets
-- gated reader asset 如果未来另行接受，不得因为采用同一 payload format 就自动进入匿名 public bundle
-
-reader asset package / object key / deploy sync 细节统一看
-`docs/contracts/document-reader-publish.md`。
-
-## RAG Release Candidate Boundary
-
-对已 admission 的 retrieval-backed canonical scope，repo 级 data plane 允许从 canonical
-document artifacts 派生一条独立 RAG release 子链：
-
-`canonical document artifacts -> document-units -> chunks -> embedding/index ->
-retrieval acceptance -> serving alias publish`
-
-固定规则：
-
-- RAG release boundary 属于 chunk/index/retrieval serving truth，不改变 source-truth 或
-  document registry truth
-- canonical document materialization 只能产生 `rag_release_candidate`；candidate 不是
-  query-serving alias，也不表示 runtime 已可检索
-- `rag_release_candidate` 持久 store 是 ingestion data-plane owned operator store；
-  production materialization 只有在显式注入 store 或配置 candidate store Postgres URL 时
-  才入队，避免无 operator store 的本地/assertion replay 被隐式升级为发布流程
-- reader publish boundary 与 RAG release boundary 可以共享 canonical document provenance，但必须保留
-  独立 status、artifact、manifest 与 verification truth
-- periodic worker 可以批量处理 pending candidates；worker 只能读取 canonical document
-  artifacts / document-units 与 release profile，不回扫 raw/source bucket
-- 对 regulation scope，worker 必须校验 canonical cleaning provenance；缺失当前
-  `normalizer_version`、runtime `cleaning_policy_version` 或 `normalization_quality=passed`
-  时 fail closed，不进入 index / alias publish
-- incremental update 必须基于 document identity、version/hash、source/version
-  carrier 与 serving config identity 判定 unchanged / changed / withdrawn / deleted
-- changed candidate 生成新 release 或新 point set；withdrawn / deleted candidate 必须产生
-  cleanup tombstone 或 explicit delete plan，不允许让 stale chunks 继续被 current alias 命中
-- no-longer-current historical / search-only candidate 如果不是 withdrawn / deleted，不得
-  伪装成 current alias delete；它必须进入 non-serving terminal status，例如
-  `held_search_only`
-- serving alias publish 必须在 deterministic retrieval acceptance 后执行；acceptance
-  失败只能留下 failed candidate / repair signal，不能切换 current pointer
-- 对 regulation-family query-enabled target alias，release closeout 只说明“发布产物满足 target
-  lane 约束”；runtime 仍必须继续阻止 retired old-index primary fallback 进入 target serving
-  path。old-index diagnostic 若仍需保留，只能作为单独命名的 diagnostic lane 存在，
-  不得与 target alias 混用 completion truth
-
-这条 lane 的目标是让“文档站已发布”和“RAG 已可检索”保持可观测分离。
-
-## Layer Ownership
-
-### Raw Layer
-
-- source asset
-- provider output
-- provenance / audit / replay input
-
-### Source-Truth Layer
-
-- provider-agnostic layout / page / block truth
-- projection upstream
-
-### Document Layer
-
-- canonical document identity
-- revision / version truth
-- document metadata
-- document-units
-
-### Chunk / Index Layer
-
-- chunk metadata
-- vector / sparse index
-- serving-side evidence carrier
-
-## Registry And Release Model
-
-- raw asset registry 持有原始来源身份、版本与存储定位
-- document registry 持有逻辑文档版本、hash、status 与 serving关联
-- RAG release candidate 记录 document identity/version/hash、target collection、
-  serving config、candidate reason 与 required cleanup disposition
-- serving alias 指向当前 query-serving physical collection
-- index release 通过 versioned physical collection + release manifest 追溯
-- query-enabled alias publish 必须先通过 deterministic retrieval acceptance；release
-  manifest / point payload 继续承载 embedding、dense/sparse/hybrid、
-  chunker/tokenizer 与 cleaning provenance
-- embedding cache 只能作为 rebuild cost-control adjunct；cache key 必须包含文本 hash、
-  provider/model/dimensions 与 serving config identity，不得替代 release manifest truth
-
-对部分 `offline_preparation` collection，index release 之前允许插入一个 preparation gate。
-
-固定规则：
-
-- collection-specific `chunk preparation` 属于 data-plane 内的独立阶段，不等于 index release
-- preparation 只负责 split / cleanup / chunk / validation，不负责 embedding / indexing
-- preparation truth 固定落在 operations prefix，而不是 release prefix
-- 当某个 collection 启用 hard gate 时，release 必须显式引用 verified preparation truth 才能继续
-
-## Object Storage Semantics
-
-对象存储在架构语义上始终视为：
-
-- `S3-compatible object storage`
-
-当前即使本机部署或通过 MinIO 落地，也不改变这条语义。
-
-## Registry Database Connectivity
-
-registry / control-plane database 与对象存储长期分层。
-
-固定规则：
-
-- Postgres 只承载 registry、run/progress truth 与其他关系型 metadata
-- 对 structured projection，Postgres 还承载 release catalog、current pointer
-  与 typed read model；这属于关系型 metadata / query projection，不等于把对象 bytes
-  迁入 Postgres
-- 对象 bytes 不迁入 Postgres，也不改变 `S3-compatible object storage` 的长期语义
-- 对象存储继续保存 immutable release artifact、manifest、validation summary 与 replay
-  所需 payload
-- Redis 只允许作为 cache / invalidation adjunct，不拥有 source truth、release catalog、
-  current pointer 或 typed read model
-- 共享 Postgres 使用自托管 CNPG；集群内 TLS、Worker Hyperdrive/Workers VPC 私网路径和
-  独立数据库角色以 `docs/decisions/adr-0073-private-postgres.md` 为准
-
-## Collection-Specific Rules
-
-以下内容不在本文内展开：
-
-- handbook-specific chunking / validation 细节
-- curriculum-specific chunking / serving nuances
-- official web page-level source-truth schema 细节
-- authenticated notice notice-level source-truth schema 细节
-- campus services transport schedule projection schema 细节
-- shared file asset family matrix、normalization / extraction / terminal outcome
-  细节
-
-这些分别以：
-
-- `docs/policies/student-rules-chunking.md`
-- `configs/ingestion/*`
-- `docs/data/official-web.md`
-- `docs/data/authenticated-notice.md`
-- `docs/domains/transport.md`
-- `docs/architecture/system/file-asset-loader.md`
-- `docs/reference/internal-notice-pdf-chunks.md`
-
-为准。
-
-## Accepted Data-Plane Scope
-
-当前 data plane 已接受以下 canonical scope 语义：
-
-- `regulations/student_rules`
-- `regulations/institutional_rules`
-- `regulations/scoped_rules`
-- `curriculum/curriculum_plan`
-- `curriculum/course_facts`
-- `curriculum/program_family_facts`
-- `curriculum/program_semester_facts`
-- `campus_services/transport_schedule`
-- `official_web` source channel 的 control-plane / source-truth path
-
-这表示 repo 已为这些 scope 建立或接受 canonical data-plane 语义，并不表示它们都已开放 query-serving、
-已完成 rollout，或已经拥有 active `task-registry.v2.json` executable entry。
-当前 active registry 只能声明默认 runtime 已有真实 handler / kernel bridge
-的任务；derived/read-model scope 如果只有 generic report-only handler，必须退出
-active registry，直到 collection-specific handler 与 contract artifact 同步落地。
-
-## Forbidden Shapes
-
-- 不把 raw local path 语义提升成长期 truth source
-- 不让新增下游 collection 在 source truth 已存在时返回 raw 重新消费
-- 不把 source-truth contract 污染成 document truth 或 retrieval truth
-- 不把 online query logic 混回 data-plane layer
-- 不让 online `knowledge_search` 修改 canonical document scope 或 release truth
-
-## 相关稳定文档
-
-- `docs/architecture/current.md`
-- `docs/architecture/system/agentic-retrieval.md`
-- `docs/decisions/adr-0002-local-minio-conventions.md`
-- `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
-- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
-- `docs/decisions/adr-0073-private-postgres.md`
-- `docs/data/authenticated-notice.md`
-- `docs/architecture/system/file-asset-loader.md`
-- `docs/reference/internal-notice-pdf-chunks.md`
+## Related Documents
+
+- `docs/decisions/adr-0077-ingestion.md`
+- `docs/decisions/adr-0078-worker-versioning.md`
+- `docs/architecture/domains/official-web/architecture.md`
+- `docs/runbooks/ingestion.md`

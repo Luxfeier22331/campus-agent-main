@@ -99,7 +99,6 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		attempt.InputTokens,
 		attempt.OutputTokens,
 		attempt.CachedInputTokens,
-		attempt.EstimatedCostMicroUSD,
 		string(attempt.CancelOutcome),
 		string(attempt.TimeoutOutcome),
 		string(attempt.LateCompletionOutcome),
@@ -120,7 +119,7 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_ste
 	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 	provider_request_ref, provider_response_id, model_provider, model_name,
-	input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
+		input_tokens, output_tokens, cached_input_tokens,
 	cancel_outcome, timeout_outcome, late_completion_outcome,
 	fail_close_reason, terminal_reason, updated_at,
 	payload_schema_version, sanitized_payload_json
@@ -129,9 +128,9 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_ste
 	$8, $9, $10, $11, $12,
 	$13, $14, $15, $16, $17,
 	$18, $19, $20, $21,
-	$22, $23, $24, $25,
-	$26, $27, $28, $29, $30,
-	$31, $32, $33
+		$22, $23, $24,
+		$25, $26, $27, $28, $29,
+		$30, $31, $32
 )
 on conflict (attempt_id) do update set
 	step_id = excluded.step_id,
@@ -157,7 +156,6 @@ on conflict (attempt_id) do update set
 	input_tokens = excluded.input_tokens,
 	output_tokens = excluded.output_tokens,
 	cached_input_tokens = excluded.cached_input_tokens,
-	estimated_cost_microusd = excluded.estimated_cost_microusd,
 	cancel_outcome = excluded.cancel_outcome,
 	timeout_outcome = excluded.timeout_outcome,
 	late_completion_outcome = excluded.late_completion_outcome,
@@ -258,7 +256,7 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 			workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 			scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 			provider_request_ref, provider_response_id, model_provider, model_name,
-			input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
+				input_tokens, output_tokens, cached_input_tokens,
 			cancel_outcome, timeout_outcome, late_completion_outcome,
 			fail_close_reason, terminal_reason, updated_at,
 			payload_schema_version, sanitized_payload_json
@@ -400,7 +398,6 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 		&attempt.InputTokens,
 		&attempt.OutputTokens,
 		&attempt.CachedInputTokens,
-		&attempt.EstimatedCostMicroUSD,
 		&cancelOutcome,
 		&timeoutOutcome,
 		&lateCompletionOutcome,

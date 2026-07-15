@@ -35,6 +35,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 							},
 						],
 					},
+					resolvedTargets: ["student_rules"],
 					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",

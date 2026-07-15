@@ -178,7 +178,7 @@ profile 语义：
 pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx ./ops/dev/seed-local-provider-config.ts
 ```
 
-该命令读取 root `.env` 的 `LLM_*`、`EMBEDDING_*` 与可选 `RERANK_*`，并把它们写入
+该命令读取 root `.env` 的 `LLM_*` 与 `EMBEDDING_*`，并把它们写入
 app-api provider-config active profiles。root env 不是 online runtime fallback；
 execution-control 仍通过 app-api internal provider-config snapshot 消费 active profile。
 

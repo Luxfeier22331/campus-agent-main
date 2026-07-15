@@ -132,15 +132,11 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("LLM_MODEL");
 		expect(scriptSource).toContain("Qwen3-Embedding-4B");
 		expect(scriptSource).toContain("EMBEDDING_API_KEY");
-		expect(scriptSource).toContain("RERANK_API_KEY");
-		expect(scriptSource).toContain("RERANK_MODEL");
-		expect(scriptSource).toContain("/rerank");
 		expect(scriptSource).toContain("x-app-internal-auth");
 		expect(scriptSource).toContain("x-app-operator-email");
 		expect(scriptSource).toContain("--stage");
 		expect(scriptSource).toContain("prompt");
 		expect(scriptSource).toContain("embedding");
-		expect(scriptSource).toContain("rerank");
 		expect(runWithLocalEnvSource).toContain("repoEnvPath");
 		expect(runWithLocalEnvSource).not.toContain("generatedRuntimeEnvPath");
 		expect(runWithLocalEnvSource).not.toContain(retiredProjector);

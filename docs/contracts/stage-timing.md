@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
 created: 2026-07-03
-updated: 2026-07-11
+updated: 2026-07-12
 ---
 # Runtime Stage Timing Contract
 
@@ -84,13 +84,13 @@ object-store keys or Temporal raw history.
 
 Do not add vendor-specific fields to this table. If a field is useful only
 inside Langfuse, OpenAI SDK tracing, Sentry, Axiom or Temporal UI, keep it in
-that sink and expose only a safe deep link or correlation id through app-api.
+that sink and expose only correlation identity through product projections.
 
 `provider_queue_ms` is not a required repo-owned timing field. Provider-internal
 queueing is not a stable repo-owned measurement unless an explicit
 contract admits a safe provider-derived projection. Use `agent.first_delta_ms`,
-`agent.runtime_ms`, `stream.browser_ttft_ms` and the correlated external trace
-for launch latency diagnosis.
+`agent.runtime_ms`, `stream.browser_ttft_ms` and trace correlation for launch
+latency diagnosis.
 
 Every canonical field above must be admissible by
 `configs/runtime/latency-budgets.v1.json`. A field may be missing from an
@@ -169,16 +169,18 @@ App-api stores `stage_timing.v1` in request observability facts. It validates
 canonical finite numeric fields before exposing Operator-safe projections and
 fails closed on non-canonical app-api-owned timing fields.
 
-## Relationship To Distributed Tracing
+## Relationship To Traces
 
-`stage_timing.v1` answers which repo-owned stage was slow. OpenAI Agents SDK
-spans, Temporal tracing, Langfuse, Sentry and Axiom can provide additional
-diagnostic detail, but they do not replace this projection.
+`stage_timing.v1` answers "which repo-owned stage was slow?" Trace correlation
+lets an authorized operator investigate a configured external sink. Product
+data stores correlation ids, not sink URLs, trace bodies or delivery proof.
 
-App-api and Operator Console consume `stage_timing.v1` directly. They do not
-store external trace bodies or sink-specific trace links. Timing projection
-must never embed SDK spans, provider payloads, tool IO, prompts, answers, source
-bodies or memory text.
+OpenAI Agents SDK tracing, Langfuse OTLP, Sentry and Axiom do not replace
+`stage_timing.v1`. They can provide detail for diagnosis, but app-api, Ops Web
+and Operator Console consume only this bounded timing projection and
+correlation identity.
+`stage_timing.v1` must never embed SDK span bodies, provider payloads, tool I/O,
+prompt, answer or memory text.
 
 ## Related Documents
 

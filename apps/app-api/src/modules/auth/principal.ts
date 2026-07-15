@@ -14,12 +14,6 @@ export type AppPrincipalType =
 
 export type AuthorizationProjectionSource = "campus_identity" | "operator_headers" | "service_auth";
 
-export interface WeChatOfficialAccountCollectorPrincipal {
-	kind: "service";
-	serviceClass: "wechat_official_account_collector";
-	serviceId: "source-collector/wechat-official-account";
-}
-
 export interface AppPermissions {
 	chat: boolean;
 	operator: boolean;
@@ -197,30 +191,6 @@ function isCampusEndUserPrincipalType(
 	value: string,
 ): value is Exclude<AppPrincipalType, "operator" | "service"> {
 	return ALLOWED_END_USER_PRINCIPAL_TYPES.has(value as AppPrincipalType);
-}
-
-function hasMatchingBearerToken(request: Request, token: string | null): boolean {
-	const expected = normalizeHeaderValue(token);
-	const authorization = normalizeHeaderValue(request.headers.get("authorization"));
-	if (!(expected && authorization)) {
-		return false;
-	}
-	if (!authorization.toLowerCase().startsWith("bearer ")) {
-		return false;
-	}
-
-	const provided = normalizeHeaderValue(authorization.slice("bearer ".length));
-	if (!provided) {
-		return false;
-	}
-
-	const expectedBytes = Buffer.from(expected);
-	const providedBytes = Buffer.from(provided);
-	if (expectedBytes.length !== providedBytes.length) {
-		return false;
-	}
-
-	return timingSafeEqual(expectedBytes, providedBytes);
 }
 
 function toIsoString(value: string | Date | null | undefined): string | null {
@@ -708,23 +678,6 @@ export function mapOperatorHeadersToPrincipal(
 ): ResolvedAppPrincipal | null {
 	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
 	return operatorHeadersAdmission.kind === "admitted" ? operatorHeadersAdmission.principal : null;
-}
-
-export async function resolveWeChatOfficialAccountCollectorPrincipal(
-	request: Request,
-	env: Pick<Env, "APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN">,
-): Promise<WeChatOfficialAccountCollectorPrincipal | null> {
-	if (
-		!hasMatchingBearerToken(request, env.APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN ?? null)
-	) {
-		return null;
-	}
-
-	return {
-		kind: "service",
-		serviceClass: "wechat_official_account_collector",
-		serviceId: "source-collector/wechat-official-account",
-	};
 }
 
 export async function resolveRequestPrincipal(

@@ -28,6 +28,7 @@ export interface CollectorValidationIssue {
 		| "quality_audit_missing_page"
 		| "page_family_mismatch"
 		| "bundle_object_key_mismatch"
+		| "bundle_artifact_identity_mismatch"
 		| "manifest_identity_mismatch"
 		| "response_body_hash_mismatch"
 		| "block_count_mismatch"

@@ -5,9 +5,9 @@ import { type JsonObject, type LangfuseSettings, listPaginated, requestJson } fr
 export interface LangfuseEvalClient {
 	createDataset(input: JsonObject): Promise<JsonObject>;
 	createDatasetItem(input: JsonObject): Promise<JsonObject>;
+	createDatasetRunItem(input: JsonObject): Promise<JsonObject>;
 	createScore(input: JsonObject): Promise<void>;
 	createScoreConfig(input: JsonObject): Promise<JsonObject>;
-	flushScores(): Promise<void>;
 	getDataset(name: string, options?: { version?: string | null }): Promise<JsonObject>;
 	getTrace(traceId: string, query?: Record<string, unknown>): Promise<JsonObject>;
 	listDatasets(): Promise<JsonObject[]>;
@@ -47,16 +47,16 @@ class SdkLangfuseEvalClient implements LangfuseEvalClient {
 		return (await this.client.api.datasetItems.create(input as never)) as unknown as JsonObject;
 	}
 
+	async createDatasetRunItem(input: JsonObject): Promise<JsonObject> {
+		return (await this.client.api.datasetRunItems.create(input as never)) as unknown as JsonObject;
+	}
+
 	async createScore(input: JsonObject): Promise<void> {
-		this.client.score.create(input as never);
+		await this.rest.createScore(input);
 	}
 
 	async createScoreConfig(input: JsonObject): Promise<JsonObject> {
 		return (await this.client.api.scoreConfigs.create(input as never)) as unknown as JsonObject;
-	}
-
-	async flushScores(): Promise<void> {
-		await this.client.flush();
 	}
 
 	async getDataset(name: string, options?: { version?: string | null }): Promise<JsonObject> {
@@ -112,6 +112,14 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 		});
 	}
 
+	async createDatasetRunItem(input: JsonObject): Promise<JsonObject> {
+		return this.restRequest({
+			body: input,
+			method: "POST",
+			path: "/api/public/dataset-run-items",
+		});
+	}
+
 	async createScore(input: JsonObject): Promise<void> {
 		await this.restRequest({
 			body: input,
@@ -126,10 +134,6 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 			method: "POST",
 			path: "/api/public/score-configs",
 		});
-	}
-
-	async flushScores(): Promise<void> {
-		return Promise.resolve();
 	}
 
 	async getDataset(name: string, options?: { version?: string | null }): Promise<JsonObject> {

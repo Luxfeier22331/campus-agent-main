@@ -47,21 +47,22 @@ retrieval, synthesis or grounding. There is no workflow replan state.
 
 ## Worker Pools
 
-Only these worker pools belong to the online execution plane:
+Only these WorkerDeployment roles belong to the online execution plane:
 
 - `workflow-worker` polls the workflow task queue;
 - `activity-worker-core` polls the core activity queue;
 - `activity-worker-agent` polls the agent activity queue.
 
-There is no knowledge, tool, retrieval or specialist worker/queue. KEDA/HPA may
-scale the three pools without owning workflow state or product projection.
+There is no knowledge, tool, retrieval or specialist worker/queue. Temporal
+Worker Controller versions the three roles; per-version KEDA/HPA resources may
+scale them without owning workflow state or product projection.
 
 ## Agent Activity
 
-Execution-control supplies run identity, admitted visible tools, allowed
-knowledge scopes, provider config and bounded memory context. Agent-runtime
+Execution-control supplies run identity, admitted visible tools, query-serving
+targets, provider config and bounded memory context. Agent-runtime
 returns structured terminal output, sanitized SDK tool-call summaries, usage
-and safe trace references.
+and trace correlation.
 
 SDK `maxTurns` bounds the run's agent/tool turns. It is not a retry count,
 replanning budget or additional durable phase.
@@ -88,7 +89,7 @@ Finalization is deterministic validation and projection:
 - validate terminal schema and allowed outcome;
 - validate evidence references against admitted `knowledge_search` results;
 - derive browser-safe source items from trusted evidence metadata;
-- reject missing, forged or cross-scope evidence;
+- reject missing, forged or cross-target evidence;
 - write final answer, sources, usage and terminal reason.
 
 Finalization does not invoke an LLM, synthesize a second answer or paraphrase
@@ -106,7 +107,7 @@ Execution-control admits new runs against runtime readiness, policy and
 downstream budgets. Process-local limits are protection only. Temporal task
 queues and the worker autoscaling posture define deploy-level capacity.
 
-Missing Temporal, projection, provider, internal query, scope registry or
+Missing Temporal, projection, provider, internal query, target registry or
 evidence truth fails closed. Redis and PostgreSQL rows do not replace Temporal
 queue truth.
 

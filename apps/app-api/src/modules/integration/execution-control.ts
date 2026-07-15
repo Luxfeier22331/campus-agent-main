@@ -40,15 +40,13 @@ export {
 } from "./execution-control-transport";
 export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
 export type {
-	RequestedScope,
-	ToolExecutionAnswerEvalFingerprint,
 	ToolExecutionContextProjection,
 	ToolExecutionConversationContext,
 	ToolExecutionInput,
-	ToolExecutionLlmIoFingerprint,
 	ToolExecutionObservability,
 	ToolExecutionPreviousEvidenceRef,
 	ToolExecutionPreviousToolResultRef,
+	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
 	ToolExecutionSelectedNoticeRef,
 	ToolExecutionSessionSlot,

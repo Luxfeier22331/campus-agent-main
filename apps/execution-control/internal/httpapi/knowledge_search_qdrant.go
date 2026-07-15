@@ -31,7 +31,7 @@ type qdrantKnowledgeSearchExecutor struct {
 	embeddingRole       providerConfigRole
 	configResolver      providerConfigResolver
 	httpClient          *http.Client
-	queryScopesPath     string
+	queryTargetsPath    string
 	qdrantQueryAPIKey   string
 	qdrantURL           string
 	servingConfigRoot   string
@@ -79,7 +79,7 @@ func newQdrantKnowledgeSearchExecutor(
 		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
 		configResolver:      configResolver,
 		httpClient:          httpClient,
-		queryScopesPath:     strings.TrimSpace(cfg.QueryServingScopesPath),
+		queryTargetsPath:    strings.TrimSpace(cfg.QueryServingTargetsPath),
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
 		servingConfigRoot:   retrievalServingConfigRoot(),
@@ -143,8 +143,11 @@ func (e qdrantKnowledgeSearchExecutor) Search(
 		return retrievalruntime.SearchResult{}, err
 	}
 	evidence := make([]retrievalruntime.Evidence, 0, len(points))
-	for _, point := range points {
-		ref, ok := searchEvidenceFromQdrantPoint(point)
+	for index, point := range points {
+		ref, ok, err := searchEvidenceFromQdrantPoint(point, request.Target, index+1)
+		if err != nil {
+			return retrievalruntime.SearchResult{}, err
+		}
 		if ok {
 			evidence = append(evidence, ref)
 		}
@@ -152,8 +155,12 @@ func (e qdrantKnowledgeSearchExecutor) Search(
 	return retrievalruntime.FinalizeSearchResult(retrievalruntime.SearchResult{
 		RunID:           request.RunID,
 		InvocationID:    request.InvocationID,
-		ResolvedScope:   request.Scope,
-		ResolvedVersion: request.ResolvedVersion,
+		SearchOrdinal:   request.SearchOrdinal,
+		RetrievalTarget: request.Target,
+		IncludeHistory:  request.IncludeHistory,
+		CandidateCount:  len(points),
+		DiscardedCount:  len(points) - len(evidence),
+		RetrieverModes:  []string{"dense", "sparse"},
 		Evidence:        evidence,
 		QueryLatencyMS:  time.Since(started).Milliseconds(),
 	})
@@ -188,7 +195,7 @@ func (e qdrantKnowledgeSearchExecutor) CheckEmbeddingCompatibility(
 		return errors.New("no query-serving configs are available for knowledge search compatibility check")
 	}
 	for _, profile := range profiles {
-		if err := e.validateAliasReleaseMetadata(ctx, profile, snapshot); err != nil {
+		if err := e.validateAliasCompatibility(ctx, profile, snapshot); err != nil {
 			return fmt.Errorf("%s/%s: %w", profile.Corpus, profile.Collection, err)
 		}
 	}
@@ -197,15 +204,23 @@ func (e qdrantKnowledgeSearchExecutor) CheckEmbeddingCompatibility(
 
 func (e qdrantKnowledgeSearchExecutor) queryServingConfigs() ([]retrievalruntime.ServingConfig, error) {
 	root := servingConfigScanRoot(e.servingConfigRoot)
-	scopes, err := runtimepolicy.InternalScopesForAllowedKnowledgeScopes(e.queryScopesPath)
+	targets, err := runtimepolicy.QueryServingTargets(e.queryTargetsPath)
 	if err != nil {
 		return nil, err
 	}
-	profiles := make([]retrievalruntime.ServingConfig, 0, len(scopes))
-	for _, scope := range scopes {
-		profile, err := retrievalruntime.LoadServingConfig(root, scope.Corpus, scope.Collection)
+	profiles := make([]retrievalruntime.ServingConfig, 0, len(targets))
+	for _, target := range targets {
+		profile, err := retrievalruntime.LoadServingConfigPath(root, target.ServingConfigPath)
 		if err != nil {
 			return nil, err
+		}
+		if profile.Collection != target.Collection {
+			return nil, fmt.Errorf(
+				"query target %s collection = %q, serving config collection = %q",
+				target.Target,
+				target.Collection,
+				profile.Collection,
+			)
 		}
 		profiles = append(profiles, profile)
 	}
@@ -350,20 +365,18 @@ func (e qdrantKnowledgeSearchExecutor) queryPointsWithProfileAndProviderConfig(
 	embedding []float64,
 	embeddingConfig providerConfigSnapshot,
 ) ([]qdrantPoint, error) {
-	bodyPayload, err := retrievalruntime.BuildHybridQueryBody(retrievalruntime.QueryRequest{
-		CompareToVersionID: search.ResolvedVersion.CompareToVersionID,
-		DenseEmbedding:     embedding,
-		Mode:               search.ResolvedVersion.Mode,
-		ServingConfig:      profile,
-		QueryText:          search.QueryText,
-		RetrievalAccess:    search.RetrievalAccess,
-		TopK:               search.TopK,
-		VersionID:          search.ResolvedVersion.VersionID,
-	})
-	if err != nil {
+	if err := validateEmbeddingProfileCompatibility(profile, embeddingConfig, len(embedding)); err != nil {
 		return nil, err
 	}
-	if err := e.validateAliasReleaseMetadata(ctx, profile, embeddingConfig); err != nil {
+	bodyPayload, err := retrievalruntime.BuildHybridQueryBody(retrievalruntime.QueryRequest{
+		DenseEmbedding:  embedding,
+		IncludeHistory:  search.IncludeHistory,
+		ServingConfig:   profile,
+		QueryText:       search.QueryText,
+		RetrievalAccess: search.RetrievalAccess,
+		TopK:            search.TopK,
+	})
+	if err != nil {
 		return nil, err
 	}
 	body, err := json.Marshal(bodyPayload)
@@ -397,11 +410,7 @@ func (e qdrantKnowledgeSearchExecutor) queryPointsWithProfileAndProviderConfig(
 	if err := json.Unmarshal(responseBody, &payload); err != nil {
 		return nil, fmt.Errorf("parse qdrant query response: %w", err)
 	}
-	points := payload.Result.Points
-	if profile.RerankerEnabledByDefault {
-		return e.rerankPoints(ctx, search.QueryText, points)
-	}
-	return points, nil
+	return payload.Result.Points, nil
 }
 
 func validateKnowledgeSearchQueryShape(
@@ -410,132 +419,72 @@ func validateKnowledgeSearchQueryShape(
 	embedding []float64,
 ) error {
 	_, err := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
-		CompareToVersionID: search.ResolvedVersion.CompareToVersionID,
-		DenseEmbedding:     embedding,
-		Mode:               search.ResolvedVersion.Mode,
-		ServingConfig:      profile,
-		QueryText:          search.QueryText,
-		RetrievalAccess:    search.RetrievalAccess,
-		TopK:               search.TopK,
-		VersionID:          search.ResolvedVersion.VersionID,
+		DenseEmbedding:  embedding,
+		IncludeHistory:  search.IncludeHistory,
+		ServingConfig:   profile,
+		QueryText:       search.QueryText,
+		RetrievalAccess: search.RetrievalAccess,
+		TopK:            search.TopK,
 	})
 	return err
 }
 
-func (e qdrantKnowledgeSearchExecutor) validateAliasReleaseMetadata(
+func (e qdrantKnowledgeSearchExecutor) validateAliasCompatibility(
 	ctx context.Context,
 	profile retrievalruntime.ServingConfig,
 	embeddingConfig providerConfigSnapshot,
 ) error {
-	metadata, err := e.readQdrantCollectionMetadata(ctx, profile.QdrantAliasName)
-	if err != nil {
+	if err := validateEmbeddingProfileCompatibility(profile, embeddingConfig, profile.EmbeddingDimensions); err != nil {
 		return err
 	}
-	if len(metadata) > 0 {
-		return retrievalruntime.ValidateReleaseMetadata(retrievalruntime.ReleaseGuardRequest{
-			EmbeddingDimensions: embeddingConfig.Dimensions,
-			EmbeddingModel:      embeddingConfig.Model,
-			EmbeddingProvider:   embeddingConfig.Provider,
-			Metadata:            metadata,
-			ServingConfig:       profile,
-		})
-	}
-	samples, err := e.readQdrantReleaseMetadataSamples(ctx, profile.QdrantAliasName)
-	if err != nil {
-		return err
-	}
-	return retrievalruntime.ValidateReleaseMetadataSamples(retrievalruntime.ReleaseGuardSamplesRequest{
-		EmbeddingDimensions: embeddingConfig.Dimensions,
-		EmbeddingModel:      embeddingConfig.Model,
-		EmbeddingProvider:   embeddingConfig.Provider,
-		MetadataSamples:     samples,
-		ServingConfig:       profile,
-	})
-}
-
-func (e qdrantKnowledgeSearchExecutor) readQdrantCollectionMetadata(
-	ctx context.Context,
-	collectionName string,
-) (map[string]any, error) {
-	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(collectionName)
+	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(profile.QdrantAliasName)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	request.Header.Set("api-key", e.qdrantQueryAPIKey)
 	response, err := e.httpClient.Do(request)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("qdrant collection metadata status %d", response.StatusCode)
+		return fmt.Errorf("qdrant alias status %d", response.StatusCode)
 	}
-	var payload struct {
-		Result struct {
-			Metadata map[string]any `json:"metadata"`
-			Payload  map[string]any `json:"payload"`
-		} `json:"result"`
-	}
+	var payload map[string]any
 	if err := json.Unmarshal(responseBody, &payload); err != nil {
-		return nil, fmt.Errorf("parse qdrant collection metadata response: %w", err)
+		return fmt.Errorf("parse qdrant alias response: %w", err)
 	}
-	if len(payload.Result.Metadata) > 0 {
-		return payload.Result.Metadata, nil
+	params := cloneAnyMapFromMetadata(nestedAny(payload, "result", "config", "params"))
+	vectors := cloneAnyMapFromMetadata(params["vectors"])
+	dense := cloneAnyMapFromMetadata(vectors[profile.DenseVectorName])
+	if len(dense) == 0 {
+		return fmt.Errorf("dense vector %s is missing", profile.DenseVectorName)
 	}
-	return payload.Result.Payload, nil
-}
-
-func (e qdrantKnowledgeSearchExecutor) readQdrantReleaseMetadataSamples(
-	ctx context.Context,
-	collectionName string,
-) ([]map[string]any, error) {
-	body, err := json.Marshal(map[string]any{
-		"limit":        16,
-		"with_payload": true,
-		"with_vector":  false,
-	})
-	if err != nil {
-		return nil, err
+	size, ok := positiveIntValue(dense["size"])
+	if !ok {
+		return fmt.Errorf("dense vector %s size is missing", profile.DenseVectorName)
 	}
-	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(collectionName) + "/points/scroll"
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
+	if embeddingConfig.Dimensions <= 0 {
+		return errors.New("embedding provider dimensions are required")
 	}
-	request.Header.Set("api-key", e.qdrantQueryAPIKey)
-	request.Header.Set("content-type", "application/json")
-	response, err := e.httpClient.Do(request)
-	if err != nil {
-		return nil, err
+	if size != embeddingConfig.Dimensions {
+		return fmt.Errorf(
+			"dense vector %s size = %d, provider dimensions = %d",
+			profile.DenseVectorName,
+			size,
+			embeddingConfig.Dimensions,
+		)
 	}
-	defer func() { _ = response.Body.Close() }()
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
+	sparseVectors := cloneAnyMapFromMetadata(params["sparse_vectors"])
+	if _, ok := sparseVectors[profile.SparseVectorName]; !ok {
+		return fmt.Errorf("sparse vector %s is missing", profile.SparseVectorName)
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("qdrant release metadata scroll status %d", response.StatusCode)
-	}
-	var payload struct {
-		Result struct {
-			Points []qdrantPoint `json:"points"`
-		} `json:"result"`
-	}
-	if err := json.Unmarshal(responseBody, &payload); err != nil {
-		return nil, fmt.Errorf("parse qdrant release metadata scroll response: %w", err)
-	}
-	samples := make([]map[string]any, 0, len(payload.Result.Points))
-	for _, point := range payload.Result.Points {
-		if len(point.Payload) > 0 {
-			samples = append(samples, point.Payload)
-		}
-	}
-	return samples, nil
+	return nil
 }
 
 type qdrantPoint struct {
@@ -544,18 +493,23 @@ type qdrantPoint struct {
 	Score   float64        `json:"score"`
 }
 
-func searchEvidenceFromQdrantPoint(point qdrantPoint) (retrievalruntime.Evidence, bool) {
+func searchEvidenceFromQdrantPoint(
+	point qdrantPoint,
+	target string,
+	rank int,
+) (retrievalruntime.Evidence, bool, error) {
 	payload := point.Payload
 	if len(payload) == 0 {
-		return retrievalruntime.Evidence{}, false
+		return retrievalruntime.Evidence{}, false, nil
 	}
 	metadata := qdrantPointMetadata(point)
 	excerpt := qdrantPointText(point)
 	if excerpt == "" {
-		return retrievalruntime.Evidence{}, false
+		return retrievalruntime.Evidence{}, false, nil
 	}
-	if len([]byte(excerpt)) > 1200 {
-		excerpt = string([]rune(excerpt)[:minInt(len([]rune(excerpt)), 600)])
+	excerpt, err := retrievalruntime.TruncateUTF8Bytes(excerpt, retrievalruntime.MaxEvidenceSnippet)
+	if err != nil {
+		return retrievalruntime.Evidence{}, false, fmt.Errorf("qdrant evidence snippet: %w", err)
 	}
 	sourceID := firstNonEmptyText(
 		metadata["canonical_source_id"],
@@ -576,15 +530,20 @@ func searchEvidenceFromQdrantPoint(point qdrantPoint) (retrievalruntime.Evidence
 		metadata["canonical_source_title"],
 	)
 	if sourceID == "" || chunkID == "" || canonicalURL == "" || title == "" {
-		return retrievalruntime.Evidence{}, false
+		return retrievalruntime.Evidence{}, false, nil
 	}
 	return retrievalruntime.Evidence{
-		EvidenceRef:  "evidence://sha256/" + retrievalruntime.HashText(sourceID+"\x00"+chunkID+"\x00"+spanRef),
-		CanonicalURL: canonicalURL,
-		Snippet:      excerpt,
-		Title:        title,
-		VersionID:    firstNonEmptyText(metadata["version_id"]),
-	}, true
+		EvidenceRef:     "evidence://sha256/" + retrievalruntime.HashText(sourceID+"\x00"+chunkID+"\x00"+spanRef),
+		RetrievalTarget: strings.TrimSpace(target),
+		DocumentID:      sourceID,
+		ChunkID:         chunkID,
+		CanonicalURL:    canonicalURL,
+		Snippet:         excerpt,
+		Title:           title,
+		VersionID:       firstNonEmptyText(metadata["version_id"]),
+		Rank:            rank,
+		FusionScore:     point.Score,
+	}, true, nil
 }
 
 func qdrantPointMetadata(point qdrantPoint) map[string]any {
@@ -624,7 +583,72 @@ func qdrantPointText(point qdrantPoint) string {
 }
 
 func (e qdrantKnowledgeSearchExecutor) servingConfig(search retrievalruntime.SearchRequest) (retrievalruntime.ServingConfig, error) {
-	return retrievalruntime.LoadServingConfig(e.servingConfigRoot, search.Corpus, search.Collection)
+	target, err := runtimepolicy.ResolveQueryTarget(search.Target, e.queryTargetsPath)
+	if err != nil {
+		return retrievalruntime.ServingConfig{}, err
+	}
+	if target.ServingConfigPath != search.ServingConfigPath {
+		return retrievalruntime.ServingConfig{}, fmt.Errorf(
+			"query target %s serving config path does not match the registry",
+			search.Target,
+		)
+	}
+	profile, err := retrievalruntime.LoadServingConfigPath(e.servingConfigRoot, search.ServingConfigPath)
+	if err != nil {
+		return retrievalruntime.ServingConfig{}, err
+	}
+	if profile.Collection != target.Collection {
+		return retrievalruntime.ServingConfig{}, fmt.Errorf(
+			"query target %s collection = %q, serving config collection = %q",
+			search.Target,
+			target.Collection,
+			profile.Collection,
+		)
+	}
+	return profile, nil
+}
+
+func validateEmbeddingProfileCompatibility(
+	profile retrievalruntime.ServingConfig,
+	embeddingConfig providerConfigSnapshot,
+	embeddingDimensions int,
+) error {
+	if profile.EmbeddingProvider != strings.TrimSpace(embeddingConfig.Provider) {
+		return fmt.Errorf(
+			"embedding provider = %q, serving profile provider = %q",
+			embeddingConfig.Provider,
+			profile.EmbeddingProvider,
+		)
+	}
+	if profile.EmbeddingModel != strings.TrimSpace(embeddingConfig.Model) {
+		return fmt.Errorf(
+			"embedding model = %q, serving profile model = %q",
+			embeddingConfig.Model,
+			profile.EmbeddingModel,
+		)
+	}
+	if embeddingConfig.Dimensions != profile.EmbeddingDimensions {
+		return fmt.Errorf(
+			"embedding provider dimensions = %d, serving profile dimensions = %d",
+			embeddingConfig.Dimensions,
+			profile.EmbeddingDimensions,
+		)
+	}
+	if embeddingDimensions != profile.EmbeddingDimensions {
+		return fmt.Errorf(
+			"embedding dimensions = %d, serving profile dimensions = %d",
+			embeddingDimensions,
+			profile.EmbeddingDimensions,
+		)
+	}
+	if profile.EmbeddingVectorName != profile.DenseVectorName {
+		return fmt.Errorf(
+			"embedding vector name = %q, Qdrant dense vector name = %q",
+			profile.EmbeddingVectorName,
+			profile.DenseVectorName,
+		)
+	}
+	return nil
 }
 
 func retrievalServingConfigRoot() string {
@@ -647,11 +671,4 @@ func optionalBoolFromAny(values ...any) bool {
 		}
 	}
 	return false
-}
-
-func minInt(left int, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }

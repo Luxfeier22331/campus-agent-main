@@ -54,6 +54,10 @@ updated: 2026-07-13
 | Collector logs fan-out to Axiom events dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static` |
 | Collector metrics fan-out to Axiom metrics dataset | `infra/otel` + K8s execution runtime config | complete | `pnpm repo:static`; `pnpm --dir packages/eval-langfuse exec vitest run test/langfuse-core.test.ts` |
 | Langfuse trace verification adapter | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test`; `pnpm --dir packages/eval-langfuse typecheck` |
+| OpenAI Agents SDK model-I/O traces in trusted Langfuse | `apps/agent-runtime` + `packages/eval-langfuse` | complete | `pnpm --dir apps/agent-runtime test`; `pnpm --dir packages/eval-langfuse test` |
+| Real product trace to Langfuse dataset-run-item link | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test` |
+| Official Ragas RAG and agent metrics | `packages/ragas-runner` + `packages/eval-langfuse` | complete | `pnpm ci:eval` |
+| Deterministic outcome and forbidden-context scores | `packages/eval-langfuse` | complete | `pnpm --dir packages/eval-langfuse test` |
 | Safe LLM I/O fingerprint projection | `apps/execution-control` + `apps/app-api` | complete | `cd apps/execution-control && go test ./internal/httpapi`; `pnpm --dir apps/app-api exec vitest run -c vitest.node-fast.config.mts test/execution-finalization-response-fixtures.test.ts` |
 | Learning-loop candidate selection from feedback and stage latency | `jobs/learning-loop-candidates` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir jobs/learning-loop-candidates typecheck` |
 | Learning-loop dataset publish and verify path | `jobs/learning-loop-candidates` + `packages/eval-langfuse` | complete | `pnpm --dir jobs/learning-loop-candidates test`; `pnpm --dir packages/eval-langfuse test` |
@@ -66,8 +70,8 @@ updated: 2026-07-13
 - 真实 staging trace closeout evidence。它是 release QA 证据，不是当前开发完成条件。
 - 外部平台 dashboard 截图。repo 不镜像 dashboard 内容；只维护 safe link、monitor
   spec 与 contract gate。
-- OpenAI / provider raw trace 进入产品投影或 repo-owned replay store。当前链路只允许
-  allowlisted OTel span facts、stage timing 与 safe fingerprints。
+- Langfuse observation body 进入产品投影。模型 I/O、记忆和授权检索事实可以留在
+  trusted Langfuse trace，但不复制到 app-api、Operator Console 或指标标签。
 
 ## Regression Rule
 

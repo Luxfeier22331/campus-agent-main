@@ -117,49 +117,6 @@ const surfaceSpecDefinitions = {
 		},
 		files: {},
 	},
-	"internal-notice-consumption": {
-		providers: {},
-		required_settings: {
-			projection_database_url: [
-				"NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-				"CAMPUS_SHARED_POSTGRES_URL",
-				"DOCUMENT_REGISTRY_DATABASE_URL",
-			],
-			read_model_database_url: [
-				"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
-				"NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-				"CAMPUS_SHARED_POSTGRES_URL",
-			],
-			admission_database_url: [
-				"INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
-				"NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-				"CAMPUS_SHARED_POSTGRES_URL",
-			],
-			attempt_database_url: [
-				"INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
-				"INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
-				"NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-				"CAMPUS_SHARED_POSTGRES_URL",
-			],
-			multimodal_api_key: ["INTERNAL_NOTICE_MULTIMODAL_API_KEY"],
-			multimodal_model: ["INTERNAL_NOTICE_MULTIMODAL_MODEL"],
-		},
-		optional_settings: {
-			projection_operator_database_url: [
-				"NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-				"CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-			],
-			admission_operator_database_url: [
-				"INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-				"NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-			],
-			attempt_operator_database_url: [
-				"INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
-				"INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-			],
-		},
-		files: {},
-	},
 	query: {
 		providers: {
 			llm: { checked_keys: llmApiKeyPrecedence, surface_name: "query.runtime" },
@@ -193,7 +150,6 @@ const surfaceSpecDefinitions = {
 					"APP_API_INTERNAL_SHARED_SECRET",
 				],
 				optional_keys: [
-					"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
 					"SENTRY_DSN",
 					"APP_API_OTEL_INGEST_ENDPOINT",
 					"APP_API_OTEL_INGEST_SHARED_SECRET",
@@ -221,7 +177,6 @@ const surfaceSpecDefinitions = {
 		optional_settings: {
 			agent_runtime_base_url: ["EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"],
 			agent_runtime_shared_secret: ["EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"],
-			agent_runtime_timeout_ms: ["EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS"],
 			audit_log_path: ["AUDIT_LOG_PATH"],
 			audit_queue_capacity: ["AUDIT_QUEUE_CAPACITY"],
 		},

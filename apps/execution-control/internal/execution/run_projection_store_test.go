@@ -530,7 +530,6 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		InputTokens:           100,
 		OutputTokens:          40,
 		CachedInputTokens:     20,
-		EstimatedCostMicroUSD: 123,
 		CancelOutcome:         CancelOutcomeNotRequested,
 		TimeoutOutcome:        TimeoutOutcomeNotTimedOut,
 		LateCompletionOutcome: LateCompletionOutcomeIgnoredAfterCancel,
@@ -584,7 +583,6 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		attempts[0].InputTokens != 100 ||
 		attempts[0].OutputTokens != 40 ||
 		attempts[0].CachedInputTokens != 20 ||
-		attempts[0].EstimatedCostMicroUSD != 123 ||
 		attempts[0].CancelOutcome != CancelOutcomeNotRequested ||
 		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut ||
 		attempts[0].LateCompletionOutcome != LateCompletionOutcomeIgnoredAfterCancel ||

@@ -1,19 +1,14 @@
 import {
 	canonicalJsonString,
-	normalizeIngestionTaskProjectionLimit as normalizeProjectionLimit,
-	toIngestionTaskOperatorProjection as toOperatorProjection,
+	normalizeIngestionTaskProjectionLimit,
+	toIngestionTaskOperatorProjection,
 } from "ingest-core";
-import { validateIngestionTaskEnvelope } from "ingestion-contracts";
 import type {
-	IngestionArtifactRef,
-	IngestionTaskAdmissionResult,
-	IngestionTaskCloseout,
-	IngestionTaskEnvelope,
 	IngestionTaskOperatorProjectionList,
 	IngestionTaskProjectionFilters,
 	IngestionTaskRecord,
 	IngestionTaskStore,
-	IngestionWorkflowStatus,
+	RecordIngestionTaskStartedInput,
 	StoreClock,
 } from "./types";
 
@@ -29,82 +24,137 @@ export interface PgPoolLike {
 	connect(): Promise<PgClientLike>;
 }
 
-export async function ensureIngestionControlPostgresSchema(client: PgQueryable): Promise<void> {
-	await client.query("CREATE SCHEMA IF NOT EXISTS ingestion_control");
-	await client.query(`
-CREATE TABLE IF NOT EXISTS ingestion_control.tasks (
-	task_id text PRIMARY KEY,
-	run_id text NOT NULL,
-	source_family text NOT NULL,
-	source_channel text NOT NULL,
-	corpus text NOT NULL,
-	collection text NOT NULL,
-	registry_task_id text NOT NULL,
-	task_kind text NOT NULL,
-	input_ref_json jsonb NOT NULL,
-	input_contract text NOT NULL,
-	output_contract text NOT NULL,
-	idempotency_key text NOT NULL UNIQUE,
-	created_by text NOT NULL,
-	created_at timestamptz NOT NULL,
-	status text NOT NULL,
-	workflow_id text NOT NULL,
-	workflow_run_id text,
-	updated_at timestamptz NOT NULL,
-	closeout_json jsonb
-)`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ADD COLUMN IF NOT EXISTS workflow_id text`);
-	await client.query(`
-UPDATE ingestion_control.tasks
-SET workflow_id = task_id
-WHERE workflow_id IS NULL`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ALTER COLUMN workflow_id SET NOT NULL`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ADD COLUMN IF NOT EXISTS workflow_run_id text`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ADD COLUMN IF NOT EXISTS registry_task_id text`);
-	await client.query(`
-UPDATE ingestion_control.tasks
-SET registry_task_id = task_kind
-WHERE registry_task_id IS NULL`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ALTER COLUMN registry_task_id SET NOT NULL`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ADD COLUMN IF NOT EXISTS input_contract text`);
-	await client.query(`
-UPDATE ingestion_control.tasks
-SET input_contract = ''
-WHERE input_contract IS NULL`);
-	await client.query(`
-ALTER TABLE ingestion_control.tasks
-	ALTER COLUMN input_contract SET NOT NULL`);
-	await client.query(`
-DO $$
-BEGIN
-	IF EXISTS (
-		SELECT 1
-		FROM ingestion_control.tasks
-		WHERE status NOT IN ('accepted', 'running', 'completed', 'failed', 'canceled')
-			OR (status = 'running' AND workflow_run_id IS NULL)
-	) THEN
-		RAISE EXCEPTION 'legacy ingestion-control task rows are unsupported after Temporal migration';
-	END IF;
-END $$`);
-	await client.query("DROP INDEX IF EXISTS ingestion_control.ingestion_tasks_claim_idx");
-	await client.query(`
-CREATE INDEX IF NOT EXISTS ingestion_tasks_run_idx
-ON ingestion_control.tasks (run_id, updated_at DESC, task_id DESC)`);
-	await client.query(`
-CREATE INDEX IF NOT EXISTS ingestion_tasks_collection_idx
-ON ingestion_control.tasks (corpus, collection, updated_at DESC, task_id DESC)`);
+const REQUIRED_TASK_COLUMNS = [
+	"task_id",
+	"run_id",
+	"registry_task_id",
+	"executor_kind",
+	"source_family",
+	"source_channel",
+	"corpus",
+	"collection",
+	"input_ref_json",
+	"input_contract",
+	"output_contract",
+	"created_at",
+	"status",
+	"workflow_id",
+	"workflow_run_id",
+	"updated_at",
+	"result_ref_json",
+	"result_contract",
+	"summary_json",
+	"error_code",
+	"error_message",
+] as const;
+
+const REQUIRED_OFFICIAL_WEB_FRESHNESS_COLUMNS = [
+	"site_id",
+	"normalized_canonical_url",
+	"host",
+	"page_family",
+	"page_title_normalized",
+	"discovery_method",
+	"discovered_from_url",
+	"last_fetch_disposition",
+	"last_http_status",
+	"content_type",
+	"etag",
+	"last_modified",
+	"response_body_hash",
+	"main_content_hash",
+	"last_seen_at",
+	"last_changed_at",
+	"last_not_modified_at",
+	"cadence_class",
+	"priority_score",
+	"next_eligible_fetch_at",
+	"last_successful_run_id",
+	"last_change_reason",
+	"created_at",
+	"updated_at",
+] as const;
+
+const REQUIRED_OFFICIAL_WEB_SEED_STATE_COLUMNS = [
+	"site_id",
+	"configured_seed_url",
+	"normalized_canonical_url",
+	"last_observed_run_id",
+	"last_seen_at",
+	"created_at",
+	"updated_at",
+] as const;
+
+const REQUIRED_MIGRATION_COLUMNS = ["migration_id", "content_sha256", "applied_at"] as const;
+
+export async function assertIngestionControlPostgresSchema(client: PgQueryable): Promise<void> {
+	const migrationResult = await client.query(
+		`SELECT column_name
+		 FROM information_schema.columns
+		 WHERE table_schema = 'ingestion_control' AND table_name = 'schema_migrations'`,
+	);
+	const migrationColumns = new Set(
+		migrationResult.rows.map((row) => requiredString(row.column_name, "column_name")),
+	);
+	const missingMigrationColumns = REQUIRED_MIGRATION_COLUMNS.filter(
+		(column) => !migrationColumns.has(column),
+	);
+	if (missingMigrationColumns.length > 0) {
+		throw new Error(
+			`ingestion-control migration journal is not ready; missing columns: ${missingMigrationColumns.join(", ")}`,
+		);
+	}
+	const result = await client.query(
+		`SELECT column_name
+		 FROM information_schema.columns
+		 WHERE table_schema = 'ingestion_control' AND table_name = 'tasks'`,
+	);
+	const columns = new Set(result.rows.map((row) => requiredString(row.column_name, "column_name")));
+	const missing = REQUIRED_TASK_COLUMNS.filter((column) => !columns.has(column));
+	if (missing.length > 0) {
+		throw new Error(
+			`ingestion-control database schema is not migrated; missing columns: ${missing.join(", ")}`,
+		);
+	}
+	for (const retired of ["closeout_json", "idempotency_key", "task_kind"]) {
+		if (columns.has(retired)) {
+			throw new Error(`ingestion-control database still contains retired column: ${retired}`);
+		}
+	}
+	const freshnessResult = await client.query(
+		`SELECT column_name
+		 FROM information_schema.columns
+		 WHERE table_schema = 'ingestion_control'
+		   AND table_name = 'official_web_url_freshness'`,
+	);
+	const freshnessColumns = new Set(
+		freshnessResult.rows.map((row) => requiredString(row.column_name, "column_name")),
+	);
+	const missingFreshness = REQUIRED_OFFICIAL_WEB_FRESHNESS_COLUMNS.filter(
+		(column) => !freshnessColumns.has(column),
+	);
+	if (missingFreshness.length > 0) {
+		throw new Error(
+			`ingestion-control database schema is not migrated; missing official-web freshness columns: ${missingFreshness.join(", ")}`,
+		);
+	}
+	const seedStateResult = await client.query(
+		`SELECT column_name
+		 FROM information_schema.columns
+		 WHERE table_schema = 'ingestion_control'
+		   AND table_name = 'official_web_seed_state'`,
+	);
+	const seedStateColumns = new Set(
+		seedStateResult.rows.map((row) => requiredString(row.column_name, "column_name")),
+	);
+	const missingSeedState = REQUIRED_OFFICIAL_WEB_SEED_STATE_COLUMNS.filter(
+		(column) => !seedStateColumns.has(column),
+	);
+	if (missingSeedState.length > 0) {
+		throw new Error(
+			`ingestion-control database schema is not migrated; missing official-web seed state columns: ${missingSeedState.join(", ")}`,
+		);
+	}
 }
 
 export function createPostgresIngestionTaskStore(input: {
@@ -123,56 +173,49 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 		this.#now = input.now ?? (() => new Date());
 	}
 
-	async admitTask(task: IngestionTaskEnvelope): Promise<IngestionTaskAdmissionResult> {
-		const validation = validateIngestionTaskEnvelope(task);
-		if (!validation.ok) {
-			throw new Error(`invalid ingestion task: ${validation.errors.join("; ")}`);
-		}
-
+	async recordTaskStarted(input: RecordIngestionTaskStartedInput): Promise<IngestionTaskRecord> {
+		const task = input.snapshot.task;
+		const registryTask = input.snapshot.registry_task;
+		const now = this.#now().toISOString();
 		const rows = await this.#query(
-			`
-INSERT INTO ingestion_control.tasks (
-	task_id, run_id, source_family, source_channel, corpus, collection, registry_task_id,
-	task_kind, input_ref_json, input_contract, output_contract, idempotency_key, created_by,
-	created_at, status, workflow_id, workflow_run_id, updated_at, closeout_json
-) VALUES (
-	$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14::timestamptz,
-	'accepted', $15, NULL, $16::timestamptz, NULL
-)
-ON CONFLICT (idempotency_key) DO NOTHING
-RETURNING *`,
+			`INSERT INTO ingestion_control.tasks (
+				task_id, run_id, registry_task_id, executor_kind, source_family, source_channel,
+				corpus, collection, input_ref_json, input_contract, output_contract, created_at,
+				status, workflow_id, workflow_run_id, updated_at, result_ref_json, result_contract,
+				summary_json, error_code, error_message
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12::timestamptz,
+				'running', $13, $14, $15::timestamptz, NULL, NULL, NULL, NULL, NULL
+			)
+			ON CONFLICT (task_id) DO NOTHING
+			RETURNING *`,
 			[
 				task.task_id,
 				task.run_id,
-				task.source_family,
-				task.source_channel,
-				task.corpus,
-				task.collection,
 				task.registry_task_id,
-				task.task_kind,
+				registryTask.executor_kind,
+				registryTask.source?.family ?? null,
+				registryTask.source?.channel ?? null,
+				registryTask.target?.corpus ?? null,
+				registryTask.target?.collection ?? null,
 				JSON.stringify(task.input_ref),
-				task.input_contract,
-				task.output_contract,
-				task.idempotency_key,
-				task.created_by,
-				task.created_at,
-				task.task_id,
-				this.#nowIso(),
+				registryTask.input_contract,
+				registryTask.output_contract,
+				now,
+				input.workflowId,
+				input.workflowRunId,
+				now,
 			],
 		);
 		if (rows[0]) {
-			return { created: true, record: toTaskRecord(rows[0]) };
+			return toTaskRecord(rows[0]);
 		}
-
-		const existing = await this.#query(
-			"SELECT * FROM ingestion_control.tasks WHERE idempotency_key = $1 LIMIT 1",
-			[task.idempotency_key],
-		);
-		const record = requirePostgresTask(existing[0], task.task_id);
-		if (record.task_id !== task.task_id) {
-			throw new Error(`ingestion task idempotency key already belongs to ${record.task_id}`);
+		const existing = await this.getTask(task.task_id);
+		if (!existing) {
+			throw new Error(`ingestion task insert lost without projection: ${task.task_id}`);
 		}
-		return { created: false, record };
+		assertCompatibleStart(existing, input);
+		return existing;
 	}
 
 	async getTask(taskId: string): Promise<IngestionTaskRecord | null> {
@@ -182,111 +225,51 @@ RETURNING *`,
 		return rows[0] ? toTaskRecord(rows[0]) : null;
 	}
 
-	async markTaskRunning(input: {
-		taskId: string;
-		workflowRunId?: string | null;
-	}): Promise<IngestionTaskRecord> {
-		const workflowRunId = normalizeWorkflowRunId(input.workflowRunId);
-		if (!workflowRunId) {
-			throw new Error(
-				`workflow run id is required to mark ingestion task running: ${input.taskId}`,
-			);
-		}
+	async completeTask(
+		input: Parameters<IngestionTaskStore["completeTask"]>[0],
+	): Promise<IngestionTaskRecord> {
+		const current = await this.#requireTask(input.taskId);
+		assertResultMatchesTask(current, input.result);
 		const rows = await this.#query(
-			`
-	UPDATE ingestion_control.tasks
-	SET status = 'running',
-		workflow_run_id = $1,
-		updated_at = $2::timestamptz
-	WHERE task_id = $3 AND status = 'accepted'
-	RETURNING *`,
-			[workflowRunId, this.#nowIso(), input.taskId],
+			`UPDATE ingestion_control.tasks
+			 SET status = 'completed', updated_at = $1::timestamptz,
+			     result_ref_json = $2::jsonb, result_contract = $3, summary_json = $4::jsonb,
+			     error_code = NULL, error_message = NULL
+			 WHERE task_id = $5 AND status = 'running'
+			 RETURNING *`,
+			[
+				this.#now().toISOString(),
+				JSON.stringify(input.result.result_ref),
+				input.result.output_contract,
+				JSON.stringify(input.result.summary),
+				input.taskId,
+			],
 		);
-		if (!rows[0]) {
-			return this.#existingRunningOrThrow(input.taskId, workflowRunId);
+		if (rows[0]) {
+			return toTaskRecord(rows[0]);
 		}
-		return toTaskRecord(rows[0]);
+		const existing = await this.#requireTask(input.taskId);
+		if (
+			existing.status === "completed" &&
+			existing.result_contract === input.result.output_contract &&
+			canonicalJsonString(existing.result_ref) === canonicalJsonString(input.result.result_ref) &&
+			canonicalJsonString(existing.summary) === canonicalJsonString(input.result.summary)
+		) {
+			return existing;
+		}
+		throw new Error(`ingestion task cannot be completed from ${existing.status}: ${input.taskId}`);
 	}
 
-	async completeTask(input: {
-		taskId: string;
-		artifactRefs?: IngestionArtifactRef[];
-	}): Promise<IngestionTaskRecord> {
-		const task = await this.#requireTask(input.taskId);
-		const closeout: IngestionTaskCloseout = {
-			task_id: task.task_id,
-			terminal_status: "completed",
-			outcome_kind: "success",
-			artifact_refs: input.artifactRefs ?? [],
-		};
-		const rows = await this.#query(
-			`
-UPDATE ingestion_control.tasks
-SET status = 'completed',
-	updated_at = $1::timestamptz,
-	closeout_json = $2::jsonb
-WHERE task_id = $3 AND status = 'running'
-RETURNING *`,
-			[this.#nowIso(), JSON.stringify(closeout), input.taskId],
-		);
-		if (!rows[0]) {
-			return this.#existingTerminalOrThrow(input.taskId, closeout, null);
-		}
-		return toTaskRecord(rows[0]);
+	async failTask(
+		input: Parameters<IngestionTaskStore["failTask"]>[0],
+	): Promise<IngestionTaskRecord> {
+		return this.#recordError(input.taskId, "failed", input.errorCode, input.errorMessage);
 	}
 
-	async failTask(input: {
-		taskId: string;
-		errorCode: string;
-		errorMessage: string;
-	}): Promise<IngestionTaskRecord> {
-		const task = await this.#requireTask(input.taskId);
-		const closeout: IngestionTaskCloseout = {
-			task_id: task.task_id,
-			terminal_status: "failed",
-			outcome_kind: "error",
-			artifact_refs: [],
-			error: { code: input.errorCode, message: input.errorMessage },
-		};
-		const rows = await this.#query(
-			`
-UPDATE ingestion_control.tasks
-SET status = 'failed',
-	updated_at = $1::timestamptz,
-	closeout_json = $2::jsonb
-WHERE task_id = $3 AND (status = 'running' OR (status = 'accepted' AND $4 = 'workflow_start_failed'))
-RETURNING *`,
-			[this.#nowIso(), JSON.stringify(closeout), input.taskId, input.errorCode],
-		);
-		if (!rows[0]) {
-			return this.#existingTerminalOrThrow(input.taskId, closeout, input.errorCode);
-		}
-		return toTaskRecord(rows[0]);
-	}
-
-	async cancelTask(input: { taskId: string; reason: string }): Promise<IngestionTaskRecord> {
-		const task = await this.#requireTask(input.taskId);
-		const closeout: IngestionTaskCloseout = {
-			task_id: task.task_id,
-			terminal_status: "canceled",
-			outcome_kind: "error",
-			artifact_refs: [],
-			error: { code: "workflow_canceled", message: input.reason },
-		};
-		const rows = await this.#query(
-			`
-UPDATE ingestion_control.tasks
-SET status = 'canceled',
-	updated_at = $1::timestamptz,
-	closeout_json = $2::jsonb
-WHERE task_id = $3 AND status = 'running'
-RETURNING *`,
-			[this.#nowIso(), JSON.stringify(closeout), input.taskId],
-		);
-		if (!rows[0]) {
-			return this.#existingTerminalOrThrow(input.taskId, closeout, "workflow_canceled");
-		}
-		return toTaskRecord(rows[0]);
+	async cancelTask(
+		input: Parameters<IngestionTaskStore["cancelTask"]>[0],
+	): Promise<IngestionTaskRecord> {
+		return this.#recordError(input.taskId, "canceled", "workflow_canceled", input.reason);
 	}
 
 	async listOperatorTaskProjections(
@@ -294,36 +277,61 @@ RETURNING *`,
 	): Promise<IngestionTaskOperatorProjectionList> {
 		const where: string[] = [];
 		const params: unknown[] = [];
-		if (filters.corpus) {
-			params.push(filters.corpus);
-			where.push(`corpus = $${params.length}`);
+		for (const [column, value] of [
+			["corpus", filters.corpus],
+			["collection", filters.collection],
+			["registry_task_id", filters.registryTaskId],
+			["run_id", filters.runId],
+			["source_channel", filters.sourceChannel],
+			["source_family", filters.sourceFamily],
+			["status", filters.status],
+		] as const) {
+			if (value) {
+				params.push(value);
+				where.push(`${column} = $${params.length}`);
+			}
 		}
-		if (filters.collection) {
-			params.push(filters.collection);
-			where.push(`collection = $${params.length}`);
-		}
-		if (filters.runId) {
-			params.push(filters.runId);
-			where.push(`run_id = $${params.length}`);
-		}
-		if (filters.status) {
-			params.push(filters.status);
-			where.push(`status = $${params.length}`);
-		}
-		params.push(normalizeProjectionLimit(filters.limit));
+		params.push(normalizeIngestionTaskProjectionLimit(filters.limit));
 		const rows = await this.#query(
-			`
-SELECT *
-FROM ingestion_control.tasks
-${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
-ORDER BY updated_at DESC, task_id DESC
-LIMIT $${params.length}`,
+			`SELECT * FROM ingestion_control.tasks
+			 ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+			 ORDER BY updated_at DESC, task_id DESC LIMIT $${params.length}`,
 			params,
 		);
 		return {
-			tasks: rows.map((row) => toOperatorProjection(toTaskRecord(row))),
+			tasks: rows.map((row) => toIngestionTaskOperatorProjection(toTaskRecord(row))),
 			page: { next_cursor: null },
 		};
+	}
+
+	async #recordError(
+		taskId: string,
+		status: "failed" | "canceled",
+		errorCode: string,
+		errorMessage: string,
+	): Promise<IngestionTaskRecord> {
+		const rows = await this.#query(
+			`UPDATE ingestion_control.tasks
+			 SET status = $1, updated_at = $2::timestamptz, result_ref_json = NULL,
+			     result_contract = NULL, summary_json = NULL, error_code = $3, error_message = $4
+			 WHERE task_id = $5 AND status = 'running'
+			 RETURNING *`,
+			[
+				status,
+				this.#now().toISOString(),
+				errorCode.slice(0, 128),
+				errorMessage.slice(0, 2000),
+				taskId,
+			],
+		);
+		if (rows[0]) {
+			return toTaskRecord(rows[0]);
+		}
+		const existing = await this.#requireTask(taskId);
+		if (existing.status === status && existing.error_code === errorCode.slice(0, 128)) {
+			return existing;
+		}
+		throw new Error(`ingestion task cannot be marked ${status} from ${existing.status}: ${taskId}`);
 	}
 
 	async #requireTask(taskId: string): Promise<IngestionTaskRecord> {
@@ -334,277 +342,123 @@ LIMIT $${params.length}`,
 		return task;
 	}
 
-	async #existingRunningOrThrow(
-		taskId: string,
-		incomingWorkflowRunId: string | null,
-	): Promise<IngestionTaskRecord> {
-		const task = await this.#requireTask(taskId);
-		if (task.status === "running") {
-			assertCompatibleWorkflowRunId(task, incomingWorkflowRunId);
-			if (!task.workflow_run_id && incomingWorkflowRunId) {
-				const rows = await this.#query(
-					`
-UPDATE ingestion_control.tasks
-SET workflow_run_id = $1,
-	updated_at = $2::timestamptz
-WHERE task_id = $3 AND status = 'running' AND workflow_run_id IS NULL
-RETURNING *`,
-					[incomingWorkflowRunId, this.#nowIso(), taskId],
-				);
-				if (rows[0]) {
-					return toTaskRecord(rows[0]);
-				}
-				const current = await this.#requireTask(taskId);
-				assertCompatibleWorkflowRunId(current, incomingWorkflowRunId);
-				return current;
-			}
-			return task;
-		}
-		throwTransitionError(task, "running");
-	}
-
-	async #existingTerminalOrThrow(
-		taskId: string,
-		closeout: IngestionTaskCloseout,
-		errorCode: string | null,
-	): Promise<IngestionTaskRecord> {
-		const task = await this.#requireTask(taskId);
-		if (isIdempotentTerminalTransition(task, closeout, errorCode)) {
-			return task;
-		}
-		throwTransitionError(task, closeout.terminal_status);
-	}
-
 	async #query(sql: string, params: unknown[] = []): Promise<Record<string, unknown>[]> {
 		const client = await this.#pool.connect();
 		try {
-			const result = await client.query(sql, params);
-			return result.rows;
+			return (await client.query(sql, params)).rows;
 		} finally {
 			client.release();
 		}
 	}
-
-	#nowIso(): string {
-		return this.#now().toISOString();
-	}
-}
-
-function isTerminalStatus(status: IngestionWorkflowStatus): boolean {
-	return status === "completed" || status === "failed" || status === "canceled";
-}
-
-function normalizeWorkflowRunId(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed ? trimmed : null;
-}
-
-function assertCompatibleWorkflowRunId(
-	task: IngestionTaskRecord,
-	incomingWorkflowRunId: string | null,
-): void {
-	if (!(incomingWorkflowRunId && task.workflow_run_id)) {
-		return;
-	}
-	if (task.workflow_run_id !== incomingWorkflowRunId) {
-		throw new Error(
-			`ingestion task workflow run id mismatch: ${task.task_id} has ${task.workflow_run_id}, got ${incomingWorkflowRunId}`,
-		);
-	}
-}
-
-function isIdempotentTerminalTransition(
-	task: IngestionTaskRecord,
-	nextCloseout: IngestionTaskCloseout,
-	errorCode: string | null,
-): boolean {
-	if (!isTerminalStatus(task.status)) {
-		return false;
-	}
-	const currentCloseout = task.closeout;
-	if (!currentCloseout || currentCloseout.terminal_status !== nextCloseout.terminal_status) {
-		return false;
-	}
-	if (currentCloseout.terminal_status === "failed") {
-		return currentCloseout.error?.code === errorCode;
-	}
-	if (currentCloseout.terminal_status === "canceled") {
-		return currentCloseout.error?.code === "workflow_canceled";
-	}
-	return canonicalJsonString(currentCloseout) === canonicalJsonString(nextCloseout);
-}
-
-function throwTransitionError(
-	task: IngestionTaskRecord,
-	nextStatus: IngestionWorkflowStatus,
-): never {
-	if (isTerminalStatus(task.status)) {
-		throw new Error(`terminal ingestion task cannot transition: ${task.task_id}`);
-	}
-	throw new Error(
-		`invalid ingestion task state transition: ${task.task_id} ${task.status} -> ${nextStatus}`,
-	);
-}
-
-function requirePostgresTask(
-	row: Record<string, unknown> | undefined,
-	taskId: string,
-): IngestionTaskRecord {
-	if (!row) {
-		throw new Error(`ingestion task not found: ${taskId}`);
-	}
-	return toTaskRecord(row);
 }
 
 function toTaskRecord(row: Record<string, unknown>): IngestionTaskRecord {
 	return {
-		schema_version: "ingestion_task_envelope.v2",
-		task_id: requiredRowString(row, "task_id"),
-		run_id: requiredRowString(row, "run_id"),
-		source_family: requiredRowString(row, "source_family"),
-		source_channel: requiredRowString(row, "source_channel"),
-		corpus: requiredRowString(row, "corpus"),
-		collection: requiredRowString(row, "collection"),
-		registry_task_id: requiredRowString(row, "registry_task_id"),
-		task_kind: requiredTaskKind(row.task_kind),
-		input_ref: requiredArtifactRef(row.input_ref_json),
-		input_contract: requiredRowString(row, "input_contract"),
-		output_contract: requiredRowString(row, "output_contract"),
-		idempotency_key: requiredRowString(row, "idempotency_key"),
-		created_by: requiredRowString(row, "created_by"),
-		created_at: requiredIso(row.created_at, "created_at"),
+		schema_version: "ingestion_task_envelope.v3",
+		task_id: requiredString(row.task_id, "task_id"),
+		run_id: requiredString(row.run_id, "run_id"),
+		registry_task_id: requiredString(row.registry_task_id, "registry_task_id"),
+		input_ref: requiredObject(
+			row.input_ref_json,
+			"input_ref_json",
+		) as unknown as IngestionTaskRecord["input_ref"],
+		executor_kind: requiredExecutorKind(row.executor_kind),
+		source_family: optionalString(row.source_family),
+		source_channel: optionalString(row.source_channel),
+		corpus: optionalString(row.corpus),
+		collection: optionalString(row.collection),
+		input_contract: requiredString(row.input_contract, "input_contract"),
+		output_contract: requiredString(row.output_contract, "output_contract"),
+		created_by: "temporal",
+		created_at: requiredTimestamp(row.created_at, "created_at"),
 		status: requiredStatus(row.status),
-		updated_at: requiredIso(row.updated_at, "updated_at"),
-		closeout: row.closeout_json ? requiredCloseout(row.closeout_json) : null,
-		workflow_id: requiredRowString(row, "workflow_id"),
-		workflow_run_id: nullableString(row.workflow_run_id),
+		updated_at: requiredTimestamp(row.updated_at, "updated_at"),
+		workflow_id: requiredString(row.workflow_id, "workflow_id"),
+		workflow_run_id: optionalString(row.workflow_run_id),
+		result_ref:
+			row.result_ref_json == null
+				? null
+				: (requiredObject(
+						row.result_ref_json,
+						"result_ref_json",
+					) as unknown as IngestionTaskRecord["result_ref"]),
+		result_contract: optionalString(row.result_contract),
+		summary:
+			row.summary_json == null
+				? null
+				: (requiredObject(row.summary_json, "summary_json") as IngestionTaskRecord["summary"]),
+		error_code: optionalString(row.error_code),
+		error_message: optionalString(row.error_message),
 	};
 }
 
-function requiredRowString(row: Record<string, unknown>, field: string): string {
-	const value = row[field];
-	if (typeof value !== "string" || value.trim() === "") {
-		throw new Error(`postgres ingestion task row is missing ${field}`);
+function assertCompatibleStart(
+	current: IngestionTaskRecord,
+	input: RecordIngestionTaskStartedInput,
+): void {
+	const task = input.snapshot.task;
+	const registry = input.snapshot.registry_task;
+	if (
+		current.run_id !== task.run_id ||
+		current.registry_task_id !== task.registry_task_id ||
+		current.workflow_id !== input.workflowId ||
+		current.workflow_run_id !== input.workflowRunId ||
+		current.executor_kind !== registry.executor_kind ||
+		canonicalJsonString(current.input_ref) !== canonicalJsonString(task.input_ref)
+	) {
+		throw new Error(`ingestion task start conflicts with existing projection: ${task.task_id}`);
+	}
+}
+
+function assertResultMatchesTask(
+	task: IngestionTaskRecord,
+	result: Parameters<IngestionTaskStore["completeTask"]>[0]["result"],
+): void {
+	if (
+		result.task_id !== task.task_id ||
+		result.run_id !== task.run_id ||
+		result.registry_task_id !== task.registry_task_id ||
+		result.output_contract !== task.output_contract
+	) {
+		throw new Error(`ingestion result does not match task projection: ${task.task_id}`);
+	}
+}
+
+function requiredExecutorKind(value: unknown): IngestionTaskRecord["executor_kind"] {
+	if (value === "rust_kernel" || value === "source_collector") {
+		return value;
+	}
+	throw new Error(`executor_kind is invalid: ${String(value)}`);
+}
+
+function requiredStatus(value: unknown): IngestionTaskRecord["status"] {
+	if (value === "running" || value === "completed" || value === "failed" || value === "canceled") {
+		return value;
+	}
+	throw new Error(`status is invalid: ${String(value)}`);
+}
+
+function requiredString(value: unknown, label: string): string {
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(`${label} is required`);
 	}
 	return value;
 }
 
-function nullableString(value: unknown): string | null {
-	if (value == null) {
-		return null;
-	}
-	if (typeof value !== "string") {
-		throw new Error("postgres ingestion task row contains invalid nullable string");
-	}
-	return value;
+function optionalString(value: unknown): string | null {
+	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function requiredIso(value: unknown, field: string): string {
+function requiredObject(value: unknown, label: string): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error(`${label} must be an object`);
+	}
+	return value as Record<string, unknown>;
+}
+
+function requiredTimestamp(value: unknown, label: string): string {
 	if (value instanceof Date) {
 		return value.toISOString();
 	}
-	if (typeof value === "string" && value.trim()) {
-		return new Date(value).toISOString();
-	}
-	throw new Error(`postgres ingestion task row is missing ${field}`);
-}
-
-function requiredTaskKind(value: unknown): IngestionTaskEnvelope["task_kind"] {
-	if (
-		value === "source_truth_materialize" ||
-		value === "document_units_validate" ||
-		value === "chunk_prepare" ||
-		value === "release_manifest_validate"
-	) {
-		return value;
-	}
-	throw new Error(`unsupported postgres ingestion task kind: ${String(value)}`);
-}
-
-function requiredStatus(value: unknown): IngestionWorkflowStatus {
-	if (
-		value === "accepted" ||
-		value === "running" ||
-		value === "completed" ||
-		value === "failed" ||
-		value === "canceled"
-	) {
-		return value;
-	}
-	throw new Error(`unsupported postgres ingestion task status: ${String(value)}`);
-}
-
-function requiredArtifactRef(value: unknown): IngestionArtifactRef {
-	if (!isRecord(value)) {
-		throw new Error("postgres ingestion task row is missing input_ref_json");
-	}
-	return {
-		kind: value.kind as IngestionArtifactRef["kind"],
-		uri: requiredString(value, "uri"),
-		digest: typeof value.digest === "string" ? value.digest : undefined,
-	};
-}
-
-function requiredCloseout(value: unknown): IngestionTaskCloseout {
-	if (!isRecord(value)) {
-		throw new Error("postgres ingestion task row has invalid closeout_json");
-	}
-	const terminalStatus = requiredCloseoutTerminalStatus(value.terminal_status);
-	const outcomeKind = requiredString(value, "outcome_kind");
-	if (outcomeKind !== "success" && outcomeKind !== "error") {
-		throw new Error(`unsupported closeout outcome kind: ${outcomeKind}`);
-	}
-	return {
-		task_id: requiredString(value, "task_id"),
-		terminal_status: terminalStatus,
-		outcome_kind: outcomeKind,
-		artifact_refs: normalizeArtifactRefs(value.artifact_refs),
-		error: isRecord(value.error)
-			? {
-					code: requiredString(value.error, "code"),
-					message: requiredString(value.error, "message"),
-				}
-			: undefined,
-	};
-}
-
-function requiredCloseoutTerminalStatus(value: unknown): IngestionTaskCloseout["terminal_status"] {
-	if (value === "completed" || value === "failed" || value === "canceled") {
-		return value;
-	}
-	throw new Error(`unsupported closeout terminal status: ${String(value)}`);
-}
-
-function normalizeArtifactRefs(value: unknown): IngestionArtifactRef[] {
-	if (value === undefined) {
-		return [];
-	}
-	if (!Array.isArray(value)) {
-		throw new Error("artifact_refs must be an array");
-	}
-	return value.map((item): IngestionArtifactRef => {
-		if (!isRecord(item)) {
-			throw new Error("artifact_refs entries must be objects");
-		}
-		return {
-			kind: item.kind as IngestionArtifactRef["kind"],
-			uri: requiredString(item, "uri"),
-			digest: typeof item.digest === "string" ? item.digest : undefined,
-		};
-	});
-}
-
-function requiredString(body: Record<string, unknown>, field: string): string {
-	const value = body[field];
-	if (typeof value !== "string" || value.trim() === "") {
-		throw new Error(`${field} is required`);
-	}
-	return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return requiredString(value, label);
 }

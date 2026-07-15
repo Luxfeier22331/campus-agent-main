@@ -1,4 +1,3 @@
-import type { RequestedScope } from "../integration";
 import type { TracePropagationHeaders } from "./trace";
 
 export interface ActorTelemetrySummary {
@@ -11,8 +10,7 @@ export interface BaseRequestTelemetry {
 	principalType?: string | null;
 	requestId: string;
 	requestedTool: string | null;
-	requestedScope?: RequestedScope | null;
-	resolvedScope?: RequestedScope | null;
+	resolvedTargets?: string[];
 	safetyIdentifier?: string | null;
 	surface: string;
 	traceId: string;

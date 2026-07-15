@@ -1,6 +1,3 @@
-import type { RequestedScope } from "../integration";
-import { toScopeSummary } from "./helpers";
-
 export function buildRuntimeEventEnvelope(
 	input: {
 		errorCode?: string | null;
@@ -9,8 +6,6 @@ export function buildRuntimeEventEnvelope(
 		principalType?: string | null;
 		requestId?: string | null;
 		requestedTool?: string | null;
-		requestedScope?: RequestedScope | null;
-		requestedScopeSummary?: string | null;
 		selectedTool?: string | null;
 		status?: string | null;
 		surface?: string | null;
@@ -31,7 +26,6 @@ export function buildRuntimeEventEnvelope(
 		release: metadata.release,
 		request_id: input.requestId ?? null,
 		requested_tool: input.requestedTool ?? null,
-		requested_scope_summary: input.requestedScopeSummary ?? toScopeSummary(input.requestedScope),
 		selected_tool: input.selectedTool ?? null,
 		status: input.status ?? null,
 		surface: input.surface ?? null,

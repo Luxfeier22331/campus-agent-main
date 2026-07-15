@@ -1,0 +1,96 @@
+{
+	"schema_version": "rag_eval_cases.v1",
+	"corpus": "curriculum",
+	"collection": "curriculum",
+	"surface": "rag/curriculum",
+	"cases": [
+		{
+			"case_id": "curriculum-public-affairs-plan",
+			"case_family": "single_target",
+			"split": "smoke",
+			"question": "示例公共事务本科人才培养方案有哪些要求？",
+			"reference": "应依据示例公共事务本科人才培养方案说明培养要求。",
+			"reference_context_ids": ["curriculum:synthetic-public-affairs-plan"],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "curriculum-course-credit",
+			"case_family": "table_fact",
+			"split": "smoke",
+			"question": "公共问题分析课程有多少学分？",
+			"reference": "应从示例公共事务培养方案的课程表中回答公共问题分析课程学分。",
+			"reference_context_ids": ["curriculum:synthetic-public-affairs-plan"],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "curriculum-semester-list",
+			"case_family": "semester_fact",
+			"split": "regression",
+			"question": "数据系统专题课程在哪些学期出现？",
+			"reference": "应从示例数据系统培养方案按学期列出数据系统专题课程。",
+			"reference_context_ids": ["curriculum:synthetic-data-systems-plan"],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "curriculum-program-hard-negative",
+			"case_family": "hard_negative",
+			"split": "regression",
+			"question": "想看公共事务这个合成专业的培养方案。",
+			"reference": "应返回示例公共事务培养方案，不得混入示例数据系统培养方案。",
+			"reference_context_ids": ["curriculum:synthetic-public-affairs-plan"],
+			"forbidden_context_ids": ["curriculum:synthetic-data-systems-plan"],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "curriculum-conversation-follow-up",
+			"case_family": "conversation_follow_up",
+			"split": "regression",
+			"setup_turns": ["我想了解示例数据系统本科人才培养方案。"],
+			"question": "那第二学期呢？",
+			"reference": "结合上一轮已确认的示例数据系统培养方案，回答第二学期课程。",
+			"reference_context_ids": ["curriculum:synthetic-data-systems-plan"],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1,
+			"include_history": false
+		},
+		{
+			"case_id": "curriculum-version-comparison",
+			"case_family": "version_comparison",
+			"split": "regression",
+			"question": "示例公共事务培养方案上一版与当前版的实践学分要求有什么变化？",
+			"reference": "上一版要求 6 个实践学分，当前版要求 8 个实践学分，应明确区分版本。",
+			"reference_context_ids": [
+				"curriculum:synthetic-public-affairs-plan:v0",
+				"curriculum:synthetic-public-affairs-plan:v1"
+			],
+			"reference_contexts": [
+				"示例公共事务培养方案上一版：实践课程要求 6 学分。",
+				"示例公共事务培养方案当前版：实践课程要求 8 学分。"
+			],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1,
+			"include_history": true
+		},
+		{
+			"case_id": "curriculum-no-answer",
+			"case_family": "no_answer",
+			"split": "regression",
+			"question": "示例星际外交本科人才培养方案是什么？",
+			"reference": "现有培养方案中没有该专业，应明确无法回答。",
+			"reference_context_ids": [],
+			"expected_targets": ["curriculum"],
+			"expected_outcome": "no_answer",
+			"expected_search_count": 1
+		}
+	]
+}

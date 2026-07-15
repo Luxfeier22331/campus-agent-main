@@ -3,11 +3,18 @@ package httpapi
 import (
 	"fmt"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+type primaryAgentResultInput struct {
+	activityAttempt int
+	activityInput   temporalruntime.ExecutePrimaryAgentActivityInput
+	run             execution.DurableRun
+}
+
 func primaryAgentResultPayload(
-	input primaryAgentFingerprintInput,
+	input primaryAgentResultInput,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) (map[string]any, error) {
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
@@ -42,28 +49,28 @@ func primaryAgentResultPayload(
 			"tool_name":                result.ToolName,
 		})
 	}
-	llmIOFingerprint, err := primaryAgentLLMIOFingerprint(input, output)
-	if err != nil {
-		return nil, err
-	}
 	return map[string]any{
+		"activity_attempt":       input.activityAttempt,
 		"agent_result_ref":       output.AgentResultRef,
 		"final_output":           output.FinalOutput,
-		"llm_io_fingerprint":     llmIOFingerprint,
 		"memory_context_summary": temporalMemoryContextProjectionPayload(input.activityInput.MemoryContext),
 		"model_name":             output.ModelName,
 		"model_provider":         output.ModelProvider,
+		"prompt_trace":           cloneAnyMapFromMetadata(output.PromptTrace),
 		"provider_response_id":   output.ProviderResponseID,
 		"selected_tools":         append([]string{}, output.SelectedTools...),
 		"stage_timing":           cloneAnyMapFromMetadata(output.StageTiming),
+		"status":                 output.Status,
 		"terminal_envelope":      cloneAnyMapFromMetadata(output.TerminalEnvelope),
 		"terminal_reason":        output.TerminalReason,
 		"tool_results":           toolResults,
+		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(
+			output.ToolRuntimeFingerprint,
+		),
 		"usage": map[string]any{
-			"cached_input_tokens":      output.Usage.CachedInputTokens,
-			"estimated_cost_micro_usd": output.Usage.EstimatedCostMicroUSD,
-			"input_tokens":             output.Usage.InputTokens,
-			"output_tokens":            output.Usage.OutputTokens,
+			"cached_input_tokens": output.Usage.CachedInputTokens,
+			"input_tokens":        output.Usage.InputTokens,
+			"output_tokens":       output.Usage.OutputTokens,
 		},
 	}, nil
 }

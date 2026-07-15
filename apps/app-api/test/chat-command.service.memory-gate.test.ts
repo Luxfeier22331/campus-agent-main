@@ -20,6 +20,7 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 			error: null,
 			followUpQuestion: "",
 			result: {},
+			resolvedTargets: [],
 			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace_0001",

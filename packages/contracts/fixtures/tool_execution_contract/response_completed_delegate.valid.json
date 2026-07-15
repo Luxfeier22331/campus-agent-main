@@ -4,7 +4,7 @@
 	"answer_text": "请假制度以学生手册当前版本为准。",
 	"follow_up_question": "",
 	"confidence": "high",
-	"resolved_scope": "student_rules",
+	"resolved_targets": ["student_rules"],
 	"session_update": null,
 	"result": {
 		"provider_response_id": "resp_contract_completed",

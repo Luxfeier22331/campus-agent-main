@@ -17,20 +17,7 @@ import (
 
 func TestQdrantKnowledgeSearchQueryUsesHybridPrefetchFromServingConfig(t *testing.T) {
 	var captured map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		response.Header().Set("content-type", "application/json")
-		switch request.URL.Path {
-		case "/collections/student_rules":
-			_, _ = response.Write([]byte(qdrantCollectionMetadataResponseForTest(t, "regulations", "student_rules")))
-		case "/collections/student_rules/points/query":
-			if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
-				t.Fatalf("decode qdrant query body: %v", err)
-			}
-			_, _ = response.Write([]byte(`{"result":{"points":[{"id":"point-1","score":0.91,"payload":{"text":"学生应当按照学校规定办理请假手续。","corpus":"regulations","collection":"student_rules","document_id":"doc-1","chunk_id":"chunk-1","source_title":"学生手册","serving_status":"query_enabled","is_answer_bearing":true}}]},"status":"ok"}`))
-		default:
-			t.Fatalf("qdrant path = %q, want collection metadata or point query", request.URL.Path)
-		}
-	}))
+	server := qdrantQueryServerForTest(t, &captured)
 	defer server.Close()
 	executor := qdrantKnowledgeSearchExecutor{
 		configResolver:    defaultKnowledgeSearchEmbeddingResolverForTest(),
@@ -39,47 +26,30 @@ func TestQdrantKnowledgeSearchQueryUsesHybridPrefetchFromServingConfig(t *testin
 		qdrantURL:         server.URL,
 		timeout:           time.Second,
 	}
-
 	points, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "学生请假手续",
-		RetrievalAccess: retrievalruntime.RetrievalAccess{
-			PolicyProjectionVersion: "phase1-authorization-projection-v1",
-			VisibilityLevel:         "public",
-		},
-		ResolvedVersion: retrievalruntime.ResolvedVersion{Mode: "current"},
-		RunID:           "run-qdrant-query",
-		TopK:            3,
-	}, []float64{0.1, 0.2, 0.3})
+		QueryText:         "学生请假手续",
+		ServingConfigPath: "regulations/student_rules/serving-config.json",
+		RetrievalAccess:   publicRetrievalAccessProjectionForTest(),
+		Target:            "student_rules",
+		TopK:              3,
+	}, make([]float64, 2560))
 	if err != nil {
 		t.Fatalf("query points: %v", err)
 	}
 	if len(points) != 1 {
 		t.Fatalf("point count = %d, want 1", len(points))
 	}
-	if captured["using"] != nil {
-		t.Fatalf("top-level using = %#v, want absent for hybrid query", captured["using"])
-	}
 	prefetch, ok := captured["prefetch"].([]any)
 	if !ok || len(prefetch) != 2 {
 		t.Fatalf("prefetch = %#v, want dense and sparse prefetch", captured["prefetch"])
 	}
 	dense, ok := prefetch[0].(map[string]any)
-	if !ok {
-		t.Fatalf("dense prefetch = %#v, want object", prefetch[0])
-	}
-	if dense["using"] != "dense" {
-		t.Fatalf("dense using = %#v, want dense", dense["using"])
-	}
-	vector, ok := dense["query"].([]any)
-	if !ok || len(vector) != 3 {
-		t.Fatalf("dense query = %#v, want 3-dimensional vector", dense["query"])
+	if !ok || dense["using"] != "dense" {
+		t.Fatalf("dense prefetch = %#v", prefetch[0])
 	}
 	sparse, ok := prefetch[1].(map[string]any)
 	if !ok || sparse["using"] != "sparse" {
-		t.Fatalf("sparse prefetch = %#v, want sparse vector", prefetch[1])
+		t.Fatalf("sparse prefetch = %#v", prefetch[1])
 	}
 	fusion, ok := captured["query"].(map[string]any)
 	if !ok || fusion["fusion"] != "rrf" {
@@ -91,27 +61,11 @@ func TestQdrantKnowledgeSearchQueryUsesHybridPrefetchFromServingConfig(t *testin
 	assertQdrantMatchConditionForTest(t, must, "status", "active")
 	assertQdrantMatchConditionForTest(t, must, "is_current", true)
 	assertQdrantMatchConditionForTest(t, must, "visibility_level", "public")
-	if _, ok := must["serving_status"]; ok {
-		t.Fatalf("serving_status filter must not be used: %#v", must["serving_status"])
-	}
 }
 
-func TestQdrantKnowledgeSearchHistoricalVersionFilterDoesNotFallbackToCurrent(t *testing.T) {
+func TestQdrantKnowledgeSearchHistoryOmitsCurrentFilter(t *testing.T) {
 	var captured map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		response.Header().Set("content-type", "application/json")
-		switch request.URL.Path {
-		case "/collections/student_rules":
-			_, _ = response.Write([]byte(qdrantCollectionMetadataResponseForTest(t, "regulations", "student_rules")))
-		case "/collections/student_rules/points/query":
-			if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
-				t.Fatalf("decode qdrant query body: %v", err)
-			}
-			_, _ = response.Write([]byte(`{"result":{"points":[]},"status":"ok"}`))
-		default:
-			t.Fatalf("qdrant path = %q, want collection metadata or point query", request.URL.Path)
-		}
-	}))
+	server := qdrantQueryServerForTest(t, &captured)
 	defer server.Close()
 	executor := qdrantKnowledgeSearchExecutor{
 		configResolver:    defaultKnowledgeSearchEmbeddingResolverForTest(),
@@ -120,267 +74,93 @@ func TestQdrantKnowledgeSearchHistoricalVersionFilterDoesNotFallbackToCurrent(t 
 		qdrantURL:         server.URL,
 		timeout:           time.Second,
 	}
-
 	_, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "旧版国奖评审办法",
-		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
-		RunID:           "run-qdrant-historical-query",
-		TopK:            3,
-		VersionQuery: retrievalruntime.VersionQuery{
-			Mode:      "historical",
-			VersionID: "v1:national-scholarship",
-		},
-		ResolvedVersion: retrievalruntime.ResolvedVersion{
-			Mode:             "historical",
-			TargetVersionIDs: []string{"v1:national-scholarship"},
-			VersionID:        "v1:national-scholarship",
-		},
-	}, []float64{0.1, 0.2, 0.3})
+		IncludeHistory:    true,
+		QueryText:         "旧版国奖评审办法",
+		ServingConfigPath: "regulations/student_rules/serving-config.json",
+		RetrievalAccess:   publicRetrievalAccessProjectionForTest(),
+		Target:            "student_rules",
+		TopK:              3,
+	}, make([]float64, 2560))
 	if err != nil {
 		t.Fatalf("query points: %v", err)
 	}
 	must := qdrantMustConditionsForTest(t, captured)
 	if _, ok := must["is_current"]; ok {
-		t.Fatalf("historical version query must not include is_current fallback: %#v", must)
-	}
-	rawMust := qdrantMustConditionPayloadsForTest(t, captured)
-	versionMatch, ok := rawMust["version_id"]["match"].(map[string]any)
-	if !ok {
-		t.Fatalf("version_id filter missing match payload: %#v", rawMust["version_id"])
-	}
-	versionIDs, ok := versionMatch["any"].([]any)
-	if !ok || len(versionIDs) != 1 || versionIDs[0] != "v1:national-scholarship" {
-		t.Fatalf("version_id any = %#v, want v1:national-scholarship", versionMatch["any"])
+		t.Fatalf("history query must not include is_current: %#v", must)
 	}
 }
 
-func TestQdrantKnowledgeSearchAsOfUsesResolvedVersionFilter(t *testing.T) {
-	var captured map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		response.Header().Set("content-type", "application/json")
-		switch request.URL.Path {
-		case "/collections/student_rules":
-			_, _ = response.Write([]byte(qdrantCollectionMetadataResponseForTest(t, "regulations", "student_rules")))
-		case "/collections/student_rules/points/query":
-			if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
-				t.Fatalf("decode qdrant query body: %v", err)
-			}
-			_, _ = response.Write([]byte(`{"result":{"points":[]},"status":"ok"}`))
-		default:
-			t.Fatalf("qdrant path = %q, want collection metadata or point query", request.URL.Path)
+func qdrantQueryServerForTest(t *testing.T, captured *map[string]any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/collections/student_rules/points/query" {
+			t.Fatalf("qdrant path = %q", request.URL.Path)
 		}
+		if err := json.NewDecoder(request.Body).Decode(captured); err != nil {
+			t.Fatalf("decode qdrant query body: %v", err)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"result":{"points":[{"id":"point-1","score":0.91,"payload":{"text":"学生应当按照学校规定办理请假手续。","document_id":"doc-1","chunk_id":"chunk-1"}}]},"status":"ok"}`))
 	}))
-	defer server.Close()
-	executor := qdrantKnowledgeSearchExecutor{
-		configResolver:    defaultKnowledgeSearchEmbeddingResolverForTest(),
-		httpClient:        server.Client(),
-		qdrantQueryAPIKey: "test-qdrant-key",
-		qdrantURL:         server.URL,
-		timeout:           time.Second,
-	}
-
-	_, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "2025 年请假手续",
-		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
-		RunID:           "run-qdrant-as-of-query",
-		TopK:            3,
-		VersionQuery: retrievalruntime.VersionQuery{
-			Mode: "as_of",
-			AsOf: "2025-09-01T00:00:00Z",
-		},
-		ResolvedVersion: retrievalruntime.ResolvedVersion{
-			AsOf:             "2025-09-01T00:00:00Z",
-			Mode:             "as_of",
-			TargetVersionIDs: []string{"student_rules:v2025"},
-			VersionID:        "student_rules:v2025",
-		},
-	}, []float64{0.1, 0.2, 0.3})
-	if err != nil {
-		t.Fatalf("query points: %v", err)
-	}
-	must := qdrantMustConditionsForTest(t, captured)
-	if _, ok := must["is_current"]; ok {
-		t.Fatalf("as_of version query must not include is_current fallback: %#v", must)
-	}
-	rawMust := qdrantMustConditionPayloadsForTest(t, captured)
-	versionMatch, ok := rawMust["version_id"]["match"].(map[string]any)
-	if !ok {
-		t.Fatalf("version_id filter missing match payload: %#v", rawMust["version_id"])
-	}
-	versionIDs, ok := versionMatch["any"].([]any)
-	if !ok || len(versionIDs) != 1 || versionIDs[0] != "student_rules:v2025" {
-		t.Fatalf("version_id any = %#v, want resolved student_rules:v2025", versionMatch["any"])
-	}
-}
-
-func TestQdrantKnowledgeSearchHistoricalModeRequiresExplicitVersionQuery(t *testing.T) {
-	executor := qdrantKnowledgeSearchExecutor{}
-
-	_, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "旧版国奖评审办法",
-		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
-		ResolvedVersion: retrievalruntime.ResolvedVersion{Mode: "historical"},
-		RunID:           "run-qdrant-historical-missing-version",
-		TopK:            3,
-	}, []float64{0.1, 0.2, 0.3})
-	if err == nil {
-		t.Fatal("historical lookup without version query must fail closed")
-	}
-	if !strings.Contains(err.Error(), "version_id") {
-		t.Fatalf("error = %v, want version_id diagnostic", err)
-	}
 }
 
 func TestSearchEvidenceFromQdrantPointPreservesPublicSourceMetadata(t *testing.T) {
-	evidence, ok := searchEvidenceFromQdrantPoint(qdrantPoint{
+	evidence, ok, err := searchEvidenceFromQdrantPoint(qdrantPoint{
 		ID:    "point-1",
 		Score: 0.93,
 		Payload: map[string]any{
-			"canonical_url":     "https://docs.example.edu/student-rules.html#leave",
-			"chunk_id":          "chunk-1",
-			"document_id":       "doc-student-rules",
-			"is_answer_bearing": true,
-			"is_current":        true,
-			"latest_url":        "https://docs.example.edu/student-rules.html",
-			"revision_track":    "current-effective",
-			"source_channel":    "official_web",
-			"source_title":      "学生手册",
-			"source_trust_tier": "T1",
-			"source_unit_key":   "leave",
-			"source_unit_kind":  "clause",
-			"text":              "学生应当按照学校规定办理请假手续。",
-			"version_id":        "v3",
+			"canonical_url": "https://docs.example.edu/student-rules.html#leave",
+			"chunk_id":      "chunk-1",
+			"document_id":   "doc-student-rules",
+			"source_title":  "学生手册",
+			"text":          "学生应当按照学校规定办理请假手续。",
+			"version_id":    "v3",
 		},
-	})
+	}, "student_rules", 1)
+	if err != nil {
+		t.Fatalf("build evidence: %v", err)
+	}
 	if !ok {
-		t.Fatal("qdrant point with answer-ready metadata must produce evidence ref")
+		t.Fatal("qdrant point with public metadata must produce evidence")
 	}
 	if evidence.CanonicalURL != "https://docs.example.edu/student-rules.html#leave" ||
-		evidence.Title != "学生手册" || evidence.VersionID != "v3" {
+		evidence.Title != "学生手册" || evidence.VersionID != "v3" ||
+		evidence.RetrievalTarget != "student_rules" || evidence.Rank != 1 ||
+		evidence.DocumentID != "doc-student-rules" || evidence.ChunkID != "chunk-1" {
 		t.Fatalf("public source metadata drifted: %#v", evidence)
 	}
-	if evidence.EvidenceRef == "" || evidence.Snippet != "学生应当按照学校规定办理请假手续。" {
-		t.Fatalf("evidence identity or snippet drifted: %#v", evidence)
+	if evidence.FusionScore != 0.93 {
+		t.Fatalf("evidence scores drifted: %#v", evidence)
 	}
 }
 
-func TestQdrantKnowledgeSearchFailsClosedBeforeQueryWhenReleaseMetadataMissing(t *testing.T) {
-	requestPaths := []string{}
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		requestPaths = append(requestPaths, request.URL.Path)
-		response.Header().Set("content-type", "application/json")
-		switch request.URL.Path {
-		case "/collections/student_rules":
-			_, _ = response.Write([]byte(`{"result":{"payload":{}},"status":"ok"}`))
-		case "/collections/student_rules/points/scroll":
-			_, _ = response.Write([]byte(`{"result":{"points":[]},"status":"ok"}`))
-		case "/collections/student_rules/points/query":
-			t.Fatal("qdrant point query must not execute when release metadata is missing")
-		default:
-			t.Fatalf("unexpected qdrant path %q", request.URL.Path)
-		}
-	}))
-	defer server.Close()
-	executor := qdrantKnowledgeSearchExecutor{
-		configResolver:    defaultKnowledgeSearchEmbeddingResolverForTest(),
-		httpClient:        server.Client(),
-		qdrantQueryAPIKey: "test-qdrant-key",
-		qdrantURL:         server.URL,
-		timeout:           time.Second,
-	}
-
-	_, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "学生请假手续",
-		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
-		ResolvedVersion: retrievalruntime.ResolvedVersion{Mode: "current"},
-		RunID:           "run-release-metadata-missing",
-		TopK:            3,
-	}, []float64{0.1, 0.2, 0.3})
-	if err == nil {
-		t.Fatal("missing release metadata must fail closed")
-	}
-	if !strings.Contains(err.Error(), "release metadata") {
-		t.Fatalf("error = %v, want release metadata diagnostic", err)
-	}
-	wantPaths := []string{"/collections/student_rules", "/collections/student_rules/points/scroll"}
-	if strings.Join(requestPaths, "|") != strings.Join(wantPaths, "|") {
-		t.Fatalf("qdrant paths = %#v, want metadata lookup and scroll fallback", requestPaths)
-	}
-}
-
-func TestQdrantKnowledgeSearchUsesPointPayloadReleaseMetadataWhenCollectionMetadataMissing(t *testing.T) {
-	requestPaths := []string{}
-	var captured map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		requestPaths = append(requestPaths, request.URL.Path)
-		response.Header().Set("content-type", "application/json")
-		switch request.URL.Path {
-		case "/collections/student_rules":
-			_, _ = response.Write([]byte(`{"result":{"payload":{}},"status":"ok"}`))
-		case "/collections/student_rules/points/scroll":
-			_, _ = response.Write([]byte(qdrantReleaseMetadataScrollResponseForTest(t, "regulations", "student_rules")))
-		case "/collections/student_rules/points/query":
-			if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
-				t.Fatalf("decode qdrant query body: %v", err)
-			}
-			_, _ = response.Write([]byte(`{"result":{"points":[]},"status":"ok"}`))
-		default:
-			t.Fatalf("unexpected qdrant path %q", request.URL.Path)
-		}
-	}))
-	defer server.Close()
-	executor := qdrantKnowledgeSearchExecutor{
-		configResolver:    defaultKnowledgeSearchEmbeddingResolverForTest(),
-		httpClient:        server.Client(),
-		qdrantQueryAPIKey: "test-qdrant-key",
-		qdrantURL:         server.URL,
-		timeout:           time.Second,
-	}
-
-	_, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
-		Collection:      "student_rules",
-		CollectionAlias: "student_rules",
-		Corpus:          "regulations",
-		QueryText:       "学生请假手续",
-		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
-		ResolvedVersion: retrievalruntime.ResolvedVersion{Mode: "current"},
-		RunID:           "run-release-metadata-scroll",
-		TopK:            3,
-	}, []float64{0.1, 0.2, 0.3})
+func TestSearchEvidenceFromQdrantPointTruncatesChineseSnippetByBytes(t *testing.T) {
+	value := strings.Repeat("培养方案", 200)
+	evidence, ok, err := searchEvidenceFromQdrantPoint(qdrantPoint{
+		ID: "point-long-snippet",
+		Payload: map[string]any{
+			"canonical_url": "https://docs.example.edu/curriculum.html",
+			"chunk_id":      "chunk-long",
+			"document_id":   "doc-curriculum",
+			"source_title":  "培养方案",
+			"text":          value,
+		},
+	}, "curriculum", 1)
 	if err != nil {
-		t.Fatalf("query points with scroll release metadata: %v", err)
+		t.Fatalf("build evidence: %v", err)
 	}
-	if captured == nil {
-		t.Fatal("qdrant points query was not executed after release metadata scroll guard")
+	if !ok {
+		t.Fatal("valid Qdrant point must produce evidence")
 	}
-	wantPaths := []string{
-		"/collections/student_rules",
-		"/collections/student_rules/points/scroll",
-		"/collections/student_rules/points/query",
-	}
-	if strings.Join(requestPaths, "|") != strings.Join(wantPaths, "|") {
-		t.Fatalf("qdrant paths = %#v, want %#v", requestPaths, wantPaths)
+	if len(evidence.Snippet) > retrievalruntime.MaxEvidenceSnippet || !strings.HasPrefix(value, evidence.Snippet) {
+		t.Fatalf("snippet truncation is invalid: bytes=%d", len(evidence.Snippet))
 	}
 }
 
 func TestQdrantKnowledgeSearchEmbeddingRequestUsesConfiguredDimensions(t *testing.T) {
 	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/embeddings" {
-			t.Fatalf("embedding path = %q, want /embeddings", request.URL.Path)
-		}
 		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
 			t.Fatalf("decode embedding request: %v", err)
 		}
@@ -399,24 +179,17 @@ func TestQdrantKnowledgeSearchEmbeddingRequestUsesConfiguredDimensions(t *testin
 		},
 		embeddingHTTPClient: server.Client(),
 	}
-
 	embedding, err := executor.embedQuery(context.Background(), "学生请假手续")
 	if err != nil {
 		t.Fatalf("embed query: %v", err)
 	}
-	if len(embedding) != 2560 {
-		t.Fatalf("embedding dim = %d, want 2560", len(embedding))
-	}
-	if captured["model"] != "Qwen3-Embedding-4B" {
-		t.Fatalf("model = %#v", captured["model"])
-	}
-	if captured["dimensions"] != float64(2560) {
-		t.Fatalf("dimensions = %#v, want 2560", captured["dimensions"])
+	if len(embedding) != 2560 || captured["dimensions"] != float64(2560) {
+		t.Fatalf("embedding response/request drift: len=%d request=%#v", len(embedding), captured)
 	}
 }
 
-func TestQdrantKnowledgeSearchEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+func TestQdrantKnowledgeSearchEmbeddingFailsOnDimensionMismatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
 	}))
@@ -432,19 +205,15 @@ func TestQdrantKnowledgeSearchEmbeddingFailsClosedOnDimensionMismatch(t *testing
 		},
 		embeddingHTTPClient: server.Client(),
 	}
-
 	_, err := executor.embedQuery(context.Background(), "学生请假手续")
-	if err == nil {
-		t.Fatal("embedding dimension mismatch must fail closed")
-	}
-	if !strings.Contains(err.Error(), "embedding dimension") {
+	if err == nil || !strings.Contains(err.Error(), "embedding dimension") {
 		t.Fatalf("error = %v, want embedding dimension diagnostic", err)
 	}
 }
 
-func TestQdrantKnowledgeSearchServingConfigsFollowAllowedKnowledgeScopes(t *testing.T) {
+func TestQdrantKnowledgeSearchServingConfigsFollowPublishedTargets(t *testing.T) {
 	profileRoot := t.TempDir()
-	for _, scope := range []struct {
+	for _, target := range []struct {
 		corpus     string
 		collection string
 	}{
@@ -453,10 +222,9 @@ func TestQdrantKnowledgeSearchServingConfigsFollowAllowedKnowledgeScopes(t *test
 		{corpus: "curriculum", collection: "curriculum_plan"},
 		{corpus: "regulations", collection: "scoped_rules"},
 	} {
-		writeServingConfigForCompatibilityTest(t, profileRoot, scope.corpus, scope.collection)
+		writeServingConfigForCompatibilityTest(t, profileRoot, target.corpus, target.collection)
 	}
 	executor := qdrantKnowledgeSearchExecutor{servingConfigRoot: profileRoot}
-
 	profiles, err := executor.queryServingConfigs()
 	if err != nil {
 		t.Fatalf("query serving configs: %v", err)
@@ -465,17 +233,17 @@ func TestQdrantKnowledgeSearchServingConfigsFollowAllowedKnowledgeScopes(t *test
 	for _, profile := range profiles {
 		got[profile.Corpus+"/"+profile.Collection] = true
 	}
-	for _, scope := range []string{
+	for _, target := range []string{
 		"regulations/student_rules",
 		"regulations/institutional_rules",
 		"curriculum/curriculum_plan",
 	} {
-		if !got[scope] {
-			t.Fatalf("admitted query-serving scope %s missing from serving configs: %#v", scope, got)
+		if !got[target] {
+			t.Fatalf("published query target %s missing: %#v", target, got)
 		}
 	}
 	if got["regulations/scoped_rules"] {
-		t.Fatal("policy-closed scoped_rules must not be checked as query-serving config")
+		t.Fatal("registry-closed scoped_rules must not be checked")
 	}
 }
 
@@ -491,11 +259,15 @@ func writeServingConfigForCompatibilityTest(
 		t.Fatalf("mkdir serving config fixture: %v", err)
 	}
 	body, err := json.Marshal(map[string]any{
-		"chunk_profile_version":     collection + "_semantic_v1",
-		"cleaning_policy_version":   collection + "_cleaning_v1",
-		"collection":                collection,
-		"corpus":                    corpus,
-		"qdrant_alias_name":         strings.ReplaceAll(corpus+"_"+collection, "/", "_"),
+		"collection": collection,
+		"corpus":     corpus,
+		"embedding_profile": map[string]any{
+			"dense_vector_name": "dense",
+			"dimensions":        2560,
+			"model":             "Qwen3-Embedding-4B",
+			"provider":          "openai-compatible",
+		},
+		"qdrant_alias_name":         collection,
 		"qdrant_dense_vector_name":  "dense",
 		"qdrant_sparse_vector_name": "sparse",
 		"retrieval_enabled":         true,
@@ -510,50 +282,42 @@ func writeServingConfigForCompatibilityTest(
 	}
 }
 
-func TestNewQdrantKnowledgeSearchExecutorRejectsHTTPDataPlaneWithAPIKeyOutsideLocalProfile(t *testing.T) {
+func TestNewQdrantKnowledgeSearchExecutorRejectsHTTPOutsideLocal(t *testing.T) {
 	_, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+		QdrantTLSCACertPath:  "/srv/qdrant/tls/ca.pem",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "http://qdrant:6333",
 		RuntimeMode:          "staging",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
-	if err == nil {
-		t.Fatal("authenticated Qdrant data-plane must reject http:// URLs")
-	}
-	if !strings.Contains(err.Error(), "QDRANT_URL must use https") {
+	if err == nil || !strings.Contains(err.Error(), "QDRANT_URL must use https") {
 		t.Fatalf("error = %v, want https diagnostic", err)
 	}
 }
 
-func TestNewQdrantKnowledgeSearchExecutorAllowsLocalHTTPDataPlaneWithAPIKey(t *testing.T) {
+func TestNewQdrantKnowledgeSearchExecutorAllowsLocalHTTP(t *testing.T) {
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "http://qdrant:6333",
 		RuntimeMode:          "local",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
-	if err != nil {
-		t.Fatalf("local authenticated Qdrant http data-plane rejected: %v", err)
-	}
-	if executor == nil {
-		t.Fatal("executor is nil")
+	if err != nil || executor == nil {
+		t.Fatalf("local qdrant executor = %#v, error = %v", executor, err)
 	}
 }
 
 func TestNewQdrantKnowledgeSearchExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("api-key") != "readonly-key" {
-			t.Fatalf("qdrant api-key = %q, want readonly-key", request.Header.Get("api-key"))
+			t.Fatalf("qdrant api-key = %q", request.Header.Get("api-key"))
 		}
 		_, _ = response.Write([]byte("all shards are ready"))
 	}))
 	defer qdrant.Close()
-	caPath := writeTestCACert(t, qdrant)
-
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  caPath,
+		QdrantTLSCACertPath:  writeTestCACert(t, qdrant),
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            qdrant.URL,
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
@@ -561,85 +325,40 @@ func TestNewQdrantKnowledgeSearchExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
 	if err := executor.HealthCheck(context.Background()); err != nil {
-		t.Fatalf("qdrant health check with tls ca: %v", err)
-	}
-}
-
-func TestNewQdrantKnowledgeSearchExecutorSeparatesQdrantTLSClientFromEmbeddingClient(t *testing.T) {
-	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		_, _ = response.Write([]byte("all shards are ready"))
-	}))
-	defer qdrant.Close()
-	caPath := writeTestCACert(t, qdrant)
-
-	lookupExecutor, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  caPath,
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            qdrant.URL,
-	}, defaultKnowledgeSearchEmbeddingResolverForTest())
-	if err != nil {
-		t.Fatalf("new qdrant executor: %v", err)
-	}
-	executor, ok := lookupExecutor.(qdrantKnowledgeSearchExecutor)
-	if !ok {
-		t.Fatalf("executor type = %T, want qdrantKnowledgeSearchExecutor", lookupExecutor)
-	}
-	if executor.embeddingHTTPClient == nil {
-		t.Fatal("embedding client must be configured")
-	}
-	if executor.embeddingHTTPClient == executor.httpClient {
-		t.Fatal("embedding provider client must not reuse private Qdrant TLS client")
+		t.Fatalf("qdrant health check: %v", err)
 	}
 }
 
 func TestNewQdrantKnowledgeSearchExecutorUsesSplitTimeouts(t *testing.T) {
-	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte("all shards are ready"))
 	}))
 	defer qdrant.Close()
-	caPath := writeTestCACert(t, qdrant)
-
 	lookupExecutor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:     "readonly-key",
-		QdrantTLSCACertPath:   caPath,
+		QdrantTLSCACertPath:   writeTestCACert(t, qdrant),
 		QdrantTimeoutSeconds:  10,
 		QdrantURL:             qdrant.URL,
 		RAGEmbeddingTimeoutMS: 2500,
 		RAGQdrantTimeoutMS:    3500,
-	}, staticProviderConfigResolver{
-		string(providerConfigRoleRAGQueryEmbedding): embeddingProviderConfigSnapshotForTest(
-			providerConfigRoleRAGQueryEmbedding,
-			"https://provider.example/v1",
-			"embedding-model",
-			3,
-		),
-	})
+	}, defaultKnowledgeSearchEmbeddingResolverForTest())
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
-	executor, ok := lookupExecutor.(qdrantKnowledgeSearchExecutor)
-	if !ok {
-		t.Fatalf("executor type = %T, want qdrantKnowledgeSearchExecutor", lookupExecutor)
-	}
-	if executor.embeddingHTTPClient.Timeout.String() != "2.5s" {
-		t.Fatalf("embedding timeout = %s, want 2.5s", executor.embeddingHTTPClient.Timeout)
-	}
-	if executor.httpClient.Timeout.String() != "3.5s" {
-		t.Fatalf("qdrant timeout = %s, want 3.5s", executor.httpClient.Timeout)
+	executor := lookupExecutor.(qdrantKnowledgeSearchExecutor)
+	if executor.embeddingHTTPClient.Timeout != 2500*time.Millisecond ||
+		executor.httpClient.Timeout != 3500*time.Millisecond {
+		t.Fatalf("timeouts = %s / %s", executor.embeddingHTTPClient.Timeout, executor.httpClient.Timeout)
 	}
 }
 
-func TestNewQdrantKnowledgeSearchExecutorFailsClosedWithoutTLSCA(t *testing.T) {
+func TestNewQdrantKnowledgeSearchExecutorFailsWithoutTLSCA(t *testing.T) {
 	_, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "https://qdrant:6333",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
-	if err == nil {
-		t.Fatal("QDRANT_TLS_CA_CERT_PATH must be required for HTTPS Qdrant")
-	}
-	if !strings.Contains(err.Error(), "QDRANT_TLS_CA_CERT_PATH") {
+	if err == nil || !strings.Contains(err.Error(), "QDRANT_TLS_CA_CERT_PATH") {
 		t.Fatalf("error = %v, want TLS CA diagnostic", err)
 	}
 }

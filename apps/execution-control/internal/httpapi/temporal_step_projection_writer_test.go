@@ -32,9 +32,12 @@ func TestProjectTemporalStepEmitsLangfuseObservationTelemetry(t *testing.T) {
 		RAGTopKMax:                   8,
 		RuntimeRelease:               "execution-control@langfuse-test",
 	})
+	shutdown := false
 	t.Cleanup(func() {
-		if err := server.Shutdown(context.Background()); err != nil {
-			t.Fatalf("close server: %v", err)
+		if !shutdown {
+			if err := server.Shutdown(context.Background()); err != nil {
+				t.Fatalf("close server: %v", err)
+			}
 		}
 	})
 	store := execution.NewInMemoryRunProjectionStore()
@@ -80,6 +83,10 @@ func TestProjectTemporalStepEmitsLangfuseObservationTelemetry(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("project temporal step: %v", err)
 	}
+	if err := server.Shutdown(context.Background()); err != nil {
+		t.Fatalf("flush server telemetry: %v", err)
+	}
+	shutdown = true
 
 	span := collector.findSpan(t, "execution_control.temporal.step_observation")
 	attrs := otlpSpanAttributes(span)
@@ -167,26 +174,40 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 	}); err != nil {
 		t.Fatalf("seed terminal step: %v", err)
 	}
+	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
+		ActivityAttempt:      1,
+		Attempt:              1,
+		AttemptID:            temporalStepAttemptID("run-step-terminal-late", "agent.primary", 1),
+		RunID:                "run-step-terminal-late",
+		StepID:               "agent.primary",
+		Status:               "failed",
+		PayloadSchemaVersion: "step-attempt-projection-v1",
+		SanitizedPayload:     map[string]any{"terminal_reason": "provider_timeout"},
+		UpdatedAt:            now.Add(3 * time.Second),
+	}); err != nil {
+		t.Fatalf("seed terminal attempt: %v", err)
+	}
 	run, err := store.GetRun(context.Background(), "run-step-terminal-late")
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
 
 	err = server.projectTemporalStep(context.Background(), temporalStepProjection{
-		Attempt:       2,
-		Tool:          "knowledge_query",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "agent.primary",
-		StepKind:      "agent",
-		TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
-		WorkerID:      "worker-1",
-		StartedAt:     now.Add(4 * time.Second),
-		CompletedAt:   now.Add(5 * time.Second),
-		UpdatedAt:     now.Add(5 * time.Second),
-		ResultKind:    "agent_final_output",
-		ProjectionRef: temporalProjectionRef(run.RunID, "agent/primary/result"),
-		Payload:       map[string]any{"provider_response": "late"},
+		ActivityAttempt: 1,
+		Attempt:         1,
+		Tool:            "knowledge_query",
+		Run:             run,
+		Status:          "completed",
+		StepID:          "agent.primary",
+		StepKind:        "agent",
+		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
+		WorkerID:        "worker-1",
+		StartedAt:       now.Add(4 * time.Second),
+		CompletedAt:     now.Add(5 * time.Second),
+		UpdatedAt:       now.Add(5 * time.Second),
+		ResultKind:      "agent_final_output",
+		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
+		Payload:         map[string]any{"provider_response": "late"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "already terminal before agent.primary completion projection") {
 		t.Fatalf("late completion error = %v", err)
@@ -197,12 +218,19 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		t.Fatalf("list attempts: %v", err)
 	}
 	if len(attempts) != 1 {
-		t.Fatalf("attempt count = %d, want late completion evidence only: %#v", len(attempts), attempts)
+		t.Fatalf("attempt count = %d, want one overwritten late attempt: %#v", len(attempts), attempts)
 	}
 	if attempts[0].Status != "blocked" ||
 		attempts[0].LateCompletionOutcome != execution.LateCompletionOutcomeIgnoredAfterTerminalProjection ||
 		attempts[0].TerminalReason != "late_completion_ignored" {
 		t.Fatalf("late attempt = %#v, want ignored terminal step evidence", attempts[0])
+	}
+	steps, err := store.ListRunSteps(context.Background(), "run-step-terminal-late")
+	if err != nil {
+		t.Fatalf("list steps: %v", err)
+	}
+	if len(steps) != 1 || steps[0].Status != "failed" {
+		t.Fatalf("steps = %#v, want original failed aggregate step", steps)
 	}
 	results, err := store.ListStepResults(context.Background(), "run-step-terminal-late")
 	if err != nil {
@@ -210,6 +238,94 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 	}
 	if len(results) != 0 {
 		t.Fatalf("late terminal step completion wrote results: %#v", results)
+	}
+}
+
+func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 11, 2, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-step-retry-takeover",
+		"conv-step-retry-takeover",
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-step-retry-takeover",
+		execution.DurableRunStatusAdmitted,
+		"",
+		now.Add(time.Second),
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	run, err := store.GetRun(context.Background(), "run-step-retry-takeover")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	base := temporalStepProjection{
+		ActivityAttempt: 1,
+		Attempt:         1,
+		Run:             run,
+		Status:          "failed",
+		StepID:          "agent.primary",
+		StepKind:        "agent",
+		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
+		StartedAt:       now.Add(2 * time.Second),
+		CompletedAt:     now.Add(3 * time.Second),
+		UpdatedAt:       now.Add(3 * time.Second),
+		Payload:         map[string]any{"terminal_reason": "provider_timeout"},
+	}
+	if err := server.projectTemporalStep(context.Background(), base); err != nil {
+		t.Fatalf("project attempt 1 failure: %v", err)
+	}
+	base.ActivityAttempt = 2
+	base.Attempt = 2
+	base.Status = "completed"
+	base.StartedAt = now.Add(4 * time.Second)
+	base.CompletedAt = now.Add(5 * time.Second)
+	base.UpdatedAt = now.Add(5 * time.Second)
+	base.Payload = map[string]any{"provider_response": "retry-success"}
+	base.ResultKind = "agent_final_output"
+	base.ProjectionRef = temporalProjectionRef(run.RunID, "agent/primary/result")
+	if err := server.projectTemporalStep(context.Background(), base); err != nil {
+		t.Fatalf("project attempt 2 completion: %v", err)
+	}
+	steps, err := store.ListRunSteps(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("list steps: %v", err)
+	}
+	if len(steps) != 1 || steps[0].Status != "completed" {
+		t.Fatalf("steps = %#v, want attempt 2 completion", steps)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("list attempts: %v", err)
+	}
+	if len(attempts) != 2 || attempts[1].ActivityAttempt != 2 || attempts[1].Status != "completed" {
+		t.Fatalf("attempts = %#v, want failed attempt 1 and completed attempt 2", attempts)
+	}
+
+	base.ActivityAttempt = 1
+	base.Attempt = 1
+	base.StartedAt = now.Add(2 * time.Second)
+	base.CompletedAt = now.Add(6 * time.Second)
+	base.UpdatedAt = now.Add(6 * time.Second)
+	base.Payload = map[string]any{"provider_response": "stale-attempt-1"}
+	if err := server.projectTemporalStep(context.Background(), base); err == nil {
+		t.Fatal("stale attempt 1 completion should be rejected")
+	}
+	steps, err = store.ListRunSteps(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("list steps after stale completion: %v", err)
+	}
+	if len(steps) != 1 || steps[0].Status != "completed" ||
+		steps[0].SanitizedPayload["provider_response"] != "retry-success" {
+		t.Fatalf("steps = %#v, want attempt 2 aggregate after stale attempt 1", steps)
 	}
 }
 

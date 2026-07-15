@@ -33,7 +33,6 @@ type Server struct {
 	personalMemoryErr        error
 	knowledgeSearchExecutor  knowledgeSearchExecutor
 	knowledgeSearchErr       error
-	knowledgeVersionResolver knowledgeVersionResolver
 	providerConfigResolver   providerConfigResolver
 	providerConfigErr        error
 	temporalStarter          temporalruntime.ChatWorkflowStarter
@@ -174,7 +173,6 @@ func NewServerWithDependencies(
 		personalMemoryErr:        personalMemoryErr,
 		knowledgeSearchExecutor:  knowledgeSearchExecutor,
 		knowledgeSearchErr:       knowledgeSearchErr,
-		knowledgeVersionResolver: newQdrantMetadataVersionResolver(cfg),
 		providerConfigResolver:   providerConfigResolver,
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,

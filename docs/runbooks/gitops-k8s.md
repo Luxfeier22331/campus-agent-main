@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-07-03
-updated: 2026-07-10
+updated: 2026-07-13
 ---
 # Kubernetes GitOps Runbook
 
@@ -14,7 +14,7 @@ This runbook defines the handoff between this application repository and an
 operator-owned Kubernetes environment repository. It does not contain the
 coordinates or commands for a specific private cluster.
 
-ADR-0070 is the ownership decision. The source repository is not Kubernetes
+ADR-0074 is the ownership decision. The source repository is not Kubernetes
 deployment truth.
 
 ## Repository Ownership

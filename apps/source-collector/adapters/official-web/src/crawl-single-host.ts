@@ -5,7 +5,7 @@ import {
 	RequestQueue,
 	SitemapRequestList,
 } from "crawlee";
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 import {
 	buildOfficialWebFailureRecord,
 	buildOfficialWebUrlIdentity,
@@ -19,6 +19,7 @@ import {
 	type OfficialWebPageTargetMatch,
 	type OfficialWebUrlResultRecord,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import {
 	buildConfiguredSitemapRequestTransform,
 	buildDynamicShellRequeueRequests,
@@ -51,6 +52,7 @@ import {
 import { buildCollectedPageArtifacts, type CollectedPageArtifact } from "./page-artifacts.ts";
 
 export interface CrawlSingleHostInput {
+	abortSignal?: AbortSignal;
 	bundle: OfficialWebConfigBundle;
 	plan: OfficialWebCrawlPlan;
 	hostPolicy: OfficialWebHostPolicy;
@@ -65,6 +67,7 @@ export interface CrawlSingleHostInput {
 export async function crawlSingleHost(
 	input: CrawlSingleHostInput,
 ): Promise<CollectorHostCrawlResult> {
+	input.abortSignal?.throwIfAborted();
 	const hostSummary: OfficialWebHostSummaryRecord = {
 		host: input.hostPolicy.host,
 		pagesObserved: 0,
@@ -108,6 +111,7 @@ export async function crawlSingleHost(
 		buildHostRequestQueueName(input.plan.crawlRunId, input.hostPolicy.host),
 		{ config: input.config },
 	);
+	input.abortSignal?.throwIfAborted();
 	const sitemapTransform = buildConfiguredSitemapRequestTransform({
 		bundle: input.bundle,
 		hostPolicy: input.hostPolicy,
@@ -118,6 +122,7 @@ export async function crawlSingleHost(
 		disableConditionalHeaders: input.disableConditionalHeaders,
 	});
 	const sitemapRequests = await loadConfiguredSitemapRequests({
+		abortSignal: input.abortSignal,
 		config: input.config,
 		hostPolicy: input.hostPolicy,
 		requestTimeoutMs: input.bundle.site.requestTimeoutMs,
@@ -180,6 +185,7 @@ export async function crawlSingleHost(
 			},
 			preNavigationHooks: [
 				async (ctx, gotOptions) => {
+					input.abortSignal?.throwIfAborted();
 					const userData = ctx.request.userData as CollectorRequestUserData;
 					gotOptions.headers ??= {};
 					gotOptions.headers["user-agent"] = input.bundle.site.userAgent;
@@ -193,6 +199,7 @@ export async function crawlSingleHost(
 				},
 			],
 			async requestHandler(context) {
+				input.abortSignal?.throwIfAborted();
 				const userData = context.request.userData as CollectorRequestUserData;
 				const knownPages = resolveKnownPages(userData);
 				const knownPage = knownPages[0];
@@ -265,6 +272,7 @@ export async function crawlSingleHost(
 								input.plan.crawlRunId,
 								input.plan.runIntent,
 								pageArtifact,
+								userData.configuredSeedUrl ?? null,
 							),
 						);
 
@@ -280,6 +288,7 @@ export async function crawlSingleHost(
 							disableConditionalHeaders: input.disableConditionalHeaders,
 						});
 						const dynamicShellRequests = await buildDynamicShellRequeueRequests({
+							abortSignal: input.abortSignal,
 							bundle: input.bundle,
 							failures,
 							hostPolicy: input.hostPolicy,
@@ -296,11 +305,13 @@ export async function crawlSingleHost(
 						dynamicShellDiscoveryAudits.push(...dynamicShellRequests.audits);
 						const requeueRequests = [...promotedRequests, ...dynamicShellRequests.requests];
 						if (requeueRequests.length > 0) {
+							input.abortSignal?.throwIfAborted();
 							await context.crawler.addRequests(requeueRequests, {
 								forefront: shouldPrioritizeManualRequeue(knownPage),
 							});
 						}
 					} catch (error) {
+						input.abortSignal?.throwIfAborted();
 						hostSummary.failures += 1;
 						failures.push(
 							buildOfficialWebFailureRecord({
@@ -318,6 +329,7 @@ export async function crawlSingleHost(
 							pageObservations.push(
 								buildKnownPageObservation({
 									crawlRunId: input.plan.crawlRunId,
+									configuredSeedUrl: userData.configuredSeedUrl ?? null,
 									knownPage,
 									observedAt: new Date().toISOString(),
 									requestedUrl: context.request.url,
@@ -333,6 +345,7 @@ export async function crawlSingleHost(
 					pageObservations.push(
 						buildKnownPageObservation({
 							crawlRunId: input.plan.crawlRunId,
+							configuredSeedUrl: userData.configuredSeedUrl ?? null,
 							knownPage,
 							observedAt: new Date().toISOString(),
 							requestedUrl: context.request.url,
@@ -359,6 +372,7 @@ export async function crawlSingleHost(
 					pageObservations.push(
 						buildKnownPageObservation({
 							crawlRunId: input.plan.crawlRunId,
+							configuredSeedUrl: userData.configuredSeedUrl ?? null,
 							knownPage,
 							observedAt: new Date().toISOString(),
 							requestedUrl: context.request.url,
@@ -394,6 +408,7 @@ export async function crawlSingleHost(
 							disableConditionalHeaders: input.disableConditionalHeaders,
 						}),
 				});
+				input.abortSignal?.throwIfAborted();
 			},
 			async failedRequestHandler(context, error) {
 				const userData = context.request.userData as CollectorRequestUserData;
@@ -414,6 +429,7 @@ export async function crawlSingleHost(
 					pageObservations.push(
 						buildKnownPageObservation({
 							crawlRunId: input.plan.crawlRunId,
+							configuredSeedUrl: userData.configuredSeedUrl ?? null,
 							knownPage: userData.knownPage,
 							observedAt: new Date().toISOString(),
 							requestedUrl: context.request.url,
@@ -429,7 +445,11 @@ export async function crawlSingleHost(
 		input.config,
 	);
 
-	await crawler.run(initialRequests);
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: initialRequests,
+	});
 
 	return {
 		hostSummaries: [hostSummary],
@@ -527,11 +547,13 @@ function shouldPrioritizeManualRequeue(
 }
 
 async function loadConfiguredSitemapRequests(input: {
+	abortSignal?: AbortSignal;
 	config: Configuration;
 	hostPolicy: OfficialWebHostPolicy;
 	requestTimeoutMs: number;
 	transform: (request: RequestOptions) => RequestOptions<CollectorRequestUserData> | false;
 }): Promise<RequestOptions<CollectorRequestUserData>[]> {
+	input.abortSignal?.throwIfAborted();
 	if (input.hostPolicy.explicitSitemaps.length === 0) {
 		return [];
 	}
@@ -540,9 +562,11 @@ async function loadConfiguredSitemapRequests(input: {
 		timeoutMillis: input.requestTimeoutMs,
 		config: input.config,
 	});
+	input.abortSignal?.throwIfAborted();
 	const requests: RequestOptions<CollectorRequestUserData>[] = [];
 	try {
 		for await (const request of requestList) {
+			input.abortSignal?.throwIfAborted();
 			const transformed = input.transform({
 				url: request.url,
 				uniqueKey: request.uniqueKey,
@@ -556,6 +580,7 @@ async function loadConfiguredSitemapRequests(input: {
 	} finally {
 		await requestList.teardown();
 	}
+	input.abortSignal?.throwIfAborted();
 	return requests;
 }
 

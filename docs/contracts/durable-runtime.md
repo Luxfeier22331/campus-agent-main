@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-06-04
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 # Durable Runtime
 
@@ -79,14 +79,19 @@ The Agent Activity may project only bounded facts such as:
 
 - active and selected agent/tool identities;
 - SDK handoff and function-tool summaries;
-- provider/model-safe identity and approved usage totals;
+- provider/model-safe identity and input/output/cached token usage;
 - terminal envelope and provider response reference;
-- approved trace references and stage timing;
-- LLM I/O and answer-eval fingerprints.
+- trace correlation and stage timing;
+- `agent_runtime_prompt_trace.v1` prompt id and hashes.
+
+`final_model_context.v2` contributes only count/character/truncation diagnostics
+to durable projection. `truncation_summary.v2` never stores dropped content.
+Model cost is derived in Langfuse rather than written as a PostgreSQL attempt
+field.
 
 `knowledge_query` is the model-visible handoff target. The Knowledge Agent's
 only internal tool is `knowledge_search`. Each search call is admitted by
-execution-control against the run-bound scope/version and may project a bounded
+execution-control against the run-bound target/access context and may project a bounded
 result reference, outcome and source identity.
 
 Raw prompts, SDK state, tool arguments, vectors, Qdrant payloads, provider
@@ -105,12 +110,12 @@ fail the run.
 The final response may include:
 
 - answer, status, follow-up and error fields;
-- admitted `resolved_scope`;
+- searched `resolved_targets[]`;
 - selected tool and selected tool list;
 - confirmed session updates;
 - top-level trusted sources;
-- workflow trace summary and stage timing;
-- LLM I/O and answer-eval fingerprints.
+- workflow trace summary, stage timing and trace correlation;
+- model/provider identity and `agent_runtime_prompt_trace.v1`.
 
 App-api may normalize validated sources into browser source cards and safe
 operator source summaries. It must not infer retrieval candidates, grounding
@@ -132,7 +137,7 @@ Temporal history internals.
 
 ## Queue Contract
 
-Canonical queues are:
+Canonical queues and WorkerDeployment roles are:
 
 - the workflow task queue polled by `workflow-worker`;
 - the core activity task queue polled by `activity-worker-core`;
@@ -151,6 +156,11 @@ Execution-control owns cancel admission and terminal projection.
 - timeout terminates with an approved timeout reason;
 - late completion is recorded as ignored and cannot reopen the run;
 - human-facing text cannot replace terminal or fail-close codes.
+
+Agent runtime terminal errors preserve one of
+`context_budget_exceeded`, `agent_deadline_exceeded`, `max_turns_exceeded`,
+`provider_unavailable`, `tool_execution_failed` or `run_failed` in the bounded
+failure projection.
 
 ## Data Safety
 

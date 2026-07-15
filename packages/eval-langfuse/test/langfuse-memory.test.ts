@@ -143,60 +143,60 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 		).rejects.toThrow("trace evidence missing required steps: memory.recall");
 	});
 
-	it("rejects Hindsight raw identifiers in trace payloads", async () => {
-		await expect(
-			verifyLangfuseOnlineTraceEvidence({
-				expectedRelease: "release",
-				expectedSessionId: "session",
-				expectedTags: [],
-				expectedUserId: "user",
-				fetchImpl: async () =>
-					new Response(
-						JSON.stringify({
-							id: "trace-001",
-							name: "online-answer",
-							release: "release",
-							sessionId: "session",
-							tags: [],
-							userId: "user",
-							metadata: {
-								request_id: "req-001",
-								run_id: "run-001",
-								trace_id: "trace-product-001",
-								workflow_id: "workflow-001",
-							},
-							observations: [
-								{
-									metadata: {
-										activity_attempt: 1,
-										activity_type: "memory",
-										duration_ms: 10,
-										fail_close_reason: "",
-										operation_id: "op-memory-001",
-										projection_ref: "projection-001",
-										request_id: "req-001",
-										run_id: "run-001",
-										schedule_to_start_ms: 1,
-										selected_tool: "any",
-										status: "completed",
-										step_id: "memory.append",
-										step_kind: "activity",
-										task_queue: "memory",
-										trace_id: "trace-product-001",
-										workflow_id: "workflow-001",
-									},
+	it("allows memory identifiers in the trusted Langfuse trace", async () => {
+		const evidence = await verifyLangfuseOnlineTraceEvidence({
+			expectedRelease: "release",
+			expectedSessionId: "session",
+			expectedTags: [],
+			expectedUserId: "user",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						id: "trace-001",
+						name: "online-answer",
+						release: "release",
+						sessionId: "session",
+						tags: [],
+						userId: "user",
+						metadata: {
+							request_id: "req-001",
+							run_id: "run-001",
+							trace_id: "trace-product-001",
+							workflow_id: "workflow-001",
+						},
+						observations: [
+							{
+								metadata: {
+									activity_attempt: 1,
+									activity_type: "memory",
+									duration_ms: 10,
+									fail_close_reason: "",
+									operation_id: "op-memory-001",
+									projection_ref: "projection-001",
+									request_id: "req-001",
+									run_id: "run-001",
+									schedule_to_start_ms: 1,
+									selected_tool: "any",
+									status: "completed",
+									step_id: "memory.append",
+									step_kind: "activity",
+									task_queue: "memory",
+									trace_id: "trace-product-001",
+									workflow_id: "workflow-001",
 								},
-							],
-						}),
-					),
-				settings: {
-					baseUrl: "https://langfuse.example",
-					environment: "staging",
-					publicKey: "pk-test",
-					secretKey: "sk-test",
-				},
-				traceId: "trace-001",
-			}),
-		).rejects.toThrow("forbidden Langfuse payload fields: operation_id");
+							},
+						],
+					}),
+				),
+			settings: {
+				baseUrl: "https://langfuse.example",
+				environment: "staging",
+				publicKey: "pk-test",
+				secretKey: "sk-test",
+			},
+			traceId: "trace-001",
+		});
+
+		expect(evidence.repo_owned_observation_count).toBe(1);
 	});
 });

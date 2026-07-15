@@ -227,7 +227,10 @@ function RequestOverview({ detail }: { detail: OpsRequestDetailResponse }) {
 							label="结果类型"
 							value={formatStatusLabel(detail.outcomeSummary.semanticOutcome ?? "UNKNOWN")}
 						/>
-						<KeyValue label="范围类型" value={detail.outcomeSummary.scopeClass ?? "未记录"} />
+						<KeyValue
+							label="检索范围"
+							value={detail.outcomeSummary.resolvedTargets.join("、") || "未检索"}
+						/>
 						<KeyValue label="拒绝类型" value={detail.outcomeSummary.refusalClass ?? "无"} />
 					</CardContent>
 				</Card>

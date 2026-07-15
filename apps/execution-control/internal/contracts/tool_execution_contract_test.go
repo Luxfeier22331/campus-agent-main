@@ -83,22 +83,6 @@ func TestDecodeExecutionPayloadWireJSONRejectsUnknownTraceField(t *testing.T) {
 	}
 }
 
-func TestDecodeExecutionPayloadWireJSONRejectsUnknownVersionQueryField(t *testing.T) {
-	payload := canonicalExecutionPayload()
-	payload["version_query"] = map[string]any{
-		"mode":       "current",
-		"unexpected": true,
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("marshal payload: %v", err)
-	}
-
-	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
-		t.Fatal("expected unknown version query field to be rejected")
-	}
-}
-
 func TestDecodeExecutionPayloadWireJSONRejectsContextProfileMemory(t *testing.T) {
 	var payload map[string]any
 	if err := json.Unmarshal(readContractFixture(t, "execution_payload.valid.json"), &payload); err != nil {
@@ -136,19 +120,6 @@ func TestDecodeExecutionPayloadWireJSONRejectsTopLevelConversationContext(t *tes
 	}
 }
 
-func TestDecodeExecutionPayloadWireJSONRejectsScopeForNonKnowledgeTool(t *testing.T) {
-	payload := canonicalExecutionPayload()
-	payload["requested_tool"] = "transport_schedule_lookup"
-	body, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("marshal payload: %v", err)
-	}
-
-	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil {
-		t.Fatal("expected scope for non-knowledge tool to be rejected")
-	}
-}
-
 func TestAnswerArtifactKindValidAcceptsAgentFinalOutput(t *testing.T) {
 	if !AnswerArtifactKindAgentFinalOutput.Valid() {
 		t.Fatal("agent_final_output should be a valid answer artifact kind")
@@ -157,8 +128,8 @@ func TestAnswerArtifactKindValidAcceptsAgentFinalOutput(t *testing.T) {
 
 func canonicalExecutionPayload() map[string]any {
 	return map[string]any{
-		"execution_contract_version": "tool_execution_v1",
-		"response_contract":          "execution_finalization_response_v2",
+		"execution_contract_version": "tool_execution_v2",
+		"response_contract":          "execution_finalization_response_v3",
 		"user_goal":                  "学生手册请假制度怎么规定？",
 		"conversation_id":            "conv-contract-runtime-neutral",
 		"request_id":                 "req-contract-runtime-neutral",
@@ -168,8 +139,6 @@ func canonicalExecutionPayload() map[string]any {
 			"session_slots": map[string]any{},
 		},
 		"requested_tool": "knowledge_query",
-		"scope":          "student_rules",
-		"version_query":  map[string]any{"mode": "current"},
 	}
 }
 
@@ -246,6 +215,8 @@ func TestDecodeToolExecutionResponseWireJSONRejectsErrorWithoutRetryable(t *test
 		"answer_text":            "",
 		"follow_up_question":     "",
 		"confidence":             "low",
+		"resolved_targets":       []string{},
+		"session_update":         nil,
 		"result":                 nil,
 		"error":                  map[string]any{"code": "activity_failed", "message": "activity failed"},
 		"observability":          map[string]any{},
@@ -317,7 +288,7 @@ func TestDecodeToolExecutionResponseWireJSONRejectsInvalidSessionUpdate(t *testi
 }
 
 func TestDecodeToolExecutionResponseWireJSONRequiresNullableFinalizationFields(t *testing.T) {
-	for _, field := range []string{"resolved_scope", "session_update"} {
+	for _, field := range []string{"resolved_targets", "session_update"} {
 		t.Run(field, func(t *testing.T) {
 			payload := canonicalToolExecutionResponsePayload()
 			delete(payload, field)
@@ -340,7 +311,7 @@ func canonicalToolExecutionResponsePayload() map[string]any {
 		"answer_text":            "ok",
 		"follow_up_question":     "",
 		"confidence":             "high",
-		"resolved_scope":         nil,
+		"resolved_targets":       []string{},
 		"session_update":         nil,
 		"result":                 map[string]any{},
 		"error":                  nil,

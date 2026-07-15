@@ -3,15 +3,17 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0031
-status: accepted
+status: superseded
 created: 2026-04-08
-updated: 2026-07-04
+updated: 2026-07-13
+superseded_by: adr-0077-ingestion.md
 ---
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
 ## 状态
 
-Accepted on 2026-04-08.
+Superseded by ADR-0077 on 2026-07-13. Current capture stops at source
+artifacts and does not provide a multimodal processing or read-model lane.
 
 ## 命名说明
 

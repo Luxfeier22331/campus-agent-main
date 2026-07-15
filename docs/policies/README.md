@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/policies
 status: active
 created: 2026-04-12
-updated: 2026-07-08
+updated: 2026-07-12
 ---
 # Policies
 
@@ -16,7 +16,6 @@ updated: 2026-07-08
 - `official-web-chunking.md`
 - `public-source-data.md`
 - `student-rules-chunking.md`
-- `student-handbook-judge-gate-policy.md`
 
 ## 使用规则
 

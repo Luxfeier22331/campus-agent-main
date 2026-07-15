@@ -172,8 +172,10 @@ describe("source-collector official-web adapter dynamic shell discovery", () => 
 				},
 			}),
 			page: {
-				pageManifest: {
+				observation: {
 					finalUrl: "https://www.example.edu/",
+				},
+				pageManifest: {
 					normalizedCanonicalUrl: "https://www.example.edu/",
 				},
 			} as never,

@@ -129,30 +129,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/authenticated-notices/processing",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/authenticated-notices/processing/:noticeId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/authenticated-notices/run-processing",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/authenticated-notices/run-processing/:id",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/campus-services/audit-events",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -177,18 +153,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/official-web/release-tasks",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/release-tasks/:id",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/provider-config/connections",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -205,78 +169,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 		callerClass: "operator-via-panel",
 		admission:
 			"Operator Console trusted caller plus admitted operator principal; read-only ingestion projection",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/runs",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/runs/:runId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/target-jobs",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/target-jobs/:jobId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/target-inventory",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/target-inventory/:inventoryId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/target-release-gates/:releaseId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "POST",
-		path: "/api/operator/official-web/target-inventory/:inventoryId/release-gates",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/sites",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/official-web/sites/:siteId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/wechat-official-account/runs",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/wechat-official-account/runs/:runId",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
 	},
 	{
 		method: "POST",

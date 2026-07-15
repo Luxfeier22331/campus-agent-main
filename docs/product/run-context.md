@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-21
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 
 # Run Context PRD
@@ -23,16 +23,17 @@ context schema owner。
 ## 2. 目标
 
 - 服务端重建每轮模型可见上下文，不依赖前端原样传入完整 messages。
-- app-api 编译当前用户消息、recent turns、上一轮回答摘要、上一轮 evidence refs、
-  session state、visibility、budget 和 truncation summary。
+- app-api 编译当前用户消息、recent turns、上一轮 evidence refs、上一轮 tool result
+  refs、session state 与 provenance envelope。
 - execution-control 在接收 context 后按 memory gate 执行 Hindsight recall。
 - primary/Knowledge Agent 能区分当前请求、历史对话、长期记忆、session state、
   SDK tool result 和 bounded evidence。
 - Knowledge Agent 能对“这个 / 那个 / 上一条 / 第二点”等追问做指代消解和
   query framing。
 - 上一轮 selected evidence 可以被安全复用。
-- 上下文 token budget、裁剪和 truncation reason 可诊断。
-- Langfuse 只记录 sanitized context summary、hash、counts 和 categorical state。
+- 当前输入与历史上下文的字符预算、裁剪和 truncation reason 可诊断。
+- app-api / Operator projection 只记录 context summary、hash、counts 和
+  categorical state；启用 tracing 时，trusted Langfuse 可观察真实模型上下文。
 
 ## 3. 非目标
 
@@ -53,7 +54,7 @@ app-api builds context.conversation provenance envelope
 -> execution-control admits and validates the envelope
 -> context.memory_recall enriches the run when enabled
 -> one primary/Knowledge Agent SDK run consumes bounded model-visible slices
--> finalization and Langfuse consume sanitized summaries
+-> finalization writes bounded projection; Langfuse observes the sampled SDK run
 ```
 
 不可协商原则：
@@ -113,9 +114,9 @@ app-api builds context.conversation provenance envelope
 ### 7.1 Run Context Assembly
 
 - app-api 必须在 accepted user message 已持久化后 assembly。
-- `context.conversation` 必须包含 conversation / message / run identity、current user
-  message、recent turns、previous answer summary、previous evidence refs、previous tool
-  result refs、session state、visibility、budget 和 truncation。
+- `context.conversation` 必须包含 conversation / message identity、current user
+  message、recent turns、previous evidence refs、previous tool result refs、session
+  state 与 provenance。
 - Context 读取必须验证当前用户对 conversation 的访问权限。
 - `context.memory.enabled` 缺失或为 false 是合法 skipped case。
 - Gate 为 true 时，memory recall 所需字段缺失必须 fail closed。
@@ -128,30 +129,36 @@ app-api builds context.conversation provenance envelope
 - Run context 必须纳入 execution `context.conversation`。
 - Contract 不得泄漏 Qdrant、Temporal internal、provider SDK、Hindsight internal bank id
   或 Langfuse SDK 类型。
-- Schema version、recent turn count、previous evidence count、token estimate 和
-  truncation reason 必须可观测。
+- `final_model_context.v2` schema version、recent turn count、previous evidence/tool
+  result count、context/current-input character count 与 truncation reason 必须可观测。
 
 ### 7.3 Model-visible Slices
 
-- SDK agent 输入必须区分当前用户问题、历史对话、长期记忆、工具结果和 bounded evidence。
+- SDK agent 输入必须使用结构化 input items 区分当前用户问题、历史对话、长期记忆、
+  工具结果和 bounded evidence；这些动态数据不得拼入 developer instructions。
 - 历史对话只能作为上下文，不得覆盖当前用户请求。
+- 当前用户消息必须作为最后一个 user item 只出现一次；`final_model_context.v2`
+  不重复保存它。
 - 当前请求和历史信息冲突时，优先当前请求，并保留冲突诊断。
 - Actor / authz / trace / run metadata 不得作为自然语言上下文注入模型。
 
 ### 7.4 Knowledge Follow-up Query
 
-- Knowledge Agent query framing 必须使用 current question、recent turns、previous answer summary、
-  previous evidence refs、session state 和 completed memory recall。
-- Internal query decision must preserve the standalone query, resolution state,
-  ambiguity reason, follow-up reference and whether `knowledge_search` is needed.
-- `resolution_state` 只允许 `resolved`、`ambiguous` 或 `unresolved`。
-- Resolve 不到时默认要求澄清；不能猜测。
-- Langfuse 只能记录 query hash、resolution state 和 categorical follow-up summary。
+- Primary/Knowledge Agent 必须从 current question、recent turns、previous evidence/tool
+  summaries、session state 和 completed memory recall 理解追问。
+- 仓库不维护独立 follow-up resolver、standalone-query planner 或
+  `resolution_state` classifier。模型无法消解指代时返回 typed
+  `clarification_required`，不能猜测。
+- Knowledge Agent 调用 `knowledge_search` 时提交当前需要检索的 focused query；
+  repo-owned projection 记录安全 query shape/hash，trusted Langfuse trace 可观察实际
+  model input/tool call。
 
 ### 7.5 Previous Evidence Reuse
 
-- 追问上一轮 evidence 局部内容时，优先使用上一轮 selected evidence ref。
-- 新问题中，上一轮 evidence 只能作为辅助上下文，不能替代新检索。
+- 追问上一轮 evidence 局部内容时，上一轮 selected evidence ref 用于指代消解和
+  检索 framing。
+- 上一轮 evidence 只能作为辅助上下文，不能替代本轮 `knowledge_search`。终态
+  evidence refs 必须来自本轮 completed search 并通过 execution-control 校验。
 - Evidence ref 必须保留 source id、document id、version / snapshot metadata、access
   scope 和 content hash。
 - 缺 source / version / access / content hash 时不得复用。
@@ -159,13 +166,15 @@ app-api builds context.conversation provenance envelope
 
 ### 7.6 Budget And Truncation
 
-- app-api envelope budget 覆盖 current message、session state、selected evidence
-  metadata / excerpt、recent turns 和 answer summaries。
-- execution-control final model input budget 在 memory recall / tool result
-  enrichment 后再执行。
-- 超预算必须记录 truncation reason。
-- 第一版可使用 deterministic truncation；不要求自动摘要。
-- Token estimate 与 actual usage 应进入 trace / eval artifact。
+- execution-control 在 memory recall 与 prior-result enrichment 后执行 final model
+  context character budget；当前用户输入使用独立 character limit。
+- 当前策略按顺序删除 oldest previous tool results、memory、old recent turns、
+  evidence snippets，最后才删除剩余 recent turn；evidence id、source、version / snapshot、
+  access scope 与 content hash 不得被裁掉。
+- 无法裁到预算内或当前输入超限时，必须以 `context_budget_exceeded` 失败。
+- `truncation_summary.v2` 记录裁剪前后字符数和分类计数，不记录被删除正文。
+- Provider actual token usage 进入 projection/trace；Langfuse 根据 model 与 usage
+  计算成本，runtime 不维护自研 cost estimate。
 
 ### 7.7 Turn Sequence
 
@@ -194,12 +203,12 @@ app-api builds context.conversation provenance envelope
 - app-api-generated `context.conversation` fixture 不包含 Hindsight recall result。
 - Valid skipped fixture 覆盖 `context.memory.enabled` 缺失 / false。
 - Malformed fixture 覆盖 top-level `conversation_context` 被拒绝、缺 provenance、gate 为
-  true 但 recall input 缺失，以及 Langfuse forbidden payload。
-- SDK/knowledge-search trajectory 可看到 query shape hash、resolution state、follow-up reference 和 previous
-  evidence decision。
-- Trace 不包含 standalone query 明文、retrieved snippet 或 source body。
+  true 但 recall input 缺失，以及 Langfuse secret-bearing payload。
+- SDK/knowledge-search trajectory 可看到 handoff、query shape hash、target/history
+  mode 与 previous-evidence follow-up 行为。
+- Trace 不包含 authorization、cookie、API key、password 或其他 credential。
 - 同一 conversation 连续两条消息不会互相覆盖 active state。
-- 超过 token budget 时有明确 truncation reason。
+- 超过 context character budget 时有明确 truncation reason；不可裁剪输入失败关闭。
 - 至少一条 integration smoke 覆盖多轮追问进入 Knowledge Agent 的完整路径。
 - 至少一条 direct answer smoke 覆盖 context 进入 primary agent 的路径。
 
@@ -209,7 +218,7 @@ app-api builds context.conversation provenance envelope
 - Knowledge follow-up evidence recall 提升。
 - Previous evidence reuse 命中率可解释。
 - 无依据回答率下降。
-- 单轮平均 latency 和 token 成本增幅可解释。
+- 单轮平均 latency、token usage 与 Langfuse 计算成本增幅可解释。
 - Trace 能复现每一次上下文装配和裁剪决策。
 
 ## 10. 相关文档

@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
-
-import type { OfficialWebPlannerPageCandidate } from "../src/control-plane";
 import {
 	buildOfficialWebCrawlPlan,
 	findOfficialWebHostPolicy,
@@ -11,6 +9,7 @@ import {
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebUrlResultRecord,
 } from "../src/core/index.ts";
+import type { OfficialWebCrawlCandidate } from "../src/crawl-candidates";
 import {
 	buildConfiguredSitemapRequestTransform,
 	buildInitialRequests,
@@ -20,8 +19,8 @@ import { writeTestConfigRoot } from "./test-support";
 const SOURCE_ROOT = resolve(import.meta.dirname, "../src");
 
 function buildPlannerPage(
-	overrides: Partial<OfficialWebPlannerPageCandidate> = {},
-): OfficialWebPlannerPageCandidate {
+	overrides: Partial<OfficialWebCrawlCandidate> = {},
+): OfficialWebCrawlCandidate {
 	return {
 		cadenceClass: "target_candidate",
 		consumerFamily: "academic_calendar_candidate",

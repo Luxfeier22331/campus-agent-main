@@ -64,7 +64,6 @@ online serving 的 active provider truth 来自 app-api provider-config profile�
 
 - prompt role: `primary_agent`（完整 primary/Knowledge Agent SDK run）
 - embedding roles: `rag_query_embedding`
-- rerank role: `rag_reranker`
 - `index_embedding` 只服务 offline indexing / rebuild 语义
 
 eval provider truth 同样来自 app-api provider-config profile：

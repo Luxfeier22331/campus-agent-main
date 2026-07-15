@@ -56,9 +56,9 @@ Make TypeScript plus Langfuse the default eval runtime and platform path.
 - `packages/ragas-runner` is the only accepted Python exception for RAGAS
   scoring. It is an execution island around the upstream RAGAS library, called
   by TS orchestration, and limited to sanitized artifact input/output.
-- Old `scripts.eval_gate` is retired. `packages/eval-langfuse` CLI provides
-  TS/Langfuse workflow doctor/audit helpers and must not import `campus_evals`
-  or publish case-results artifacts.
+- Old `scripts.eval_gate` is retired. `packages/eval-langfuse` owns only active
+  Langfuse/Ragas orchestration and must not import `campus_evals` or publish
+  case-results artifacts.
 - Python eval code is not an accepted owner for gates, truth repair, Langfuse
   adapters, publishers, platform automation or long-lived profile families.
 - RAGAS scoring follows ADR-0062. The active workflow sources are Langfuse

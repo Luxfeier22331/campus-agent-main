@@ -1,0 +1,90 @@
+{
+	"schema_version": "rag_eval_cases.v1",
+	"corpus": "regulations",
+	"collection": "student_rules",
+	"surface": "rag/student_rules",
+	"cases": [
+		{
+			"case_id": "student-rules-scholarship",
+			"case_family": "single_target",
+			"split": "smoke",
+			"question": "示例学生奖学金如何评定？",
+			"reference": "奖学金评定应依据示例学生奖学金评定办法中的学习成绩和综合测评要求。",
+			"reference_context_ids": ["handbook:synthetic-scholarship-policy"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "student-rules-degree-article",
+			"case_family": "article_lookup",
+			"split": "smoke",
+			"question": "示例学位授予规定第十条是什么？",
+			"reference": "应引用示例学位授予规定第十条，并只回答该条款可由证据支持的内容。",
+			"reference_context_ids": ["handbook:synthetic-degree-policy"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "student-rules-medical-version",
+			"case_family": "versioned_fact",
+			"split": "regression",
+			"question": "示例学生医疗报销按什么办法办理？",
+			"reference": "应依据当前发布的示例学生医疗报销管理办法回答。",
+			"reference_context_ids": ["handbook:synthetic-medical-policy"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "student-rules-grant-hard-negative",
+			"case_family": "hard_negative",
+			"split": "regression",
+			"question": "示例助学金认定办法有哪些条件？",
+			"reference": "应依据示例助学金认定办法回答，不得用奖学金评定办法替代。",
+			"reference_context_ids": ["handbook:synthetic-grant-policy"],
+			"forbidden_context_ids": ["handbook:synthetic-scholarship-policy"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1
+		},
+		{
+			"case_id": "student-rules-conversation-follow-up",
+			"case_family": "conversation_follow_up",
+			"split": "regression",
+			"setup_turns": ["请帮我查一下示例学位授予规定。"],
+			"question": "那第十条呢？",
+			"reference": "结合上一轮已确认的示例学位授予规定，回答其中第十条。",
+			"reference_context_ids": ["handbook:synthetic-degree-policy"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1,
+			"include_history": false
+		},
+		{
+			"case_id": "student-rules-medical-as-of",
+			"case_family": "as_of_version",
+			"split": "regression",
+			"question": "截至 2025 年 6 月，示例学生医疗报销的材料要求是什么？",
+			"reference": "应依据 2025 年 6 月仍有效的上一版办法回答材料要求，并标明不是当前版本。",
+			"reference_context_ids": ["handbook:synthetic-medical-policy:v2025"],
+			"reference_contexts": ["示例学生医疗报销管理办法 2025 版：申请材料包括票据原件和诊断证明。"],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 1,
+			"include_history": true
+		},
+		{
+			"case_id": "student-rules-no-answer",
+			"case_family": "no_answer",
+			"split": "regression",
+			"question": "示例校园月球办公室如何办理注册？",
+			"reference": "现有学生规则中没有可支持该事项的证据，应明确无法回答。",
+			"reference_context_ids": [],
+			"expected_targets": ["student_rules"],
+			"expected_outcome": "no_answer",
+			"expected_search_count": 1
+		}
+	]
+}

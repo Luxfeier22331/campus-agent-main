@@ -52,15 +52,6 @@ export function resolveRequestSurface(request: Request): string {
 	if (pathname.startsWith("/api/operator/")) {
 		return "operator_console_web";
 	}
-	if (pathname.startsWith("/api/internal/official-web/")) {
-		return "official_web";
-	}
-	if (pathname.startsWith("/api/official-web/")) {
-		return "official_web";
-	}
-	if (pathname.startsWith("/api/wechat-official-account/")) {
-		return "wechat_official_account";
-	}
 	if (
 		pathname === "/api/me/overview" ||
 		pathname === "/api/me/identity" ||

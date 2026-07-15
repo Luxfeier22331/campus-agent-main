@@ -145,7 +145,6 @@ export type AnswerArtifactKind = (typeof ANSWER_ARTIFACT_KINDS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
-
 export type SafeRecord = Record<string, unknown>;
 
 export interface ConversationContextWire {
@@ -164,13 +163,6 @@ export interface TraceContextWire {
 \ttrace_id: string;
 }
 
-export interface VersionQueryWire {
-\tmode?: "current" | "historical" | "as_of" | "compare";
-\tas_of?: string;
-\tversion_id?: string;
-\tcompare_to_version_id?: string;
-}
-
 export interface ExecutionPayloadWire {
 \texecution_contract_version: typeof TOOL_EXECUTION_CONTRACT.executionContractVersion;
 \tresponse_contract: typeof TOOL_EXECUTION_CONTRACT.responseContract;
@@ -180,10 +172,8 @@ export interface ExecutionPayloadWire {
 \trequest_id: string;
 \tsafety_identifier?: string | null;
 \trequested_tool?: RequestedTool;
-\tscope?: string | null;
 \ttrace: TraceContextWire;
 \tcontext: SafeRecord;
-\tversion_query: VersionQueryWire;
 }
 
 export interface ExecutionRunMetadataWire {
@@ -233,7 +223,7 @@ export interface ToolExecutionResponseWire {
 \tanswer_text: string;
 \tfollow_up_question: string;
 \tconfidence: ConfidenceLevel;
-\tresolved_scope: string | null;
+\tresolved_targets: string[];
 \tsession_update: SessionUpdateWire | null;
 \tresult: SafeRecord | null;
 \terror: { code: string; message: string; retryable: boolean } | null;
@@ -304,13 +294,6 @@ type TraceContextWire struct {
 \tTraceID string \`json:"trace_id"\`
 }
 
-type VersionQueryWire struct {
-\tMode string \`json:"mode,omitempty"\`
-\tAsOf string \`json:"as_of,omitempty"\`
-\tVersionID string \`json:"version_id,omitempty"\`
-\tCompareToVersionID string \`json:"compare_to_version_id,omitempty"\`
-}
-
 type ExecutionPayloadWire struct {
 \tExecutionContractVersion string \`json:"execution_contract_version"\`
 \tResponseContract string \`json:"response_contract"\`
@@ -320,10 +303,8 @@ type ExecutionPayloadWire struct {
 \tRequestID string \`json:"request_id"\`
 \tSafetyIdentifier *string \`json:"safety_identifier,omitempty"\`
 \tRequestedTool RequestedTool \`json:"requested_tool,omitempty"\`
-\tScope string \`json:"scope,omitempty"\`
 \tTrace TraceContextWire \`json:"trace"\`
 \tContext map[string]any \`json:"context"\`
-\tVersionQuery *VersionQueryWire \`json:"version_query"\`
 }
 
 type ExecutionRunMetadataWire struct {
@@ -375,7 +356,7 @@ type ToolExecutionResponseWire struct {
 \tAnswerText string \`json:"answer_text"\`
 \tFollowUpQuestion string \`json:"follow_up_question"\`
 \tConfidence ConfidenceLevel \`json:"confidence"\`
-\tResolvedScope *string \`json:"resolved_scope"\`
+\tResolvedTargets []string \`json:"resolved_targets"\`
 \tSessionUpdate *SessionUpdateWire \`json:"session_update"\`
 \tResult map[string]any \`json:"result"\`
 \tError map[string]any \`json:"error"\`

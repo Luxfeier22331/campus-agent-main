@@ -45,24 +45,9 @@ export function validateJsonArtifactInvariants(
 	path: string,
 	instance: unknown,
 ): void {
-	if (entryId === "llm-io-fingerprint.v1") {
-		validateObject(path, instance);
-		validateLlmIoFingerprintInvariants(path, instance);
-		return;
-	}
-	if (entryId === "answer-eval-fingerprint.v1") {
-		validateObject(path, instance);
-		rejectSafeProjectionRawKeys(path, instance, "answer_eval_fingerprint");
-		return;
-	}
-	if (entryId === "truncation-summary.v1") {
+	if (entryId === "truncation-summary.v2") {
 		validateObject(path, instance);
 		rejectSafeProjectionRawKeys(path, instance, "truncation_summary");
-		return;
-	}
-	if (entryId === "sink-identity-projection.v1") {
-		validateObject(path, instance);
-		rejectSinkIdentityDirectIdentifiers(path, instance, "sink_identity_projection");
 		return;
 	}
 	if (entryId === "runtime-observability-alerts.v1") {
@@ -71,29 +56,6 @@ export function validateJsonArtifactInvariants(
 	}
 	if (entryId === "runtime-latency-budgets.v1") {
 		validateLatencyBudgetInvariants(path, instance);
-	}
-}
-
-function validateLlmIoFingerprintInvariants(
-	path: string,
-	fingerprint: Record<string, unknown>,
-): void {
-	const toolRuntime = fingerprint.tool_runtime_fingerprint;
-	if (!isRecord(toolRuntime)) {
-		throw new Error(
-			`${relativePath(path)} llm_io_fingerprint.tool_runtime_fingerprint must be an object`,
-		);
-	}
-	for (const [flatField, nestedField] of [
-		["tool_catalog_sha256", "tools_sha256"],
-		["tool_schema_sha256", "function_schema_sha256"],
-		["workflow_artifact_sha256", "workflow_artifact_sha256"],
-	]) {
-		if (fingerprint[flatField] !== toolRuntime[nestedField]) {
-			throw new Error(
-				`${relativePath(path)} llm_io_fingerprint.${flatField} must match tool_runtime_fingerprint.${nestedField}`,
-			);
-		}
 	}
 }
 
@@ -245,40 +207,6 @@ function rejectSafeProjectionRawKeys(path: string, value: unknown, context: stri
 	if (Array.isArray(value)) {
 		value.forEach((nested, index) => {
 			rejectSafeProjectionRawKeys(path, nested, `${context}[${index}]`);
-		});
-	}
-}
-
-function rejectSinkIdentityDirectIdentifiers(path: string, value: unknown, context: string): void {
-	rejectKeyFragments(
-		path,
-		value,
-		["authorization", "cookie", "email", "jwt", "principal_id", "session", "token", "user_id"],
-		"direct identity key is forbidden",
-		context,
-	);
-}
-
-function rejectKeyFragments(
-	path: string,
-	value: unknown,
-	fragments: string[],
-	message: string,
-	context: string,
-): void {
-	if (isRecord(value)) {
-		for (const [key, nested] of Object.entries(value)) {
-			const nestedContext = context ? `${context}.${key}` : key;
-			if (fragments.some((fragment) => key.toLowerCase().includes(fragment))) {
-				throw new Error(`${relativePath(path)} ${message}: ${nestedContext}`);
-			}
-			rejectKeyFragments(path, nested, fragments, message, nestedContext);
-		}
-		return;
-	}
-	if (Array.isArray(value)) {
-		value.forEach((nested, index) => {
-			rejectKeyFragments(path, nested, fragments, message, `${context}[${index}]`);
 		});
 	}
 }

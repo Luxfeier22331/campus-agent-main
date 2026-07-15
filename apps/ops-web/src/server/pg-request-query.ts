@@ -101,7 +101,7 @@ export function requestObservabilitySql(suffix: string): string {
 				"projection_lag_ms" as "projectionLagMs",
 				"refusal_class" as "refusalClass",
 				"request_id" as "requestId",
-				"scope_class" as "scopeClass",
+				"resolved_targets_json" as "resolvedTargetsJson",
 				"semantic_outcome" as "semanticOutcome",
 				"stage_timing_json" as "stageTimingJson",
 				"supporting_sources_json" as "supportingSourcesJson",

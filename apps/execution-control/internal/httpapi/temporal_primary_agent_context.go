@@ -1,39 +1,90 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+const primaryAgentTransportGraceMS = 5000
+
 const (
-	primaryAgentRecentTurnLimit = 6
-	primaryAgentTurnCharLimit   = 240
+	defaultAgentDeadlineMS        = 90000
+	defaultAgentMaxOutputTokens   = 2048
+	defaultAgentMaxTurns          = 6
+	defaultAgentCurrentInputChars = 8000
+	defaultAgentContextChars      = 16000
 )
+
+type primaryAgentRuntimeLimits struct {
+	AgentDeadlineMS       int
+	ContextCharLimit      int
+	CurrentInputCharLimit int
+	MaxKnowledgeSearches  int
+	MaxOutputTokens       int
+	MaxTurns              int
+}
 
 type primaryAgentContextPolicyStats struct {
 	DroppedCategoryCounts   map[string]any
 	ModelVisibleAfterCount  int
 	ModelVisibleBeforeCount int
-	TokenEstimateAfter      int
-	TokenEstimateBefore     int
+	ContextCharsAfter       int
+	ContextCharsBefore      int
+	CurrentInputChars       int
+}
+
+func (s *Server) primaryAgentRuntimeLimits() primaryAgentRuntimeLimits {
+	return primaryAgentRuntimeLimits{
+		AgentDeadlineMS:       positiveOrDefault(s.config.AgentRuntimeDeadlineMS, defaultAgentDeadlineMS),
+		ContextCharLimit:      positiveOrDefault(s.config.AgentRuntimeContextCharLimit, defaultAgentContextChars),
+		CurrentInputCharLimit: positiveOrDefault(s.config.AgentRuntimeInputCharLimit, defaultAgentCurrentInputChars),
+		MaxKnowledgeSearches:  positiveOrDefault(s.config.AgentRuntimeSearchLimit, config.MaxKnowledgeSearches),
+		MaxOutputTokens:       positiveOrDefault(s.config.AgentRuntimeMaxOutputTokens, defaultAgentMaxOutputTokens),
+		MaxTurns:              positiveOrDefault(s.config.AgentRuntimeMaxTurns, defaultAgentMaxTurns),
+	}
+}
+
+func primaryAgentRuntimeLimitsPayload(limits primaryAgentRuntimeLimits) map[string]any {
+	return map[string]any{
+		"agent_deadline_ms":        limits.AgentDeadlineMS,
+		"context_char_limit":       limits.ContextCharLimit,
+		"current_input_char_limit": limits.CurrentInputCharLimit,
+		"max_knowledge_searches":   limits.MaxKnowledgeSearches,
+		"max_output_tokens":        limits.MaxOutputTokens,
+		"max_turns":                limits.MaxTurns,
+	}
+}
+
+func positiveOrDefault(value int, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 func temporalMemoryContextPayload(context *temporalruntime.MemoryContext) map[string]any {
 	if context == nil || strings.TrimSpace(context.ContextBlock) == "" || strings.TrimSpace(context.MemoryRef) == "" {
 		return nil
 	}
-	return map[string]any{
+	payload := map[string]any{
 		"context_block":         context.ContextBlock,
 		"memory_ref":            context.MemoryRef,
-		"provider":              context.Provider,
-		"retrieval_mode":        context.RetrievalMode,
 		"schema_version":        context.SchemaVersion,
 		"selected_memory_chars": context.SelectedMemoryChars,
 		"selected_memory_count": context.SelectedMemoryCount,
 	}
+	if provider := strings.TrimSpace(context.Provider); provider != "" {
+		payload["provider"] = provider
+	}
+	if retrievalMode := strings.TrimSpace(context.RetrievalMode); retrievalMode != "" {
+		payload["retrieval_mode"] = retrievalMode
+	}
+	return payload
 }
 
 func temporalMemoryContextProjectionPayload(context *temporalruntime.MemoryContext) map[string]any {
@@ -55,19 +106,25 @@ func temporalMemoryContextProjectionPayload(context *temporalruntime.MemoryConte
 func primaryAgentFinalModelContextForRun(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) map[string]any {
+	limits primaryAgentRuntimeLimits,
+) (map[string]any, error) {
 	executionPayload := cloneAnyMapFromMetadata(run.Metadata["execution_payload"])
+	currentInput := strings.TrimSpace(primaryAgentInputText(run))
+	currentInputChars := len([]rune(currentInput))
+	if currentInputChars > limits.CurrentInputCharLimit {
+		return nil, fmt.Errorf(
+			"current user input has %d characters, limit is %d",
+			currentInputChars,
+			limits.CurrentInputCharLimit,
+		)
+	}
 	conversation := cloneAnyMapFromMetadata(nestedAny(executionPayload, "context", "conversation"))
 	if len(conversation) == 0 {
-		return nil
+		return nil, nil
 	}
-	currentUserMessage := cloneAnyMapFromMetadata(conversation["current_user_message"])
-	rawRecentTurns := primaryAgentNormalizedRecentTurns(conversation)
-	recentTurns, droppedCategoryCounts := primaryAgentBoundRecentTurns(rawRecentTurns)
 	context := map[string]any{
-		"schema_version":        "final_model_context.v1",
-		"current_user_message":  strings.TrimSpace(firstNonEmptyText(currentUserMessage["content"], executionPayload["user_goal"])),
-		"recent_turns":          recentTurns,
+		"schema_version":        "final_model_context.v2",
+		"recent_turns":          primaryAgentNormalizedRecentTurns(conversation),
 		"previous_evidence":     primaryAgentPreviousEvidence(conversation),
 		"previous_tool_results": primaryAgentPreviousToolResults(conversation),
 	}
@@ -78,16 +135,27 @@ func primaryAgentFinalModelContextForRun(
 		context["memory_context"] = memoryContext
 	}
 	beforeContext := cloneAnyMapFromMetadata(context)
-	beforeContext["recent_turns"] = rawRecentTurns
+	contextCharsBefore, err := primaryAgentContextCharacterCount(beforeContext)
+	if err != nil {
+		return nil, err
+	}
+	droppedCategoryCounts, contextCharsAfter, err := primaryAgentApplyContextBudget(
+		context,
+		limits.ContextCharLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
 	stats := primaryAgentContextPolicyStats{
 		DroppedCategoryCounts:   droppedCategoryCounts,
 		ModelVisibleAfterCount:  primaryAgentModelVisibleItemCount(context),
 		ModelVisibleBeforeCount: primaryAgentModelVisibleItemCount(beforeContext),
-		TokenEstimateAfter:      primaryAgentContextTokenEstimate(context),
-		TokenEstimateBefore:     primaryAgentContextTokenEstimate(beforeContext),
+		ContextCharsAfter:       contextCharsAfter,
+		ContextCharsBefore:      contextCharsBefore,
+		CurrentInputChars:       currentInputChars,
 	}
 	context["usage_summary"] = primaryAgentFinalModelUsageSummary(input, stats)
-	return context
+	return context, nil
 }
 
 func primaryAgentFinalModelUsageSummary(
@@ -99,10 +167,11 @@ func primaryAgentFinalModelUsageSummary(
 		memoryRecallState = "completed"
 	}
 	usage := map[string]any{
+		"context_chars":            stats.ContextCharsAfter,
+		"current_input_chars":      stats.CurrentInputChars,
 		"memory_recall_state":      memoryRecallState,
 		"model_visible_item_count": stats.ModelVisibleAfterCount,
 		"runtime_only_item_count":  0,
-		"token_estimate":           stats.TokenEstimateAfter,
 	}
 	if len(stats.DroppedCategoryCounts) > 0 {
 		usage["truncation_reason"] = "context_policy_limit"
@@ -113,15 +182,15 @@ func primaryAgentFinalModelUsageSummary(
 
 func primaryAgentTruncationSummary(stats primaryAgentContextPolicyStats) map[string]any {
 	return map[string]any{
-		"schema_version":             "truncation_summary.v1",
-		"policy_version":             "primary_agent_context.v1",
+		"schema_version":             "truncation_summary.v2",
+		"policy_version":             "primary_agent_context.v2",
 		"reason":                     "context_policy_limit",
+		"context_chars_before":       stats.ContextCharsBefore,
+		"context_chars_after":        stats.ContextCharsAfter,
 		"model_visible_before_count": stats.ModelVisibleBeforeCount,
 		"model_visible_after_count":  stats.ModelVisibleAfterCount,
 		"runtime_only_before_count":  0,
 		"runtime_only_after_count":   0,
-		"token_estimate_before":      stats.TokenEstimateBefore,
-		"token_estimate_after":       stats.TokenEstimateAfter,
 		"dropped_category_counts":    stats.DroppedCategoryCounts,
 	}
 }
@@ -149,43 +218,8 @@ func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
 	return result
 }
 
-func primaryAgentBoundRecentTurns(turns []any) ([]any, map[string]any) {
-	dropped := map[string]any{}
-	start := 0
-	if len(turns) > primaryAgentRecentTurnLimit {
-		start = len(turns) - primaryAgentRecentTurnLimit
-		dropped["recent_turns"] = start
-	}
-	result := make([]any, 0, len(turns)-start)
-	droppedCharacters := 0
-	for _, raw := range turns[start:] {
-		turn := cloneAnyMapFromMetadata(raw)
-		content, removed := primaryAgentBoundTurnContent(firstNonEmptyText(turn["content"]))
-		turn["content"] = content
-		droppedCharacters += removed
-		result = append(result, turn)
-	}
-	if droppedCharacters > 0 {
-		dropped["recent_turn_characters"] = droppedCharacters
-	}
-	return result, dropped
-}
-
-func primaryAgentBoundTurnContent(value string) (string, int) {
-	value = strings.TrimSpace(value)
-	runes := []rune(value)
-	if len(runes) <= primaryAgentTurnCharLimit {
-		return value, 0
-	}
-	keptRuneCount := primaryAgentTurnCharLimit - 3
-	return string(runes[:keptRuneCount]) + "...", len(runes) - keptRuneCount
-}
-
 func primaryAgentModelVisibleItemCount(context map[string]any) int {
 	count := 0
-	if firstNonEmptyText(context["current_user_message"]) != "" {
-		count++
-	}
 	count += len(anyListFromAny(context["recent_turns"]))
 	count += len(anyListFromAny(context["previous_evidence"]))
 	count += len(anyListFromAny(context["previous_tool_results"]))
@@ -198,36 +232,95 @@ func primaryAgentModelVisibleItemCount(context map[string]any) int {
 	return count
 }
 
-func primaryAgentContextTokenEstimate(context map[string]any) int {
-	runeCount := primaryAgentContextRuneCount(context)
-	return (runeCount + 3) / 4
+func primaryAgentApplyContextBudget(context map[string]any, limit int) (map[string]any, int, error) {
+	dropped := map[string]any{}
+	for {
+		count, err := primaryAgentContextCharacterCount(context)
+		if err != nil {
+			return nil, 0, err
+		}
+		if count <= limit {
+			return dropped, count, nil
+		}
+		if primaryAgentDropOldestListItem(context, "previous_tool_results") {
+			incrementAnyCount(dropped, "previous_tool_results", 1)
+			continue
+		}
+		if _, ok := context["memory_context"]; ok {
+			delete(context, "memory_context")
+			incrementAnyCount(dropped, "memory_context", 1)
+			continue
+		}
+		if primaryAgentDropOldestRecentTurn(context, true) {
+			incrementAnyCount(dropped, "recent_turns", 1)
+			continue
+		}
+		if primaryAgentDropOldestEvidenceSnippet(context) {
+			incrementAnyCount(dropped, "previous_evidence_snippets", 1)
+			continue
+		}
+		if primaryAgentDropOldestRecentTurn(context, false) {
+			incrementAnyCount(dropped, "recent_turns", 1)
+			continue
+		}
+		return nil, count, fmt.Errorf(
+			"final model context has %d characters after deterministic truncation, limit is %d",
+			count,
+			limit,
+		)
+	}
 }
 
-func primaryAgentContextRuneCount(value any) int {
-	switch typed := value.(type) {
-	case string:
-		return len([]rune(strings.TrimSpace(typed)))
-	case map[string]any:
-		total := 0
-		for _, item := range typed {
-			total += primaryAgentContextRuneCount(item)
-		}
-		return total
-	case []any:
-		total := 0
-		for _, item := range typed {
-			total += primaryAgentContextRuneCount(item)
-		}
-		return total
-	case []string:
-		total := 0
-		for _, item := range typed {
-			total += primaryAgentContextRuneCount(item)
-		}
-		return total
-	default:
-		return 0
+func primaryAgentContextCharacterCount(context map[string]any) (int, error) {
+	payload := cloneAnyMapFromMetadata(context)
+	delete(payload, "usage_summary")
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return 0, fmt.Errorf("encode final model context for character budget: %w", err)
 	}
+	return len([]rune(string(encoded))), nil
+}
+
+func primaryAgentDropOldestListItem(context map[string]any, key string) bool {
+	values := anyListFromAny(context[key])
+	if len(values) == 0 {
+		return false
+	}
+	context[key] = append([]any{}, values[1:]...)
+	return true
+}
+
+func primaryAgentDropOldestRecentTurn(context map[string]any, preserveLatest bool) bool {
+	turns := anyListFromAny(context["recent_turns"])
+	if len(turns) == 0 || (preserveLatest && len(turns) == 1) {
+		return false
+	}
+	context["recent_turns"] = append([]any{}, turns[1:]...)
+	return true
+}
+
+func primaryAgentDropOldestEvidenceSnippet(context map[string]any) bool {
+	evidence := anyListFromAny(context["previous_evidence"])
+	for _, raw := range evidence {
+		item := cloneAnyMapFromMetadata(raw)
+		if firstNonEmptyText(item["snippet"]) == "" {
+			continue
+		}
+		delete(item, "snippet")
+		for index, candidate := range evidence {
+			candidateMap := cloneAnyMapFromMetadata(candidate)
+			if firstNonEmptyText(candidateMap["evidence_id"]) == firstNonEmptyText(item["evidence_id"]) {
+				evidence[index] = item
+				context["previous_evidence"] = evidence
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func incrementAnyCount(counts map[string]any, key string, delta int) {
+	counts[key] = intFromAny(counts[key]) + delta
 }
 
 func primaryAgentPreviousEvidence(conversation map[string]any) []any {
@@ -302,7 +395,8 @@ func primaryAgentContextUsageSummary(finalModelContext map[string]any) map[strin
 		"memory_recall_state":        usage["memory_recall_state"],
 		"model_visible_item_count":   usage["model_visible_item_count"],
 		"runtime_only_item_count":    usage["runtime_only_item_count"],
-		"token_estimate":             usage["token_estimate"],
+		"context_chars":              usage["context_chars"],
+		"current_input_chars":        usage["current_input_chars"],
 	}
 	if reason := firstNonEmptyText(usage["truncation_reason"]); reason != "" {
 		summary["truncation_reason"] = reason
@@ -373,10 +467,9 @@ type agentToolResult struct {
 }
 
 type agentRuntimeUsage struct {
-	InputTokens           int64 `json:"input_tokens"`
-	OutputTokens          int64 `json:"output_tokens"`
-	CachedInputTokens     int64 `json:"cached_input_tokens"`
-	EstimatedCostMicroUSD int64 `json:"estimated_cost_micro_usd"`
+	InputTokens       int64 `json:"input_tokens"`
+	OutputTokens      int64 `json:"output_tokens"`
+	CachedInputTokens int64 `json:"cached_input_tokens"`
 }
 
 type agentRuntimeError struct {

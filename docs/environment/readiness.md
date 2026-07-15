@@ -58,9 +58,10 @@ pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 connection and worker identities, run projection database, internal query auth
 and service credentials separately from Worker staging.
 
-Tool exposure is owned by `configs/runtime/tools.v4.json`, not by an
-`open_tools` field in runtime config. The doctor therefore does not infer tool
-readiness from a retired runtime profile shape.
+Tool exposure is owned by `configs/runtime/tools.v5.json` and
+`configs/runtime/tool-function-schemas.v2.json`, not by an `open_tools` field
+in runtime config. The doctor therefore does not infer tool readiness from a
+retired runtime profile shape.
 
 Runtime `/readyz` is stricter than liveness:
 

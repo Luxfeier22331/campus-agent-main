@@ -4,5 +4,6 @@
 		"MD033": {
 			"allowed_elements": ["role", "invariants", "task", "output_contract", "CourseMapSection"]
 		}
-	}
+	},
+	"ignores": ["**/dist/**"]
 }

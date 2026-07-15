@@ -37,7 +37,7 @@ Implementation rules:
 - canonical document units use the shared `canonical_document_units.v1` shape
   from `packages/ingestion-contracts`: input identity is `doc_id` + `chunk_id`,
   and chunk output uses `doc_id`, not legacy `document_id`.
-- release manifest validation uses the shared `ingestion_release_manifest.v1`
+- release manifest validation uses the shared `ingestion_release_manifest.v2`
   schema from `packages/ingestion-contracts`; Rust only adds deterministic
   digest and duplicate-artifact consistency checks.
 - chunk budgeting uses a local Hugging Face `tokenizer.json` through

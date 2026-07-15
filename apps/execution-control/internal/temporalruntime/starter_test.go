@@ -8,6 +8,7 @@ import (
 
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
 func TestNewStarterDefersConnectivityToReadiness(t *testing.T) {
@@ -82,6 +83,37 @@ func TestWorkerOptionsForProfileMapsActivityConcurrency(t *testing.T) {
 	}
 	if options.WorkerActivitiesPerSecond != 4 {
 		t.Fatalf("worker rate = %v, want 4", options.WorkerActivitiesPerSecond)
+	}
+}
+
+func TestApplyWorkerDeploymentVersioningUsesPinnedBehavior(t *testing.T) {
+	options, err := ApplyWorkerDeploymentVersioning(
+		worker.Options{},
+		"execution-agent",
+		"build-001",
+	)
+	if err != nil {
+		t.Fatalf("ApplyWorkerDeploymentVersioning returned error: %v", err)
+	}
+	if !options.DeploymentOptions.UseVersioning {
+		t.Fatal("worker deployment versioning is disabled")
+	}
+	if options.DeploymentOptions.Version.DeploymentName != "execution-agent" ||
+		options.DeploymentOptions.Version.BuildID != "build-001" {
+		t.Fatalf("unexpected deployment version: %#v", options.DeploymentOptions.Version)
+	}
+	if options.DeploymentOptions.DefaultVersioningBehavior != workflow.VersioningBehaviorPinned {
+		t.Fatalf(
+			"default versioning behavior = %v, want pinned",
+			options.DeploymentOptions.DefaultVersioningBehavior,
+		)
+	}
+}
+
+func TestApplyWorkerDeploymentVersioningRejectsPartialEnvironment(t *testing.T) {
+	_, err := ApplyWorkerDeploymentVersioning(worker.Options{}, "execution-agent", "")
+	if err == nil {
+		t.Fatal("expected partial worker deployment version to fail")
 	}
 }
 

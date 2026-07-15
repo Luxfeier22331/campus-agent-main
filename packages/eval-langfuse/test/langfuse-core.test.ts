@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+	buildEvalDatasetManifest,
 	buildLangfuseDatasetItems,
 	buildLangfuseScoresFromRagasScoreBatch,
-	buildRagDatasetManifest,
 	checkCollectorConfig,
 	deriveLangfuseTraceId,
 	publishLangfuseScores,
@@ -140,7 +140,10 @@ describe("Langfuse score publisher", () => {
 		expect(plan.scoreItems).toHaveLength(1);
 		expect(plan.omittedItems).toHaveLength(1);
 		expect(plan.sourceResultDenominator).toBe(2);
-		expect(plan.scoreItems[0]?.trace_id).toBe("trace-product-001");
+		expect(plan.scoreItems[0]).toMatchObject({
+			observation_id: "obs-001",
+			trace_id: null,
+		});
 		expect(plan.omittedItems[0]).toMatchObject({
 			case_id: "case-ok",
 			reason: "missing reference contexts",
@@ -165,6 +168,28 @@ describe("Langfuse score publisher", () => {
 		scoreItem.metadata = { raw_prompt: "secret" };
 		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
 			"scoreItems[0].metadata.raw_prompt is forbidden Langfuse metadata",
+		);
+	});
+
+	it("requires exactly one score target", () => {
+		const plan = buildLangfuseScoresFromRagasScoreBatch({
+			ragasScoreBatchPath: "ragas-scores.json",
+			ragasScoreBatchPayload: validRagasScoreBatch(),
+		});
+		const scoreItem = plan.scoreItems[0];
+		if (!scoreItem) {
+			throw new Error("expected score item");
+		}
+
+		scoreItem.trace_id = "trace-product-001";
+		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
+			"scoreItems[0] must carry exactly one of trace_id or observation_id",
+		);
+
+		scoreItem.trace_id = null;
+		scoreItem.observation_id = null;
+		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
+			"scoreItems[0] must carry exactly one of trace_id or observation_id",
 		);
 	});
 
@@ -201,9 +226,12 @@ describe("Langfuse score publisher", () => {
 		expect(requests[0]?.body).toMatchObject({
 			dataType: "NUMERIC",
 			name: "ragas.faithfulness",
+			observationId: "obs-001",
 			source: "API",
-			traceId: "trace-product-001",
 		});
+		expect(requests[0]?.body).not.toHaveProperty("traceId");
+		expect(requests[0]?.body).not.toHaveProperty("datasetItemId");
+		expect(requests[0]?.body).not.toHaveProperty("datasetRunId");
 	});
 
 	it("builds score items from RAGAS scores", () => {
@@ -245,7 +273,7 @@ describe("Langfuse score publisher", () => {
 			case_id: "case-001",
 			data_type: "NUMERIC",
 			observation_id: "obs-001",
-			trace_id: "trace-001",
+			trace_id: null,
 			value: 0.91,
 		});
 		expect(plan.scoreItems[0]?.metadata).toMatchObject({
@@ -265,9 +293,9 @@ describe("Langfuse score publisher", () => {
 	});
 });
 
-describe("RAG dataset manifest builder", () => {
-	it("projects RAG assets into Langfuse dataset manifests without fabricating Ragas answers", () => {
-		const manifest = buildRagDatasetManifest({
+describe("eval dataset manifest builder", () => {
+	it("projects canonical agent and RAG cases into Langfuse dataset manifests", () => {
+		const manifest = buildEvalDatasetManifest({
 			assetRoot: resolve(repoRoot, "packages/eval-langfuse/assets"),
 			sourceGitHead: "test-head",
 		});
@@ -277,62 +305,125 @@ describe("RAG dataset manifest builder", () => {
 			source_git_head: "test-head",
 		});
 		expect((manifest.datasets as Array<{ name: string }>).map((dataset) => dataset.name)).toContain(
-			"campus/rag/student_rules/qrels",
+			"campus/rag/student_rules",
 		);
 		expect((manifest.datasets as Array<{ name: string }>).map((dataset) => dataset.name)).toContain(
-			"campus/rag/student_rules/answer-quality",
+			"campus/rag/institutional_rules",
+		);
+		expect((manifest.datasets as Array<{ name: string }>).map((dataset) => dataset.name)).toContain(
+			"campus/rag/cross_target",
+		);
+		expect(manifest.datasets).toContainEqual(
+			expect.objectContaining({
+				kind: "agent_tool_eval",
+				name: "campus/agent/routing",
+				surface_key: "app-api.chat",
+			}),
 		);
 		expect(JSON.stringify(manifest)).not.toContain("fixture_");
 	});
 
-	it("builds qrels dataset items with reference context ids only", () => {
+	it("builds agent routing items with per-case tool argument modes", () => {
 		const assetPath = resolve(
 			repoRoot,
-			"packages/eval-langfuse/assets/qrels/rag/student_rules/retrieval_qrels.json",
+			"packages/eval-langfuse/assets/datasets/agent/routing/cases.v1.json",
+		);
+		const items = buildLangfuseDatasetItems({
+			dataset: {
+				collection: "routing",
+				asset_path: assetPath,
+				kind: "agent_tool_eval",
+				name: "campus/agent/routing",
+				slug: "agent-routing",
+				surface_key: "app-api.chat",
+			},
+			assetHash: "asset-hash",
+			assetPath,
+			sourceGitHead: "test-head",
+		});
+
+		expect(items.find((item) => metadataCaseId(item) === "routing-direct-greeting")).toMatchObject({
+			expectedOutput: { reference_tool_calls: [] },
+			metadata: { argument_mode: "name_only" },
+		});
+		expect(
+			items.find((item) => metadataCaseId(item) === "routing-knowledge-student-rules"),
+		).toMatchObject({
+			expectedOutput: {
+				reference_tool_calls: [
+					{ args: {}, name: "knowledge_query" },
+					{
+						args: { include_history: false, target: "student_rules" },
+						name: "knowledge_search",
+					},
+				],
+			},
+			input: { query: "学生申请缓考需要满足什么条件？" },
+			metadata: { argument_mode: "eval_safe_args" },
+		});
+	});
+
+	it("builds one Langfuse item with answer and retrieval truth", () => {
+		const assetPath = resolve(
+			repoRoot,
+			"packages/eval-langfuse/assets/datasets/rag/student_rules/cases.v1.json",
 		);
 		const items = buildLangfuseDatasetItems({
 			dataset: {
 				collection: "student_rules",
 				asset_path: assetPath,
-				kind: "rag_qrels",
-				name: "campus/rag/student_rules/qrels",
-				slug: "rag-student-rules-qrels",
-				surface_key: "regulations/student_rules",
+				kind: "rag_eval",
+				name: "campus/rag/student_rules",
+				slug: "rag-student-rules",
+				surface_key: "rag/student_rules",
 			},
 			assetHash: "asset-hash",
 			assetPath,
 			sourceGitHead: "test-head",
 		});
 		const item = items.find(
-			(candidate) => metadataCaseId(candidate) === "synthetic-policy-title-medical",
+			(candidate) => metadataCaseId(candidate) === "student-rules-medical-version",
+		);
+		const historyItem = items.find(
+			(candidate) => metadataCaseId(candidate) === "student-rules-conversation-follow-up",
 		);
 
 		expect(item).toMatchObject({
-			datasetName: "campus/rag/student_rules/qrels",
+			datasetName: "campus/rag/student_rules",
 			expectedOutput: {
+				expected_outcome: "answer",
+				expected_targets: ["student_rules"],
 				metric_applicability: {
 					context_recall: true,
-					id_context_precision: true,
-					id_context_recall: true,
 				},
 				reference_context_ids: ["handbook:synthetic-medical-policy"],
+				reference_tool_calls: [
+					{ args: {}, name: "knowledge_query" },
+					{
+						args: { include_history: false, target: "student_rules" },
+						name: "knowledge_search",
+					},
+				],
 			},
 			input: {
-				case_id: "synthetic-policy-title-medical",
-				question: "示例学生医疗报销管理办法",
-				surface_key: "regulations/student_rules",
-				user_input: "示例学生医疗报销管理办法",
+				case_id: "student-rules-medical-version",
+				question: "示例学生医疗报销按什么办法办理？",
+				surface_key: "rag/student_rules",
+				user_input: "示例学生医疗报销按什么办法办理？",
 			},
 			metadata: {
-				case_id: "synthetic-policy-title-medical",
+				argument_mode: "eval_safe_args",
+				case_id: "student-rules-medical-version",
 				asset_hash: "asset-hash",
 				source_git_head: "test-head",
 				source_asset_path: assetPath,
 			},
 		});
 		expect(JSON.stringify(item)).not.toContain("fixture_");
-		expect(item?.input).not.toHaveProperty("answer");
-		expect(item?.input).not.toHaveProperty("retrieved_contexts");
+		expect(item?.expectedOutput).toHaveProperty("reference");
+		expect(historyItem?.input).toMatchObject({
+			setup_turns: ["请帮我查一下示例学位授予规定。"],
+		});
 	});
 });
 
@@ -509,14 +600,14 @@ describe("Ragas Langfuse official pipeline", () => {
 
 		expect(result.source_kind).toBe("langfuse_dataset");
 		expect(requests[0]?.body).toMatchObject({
-			datasetItemId: "dataset-item-001",
-			datasetRunId: "dataset-run-001",
 			metadata: {
 				source_kind: "langfuse_dataset",
 			},
 			name: "ragas.context_precision",
 			traceId: "trace-001",
 		});
+		expect(requests[0]?.body).not.toHaveProperty("datasetItemId");
+		expect(requests[0]?.body).not.toHaveProperty("datasetRunId");
 		expect(writtenSamples[0]).toMatchObject({
 			items: [
 				{
@@ -530,10 +621,10 @@ describe("Ragas Langfuse official pipeline", () => {
 		});
 	});
 
-	it("fails closed when dataset qrels are not materialized into Ragas inputs", async () => {
+	it("fails closed when a dataset item is not materialized into Ragas inputs", async () => {
 		await expect(
 			runRagasDatasetScoring({
-				datasetName: "campus-agent-qrels",
+				datasetName: "campus/rag/student_rules",
 				environment: "staging",
 				fetchImpl: async () =>
 					new Response(
@@ -543,7 +634,7 @@ describe("Ragas Langfuse official pipeline", () => {
 									expectedOutput: {
 										reference_context_ids: ["doc:student-rules"],
 									},
-									id: "dataset-item-qrels",
+									id: "dataset-item-unmaterialized",
 									input: {
 										case_id: "synthetic-policy-title-medical",
 										question: "示例学生医疗报销管理办法",
@@ -556,7 +647,7 @@ describe("Ragas Langfuse official pipeline", () => {
 						}),
 					),
 				runPythonRagasScoreBatch: () => {
-					throw new Error("Ragas runner must not be invoked for qrels-only items");
+					throw new Error("Ragas runner must not be invoked for unmaterialized items");
 				},
 				settings: {
 					baseUrl: "https://langfuse.example",
@@ -702,26 +793,26 @@ describe("Langfuse trace evidence", () => {
 		expect(evidence.non_repo_observation_count).toBe(1);
 	});
 
-	it("rejects raw model IO fields on repo-owned observations", async () => {
-		await expect(
-			verifyLangfuseOnlineTraceEvidence({
-				expectedRelease: "release",
-				expectedSessionId: "session",
-				expectedTags: [],
-				expectedUserId: "user",
-				fetchImpl: traceFetch(
-					onlineTracePayload({
-						observations: [
-							repoObservation({
-								metadata: { raw_prompt: "repo projection must not carry this" },
-							}),
-						],
-					}),
-				),
-				settings: TEST_LANGFUSE_SETTINGS,
-				traceId: "trace-001",
-			}),
-		).rejects.toThrow("forbidden Langfuse payload fields: raw_prompt");
+	it("allows model IO fields on repo-owned observations", async () => {
+		const evidence = await verifyLangfuseOnlineTraceEvidence({
+			expectedRelease: "release",
+			expectedSessionId: "session",
+			expectedTags: [],
+			expectedUserId: "user",
+			fetchImpl: traceFetch(
+				onlineTracePayload({
+					observations: [
+						repoObservation({
+							metadata: { raw_prompt: "repo projection must not carry this" },
+						}),
+					],
+				}),
+			),
+			settings: TEST_LANGFUSE_SETTINGS,
+			traceId: "trace-001",
+		});
+
+		expect(evidence.repo_owned_observation_count).toBe(1);
 	});
 
 	it("rejects secrets from all trace observations", async () => {
@@ -749,6 +840,30 @@ describe("Langfuse trace evidence", () => {
 				traceId: "trace-001",
 			}),
 		).rejects.toThrow("forbidden Langfuse payload fields: authorization");
+	});
+
+	it("normalizes camelCase credential field names", async () => {
+		await expect(
+			verifyLangfuseOnlineTraceEvidence({
+				expectedRelease: "release",
+				expectedSessionId: "session",
+				expectedTags: [],
+				expectedUserId: "user",
+				fetchImpl: traceFetch(
+					onlineTracePayload({
+						observations: [
+							repoObservation(),
+							{
+								id: "obs-llm-debug-001",
+								metadata: { clientSecret: "secret" },
+							},
+						],
+					}),
+				),
+				settings: TEST_LANGFUSE_SETTINGS,
+				traceId: "trace-001",
+			}),
+		).rejects.toThrow("forbidden Langfuse payload fields: clientSecret");
 	});
 });
 

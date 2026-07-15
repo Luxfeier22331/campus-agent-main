@@ -132,23 +132,22 @@ type MemoryReflectTokenUsage struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AllowedKnowledgeScopes []AllowedKnowledgeScope `json:"allowed_knowledge_scopes,omitempty"`
-	ConversationID         string                  `json:"conversation_id"`
-	MemoryContext          *MemoryContext          `json:"memory_context,omitempty"`
-	MemoryProjectionRefs   []string                `json:"memory_projection_refs"`
-	RequestID              string                  `json:"request_id"`
-	RequestedTool          string                  `json:"requested_tool"`
-	ToolChoice             string                  `json:"tool_choice,omitempty"`
-	RunID                  string                  `json:"run_id"`
-	TraceID                string                  `json:"trace_id"`
-	TurnID                 string                  `json:"turn_id"`
-	VisibleToolNames       []string                `json:"visible_tool_names"`
+	ConversationID       string            `json:"conversation_id"`
+	KnowledgeTargets     []KnowledgeTarget `json:"knowledge_targets,omitempty"`
+	MemoryContext        *MemoryContext    `json:"memory_context,omitempty"`
+	MemoryProjectionRefs []string          `json:"memory_projection_refs"`
+	RequestID            string            `json:"request_id"`
+	RequestedTool        string            `json:"requested_tool"`
+	ToolChoice           string            `json:"tool_choice,omitempty"`
+	RunID                string            `json:"run_id"`
+	TraceID              string            `json:"trace_id"`
+	TurnID               string            `json:"turn_id"`
+	VisibleToolNames     []string          `json:"visible_tool_names"`
 }
 
-type AllowedKnowledgeScope struct {
-	AllowedQueryModes []string `json:"allowed_query_modes"`
-	Description       string   `json:"description"`
-	Scope             string   `json:"scope"`
+type KnowledgeTarget struct {
+	Description string `json:"description"`
+	Target      string `json:"target"`
 }
 
 type MemoryContext struct {
@@ -190,10 +189,9 @@ type ExecutePrimaryAgentActivityOutput struct {
 }
 
 type AgentUsageSummary struct {
-	CachedInputTokens     int64 `json:"cached_input_tokens"`
-	EstimatedCostMicroUSD int64 `json:"estimated_cost_micro_usd"`
-	InputTokens           int64 `json:"input_tokens"`
-	OutputTokens          int64 `json:"output_tokens"`
+	CachedInputTokens int64 `json:"cached_input_tokens"`
+	InputTokens       int64 `json:"input_tokens"`
+	OutputTokens      int64 `json:"output_tokens"`
 }
 
 type WriteFinalizationActivityInput struct {

@@ -6,6 +6,7 @@ import {
 	type JsonObject,
 	type LangfuseSettings,
 	loadJsonObject,
+	mapping,
 	mappingList,
 	optionalString,
 	requireEqual,
@@ -111,17 +112,26 @@ export async function syncLangfuseDatasets(input: {
 
 function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 	const caseId = stringField(item.case_id, "case_id");
-	if (dataset.kind === "answer_quality") {
+	if (dataset.kind === "rag_eval") {
+		const question = stringField(item.question, "question");
 		return {
 			case_id: caseId,
+			question,
+			...(stringList(item.setup_turns).length > 0
+				? { setup_turns: stringList(item.setup_turns) }
+				: {}),
 			surface_key: stringField(dataset.surface_key, "surface_key"),
+			user_input: question,
 		};
 	}
-	if (dataset.kind === "rag_qrels") {
+	if (dataset.kind === "agent_tool_eval") {
 		const query = stringField(item.query, "query");
 		return {
 			case_id: caseId,
-			question: query,
+			query,
+			...(stringList(item.setup_turns).length > 0
+				? { setup_turns: stringList(item.setup_turns) }
+				: {}),
 			surface_key: stringField(dataset.surface_key, "surface_key"),
 			user_input: query,
 		};
@@ -134,35 +144,58 @@ function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 }
 
 function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
-	if (dataset.kind === "answer_quality") {
+	if (dataset.kind === "rag_eval") {
+		const referenceContextIds = stringList(item.reference_context_ids);
+		const expectedOutcome = stringField(item.expected_outcome, "expected_outcome");
+		const expectedTargets = stringList(item.expected_targets);
+		const includeHistory = item.include_history === true;
 		return {
-			forbidden_claims: stringList(item.forbidden_claims),
-			required_facts: stringList(item.required_facts),
+			case_id: item.case_id,
+			expected_outcome: expectedOutcome,
+			expected_search_count: requiredPositiveInteger(
+				item.expected_search_count,
+				"expected_search_count",
+			),
+			expected_targets: expectedTargets,
+			forbidden_context_ids: stringList(item.forbidden_context_ids),
+			include_history: includeHistory,
+			metric_applicability: {
+				answer_relevancy: expectedOutcome === "answer",
+				context_precision: expectedOutcome === "answer" && referenceContextIds.length > 0,
+				context_recall: expectedOutcome === "answer" && referenceContextIds.length > 0,
+				faithfulness: expectedOutcome === "answer" && referenceContextIds.length > 0,
+			},
+			reference: stringField(item.reference, "reference"),
+			reference_context_ids: referenceContextIds,
+			reference_contexts: stringList(item.reference_contexts),
+			reference_tool_calls: [
+				{ args: {}, name: "knowledge_query" },
+				...expectedTargets.map((target) => ({
+					args: { include_history: includeHistory, target },
+					name: "knowledge_search",
+				})),
+			],
 			split: optionalString(item.split),
 		};
 	}
-	if (dataset.kind === "rag_qrels") {
-		const referenceContextIds = sourceDocIds(item.expected_sources, "expected_sources");
-		const forbiddenContextIds = sourceDocIds(item.forbidden_sources, "forbidden_sources");
+	if (dataset.kind === "agent_tool_eval") {
 		return {
 			case_id: item.case_id,
-			forbidden_context_ids: forbiddenContextIds,
-			metric_applicability: {
-				context_recall: referenceContextIds.length > 0,
-				id_context_precision: referenceContextIds.length > 0,
-				id_context_recall: referenceContextIds.length > 0,
-			},
-			reference_context_ids: referenceContextIds,
+			expected_outcome: stringField(item.expected_outcome, "expected_outcome"),
+			forbidden_context_ids: stringList(item.forbidden_context_ids),
+			reference: stringField(item.reference, "reference"),
+			reference_context_ids: stringList(item.reference_context_ids),
+			reference_contexts: stringList(item.reference_contexts),
+			reference_tool_calls: mappingList(item.reference_tool_calls, "reference_tool_calls").map(
+				(toolCall, index) => ({
+					args: mapping(toolCall.args, `reference_tool_calls[${index}].args`),
+					name: stringField(toolCall.name, `reference_tool_calls[${index}].name`),
+				}),
+			),
 			split: optionalString(item.split),
 		};
 	}
 	return { case_id: item.case_id, split: optionalString(item.split) };
-}
-
-function sourceDocIds(value: unknown, field: string): string[] {
-	return mappingList(value ?? [], field)
-		.map((source) => optionalString(source.doc_id))
-		.filter((docId): docId is string => Boolean(docId));
 }
 
 function datasetItem(input: {
@@ -182,7 +215,9 @@ function datasetItem(input: {
 		id: `campus-${slug(slugValue)}-${sha256Text(caseId).slice(0, 16)}`,
 		input: input.inputPayload,
 		metadata: {
+			argument_mode: optionalString(input.caseItem.argument_mode) ?? "eval_safe_args",
 			case_id: caseId,
+			case_family: optionalString(input.caseItem.case_family),
 			dataset_slug: slugValue,
 			asset_hash: input.assetHash,
 			schema_version: "langfuse_dataset_manifest.v2",
@@ -192,6 +227,13 @@ function datasetItem(input: {
 		},
 		status: "ACTIVE",
 	};
+}
+
+function requiredPositiveInteger(value: unknown, field: string): number {
+	if (!(typeof value === "number" && Number.isInteger(value) && value > 0)) {
+		throw new Error(`${field} must be a positive integer`);
+	}
+	return value;
 }
 
 async function syncOneDataset(input: {

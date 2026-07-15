@@ -47,8 +47,23 @@ jobs:
         if: always()
         run: scripts/ci/turbo-summary.sh
 
+      - name: Run ingestion lane
+        run: |
+          rm -rf .turbo/runs
+          pnpm ci:ingest
+
+      - name: Summarize ingestion lane
+        if: always()
+        run: scripts/ci/turbo-summary.sh
+
       - name: Run eval lane
-        run: pnpm ci:eval
+        run: |
+          rm -rf .turbo/runs
+          pnpm ci:eval
+
+      - name: Summarize eval lane
+        if: always()
+        run: scripts/ci/turbo-summary.sh
 
   go:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]

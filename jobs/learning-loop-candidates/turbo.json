@@ -1,0 +1,18 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			]
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			]
+		}
+	}
+}

@@ -93,10 +93,6 @@ describe("POST /api/chat/requests", () => {
 			new Request("https://app-api.internal/api/chat/requests", {
 				body: JSON.stringify({
 					prompt: "图书馆开放到几点？",
-					versionQuery: {
-						mode: "as_of",
-						asOf: "2024-06-01",
-					},
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -130,10 +126,6 @@ describe("POST /api/chat/requests", () => {
 			idempotencyKey: "idem-001",
 			payload: {
 				prompt: "图书馆开放到几点？",
-				versionQuery: {
-					asOf: "2024-06-01",
-					mode: "as_of",
-				},
 			},
 			principal: expect.objectContaining({
 				principal: expect.objectContaining({

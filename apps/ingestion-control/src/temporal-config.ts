@@ -3,11 +3,17 @@ export interface IngestionTemporalConfig {
 	namespace: string;
 	workflowTaskQueue: string;
 	controlActivityTaskQueue: string;
+	rustKernelActivityTaskQueue: string;
+	sourceCollectorActivityTaskQueue: string;
 }
 
 export const DEFAULT_INGESTION_WORKFLOW_TASK_QUEUE = "campus-agent.ingestion.workflow";
 export const DEFAULT_INGESTION_CONTROL_ACTIVITY_TASK_QUEUE =
 	"campus-agent.ingestion.activity.control";
+export const DEFAULT_INGESTION_RUST_KERNEL_ACTIVITY_TASK_QUEUE =
+	"campus-agent.ingestion.activity.rust-kernel";
+export const DEFAULT_INGESTION_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE =
+	"campus-agent.ingestion.activity.source-collector";
 
 export function buildIngestionTemporalConfig(
 	env: Record<string, string | undefined>,
@@ -20,6 +26,12 @@ export function buildIngestionTemporalConfig(
 		controlActivityTaskQueue:
 			env.INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE?.trim() ||
 			DEFAULT_INGESTION_CONTROL_ACTIVITY_TASK_QUEUE,
+		rustKernelActivityTaskQueue:
+			env.INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE?.trim() ||
+			DEFAULT_INGESTION_RUST_KERNEL_ACTIVITY_TASK_QUEUE,
+		sourceCollectorActivityTaskQueue:
+			env.INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE?.trim() ||
+			DEFAULT_INGESTION_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE,
 	};
 }
 

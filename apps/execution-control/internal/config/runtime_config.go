@@ -7,22 +7,34 @@ import (
 	"strings"
 )
 
+const MaxKnowledgeSearches = 3
+
 const runtimeConfigFileSchemaVersion = "campus_execution_control_runtime_config.v1"
 
 type runtimeConfigFile struct {
-	SchemaVersion          string                        `json:"schema_version"`
-	MaxConcurrentAnswers   *int                          `json:"max_concurrent_answers,omitempty"`
-	QueueCapacity          *int                          `json:"queue_capacity,omitempty"`
-	QueueTimeoutMS         *int                          `json:"queue_timeout_ms,omitempty"`
-	RequestTimeoutMS       *int                          `json:"request_timeout_ms,omitempty"`
-	RequestBodyLimitBytes  *int64                        `json:"request_body_limit_bytes,omitempty"`
-	ShutdownGraceMS        *int                          `json:"shutdown_grace_ms,omitempty"`
-	QueryServingScopesPath *string                       `json:"query_serving_scopes_path,omitempty"`
-	ToolReadModelTimeoutMS *int                          `json:"tool_read_model_timeout_ms,omitempty"`
-	OTel                   *runtimeConfigFileOTel        `json:"otel,omitempty"`
-	KnowledgeSearch        *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
-	PersonalMemory         *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
-	WorkerProfiles         map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
+	SchemaVersion           string                        `json:"schema_version"`
+	MaxConcurrentAnswers    *int                          `json:"max_concurrent_answers,omitempty"`
+	QueueCapacity           *int                          `json:"queue_capacity,omitempty"`
+	QueueTimeoutMS          *int                          `json:"queue_timeout_ms,omitempty"`
+	RequestTimeoutMS        *int                          `json:"request_timeout_ms,omitempty"`
+	RequestBodyLimitBytes   *int64                        `json:"request_body_limit_bytes,omitempty"`
+	ShutdownGraceMS         *int                          `json:"shutdown_grace_ms,omitempty"`
+	QueryServingTargetsPath *string                       `json:"query_serving_targets_path,omitempty"`
+	ToolReadModelTimeoutMS  *int                          `json:"tool_read_model_timeout_ms,omitempty"`
+	AgentRuntime            *runtimeConfigAgentRuntime    `json:"agent_runtime,omitempty"`
+	OTel                    *runtimeConfigFileOTel        `json:"otel,omitempty"`
+	KnowledgeSearch         *runtimeConfigKnowledgeSearch `json:"knowledge_search,omitempty"`
+	PersonalMemory          *runtimeConfigFileMemory      `json:"personal_memory,omitempty"`
+	WorkerProfiles          map[string]runtimeModeWorker  `json:"worker_profiles,omitempty"`
+}
+
+type runtimeConfigAgentRuntime struct {
+	DeadlineMS                 *int `json:"deadline_ms,omitempty"`
+	MaxOutputTokens            *int `json:"max_output_tokens,omitempty"`
+	MaxTurns                   *int `json:"max_turns,omitempty"`
+	MaxKnowledgeSearches       *int `json:"max_knowledge_searches,omitempty"`
+	CurrentInputCharLimit      *int `json:"current_input_char_limit,omitempty"`
+	FinalModelContextCharLimit *int `json:"final_model_context_char_limit,omitempty"`
 }
 
 type runtimeConfigFileOTel struct {
@@ -114,7 +126,7 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 		name  string
 		value *string
 	}{
-		{"query_serving_scopes_path", profile.QueryServingScopesPath},
+		{"query_serving_targets_path", profile.QueryServingTargetsPath},
 	}
 	for _, item := range requiredStrings {
 		if item.value == nil || strings.TrimSpace(*item.value) == "" {
@@ -124,11 +136,43 @@ func validateRuntimeConfigCompleteness(profile runtimeConfigFile) error {
 	if err := validateRuntimeConfigOTelCompleteness(profile.OTel); err != nil {
 		return err
 	}
+	if err := validateRuntimeConfigAgentRuntimeCompleteness(profile.AgentRuntime); err != nil {
+		return err
+	}
 	if err := validateRuntimeConfigKnowledgeSearchCompleteness(profile.KnowledgeSearch); err != nil {
 		return err
 	}
 	if err := validateRuntimeConfigMemoryCompleteness(profile.PersonalMemory); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateRuntimeConfigAgentRuntimeCompleteness(value *runtimeConfigAgentRuntime) error {
+	if value == nil {
+		return fmt.Errorf("execution-control runtime config missing required field agent_runtime")
+	}
+	required := []struct {
+		name  string
+		value *int
+	}{
+		{"deadline_ms", value.DeadlineMS},
+		{"max_output_tokens", value.MaxOutputTokens},
+		{"max_turns", value.MaxTurns},
+		{"max_knowledge_searches", value.MaxKnowledgeSearches},
+		{"current_input_char_limit", value.CurrentInputCharLimit},
+		{"final_model_context_char_limit", value.FinalModelContextCharLimit},
+	}
+	for _, item := range required {
+		if item.value == nil {
+			return fmt.Errorf("execution-control runtime config missing required agent_runtime.%s", item.name)
+		}
+	}
+	if *value.MaxKnowledgeSearches > MaxKnowledgeSearches {
+		return fmt.Errorf(
+			"execution-control runtime config agent_runtime.max_knowledge_searches must not exceed %d",
+			MaxKnowledgeSearches,
+		)
 	}
 	return nil
 }
@@ -238,8 +282,16 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 	applyInt(&values.RequestTimeoutMS, profile.RequestTimeoutMS)
 	applyInt64(&values.RequestBodyLimitBytes, profile.RequestBodyLimitBytes)
 	applyInt(&values.ShutdownGraceMS, profile.ShutdownGraceMS)
-	applyString(&values.QueryServingScopesPath, profile.QueryServingScopesPath)
+	applyString(&values.QueryServingTargetsPath, profile.QueryServingTargetsPath)
 	applyInt(&values.ToolReadModelTimeoutMS, profile.ToolReadModelTimeoutMS)
+	if profile.AgentRuntime != nil {
+		applyInt(&values.AgentRuntimeDeadlineMS, profile.AgentRuntime.DeadlineMS)
+		applyInt(&values.AgentRuntimeMaxOutputTokens, profile.AgentRuntime.MaxOutputTokens)
+		applyInt(&values.AgentRuntimeMaxTurns, profile.AgentRuntime.MaxTurns)
+		applyInt(&values.AgentRuntimeSearchLimit, profile.AgentRuntime.MaxKnowledgeSearches)
+		applyInt(&values.AgentRuntimeInputCharLimit, profile.AgentRuntime.CurrentInputCharLimit)
+		applyInt(&values.AgentRuntimeContextCharLimit, profile.AgentRuntime.FinalModelContextCharLimit)
+	}
 	if profile.OTel != nil {
 		applyString(&values.OTelEndpoint, profile.OTel.Endpoint)
 		applyString(&values.OTelMetricsEndpoint, profile.OTel.MetricsEndpoint)

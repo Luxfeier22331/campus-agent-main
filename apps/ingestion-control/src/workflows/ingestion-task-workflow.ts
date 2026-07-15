@@ -1,86 +1,164 @@
 import {
+	ApplicationFailure,
 	CancellationScope,
 	isCancellation,
 	proxyActivities,
 	workflowInfo,
 } from "@temporalio/workflow";
-
-import type { IngestionTaskActivities } from "../activities";
-import type { IngestionTaskRecord } from "../types";
+import type {
+	IngestionProjectionActivities,
+	RustKernelActivities,
+	SourceCollectorActivities,
+} from "../activities";
+import type {
+	IngestionTaskExecutionSnapshot,
+	IngestionTaskRecord,
+	IngestionTaskResult,
+} from "../types";
 
 export interface IngestionTaskWorkflowInput {
 	controlActivityTaskQueue: string;
-	taskId: string;
+	rustKernelActivityTaskQueue: string;
+	snapshot: IngestionTaskExecutionSnapshot;
+	sourceCollectorActivityTaskQueue: string;
 }
 
 export async function ingestionTaskWorkflow(
 	input: IngestionTaskWorkflowInput,
 ): Promise<IngestionTaskRecord> {
-	const controlActivities = proxyActivities<IngestionTaskActivities>({
-		retry: {
-			maximumAttempts: 3,
-		},
-		startToCloseTimeout: "30 minutes",
+	const projectionActivities = proxyActivities<IngestionProjectionActivities>({
+		retry: { maximumAttempts: 5 },
+		startToCloseTimeout: "1 minute",
 		taskQueue: input.controlActivityTaskQueue,
+	});
+	const terminalProjectionActivities = proxyActivities<IngestionProjectionActivities>({
+		retry: {
+			backoffCoefficient: 2,
+			initialInterval: "1 second",
+			maximumInterval: "1 minute",
+		},
+		startToCloseTimeout: "5 minutes",
+		taskQueue: input.controlActivityTaskQueue,
+	});
+	const rustActivities = proxyActivities<RustKernelActivities>({
+		heartbeatTimeout: "30 seconds",
+		retry: { maximumAttempts: 3 },
+		startToCloseTimeout: "2 hours",
+		taskQueue: input.rustKernelActivityTaskQueue,
+	});
+	const sourceActivities = proxyActivities<SourceCollectorActivities>({
+		heartbeatTimeout: "30 seconds",
+		retry: { maximumAttempts: 3 },
+		startToCloseTimeout: "12 hours",
+		taskQueue: input.sourceCollectorActivityTaskQueue,
 	});
 	const info = workflowInfo();
 	return runIngestionTaskWorkflowPlan({
-		activities: controlActivities,
-		taskId: input.taskId,
+		execute: async () => {
+			if (input.snapshot.registry_task.executor_kind !== "source_collector") {
+				return rustActivities.executeRustKernelTask(input.snapshot);
+			}
+			const preparationRef = await projectionActivities.prepareSourceCollectorTask(input.snapshot);
+			return sourceActivities.executeSourceCollectorTask(input.snapshot, preparationRef);
+		},
+		projectionActivities: {
+			prepareSourceCollectorTask: projectionActivities.prepareSourceCollectorTask,
+			recordIngestionTaskStarted: projectionActivities.recordIngestionTaskStarted,
+			completeIngestionTask: terminalProjectionActivities.completeIngestionTask,
+			failIngestionTask: terminalProjectionActivities.failIngestionTask,
+			cancelIngestionTask: terminalProjectionActivities.cancelIngestionTask,
+		},
+		snapshot: input.snapshot,
+		workflowId: info.workflowId,
 		workflowRunId: info.runId,
 	});
 }
 
 export async function runIngestionTaskWorkflowPlan(input: {
-	activities: IngestionTaskActivities;
+	execute: () => Promise<IngestionTaskResult>;
 	isCancellationError?: (error: unknown) => boolean;
+	projectionActivities: IngestionProjectionActivities;
 	runNonCancellableCleanup?: <T>(cleanup: () => Promise<T>) => Promise<T>;
-	taskId: string;
+	snapshot: IngestionTaskExecutionSnapshot;
+	workflowId: string;
 	workflowRunId: string;
 }): Promise<IngestionTaskRecord> {
 	const isCancellationError = input.isCancellationError ?? isCancellation;
 	const runNonCancellableCleanup =
 		input.runNonCancellableCleanup ?? ((cleanup) => CancellationScope.nonCancellable(cleanup));
-	await input.activities.markIngestionTaskRunning({
-		taskId: input.taskId,
+	await input.projectionActivities.recordIngestionTaskStarted({
+		snapshot: input.snapshot,
+		workflowId: input.workflowId,
 		workflowRunId: input.workflowRunId,
 	});
-	let phase: "execute" | "closeout" = "execute";
+	let phase: "execute" | "projection" = "execute";
 	try {
-		const result = await input.activities.executeIngestionTask({ taskId: input.taskId });
-		phase = "closeout";
-		if (result.status === "failed") {
-			return await input.activities.failIngestionTask({
-				taskId: input.taskId,
-				errorCode: result.errorCode,
-				errorMessage: result.errorMessage,
-			});
-		}
-		return await input.activities.completeIngestionTask({
-			taskId: input.taskId,
-			artifactRefs: result.artifactRefs,
-		});
+		const result = await input.execute();
+		phase = "projection";
+		return await runNonCancellableCleanup(() =>
+			input.projectionActivities.completeIngestionTask({
+				result,
+				snapshot: input.snapshot,
+			}),
+		);
 	} catch (error) {
 		if (isCancellationError(error)) {
-			return runNonCancellableCleanup(() =>
-				input.activities.cancelIngestionTask({
-					taskId: input.taskId,
-					reason: error instanceof Error ? error.message : "ingestion task workflow canceled",
+			await runNonCancellableCleanup(() =>
+				input.projectionActivities.cancelIngestionTask({
+					taskId: input.snapshot.task.task_id,
+					reason: error instanceof Error ? error.message : "ingestion workflow canceled",
 				}),
 			);
-		}
-		if (phase === "closeout") {
 			throw error;
 		}
-		return input.activities.failIngestionTask({
-			taskId: input.taskId,
-			errorCode: readErrorCode(error),
-			errorMessage: error instanceof Error ? error.message : "ingestion task workflow failed",
-		});
+		if (phase === "projection" && isInvalidTaskResultFailure(error)) {
+			await runNonCancellableCleanup(() =>
+				input.projectionActivities.failIngestionTask({
+					taskId: input.snapshot.task.task_id,
+					errorCode: "invalid_ingestion_task_result",
+					errorMessage: readErrorMessage(error),
+				}),
+			);
+			throw error;
+		}
+		if (phase === "projection") {
+			throw error;
+		}
+		await runNonCancellableCleanup(() =>
+			input.projectionActivities.failIngestionTask({
+				taskId: input.snapshot.task.task_id,
+				errorCode: readErrorCode(error),
+				errorMessage: error instanceof Error ? error.message : "ingestion activity failed",
+			}),
+		);
+		throw error;
 	}
 }
 
+function isInvalidTaskResultFailure(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
+		if (current instanceof ApplicationFailure && current.type === "invalid_ingestion_task_result") {
+			return true;
+		}
+		current = current.cause;
+	}
+	return false;
+}
+
+function readErrorMessage(error: unknown): string {
+	let current: unknown = error;
+	let message = "invalid ingestion task result";
+	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
+		message = current.message || message;
+		current = current.cause;
+	}
+	return message;
+}
+
 function readErrorCode(error: unknown): string {
-	void error;
-	return "ingestion_task_activity_failed";
+	if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
+		return error.code.slice(0, 128);
+	}
+	return "ingestion_activity_failed";
 }

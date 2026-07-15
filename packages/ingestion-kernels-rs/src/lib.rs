@@ -10,7 +10,7 @@ use tokenizers::Tokenizer;
 const CANONICAL_DOCUMENT_UNIT_SCHEMA_JSON: &str =
     include_str!("../../ingestion-contracts/schemas/canonical-document-units.v1.schema.json");
 const INGESTION_RELEASE_MANIFEST_SCHEMA_JSON: &str =
-    include_str!("../../ingestion-contracts/schemas/ingestion-release-manifest.v1.schema.json");
+    include_str!("../../ingestion-contracts/schemas/ingestion-release-manifest.v2.schema.json");
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentUnitsValidationReport {
@@ -509,11 +509,11 @@ mod tests {
     fn release_manifest_validation_reports_missing_required_fields() {
         let report = validate_release_manifest_json(
             r#"{
-  "schema_version": "ingestion_release_manifest.v1",
+  "schema_version": "ingestion_release_manifest.v2",
   "release_id": "student-rules-release-001",
   "collection": "student_rules",
   "artifacts": [
-    {"kind": "chunks", "uri": "s3://bucket/chunks.jsonl", "digest": "sha256:abc"}
+    {"kind": "chunks", "uri": "s3://bucket/chunks.jsonl", "digest": "sha256:abc", "byte_size": 1}
   ]
 }"#,
         );
@@ -530,13 +530,13 @@ mod tests {
     fn release_manifest_validation_rejects_invalid_digests_and_duplicate_uris() {
         let report = validate_release_manifest_json(
             r#"{
-  "schema_version": "ingestion_release_manifest.v1",
+  "schema_version": "ingestion_release_manifest.v2",
   "release_id": "release-001",
   "corpus": "official_web",
   "collection": "stable_reference",
   "artifacts": [
-    {"kind": "chunks", "uri": "s3://bucket/chunks.json", "digest": "sha256:abc"},
-    {"kind": "chunks-copy", "uri": "s3://bucket/chunks.json", "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+    {"kind": "chunks", "uri": "s3://bucket/chunks.json", "digest": "sha256:abc", "byte_size": 1},
+    {"kind": "chunks-copy", "uri": "s3://bucket/chunks.json", "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "byte_size": 1}
   ]
 }"#,
         );

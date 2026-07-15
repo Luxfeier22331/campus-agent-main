@@ -1,0 +1,63 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"cache": false,
+			"passThroughEnv": [
+				"APP_API_OPERATOR_DATABASE_URL",
+				"CAMPUS_DOCS_SYNC_MANIFEST_KEY",
+				"CAMPUS_DOCS_SYNC_MANIFEST_PATH",
+				"CAMPUS_WEB_RSPRESS_DOCS_ROOT",
+				"OBJECT_STORE_ACCESS_KEY",
+				"OBJECT_STORE_BUCKET_DERIVED",
+				"OBJECT_STORE_DERIVED_ACCESS_KEY",
+				"OBJECT_STORE_DERIVED_SECRET_KEY",
+				"OBJECT_STORE_ENDPOINT",
+				"OBJECT_STORE_REGION",
+				"OBJECT_STORE_SECRET_KEY",
+				"OBJECT_STORE_SECURE"
+			]
+		},
+		"build:app": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/branding/**"]
+		},
+		"build:docs": {
+			"cache": false,
+			"passThroughEnv": [
+				"APP_API_OPERATOR_DATABASE_URL",
+				"CAMPUS_DOCS_SYNC_MANIFEST_KEY",
+				"CAMPUS_DOCS_SYNC_MANIFEST_PATH",
+				"CAMPUS_WEB_RSPRESS_DOCS_ROOT",
+				"OBJECT_STORE_ACCESS_KEY",
+				"OBJECT_STORE_BUCKET_DERIVED",
+				"OBJECT_STORE_DERIVED_ACCESS_KEY",
+				"OBJECT_STORE_DERIVED_SECRET_KEY",
+				"OBJECT_STORE_ENDPOINT",
+				"OBJECT_STORE_REGION",
+				"OBJECT_STORE_SECRET_KEY",
+				"OBJECT_STORE_SECURE"
+			]
+		},
+		"build:worker": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/branding/**"]
+		},
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			]
+		},
+		"test:worker": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			]
+		},
+		"typecheck": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/scripts/deploy/**"]
+		}
+	}
+}

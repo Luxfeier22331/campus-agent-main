@@ -1,0 +1,9 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test:eval": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/pyproject.toml", "$TURBO_ROOT$/uv.lock"]
+		}
+	}
+}

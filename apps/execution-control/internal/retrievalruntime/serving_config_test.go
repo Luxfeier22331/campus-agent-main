@@ -6,10 +6,9 @@ import (
 )
 
 func TestLoadServingConfigUsesCollectionAliasAndHybridSettings(t *testing.T) {
-	config, err := LoadServingConfig(
+	config, err := LoadServingConfigPath(
 		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
-		"regulations",
-		"student_rules",
+		filepath.Join("regulations", "student_rules", "serving-config.json"),
 	)
 	if err != nil {
 		t.Fatalf("load serving config: %v", err)
@@ -31,8 +30,14 @@ func TestLoadServingConfigUsesCollectionAliasAndHybridSettings(t *testing.T) {
 			config.SparsePrefetchLimit,
 		)
 	}
-	if !config.RetrievalEnabled || !config.QueryEnabledByDefault {
-		t.Fatalf("query serving flags = retrieval %v query %v, want both true", config.RetrievalEnabled, config.QueryEnabledByDefault)
+	if config.EmbeddingProvider != "openai-compatible" ||
+		config.EmbeddingModel != "Qwen3-Embedding-4B" ||
+		config.EmbeddingDimensions != 2560 ||
+		config.EmbeddingVectorName != "dense" {
+		t.Fatalf("embedding profile = %#v", config)
+	}
+	if !config.RetrievalEnabled {
+		t.Fatal("retrieval must be enabled")
 	}
 	if len(config.ServingVisibilityLevels) != 1 || config.ServingVisibilityLevels[0] != "public" {
 		t.Fatalf("serving visibility levels = %#v, want public", config.ServingVisibilityLevels)
@@ -40,10 +45,9 @@ func TestLoadServingConfigUsesCollectionAliasAndHybridSettings(t *testing.T) {
 }
 
 func TestLoadServingConfigReadsInstitutionalServingPolicy(t *testing.T) {
-	config, err := LoadServingConfig(
+	config, err := LoadServingConfigPath(
 		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
-		"regulations",
-		"institutional_rules",
+		filepath.Join("regulations", "institutional_rules", "serving-config.json"),
 	)
 	if err != nil {
 		t.Fatalf("load serving config: %v", err)
@@ -60,10 +64,9 @@ func TestLoadServingConfigReadsInstitutionalServingPolicy(t *testing.T) {
 }
 
 func TestLoadServingConfigRejectsUnpublishedOfficialWebCollections(t *testing.T) {
-	_, err := LoadServingConfig(
+	_, err := LoadServingConfigPath(
 		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
-		"official_web",
-		"fresh_news",
+		filepath.Join("official_web", "fresh_news", "serving-config.json"),
 	)
 	if err == nil {
 		t.Fatal("fresh_news must not load as query-serving before official-web RAG publish is complete")

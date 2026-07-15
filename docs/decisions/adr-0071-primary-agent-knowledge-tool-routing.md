@@ -3,16 +3,17 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0071
-status: accepted
+status: superseded
 created: 2026-07-09
-updated: 2026-07-11
+updated: 2026-07-13
 supersedes: ADR-0042
+superseded_by: ADR-0075
 ---
 # ADR-0071 OpenAI Agents SDK Knowledge Handoff
 
 ## Status
 
-Accepted.
+Superseded by ADR-0075.
 
 ## Context
 
@@ -88,7 +89,10 @@ Rejected because product transport must not become a second answer author.
 
 ## Consequences
 
-- Tool exposure is governed by `tools.v4` and strict function schemas.
+- Tool exposure was governed by the runtime tool registry and strict function
+  schemas. Current executable artifacts are `tools.v5.json` and
+  `tool-function-schemas.v2.json`; ADR-0075 defines the target-based search
+  replacement.
 - `knowledge_query` is model-visible; `knowledge_search` is internal-only.
 - SDK `maxTurns` is only the SDK run turn budget.
 - Temporal owns durable lifecycle, not SDK-internal semantic steps.

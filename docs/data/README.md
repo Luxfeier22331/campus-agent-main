@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: docs/data
 status: active
 created: 2026-04-12
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 # Data
 
@@ -19,7 +19,6 @@ schema / ownership truth。
   - `app-api/auth-chat-docs-profile.md`
   - `app-api/runtime.md`
   - `app-api/operator.md`
-- `app-api/official-web.md`
 - `dining.md`
 - `identity-platform.md`
 - `durable-runtime.md`

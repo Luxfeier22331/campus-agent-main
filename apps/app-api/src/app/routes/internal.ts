@@ -18,9 +18,6 @@ import {
 	hasMatchingInternalSecret,
 	isEndUserEmailAllowedForAuth,
 } from "../../modules/auth";
-import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
-import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
-import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
 import { readJsonRequestBody } from "../request-utils";
 import { serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
@@ -268,54 +265,6 @@ export function registerInternalRoutes(input: {
 			}
 			throw error;
 		}
-	});
-
-	input.app.post("/api/internal/operator/authenticated-notices/processing-snapshots", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const payload = await readJsonRequestBody(c.req.raw);
-		assertNoForbiddenAuthenticatedNoticeProcessingFields(payload);
-		return jsonResponse(
-			await scope.resolveAuthenticatedNoticeProcessingCommandService().ingestSnapshots({
-				payload,
-			}),
-		);
-	});
-
-	input.app.post(
-		"/api/internal/operator/authenticated-notices/run-processing-snapshots",
-		async (c) => {
-			const scope = input.createRequestScope();
-			if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-				return serviceCredentialRequiredResponse();
-			}
-
-			const payload = await readJsonRequestBody(c.req.raw);
-			assertNoForbiddenAuthenticatedNoticeRunProcessingFields(payload);
-			return jsonResponse(
-				await scope.resolveAuthenticatedNoticeRunProcessingCommandService().ingestSnapshots({
-					payload,
-				}),
-			);
-		},
-	);
-
-	input.app.post("/api/internal/operator/official-web/release-task-snapshots", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		const payload = await readJsonRequestBody(c.req.raw);
-		assertNoForbiddenOfficialWebReleaseTaskProcessingFields(payload);
-		return jsonResponse(
-			await scope.resolveOfficialWebReleaseTaskProcessingCommandService().ingestSnapshots({
-				payload,
-			}),
-		);
 	});
 
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {

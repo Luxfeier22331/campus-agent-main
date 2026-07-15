@@ -210,7 +210,7 @@ Accepted on 2026-04-14.
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/reference/institutional-rules-promotion.md`
 - `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
-- `configs/ingestion/regulations/institutional_rules/source-projections.v1.json`
+- `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
 
 ## External References
 

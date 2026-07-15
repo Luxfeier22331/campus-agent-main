@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +11,12 @@ const repoRoot = resolve(appRoot, "../..");
 
 function readAppFile(relativePath: string): string {
 	return readFileSync(resolve(appRoot, relativePath), "utf8");
+}
+
+function appFileSha256(relativePath: string): string {
+	return createHash("sha256")
+		.update(readFileSync(resolve(appRoot, relativePath)))
+		.digest("hex");
 }
 
 describe("app-api schema installer", () => {
@@ -27,9 +34,12 @@ describe("app-api schema installer", () => {
 			'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "runtime"',
 		);
 		expect(sql).not.toContain('"runtime"."agent_runs"');
+		expect(sql).not.toContain('"official_web"');
+		expect(sql).not.toContain('"operator"');
+		expect(sql).not.toContain('"wechat_official_account"');
 	});
 
-	it("uses an immutable migration ledger before current auth and chat bootstrap", () => {
+	it("bootstraps current auth and chat before applying the immutable migration ledger", () => {
 		const source = readAppFile("ops/db/schema.ts");
 		const journal = readAppFile("drizzle/meta/_journal.json");
 
@@ -37,12 +47,39 @@ describe("app-api schema installer", () => {
 		expect(source).toContain('migrationsSchema: "drizzle"');
 		expect(source).toContain('migrationsTable: "app_api_migrations"');
 		expect(source).toContain("bootstrapSharedProductDatabase");
+		expect(source.indexOf("bootstrapSharedProductDatabase(bootstrapEnv)")).toBeLessThan(
+			source.indexOf("await migrate("),
+		);
 		expect(source).toContain("applyAppApiGrants");
 		expect(source).toContain("applyOpsWebGrantStatements");
 		expect(journal).toContain('"tag": "0000_initial"');
+		expect(journal).toContain('"tag": "0001_runtime_cleanup"');
+		expect(appFileSha256("drizzle/0000_initial.sql")).toBe(
+			"1dacf105c0d166a87db3fd5d6dbef48cfb10cf1e2261ad082c2c7e9b63c03b65",
+		);
+		expect(appFileSha256("drizzle/meta/0000_snapshot.json")).toBe(
+			"4f524d5752e82deb4372bcc5eb0070d102addac2cae26d7d3cb5fd11087c140a",
+		);
+		expect(JSON.parse(journal).entries[0]).toEqual({
+			breakpoints: true,
+			idx: 0,
+			tag: "0000_initial",
+			version: "7",
+			when: 1783899714209,
+		});
 		expect(readAppFile("drizzle/0000_initial.sql")).toContain(
 			'CREATE TABLE "runtime"."request_observability_fact"',
 		);
+		const cleanup = readAppFile("drizzle/0001_runtime_cleanup.sql");
+		expect(cleanup).toContain(
+			'ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "resolved_targets_json"',
+		);
+		expect(cleanup).toContain(
+			'ALTER TABLE "runtime"."request_observability_fact" ADD COLUMN "resolved_targets_json"',
+		);
+		for (const schema of ["official_web", "operator", "wechat_official_account"]) {
+			expect(cleanup).toContain(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+		}
 	});
 
 	it("keeps campus-services schema installation with its publisher owner", () => {

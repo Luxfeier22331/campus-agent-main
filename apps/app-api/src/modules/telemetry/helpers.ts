@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 
-import type { RequestedScope } from "../integration";
 import type { TraceDataLike } from "./trace";
 
 export function hashIdentifier(value: string | null): string | null {
@@ -16,11 +15,11 @@ export function normalizeString(value: string | null | undefined): string | null
 	return trimmed ? trimmed : null;
 }
 
-export function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
-	if (!scope) {
+export function toTargetsSummary(targets: readonly string[] | null | undefined): string | null {
+	if (!targets || targets.length === 0) {
 		return null;
 	}
-	return scope;
+	return targets.join(",");
 }
 
 export function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {

@@ -1,4 +1,9 @@
-import type { OfficialWebDiscoveryMethod, OfficialWebRunIntent } from "./config.ts";
+import { encodeObjectKeySegment } from "ingest-core";
+import type {
+	OfficialWebCredentialsMode,
+	OfficialWebDiscoveryMethod,
+	OfficialWebRunIntent,
+} from "./config.ts";
 import type { OfficialWebUrlIdentityBasis } from "./policy.ts";
 import type {
 	OfficialWebPageFamily,
@@ -146,12 +151,13 @@ export interface OfficialWebRunArtifactRef {
 	artifactType: OfficialWebRunArtifactType;
 	objectKey: string;
 	contentSha256: string;
-	byteSize?: number;
+	byteSize: number;
 	recordCount?: number;
 }
 
 export interface OfficialWebPageObservationRecord {
 	schemaVersion: "official_web_page_observation.v1";
+	configuredSeedUrl: string | null;
 	observedAt: string;
 	siteId: string;
 	crawlRunId: string;
@@ -168,8 +174,13 @@ export interface OfficialWebPageObservationRecord {
 	discoveredFromUrl: string | null;
 	httpStatus: number | null;
 	contentType: string | null;
+	crawlPolicyVersion: string | null;
+	credentialsMode: OfficialWebCredentialsMode | null;
+	declaredCanonicalUrl: string | null;
 	etag: string | null;
+	hostPolicyVersion: string | null;
 	lastModified: string | null;
+	redirectChain: string[];
 	responseBodyHash: string | null;
 	mainContentHash: string | null;
 	disposition: OfficialWebPageObservationDisposition;
@@ -313,6 +324,7 @@ export function buildOfficialWebPageObservationRecord(
 ): OfficialWebPageObservationRecord {
 	return {
 		schemaVersion: "official_web_page_observation.v1",
+		configuredSeedUrl: input.configuredSeedUrl,
 		observedAt: input.observedAt ?? new Date().toISOString(),
 		siteId: input.siteId,
 		crawlRunId: input.crawlRunId,
@@ -329,8 +341,13 @@ export function buildOfficialWebPageObservationRecord(
 		discoveredFromUrl: input.discoveredFromUrl ?? null,
 		httpStatus: input.httpStatus,
 		contentType: input.contentType,
+		crawlPolicyVersion: input.crawlPolicyVersion ?? null,
+		credentialsMode: input.credentialsMode ?? null,
+		declaredCanonicalUrl: input.declaredCanonicalUrl ?? null,
 		etag: input.etag ?? null,
+		hostPolicyVersion: input.hostPolicyVersion ?? null,
 		lastModified: input.lastModified ?? null,
+		redirectChain: input.redirectChain ?? [],
 		responseBodyHash: input.responseBodyHash,
 		mainContentHash: input.mainContentHash,
 		disposition: input.disposition,
@@ -343,11 +360,15 @@ export function buildOfficialWebPageObservationRecord(
 }
 
 export function buildOfficialWebRunArtifactKey(input: {
+	activityAttempt: number;
 	siteId: string;
 	crawlRunId: string;
 	artifactName: OfficialWebKnownRunArtifactName;
 }): string {
-	return `official_web/${input.siteId}/runs/${input.crawlRunId}/${input.artifactName}`;
+	if (!Number.isSafeInteger(input.activityAttempt) || input.activityAttempt <= 0) {
+		throw new Error("activityAttempt must be a positive integer");
+	}
+	return `official_web/${encodeObjectKeySegment(input.siteId)}/runs/${encodeObjectKeySegment(input.crawlRunId)}/attempts/${input.activityAttempt}/${input.artifactName}`;
 }
 
 export function resolveOfficialWebRunArtifactType(

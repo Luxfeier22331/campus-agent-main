@@ -1,7 +1,7 @@
 import type { IngestionTaskEnvelope } from "ingestion-contracts";
 import { z } from "zod";
 
-import { formatZodIssues, parseJsonObjectBytes } from "./core.ts";
+import { encodeObjectKeySegment, formatZodIssues, parseJsonObjectBytes } from "./core.ts";
 
 export const INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE = "application/json";
 
@@ -59,16 +59,22 @@ const KernelOutputSchemas = {
 } as const;
 
 export function buildIngestionKernelArtifactKey(input: {
+	activityAttempt: number;
 	kernelId: string;
 	task: IngestionTaskEnvelope;
 }): string {
+	if (!Number.isSafeInteger(input.activityAttempt) || input.activityAttempt <= 0) {
+		throw new Error("activityAttempt must be a positive integer");
+	}
 	return [
 		"ingestion-kernels",
-		safeKernelArtifactKeySegment(input.task.corpus, "corpus"),
-		safeKernelArtifactKeySegment(input.task.collection, "collection"),
-		safeKernelArtifactKeySegment(input.task.run_id, "run_id"),
-		safeKernelArtifactKeySegment(input.task.task_id, "task_id"),
-		`${safeKernelArtifactKeySegment(input.kernelId, "kernel_id")}.json`,
+		encodeObjectKeySegment(input.task.registry_task_id),
+		"runs",
+		encodeObjectKeySegment(input.task.run_id),
+		"attempts",
+		String(input.activityAttempt),
+		encodeObjectKeySegment(input.task.task_id),
+		`${encodeObjectKeySegment(input.kernelId)}.json`,
 	].join("/");
 }
 
@@ -167,11 +173,4 @@ function formatKernelReportedErrors(errors: string[]): string {
 		return ".";
 	}
 	return `: ${errors.slice(0, 5).join("; ").slice(0, 1000)}`;
-}
-
-function safeKernelArtifactKeySegment(value: string, label: string): string {
-	if (!/^[A-Za-z0-9_.:-]+$/u.test(value)) {
-		throw new Error(`${label} is not safe for ingestion kernel artifact key`);
-	}
-	return value;
 }

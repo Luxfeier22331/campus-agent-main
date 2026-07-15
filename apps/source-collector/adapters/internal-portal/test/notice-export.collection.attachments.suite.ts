@@ -4,7 +4,6 @@ import {
 	collectNoticeExportBundle,
 	parseAttachmentFetchAdmissionsFromManifest,
 } from "../src/notice-export.js";
-import { registerNoticeExportCollectionAttachmentFailureSuite } from "./notice-export.collection.attachment-failures.suite.js";
 import { registerNoticeExportCollectionInlineVisualsSuite } from "./notice-export.collection.inline-visuals.suite.js";
 
 export function registerNoticeExportCollectionAttachmentsSuite(): void {
@@ -179,7 +178,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
@@ -314,7 +313,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
@@ -433,7 +432,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({ objectKey, data, contentType, metadata });
 					throw new Error("inline image should not be stored when capture is disabled");
 				},
@@ -531,7 +530,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({ objectKey, data, contentType, metadata });
 					throw new Error("non-visual inline bytes should not be stored by default capture");
 				},
@@ -638,7 +637,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
@@ -775,7 +774,6 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 	});
 
 	registerNoticeExportCollectionInlineVisualsSuite();
-	registerNoticeExportCollectionAttachmentFailureSuite();
 }
 
 function fakeArtifactHead(objectKey: string) {

@@ -12,9 +12,25 @@ describe("tool trajectory projection", () => {
 			available_tools: ["knowledge_query", "transport_schedule_lookup"],
 			conversation_id: "conv_1",
 			decision_kind: "tool_call",
+			environment: "staging",
+			internal_tool_calls: [
+				{
+					candidate_count: 4,
+					duration_ms: 42,
+					eval_safe_args: { include_history: false, target: "student_rules" },
+					outcome: "found",
+					query_hash: "sha256:query",
+					result_kind: "knowledge_search_result",
+					search_ordinal: 1,
+					status: "completed",
+					tool_call_id: "search_1",
+					tool_name: "knowledge_search",
+				},
+			],
+			release: "release-1",
 			request_id: "req_1",
 			run_id: "run_1",
-			schema_version: "tool_trajectory.v1",
+			schema_version: "tool_trajectory.v2",
 			selected_tool: "knowledge_query",
 			surface: "campus-web",
 			tool_calls: [
@@ -32,6 +48,13 @@ describe("tool trajectory projection", () => {
 		expect(expectedToolFromTrajectory(trajectory)).toBe("knowledge_query");
 		expect(scoreToolSelection(trajectory, "knowledge_query")).toBe(true);
 		expect(scoreToolSelection(trajectory, "transport_schedule_lookup")).toBe(false);
+		expect(trajectory.internal_tool_calls).toEqual([
+			expect.objectContaining({
+				search_ordinal: 1,
+				outcome: "found",
+				eval_safe_args: { include_history: false, target: "student_rules" },
+			}),
+		]);
 	});
 
 	it("rejects forbidden payload fields instead of sanitizing in eval", () => {
@@ -41,7 +64,7 @@ describe("tool trajectory projection", () => {
 				raw_provider_response: "must not enter eval",
 				request_id: "req_1",
 				run_id: "run_1",
-				schema_version: "tool_trajectory.v1",
+				schema_version: "tool_trajectory.v2",
 				selected_tool: "knowledge_query",
 				tool_calls: [],
 				trace_id: "trace_1",
@@ -54,9 +77,10 @@ describe("tool trajectory projection", () => {
 			available_tools: ["knowledge_query", "transport_schedule_lookup"],
 			decision_kind: "fail_closed",
 			fail_close_reason: "tool_contract_missing",
+			internal_tool_calls: [],
 			request_id: "req_1",
 			run_id: "run_1",
-			schema_version: "tool_trajectory.v1",
+			schema_version: "tool_trajectory.v2",
 			tool_calls: [],
 			trace_id: "trace_1",
 		});

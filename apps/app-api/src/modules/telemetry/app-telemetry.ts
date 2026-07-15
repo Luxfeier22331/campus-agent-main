@@ -1,7 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
-import type { RequestedScope } from "../integration";
 import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
 import {
 	hashIdentifier,
@@ -9,8 +8,8 @@ import {
 	readTelemetryTraceDataWithoutRequestFailure,
 	runTelemetryAsyncSideEffectWithoutRequestFailure,
 	runTelemetrySideEffectWithoutRequestFailure,
-	toScopeSummary,
 	toSourceDocIdsSummary,
+	toTargetsSummary,
 } from "./helpers";
 import { createOtlpRuntimeEventSink } from "./otlp";
 import type { RuntimeEventSink } from "./runtime-event";
@@ -23,7 +22,6 @@ async function emitStageTimingEvents(input: {
 	errorCode: string | null;
 	principalType?: string | null;
 	requestId: string;
-	requestedScope?: RequestedScope | null;
 	requestedTool: string | null;
 	runtimeEventSink: RuntimeEventSink;
 	selectedTool: string | null;
@@ -55,7 +53,6 @@ async function emitStageTimingEvents(input: {
 					principalType: input.principalType,
 					requestId: input.requestId,
 					requestedTool: input.requestedTool,
-					requestedScope: input.requestedScope,
 					selectedTool: input.selectedTool,
 					status: input.status,
 					surface: input.surface,
@@ -119,7 +116,6 @@ export function createAppTelemetry(
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestedTool: input.requestedTool,
-					requestedScope: input.requestedScope,
 					status: "accepted",
 					surface: input.surface,
 					traceId: input.traceId,
@@ -127,7 +123,6 @@ export function createAppTelemetry(
 				applyRequestContext({
 					conversationId: input.conversationId,
 					requestId: input.requestId,
-					requestedScope: input.requestedScope,
 					safetyIdentifier: input.safetyIdentifier,
 				});
 				Sentry.setContext("actor", {
@@ -185,7 +180,6 @@ export function createAppTelemetry(
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestedTool: input.requestedTool,
-					requestedScope: input.requestedScope,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -193,7 +187,6 @@ export function createAppTelemetry(
 				applyRequestContext({
 					conversationId: input.conversationId,
 					requestId: input.requestId,
-					requestedScope: input.requestedScope,
 					safetyIdentifier: input.safetyIdentifier,
 				});
 			});
@@ -209,7 +202,6 @@ export function createAppTelemetry(
 							principalType: input.actor.principalType,
 							requestId: input.requestId,
 							requestedTool: input.requestedTool,
-							requestedScope: input.requestedScope,
 							status: input.status,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -226,7 +218,7 @@ export function createAppTelemetry(
 					errorCode: input.errorCode,
 					principalType: input.principalType,
 					requestedTool: input.requestedTool,
-					requestedScope: input.requestedScope,
+					resolvedTargets: input.resolvedTargets,
 					selectedTool: input.selectedTool,
 					status: input.status,
 					surface: input.surface,
@@ -235,8 +227,7 @@ export function createAppTelemetry(
 				applyRequestContext({
 					conversationId: input.conversationId,
 					requestId: input.requestId,
-					requestedScope: input.requestedScope,
-					resolvedScope: input.resolvedScope,
+					resolvedTargets: input.resolvedTargets,
 					safetyIdentifier: input.safetyIdentifier,
 					selectedTool: input.selectedTool,
 				});
@@ -246,7 +237,8 @@ export function createAppTelemetry(
 				runtimeEventSink.emit({
 					conversation_id: input.conversationId,
 					duration_ms: input.durationMs,
-					resolved_scope_summary: toScopeSummary(input.resolvedScope),
+					resolved_targets_count: input.resolvedTargets?.length ?? 0,
+					resolved_targets_summary: toTargetsSummary(input.resolvedTargets),
 					retryable: input.retryable,
 					safety_identifier: input.safetyIdentifier ?? null,
 					source_doc_ids_count: input.sourceDocIds.length,
@@ -258,7 +250,6 @@ export function createAppTelemetry(
 							principalType: input.principalType,
 							requestId: input.requestId,
 							requestedTool: input.requestedTool,
-							requestedScope: input.requestedScope,
 							selectedTool: input.selectedTool,
 							status: input.status,
 							surface: input.surface,
@@ -273,7 +264,6 @@ export function createAppTelemetry(
 					errorCode: input.errorCode,
 					principalType: input.principalType,
 					requestId: input.requestId,
-					requestedScope: input.requestedScope,
 					requestedTool: input.requestedTool,
 					runtimeEventSink,
 					selectedTool: input.selectedTool,
@@ -292,7 +282,6 @@ export function createAppTelemetry(
 					errorCode: input.errorCode,
 					principalType: input.principalType,
 					requestedTool: input.requestedTool,
-					requestedScope: input.requestedScope,
 					status: "error",
 					surface: input.surface,
 					traceId: input.traceId,
@@ -300,7 +289,6 @@ export function createAppTelemetry(
 				applyRequestContext({
 					conversationId: input.conversationId,
 					requestId: input.requestId,
-					requestedScope: input.requestedScope,
 					safetyIdentifier: input.safetyIdentifier,
 				});
 			});
@@ -317,7 +305,6 @@ export function createAppTelemetry(
 							principalType: input.principalType,
 							requestId: input.requestId,
 							requestedTool: input.requestedTool,
-							requestedScope: input.requestedScope,
 							status: "error",
 							surface: input.surface,
 							traceId: input.traceId,

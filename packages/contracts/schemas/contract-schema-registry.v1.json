@@ -65,29 +65,29 @@
 			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
 		},
 		{
-			"id": "knowledge-tool-contracts.v1",
+			"id": "knowledge-tool-contracts.v2",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/knowledge-tool-contracts.v1.schema.json",
+			"path": "packages/contracts/schemas/knowledge-tool-contracts.v2.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
 		},
 		{
-			"id": "runtime-tools.v4",
+			"id": "runtime-tools.v5",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tools.v4.schema.json",
+			"path": "packages/contracts/schemas/runtime-tools.v5.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tools.v4.json"],
+			"validates": ["configs/runtime/tools.v5.json"],
 			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
 		},
 		{
-			"id": "runtime-tool-function-schemas.v1",
+			"id": "runtime-tool-function-schemas.v2",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v1.schema.json",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v2.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tool-function-schemas.v1.json"],
+			"validates": ["configs/runtime/tool-function-schemas.v2.json"],
 			"notes": "Strict model-facing function parameter schema artifact."
 		},
 		{
@@ -113,13 +113,13 @@
 			"notes": "Execution-control runtime config artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
 		},
 		{
-			"id": "query-serving-scopes.v3",
+			"id": "query-serving-targets.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/query-serving-scopes.v3.schema.json",
+			"path": "packages/contracts/schemas/query-serving-targets.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/query-serving-scopes.v3.json"],
-			"notes": "Knowledge query-serving scope registry consumed by execution-control."
+			"validates": ["configs/runtime/query-serving-targets.v1.json"],
+			"notes": "Knowledge query-serving target registry consumed by agent-runtime and execution-control."
 		},
 		{
 			"id": "runtime-latency-budgets.v1",
@@ -140,64 +140,19 @@
 			"notes": "Repo-owned symptom alert policy artifact for safe runtime observability signals."
 		},
 		{
-			"id": "llm-io-fingerprint.v1",
+			"id": "truncation-summary.v2",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/llm-io-fingerprint.v1.schema.json",
+			"path": "packages/contracts/schemas/truncation-summary.v2.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"fixture_groups": [
 				{
 					"path": "packages/contracts/fixtures/runtime_observability",
-					"valid_glob": "llm-io-fingerprint.v1.*.valid.json",
-					"invalid_glob": "llm-io-fingerprint.v1.*.invalid.json"
+					"valid_glob": "truncation-summary.v2.*.valid.json",
+					"invalid_glob": "truncation-summary.v2.*.invalid.json"
 				}
 			],
-			"notes": "Safe comparable run-level fingerprint for LLM IO without raw prompt, memory, evidence or provider bodies."
-		},
-		{
-			"id": "answer-eval-fingerprint.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/answer-eval-fingerprint.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/runtime_observability",
-					"valid_glob": "answer-eval-fingerprint.v1.*.valid.json",
-					"invalid_glob": "answer-eval-fingerprint.v1.*.invalid.json"
-				}
-			],
-			"notes": "Safe answer-level eval identity binding LLM IO, branch outcome, tool runtime and stage timing fingerprints."
-		},
-		{
-			"id": "truncation-summary.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/truncation-summary.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/runtime_observability",
-					"valid_glob": "truncation-summary.v1.*.valid.json",
-					"invalid_glob": "truncation-summary.v1.*.invalid.json"
-				}
-			],
-			"notes": "Count-only context truncation diagnostic summary without raw dropped content."
-		},
-		{
-			"id": "sink-identity-projection.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/sink-identity-projection.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/runtime_observability",
-					"valid_glob": "sink-identity-projection.v1.*.valid.json",
-					"invalid_glob": "sink-identity-projection.v1.*.invalid.json"
-				}
-			],
-			"notes": "Pseudonymous identity projection for external observability/eval sinks."
+			"notes": "Character-budget and count-only context truncation diagnostic without raw dropped content."
 		},
 		{
 			"id": "env-surface-policy.v1",
@@ -217,9 +172,9 @@
 			"notes": "Canonical document-unit JSONL row contract for Rust kernels and ingestion task inputs."
 		},
 		{
-			"id": "ingestion-task-envelope.v2",
+			"id": "ingestion-task-envelope.v3",
 			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v2.schema.json",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v3.schema.json",
 			"owner": "packages/ingestion-contracts",
 			"status": "active",
 			"fixture_groups": [
@@ -232,9 +187,9 @@
 			"notes": "Offline ingestion task envelope contract."
 		},
 		{
-			"id": "ingestion-task-registry.v2",
+			"id": "ingestion-task-registry.v3",
 			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v2.schema.json",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v3.schema.json",
 			"owner": "packages/ingestion-contracts",
 			"status": "active",
 			"fixture_groups": [
@@ -245,6 +200,21 @@
 				}
 			],
 			"notes": "Offline ingestion task registry contract."
+		},
+		{
+			"id": "ingestion-task-result.v1",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/ingestion-task-result.v1.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/ingestion-contracts/assertions",
+					"valid_glob": "task-result.valid.json",
+					"invalid_glob": "task-result.invalid-*.json"
+				}
+			],
+			"notes": "Object-store-backed terminal result contract for ingestion activities."
 		},
 		{
 			"id": "agent-runtime-tool-catalog-zod",

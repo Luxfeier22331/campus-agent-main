@@ -254,7 +254,7 @@ export function executionFinalizationErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
-		resolvedScope: null,
+		resolvedTargets: [],
 		result: null,
 		selectedTool: null,
 		sessionUpdate: null,

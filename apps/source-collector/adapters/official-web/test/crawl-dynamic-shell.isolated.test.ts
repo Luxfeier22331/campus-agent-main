@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	buildOfficialWebPlannerPageForTest,
-	createTargetWorksetControlPlaneForTest,
+	buildTargetWorksetCandidatesForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
 	writeTestConfigRoot,
@@ -34,9 +34,7 @@ describe("source-collector official-web adapter dynamic shell crawl", () => {
       </body>`,
 			);
 
-			vi.doMock("crawlee", async () => {
-				const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
-
+			vi.doMock("crawlee", () => {
 				class FakeConfiguration {}
 
 				class FakeRequestQueue {
@@ -113,7 +111,6 @@ describe("source-collector official-web adapter dynamic shell crawl", () => {
 				}
 
 				return {
-					...actual,
 					Configuration: FakeConfiguration,
 					RequestQueue: {
 						open: vi.fn(async () => new FakeRequestQueue()),
@@ -217,7 +214,7 @@ describe("source-collector official-web adapter dynamic shell crawl", () => {
 				outputDir,
 				crawlRunId: "owrun_dynamic_shell",
 				localArtifactsOnly: true,
-				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				crawlCandidates: buildTargetWorksetCandidatesForTest({
 					runId: "owrun_dynamic_shell",
 					duePages: [
 						buildOfficialWebPlannerPageForTest({

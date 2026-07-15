@@ -55,16 +55,16 @@ projection、Temporal sampler projection 和 worker-autoscaler projection 不属
 
 ## 安装与 journal
 
-- `jobs/app-api-schema` 先执行 `apps/app-api/drizzle/0000_initial.sql`，再收敛 Better Auth
-  `app_auth.*`、`chat_current.sql` 和运行角色 grant。
+- `jobs/app-api-schema` 先收敛 Better Auth `app_auth.*` 与
+  `chat_current.sql`，再执行 immutable App API Drizzle journal，最后应用运行角色
+  grant。这个顺序同时支持干净数据库和已有 baseline 数据升级。
 - app-api Drizzle journal 固定为 `drizzle.app_api_migrations`。
 - `jobs/transport-publisher install-schema` 安装 `campus_services.*` 并应用 publisher、
   app-api 和 execution-control 的最小权限；Ops Web 不读取该 schema。
 - execution-control 使用独立的 run-projection schema installer 和 journal。
 - installer 必须可重复执行；缺少角色、表、CA 或权限时失败，不自动做破坏性修复。
-
-当前数据库没有需要迁移的旧产品数据，因此安装路径从 repo-owned baseline 重建。未来若
-出现不可重建的正式数据，必须单独接受一次性迁移方案，完成后删除临时迁移代码。
+- `0000_initial.sql` 和其 snapshot 是已发布 baseline，不得重写。后续变更使用新
+  journal entry；migration integration 必须证明保留表中的现有行不会丢失。
 
 ## Hyperdrive
 

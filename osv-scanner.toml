@@ -20,3 +20,8 @@ reason = "Better Auth oauth-provider 1.7.0-rc.1 is the first available fixed lin
 id = "RUSTSEC-2024-0436"
 ignoreUntil = 2026-10-01
 reason = "paste is an unmaintained compile-time proc-macro dependency of the latest tokenizers release; no fixed tokenizers release or maintained drop-in replacement is currently available, so revisit the upstream dependency before this exception expires."
+
+[[IgnoredVulns]]
+id = "GHSA-8988-4f7v-96qf"
+ignoreUntil = 2026-08-15
+reason = "The latest @arizeai/openinference-instrumentation-openai-agents 0.2.2 still pins OpenTelemetry core 1.x; agent-runtime configures baggage propagation through its direct fixed OpenTelemetry 2.9 dependency, and forcing an undeclared transitive major upgrade would be unsafe. Remove this exception when Arize publishes an OpenTelemetry 2.x-compatible release."

@@ -145,7 +145,6 @@ type StepAttemptProjection struct {
 	InputTokens           int64
 	OutputTokens          int64
 	CachedInputTokens     int64
-	EstimatedCostMicroUSD int64
 	CancelOutcome         CancelOutcome
 	TimeoutOutcome        TimeoutOutcome
 	LateCompletionOutcome LateCompletionOutcome

@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS "campus_services"."transport_departures" (
     "sort_order" integer NOT NULL,
     PRIMARY KEY ("release_id", "departure_id"),
     FOREIGN KEY ("release_id", "route_id")
-        REFERENCES "campus_services"."transport_routes" ("release_id", "route_id")
+    REFERENCES "campus_services"."transport_routes" ("release_id", "route_id")
 );
 
 CREATE INDEX IF NOT EXISTS "campus_services_transport_departures_route_sort_idx"

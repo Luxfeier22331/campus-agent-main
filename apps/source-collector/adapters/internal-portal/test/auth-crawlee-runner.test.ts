@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runAuthPortalCrawler } from "../src/auth-crawlee-runner.js";
+import { createAuthPortalLaunchContext, runAuthPortalCrawler } from "../src/auth-crawlee-runner.js";
 
 describe("internal portal auth Crawlee runner", () => {
 	const tempDirs: string[] = [];
@@ -51,6 +51,23 @@ describe("internal portal auth Crawlee runner", () => {
 
 		expect(fileMode(path.dirname(storageStatePath))).toBe(0o700);
 		expect(fileMode(storageStatePath)).toBe(0o600);
+	});
+
+	it("uses bundled Chromium without a branded browser channel", () => {
+		const launchContext = createAuthPortalLaunchContext({
+			proxyServer: "http://127.0.0.1:7890",
+			timeoutMs: 1_000,
+		});
+
+		expect(launchContext).toEqual({
+			launchOptions: {
+				proxy: { server: "http://127.0.0.1:7890" },
+				timeout: 1_000,
+			},
+			useIncognitoPages: true,
+		});
+		expect(launchContext.launchOptions).not.toHaveProperty("channel");
+		expect(launchContext).not.toHaveProperty("useChrome");
 	});
 });
 

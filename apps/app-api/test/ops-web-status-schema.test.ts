@@ -45,7 +45,6 @@ describe("ops-web status view schema", () => {
 
 		for (const requiredFragment of [
 			'CREATE SCHEMA IF NOT EXISTS "observability"',
-			'CREATE SCHEMA IF NOT EXISTS "operator"',
 			'CREATE SCHEMA IF NOT EXISTS "runtime"',
 			'"supporting_sources_json" jsonb',
 			'"semantic_outcome" text',

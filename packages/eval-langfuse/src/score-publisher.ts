@@ -38,7 +38,6 @@ export const LANGFUSE_SCORE_METADATA_ALLOWLIST = new Set([
 	"retrieval_top_k",
 	"release",
 	"request_id",
-	"reranker_enabled",
 	"schema_version",
 	"source_artifact_path",
 	"source_kind",
@@ -124,6 +123,7 @@ export function buildLangfuseScoresFromRagasScoreBatch(input: {
 			sourceKind,
 		});
 		const scores = mapping(item.scores, `${caseId}.scores`);
+		const target = perCaseScoreTarget(traceId, observationId);
 		for (const [metricName, value] of Object.entries(scores)) {
 			const name = stringField(metricName, `${caseId}.scores.metric`);
 			scoreItems.push({
@@ -135,9 +135,9 @@ export function buildLangfuseScoresFromRagasScoreBatch(input: {
 				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
 				metadata: { ...safeMetadata, metric_key: name },
 				name,
-				observation_id: observationId,
+				observation_id: target.observationId,
 				session_id: null,
-				trace_id: traceId,
+				trace_id: target.traceId,
 				value,
 			});
 		}
@@ -193,6 +193,7 @@ export function buildLangfuseScoresFromRagasAgentScoreBatch(input: {
 			sourceKind,
 		});
 		const scores = mapping(item.scores, `${caseId}.scores`);
+		const target = perCaseScoreTarget(traceId, observationId);
 		for (const [metricName, value] of Object.entries(scores)) {
 			const name = stringField(metricName, `${caseId}.scores.metric`);
 			scoreItems.push({
@@ -204,9 +205,9 @@ export function buildLangfuseScoresFromRagasAgentScoreBatch(input: {
 				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
 				metadata: { ...safeMetadata, metric_key: name },
 				name,
-				observation_id: observationId,
+				observation_id: target.observationId,
 				session_id: null,
-				trace_id: traceId,
+				trace_id: target.traceId,
 				value,
 			});
 		}
@@ -291,9 +292,6 @@ export async function publishLangfuseScores(input: {
 			published += 1;
 		}
 	}
-	if (!(input.validateOnly || input.dryRun)) {
-		await langfuse.flushScores();
-	}
 	return {
 		dry_run: Boolean(input.dryRun),
 		eval_run_id: plan.evalRunId,
@@ -319,9 +317,6 @@ export function scoreItemToLangfusePayload(item: JsonObject): JsonObject {
 	for (const [source, target] of [
 		["trace_id", "traceId"],
 		["observation_id", "observationId"],
-		["session_id", "sessionId"],
-		["dataset_run_id", "datasetRunId"],
-		["dataset_item_id", "datasetItemId"],
 	] as const) {
 		const value = optionalString(item[source]);
 		if (value) {
@@ -391,16 +386,19 @@ function validateTargetIdentity(item: JsonObject, prefix: string): void {
 	const traceId = optionalString(item.trace_id);
 	const observationId = optionalString(item.observation_id);
 	const sessionId = optionalString(item.session_id);
-	const datasetRunId = optionalString(item.dataset_run_id);
-	if (observationId && !traceId) {
-		throw new Error(`${prefix}.observation_id requires trace_id`);
+	if (sessionId) {
+		throw new Error(`${prefix} per-case score target must be trace_id or observation_id`);
 	}
-	if (sessionId && (traceId || observationId || datasetRunId)) {
-		throw new Error(`${prefix}.session_id scores cannot carry trace or dataset identity`);
+	if (Number(Boolean(traceId)) + Number(Boolean(observationId)) !== 1) {
+		throw new Error(`${prefix} must carry exactly one of trace_id or observation_id`);
 	}
-	if (!(traceId || sessionId || datasetRunId)) {
-		throw new Error(`${prefix} must carry trace_id, session_id, or dataset_run_id`);
-	}
+}
+
+function perCaseScoreTarget(
+	traceId: string,
+	observationId: string | null,
+): { observationId: string | null; traceId: string | null } {
+	return observationId ? { observationId, traceId: null } : { observationId: null, traceId };
 }
 
 function validateScoreValue(value: unknown, dataType: string, prefix: string): void {

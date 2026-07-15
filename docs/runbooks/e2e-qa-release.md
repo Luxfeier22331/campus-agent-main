@@ -328,7 +328,8 @@ projection drain 时间段，并保存：
 - Ops Web 能按 requestId/traceId 关联 `chat.turn_dispatches`、`chat.messages`、
   `runtime.agent_runs` 和 `runtime.request_observability_fact`；
 - execution-control 的 `/internal/ops/temporal/task-queues` 能返回三个固定队列的当前状态；
-- KEDA ScaledObject、生成的 HPA 和三个 worker Deployment owner 一一对应；
+- 三个 execution WorkerDeployment 的 target/current build、per-version
+  ScaledObject/HPA/PDB 和 generated Deployment owner 对齐；
 - Temporal UI/Langfuse/OpenObserve 的关联标识与 Ops Web 展示一致。
 
 不要启动 sampler/posture collector，不要写 app-api operator projection，也不要从远端

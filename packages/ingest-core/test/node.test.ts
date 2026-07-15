@@ -21,36 +21,35 @@ describe("ingest-core node registry loading", () => {
 
 	it("loads registry files recursively and validates shape", () => {
 		const root = mkdtempSync(join(tmpdir(), "ingest-core-registry-"));
-		const registryDir = join(root, "official_web", "stable_reference");
+		const registryDir = join(root, "sources");
 		mkdirSync(registryDir, { recursive: true });
-		const registryPath = join(registryDir, "task-registry.v2.json");
+		const registryPath = join(registryDir, "task-registry.v3.json");
 		writeFileSync(
 			registryPath,
 			JSON.stringify({
-				schema_version: "ingestion_task_registry.v2",
-				source_family: "official_web",
-				corpus: "official_web",
-				collection: "stable_reference",
+				schema_version: "ingestion_task_registry.v3",
 				tasks: [
 					{
-						task_kind: "source_truth_materialize",
-						executor_kind: "ts_control",
-						registry_task_id: "source_truth_materialize",
-						input_contract: "official_web_source_truth_bundle.v1",
-						output_contract: "official_web_stable_reference_source_truth.v1",
+						executor_kind: "source_collector",
+						registry_task_id: "official_web.capture",
+						input_contract: "official_web_capture_request.v1",
+						output_contract: "official_web_source_manifest.v1",
+						source: { family: "official_web", channel: "official_web" },
 					},
 				],
 			}),
 		);
 
 		expect(listIngestionTaskRegistryFiles(root)).toEqual([registryPath]);
-		expect(loadIngestionTaskRegistryFromFile(registryPath).collection).toBe("stable_reference");
+		expect(loadIngestionTaskRegistryFromFile(registryPath).tasks[0]?.registry_task_id).toBe(
+			"official_web.capture",
+		);
 		expect(loadIngestionTaskRegistryCatalogFromRoot(root).requireTask).toBeTypeOf("function");
 	});
 
 	it("rejects invalid registry files", () => {
 		const root = mkdtempSync(join(tmpdir(), "ingest-core-registry-invalid-"));
-		const registryPath = join(root, "task-registry.v2.json");
+		const registryPath = join(root, "task-registry.v3.json");
 		writeFileSync(registryPath, JSON.stringify({ schema_version: "wrong" }));
 
 		expect(() => loadIngestionTaskRegistryFromFile(registryPath)).toThrow(

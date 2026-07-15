@@ -38,7 +38,6 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	accountName: string;
 	accountSlug: string;
 	article: unknown;
-	capturedAt: string;
 	page: CapturedWeChatOfficialAccountArticlePage;
 	mediaCaptures: CapturedWeChatOfficialAccountArticleMedia[];
 }): WeChatOfficialAccountArticleSourceTruthMaterial {
@@ -47,7 +46,6 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	const mediaCaptureLookup = normalizeMediaCaptureLookup(input.mediaCaptures);
 	const accountName = firstText(article.accountName, input.accountName);
 	const accountSlug = requireText(input.accountSlug, "accountSlug");
-	const capturedAt = normalizeIsoTimestamp(input.capturedAt, "capturedAt");
 	const providerArticleId = optionalText(article.id);
 	const articleUrl = optionalText(article.url);
 	const normalizedArticleUrl = articleUrl ? normalizeUrl(articleUrl) : null;
@@ -128,7 +126,7 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	);
 	const inlineMediaRefs = mediaRefs.filter((item) => item.resourceRole === "inline_image");
 	const manifest: WeChatOfficialAccountArticleManifest = {
-		schemaVersion: "wechat_official_account_article_manifest.v2",
+		schemaVersion: "wechat_official_account_article_manifest.v3",
 		sourceChannel: WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL,
 		accountName,
 		accountSlug,
@@ -140,7 +138,6 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		articleIdentityBasis,
 		provider: WECHAT_OFFICIAL_ACCOUNT_PROVIDER,
 		providerArticleId,
-		capturedAt,
 		titleRaw,
 		titleNormalized,
 		publishTime,
@@ -161,7 +158,7 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		failedInlineImageCount: inlineMediaRefs.filter((item) => item.captureStatus === "fetch_failed")
 			.length,
 	};
-	const year = extractYear(publishTime) ?? extractYear(capturedAt) ?? "undated";
+	const year = extractYear(publishTime) ?? "undated";
 	return {
 		accountName,
 		accountSlug,
@@ -267,7 +264,6 @@ function buildNormalizedMediaRefInputs(input: {
 interface NormalizedMediaCapture {
 	byteSize: number | null;
 	captureStatus: WeChatArticleMediaCaptureStatus;
-	capturedAt: string | null;
 	contentSha256: string | null;
 	finalUrl: string | null;
 	fetchErrorMessage: string | null;
@@ -291,7 +287,6 @@ function normalizeMediaCaptureLookup(values: CapturedWeChatOfficialAccountArticl
 		lookup.set(normalizedSourceUrl, {
 			byteSize: normalizeByteSize(value.byteSize),
 			captureStatus: normalizeMediaCaptureStatus(value.captureStatus),
-			capturedAt: normalizeOptionalIsoTimestamp(optionalText(value.capturedAt)),
 			contentSha256: optionalText(value.contentSha256),
 			finalUrl: normalizeOptionalUrl(optionalText(value.finalUrl)),
 			fetchErrorMessage: optionalText(value.fetchErrorMessage),
@@ -323,7 +318,6 @@ function buildNormalizedMediaRefInput(input: {
 	return {
 		byteSize: null,
 		captureStatus: "fetch_failed",
-		capturedAt: null,
 		contentSha256: null,
 		finalUrl: null,
 		fetchErrorMessage: "capture result missing",
@@ -366,7 +360,7 @@ function buildMediaRef(
 	input: NormalizedMediaRefInput & { rawAssetId: string; rawVersionId: string },
 ): WeChatOfficialAccountMediaRefRow {
 	return {
-		schemaVersion: "wechat_official_account_media_ref.v2",
+		schemaVersion: "wechat_official_account_media_ref.v3",
 		rawAssetId: input.rawAssetId,
 		rawVersionId: input.rawVersionId,
 		mediaRefId: prefixedHash(
@@ -384,7 +378,6 @@ function buildMediaRef(
 		contentSha256: input.contentSha256,
 		mimeType: input.mimeType,
 		byteSize: input.byteSize,
-		capturedAt: input.capturedAt,
 		fetchErrorMessage: input.fetchErrorMessage,
 	};
 }

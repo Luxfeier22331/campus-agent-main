@@ -3,15 +3,18 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0032
-status: accepted
+status: superseded
 created: 2026-04-09
-updated: 2026-07-08
+updated: 2026-07-13
+superseded_by: adr-0077-ingestion.md
 ---
 # ADR-0032 Internal Notice Notice-Family Stratified Admission
 
 ## 状态
 
-Accepted on 2026-04-09.
+Superseded by ADR-0077 on 2026-07-13. Notice-family values may remain source
+classification metadata, but no admission, replay, projection, or read-model
+runtime exists.
 
 ## 命名说明
 

@@ -1,9 +1,9 @@
-import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import {
-	type StoredArtifactHead as BaseStoredArtifactHead,
-	type StoredArtifactRef as BaseStoredArtifactRef,
-	sha256Hex,
+import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import type {
+	StoredArtifactHead as BaseStoredArtifactHead,
+	StoredArtifactRef as BaseStoredArtifactRef,
 } from "ingest-core";
+import { createOrVerifyS3Object } from "../../../src/s3-create-or-verify.ts";
 
 export type StoredArtifactRef = BaseStoredArtifactRef & {
 	bucket: string;
@@ -19,10 +19,12 @@ export type StoredArtifactHead = BaseStoredArtifactHead & {
 
 export interface AuthenticatedNoticeArtifactStore {
 	readonly storageProvider: "object_store";
+	close?(): Promise<void> | void;
 
-	headObject(input: { objectKey: string }): Promise<StoredArtifactHead>;
+	headObject(input: { abortSignal?: AbortSignal; objectKey: string }): Promise<StoredArtifactHead>;
 
-	putObject(input: {
+	createOrVerifyObject(input: {
+		abortSignal?: AbortSignal;
 		objectKey: string;
 		data: Uint8Array;
 		contentType: string;
@@ -41,57 +43,56 @@ export interface AuthenticatedNoticeObjectStoreEnvironment {
 class S3AuthenticatedNoticeArtifactStore implements AuthenticatedNoticeArtifactStore {
 	readonly storageProvider = "object_store" as const;
 	private readonly bucket: string;
-	private readonly client: Pick<S3Client, "send">;
+	private readonly client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 
 	constructor(input: {
 		bucket: string;
-		client: Pick<S3Client, "send">;
+		client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 	}) {
 		this.bucket = input.bucket;
 		this.client = input.client;
 	}
 
-	async putObject(input: {
+	close(): void {
+		this.client.destroy?.();
+	}
+
+	async createOrVerifyObject(input: {
+		abortSignal?: AbortSignal;
 		objectKey: string;
 		data: Uint8Array;
 		contentType: string;
 		metadata?: Record<string, string>;
 	}): Promise<StoredArtifactRef> {
-		const contentSha256 = sha256Hex(input.data);
-		const result = await this.client.send(
-			new PutObjectCommand({
-				Bucket: this.bucket,
-				Key: input.objectKey,
-				Body: input.data,
-				ContentType: input.contentType,
-				Metadata: {
-					...input.metadata,
-					"content-sha256": contentSha256,
-				},
-			}),
-		);
-		const head = await this.headObject({ objectKey: input.objectKey });
-		assertStoredArtifactHeadMatchesPayload({
-			byteSize: input.data.byteLength,
-			contentSha256,
-			head,
+		const stored = await createOrVerifyS3Object({
+			abortSignal: input.abortSignal,
+			body: input.data,
+			bucket: this.bucket,
+			client: this.client,
+			contentType: input.contentType,
+			key: input.objectKey,
+			metadata: input.metadata,
 		});
 		return {
 			bucket: this.bucket,
 			objectKey: input.objectKey,
-			contentSha256,
-			byteSize: input.data.byteLength,
-			etag: result.ETag ?? null,
-			versionId: result.VersionId ?? null,
+			contentSha256: stored.contentSha256,
+			byteSize: stored.byteSize,
+			etag: stored.etag,
+			versionId: stored.versionId,
 		};
 	}
 
-	async headObject(input: { objectKey: string }): Promise<StoredArtifactHead> {
+	async headObject(input: {
+		abortSignal?: AbortSignal;
+		objectKey: string;
+	}): Promise<StoredArtifactHead> {
 		const result = await this.client.send(
 			new HeadObjectCommand({
 				Bucket: this.bucket,
 				Key: input.objectKey,
 			}),
+			{ abortSignal: input.abortSignal },
 		);
 		const metadata = result.Metadata ?? {};
 		return {
@@ -107,7 +108,7 @@ class S3AuthenticatedNoticeArtifactStore implements AuthenticatedNoticeArtifactS
 
 export function createAuthenticatedNoticeArtifactStore(input: {
 	bucket: string;
-	client: Pick<S3Client, "send">;
+	client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 }): AuthenticatedNoticeArtifactStore {
 	return new S3AuthenticatedNoticeArtifactStore(input);
 }
@@ -141,24 +142,4 @@ export function createAuthenticatedNoticeArtifactStoreFromEnv(
 			forcePathStyle: true,
 		}),
 	});
-}
-
-function assertStoredArtifactHeadMatchesPayload(input: {
-	byteSize: number;
-	contentSha256: string;
-	head: StoredArtifactHead;
-}): void {
-	if (input.head.byteSize !== null && input.head.byteSize !== input.byteSize) {
-		throw new Error(
-			`stored artifact size mismatch for ${input.head.objectKey}: expected ${input.byteSize}, got ${input.head.byteSize}`,
-		);
-	}
-	if (
-		input.head.contentSha256 !== null &&
-		input.head.contentSha256.toLowerCase() !== input.contentSha256
-	) {
-		throw new Error(
-			`stored artifact sha256 mismatch for ${input.head.objectKey}: expected ${input.contentSha256}, got ${input.head.contentSha256}`,
-		);
-	}
 }

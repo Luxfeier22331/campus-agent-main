@@ -56,7 +56,7 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
-		resolvedScope: overrides.resolvedScope ?? null,
+		resolvedTargets: overrides.resolvedTargets ?? [],
 		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
@@ -72,8 +72,7 @@ describe("request observability stage timing", () => {
 			projectionCloseoutMs: 17,
 			requestId: "req_stage_timing_01HQ",
 			requestedTool: "knowledge_query",
-			requestedScope: null,
-			resolvedScope: null,
+			resolvedTargets: [],
 			response: createResponse({
 				stageTiming: {
 					"agent.runtime_ms": 710,
@@ -111,8 +110,7 @@ describe("request observability stage timing", () => {
 				projectionCloseoutMs: 12,
 				requestId: "req_stage_timing_invalid_01HQ",
 				requestedTool: "knowledge_query",
-				requestedScope: null,
-				resolvedScope: null,
+				resolvedTargets: [],
 				response: createResponse({
 					stageTiming: {
 						"agent.runtime_ms": 710,

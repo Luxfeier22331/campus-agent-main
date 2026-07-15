@@ -291,7 +291,6 @@ func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
 		InputTokens:           7282,
 		OutputTokens:          817,
 		CachedInputTokens:     12,
-		EstimatedCostMicroUSD: 60920,
 		RequestID:             "req-usage",
 		RunID:                 "run-usage",
 		StepID:                "agent.primary",
@@ -317,15 +316,15 @@ func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
 	if found["langfuse.observation.usage_details"] != `{"cache_read_input_tokens":12,"input":7282,"output":817}` {
 		t.Fatalf("usage details = %q", found["langfuse.observation.usage_details"])
 	}
-	if found["langfuse.observation.cost_details"] != `{"total":0.06092}` {
-		t.Fatalf("cost details = %q", found["langfuse.observation.cost_details"])
+	if _, exists := found["langfuse.observation.cost_details"]; exists {
+		t.Fatalf("runtime must not publish custom cost details: %#v", found)
 	}
 	if found["langfuse.observation.metadata.step_id"] != "agent.primary" {
 		t.Fatalf("metadata step id = %q, want agent.primary", found["langfuse.observation.metadata.step_id"])
 	}
 }
 
-func TestEmitterPinsLangfuseGenerationCostToZeroWhenRuntimeCostIsZero(t *testing.T) {
+func TestEmitterOmitsCustomLangfuseCostDetails(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	emitter := &Emitter{
@@ -342,7 +341,6 @@ func TestEmitterPinsLangfuseGenerationCostToZeroWhenRuntimeCostIsZero(t *testing
 		InputTokens:           11285,
 		OutputTokens:          617,
 		CachedInputTokens:     6656,
-		EstimatedCostMicroUSD: 0,
 		RequestID:             "req-zero-cost",
 		RunID:                 "run-zero-cost",
 		StepID:                "agent.primary",
@@ -359,8 +357,8 @@ func TestEmitterPinsLangfuseGenerationCostToZeroWhenRuntimeCostIsZero(t *testing
 	for _, attr := range spans[0].Attributes() {
 		found[string(attr.Key)] = attr.Value.AsString()
 	}
-	if found["langfuse.observation.cost_details"] != `{"total":0}` {
-		t.Fatalf("cost details = %q, want zero-cost override", found["langfuse.observation.cost_details"])
+	if _, exists := found["langfuse.observation.cost_details"]; exists {
+		t.Fatalf("runtime must not publish zero-cost overrides: %#v", found)
 	}
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -125,21 +126,41 @@ def run_ragas_agent_score_batch(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
     )
     return {"items": len(scored_items), "output_path": str(output_path)}
 
 
 def build_ragas_agent_scorer(settings: RagasAgentRunnerSettings) -> RagasAgentScorer:
-    llm = _build_optional_llm(settings)
     metric_names = settings.metric_names
 
     def _score(projection: RagasAgentProjection) -> tuple[RagasAgentResult, ...]:
-        return tuple(
-            asyncio.run(
-                _score_with_official_ragas_metrics(projection, metric_names=metric_names, llm=llm)
-            )
-        )
+        async def _score_in_one_event_loop() -> tuple[RagasAgentResult, ...]:
+            if not (settings.llm_api_key and settings.llm_model):
+                return await _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=metric_names,
+                    llm=None,
+                )
+
+            from openai import AsyncOpenAI
+            from ragas.llms import llm_factory
+
+            async with AsyncOpenAI(
+                api_key=settings.llm_api_key,
+                base_url=settings.llm_base_url,
+                max_retries=0,
+                timeout=settings.timeout_seconds,
+            ) as client:
+                llm = llm_factory(settings.llm_model, client=client, temperature=0)
+                return await _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=metric_names,
+                    llm=llm,
+                )
+
+        return tuple(asyncio.run(_score_in_one_event_loop()))
 
     return _score
 
@@ -175,8 +196,8 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
         _tool_call_list(item.get("reference_tool_calls"), f"{case_id}.reference_tool_calls")
     )
     if argument_mode == "eval_safe_args":
-        _require_non_empty_args(tool_calls, f"{case_id}.tool_calls")
-        _require_non_empty_args(reference_tool_calls, f"{case_id}.reference_tool_calls")
+        _require_eval_safe_args(tool_calls, f"{case_id}.tool_calls")
+        _require_eval_safe_args(reference_tool_calls, f"{case_id}.reference_tool_calls")
     projection = RagasAgentProjection(
         case_id=case_id,
         query=_required_str(item.get("query"), f"{case_id}.query"),
@@ -203,7 +224,16 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
                 }
             )
             continue
-        scores[metric_name] = float(result.score)
+        score = float(result.score)
+        if not math.isfinite(score):
+            errors.append(
+                {
+                    "metric_name": metric_name,
+                    "reason": result.rationale or "ragas agent score is not finite",
+                }
+            )
+            continue
+        scores[metric_name] = score
     return {
         "case_id": case_id,
         "dataset_item_id": dataset_item_id,
@@ -297,7 +327,7 @@ def _ragas_tool_calls(tool_calls: tuple[dict[str, object], ...]):
 
 def _metric_value(result: object) -> float | None:
     value = getattr(result, "value", None)
-    if isinstance(value, int | float):
+    if isinstance(value, int | float) and math.isfinite(float(value)):
         return float(value)
     return None
 
@@ -305,21 +335,6 @@ def _metric_value(result: object) -> float | None:
 def _metric_reason(result: object) -> str:
     reason = getattr(result, "reason", None)
     return reason if isinstance(reason, str) else ""
-
-
-def _build_optional_llm(settings: RagasAgentRunnerSettings) -> object | None:
-    if not (settings.llm_api_key and settings.llm_model):
-        return None
-    from openai import OpenAI
-    from ragas.llms import llm_factory
-
-    client = OpenAI(
-        api_key=settings.llm_api_key,
-        base_url=settings.llm_base_url,
-        max_retries=0,
-        timeout=settings.timeout_seconds,
-    )
-    return llm_factory(settings.llm_model, client=client, temperature=0)
 
 
 def _tool_call_list(value: object, field: str) -> list[dict[str, object]]:
@@ -348,9 +363,9 @@ def _argument_mode(value: object, case_id: str) -> str:
     return mode
 
 
-def _require_non_empty_args(tool_calls: tuple[dict[str, object], ...], field: str) -> None:
+def _require_eval_safe_args(tool_calls: tuple[dict[str, object], ...], field: str) -> None:
     for item in tool_calls:
-        if not item["args"]:
+        if item["name"] != "knowledge_query" and not item["args"]:
             raise ValueError(f"{field} eval_safe_args requires non-empty tool args")
 
 

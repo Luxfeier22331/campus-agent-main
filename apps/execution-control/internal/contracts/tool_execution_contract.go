@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	ExecutionContractVersion    = "tool_execution_v1"
-	ResponseContract            = "execution_finalization_response_v2"
-	WorkflowTraceSummaryVersion = "workflow-trace-summary-v5"
+	ExecutionContractVersion    = "tool_execution_v2"
+	ResponseContract            = "execution_finalization_response_v3"
+	WorkflowTraceSummaryVersion = "workflow-trace-summary-v6"
 )
 
 type ToolID string
@@ -105,26 +105,17 @@ type TraceContextWire struct {
 	TraceID string `json:"trace_id"`
 }
 
-type VersionQueryWire struct {
-	Mode               string `json:"mode,omitempty"`
-	AsOf               string `json:"as_of,omitempty"`
-	VersionID          string `json:"version_id,omitempty"`
-	CompareToVersionID string `json:"compare_to_version_id,omitempty"`
-}
-
 type ExecutionPayloadWire struct {
-	ExecutionContractVersion string            `json:"execution_contract_version"`
-	ResponseContract         string            `json:"response_contract"`
-	UserGoal                 string            `json:"user_goal"`
-	ConversationID           string            `json:"conversation_id"`
-	TenantID                 string            `json:"tenant_id,omitempty"`
-	RequestID                string            `json:"request_id"`
-	SafetyIdentifier         *string           `json:"safety_identifier,omitempty"`
-	RequestedTool            RequestedTool     `json:"requested_tool,omitempty"`
-	Scope                    string            `json:"scope,omitempty"`
-	Trace                    TraceContextWire  `json:"trace"`
-	Context                  map[string]any    `json:"context"`
-	VersionQuery             *VersionQueryWire `json:"version_query"`
+	ExecutionContractVersion string           `json:"execution_contract_version"`
+	ResponseContract         string           `json:"response_contract"`
+	UserGoal                 string           `json:"user_goal"`
+	ConversationID           string           `json:"conversation_id"`
+	TenantID                 string           `json:"tenant_id,omitempty"`
+	RequestID                string           `json:"request_id"`
+	SafetyIdentifier         *string          `json:"safety_identifier,omitempty"`
+	RequestedTool            RequestedTool    `json:"requested_tool,omitempty"`
+	Trace                    TraceContextWire `json:"trace"`
+	Context                  map[string]any   `json:"context"`
 }
 
 type ExecutionRunMetadataWire struct {
@@ -176,7 +167,7 @@ type ToolExecutionResponseWire struct {
 	AnswerText           string                    `json:"answer_text"`
 	FollowUpQuestion     string                    `json:"follow_up_question"`
 	Confidence           ConfidenceLevel           `json:"confidence"`
-	ResolvedScope        *string                   `json:"resolved_scope"`
+	ResolvedTargets      []string                  `json:"resolved_targets"`
 	SessionUpdate        *SessionUpdateWire        `json:"session_update"`
 	Result               map[string]any            `json:"result"`
 	Error                map[string]any            `json:"error"`
@@ -218,7 +209,7 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 		"confidence",
 		"result",
 		"error",
-		"resolved_scope",
+		"resolved_targets",
 		"session_update",
 		"trace_id",
 	}); err != nil {
@@ -281,12 +272,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 	if wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
 		return fmt.Errorf("requested_tool is invalid")
 	}
-	if wire.RequestedTool == RequestedToolKnowledgeQuery && wire.Scope == "" {
-		return fmt.Errorf("scope is required for requested_tool knowledge_query")
-	}
-	if wire.RequestedTool != RequestedToolKnowledgeQuery && wire.Scope != "" {
-		return fmt.Errorf("scope requires requested_tool knowledge_query")
-	}
 	if wire.Trace.TraceID == "" {
 		return fmt.Errorf("trace.trace_id is required")
 	}
@@ -295,41 +280,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 	}
 	if _, ok := wire.Context["profile_memory"]; ok {
 		return fmt.Errorf("context.profile_memory is not an active online recall field")
-	}
-	if wire.VersionQuery == nil {
-		return fmt.Errorf("version_query is required")
-	}
-	if err := wire.VersionQuery.Validate(); err != nil {
-		return fmt.Errorf("version_query: %w", err)
-	}
-	return nil
-}
-
-func (wire VersionQueryWire) Validate() error {
-	mode := wire.Mode
-	if mode == "" {
-		mode = "current"
-	}
-	switch mode {
-	case "current", "historical", "as_of", "compare":
-	default:
-		return fmt.Errorf("mode is invalid")
-	}
-	if mode == "as_of" {
-		if wire.AsOf == "" {
-			return fmt.Errorf("as_of is required when mode is as_of")
-		}
-	} else if wire.AsOf != "" {
-		return fmt.Errorf("as_of is only allowed when mode is as_of")
-	}
-	if mode != "historical" && mode != "compare" && wire.VersionID != "" {
-		return fmt.Errorf("version_id is only allowed for historical or compare mode")
-	}
-	if mode != "compare" && wire.CompareToVersionID != "" {
-		return fmt.Errorf("compare_to_version_id is only allowed when mode is compare")
-	}
-	if wire.CompareToVersionID != "" && wire.VersionID == "" {
-		return fmt.Errorf("version_id is required when compare_to_version_id is set")
 	}
 	return nil
 }
@@ -434,6 +384,19 @@ func (wire ToolExecutionResponseWire) Validate() error {
 	}
 	if wire.TraceID == "" {
 		return fmt.Errorf("trace_id is required")
+	}
+	if wire.ResolvedTargets == nil {
+		return fmt.Errorf("resolved_targets is required")
+	}
+	seenTargets := map[string]bool{}
+	for index, target := range wire.ResolvedTargets {
+		if target == "" {
+			return fmt.Errorf("resolved_targets[%d] is required", index)
+		}
+		if seenTargets[target] {
+			return fmt.Errorf("resolved_targets[%d] is duplicated", index)
+		}
+		seenTargets[target] = true
 	}
 	if wire.Error != nil {
 		if code, ok := wire.Error["code"].(string); !ok || code == "" {

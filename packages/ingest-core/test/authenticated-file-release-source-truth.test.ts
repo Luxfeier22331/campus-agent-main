@@ -14,33 +14,12 @@ const sourceFileKey =
 const sourceFileBytes = new TextEncoder().encode("hello");
 const sourceFileSha256 = sha256Hex(sourceFileBytes);
 
-const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v2",
-	task_id: "task_file_release_source_truth_materialize_001",
-	run_id: "synthetic_internal_portal:file_release:20260412T003000Z",
-	source_family: "authenticated_notice",
-	source_channel: "internal_portal",
-	corpus: "authenticated_documents",
-	collection: "file_release_source",
-	registry_task_id: "source_truth_materialize",
-	task_kind: "source_truth_materialize",
-	input_ref: {
-		kind: "object_store",
-		uri: `s3://campus-agent-source/${manifestKey}`,
-	},
-	input_contract: "internal_portal_file_release_export_v1",
-	output_contract: "authenticated_document_file_release_source_truth.v1",
-	idempotency_key: "authenticated_documents/file_release_source/source_truth_materialize/run-001",
-	created_by: "operator",
-	created_at: "2026-04-12T00:30:00.000Z",
-};
-
 describe("authenticated file-release source-truth materialization", () => {
 	it("materializes object-backed file-release source truth artifacts", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putBytes(sourceFileKey, sourceFileBytes);
 		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
-		objectStore.putJson(manifestKey, sampleManifest());
+		const task = taskForInput(objectStore.putJson(manifestKey, sampleManifest()));
 
 		const refs = await materializeAuthenticatedFileReleaseSourceTruthFromTask({
 			objectStore,
@@ -87,7 +66,7 @@ describe("authenticated file-release source-truth materialization", () => {
 				},
 			},
 		]);
-		objectStore.putJson(manifestKey, sampleManifest());
+		const task = taskForInput(objectStore.putJson(manifestKey, sampleManifest()));
 
 		await expect(
 			materializeAuthenticatedFileReleaseSourceTruthFromTask({
@@ -102,7 +81,7 @@ describe("authenticated file-release source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putBytes(sourceFileKey, new TextEncoder().encode("unexpected"));
 		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
-		objectStore.putJson(manifestKey, sampleManifest());
+		const task = taskForInput(objectStore.putJson(manifestKey, sampleManifest()));
 
 		await expect(
 			materializeAuthenticatedFileReleaseSourceTruthFromTask({
@@ -133,7 +112,7 @@ class InMemoryObjectStore implements ObjectStore {
 		return object;
 	}
 
-	async putObject(input: {
+	async createOrVerifyObject(input: {
 		bucket: string;
 		key: string;
 		body: Uint8Array;
@@ -153,8 +132,10 @@ class InMemoryObjectStore implements ObjectStore {
 		this.#objects.set(key, value);
 	}
 
-	putJson(key: string, value: unknown): void {
-		this.putBytes(key, new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`));
+	putJson(key: string, value: unknown): Uint8Array {
+		const bytes = new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
+		this.putBytes(key, bytes);
+		return bytes;
 	}
 
 	getJsonFromUri(uri: string): unknown {
@@ -176,6 +157,21 @@ class InMemoryObjectStore implements ObjectStore {
 	keys(): IterableIterator<string> {
 		return this.#objects.keys();
 	}
+}
+
+function taskForInput(bytes: Uint8Array): IngestionTaskEnvelope {
+	return {
+		schema_version: "ingestion_task_envelope.v3",
+		task_id: "task_internal_portal_file_release_capture_001",
+		run_id: "synthetic_internal_portal:file_release:20260412T003000Z",
+		registry_task_id: "internal_portal.file_release.capture",
+		input_ref: {
+			byte_size: bytes.byteLength,
+			kind: "object_store",
+			uri: `s3://campus-agent-source/${manifestKey}`,
+			digest: `sha256:${sha256Hex(bytes)}`,
+		},
+	};
 }
 
 function sampleBundleRecord(): Record<string, unknown> {

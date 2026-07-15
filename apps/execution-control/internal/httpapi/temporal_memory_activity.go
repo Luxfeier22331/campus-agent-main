@@ -13,6 +13,8 @@ func (s *Server) MemoryRecallActivity(
 	ctx context.Context,
 	input temporalruntime.MemoryRecallActivityInput,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
+	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "memory.recall", 10*time.Second)
+	defer stopHeartbeat()
 	recordTemporalActivityHeartbeat(ctx, "memory.recall.started")
 	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {

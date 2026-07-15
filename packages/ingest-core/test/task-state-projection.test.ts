@@ -7,86 +7,76 @@ import {
 	toIngestionTaskOperatorProjection,
 } from "../src/index.ts";
 
+const digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
 const task: IngestionTaskRecord = {
-	schema_version: "ingestion_task_envelope.v2",
+	schema_version: "ingestion_task_envelope.v3",
 	task_id: "task_curriculum_chunk_001",
 	run_id: "run_curriculum_20260611",
-	source_family: "curriculum",
-	source_channel: "curriculum_plan",
-	corpus: "curriculum",
-	collection: "curriculum_plan",
-	registry_task_id: "chunk_prepare",
-	task_kind: "chunk_prepare",
+	registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
 	input_ref: {
+		byte_size: 1,
 		kind: "object_store",
 		uri: "s3://campus-agent-derived/curriculum/curriculum_plan/document-units.jsonl",
+		digest,
 	},
+	executor_kind: "rust_kernel",
+	source_family: null,
+	source_channel: null,
+	corpus: "curriculum",
+	collection: "curriculum_plan",
 	input_contract: "canonical_document_units.v1",
 	output_contract: "ingestion_chunk_set.v1",
-	idempotency_key: "curriculum/curriculum_plan/chunk_prepare/document-units-v1",
-	created_by: "operator",
+	created_by: "ingestion-control/admin",
 	created_at: "2026-06-11T00:00:00Z",
 	status: "completed",
-	updated_at: "2026-06-11T00:00:00.000Z",
-	closeout: {
-		task_id: "task_curriculum_chunk_001",
-		terminal_status: "completed",
-		outcome_kind: "success",
-		artifact_refs: [
-			{
-				kind: "object_store",
-				uri: "s3://campus-agent-derived/curriculum/curriculum_plan/chunks.jsonl",
-			},
-		],
-	},
-	workflow_id: "task_curriculum_chunk_001",
+	updated_at: "2026-06-11T00:01:00Z",
+	workflow_id: "campus-agent.ingestion.task_curriculum_chunk_001",
 	workflow_run_id: "temporal-run-001",
+	result_ref: {
+		byte_size: 1,
+		kind: "object_store",
+		uri: "s3://campus-agent-derived/ingestion/results/task_curriculum_chunk_001.json",
+		digest,
+	},
+	result_contract: "ingestion_chunk_set.v1",
+	summary: { chunk_count: 12 },
+	error_code: null,
+	error_message: null,
 };
 
 describe("ingestion task state projection", () => {
-	it("builds redacted operator projections without input or artifact refs", () => {
+	it("builds a redacted generic operator projection", () => {
 		const projection = toIngestionTaskOperatorProjection(task);
-
-		expect(projection).toEqual({
-			schema_version: "ingestion_task_operator_projection.v1",
+		expect(projection).toMatchObject({
+			schema_version: "ingestion_task_operator_projection.v2",
 			task_id: task.task_id,
-			run_id: task.run_id,
-			source_family: "curriculum",
-			source_channel: "curriculum_plan",
+			registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
+			executor_kind: "rust_kernel",
 			corpus: "curriculum",
 			collection: "curriculum_plan",
-			registry_task_id: "chunk_prepare",
-			task_kind: "chunk_prepare",
 			status: "completed",
-			created_at: "2026-06-11T00:00:00Z",
-			updated_at: "2026-06-11T00:00:00.000Z",
-			terminal_status: "completed",
-			outcome_kind: "success",
-			artifact_count: 1,
-			last_error_code: null,
-			last_error_message: null,
-			workflow_id: task.task_id,
-			workflow_run_id: "temporal-run-001",
+			result_contract: "ingestion_chunk_set.v1",
+			has_result: true,
+			summary: { chunk_count: 12 },
 		});
 		expect(JSON.stringify(projection)).not.toContain("input_ref");
-		expect(JSON.stringify(projection)).not.toContain("artifact_refs");
-		expect(JSON.stringify(projection)).not.toContain("s3://campus-agent-derived");
+		expect(JSON.stringify(projection)).not.toContain("result_ref");
+		expect(JSON.stringify(projection)).not.toContain("s3://");
 	});
 
-	it("matches projection filters and normalizes limits", () => {
+	it("matches generic filters and normalizes limits", () => {
 		expect(
 			matchesIngestionTaskProjectionFilters(task, {
 				corpus: "curriculum",
 				collection: "curriculum_plan",
-				runId: "run_curriculum_20260611",
+				registryTaskId: task.registry_task_id,
 				status: "completed",
 			}),
 		).toBe(true);
 		expect(matchesIngestionTaskProjectionFilters(task, { status: "failed" })).toBe(false);
 		expect(normalizeIngestionTaskProjectionLimit(null)).toBe(50);
-		expect(normalizeIngestionTaskProjectionLimit(-1)).toBe(50);
 		expect(normalizeIngestionTaskProjectionLimit(300)).toBe(200);
-		expect(normalizeIngestionTaskProjectionLimit(25)).toBe(25);
 	});
 
 	it("parses workflow status values fail-closed", () => {

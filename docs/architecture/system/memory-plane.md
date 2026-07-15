@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-07-08
+updated: 2026-07-12
 ---
 # Memory Plane Architecture
 
@@ -38,11 +38,9 @@ requirement，也不能授予 operator surface 权限。
 
 - online chat hot path 不再执行 `app-api -> PG profile.memory_items ->
   context.profile_memory` full injection。
-- active Python `ContextProjection` contract model 不再定义 `profile_memory`；该字段只作为
-  historical residue / schema negative guard 出现，不是后续扩展点。
 - personal memory 与 institutional knowledge retrieval 完全分离：personal memory
   走 Hindsight runtime，institutional retrieval 只通过 execution-control 内部
-  `knowledge_search` 访问 embedding、Qdrant 与 rerank。
+  `knowledge_search` 访问 embedding 与 Qdrant dense/sparse RRF。
 - execution-control 不维护个人记忆向量 schema、collection alias、embedding compatibility
   check、repo-owned extraction prompt 或 extraction threshold。
 - Temporal 不是 memory database；Temporal 只编排 activity / workflow lifecycle。
@@ -454,9 +452,10 @@ projection 规则，不拥有可执行验收步骤。
 agent runtime eval projection 只可从 `memory.recall` / `memory.reflect` step result
 派生 sanitized memory summary，例如 recall / reflect status、selected count、selected chars
 和 based-on fact count。它不得输出 Hindsight bank id、operation id/ref、runtime document
-ref、memory id、raw memory text、raw reflection text 或 compact text。Langfuse-bound
-memory observation 通过 sanitized trace/event 与 Ragas score lanes 消费；不得恢复
-retired profile score report builder，也不能为缺失 request correlation 的 case 猜 trace id。
+ref、memory id、raw memory text、raw reflection text 或 compact text。启用 tracing
+时，trusted Langfuse 可观察 Agent SDK 实际消费的 memory context；app-api projection
+和 score metadata 仍只消费 bounded summary。不得恢复 retired profile score report
+builder，也不能为缺失 request correlation 的 case 猜 trace id。
 
 ## Data-Plane Boundary
 

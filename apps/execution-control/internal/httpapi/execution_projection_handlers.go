@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -378,7 +379,6 @@ func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[
 		"input_tokens":            attempt.InputTokens,
 		"output_tokens":           attempt.OutputTokens,
 		"cached_input_tokens":     attempt.CachedInputTokens,
-		"estimated_cost_microusd": attempt.EstimatedCostMicroUSD,
 		"cancel_outcome":          string(attempt.CancelOutcome),
 		"timeout_outcome":         string(attempt.TimeoutOutcome),
 		"late_completion_outcome": string(attempt.LateCompletionOutcome),
@@ -411,13 +411,14 @@ func buildAgentRuntimeEvalProjection(
 	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
+	results, attempts = successfulPrimaryAgentActivityProjections(results, attempts)
 	selectedTool := firstNonEmptyText(
 		run.SelectedTool,
 		firstStepTool(steps),
 		projectedSelectedTool(results),
 	)
 	return map[string]any{
-		"schema_version": "agent_runtime_eval_projection.v1",
+		"schema_version": "agent_runtime_eval_projection.v2",
 		"run": map[string]any{
 			"run_id":            run.RunID,
 			"request_id":        run.RequestID,
@@ -428,7 +429,8 @@ func buildAgentRuntimeEvalProjection(
 		},
 		"trajectory": map[string]any{
 			"selected_tool":          selectedTool,
-			"tool_calls":             projectedToolCalls(results),
+			"tool_calls":             projectedPublicToolCalls(results, attempts),
+			"internal_tool_calls":    projectedKnowledgeSearchCalls(results, attempts),
 			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
 			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
 		},
@@ -439,6 +441,57 @@ func buildAgentRuntimeEvalProjection(
 	}
 }
 
+func successfulPrimaryAgentActivityProjections(
+	results []execution.StepResultProjection,
+	attempts []execution.StepAttemptProjection,
+) ([]execution.StepResultProjection, []execution.StepAttemptProjection) {
+	successfulAttempt := 0
+	for _, result := range results {
+		if result.StepID != "agent.primary" || result.Status != "completed" ||
+			result.ResultKind != "agent_final_output" {
+			continue
+		}
+		activityAttempt, ok := positiveIntValue(result.SanitizedPayload["activity_attempt"])
+		if !ok || result.AttemptID != temporalStepAttemptID(result.RunID, result.StepID, activityAttempt) {
+			continue
+		}
+		if activityAttempt > successfulAttempt {
+			successfulAttempt = activityAttempt
+		}
+	}
+	filteredResults := make([]execution.StepResultProjection, 0, len(results))
+	for _, result := range results {
+		if !primaryAgentActivityStep(result.StepID) {
+			filteredResults = append(filteredResults, result)
+			continue
+		}
+		if successfulAttempt > 0 &&
+			result.AttemptID == temporalStepAttemptID(result.RunID, result.StepID, successfulAttempt) {
+			filteredResults = append(filteredResults, result)
+		}
+	}
+	filteredAttempts := make([]execution.StepAttemptProjection, 0, len(attempts))
+	for _, attempt := range attempts {
+		if !primaryAgentActivityStep(attempt.StepID) ||
+			successfulAttempt > 0 && projectionActivityAttempt(attempt) == successfulAttempt {
+			filteredAttempts = append(filteredAttempts, attempt)
+		}
+	}
+	return filteredResults, filteredAttempts
+}
+
+func primaryAgentActivityStep(stepID string) bool {
+	return stepID == "agent.primary" || strings.HasPrefix(stepID, "knowledge.search.") ||
+		strings.HasPrefix(stepID, "sdk_tool.execute.")
+}
+
+func projectionActivityAttempt(attempt execution.StepAttemptProjection) int {
+	if attempt.ActivityAttempt > 0 {
+		return attempt.ActivityAttempt
+	}
+	return attempt.Attempt
+}
+
 func buildToolTrajectoryProjection(
 	run execution.DurableRun,
 	steps []execution.RunStepProjection,
@@ -446,7 +499,8 @@ func buildToolTrajectoryProjection(
 	results []execution.StepResultProjection,
 	selectedTool string,
 ) map[string]any {
-	toolCalls := projectedToolTrajectoryCalls(results, attempts)
+	toolCalls := projectedPublicToolCalls(results, attempts)
+	internalToolCalls := projectedKnowledgeSearchCalls(results, attempts)
 	decisionKind := "direct_answer"
 	if run.FailCloseReason != "" || run.TerminalReason == execution.DurableTerminalReasonPolicyRejected ||
 		run.TerminalReason == execution.DurableTerminalReasonToolClosed ||
@@ -456,18 +510,19 @@ func buildToolTrajectoryProjection(
 		decisionKind = "tool_call"
 	}
 	projection := map[string]any{
-		"schema_version":  "tool_trajectory.v1",
-		"request_id":      run.RequestID,
-		"run_id":          run.RunID,
-		"trace_id":        run.TraceID,
-		"conversation_id": run.ConversationID,
-		"surface":         run.Surface,
-		"environment":     firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
-		"release":         firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
-		"available_tools": projectedAvailableTools(steps, results),
-		"decision_kind":   decisionKind,
-		"selected_tool":   selectedTool,
-		"tool_calls":      toolCalls,
+		"schema_version":      "tool_trajectory.v2",
+		"request_id":          run.RequestID,
+		"run_id":              run.RunID,
+		"trace_id":            run.TraceID,
+		"conversation_id":     run.ConversationID,
+		"surface":             run.Surface,
+		"environment":         firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
+		"release":             firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
+		"available_tools":     projectedAvailableTools(steps, results),
+		"decision_kind":       decisionKind,
+		"selected_tool":       selectedTool,
+		"tool_calls":          toolCalls,
+		"internal_tool_calls": internalToolCalls,
 	}
 	if run.FailCloseReason != "" {
 		projection["fail_close_reason"] = run.FailCloseReason
@@ -496,7 +551,7 @@ func projectedAvailableTools(
 	return values
 }
 
-func projectedToolTrajectoryCalls(
+func projectedPublicToolCalls(
 	results []execution.StepResultProjection,
 	attempts []execution.StepAttemptProjection,
 ) []map[string]any {
@@ -517,9 +572,31 @@ func projectedToolTrajectoryCalls(
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		agentAttempt := attemptByID[result.AttemptID]
+		for _, selectedTool := range primaryAgentPublicSelectedTools(stringSliceFromAny(payload["selected_tools"])) {
+			if selectedTool != "knowledge_query" {
+				continue
+			}
+			call := map[string]any{
+				"tool_name":    "knowledge_query",
+				"tool_call_id": result.ResultID + ":handoff:knowledge_query",
+				"status":       result.Status,
+				"result_kind":  "agent_handoff",
+			}
+			if provider := strings.TrimSpace(agentAttempt.ModelProvider); provider != "" {
+				call["provider"] = provider
+			}
+			if model := strings.TrimSpace(agentAttempt.ModelName); model != "" {
+				call["model"] = model
+			}
+			calls = append(calls, sanitizeProjectionPayload(call))
+			break
+		}
 		for index, toolResult := range knowledgeEvidenceMaps(payload["tool_results"]) {
 			internalToolName := firstNonEmptyText(toolResult["tool_name"])
-			toolName := publicProjectionToolName(internalToolName)
+			if internalToolName == "knowledge_search" {
+				continue
+			}
+			toolName := internalToolName
 			if toolName == "" {
 				continue
 			}
@@ -536,7 +613,7 @@ func projectedToolTrajectoryCalls(
 			if reason := firstNonEmptyText(toolResult["fail_close_reason"]); reason != "" {
 				call["fail_close_reason"] = reason
 			}
-			if evalSafeArgs := projectedEvalSafeToolArgs(internalToolName, toolResult); len(evalSafeArgs) > 0 {
+			if evalSafeArgs := projectedEvalSafeToolArgs(toolName, toolResult); len(evalSafeArgs) > 0 {
 				call["eval_safe_args"] = evalSafeArgs
 			}
 			if toolAttempt, ok := resultAttemptByProjectionRef[resultRef]; ok && toolAttempt.DurationMS > 0 {
@@ -554,23 +631,72 @@ func projectedToolTrajectoryCalls(
 	return calls
 }
 
+func projectedKnowledgeSearchCalls(
+	results []execution.StepResultProjection,
+	attempts []execution.StepAttemptProjection,
+) []map[string]any {
+	attemptByID := map[string]execution.StepAttemptProjection{}
+	for _, attempt := range attempts {
+		attemptByID[attempt.AttemptID] = attempt
+	}
+	calls := []map[string]any{}
+	for _, result := range results {
+		if !strings.HasPrefix(result.StepID, "knowledge.search.") {
+			continue
+		}
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		ordinal, ok := positiveIntValue(payload["search_ordinal"])
+		if !ok {
+			continue
+		}
+		call := map[string]any{
+			"tool_name":      "knowledge_search",
+			"tool_call_id":   firstNonEmptyText(payload["invocation_id"], result.ProjectionRef, result.ResultID),
+			"status":         result.Status,
+			"result_kind":    result.ResultKind,
+			"search_ordinal": ordinal,
+		}
+		if queryHash := firstNonEmptyText(payload["query_sha256"]); queryHash != "" {
+			call["query_hash"] = queryHash
+		}
+		if outcome := firstNonEmptyText(payload["outcome"]); outcome != "" {
+			call["outcome"] = outcome
+		}
+		for _, key := range []string{"candidate_count", "discarded_count"} {
+			if value, ok := positiveIntValue(payload[key]); ok {
+				call[key] = value
+			}
+		}
+		if evalSafeArgs := projectedEvalSafeToolArgs("knowledge_search", payload); len(evalSafeArgs) > 0 {
+			call["eval_safe_args"] = evalSafeArgs
+		}
+		if attempt, ok := attemptByID[result.AttemptID]; ok && attempt.DurationMS > 0 {
+			call["duration_ms"] = attempt.DurationMS
+		}
+		calls = append(calls, sanitizeProjectionPayload(call))
+	}
+	sort.SliceStable(calls, func(left int, right int) bool {
+		leftOrdinal, _ := positiveIntValue(calls[left]["search_ordinal"])
+		rightOrdinal, _ := positiveIntValue(calls[right]["search_ordinal"])
+		return leftOrdinal < rightOrdinal
+	})
+	return calls
+}
+
 func projectedEvalSafeToolArgs(toolName string, toolResult map[string]any) map[string]any {
 	if strings.TrimSpace(toolName) != "knowledge_search" {
 		return map[string]any{}
 	}
 	result := optionalMapFromMap(toolResult, "result")
+	if len(result) == 0 {
+		result = toolResult
+	}
 	args := map[string]any{}
-	if scope := firstNonEmptyText(result["resolved_scope"]); scope != "" {
-		args["scope"] = scope
+	if target := firstNonEmptyText(result["retrieval_target"], result["target"]); target != "" {
+		args["target"] = target
 	}
-	resolvedVersion := optionalMapFromMap(result, "resolved_version")
-	if mode := firstNonEmptyText(resolvedVersion["mode"]); mode != "" {
-		args["version_mode"] = mode
-	}
-	for _, key := range []string{"as_of", "version_id", "compare_to_version_id"} {
-		if value := firstNonEmptyText(resolvedVersion[key]); value != "" {
-			args[key] = value
-		}
+	if includeHistory, ok := result["include_history"].(bool); ok {
+		args["include_history"] = includeHistory
 	}
 	return args
 }
@@ -634,16 +760,6 @@ func projectedRecordFromResults(results []execution.StepResultProjection, key st
 		}
 	}
 	return map[string]any{}
-}
-
-func projectedToolCalls(results []execution.StepResultProjection) []map[string]any {
-	toolCalls := []map[string]any{}
-	for _, call := range projectedToolTrajectoryCalls(results, nil) {
-		toolCalls = append(toolCalls, map[string]any{
-			"selected_tool": call["tool_name"],
-		})
-	}
-	return toolCalls
 }
 
 func sanitizeProjectionPayload(payload map[string]any) map[string]any {

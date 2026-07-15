@@ -2,11 +2,6 @@ import { resolve } from "node:path";
 
 import type { CheerioCrawlingContext } from "crawlee";
 import {
-	createOfficialWebControlPlaneClient,
-	type OfficialWebControlPlaneClient,
-	type OfficialWebTriggerType,
-} from "./control-plane.ts";
-import {
 	defaultRepoRoot,
 	type OfficialWebConfigBundle,
 	type OfficialWebCrawlPlan,
@@ -134,31 +129,4 @@ export function parseRunIntent(value: string | undefined): OfficialWebRunIntent 
 	}
 
 	throw new Error("--run-intent must be one of: baseline, hot, repair");
-}
-
-export function parseTriggerType(value: string | undefined): OfficialWebTriggerType | undefined {
-	if (!value) {
-		return;
-	}
-	if (value === "manual" || value === "scheduled" || value === "replay") {
-		return value;
-	}
-
-	throw new Error("--trigger-type must be one of: manual, scheduled, replay");
-}
-
-export function buildConfiguredControlPlaneClient(input: {
-	ingestionControlBaseUrl?: string;
-	serviceToken?: string;
-}): OfficialWebControlPlaneClient {
-	if (!(input.ingestionControlBaseUrl && input.serviceToken)) {
-		throw new Error(
-			"--ingestion-control-base-url/OFFICIAL_WEB_INGESTION_CONTROL_BASE_URL and --service-token/OFFICIAL_WEB_SERVICE_TOKEN must be provided together.",
-		);
-	}
-
-	return createOfficialWebControlPlaneClient({
-		ingestionControlBaseUrl: input.ingestionControlBaseUrl,
-		serviceToken: input.serviceToken,
-	});
 }

@@ -25,7 +25,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		retryable: boolean;
 	};
 	followUpQuestion: string;
-	resolvedScope: null;
+	resolvedTargets: [];
 	result: null;
 	selectedTool: null;
 	sessionUpdate: null;
@@ -42,7 +42,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
-			resolvedScope: null,
+			resolvedTargets: [],
 			result: null,
 			selectedTool: null,
 			sessionUpdate: null,
@@ -59,7 +59,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 			retryable: false,
 		},
 		followUpQuestion: "",
-		resolvedScope: null,
+		resolvedTargets: [],
 		result: null,
 		selectedTool: null,
 		sessionUpdate: null,
@@ -88,10 +88,13 @@ export function buildAbuseThrottleRejectedResponse(input: {
 		followUpQuestion: "",
 		observability: {
 			agentRuntime: null,
+			modelName: null,
+			modelProvider: null,
+			promptTrace: null,
 			selectedTools: [],
 			terminalReason: "rate_limit_exceeded",
 		},
-		resolvedScope: null,
+		resolvedTargets: [],
 		result: null,
 		selectedTool: null,
 		sessionUpdate: null,

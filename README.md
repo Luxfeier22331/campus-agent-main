@@ -98,10 +98,20 @@ uv sync --all-packages --dev
 pnpm install
 ```
 
+团队成员可按 Turborepo 官方流程为每个本地 worktree 启用 Remote Cache：
+
+```bash
+pnpm exec turbo login
+pnpm exec turbo link
+```
+
+链接信息写入已忽略的 `.turbo/config.json`；token 不进入仓库。GitHub Actions
+通过 `TURBO_TOKEN` secret 与 `TURBO_TEAM` variable 使用同一缓存。
+
 Public clone 默认验证入口：
 
 ```bash
-pnpm repo:static
+pnpm ci:repo
 pnpm go:check
 pnpm ci:rust
 pnpm ci:contracts
@@ -148,8 +158,9 @@ git history 恢复具体片段，再提升到当前 runbook 或 data contract。
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 
 其中 `pnpm repo:static` 直接运行 Biome、Markdownlint 与 EditorConfig Checker，只负责通用格式和文本
-卫生。Python、Worker、contract、ingestion、Go、K8s 与依赖安全约束由对应 owner lane 或原生工具承担；
-`repo:static` 不判断架构目录、运行时能力或领域策略。
+卫生；`pnpm docs:check` 只检查 ADR identity 唯一性和文件名/H1 对齐；`pnpm ci:repo`
+聚合二者。Python、Worker、contract、ingestion、Go、K8s 与依赖安全约束由对应 owner lane 或原生工具承担；
+这些 repo 检查不判断运行时能力或领域策略。
 
 更细的验证 lane 与 smoke 路径见：
 

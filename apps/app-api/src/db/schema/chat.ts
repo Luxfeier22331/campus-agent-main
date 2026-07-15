@@ -9,7 +9,6 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { TurnDispatchPrincipalSnapshot } from "../../modules/runtime-command/store-types";
-import type { VersionQuery } from "../../modules/version-query";
 
 const chat = pgSchema("chat");
 
@@ -111,8 +110,7 @@ export const turnDispatches = chat.table(
 		runId: text("run_id"),
 		safetyIdentifier: text("safety_identifier"),
 		requestedTool: text("requested_tool"),
-		requestedScope: text("requested_scope"),
-		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
+		resolvedTargetsJson: jsonb("resolved_targets_json").$type<string[]>().notNull().default([]),
 		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),

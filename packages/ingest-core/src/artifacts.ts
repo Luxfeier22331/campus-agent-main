@@ -153,7 +153,7 @@ async function writeCanonicalArtifact(input: {
 	objectStore: ObjectStore;
 }): Promise<IngestionArtifactRef> {
 	const actualSha256 = sha256Hex(input.body);
-	const result = await input.objectStore.putObject({
+	const result = await input.objectStore.createOrVerifyObject({
 		bucket: input.bucket,
 		key: input.key,
 		body: input.body,
@@ -164,6 +164,7 @@ async function writeCanonicalArtifact(input: {
 	}
 	return buildObjectStoreArtifactRef({
 		bucket: input.bucket,
+		byteSize: result.byteSize,
 		key: input.key,
 		contentSha256: actualSha256,
 	});

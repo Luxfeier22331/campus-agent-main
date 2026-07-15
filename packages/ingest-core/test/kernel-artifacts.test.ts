@@ -9,35 +9,28 @@ import {
 } from "../src/index.ts";
 
 const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v2",
+	schema_version: "ingestion_task_envelope.v3",
 	task_id: "task_student_rules_document_units_validate_001",
 	run_id: "run_student_rules_20260630",
-	source_family: "regulations",
-	source_channel: "student_rules",
-	corpus: "regulations",
-	collection: "student_rules",
-	registry_task_id: "document_units_validate",
-	task_kind: "document_units_validate",
+	registry_task_id: "regulations.student_rules.document_units_validate",
 	input_ref: {
+		byte_size: 1,
 		kind: "object_store",
 		uri: "s3://campus-agent-source/canonical-document-units/student-rules.jsonl",
+		digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
 	},
-	input_contract: "canonical_document_units.v1",
-	output_contract: "document_units_validation_report.v1",
-	idempotency_key: "regulations/student_rules/document_units_validate/release-001",
-	created_by: "operator",
-	created_at: "2026-06-30T00:00:00Z",
 };
 
 describe("ingestion kernel artifacts", () => {
 	it("builds deterministic kernel artifact keys without app-level helpers", () => {
 		expect(
 			buildIngestionKernelArtifactKey({
+				activityAttempt: 2,
 				kernelId: "validate-document-units",
 				task,
 			}),
 		).toBe(
-			"ingestion-kernels/regulations/student_rules/run_student_rules_20260630/task_student_rules_document_units_validate_001/validate-document-units.json",
+			"ingestion-kernels/regulations.student_rules.document_units_validate/runs/run_student_rules_20260630/attempts/2/task_student_rules_document_units_validate_001/validate-document-units.json",
 		);
 		expect(INGESTION_KERNEL_ARTIFACT_CONTENT_TYPE).toBe("application/json");
 	});
@@ -137,13 +130,21 @@ describe("ingestion kernel artifacts", () => {
 		});
 	});
 
-	it("fails closed on invalid key segments and invalid kernel output", () => {
-		expect(() =>
+	it("reversibly encodes key segments and fails closed on invalid kernel output", () => {
+		expect(
 			buildIngestionKernelArtifactKey({
+				activityAttempt: 1,
 				kernelId: "../bad",
 				task,
 			}),
-		).toThrow("kernel_id is not safe for ingestion kernel artifact key");
+		).toContain("..%2Fbad.json");
+		expect(() =>
+			buildIngestionKernelArtifactKey({
+				activityAttempt: 0,
+				kernelId: "validate-document-units",
+				task,
+			}),
+		).toThrow("activityAttempt must be a positive integer");
 
 		expect(() =>
 			parseIngestionKernelJsonOutput({

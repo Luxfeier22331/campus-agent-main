@@ -9,5 +9,11 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["adapters/**/src/**/*.ts", "adapters/**/test/**/*.ts", "vitest.config.mts"]
+	"include": [
+		"src/**/*.ts",
+		"test/**/*.ts",
+		"adapters/**/src/**/*.ts",
+		"adapters/**/test/**/*.ts",
+		"vitest.config.mts"
+	]
 }

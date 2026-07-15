@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildLangfuseScoresFromRagasAgentScoreBatch,
+	deriveLangfuseTraceId,
 	runAgentToolEval,
 	validateAgentToolEvalDataset,
 } from "../src/index";
@@ -20,10 +21,16 @@ function jsonResponse(payload: unknown, init?: ResponseInit): Response {
 	});
 }
 
-function runStepsResponse(toolTrajectory: JsonObject): Response {
+function runStepsResponse(toolTrajectory: JsonObject, rag: JsonObject = {}): Response {
 	return jsonResponse({
 		agentRuntimeEvalProjection: {
-			schema_version: "agent_runtime_eval_projection.v1",
+			planning: {},
+			rag,
+			run: {
+				run_id: toolTrajectory.run_id,
+				trace_id: toolTrajectory.trace_id,
+			},
+			schema_version: "agent_runtime_eval_projection.v2",
 			tool_trajectory: toolTrajectory,
 		},
 		attempts: [],
@@ -154,9 +161,13 @@ describe("Ragas agent Langfuse score adapter", () => {
 });
 
 describe("agent tool eval runner", () => {
-	it("runs Langfuse dataset cases through app-api and publishes Ragas agent scores", async () => {
+	it("links a real product trace and publishes agent, RAG, and deterministic scores", async () => {
 		const requests: Array<{ body: unknown; url: string }> = [];
 		const writtenAgentSamples: JsonObject[] = [];
+		const writtenRagSamples: JsonObject[] = [];
+		const productTraceId = "trace-product-001";
+		const langfuseTraceId = deriveLangfuseTraceId(productTraceId);
+		let chatRequestCount = 0;
 		const fetchImpl: typeof fetch = async (input, init) => {
 			const url = String(input);
 			if (url.endsWith("/api/public/datasets/campus%2Fagent%2Ftool-selection")) {
@@ -164,38 +175,53 @@ describe("agent tool eval runner", () => {
 					items: [
 						{
 							expectedOutput: {
+								expected_outcome: "answer",
+								forbidden_context_ids: ["handbook:wrong-policy"],
+								reference: "应依据示例学位授予规定第十条回答。",
+								reference_context_ids: ["handbook:degree-policy"],
 								reference_tool_calls: [
 									{
 										args: {},
-										name: "transport_schedule_lookup",
+										name: "knowledge_query",
+									},
+									{
+										args: { include_history: false, target: "student_rules" },
+										name: "knowledge_search",
 									},
 								],
 							},
 							id: "dataset-item-001",
 							input: {
-								query: "校车现在能到海淀校区吗？",
+								query: "那第十条呢？",
+								setup_turns: ["请帮我查一下示例学位授予规定。"],
 							},
 							metadata: {
-								argument_mode: "name_only",
-								case_family: "transport",
-								case_id: "transport-route",
-								dataset_run_id: "dataset-run-001",
+								argument_mode: "eval_safe_args",
+								case_family: "conversation_follow_up",
+								case_id: "student-rules-conversation-follow-up",
+								surface_key: "rag/student_rules",
 							},
 						},
 					],
 				});
 			}
 			if (url.endsWith("/api/chat/requests/stream")) {
+				const body = init?.body ? (JSON.parse(String(init.body)) as JsonObject) : {};
 				requests.push({
-					body: init?.body ? JSON.parse(String(init.body)) : null,
+					body,
 					url,
 				});
+				const isSetupTurn = chatRequestCount === 0;
+				chatRequestCount += 1;
+				const requestId = isSetupTurn ? "req-setup" : "req-001";
+				const runId = isSetupTurn ? "run-setup" : "run-001";
+				const traceId = isSetupTurn ? "trace-setup" : productTraceId;
 				return new Response(
 					sse("request.accepted", {
-						requestId: "req-001",
-						runId: "run-001",
+						requestId,
+						runId,
 						status: "accepted",
-						traceId: "trace-001",
+						traceId,
 					}) +
 						sse("request.completed", {
 							answer: {
@@ -205,14 +231,14 @@ describe("agent tool eval runner", () => {
 								},
 								result: {
 									kind: "answer",
-									requestId: "req-001",
-									text: "已查询校车班次。",
-									traceId: "trace-001",
+									requestId,
+									text: isSetupTurn ? "我会查看该规定。" : "第十条规定了学位授予条件。",
+									traceId,
 								},
 							},
-							requestId: "req-001",
+							requestId,
 							status: "completed",
-							traceId: "trace-001",
+							traceId,
 						}),
 					{
 						headers: { "content-type": "text/event-stream" },
@@ -221,24 +247,57 @@ describe("agent tool eval runner", () => {
 				);
 			}
 			if (url.endsWith("/api/chat/runs/run-001/steps")) {
-				return runStepsResponse({
-					available_tools: ["knowledge_query", "transport_schedule_lookup"],
-					conversation_id: "conv-001",
-					decision_kind: "tool_call",
-					request_id: "req-001",
-					run_id: "run-001",
-					schema_version: "tool_trajectory.v1",
-					selected_tool: "transport_schedule_lookup",
-					surface: "campus-web",
-					tool_calls: [
-						{
-							result_kind: "transport_schedule_lookup",
-							status: "completed",
-							tool_call_id: "call-001",
-							tool_name: "transport_schedule_lookup",
-						},
-					],
-					trace_id: "trace-001",
+				return runStepsResponse(
+					{
+						available_tools: ["knowledge_query", "transport_schedule_lookup"],
+						conversation_id: "conv-001",
+						decision_kind: "tool_call",
+						internal_tool_calls: [
+							{
+								eval_safe_args: { include_history: false, target: "student_rules" },
+								result_kind: "knowledge_search_result",
+								search_ordinal: 1,
+								status: "completed",
+								tool_call_id: "search-001",
+								tool_name: "knowledge_search",
+							},
+						],
+						request_id: "req-001",
+						run_id: "run-001",
+						schema_version: "tool_trajectory.v2",
+						selected_tool: "knowledge_query",
+						surface: "campus-web",
+						tool_calls: [
+							{
+								result_kind: "agent_handoff",
+								status: "completed",
+								tool_call_id: "call-001",
+								tool_name: "knowledge_query",
+							},
+						],
+						trace_id: productTraceId,
+					},
+					{
+						answer: "第十条规定了学位授予条件。",
+						retrieved_context_ids: ["handbook:degree-policy"],
+						retrieved_contexts: ["第十条规定申请人应满足学位授予条件。"],
+					},
+				);
+			}
+			if (url.endsWith("/api/public/dataset-run-items")) {
+				requests.push({
+					body: init?.body ? JSON.parse(String(init.body)) : null,
+					url,
+				});
+				return jsonResponse({
+					createdAt: "2026-07-12T00:00:00Z",
+					datasetItemId: "dataset-item-001",
+					datasetRunId: "dataset-run-official",
+					datasetRunName: "agent-eval-run",
+					id: "dataset-run-item-001",
+					observationId: null,
+					traceId: langfuseTraceId,
+					updatedAt: "2026-07-12T00:00:00Z",
 				});
 			}
 			if (url.endsWith("/api/public/scores")) {
@@ -260,28 +319,54 @@ describe("agent tool eval runner", () => {
 			runPythonRagasAgentScoreBatch: ({ inputPath, outputPath }) => {
 				const samples = JSON.parse(readFileSync(inputPath, "utf-8")) as JsonObject;
 				writtenAgentSamples.push(samples);
+				const sample = (samples.items as JsonObject[])[0] as JsonObject;
 				writeFileSync(
 					outputPath,
 					JSON.stringify({
-						eval_run_id: "agent-eval-run",
+						eval_run_id: samples.eval_run_id,
 						items: [
 							{
-								case_id: "transport-route",
-								dataset_item_id: "dataset-item-001",
-								dataset_run_id: "dataset-run-001",
+								case_id: sample.case_id,
+								dataset_item_id: sample.dataset_item_id,
+								dataset_run_id: sample.dataset_run_id,
 								errors: [],
 								metadata: {
-									argument_mode: "name_only",
+									argument_mode: "eval_safe_args",
 									surface_key: "app-api.chat",
 								},
 								observation_id: null,
 								scores: {
-									"ragas.tool_call_accuracy.name_only": 1,
+									"ragas.tool_call_accuracy.args": 1,
 								},
-								trace_id: "trace-001",
+								trace_id: sample.trace_id,
 							},
 						],
 						schema_version: "ragas_agent_score_batch.v1",
+					}),
+					"utf-8",
+				);
+			},
+			runPythonRagasScoreBatch: ({ inputPath, outputPath }) => {
+				const samples = JSON.parse(readFileSync(inputPath, "utf-8")) as JsonObject;
+				writtenRagSamples.push(samples);
+				const sample = (samples.items as JsonObject[])[0] as JsonObject;
+				writeFileSync(
+					outputPath,
+					JSON.stringify({
+						eval_run_id: samples.eval_run_id,
+						items: [
+							{
+								case_id: sample.case_id,
+								dataset_item_id: sample.dataset_item_id,
+								dataset_run_id: sample.dataset_run_id,
+								errors: [],
+								metadata: { surface_key: "rag/student_rules" },
+								observation_id: null,
+								scores: { "ragas.faithfulness": 1 },
+								trace_id: sample.trace_id,
+							},
+						],
+						schema_version: "ragas_score_batch.v1",
 					}),
 					"utf-8",
 				);
@@ -298,31 +383,84 @@ describe("agent tool eval runner", () => {
 		expect(writtenAgentSamples[0]).toMatchObject({
 			items: [
 				{
-					argument_mode: "name_only",
-					case_id: "transport-route",
+					argument_mode: "eval_safe_args",
+					case_id: "student-rules-conversation-follow-up",
 					dataset_item_id: "dataset-item-001",
-					dataset_run_id: "dataset-run-001",
-					query: "校车现在能到海淀校区吗？",
-					reference_tool_calls: [{ args: {}, name: "transport_schedule_lookup" }],
-					tool_calls: [{ args: {}, name: "transport_schedule_lookup" }],
-					trace_id: "trace-001",
+					dataset_run_id: "dataset-run-official",
+					query: "那第十条呢？",
+					reference_tool_calls: [
+						{ args: {}, name: "knowledge_query" },
+						{
+							args: { include_history: false, target: "student_rules" },
+							name: "knowledge_search",
+						},
+					],
+					tool_calls: [
+						{ args: {}, name: "knowledge_query" },
+						{
+							args: { include_history: false, target: "student_rules" },
+							name: "knowledge_search",
+						},
+					],
+					trace_id: langfuseTraceId,
 				},
 			],
 			schema_version: "ragas_agent_sample_batch.v1",
 		});
-		expect(result.source_kind).toBe("langfuse_dataset");
-		expect(requests[0]).toMatchObject({
-			body: { prompt: "校车现在能到海淀校区吗？" },
-			url: "https://campus-staging.example/api/chat/requests/stream",
+		expect(writtenRagSamples[0]).toMatchObject({
+			items: [
+				{
+					contexts: ["第十条规定申请人应满足学位授予条件。"],
+					dataset_run_id: "dataset-run-official",
+					retrieved_context_ids: ["handbook:degree-policy"],
+					trace_id: langfuseTraceId,
+				},
+			],
+			schema_version: "ragas_sample_batch.v1",
 		});
-		expect(requests[1]).toMatchObject({
+		expect(result.source_kind).toBe("langfuse_dataset");
+		expect(result).toMatchObject({ agent_sample_count: 1, rag_sample_count: 1 });
+		const chatRequests = requests.filter((request) =>
+			request.url.endsWith("/api/chat/requests/stream"),
+		);
+		expect(chatRequests).toEqual([
+			{
+				body: { prompt: "请帮我查一下示例学位授予规定。" },
+				url: "https://campus-staging.example/api/chat/requests/stream",
+			},
+			{
+				body: { conversationId: "conv-001", prompt: "那第十条呢？" },
+				url: "https://campus-staging.example/api/chat/requests/stream",
+			},
+		]);
+		const runItemRequest = requests.find((request) =>
+			request.url.endsWith("/api/public/dataset-run-items"),
+		);
+		expect(runItemRequest).toMatchObject({
 			body: {
 				datasetItemId: "dataset-item-001",
-				datasetRunId: "dataset-run-001",
-				name: "ragas.tool_call_accuracy.name_only",
-				traceId: "trace-001",
+				runName: expect.any(String),
+				traceId: langfuseTraceId,
 			},
-			url: "https://langfuse.example/api/public/scores",
+			url: "https://langfuse.example/api/public/dataset-run-items",
 		});
+		const scoreRequests = requests.filter((request) => request.url.endsWith("/api/public/scores"));
+		expect(scoreRequests.map((request) => (request.body as JsonObject).name).sort()).toEqual([
+			"execution.outcome_match",
+			"ragas.faithfulness",
+			"ragas.tool_call_accuracy.args",
+			"retrieval.forbidden_context_absent",
+		]);
+		for (const request of scoreRequests) {
+			expect(request).toMatchObject({
+				body: {
+					traceId: langfuseTraceId,
+				},
+				url: "https://langfuse.example/api/public/scores",
+			});
+			expect(request.body).not.toHaveProperty("datasetItemId");
+			expect(request.body).not.toHaveProperty("datasetRunId");
+			expect(request.body).not.toHaveProperty("observationId");
+		}
 	});
 });

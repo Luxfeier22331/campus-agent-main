@@ -196,7 +196,6 @@ create table if not exists runtime.agent_step_attempts (
 	input_tokens bigint not null default 0,
 	output_tokens bigint not null default 0,
 	cached_input_tokens bigint not null default 0,
-	estimated_cost_microusd bigint not null default 0,
 	cancel_outcome text not null default '',
 	timeout_outcome text not null default '',
 	late_completion_outcome text not null default 'not_late',
@@ -224,7 +223,7 @@ alter table runtime.agent_step_attempts add column if not exists model_name text
 alter table runtime.agent_step_attempts add column if not exists input_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists output_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists cached_input_tokens bigint not null default 0;
-alter table runtime.agent_step_attempts add column if not exists estimated_cost_microusd bigint not null default 0;
+alter table runtime.agent_step_attempts drop column if exists estimated_cost_microusd;
 alter table runtime.agent_step_attempts add column if not exists cancel_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists timeout_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists late_completion_outcome text not null default 'not_late';

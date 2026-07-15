@@ -38,7 +38,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:missing-envelope",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -90,6 +90,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-direct-finalization",
 			"selected_tools":       []string{},
+			"status":               "completed",
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "answer_completed",
 		},
@@ -167,6 +168,7 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 			"agent_result_ref":     agentResultRef,
 			"provider_response_id": "resp-primary-agent-tool-finalization",
 			"selected_tools":       []string{"transport_schedule_lookup"},
+			"status":               "completed",
 			"terminal_envelope": map[string]any{
 				"kind":        "answer",
 				"answer_text": "当前还不能稳定确认校车时刻。",
@@ -270,13 +272,13 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 			"terminal_envelope":    map[string]any{"kind": "out_of_scope", "reason": "这个请求不属于校园问答助手当前可处理的范围。"},
 			"provider_response_id": "resp-primary-agent-out-of-scope",
 			"selected_tools":       []string{},
+			"status":               "completed",
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "out_of_scope",
 			"usage": map[string]any{
-				"input_tokens":             11,
-				"output_tokens":            7,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 19,
+				"input_tokens":        11,
+				"output_tokens":       7,
+				"cached_input_tokens": 0,
 			},
 		},
 	)
@@ -373,8 +375,17 @@ func preparePrimaryAgentFinalizationRunForTest(
 		t.Fatalf("get run: %v", err)
 	}
 	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
-		if _, exists := agentMetadata["llm_io_fingerprint"]; !exists {
-			agentMetadata["llm_io_fingerprint"] = primaryAgentFingerprintForFinalizationTest(runID)
+		if _, exists := agentMetadata["activity_attempt"]; !exists {
+			agentMetadata["activity_attempt"] = 1
+		}
+		if _, exists := agentMetadata["model_name"]; !exists {
+			agentMetadata["model_name"] = "gpt-4.1"
+		}
+		if _, exists := agentMetadata["model_provider"]; !exists {
+			agentMetadata["model_provider"] = "openai"
+		}
+		if _, exists := agentMetadata["prompt_trace"]; !exists {
+			agentMetadata["prompt_trace"] = primaryAgentPromptTraceForFinalizationTest()
 		}
 		for key, value := range agentMetadata {
 			metadata[key] = value

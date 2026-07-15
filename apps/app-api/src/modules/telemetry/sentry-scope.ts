@@ -1,13 +1,12 @@
 import * as Sentry from "@sentry/cloudflare";
 
-import type { RequestedScope } from "../integration";
-import { toScopeSummary } from "./helpers";
+import { toTargetsSummary } from "./helpers";
 
 export function applyRequestTags(input: {
 	errorCode?: string | null;
 	principalType?: string | null;
 	requestedTool?: string | null;
-	requestedScope?: RequestedScope | null;
+	resolvedTargets?: string[];
 	route?: string | null;
 	selectedTool?: string | null;
 	status?: string | null;
@@ -32,8 +31,8 @@ export function applyRequestTags(input: {
 	if (input.requestedTool) {
 		Sentry.setTag("requested_tool", input.requestedTool);
 	}
-	if (input.requestedScope) {
-		Sentry.setTag("requested_scope_summary", toScopeSummary(input.requestedScope));
+	if (input.resolvedTargets && input.resolvedTargets.length > 0) {
+		Sentry.setTag("resolved_targets_summary", toTargetsSummary(input.resolvedTargets));
 	}
 	if (input.principalType) {
 		Sentry.setTag("principal_type", input.principalType);
@@ -46,16 +45,14 @@ export function applyRequestTags(input: {
 export function applyRequestContext(input: {
 	conversationId?: string | null;
 	requestId?: string | null;
-	requestedScope?: RequestedScope | null;
-	resolvedScope?: RequestedScope | null;
+	resolvedTargets?: string[];
 	safetyIdentifier?: string | null;
 	selectedTool?: string | null;
 }): void {
 	Sentry.setContext("request", {
 		conversation_id: input.conversationId ?? null,
 		request_id: input.requestId ?? null,
-		requested_scope_summary: toScopeSummary(input.requestedScope),
-		resolved_scope_summary: toScopeSummary(input.resolvedScope),
+		resolved_targets: input.resolvedTargets ?? [],
 		safety_identifier: input.safetyIdentifier ?? null,
 		selected_tool: input.selectedTool ?? null,
 	});

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-07-10
+updated: 2026-07-12
 ---
 # Contracts
 
@@ -16,12 +16,8 @@ shape 与字段语义。
 
 - `app-api/README.md`
   - browser-facing app-api HTTP contract families and split-doc routing
-- `app-api-notice.md`
-  - app-api owned authenticated notice operator-safe processing projection
-    ingest/query seam only; it does not own source-truth or ingestion lifecycle
 - `app-api/campus-services-ops.md`
 - `app-api/observability.md`
-- `app-api/official-web.md`
 - `app-api/eval-benchmark.md`
 - `document-reader-publish.md`
 - `ops-web.md`
@@ -36,7 +32,6 @@ shape 与字段语义。
 - `operator-runtime.md`
 - `langfuse-runtime.md`
 - `stage-timing.md`
-- `eval-artifact.md`
 
 ## Domain Contracts
 

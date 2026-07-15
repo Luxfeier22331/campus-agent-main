@@ -42,7 +42,7 @@ status。
 - serving / news retrieval
   语义：`docs/architecture/domains/official-web/architecture.md`
 - projection / release lifecycle:
-  `docs/runbooks/ingestion-control-clean-target.md`
+  `docs/runbooks/ingestion.md`
 
 ## 适用范围
 

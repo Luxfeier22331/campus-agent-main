@@ -1,0 +1,21 @@
+{
+	"schema_version": "ingestion_task_registry.v3",
+	"tasks": [
+		{
+			"registry_task_id": "regulations.institutional_rules.document_units_validate",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "validate-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "document_units_validation_report.v1",
+			"target": { "corpus": "regulations", "collection": "institutional_rules" }
+		},
+		{
+			"registry_task_id": "regulations.institutional_rules.chunk_prepare",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "chunk-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "ingestion_chunk_set.v1",
+			"target": { "corpus": "regulations", "collection": "institutional_rules" }
+		}
+	]
+}

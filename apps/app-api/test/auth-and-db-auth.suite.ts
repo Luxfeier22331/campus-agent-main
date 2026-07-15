@@ -299,7 +299,7 @@ export function registerAppApiAuthConfigSuite() {
 			).resolves.toBe(false);
 		});
 
-		it("exposes one unified runtime schema object for app_auth/chat/official_web/runtime/operator", () => {
+		it("exposes one unified runtime schema object for product-owned tables", () => {
 			expect(Object.keys(appApiSchema)).toEqual(
 				expect.arrayContaining([
 					"user",
@@ -323,13 +323,7 @@ export function registerAppApiAuthConfigSuite() {
 					"messages",
 					"sessionSlots",
 					"turnDispatches",
-					"crawlRuns",
-					"runHeartbeats",
-					"runArtifacts",
-					"runOutbox",
 					"requestObservabilityFact",
-					"officialWebRunProjection",
-					"officialWebSiteProjection",
 				]),
 			);
 		});

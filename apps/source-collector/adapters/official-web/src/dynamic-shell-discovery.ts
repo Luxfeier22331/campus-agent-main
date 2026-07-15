@@ -27,12 +27,13 @@ export { extractPromotedUrlsFromNetworkCaptures } from "./dynamic-shell-discover
 export async function discoverDynamicShellPromotedUrls(
 	input: OfficialWebDynamicShellDiscovererInput,
 ): Promise<OfficialWebDynamicShellDiscoveryResult> {
+	input.abortSignal?.throwIfAborted();
 	const policy = input.hostPolicy.dynamicShellDiscovery;
 	if (!policy?.enabled) {
 		return {
 			promotedUrls: [],
 			audit: {
-				sourceUrl: input.page.pageManifest.finalUrl,
+				sourceUrl: input.page.observation.finalUrl,
 				host: input.hostPolicy.host,
 				wait: {
 					waitAfterLoadMs: 0,
@@ -52,18 +53,20 @@ export async function discoverDynamicShellPromotedUrls(
 	}
 
 	const captureResult = await (input.captureNetwork ?? captureDynamicShellNetwork)({
+		abortSignal: input.abortSignal,
 		policy,
-		url: input.page.pageManifest.finalUrl,
+		url: input.page.observation.finalUrl,
 	});
 	const captures = captureResult.captures;
 	const ignoredRequestMatchers = compilePatterns(policy.ignoredRequestUrlPatterns);
 	const allowedRequestMatchers = compilePatterns(policy.allowedRequestUrlPatterns);
 	const extractedUrls = extractPromotedUrlsFromNetworkCaptures({
-		baseUrl: input.page.pageManifest.finalUrl,
+		baseUrl: input.page.observation.finalUrl,
 		captures,
 		policy,
 	});
 	const resolvedUrls = await resolvePromotedUrlsWithHtmlRedirects({
+		abortSignal: input.abortSignal,
 		urls: extractedUrls,
 		userAgent: input.bundle.site.userAgent,
 	});
@@ -71,6 +74,7 @@ export async function discoverDynamicShellPromotedUrls(
 	const admissions: OfficialWebDynamicShellDiscoveryAudit["admissions"] = [];
 
 	for (const url of resolvedUrls) {
+		input.abortSignal?.throwIfAborted();
 		const admission = admitOfficialWebUrl(input.bundle, {
 			url,
 			discoveryMethod: "manual_requeue",
@@ -96,11 +100,12 @@ export async function discoverDynamicShellPromotedUrls(
 			break;
 		}
 	}
+	input.abortSignal?.throwIfAborted();
 
 	return {
 		promotedUrls: [...promotedUrls],
 		audit: {
-			sourceUrl: input.page.pageManifest.finalUrl,
+			sourceUrl: input.page.observation.finalUrl,
 			host: input.hostPolicy.host,
 			wait: captureResult.wait,
 			captures: captures.map((capture) => ({

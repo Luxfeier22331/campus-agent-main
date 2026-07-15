@@ -14,42 +14,12 @@ const bundleKey =
 const manifestKey =
 	"internal_portal/runs/synthetic_internal_portal/20260404T012345Z/export-manifest.json";
 
-const task: IngestionTaskEnvelope = {
-	schema_version: "ingestion_task_envelope.v2",
-	task_id: "task_internal_notice_source_truth_materialize_001",
-	run_id: "run_internal_notice_20260404",
-	source_family: "authenticated_notice",
-	source_channel: "internal_portal",
-	corpus: "campus_notices",
-	collection: "internal_notice",
-	registry_task_id: "source_truth_materialize",
-	task_kind: "source_truth_materialize",
-	input_ref: {
-		kind: "object_store",
-		uri: `s3://campus-agent-source/${captureReleaseKey}`,
-	},
-	input_contract: "authenticated_notice_capture_release.v1",
-	output_contract: "authenticated_notice_source_truth.v1",
-	idempotency_key: "campus_notices/internal_notice/source_truth_materialize/run-001",
-	created_by: "operator",
-	created_at: "2026-04-04T01:25:00.000Z",
-};
-
 describe("authenticated notice source-truth materialization", () => {
 	it("materializes notice source truth artifacts from a capture release object", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
@@ -83,16 +53,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		await expect(
 			materializeAuthenticatedNoticeSourceTruthFromTask({
@@ -112,15 +73,8 @@ describe("authenticated notice source-truth materialization", () => {
 	it("fails closed when capture release points outside the input source bucket", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: { bucket: "other-bucket", key: bundleKey },
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
+		const task = writeCaptureRelease(objectStore, {
+			bundleRef: { bucket: "other-bucket", key: bundleKey },
 		});
 
 		await expect(
@@ -136,16 +90,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecord(), "bad-record"]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		await expect(
 			materializeAuthenticatedNoticeSourceTruthFromTask({
@@ -161,16 +106,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecordWithInlineImage()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
@@ -228,16 +164,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecordWithObjectBackedAttachment()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
@@ -284,16 +211,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleTransportBundleRecordWithMissingAttachmentFact()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
@@ -334,16 +252,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleWrapperBundleRecordWithoutCollectedAttachments()]);
 		objectStore.putJson(manifestKey, sampleManifest());
-		objectStore.putJson(captureReleaseKey, {
-			schema_version: "authenticated_notice_capture_release.v1",
-			source_channel: "internal_portal",
-			source_surface: "notice",
-			site_id: "synthetic_internal_portal",
-			capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-			exported_at: "2026-04-04T01:23:45.000Z",
-			bundle_ref: objectStore.refFor(bundleKey, "notices_bundle"),
-			export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
-		});
+		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
@@ -397,7 +306,7 @@ class InMemoryObjectStore implements ObjectStore {
 		return object;
 	}
 
-	async putObject(input: {
+	async createOrVerifyObject(input: {
 		bucket: string;
 		key: string;
 		body: Uint8Array;
@@ -413,8 +322,10 @@ class InMemoryObjectStore implements ObjectStore {
 		};
 	}
 
-	putJson(key: string, value: unknown): void {
-		this.#objects.set(key, new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`));
+	putJson(key: string, value: unknown): Uint8Array {
+		const bytes = new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
+		this.#objects.set(key, bytes);
+		return bytes;
 	}
 
 	refFor(key: string, role: string): Record<string, unknown> {
@@ -450,6 +361,34 @@ class InMemoryObjectStore implements ObjectStore {
 	keys(): IterableIterator<string> {
 		return this.#objects.keys();
 	}
+}
+
+function writeCaptureRelease(
+	objectStore: InMemoryObjectStore,
+	input: { bundleRef?: Record<string, unknown> } = {},
+): IngestionTaskEnvelope {
+	const bytes = objectStore.putJson(captureReleaseKey, {
+		schema_version: "authenticated_notice_capture_release.v1",
+		source_channel: "internal_portal",
+		source_surface: "notice",
+		site_id: "synthetic_internal_portal",
+		capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
+		exported_at: "2026-04-04T01:23:45.000Z",
+		bundle_ref: input.bundleRef ?? objectStore.refFor(bundleKey, "notices_bundle"),
+		export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
+	});
+	return {
+		schema_version: "ingestion_task_envelope.v3",
+		task_id: "task_internal_portal_notice_capture_001",
+		run_id: "run_internal_notice_20260404",
+		registry_task_id: "internal_portal.notice.capture",
+		input_ref: {
+			byte_size: bytes.byteLength,
+			kind: "object_store",
+			uri: `s3://campus-agent-source/${captureReleaseKey}`,
+			digest: `sha256:${sha256Hex(bytes)}`,
+		},
+	};
 }
 
 function sampleBundleRecord(): Record<string, unknown> {

@@ -24,7 +24,7 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-registry-v4",
+	schemaVersion: "tool-registry-v5",
 	registryVersion: "test",
 	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
@@ -52,21 +52,6 @@ function schemaRef(schemaName: string, definitionName: string): string {
 }
 
 describe("agent runtime HTTP handler", () => {
-	it("serves separate liveness and readiness endpoints", async () => {
-		const handler = createAgentRuntimeHandler({
-			sharedSecret: "secret",
-			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
-		});
-
-		const health = await handler(new Request("http://agent-runtime/healthz"));
-		const readiness = await handler(new Request("http://agent-runtime/readyz"));
-
-		expect(health.status).toBe(200);
-		expect(await health.json()).toEqual({ status: "ok" });
-		expect(readiness.status).toBe(200);
-		expect(await readiness.json()).toEqual({ status: "ready" });
-	});
-
 	it("rejects missing worker authorization", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -85,17 +70,15 @@ describe("agent runtime HTTP handler", () => {
 
 	it("runs a primary agent turn with worker authorization", async () => {
 		let observedProvider: unknown;
-		let observedMemoryContext: unknown;
 		let observedFinalModelContext: unknown;
-		let observedAllowedKnowledgeScopes: unknown;
+		let observedKnowledgeTargets: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
 					observedProvider = input.providerConfig;
-					observedMemoryContext = input.memoryContext;
 					observedFinalModelContext = input.finalModelContext;
-					observedAllowedKnowledgeScopes = input.allowedKnowledgeScopes;
+					observedKnowledgeTargets = input.knowledgeTargets;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 				stream(input) {
@@ -110,16 +93,8 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					memory_context: {
-						context_block: "用户记忆:\n- 用户偏好先给结论",
-						memory_ref: "projection://runs/run_01HQ/memory/recall",
-						schema_version: "memory_recall_result_v1",
-						selected_memory_chars: 18,
-						selected_memory_count: 1,
-					},
 					final_model_context: {
-						schema_version: "final_model_context.v1",
-						current_user_message: "那大一能不能申请？",
+						schema_version: "final_model_context.v2",
 						recent_turns: [
 							{
 								message_id: "msg_user_001",
@@ -152,6 +127,7 @@ describe("agent runtime HTTP handler", () => {
 								run_id: "run_previous_services",
 								status: "completed",
 								summary: "上一轮查询了图书馆开放状态。",
+								tool: "transport_schedule_lookup",
 							},
 						],
 						session_state: {
@@ -161,19 +137,26 @@ describe("agent runtime HTTP handler", () => {
 							selected_notice_ref: null,
 							turn_count: 2,
 						},
+						memory_context: {
+							context_block: "用户记忆:\n- 用户偏好先给结论",
+							memory_ref: "projection://runs/run_01HQ/memory/recall",
+							schema_version: "memory_recall_result_v1",
+							selected_memory_chars: 18,
+							selected_memory_count: 1,
+						},
 						usage_summary: {
+							context_chars: 680,
+							current_input_chars: 9,
 							memory_recall_state: "completed",
 							model_visible_item_count: 6,
 							runtime_only_item_count: 8,
-							token_estimate: 320,
 						},
 					},
 					provider_config: validPromptProviderConfig(),
-					allowed_knowledge_scopes: [
+					knowledge_targets: [
 						{
-							scope: "student_rules",
+							target: "student_rules",
 							description: "学生规则、学籍、奖助处分等正式制度。",
-							allowed_query_modes: ["current"],
 						},
 					],
 				}),
@@ -222,16 +205,8 @@ describe("agent runtime HTTP handler", () => {
 		);
 		expect(JSON.stringify(body)).not.toContain("用户偏好先给结论");
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
-		expect(observedMemoryContext).toEqual({
-			contextBlock: "用户记忆:\n- 用户偏好先给结论",
-			memoryRef: "projection://runs/run_01HQ/memory/recall",
-			schemaVersion: "memory_recall_result_v1",
-			selectedMemoryChars: 18,
-			selectedMemoryCount: 1,
-		});
 		expect(observedFinalModelContext).toMatchObject({
-			schemaVersion: "final_model_context.v1",
-			currentUserMessage: "那大一能不能申请？",
+			schemaVersion: "final_model_context.v2",
 			recentTurns: [
 				expect.objectContaining({ content: "转专业条件是什么？", role: "user" }),
 				expect.objectContaining({
@@ -248,6 +223,7 @@ describe("agent runtime HTTP handler", () => {
 			previousToolResults: [
 				expect.objectContaining({
 					projectionRef: "projection://runs/run_previous_services/finalization",
+					tool: "transport_schedule_lookup",
 				}),
 			],
 			sessionState: {
@@ -258,17 +234,21 @@ describe("agent runtime HTTP handler", () => {
 				turnCount: 2,
 			},
 			usageSummary: {
+				contextChars: 680,
+				currentInputChars: 9,
 				memoryRecallState: "completed",
 				modelVisibleItemCount: 6,
 				runtimeOnlyItemCount: 8,
-				tokenEstimate: 320,
+			},
+			memoryContext: {
+				contextBlock: "用户记忆:\n- 用户偏好先给结论",
+				memoryRef: "projection://runs/run_01HQ/memory/recall",
 			},
 		});
-		expect(observedAllowedKnowledgeScopes).toEqual([
+		expect(observedKnowledgeTargets).toEqual([
 			{
-				allowedQueryModes: ["current"],
 				description: "学生规则、学籍、奖助处分等正式制度。",
-				scope: "student_rules",
+				target: "student_rules",
 			},
 		]);
 	});
@@ -426,6 +406,90 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.error?.message).toContain("provider_config");
 	});
 
+	it("classifies a missing input as an invalid request", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+		const body = validRunBody();
+		delete body.input;
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({ ...body, provider_config: validPromptProviderConfig() }),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "invalid_request", retryable: false },
+		});
+	});
+
+	it("rejects a current input above the configured character limit", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					input: "超过五个字符",
+					limits: { ...validRuntimeLimits(), current_input_char_limit: 5 },
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "context_budget_exceeded", retryable: false },
+		});
+	});
+
+	it("rejects final model context above its wire character limit", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					final_model_context: {
+						schema_version: "final_model_context.v2",
+						recent_turns: [{ role: "user", content: "很长的历史上下文".repeat(40) }],
+						previous_evidence: [],
+						previous_tool_results: [],
+						usage_summary: {
+							context_chars: 400,
+							current_input_chars: 6,
+							memory_recall_state: "skipped",
+							model_visible_item_count: 1,
+							runtime_only_item_count: 0,
+						},
+					},
+					limits: { ...validRuntimeLimits(), context_char_limit: 100 },
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "context_budget_exceeded", retryable: false },
+		});
+	});
+
 	it("passes the worker request cancellation signal into the primary agent runtime", async () => {
 		const controller = new AbortController();
 		let observedSignal: AbortSignal | undefined;
@@ -559,10 +623,80 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(500);
 		const body = (await response.json()) as {
-			error?: { code?: string; message?: string };
+			error?: { code?: string; message?: string; retryable?: boolean };
 		};
-		expect(body.error?.code).toBe("agent_runtime_failed");
+		expect(body.error?.code).toBe("run_failed");
 		expect(body.error?.message).toBe("provider request aborted");
+		expect(body.error?.retryable).toBe(false);
+	});
+
+	it("enforces the configured agent deadline", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					await waitForAbort(input.signal);
+					throw input.signal?.reason;
+				},
+				stream: throwingAgentRuntimeStream,
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					limits: { ...validRuntimeLimits(), agent_deadline_ms: 5 },
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		const body = (await response.json()) as {
+			error?: { code?: string; retryable?: boolean };
+		};
+		expect(body.error).toMatchObject({
+			code: "agent_deadline_exceeded",
+			retryable: false,
+		});
+	});
+
+	it("emits a non-retryable terminal SSE error", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("blocking endpoint should not be used");
+				},
+				stream: throwingAgentRuntimeStream,
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs/stream", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		const events = parseSseEvents(await response.text());
+		expect(events).toEqual([
+			{
+				event: "error",
+				data: {
+					code: "run_failed",
+					message: "provider request aborted",
+					retryable: false,
+				},
+			},
+		]);
 	});
 });
 
@@ -587,8 +721,21 @@ function throwingAgentRuntimeStream(): AsyncIterable<never> {
 	};
 }
 
+function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
+	if (!signal) {
+		return Promise.reject(new Error("agent runtime signal is required"));
+	}
+	if (signal.aborted) {
+		return Promise.resolve();
+	}
+	return new Promise((resolve) =>
+		signal.addEventListener("abort", () => resolve(), { once: true }),
+	);
+}
+
 function validRunBody(): Record<string, unknown> {
 	return {
+		activity_attempt: 1,
 		request_id: "req-1",
 		run_id: "run-1",
 		conversation_id: "conversation-1",
@@ -596,6 +743,18 @@ function validRunBody(): Record<string, unknown> {
 		trace_id: "trace-1",
 		input: "hi 你是谁",
 		visible_tool_names: ["transport_schedule_lookup"],
+		limits: validRuntimeLimits(),
+	};
+}
+
+function validRuntimeLimits(): Record<string, number> {
+	return {
+		agent_deadline_ms: 90_000,
+		context_char_limit: 16_000,
+		current_input_char_limit: 8_000,
+		max_knowledge_searches: 3,
+		max_output_tokens: 2_048,
+		max_turns: 6,
 	};
 }
 
@@ -608,7 +767,6 @@ function validPromptProviderConfig(): Record<string, unknown> {
 		base_url: "https://api.openai.com/v1",
 		model: "gpt-5-mini",
 		api_key: "provider-key",
-		timeout_ms: 30000,
 	};
 }
 
@@ -621,7 +779,6 @@ function validRuntimePromptProviderConfig(): Record<string, unknown> {
 		baseUrl: "https://api.openai.com/v1",
 		model: "gpt-5-mini",
 		apiKey: "provider-key",
-		timeoutMs: 30000,
 	};
 }
 

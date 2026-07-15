@@ -200,14 +200,12 @@ export function createPgChatCommandStore(
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
 					requestedTool: row.requestedTool,
-					requestedScope: row.requestedScope,
 					runId: row.runId,
 					safetyIdentifier: row.safetyIdentifier,
 					surface: row.surface,
 					traceId: row.traceId,
 					turnSequence: row.turnSequence,
 					userMessageId: row.userMessageId,
-					versionQuery: row.versionQueryJson,
 				});
 			}
 			return candidates;

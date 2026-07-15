@@ -1,0 +1,8 @@
+apiVersion: temporal.io/v1alpha1
+kind: Connection
+metadata:
+  name: campus-agent-temporal
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  hostPort: temporal.default.svc.cluster.local:7233

@@ -89,8 +89,8 @@ ops-owned env files and secret stores.
 1. Update the canonical ADR / architecture / contract / schema.
 2. Update `AGENTS.md` only when the repo entry protocol or source-of-truth list
    changes.
-3. Run residue checks for old terminology if the update supersedes a runtime
-   model.
+3. Use targeted search in the affected owners when terminology changes. Do not
+   add a repository-wide historical token scanner.
 
 ### Documentation Drift
 

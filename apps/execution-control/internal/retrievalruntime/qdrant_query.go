@@ -7,14 +7,12 @@ import (
 )
 
 type QueryRequest struct {
-	DenseEmbedding     []float64
-	Mode               string
-	ServingConfig      ServingConfig
-	QueryText          string
-	RetrievalAccess    RetrievalAccess
-	TopK               int
-	VersionID          string
-	CompareToVersionID string
+	DenseEmbedding  []float64
+	IncludeHistory  bool
+	ServingConfig   ServingConfig
+	QueryText       string
+	RetrievalAccess RetrievalAccess
+	TopK            int
 }
 
 type RetrievalAccess struct {
@@ -34,7 +32,7 @@ func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
 	}
 	topK := request.TopK
 	if topK <= 0 {
-		topK = request.ServingConfig.RetrievalTopK
+		return nil, errors.New("top_k must be positive")
 	}
 	denseLimit := maxInt(topK, request.ServingConfig.DensePrefetchLimit)
 	sparseLimit := maxInt(topK, request.ServingConfig.SparsePrefetchLimit)
@@ -87,11 +85,9 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 	if len(request.ServingConfig.ServingRevisionTracks) > 0 {
 		must = append(must, qdrantMatchAnyCondition("revision_track", request.ServingConfig.ServingRevisionTracks))
 	}
-	versionConditions, err := versionFilterConditions(request)
-	if err != nil {
-		return nil, err
+	if !request.IncludeHistory {
+		must = append(must, qdrantMatchCondition("is_current", true))
 	}
-	must = append(must, versionConditions...)
 	return map[string]any{"must": must}, nil
 }
 
@@ -188,40 +184,6 @@ func intersectStrings(left []string, right []string) []string {
 		}
 	}
 	return result
-}
-
-func versionFilterConditions(request QueryRequest) ([]map[string]any, error) {
-	mode := strings.TrimSpace(request.Mode)
-	switch mode {
-	case "", "current":
-		if request.ServingConfig.CurrentOnly {
-			return []map[string]any{qdrantMatchCondition("is_current", true)}, nil
-		}
-		return nil, nil
-	case "historical":
-		versionID := strings.TrimSpace(request.VersionID)
-		if versionID == "" {
-			return nil, errors.New("historical qdrant lookup requires version_query.version_id")
-		}
-		return []map[string]any{qdrantMatchAnyCondition("version_id", []string{versionID})}, nil
-	case "compare":
-		versionID := strings.TrimSpace(request.VersionID)
-		compareToVersionID := strings.TrimSpace(request.CompareToVersionID)
-		if versionID == "" || compareToVersionID == "" {
-			return nil, errors.New("compare qdrant lookup requires version_query.version_id and compare_to_version_id")
-		}
-		return []map[string]any{
-			qdrantMatchAnyCondition("version_id", []string{versionID, compareToVersionID}),
-		}, nil
-	case "as_of":
-		versionID := strings.TrimSpace(request.VersionID)
-		if versionID == "" {
-			return nil, errors.New("as_of qdrant lookup requires pre-resolved version_id before indexed lookup")
-		}
-		return []map[string]any{qdrantMatchAnyCondition("version_id", []string{versionID})}, nil
-	default:
-		return nil, fmt.Errorf("unsupported qdrant lookup query_mode %q", mode)
-	}
 }
 
 func qdrantMatchCondition(key string, value any) map[string]any {

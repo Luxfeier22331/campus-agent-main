@@ -1,9 +1,9 @@
 /* AUTO-GENERATED FROM tool-execution.openapi.yaml. Do not edit by hand. */
 
 export const TOOL_EXECUTION_CONTRACT = {
-	executionContractVersion: "tool_execution_v1",
-	responseContract: "execution_finalization_response_v2",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v5",
+	executionContractVersion: "tool_execution_v2",
+	responseContract: "execution_finalization_response_v3",
+	workflowTraceSummaryVersion: "workflow-trace-summary-v6",
 } as const;
 
 export const TOOL_IDS = [
@@ -51,7 +51,6 @@ export type AnswerArtifactKind = (typeof ANSWER_ARTIFACT_KINDS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
-
 export type SafeRecord = Record<string, unknown>;
 
 export interface ConversationContextWire {
@@ -70,13 +69,6 @@ export interface TraceContextWire {
 	trace_id: string;
 }
 
-export interface VersionQueryWire {
-	mode?: "current" | "historical" | "as_of" | "compare";
-	as_of?: string;
-	version_id?: string;
-	compare_to_version_id?: string;
-}
-
 export interface ExecutionPayloadWire {
 	execution_contract_version: typeof TOOL_EXECUTION_CONTRACT.executionContractVersion;
 	response_contract: typeof TOOL_EXECUTION_CONTRACT.responseContract;
@@ -86,10 +78,8 @@ export interface ExecutionPayloadWire {
 	request_id: string;
 	safety_identifier?: string | null;
 	requested_tool?: RequestedTool;
-	scope?: string | null;
 	trace: TraceContextWire;
 	context: SafeRecord;
-	version_query: VersionQueryWire;
 }
 
 export interface ExecutionRunMetadataWire {
@@ -139,7 +129,7 @@ export interface ToolExecutionResponseWire {
 	answer_text: string;
 	follow_up_question: string;
 	confidence: ConfidenceLevel;
-	resolved_scope: string | null;
+	resolved_targets: string[];
 	session_update: SessionUpdateWire | null;
 	result: SafeRecord | null;
 	error: { code: string; message: string; retryable: boolean } | null;

@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/ops-web
 status: active
 created: 2026-04-02
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 
 # Ops Web 可观测性架构
@@ -76,7 +76,7 @@ flowchart LR
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
 | OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
 | Temporal | 工作流历史、重试、超时、取消和任务队列真相 | Ops Web 请求状态或页面合同 |
-| Langfuse | 脱敏模型调用事实、评分、数据集和评测 | 原始生产模型输入输出或产品请求状态数据库 |
+| Langfuse | 受信任的模型调用 trace、评分、数据集和评测 | 产品请求状态数据库或工作流真相 |
 | Sentry | 错误、异常和性能排查 | Ops Web 的内网原始记录来源 |
 | Axiom | 外部日志、事件、查询、看板和告警 | Ops Web 的内网原始记录来源 |
 | Hindsight | 由 execution-control Activities 调用的个人记忆服务 | Ops Web 浏览器或服务端查询接口 |
@@ -93,9 +93,10 @@ flowchart LR
 Ops Web 只获得这些来源中合同列出的列。OpenObserve、健康检查、Temporal、Langfuse、
 Sentry 和 Axiom 只能补充排查信息，不能改写请求状态。
 
-agent-runtime 只通过标准 OTLP 输出 allowlist 中的 run、agent、generation、function、handoff
-和 guardrail span facts。原始模型输入输出、tool payload、evidence、memory、SDK trace body 和
-Temporal history 不进入 PostgreSQL 摘要、OpenObserve 或外部 sink。
+agent-runtime 通过 OpenInference、官方 Langfuse OTel processor 和标准 OTLP 输出 SDK
+spans。受信任的 Langfuse trace 可以包含模型输入输出、授权的 retrieval facts 和 memory
+context；这些正文不进入 PostgreSQL 摘要、OpenObserve、Sentry 或 Axiom。任何 sink 都不得
+接收 credential、secret 或 Temporal history。
 
 关联标识的用途：
 
@@ -133,6 +134,11 @@ Collector 配置必须：
 - 暴露自身健康和发送失败信号；
 - 不把调试输出重新采集回自身。
 
+`diagnostics_json` 只能承载 compact operator summary：reason code、verdict、count、
+latency/status、stable document id/title summary 与 `knowledge_search` target/history /
+evidence shape。它不承载 query rewrite text、retrieval query text、raw filter payload、
+source snippet 或 raw provider/tool diagnostics。
+
 Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择日志或调用链；服务端从已保存
 请求取得 `requestId` 和时间范围，应用 200/500 条上限，并在成功返回前写审计。
 
@@ -144,8 +150,8 @@ Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择
 - Ops Web 调用 execution-control 的只读内部接口获取当前 Temporal 队列状态；该结果不落库。
 - 完整工作流历史、重试、Signal、Update、Reset 和 Terminate 留在 Temporal UI。
 - Ops Web 展示已保存的模型、提示词版本和安全关联标识，不查询 Langfuse 数据库。
-- 脱敏模型 span facts、token、费用、评分、数据集和人工评审留在 Langfuse UI；生产原始
-  模型输入输出不采集、不回放。
+- 模型 span、token、费用、评分、数据集和人工评审留在受信任的 Langfuse UI；产品数据库
+  只保存 trace correlation，不复制 observation body 或 sink URL。
 - Sentry 和 Axiom 只作为已配置的外部入口；Ops Web 不定时同步、不缓存其接口响应。
 - 外部链接必须使用 HTTPS，并通过每个平台的服务端地址白名单校验。
 
@@ -221,5 +227,5 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - `../../contracts/stage-timing.md`
 - `../../reference/runtime-otel-telemetry-taxonomy.md`
 - `../../decisions/adr-0067-ops-index-external-sinks.md`
-- `../../decisions/adr-0070-source-and-environment-repository-boundary.md`
+- `../../decisions/adr-0074-source-and-environment-repository-boundary.md`
 - `../../decisions/adr-0072-self-hosted-ops-web.md`

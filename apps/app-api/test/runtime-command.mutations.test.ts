@@ -30,7 +30,7 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 			},
 		},
 		requestedTool: "knowledge_query",
-		requestedScope: "student_rules",
+		resolvedTargets: [],
 		requestFingerprintSha256: "f".repeat(64),
 		requestId: "req_001",
 		runId: "run_001",
@@ -42,7 +42,6 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 		turnSequence: 1,
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",
-		versionQuery: null,
 		...overrides,
 	};
 }
@@ -53,6 +52,7 @@ describe("runtime command mutations", () => {
 
 		expect(values).toMatchObject({
 			requestId: "req_001",
+			resolvedTargetsJson: [],
 			runId: "run_001",
 			status: "accepted",
 			turnSequence: 1,

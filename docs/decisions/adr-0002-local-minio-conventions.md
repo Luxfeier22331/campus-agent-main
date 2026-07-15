@@ -59,7 +59,7 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
   - retained capture artifact: `{source_channel}/{source_asset_slug}/{year}/{raw
     _version_id}/capture/{artifact_filename}`
   - source-channel control-plane run artifact:
-    `official_web/{site_id}/runs/{run_id}/{artifact_filename}`
+    `official_web/{site_id}/runs/{run_id}/attempts/{activity_attempt}/{artifact_filename}`
 - derived bucket:
   - document-oriented artifact: `{corpus}/documents/{collection}/{title_slug}--{
     docid8}/{revision_track}/{year}/{artifact_filename}`
@@ -85,8 +85,8 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
   slug}/provider-response.jsonl`
 - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/lay
   out-elements.jsonl`
-- `official_web/{site_id}/runs/{run_id}/crawl-run.json`
-- `official_web/{site_id}/runs/{run_id}/source-truth-bundle.json`
+- `official_web/{site_id}/runs/{run_id}/attempts/{activity_attempt}/crawl-run.json`
+- `official_web/{site_id}/runs/{run_id}/attempts/{activity_attempt}/source-truth-bundle.json`
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
   }/canonical.md`
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
@@ -120,8 +120,9 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
 - source prefix 下允许并保留 sibling `projection/<projection_name>/...`，用于持久化 declared
   projection artifacts；它不属于 source-truth schema 本体
 - `capture/` 保存长期保留的来源快照；对于 PDF 是原始文件，对于 web 是 retained snapshot 而不是 raw HTML
-- `official_web/{site_id}/runs/{run_id}/...` 保存 source-channel control-plane run
-  artifacts；它们属于 source bucket truth，但不冒充 page-level canonical source-truth
+- `official_web/{site_id}/runs/{run_id}/attempts/{activity_attempt}/...` 保存
+  source-channel execution observations；它们属于 source bucket truth，但不冒充
+  page-level canonical source-truth，也不允许 retry 覆盖前一 attempt
 - `provider-response.jsonl` 保存供应商返回的原始响应，供审计、重放和排障使用
 - `layout-elements.jsonl` 保存 asset 级统一结构层，供 split、cleanup 和重放使用
 - `canonical.md` 保存单篇文档的人类可读规范化表示，供展示、对照和验收使用
@@ -154,7 +155,8 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
   `source-truth/` 保存
 - 同一 source prefix 下如有持久化 projection artifact，固定放在
   `projection/{projection_name}/`
-- `official_web` 的 run artifacts 固定放在 `official_web/{site_id}/runs/{run_id}/`
+- `official_web` 的 run artifacts 固定放在
+  `official_web/{site_id}/runs/{run_id}/attempts/{activity_attempt}/`
 - derived 的逻辑文档对象固定放在 `documents/`
 - release artifact 固定放在 `releases/`
 - historical Qdrant snapshot backup bundle 固定放在 `backups/`

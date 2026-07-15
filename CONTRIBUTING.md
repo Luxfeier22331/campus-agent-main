@@ -77,7 +77,7 @@ pre-commit install
 默认 public clone 最低门禁：
 
 ```bash
-pnpm repo:static
+pnpm ci:repo
 pnpm ci:rust
 pnpm ci:contracts
 pnpm ci:eval
@@ -113,7 +113,7 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 - 不把 current serving truth、release current pointer 或生产 projection 写进 git
 - 触及这些路径时运行所属 package/app 测试，并确认 Gitleaks 与对应数据边界检查通过
 
-长期策略见 `docs/policies/public-source-data.md`，当前 tracked data-like artifact 盘点见
+长期策略见 `docs/policies/public-source-data.md`，公开仓可接受的数据分类与路径边界见
 `docs/reference/open-source-data.md`。
 
 ## 文档与规划分工

@@ -8,7 +8,7 @@ type ExecutionFinalizationResponseWire struct {
 	Error                any                `json:"error"`
 	FollowUpQuestion     string             `json:"follow_up_question"`
 	Observability        map[string]any     `json:"observability"`
-	ResolvedScope        *string            `json:"resolved_scope"`
+	ResolvedTargets      []string           `json:"resolved_targets"`
 	Result               map[string]any     `json:"result"`
 	SelectedTool         *string            `json:"selected_tool"`
 	SessionUpdate        *SessionUpdateWire `json:"session_update"`

@@ -1,13 +1,12 @@
-import { parseAnswerEvalFingerprint } from "./answer-eval-fingerprint-parser";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
 	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
-import { parseLlmIoFingerprint } from "./llm-io-fingerprint-parser";
 import type {
 	ToolExecutionObservability,
+	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
 	ToolExecutionWorkflowTraceSummary,
 } from "./tool-execution-types";
@@ -34,7 +33,7 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"error",
 	"follow_up_question",
 	"observability",
-	"resolved_scope",
+	"resolved_targets",
 	"result",
 	"selected_tool",
 	"session_update",
@@ -49,7 +48,7 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"confidence",
 	"error",
 	"follow_up_question",
-	"resolved_scope",
+	"resolved_targets",
 	"result",
 	"selected_tool",
 	"session_update",
@@ -151,9 +150,16 @@ function assertExecutionFinalizationResponseWire(
 	if (!(record.selected_tool === null || typeof record.selected_tool === "string")) {
 		throw new ExecutionFinalizationResponseContractError("selected_tool must be a string or null");
 	}
-	if (!(record.resolved_scope === null || normalizeNullableString(record.resolved_scope))) {
+	if (!Array.isArray(record.resolved_targets)) {
+		throw new ExecutionFinalizationResponseContractError("resolved_targets must be an array");
+	}
+	const resolvedTargets = stringArray(record.resolved_targets);
+	if (
+		resolvedTargets.length !== record.resolved_targets.length ||
+		new Set(resolvedTargets).size !== resolvedTargets.length
+	) {
 		throw new ExecutionFinalizationResponseContractError(
-			"resolved_scope must be a non-empty string or null",
+			"resolved_targets must contain unique non-empty strings",
 		);
 	}
 	assertSessionUpdate(record.session_update);
@@ -284,6 +290,43 @@ function normalizeWorkflowRecord(value: unknown): Record<string, unknown> {
 	return record;
 }
 
+function parsePromptTrace(value: unknown): ToolExecutionPromptTrace | null {
+	const record = getRecord(value);
+	if (!record) {
+		return null;
+	}
+	const allowedKeys = new Set([
+		"prompt_id",
+		"prompt_template_sha256",
+		"rendered_prompt_sha256",
+		"schema_version",
+	]);
+	for (const key of Object.keys(record)) {
+		if (!allowedKeys.has(key)) {
+			throw new ExecutionFinalizationResponseContractError(
+				`observability.prompt_trace.${key} is not allowed`,
+			);
+		}
+	}
+	const promptId = normalizeNullableString(record.prompt_id);
+	const promptTemplateSha256 = normalizeNullableString(record.prompt_template_sha256);
+	const renderedPromptSha256 = normalizeNullableString(record.rendered_prompt_sha256);
+	if (
+		record.schema_version !== "agent_runtime_prompt_trace.v1" ||
+		!promptId ||
+		!promptTemplateSha256 ||
+		!renderedPromptSha256
+	) {
+		throw new ExecutionFinalizationResponseContractError("observability.prompt_trace is invalid");
+	}
+	return {
+		promptId,
+		promptTemplateSha256,
+		renderedPromptSha256,
+		schemaVersion: "agent_runtime_prompt_trace.v1",
+	};
+}
+
 function parseExecutionObservability(value: unknown): ToolExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -294,8 +337,9 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 	}
 	const allowedKeys = new Set([
 		"agent_runtime",
-		"answer_eval_fingerprint",
-		"llm_io_fingerprint",
+		"model_name",
+		"model_provider",
+		"prompt_trace",
 		"selected_tools",
 		"terminal_reason",
 	]);
@@ -307,8 +351,9 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 	const selectedTools = stringArray(record.selected_tools);
 	const parsed: ToolExecutionObservability = {
 		agentRuntime: normalizeNullableString(record.agent_runtime),
-		answerEvalFingerprint: parseAnswerEvalFingerprint(record.answer_eval_fingerprint),
-		llmIoFingerprint: parseLlmIoFingerprint(record.llm_io_fingerprint),
+		modelName: normalizeNullableString(record.model_name),
+		modelProvider: normalizeNullableString(record.model_provider),
+		promptTrace: parsePromptTrace(record.prompt_trace),
 		selectedTools,
 		terminalReason: normalizeNullableString(record.terminal_reason),
 	};
@@ -423,7 +468,7 @@ export function parseExecutionFinalizationResponsePayload(
 				: null,
 		followUpQuestion: parsed.follow_up_question,
 		observability: parseExecutionObservability(parsed.observability),
-		resolvedScope: parsed.resolved_scope,
+		resolvedTargets: [...parsed.resolved_targets],
 		result: parsed.result ?? null,
 		selectedTool: parsed.selected_tool,
 		sessionUpdate: parsed.session_update

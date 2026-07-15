@@ -15,8 +15,10 @@ export interface DynamicShellNetworkCapture {
 }
 
 export interface OfficialWebDynamicShellDiscovererInput {
+	abortSignal?: AbortSignal;
 	bundle: OfficialWebConfigBundle;
 	captureNetwork?: (input: {
+		abortSignal?: AbortSignal;
 		policy: OfficialWebDynamicShellDiscoveryPolicy;
 		url: string;
 	}) => Promise<{

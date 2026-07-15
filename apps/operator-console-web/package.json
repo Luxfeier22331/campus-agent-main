@@ -25,6 +25,7 @@
 	"scripts": {
 		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",
 		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home pnpm exec tsx ../../scripts/deploy/run-worker-staging-build.ts OPERATOR_CONSOLE_APP_API_SHARED_SECRET SENTRY_DSN -- vite build",
+		"build:worker": "pnpm run build",
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 27021 --strictPort",
 		"deploy": "pnpm build && pnpm exec tsx ../../scripts/deploy/verify-worker-deploy-config.ts dist/operator_console_web/wrangler.json APP_API=app-api && pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy --config dist/operator_console_web/wrangler.json",
 		"deploy:staging": "pnpm exec tsx ./scripts/deploy-staging.ts",

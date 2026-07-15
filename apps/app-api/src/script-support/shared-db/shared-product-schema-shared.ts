@@ -11,13 +11,9 @@ export const APP_API_KNOWN_SCHEMAS = [
 	"docs",
 	"identity",
 	"observability",
-	"official_web",
-	"observability",
-	"operator",
 	"profile",
 	"provider_config",
 	"runtime",
-	"wechat_official_account",
 ];
 export const POSTGRES_IDENTIFIER_MAX_BYTES = 63;
 

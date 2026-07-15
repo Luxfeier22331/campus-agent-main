@@ -44,7 +44,7 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 		confidence: "high",
 		error: null,
 		follow_up_question: "",
-		resolved_scope: "student_rules",
+		resolved_targets: ["student_rules"],
 		session_update: null,
 		observability: {
 			agent_runtime: "openai_agents_sdk",

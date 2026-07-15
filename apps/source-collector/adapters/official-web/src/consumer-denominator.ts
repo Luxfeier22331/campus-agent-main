@@ -93,24 +93,16 @@ export function applyOfficialWebConsumerDenominator(input: {
 				evaluation.rejectionReason && targetRetentionOverride
 					? "target_workset_retention_policy"
 					: evaluation.rejectionReason;
-			const pageManifest = {
-				...page.pageManifest,
+			const targeting = {
+				...page.targeting,
 				consumerDenominatorVersion: evaluation.consumerDenominatorVersion,
 				consumerMatches: evaluation.consumerMatches,
 				consumerRetentionDecision: retainedDecision,
 				consumerRejectionReason: retainedRejectionReason,
-			} satisfies CollectedPageArtifact["pageManifest"];
+			} satisfies CollectedPageArtifact["targeting"];
 			const retainedPage = {
 				...page,
-				pageManifest,
-				files: page.files.map((file) =>
-					file.relativePath === "source-truth/page-manifest.json"
-						? {
-								...file,
-								data: new TextEncoder().encode(JSON.stringify(pageManifest, null, 2)),
-							}
-						: file,
-				),
+				targeting,
 			};
 			retainedPages.push(retainedPage);
 			for (const match of evaluation.consumerMatches) {
@@ -143,10 +135,8 @@ export function applyOfficialWebConsumerDenominator(input: {
 }
 
 function hasTargetSourceTruthRetention(page: CollectedPageArtifact): boolean {
-	return (
-		page.pageManifest.targetMatches?.some(
-			(match) => match.retentionPolicy === "retain_source_truth",
-		) ?? false
+	return page.targeting.targetMatches.some(
+		(match) => match.retentionPolicy === "retain_source_truth",
 	);
 }
 

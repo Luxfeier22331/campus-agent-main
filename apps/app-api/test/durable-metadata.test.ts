@@ -66,18 +66,17 @@ describe("durable run metadata", () => {
 			"tenant_id",
 			"trace",
 			"user_goal",
-			"version_query",
 		]);
 	});
 
-	it("serializes a trusted knowledge eval hint with its scope", () => {
+	it("serializes a trusted knowledge eval tool without retrieval targets", () => {
 		const metadata = buildToolExecutionRunMetadata(
-			executionInput({ requestedScope: "student_rules", requestedTool: "knowledge_query" }),
+			executionInput({ requestedTool: "knowledge_query" }),
 		);
 
 		const payload = metadata.execution_payload as Record<string, unknown>;
 		expect(payload.requested_tool).toBe("knowledge_query");
-		expect(payload.scope).toBe("student_rules");
+		expect(payload).not.toHaveProperty("scope");
 	});
 
 	it("does not apply tool admission while serializing metadata", () => {

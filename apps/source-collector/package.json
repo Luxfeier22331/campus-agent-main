@@ -6,32 +6,36 @@
 	"description": "Unified source collector runtime for campus-agent ingestion source adapters.",
 	"packageManager": "pnpm@10.34.5",
 	"scripts": {
-		"test": "pnpm run test:fast && pnpm run test:isolated",
+		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
+		"test": "pnpm run test:ingest",
 		"test:fast": "vitest run -c vitest.fast.config.mts",
+		"test:ingest": "pnpm run test:fast && pnpm run test:isolated",
 		"test:isolated": "vitest run -c vitest.isolated.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1081.0",
+		"@temporalio/activity": "^1.20.1",
+		"@temporalio/worker": "^1.20.1",
 		"@mozilla/readability": "^0.6.0",
 		"cheerio": "1.0.0-rc.12",
 		"content-disposition": "^2.0.1",
 		"crawlee": "^3.17.0",
 		"dotenv": "^17.4.2",
 		"ingest-core": "workspace:*",
+		"ingestion-contracts": "workspace:*",
 		"jsdom": "^27.4.0",
 		"mime-types": "^3.0.2",
-		"pg": "^8.22.0",
 		"playwright": "^1.61.1",
-		"tldts": "^7.4.7"
+		"tldts": "^7.4.7",
+		"tsx": "^4.23.0",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@types/content-disposition": "^0.5.9",
 		"@types/jsdom": "^28.0.3",
 		"@types/mime-types": "^3.0.1",
 		"@types/node": "^24.13.2",
-		"@types/pg": "^8.20.0",
-		"tsx": "^4.23.0",
 		"typescript": "^5.8.2",
 		"vitest": "^4.1.10"
 	},

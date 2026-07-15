@@ -59,7 +59,7 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
-		resolvedScope: overrides.resolvedScope ?? null,
+		resolvedTargets: overrides.resolvedTargets ?? [],
 		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
@@ -75,8 +75,7 @@ function buildFinalizedFact(
 		principal: createPrincipal(),
 		requestId: "req_01HQ",
 		requestedTool: "knowledge_query",
-		requestedScope: "student_rules",
-		resolvedScope: "student_rules",
+		resolvedTargets: ["student_rules"],
 		response: createResponse(),
 		runId: "run_01HQ",
 		safetyIdentifier: null,
@@ -84,54 +83,41 @@ function buildFinalizedFact(
 		status: "no_answer",
 		surface: "campus_web",
 		traceId: "trace_01HQ",
-		versionQuery: null,
 		...overrides,
 	});
 }
 
 describe("request observability", () => {
-	it("carries request identity and version facts through acceptance and finalization", () => {
+	it("carries request identity and resolved targets through acceptance and finalization", () => {
 		const safetyIdentifier = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-		const versionQuery = {
-			compareToVersionId: "v2025-student-rules",
-			mode: "compare" as const,
-			versionId: "v2024-student-rules",
-		};
 		const accepted = buildAcceptedRequestObservabilityFact({
 			conversationId: "conv_01HQ",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
 			requestedTool: "knowledge_query",
-			requestedScope: "student_rules",
-			resolvedScope: null,
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
-			versionQuery,
 		});
 		const finalized = buildFinalizedFact({
 			response: createResponse({ status: "completed" }),
 			safetyIdentifier,
 			status: "completed",
-			versionQuery,
 		});
 
 		expect(accepted).toMatchObject({
+			resolvedTargets: [],
 			safetyIdentifier,
 			status: "accepted",
-			versionQueryMode: "compare",
-			versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
 		});
 		expect(finalized).toMatchObject({
 			aclDecision: "allowed",
 			failClosed: false,
+			resolvedTargets: ["student_rules"],
 			safetyIdentifier,
-			scopeClass: "in_scope",
 			semanticOutcome: "answer",
 			status: "completed",
-			versionQueryMode: "compare",
-			versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
 		});
 	});
 
@@ -139,8 +125,7 @@ describe("request observability", () => {
 		const noAnswer = buildFinalizedFact();
 		const rejected = buildFinalizedFact({
 			errorCode: "request_rejected",
-			requestedScope: null,
-			resolvedScope: null,
+			resolvedTargets: [],
 			response: createResponse({ status: "rejected" }),
 			status: "rejected",
 		});
@@ -149,7 +134,6 @@ describe("request observability", () => {
 			aclDecision: "allowed",
 			failClosed: true,
 			refusalClass: "no_answer",
-			scopeClass: "in_scope",
 			semanticOutcome: "no_answer",
 		});
 		expect(rejected).toMatchObject({
@@ -157,7 +141,6 @@ describe("request observability", () => {
 			failClosed: true,
 			policyReason: "request_rejected",
 			refusalClass: "rejected",
-			scopeClass: null,
 			semanticOutcome: "policy_refusal",
 		});
 	});

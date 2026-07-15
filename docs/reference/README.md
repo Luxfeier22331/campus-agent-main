@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-04-12
-updated: 2026-07-10
+updated: 2026-07-13
 ---
 # Reference
 
@@ -20,17 +20,13 @@ updated: 2026-07-10
 - `dependency-overrides.md`
   - 根 pnpm override 的当前依据与删除条件
 - `eval.md`
-  - Active eval shape: Langfuse/Ragas lanes, eval asset semantics and operator
-    coverage projection contract.
+  - Langfuse/Ragas observation, scoring and dataset boundaries.
 - `eval-map.md`
-  - eval lane cases、observation producer、pass/fail rule 与 Langfuse score name
-    的迁移控制表；不替代 ADR-0061
+  - observation、truth、official scorer 与 score sink 对照表。
 - `eval-gold-truth-model.md`
 - `runtime-otel-telemetry-taxonomy.md`
 - `observability-ledger.md`
   - trace / observability completion ledger and verification mapping
-- `student-handbook-eval-metrics.md`
-- `curriculum-plan-eval-metrics.md`
 
 ## Authenticated Notice / Internal Notice 策略与口径
 
@@ -40,11 +36,11 @@ updated: 2026-07-10
 
 - `institutional-rules-promotion.md`
 
-## Navigation / Inventory
+## Public Data
 
 - `open-source-data.md`
-  - Open-source publication inventory for tracked source/data artifacts,
-    fixtures, media, map data and source-derived corpora.
+  - Stable publication classification for fixtures, media, map data and
+    source-derived corpora.
 
 真实 institutional regulation inventory、navigation source inventory 与 release
 gold corpus 属于 private source/data boundary，不在公开 repo 的 active

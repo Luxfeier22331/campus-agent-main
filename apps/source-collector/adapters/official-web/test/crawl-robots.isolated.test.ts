@@ -2,7 +2,7 @@ import { load } from "cheerio";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTargetWorksetControlPlaneForTest, writeTestConfigRoot } from "./test-support";
+import { buildTargetWorksetCandidatesForTest, writeTestConfigRoot } from "./test-support";
 
 const CRAWL_TEST_TIMEOUT_MS = 30_000;
 
@@ -19,9 +19,7 @@ describe("source-collector official-web adapter robots handling", () => {
 			onCrawlerOptions?: (options: Record<string, unknown>) => void;
 		} = {},
 	) {
-		vi.doMock("crawlee", async () => {
-			const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
-
+		vi.doMock("crawlee", () => {
 			class FakeConfiguration {}
 
 			class FakeCheerioCrawler {
@@ -74,7 +72,6 @@ describe("source-collector official-web adapter robots handling", () => {
 			}
 
 			return {
-				...actual,
 				Configuration: FakeConfiguration,
 				RequestQueue: {
 					open: vi.fn(async () => ({ processedCount: 0 })),
@@ -113,7 +110,7 @@ describe("source-collector official-web adapter robots handling", () => {
 				outputDir,
 				crawlRunId: "owrun_robots_delegated",
 				localArtifactsOnly: true,
-				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				crawlCandidates: buildTargetWorksetCandidatesForTest({
 					runId: "owrun_robots_delegated",
 				}),
 				maxPagesPerHost: 1,
@@ -142,7 +139,7 @@ describe("source-collector official-web adapter robots handling", () => {
 				outputDir,
 				crawlRunId: "owrun_robots_skipped",
 				localArtifactsOnly: true,
-				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				crawlCandidates: buildTargetWorksetCandidatesForTest({
 					runId: "owrun_robots_skipped",
 				}),
 				maxPagesPerHost: 1,

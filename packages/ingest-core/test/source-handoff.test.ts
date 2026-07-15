@@ -65,20 +65,31 @@ describe("source-channel handoff helpers", () => {
 	});
 
 	it("parses official web bundles and WeChat capture releases", () => {
+		const pageManifestRef = {
+			byteSize: 10,
+			contentSha256: "a".repeat(64),
+			objectKey: "official_web/page-manifest.json",
+		};
+		const contentBlocksRef = {
+			byteSize: 20,
+			contentSha256: "b".repeat(64),
+			objectKey: "official_web/content-blocks.jsonl",
+		};
 		const officialWebBundle = parseOfficialWebSourceTruthBundle({
-			schemaVersion: "official_web_source_truth_bundle.v1",
+			schemaVersion: "official_web_source_truth_bundle.v2",
 			sourceChannel: "official_web",
 			crawlRunId: "owrun_01",
 			pages: [
 				{
-					pageManifestObjectKey: "official_web/page-manifest.json",
-					contentBlocksObjectKey: "official_web/content-blocks.jsonl",
+					pageManifestRef,
+					contentBlocksRef,
+					providerExtractionRef: pageManifestRef,
+					discoveredLinksRef: contentBlocksRef,
+					responseHtmlRef: pageManifestRef,
 				},
 			],
 		});
-		expect(officialWebBundle.pages[0]?.pageManifestObjectKey).toBe(
-			"official_web/page-manifest.json",
-		);
+		expect(officialWebBundle.pages[0]?.pageManifestRef.key).toBe("official_web/page-manifest.json");
 
 		const wechatRelease = parseWeChatOfficialAccountCaptureRelease({
 			schema_version: "wechat_official_account_capture_release.v1",

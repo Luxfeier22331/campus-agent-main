@@ -55,7 +55,7 @@ describe("authenticated-notice artifact store env", () => {
 			},
 		});
 
-		const ref = await store.putObject({
+		const ref = await store.createOrVerifyObject({
 			objectKey: "internal_portal/runs/run/notices-bundle.json",
 			data: Buffer.from("hello"),
 			contentType: "application/json",
@@ -88,11 +88,11 @@ describe("authenticated-notice artifact store env", () => {
 		});
 
 		await expect(
-			store.putObject({
+			store.createOrVerifyObject({
 				objectKey: "internal_portal/runs/run/notices-bundle.json",
 				data: Buffer.from("hello"),
 				contentType: "application/json",
 			}),
-		).rejects.toThrow(/size mismatch/i);
+		).rejects.toThrow(/artifact identity collision/i);
 	});
 });

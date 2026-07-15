@@ -44,9 +44,7 @@ describe("chat payload boundary", () => {
 		).toEqual({
 			conversationId: null,
 			prompt: "测试一个未开放工具",
-			requestedScope: null,
 			requestedTool: "unpublished_tool",
-			versionQuery: null,
 		});
 	});
 });

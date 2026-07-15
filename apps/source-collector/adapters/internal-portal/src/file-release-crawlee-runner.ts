@@ -1,4 +1,5 @@
 import { BasicCrawler, type BasicCrawlingContext, type RequestOptions } from "crawlee";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 
 import { createAuthenticatedNoticeCrawlerConfiguration } from "./crawlee-runtime.js";
 import {
@@ -44,6 +45,7 @@ type FileReleaseCrawlRequestUserData =
 type FileReleaseCrawlingContext = BasicCrawlingContext<FileReleaseCrawlRequestUserData>;
 
 export interface RunFileReleaseCrawleeCollectionInput {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	exportedAt: string;
 	fetchFileReleaseCodeTypes: (input: {
@@ -197,17 +199,21 @@ export async function runFileReleaseCrawleeCollection(
 	};
 	const failedErrors: Error[] = [];
 	const requestHandler = async (context: FileReleaseCrawlingContext) => {
+		input.abortSignal?.throwIfAborted();
 		const userData = normalizeRequestUserData(context.request.userData);
 		if (userData.type === "types") {
 			const fileTypeResponse = await input.fetchFileReleaseTypes({ apiContext: input.apiContext });
+			input.abortSignal?.throwIfAborted();
 			state.observedFileTypes = normalizeObservedFileTypes(fileTypeResponse);
 			const fileCodeTypeResponse = await input.fetchFileReleaseCodeTypes({
 				apiContext: input.apiContext,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.observedFileCodeTypes = normalizeObservedFileCodeTypes(fileCodeTypeResponse);
 			const explainDepartmentResponse = await input.fetchFileReleaseExplainDepartments({
 				apiContext: input.apiContext,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.observedExplainDepartments =
 				normalizeObservedExplainDepartments(explainDepartmentResponse);
 			await context.addRequests([
@@ -228,6 +234,7 @@ export async function runFileReleaseCrawleeCollection(
 				currentPage: userData.currentPage,
 				pageSize: userData.pageSize,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.pagesFetched += 1;
 			state.itemsSeen += pageResponse.data?.length ?? 0;
 			for (const department of normalizeDepartments(pageResponse.dws)) {
@@ -262,6 +269,7 @@ export async function runFileReleaseCrawleeCollection(
 				);
 			}
 			if (detailRequests.length > 0) {
+				input.abortSignal?.throwIfAborted();
 				await context.addRequests(detailRequests);
 			}
 			if (
@@ -274,6 +282,7 @@ export async function runFileReleaseCrawleeCollection(
 					userData,
 				})
 			) {
+				input.abortSignal?.throwIfAborted();
 				await context.addRequests([
 					buildFileReleasePageRequest({
 						currentPage: userData.currentPage + 1,
@@ -289,6 +298,7 @@ export async function runFileReleaseCrawleeCollection(
 				apiContext: input.apiContext,
 				fileReleaseId: userData.fileReleaseId,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.detailFetched += 1;
 			await context.addRequests([
 				buildFileReleaseDownloadUrlRequest({
@@ -304,6 +314,7 @@ export async function runFileReleaseCrawleeCollection(
 			apiContext: input.apiContext,
 			fileReleaseId: userData.fileReleaseId,
 		});
+		input.abortSignal?.throwIfAborted();
 		state.fileUrlsResolved += 1;
 		state.collectedMap.set(userData.fileReleaseId, {
 			detail: userData.detail,
@@ -319,7 +330,11 @@ export async function runFileReleaseCrawleeCollection(
 		maxRequestRetries: input.requestMaxRetries,
 		requestHandler,
 	});
-	await crawler.run([buildFileReleaseTypesRequest({ siteId: input.siteId })]);
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: [buildFileReleaseTypesRequest({ siteId: input.siteId })],
+	});
 	if (failedErrors.length > 0) {
 		throw failedErrors[0];
 	}
@@ -413,6 +428,7 @@ function createDefaultFileReleaseCrawler(input: {
 	return {
 		run: async (requests: RequestOptions<FileReleaseCrawlRequestUserData>[]) =>
 			await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 

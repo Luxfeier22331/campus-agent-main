@@ -46,6 +46,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 							},
 						],
 					},
+					resolvedTargets: ["student_rules"],
 					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",

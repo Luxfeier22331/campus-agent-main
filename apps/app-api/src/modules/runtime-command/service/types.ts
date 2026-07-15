@@ -1,14 +1,9 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
-import type {
-	ExecutionControlRuntimeClient,
-	RequestedScope,
-	ToolExecutionResponse,
-} from "../../integration";
+import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
-import type { VersionQuery } from "../../version-query";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 
@@ -19,8 +14,6 @@ export interface ChatCommandPayload {
 
 export interface InternalEvalChatCommandPayload extends ChatCommandPayload {
 	requestedTool?: unknown;
-	scope?: unknown;
-	versionQuery?: unknown;
 }
 
 export type ChatCommandRequestKind = "public_chat" | "internal_eval";
@@ -136,8 +129,6 @@ export interface ChatCommandServiceDependencies {
 		conversationDiscriminator: string;
 		prompt: string;
 		requestedTool: string | null;
-		requestedScope: RequestedScope | null;
-		versionQuery: VersionQuery | null;
 	}) => string;
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
@@ -158,6 +149,4 @@ export interface ValidatedChatCommandPayload {
 	conversationId: string | null;
 	prompt: string;
 	requestedTool: string | null;
-	requestedScope: RequestedScope | null;
-	versionQuery: VersionQuery | null;
 }

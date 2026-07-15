@@ -10,7 +10,7 @@ const generatedGoPath = "apps/execution-control/internal/contracts/tool_executio
 export function runToolExecutionSelfTest(): void {
 	checkOpenApiMetadata();
 	checkWorkflowTraceSummary();
-	checkRetiredRuntimeDecisions();
+	checkRuntimeBoundaries();
 	checkExecutionResponseDiagnostics();
 	checkGeneratedArtifacts();
 	checkFixtureMatrix();
@@ -25,13 +25,13 @@ function checkOpenApiMetadata(): void {
 		"dialect mismatch",
 	);
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
-	expect(meta.execution_contract_version === "tool_execution_v1", "execution contract mismatch");
+	expect(meta.execution_contract_version === "tool_execution_v2", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v2",
+		meta.response_contract === "execution_finalization_response_v3",
 		"response contract mismatch",
 	);
 	expect(
-		meta.workflow_trace_summary_version === "workflow-trace-summary-v5",
+		meta.workflow_trace_summary_version === "workflow-trace-summary-v6",
 		"workflow trace version mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
@@ -78,36 +78,21 @@ function checkWorkflowTraceSummary(): void {
 	);
 }
 
-function checkRetiredRuntimeDecisions(): void {
+function checkRuntimeBoundaries(): void {
 	expectEqualJson(
 		schema("WorkflowMode").enum,
 		["terminal", "single_step", "multi_step"],
 		"workflow modes",
 	);
-	const openapi = loadOpenApi();
-	const schemaDefinitions = asRecord(asRecord(openapi.components, "components").schemas, "schemas");
-	for (const retired of [
-		"DelegateStatus",
-		"StepOutputProjection",
-		"StepOutputProjectionKind",
-		"ToolRequest",
-		"ToolResponse",
-		"WorkflowContextProjection",
-		"WorkflowToolContext",
-		"RuntimeDecisions",
-		"RuntimeDecisionSummary",
-		"WorkflowPlan",
-		"WorkflowPlanStep",
-		"WorkflowPlanEdge",
-		"ToolExecutionRequest",
-		"ToolExecutionSubmitRequest",
-	]) {
-		expect(!(retired in schemaDefinitions), `${retired} must remain retired`);
-	}
 	expectEqualJson(
 		schema("ToolID").enum,
 		["knowledge_query", "knowledge_search", "transport_schedule_lookup"],
 		"tool id enum",
+	);
+	expectEqualJson(
+		schema("ModelVisibleToolName").enum,
+		["knowledge_query", "transport_schedule_lookup"],
+		"model-visible tool enum",
 	);
 	expectEqualJson(
 		schema("RequestedTool").enum,
@@ -116,34 +101,53 @@ function checkRetiredRuntimeDecisions(): void {
 	);
 	const payload = schema("ExecutionPayload");
 	const payloadProperties = properties(payload, "ExecutionPayload");
-	for (const retiredField of [
-		"actor",
-		"effective_tool",
-		"requested_scope",
-		"runtime_decisions",
-		"task_queue",
-	]) {
-		expect(!(retiredField in payloadProperties), `${retiredField} must not be accepted`);
-	}
-	for (const requiredField of [
-		"conversation_id",
-		"context",
-		"request_id",
-		"trace",
-		"version_query",
-	]) {
-		expectIncludes(payload.required, requiredField, `${requiredField} required`);
-	}
-	const runCreateProperties = properties(
-		schema("ExecutionRunCreateRequest"),
-		"ExecutionRunCreateRequest",
+	expect(payload.additionalProperties === false, "ExecutionPayload must be closed");
+	expectEqualJson(
+		new Set(Object.keys(payloadProperties)),
+		new Set([
+			"execution_contract_version",
+			"response_contract",
+			"user_goal",
+			"conversation_id",
+			"request_id",
+			"safety_identifier",
+			"requested_tool",
+			"trace",
+			"context",
+		]),
+		"execution payload fields",
 	);
-	for (const callerRoutingField of ["requested_tool", "selected_tool", "task_queue"]) {
-		expect(
-			!(callerRoutingField in runCreateProperties),
-			`${callerRoutingField} must not be caller-owned`,
-		);
-	}
+	expectEqualJson(
+		new Set(payload.required as string[]),
+		new Set([
+			"execution_contract_version",
+			"response_contract",
+			"user_goal",
+			"conversation_id",
+			"request_id",
+			"trace",
+			"context",
+		]),
+		"execution payload required fields",
+	);
+	const runCreate = schema("ExecutionRunCreateRequest");
+	const runCreateProperties = properties(runCreate, "ExecutionRunCreateRequest");
+	expect(runCreate.additionalProperties === false, "ExecutionRunCreateRequest must be closed");
+	expectEqualJson(
+		new Set(Object.keys(runCreateProperties)),
+		new Set([
+			"run_id",
+			"conversation_id",
+			"turn_id",
+			"request_id",
+			"trace_id",
+			"owner_user_id",
+			"surface",
+			"runtime_versions",
+			"metadata",
+		]),
+		"execution run create fields",
+	);
 	expectEqualJson(
 		runCreateProperties.metadata,
 		{ $ref: "#/components/schemas/ExecutionRunMetadata" },
@@ -159,7 +163,7 @@ function checkRetiredRuntimeDecisions(): void {
 function checkExecutionResponseDiagnostics(): void {
 	const response = schema("ExecutionFinalizationResponse");
 	const responseProperties = properties(response, "ExecutionFinalizationResponse");
-	expectIncludes(response.required, "resolved_scope", "resolved scope required");
+	expectIncludes(response.required, "resolved_targets", "resolved targets required");
 	expectIncludes(response.required, "session_update", "session update required");
 	expectEqualJson(
 		properties(schema("SessionUpdateSlot"), "SessionUpdateSlot").name,
@@ -212,7 +216,6 @@ function checkGeneratedArtifacts(): void {
 	);
 	for (const requiredType of [
 		"interface TraceContextWire",
-		"interface VersionQueryWire",
 		"interface ExecutionPayloadWire",
 		"interface ExecutionRunCreateRequestWire",
 		"interface SessionUpdateWire",
@@ -236,39 +239,22 @@ function checkGeneratedArtifacts(): void {
 		"type ExecutionRunCreateRequestWire struct",
 		"func DecodeExecutionPayloadWireJSON",
 		"func DecodeExecutionRunCreateRequestWireJSON",
-		"func (wire VersionQueryWire) Validate() error",
 		"func (wire SessionUpdateWire) Validate() error",
 	]) {
 		expect(goContract.includes(requiredSymbol), `Go generated contract missing ${requiredSymbol}`);
-	}
-	for (const retired of [
-		"DelegateStatus",
-		"StepOutputProjection",
-		"ToolRequestWire",
-		"ToolResponseWire",
-		"WorkflowToolContext",
-		"RuntimeDecisionsWire",
-		"WorkflowPlanWire",
-		"ToolExecutionRequestWire",
-		"RequestedToolPlaceLookup",
-	]) {
-		expect(!tsContract.includes(retired), `TS generated contract leaked ${retired}`);
-		expect(!goContract.includes(retired), `Go generated contract leaked ${retired}`);
 	}
 }
 
 function checkFixtureMatrix(): void {
 	const delegate = loadFixture("execution_payload.valid.json");
 	expect(
-		delegate.execution_contract_version === "tool_execution_v1",
+		delegate.execution_contract_version === "tool_execution_v2",
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v2",
+		delegate.response_contract === "execution_finalization_response_v3",
 		"delegate response contract",
 	);
-	expect(!("runtime_decisions" in delegate), "delegate fixture leaked runtime_decisions");
-
 	for (const fixtureName of [
 		"execution_payload_extra_field.invalid.json",
 		"execution_payload_invalid_enum.invalid.json",

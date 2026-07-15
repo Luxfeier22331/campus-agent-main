@@ -7,10 +7,10 @@ export function runContractSchemaSelfTest(): void {
 	checkContractSchemasPass();
 	checkRegistryCoverage();
 	checkStructuredToolContractFixtures();
-	checkSafeObservabilityFixtures();
+	checkObservabilityFixtures();
 	checkRuntimeToolSchemaRefs();
 	checkObservabilityAlertMaterialization();
-	checkSafeObservabilitySchemas();
+	checkObservabilitySchemas();
 }
 
 function checkContractSchemasPass(): void {
@@ -20,22 +20,24 @@ function checkContractSchemasPass(): void {
 function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
-		"runtime-tools.v4": ["configs/runtime/tools.v4.json"],
+		"runtime-tools.v5": ["configs/runtime/tools.v5.json"],
 		"execution-control-runtime-config.v1": [
 			"configs/runtime/execution-control/runtime-config.local.json",
 			"configs/runtime/execution-control/runtime-config.local-provider.json",
 			"configs/runtime/execution-control/runtime-config.staging.json",
 		],
-		"query-serving-scopes.v2": ["configs/runtime/query-serving-scopes.v2.json"],
-		"intent-policy.v1": ["configs/runtime/intent-policy.v1.json"],
-		"intent-drift-thresholds.v1": ["configs/runtime/intent-drift-thresholds.v1.json"],
+		"query-serving-targets.v1": ["configs/runtime/query-serving-targets.v1.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 		"env-surface-policy.v1": ["configs/runtime/env-surface-policy.v1.json"],
 	};
 	for (const [entryId, validates] of Object.entries(expectedValidates)) {
 		expectEqualJson(entries[entryId]?.validates, validates, `${entryId} validates`);
 	}
-	for (const entryId of ["ingestion-task-envelope.v2", "ingestion-task-registry.v2"]) {
+	for (const entryId of [
+		"ingestion-task-envelope.v3",
+		"ingestion-task-registry.v3",
+		"ingestion-task-result.v1",
+	]) {
 		const fixtureGroups = entries[entryId]?.fixture_groups;
 		if (!Array.isArray(fixtureGroups)) {
 			throw new Error(`${entryId} fixture groups missing`);
@@ -51,7 +53,6 @@ function checkStructuredToolContractFixtures(): void {
 			"campus-services-tool-contracts.v1",
 			"packages/contracts/fixtures/campus_services_tool_contracts",
 		],
-		["notice-tool-contracts.v1", "packages/contracts/fixtures/notice_tool_contracts"],
 	]) {
 		expectEqualJson(
 			entries[entryId]?.fixture_groups,
@@ -61,26 +62,20 @@ function checkStructuredToolContractFixtures(): void {
 	}
 }
 
-function checkSafeObservabilityFixtures(): void {
+function checkObservabilityFixtures(): void {
 	const entries = registryEntries();
-	for (const entryId of [
-		"llm-io-fingerprint.v1",
-		"answer-eval-fingerprint.v1",
-		"truncation-summary.v1",
-		"sink-identity-projection.v1",
-	]) {
-		expectEqualJson(
-			entries[entryId]?.fixture_groups,
-			[
-				{
-					path: "packages/contracts/fixtures/runtime_observability",
-					valid_glob: `${entryId}.*.valid.json`,
-					invalid_glob: `${entryId}.*.invalid.json`,
-				},
-			],
-			`${entryId} fixture groups`,
-		);
-	}
+	const entryId = "truncation-summary.v2";
+	expectEqualJson(
+		entries[entryId]?.fixture_groups,
+		[
+			{
+				path: "packages/contracts/fixtures/runtime_observability",
+				valid_glob: `${entryId}.*.valid.json`,
+				invalid_glob: `${entryId}.*.invalid.json`,
+			},
+		],
+		`${entryId} fixture groups`,
+	);
 }
 
 function checkRuntimeToolSchemaRefs(): void {
@@ -93,7 +88,7 @@ function checkRuntimeToolSchemaRefs(): void {
 		const schema = readJson(String(entry.path));
 		schemaDocs[String(schema.$id)] = schema;
 	}
-	const config = readJson("configs/runtime/tools.v4.json");
+	const config = readJson("configs/runtime/tools.v5.json");
 	for (const tool of config.tools as Record<string, unknown>[]) {
 		for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 			const ref = String(tool[fieldName]);
@@ -126,46 +121,16 @@ function checkObservabilityAlertMaterialization(): void {
 	}
 }
 
-function checkSafeObservabilitySchemas(): void {
-	const fingerprint = readJson("packages/contracts/schemas/llm-io-fingerprint.v1.schema.json");
-	expectSuperset(new Set(fingerprint.required as string[]), [
-		"llm_call_site",
-		"prompt_registry_attestation",
-		"primary_attestation",
-		"tool_runtime_attestation",
-		"provider_request_safe_hash",
-		"model_params_projection",
-	]);
-
-	const answerEval = readJson("packages/contracts/schemas/answer-eval-fingerprint.v1.schema.json");
-	expectSuperset(new Set(answerEval.required as string[]), [
-		"answer_fingerprint_sha256",
-		"branch_identity",
-		"llm_io_fingerprint_sha256",
-		"output_schema_id",
-		"runtime_release",
-		"stage_timing_profile_sha256",
-		"terminal_outcome",
-		"tool_runtime_combined_sha256",
-	]);
-
-	const truncation = readJson("packages/contracts/schemas/truncation-summary.v1.schema.json");
+function checkObservabilitySchemas(): void {
+	const truncation = readJson("packages/contracts/schemas/truncation-summary.v2.schema.json");
 	expect(
 		(truncation.required as string[]).includes("dropped_category_counts"),
 		"truncation counts required",
 	);
 	const forbidden = readJson(
-		"packages/contracts/fixtures/runtime_observability/truncation-summary.v1.raw_text.invalid.json",
+		"packages/contracts/fixtures/runtime_observability/truncation-summary.v2.raw_text.invalid.json",
 	);
 	expect("dropped_raw_messages" in forbidden, "truncation raw invalid fixture missing");
-
-	const sinkIdentity = readJson(
-		"packages/contracts/schemas/sink-identity-projection.v1.schema.json",
-	);
-	const properties = new Set(Object.keys(sinkIdentity.properties as Record<string, unknown>));
-	expect(properties.has("subject_ref"), "sink identity subject_ref missing");
-	expect(!properties.has("email"), "sink identity must not expose email");
-	expect(!properties.has("user_id"), "sink identity must not expose user_id");
 }
 
 function registryEntries(): Record<string, Record<string, unknown>> {
@@ -186,12 +151,6 @@ function readJson(path: string): Record<string, unknown> {
 function expect(condition: boolean, message: string): void {
 	if (!condition) {
 		throw new Error(message);
-	}
-}
-
-function expectSuperset(actual: Set<string>, expected: string[]): void {
-	for (const item of expected) {
-		expect(actual.has(item), `expected required field missing: ${item}`);
 	}
 }
 

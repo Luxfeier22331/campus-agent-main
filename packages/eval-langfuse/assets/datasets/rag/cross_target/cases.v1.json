@@ -1,0 +1,62 @@
+{
+	"schema_version": "rag_eval_cases.v1",
+	"corpus": "knowledge",
+	"collection": "cross_target",
+	"surface": "rag/cross_target",
+	"cases": [
+		{
+			"case_id": "cross-target-scholarship",
+			"case_family": "cross_target",
+			"split": "smoke",
+			"question": "奖学金评审同时受哪些学生规则和学校规定约束？",
+			"reference": "应同时依据学生奖学金评定办法和学校奖励管理通用规定回答。",
+			"reference_context_ids": [
+				"handbook:synthetic-scholarship-policy",
+				"institution:synthetic-awards-policy"
+			],
+			"expected_targets": ["student_rules", "institutional_rules"],
+			"expected_outcome": "answer",
+			"expected_search_count": 2
+		},
+		{
+			"case_id": "cross-target-graduation",
+			"case_family": "cross_target",
+			"split": "regression",
+			"question": "毕业资格和本专业学分要求分别依据什么？",
+			"reference": "毕业资格应依据学生规则，专业学分要求应依据对应培养方案。",
+			"reference_context_ids": [
+				"handbook:synthetic-degree-policy",
+				"curriculum:synthetic-public-affairs-plan"
+			],
+			"expected_targets": ["student_rules", "curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 2
+		},
+		{
+			"case_id": "cross-target-search-budget",
+			"case_family": "search_budget",
+			"split": "regression",
+			"question": "请分别核对学位条款、学校奖励原则和公共事务培养方案学分要求。",
+			"reference": "应在三次搜索预算内分别检索学生规则、学校制度和培养方案。",
+			"reference_context_ids": [
+				"handbook:synthetic-degree-policy",
+				"institution:synthetic-awards-policy",
+				"curriculum:synthetic-public-affairs-plan"
+			],
+			"expected_targets": ["student_rules", "institutional_rules", "curriculum"],
+			"expected_outcome": "answer",
+			"expected_search_count": 3
+		},
+		{
+			"case_id": "cross-target-no-answer",
+			"case_family": "no_answer",
+			"split": "regression",
+			"question": "请核对量子航站楼专业的校级奖励与培养要求。",
+			"reference": "所有可用知识域均没有可靠证据，应明确无法回答。",
+			"reference_context_ids": [],
+			"expected_targets": ["institutional_rules", "curriculum"],
+			"expected_outcome": "no_answer",
+			"expected_search_count": 2
+		}
+	]
+}

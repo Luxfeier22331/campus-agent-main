@@ -84,12 +84,14 @@ export class FeedWeRequestError extends Error {
 }
 
 export async function fetchFeedWeHistoryPage(input: {
+	abortSignal?: AbortSignal;
 	fetchImplementation: typeof fetch;
 	provider: FeedWeProviderConfig;
 	request: FeedWeHistoryRequest;
 }): Promise<FeedWeHistoryPage> {
 	const apiKey = normalizeRequiredSecret(input.provider.apiKey, "FeedWe API key");
 	const raw = await requestFeedWeJson({
+		abortSignal: input.abortSignal,
 		fetchImplementation: input.fetchImplementation,
 		headers: {
 			"x-api-key": apiKey,
@@ -114,12 +116,14 @@ export async function fetchFeedWeHistoryPage(input: {
 }
 
 export async function loginFeedWe(input: {
+	abortSignal?: AbortSignal;
 	fetchImplementation: typeof fetch;
 	provider: FeedWeProviderConfig;
 }): Promise<FeedWeAuthenticatedSession> {
 	const email = normalizeRequiredSecret(input.provider.email, "FeedWe email");
 	const password = normalizeRequiredSecret(input.provider.password, "FeedWe password");
 	const raw = await requestFeedWeJson({
+		abortSignal: input.abortSignal,
 		body: {
 			email,
 			password,
@@ -157,11 +161,13 @@ export async function loginFeedWe(input: {
 }
 
 export async function fetchFeedWeAuthMe(input: {
+	abortSignal?: AbortSignal;
 	fetchImplementation: typeof fetch;
 	provider: FeedWeProviderConfig;
 	token: string;
 }): Promise<FeedWeAuthMe> {
 	const raw = await requestFeedWeJson({
+		abortSignal: input.abortSignal,
 		authToken: input.token,
 		fetchImplementation: input.fetchImplementation,
 		method: "GET",
@@ -189,11 +195,13 @@ export async function fetchFeedWeAuthMe(input: {
 }
 
 export async function fetchFeedWeSubscriptions(input: {
+	abortSignal?: AbortSignal;
 	fetchImplementation: typeof fetch;
 	provider: FeedWeProviderConfig;
 	token: string;
 }): Promise<FeedWeSubscription[]> {
 	const raw = await requestFeedWeJson({
+		abortSignal: input.abortSignal,
 		authToken: input.token,
 		fetchImplementation: input.fetchImplementation,
 		method: "GET",
@@ -216,12 +224,14 @@ export async function fetchFeedWeSubscriptions(input: {
 }
 
 export async function fetchFeedWeArticlesPage(input: {
+	abortSignal?: AbortSignal;
 	fetchImplementation: typeof fetch;
 	provider: FeedWeProviderConfig;
 	request: FeedWeArticlesRequest;
 	token: string;
 }): Promise<FeedWeArticlesPage> {
 	const raw = await requestFeedWeJson({
+		abortSignal: input.abortSignal,
 		authToken: input.token,
 		fetchImplementation: input.fetchImplementation,
 		method: "GET",
@@ -354,6 +364,7 @@ function normalizeFeedWeSubscription(value: unknown): FeedWeSubscription {
 }
 
 async function requestFeedWeJson(input: {
+	abortSignal?: AbortSignal;
 	authToken?: string;
 	body?: Record<string, unknown>;
 	fetchImplementation: typeof fetch;
@@ -363,6 +374,7 @@ async function requestFeedWeJson(input: {
 	provider: FeedWeProviderConfig;
 	query?: Record<string, string>;
 }): Promise<unknown> {
+	input.abortSignal?.throwIfAborted();
 	const url = new URL(input.path, normalizeBaseUrl(input.provider.baseUrl));
 	for (const [key, value] of Object.entries(input.query ?? {})) {
 		url.searchParams.set(key, value);
@@ -378,8 +390,10 @@ async function requestFeedWeJson(input: {
 				...input.headers,
 			},
 			method: input.method,
+			signal: input.abortSignal,
 		});
 	} catch (error) {
+		input.abortSignal?.throwIfAborted();
 		throw new FeedWeRequestError({
 			code: "provider_unavailable",
 			message: error instanceof Error ? error.message : "FeedWe request failed.",
@@ -391,12 +405,14 @@ async function requestFeedWeJson(input: {
 	try {
 		raw = await response.json();
 	} catch {
+		input.abortSignal?.throwIfAborted();
 		throw new FeedWeRequestError({
 			code: "provider_response_invalid",
 			message: "FeedWe response must be valid JSON.",
 			status: 502,
 		});
 	}
+	input.abortSignal?.throwIfAborted();
 	if (!response.ok) {
 		throw new FeedWeRequestError({
 			code: "provider_http_error",

@@ -1,9 +1,5 @@
 import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
-import type { AuthenticatedNoticeProcessingCommandService } from "../modules/authenticated-notice-processing-command";
-import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
-import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
-import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesOpsService } from "../modules/campus-services-ops";
 import type { CampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
@@ -17,18 +13,11 @@ import type {
 	IngestionTaskProjectionClient,
 	IngestionTaskProjectionFetch,
 } from "../modules/integration";
-import type { OfficialWebQueryService } from "../modules/official-web-query";
-import type { OfficialWebReleaseTaskProcessingCommandService } from "../modules/official-web-release-task-processing-command";
-import type { OfficialWebReleaseTaskProcessingQueryService } from "../modules/official-web-release-task-processing-query";
-import type { OfficialWebTargetInventoryService } from "../modules/official-web-target-inventory";
-import type { OfficialWebTargetJobService } from "../modules/official-web-target-jobs";
-import type { OfficialWebTargetReleaseGateService } from "../modules/official-web-target-release-gates";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ProviderConfigService } from "../modules/provider-config";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
-import type { WeChatOfficialAccountCommandService } from "../modules/wechat-official-account-command";
 
 export interface AppDependencies {
 	authHandler?: (
@@ -36,10 +25,6 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<Response> | Response;
-	authenticatedNoticeProcessingCommandService?: AuthenticatedNoticeProcessingCommandService;
-	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
-	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
-	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
 	campusExperienceService?: CampusExperienceService;
 	campusServicesOpsService?: CampusServicesOpsService;
 	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
@@ -57,15 +42,8 @@ export interface AppDependencies {
 	identityPlatformService?: IdentityPlatformService;
 	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
 	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
-	officialWebQueryService?: OfficialWebQueryService;
-	officialWebReleaseTaskProcessingCommandService?: OfficialWebReleaseTaskProcessingCommandService;
-	officialWebReleaseTaskProcessingQueryService?: OfficialWebReleaseTaskProcessingQueryService;
-	officialWebTargetInventoryService?: OfficialWebTargetInventoryService;
-	officialWebTargetJobService?: OfficialWebTargetJobService;
-	officialWebTargetReleaseGateService?: OfficialWebTargetReleaseGateService;
 	profileMemoryService?: ProfileMemoryService;
 	providerConfigService?: ProviderConfigService;
-	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	telemetry?: AppTelemetry;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
 	runtimeRunService?: RuntimeRunService;
@@ -103,10 +81,6 @@ export interface AppRuntimeReadinessResult {
 
 export interface AppRequestScope {
 	getAppAuth: AppAuthGetter;
-	resolveAuthenticatedNoticeProcessingCommandService(): AuthenticatedNoticeProcessingCommandService;
-	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
-	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
-	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusServicesOpsService(): CampusServicesOpsService;
 	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
@@ -116,15 +90,8 @@ export interface AppRequestScope {
 	resolveDocsService(): DocsService;
 	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
-	resolveOfficialWebQueryService(): OfficialWebQueryService;
-	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;
-	resolveOfficialWebReleaseTaskProcessingQueryService(): OfficialWebReleaseTaskProcessingQueryService;
-	resolveOfficialWebTargetInventoryService(): OfficialWebTargetInventoryService;
-	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
-	resolveOfficialWebTargetReleaseGateService(): OfficialWebTargetReleaseGateService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveProviderConfigService(): ProviderConfigService;
 	resolveRuntimeRunService(): RuntimeRunService;
-	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 	telemetry: AppTelemetry;
 }

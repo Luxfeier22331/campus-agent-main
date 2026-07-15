@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 
 # Documentation Standards and Source-of-Truth Mapping
@@ -44,6 +44,11 @@ Source-of-Truth overlay.
 Every durable fact must have exactly one owning document class. Other documents
 may link to that fact, summarize it briefly, or explain how to consume it, but
 they must not redefine it.
+
+`AGENTS.md` is a thin repository or owner entrypoint for coding agents. It may
+route to canonical documents and state stable collaboration rules, but it must
+not duplicate current architecture, runtime topology, repository inventories or
+verification command catalogues.
 
 The primary failure mode this architecture prevents is mixing product chain
 truth, tool readiness, operator/eval diagnostics, release-closeout artifacts,
@@ -113,16 +118,16 @@ the current invariant.
 The standing verification loop is:
 
 - `pnpm repo:static` for generic Biome, Markdownlint and EditorConfig hygiene
+- `pnpm docs:check` for unique ADR identity and filename / H1 alignment
 - the owning app or package checks for executable schema, contract and domain
   invariants
-- `pnpm ci:repo` as the CI alias for `pnpm repo:static`, not as an additional
-  documentation-governance layer
+- `pnpm ci:repo` as the aggregate of those two narrow repository checks
 
 The generic static check does not validate truth ownership, route-map semantics,
-reference-graph completeness or architecture claims. Those remain review
-responsibilities. When a repeatable invariant can be checked with low false
-positives, add it to the owning app or package test instead of creating a
-parallel repository-wide documentation checker.
+reference-graph completeness or architecture claims. `docs:check` deliberately
+does not expand beyond ADR identity. Other semantic claims remain review
+responsibilities; executable owner invariants belong in the owning app or
+package test.
 
 ## Mature Standards Mapping
 

@@ -3,26 +3,9 @@ package retrievalruntime
 import "testing"
 
 func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
-	profile := ServingConfig{
-		Collection:              "student_rules",
-		Corpus:                  "regulations",
-		DensePrefetchLimit:      20,
-		DenseVectorName:         "dense",
-		QdrantAliasName:         "student_rules_alias",
-		QueryEnabledByDefault:   true,
-		RetrievalEnabled:        true,
-		RetrievalTopK:           8,
-		RRFK:                    60,
-		ServingRevisionTracks:   []string{"current-effective", "source-faithful"},
-		ServingStage:            "query_serving",
-		ServingVisibilityLevels: []string{"public"},
-		SparsePrefetchLimit:     20,
-		SparseVectorName:        "sparse",
-	}
 	body, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
-		Mode:           "current",
-		ServingConfig:  profile,
+		ServingConfig:  validServingConfigForQueryTest(),
 		QueryText:      "学生请假手续",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -33,73 +16,76 @@ func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build hybrid query body: %v", err)
 	}
-
-	if body["using"] != nil {
-		t.Fatalf("top-level using must not be present for hybrid query: %#v", body["using"])
-	}
 	prefetch, ok := body["prefetch"].([]map[string]any)
 	if !ok || len(prefetch) != 2 {
 		t.Fatalf("prefetch = %#v, want dense and sparse prefetches", body["prefetch"])
 	}
-	if prefetch[0]["using"] != "dense" {
-		t.Fatalf("dense using = %#v", prefetch[0]["using"])
-	}
-	if prefetch[1]["using"] != "sparse" {
-		t.Fatalf("sparse using = %#v", prefetch[1]["using"])
+	if prefetch[0]["using"] != "dense" || prefetch[1]["using"] != "sparse" {
+		t.Fatalf("prefetch vector names = %#v", prefetch)
 	}
 	fusion, ok := body["query"].(map[string]any)
 	if !ok || fusion["fusion"] != "rrf" {
 		t.Fatalf("query = %#v, want fusion rrf", body["query"])
 	}
+	if body["limit"] != 8 {
+		t.Fatalf("limit = %#v, want target-provided top k", body["limit"])
+	}
 }
 
-func TestBuildHybridQueryBodyAllowsServingConfigGatedRerankerCandidateQuery(t *testing.T) {
-	profile := ServingConfig{
-		Collection:               "student_rules",
-		Corpus:                   "regulations",
-		DensePrefetchLimit:       20,
-		DenseVectorName:          "dense",
-		QdrantAliasName:          "student_rules",
-		QueryEnabledByDefault:    true,
-		RerankerEnabledByDefault: true,
-		RetrievalEnabled:         true,
-		RetrievalTopK:            8,
-		ServingStage:             "query_serving",
-		ServingVisibilityLevels:  []string{"public"},
-		SparsePrefetchLimit:      20,
-		SparseVectorName:         "sparse",
-	}
-	body, err := BuildHybridQueryBody(QueryRequest{
-		DenseEmbedding: []float64{0.1, 0.2, 0.3},
-		Mode:           "current",
-		ServingConfig:  profile,
+func TestBuildHybridQueryBodyRequiresExplicitTopK(t *testing.T) {
+	_, err := BuildHybridQueryBody(QueryRequest{
+		DenseEmbedding: []float64{0.1},
+		ServingConfig:  validServingConfigForQueryTest(),
 		QueryText:      "学生请假手续",
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
 			VisibilityLevel:         "public",
 		},
-		TopK: 8,
+	})
+	if err == nil {
+		t.Fatal("missing target top_k must fail")
+	}
+}
+
+func TestBuildQdrantFilterDefaultsToCurrentVersions(t *testing.T) {
+	filter, err := BuildQdrantFilter(QueryRequest{
+		ServingConfig: validServingConfigForQueryTest(),
+		RetrievalAccess: RetrievalAccess{
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			VisibilityLevel:         "public",
+		},
 	})
 	if err != nil {
-		t.Fatalf("serving-config-gated reranker candidate query must still build: %v", err)
+		t.Fatalf("build current filter: %v", err)
 	}
-	if body["prefetch"] == nil {
-		t.Fatalf("query body = %#v, want candidate prefetch before executor rerank", body)
+	must := qdrantMustConditionsFromFilterForQueryTest(t, filter)
+	assertQdrantMatchValueForQueryTest(t, must, "is_current", true)
+}
+
+func TestBuildQdrantFilterIncludesAllVersionsWhenRequested(t *testing.T) {
+	filter, err := BuildQdrantFilter(QueryRequest{
+		IncludeHistory: true,
+		ServingConfig:  validServingConfigForQueryTest(),
+		RetrievalAccess: RetrievalAccess{
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			VisibilityLevel:         "public",
+		},
+	})
+	if err != nil {
+		t.Fatalf("build history filter: %v", err)
+	}
+	must := qdrantMustConditionsFromFilterForQueryTest(t, filter)
+	if _, ok := must["is_current"]; ok {
+		t.Fatalf("history filter must not require is_current: %#v", must)
 	}
 }
 
 func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
-	profile := ServingConfig{
-		Collection:              "institutional_rules",
-		Corpus:                  "regulations",
-		CurrentOnly:             true,
-		ServingRevisionTracks:   []string{"current-effective"},
-		ServingVisibilityLevels: []string{"restricted"},
-		ServingVisibilityScopes: []string{"campus"},
-	}
-
+	profile := validServingConfigForQueryTest()
+	profile.Collection = "institutional_rules"
+	profile.ServingVisibilityLevels = []string{"restricted"}
+	profile.ServingVisibilityScopes = []string{"campus"}
 	filter, err := BuildQdrantFilter(QueryRequest{
-		Mode:          "current",
 		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			EntitlementGroups:       []string{"campus_members"},
@@ -111,7 +97,6 @@ func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build restricted filter: %v", err)
 	}
-
 	must := qdrantMustConditionsFromFilterForQueryTest(t, filter)
 	assertQdrantMatchValueForQueryTest(t, must, "visibility_level", "restricted")
 	assertQdrantMatchValueForQueryTest(t, must, "visibility_scope", "campus")
@@ -119,15 +104,10 @@ func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
 }
 
 func TestBuildQdrantFilterUsesVisibilityBranchesForMixedServingConfig(t *testing.T) {
-	profile := ServingConfig{
-		Collection:              "mixed_rules",
-		Corpus:                  "regulations",
-		ServingVisibilityLevels: []string{"public", "restricted"},
-		ServingVisibilityScopes: []string{"campus"},
-	}
-
+	profile := validServingConfigForQueryTest()
+	profile.ServingVisibilityLevels = []string{"public", "restricted"}
+	profile.ServingVisibilityScopes = []string{"campus"}
 	filter, err := BuildQdrantFilter(QueryRequest{
-		Mode:          "current",
 		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			EntitlementGroups:       []string{"campus_members"},
@@ -139,7 +119,6 @@ func TestBuildQdrantFilterUsesVisibilityBranchesForMixedServingConfig(t *testing
 	if err != nil {
 		t.Fatalf("build mixed visibility filter: %v", err)
 	}
-
 	rawMust, ok := filter["must"].([]map[string]any)
 	if !ok {
 		t.Fatalf("must = %#v", filter["must"])
@@ -151,31 +130,17 @@ func TestBuildQdrantFilterUsesVisibilityBranchesForMixedServingConfig(t *testing
 			break
 		}
 	}
-	if visibilityBranch == nil {
-		t.Fatalf("visibility branch missing in filter: %#v", filter)
-	}
 	should, ok := visibilityBranch["should"].([]map[string]any)
 	if !ok || len(should) != 2 {
-		t.Fatalf("visibility should = %#v, want public and restricted branches", visibilityBranch["should"])
+		t.Fatalf("visibility branches = %#v", visibilityBranch)
 	}
-	publicBranch := qdrantMustConditionsFromFilterForQueryTest(t, should[0])
-	assertQdrantMatchValueForQueryTest(t, publicBranch, "visibility_level", "public")
-	restrictedBranch := qdrantMustConditionsFromFilterForQueryTest(t, should[1])
-	assertQdrantMatchValueForQueryTest(t, restrictedBranch, "visibility_level", "restricted")
-	assertQdrantMatchValueForQueryTest(t, restrictedBranch, "visibility_scope", "campus")
-	assertQdrantMatchAnyForQueryTest(t, restrictedBranch, "entitlement_groups", []string{"campus_members"})
 }
 
-func TestBuildQdrantFilterFailsClosedWhenAccessNotAdmittedByServingConfig(t *testing.T) {
-	profile := ServingConfig{
-		Collection:              "institutional_rules",
-		Corpus:                  "regulations",
-		ServingVisibilityLevels: []string{"restricted"},
-		ServingVisibilityScopes: []string{"campus"},
-	}
-
+func TestBuildQdrantFilterFailsWhenAccessNotAdmitted(t *testing.T) {
+	profile := validServingConfigForQueryTest()
+	profile.ServingVisibilityLevels = []string{"restricted"}
+	profile.ServingVisibilityScopes = []string{"campus"}
 	_, err := BuildQdrantFilter(QueryRequest{
-		Mode:          "current",
 		ServingConfig: profile,
 		RetrievalAccess: RetrievalAccess{
 			PolicyProjectionVersion: "phase1-authorization-projection-v1",
@@ -183,72 +148,7 @@ func TestBuildQdrantFilterFailsClosedWhenAccessNotAdmittedByServingConfig(t *tes
 		},
 	})
 	if err == nil {
-		t.Fatal("public access against restricted-only serving config must fail closed")
-	}
-}
-
-func TestBuildHybridQueryBodyAsOfRequiresResolvedVersionID(t *testing.T) {
-	body, err := BuildHybridQueryBody(QueryRequest{
-		DenseEmbedding: []float64{0.1, 0.2, 0.3},
-		Mode:           "as_of",
-		ServingConfig:  validServingConfigForQueryTest(),
-		QueryText:      "2025年请假规则",
-		RetrievalAccess: RetrievalAccess{
-			PolicyProjectionVersion: "phase1-authorization-projection-v1",
-			VisibilityLevel:         "public",
-		},
-		TopK:      3,
-		VersionID: "student_rules:v2025",
-	})
-	if err != nil {
-		t.Fatalf("as_of with resolved version id must build query: %v", err)
-	}
-	must := qdrantMustConditionsForQueryTest(t, body)
-	versionMatch, ok := must["version_id"]["match"].(map[string]any)
-	if !ok {
-		t.Fatalf("version_id match missing: %#v", must["version_id"])
-	}
-	values, ok := versionMatch["any"].([]string)
-	if !ok || len(values) != 1 || values[0] != "student_rules:v2025" {
-		t.Fatalf("version_id any = %#v, want resolved version id", versionMatch["any"])
-	}
-}
-
-func TestBuildHybridQueryBodyAsOfWithoutResolvedVersionIDFailsClosed(t *testing.T) {
-	_, err := BuildHybridQueryBody(QueryRequest{
-		DenseEmbedding: []float64{0.1, 0.2, 0.3},
-		Mode:           "as_of",
-		ServingConfig:  validServingConfigForQueryTest(),
-		QueryText:      "2025年请假规则",
-		RetrievalAccess: RetrievalAccess{
-			PolicyProjectionVersion: "phase1-authorization-projection-v1",
-			VisibilityLevel:         "public",
-		},
-		TopK: 3,
-	})
-	if err == nil {
-		t.Fatal("as_of without resolved version id must fail closed")
-	}
-}
-
-func TestBuildHybridQueryBodyRejectsDeferredServingModes(t *testing.T) {
-	for _, mode := range []string{"freshness_sensitive", "live_assisted"} {
-		t.Run(mode, func(t *testing.T) {
-			_, err := BuildHybridQueryBody(QueryRequest{
-				DenseEmbedding: []float64{0.1, 0.2, 0.3},
-				Mode:           mode,
-				ServingConfig:  validServingConfigForQueryTest(),
-				QueryText:      "学生请假手续",
-				RetrievalAccess: RetrievalAccess{
-					PolicyProjectionVersion: "phase1-authorization-projection-v1",
-					VisibilityLevel:         "public",
-				},
-				TopK: 3,
-			})
-			if err == nil {
-				t.Fatalf("%s must not build an indexed Qdrant query", mode)
-			}
-		})
+		t.Fatal("public access against restricted-only serving config must fail")
 	}
 }
 
@@ -259,9 +159,8 @@ func validServingConfigForQueryTest() ServingConfig {
 		DensePrefetchLimit:      20,
 		DenseVectorName:         "dense",
 		QdrantAliasName:         "student_rules",
-		QueryEnabledByDefault:   true,
 		RetrievalEnabled:        true,
-		RetrievalTopK:           8,
+		ServingRevisionTracks:   []string{"current-effective", "source-faithful"},
 		ServingStage:            "query_serving",
 		ServingVisibilityLevels: []string{"public"},
 		SparsePrefetchLimit:     20,
@@ -269,31 +168,10 @@ func validServingConfigForQueryTest() ServingConfig {
 	}
 }
 
-func qdrantMustConditionsForQueryTest(t *testing.T, body map[string]any) map[string]map[string]any {
-	t.Helper()
-	prefetch, ok := body["prefetch"].([]map[string]any)
-	if !ok || len(prefetch) == 0 {
-		t.Fatalf("prefetch = %#v", body["prefetch"])
-	}
-	filter, ok := prefetch[0]["filter"].(map[string]any)
-	if !ok {
-		t.Fatalf("filter = %#v", prefetch[0]["filter"])
-	}
-	rawMust, ok := filter["must"].([]map[string]any)
-	if !ok {
-		t.Fatalf("must = %#v", filter["must"])
-	}
-	must := map[string]map[string]any{}
-	for _, condition := range rawMust {
-		key, _ := condition["key"].(string)
-		if key != "" {
-			must[key] = condition
-		}
-	}
-	return must
-}
-
-func qdrantMustConditionsFromFilterForQueryTest(t *testing.T, filter map[string]any) map[string]map[string]any {
+func qdrantMustConditionsFromFilterForQueryTest(
+	t *testing.T,
+	filter map[string]any,
+) map[string]map[string]any {
 	t.Helper()
 	rawMust, ok := filter["must"].([]map[string]any)
 	if !ok {

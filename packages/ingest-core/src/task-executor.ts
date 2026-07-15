@@ -1,16 +1,8 @@
 import type { IngestionTaskRegistry, IngestionTaskRegistryTask } from "ingestion-contracts";
 import defaultExecutorInventory from "./default-executor-inventory.v1.json" with { type: "json" };
 
-export interface IngestionHandlerIdentity {
-	sourceFamily: string;
-	corpus: string;
-	collection: string;
+export interface DefaultExecutableSourceCollectorTask {
 	registryTaskId: string;
-}
-
-export type TsTaskHandlerIdentity = IngestionHandlerIdentity;
-
-export interface DefaultExecutableTsTask extends TsTaskHandlerIdentity {
 	inputContract: string;
 	outputContract: string;
 }
@@ -33,6 +25,12 @@ export interface IngestionTaskExecutabilityIssue extends IngestionTaskExecutabil
 	message: string;
 }
 
+export const DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASKS =
+	defaultExecutorInventory.source_collectors as readonly DefaultExecutableSourceCollectorTask[];
+
+export const DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASK_IDS =
+	DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASKS.map((task) => task.registryTaskId);
+
 export const DEFAULT_EXECUTABLE_RUST_KERNELS =
 	defaultExecutorInventory.rust_kernels as readonly DefaultExecutableRustKernel[];
 
@@ -42,14 +40,8 @@ export const DEFAULT_EXECUTABLE_RUST_KERNEL_IDS = DEFAULT_EXECUTABLE_RUST_KERNEL
 
 export type DefaultExecutableRustKernelId = string;
 
-export const DEFAULT_EXECUTABLE_TS_TASKS =
-	defaultExecutorInventory.ts_tasks as readonly DefaultExecutableTsTask[];
-
-export const DEFAULT_EXECUTABLE_TS_TASK_IDENTITIES: readonly TsTaskHandlerIdentity[] =
-	DEFAULT_EXECUTABLE_TS_TASKS.map(({ inputContract, outputContract, ...identity }) => identity);
-
-export function isDefaultTsTaskExecutable(identity: TsTaskHandlerIdentity): boolean {
-	return Boolean(defaultTsTaskForIdentity(identity));
+export function isDefaultSourceCollectorExecutable(registryTaskId: string): boolean {
+	return Boolean(defaultSourceCollectorForId(registryTaskId));
 }
 
 export function isDefaultRustKernelExecutable(
@@ -59,46 +51,34 @@ export function isDefaultRustKernelExecutable(
 }
 
 export function classifyIngestionRegistryTaskExecutability(input: {
-	registry: Pick<IngestionTaskRegistry, "source_family" | "corpus" | "collection">;
+	registry: IngestionTaskRegistry;
 	task: IngestionTaskRegistryTask;
 }): IngestionTaskExecutabilityClassification {
-	const taskIdentity: TsTaskHandlerIdentity = {
-		sourceFamily: input.registry.source_family,
-		corpus: input.registry.corpus,
-		collection: input.registry.collection,
-		registryTaskId: input.task.registry_task_id,
-	};
-	if (input.task.executor_kind === "ts_control") {
-		const defaultTask = defaultTsTaskForIdentity(taskIdentity);
+	void input.registry;
+	if (input.task.executor_kind === "source_collector") {
+		const declared = defaultSourceCollectorForId(input.task.registry_task_id);
 		return {
-			identity: ingestionHandlerIdentityKey(taskIdentity),
+			identity: input.task.registry_task_id,
 			executorKind: input.task.executor_kind,
 			status:
-				defaultTask &&
-				defaultTask.inputContract === input.task.input_contract &&
-				defaultTask.outputContract === input.task.output_contract
+				declared &&
+				declared.inputContract === input.task.input_contract &&
+				declared.outputContract === input.task.output_contract
 					? "executable"
 					: "invalid_registry",
 		};
 	}
-	if (input.task.executor_kind === "rust_kernel") {
-		const kernelId = input.task.kernel_id;
-		const defaultKernel = kernelId ? defaultRustKernelForId(kernelId) : undefined;
-		return {
-			identity: kernelId ? `rust_kernel:${kernelId}` : ingestionHandlerIdentityKey(taskIdentity),
-			executorKind: input.task.executor_kind,
-			status:
-				defaultKernel &&
-				defaultKernel.inputContract === input.task.input_contract &&
-				defaultKernel.outputContract === input.task.output_contract
-					? "executable"
-					: "invalid_registry",
-		};
-	}
+	const kernelId = input.task.kernel_id;
+	const declared = kernelId ? defaultRustKernelForId(kernelId) : undefined;
 	return {
-		identity: ingestionHandlerIdentityKey(taskIdentity),
+		identity: kernelId ? `rust_kernel:${kernelId}` : input.task.registry_task_id,
 		executorKind: input.task.executor_kind,
-		status: "invalid_registry",
+		status:
+			declared &&
+			declared.inputContract === input.task.input_contract &&
+			declared.outputContract === input.task.output_contract
+				? "executable"
+				: "invalid_registry",
 	};
 }
 
@@ -107,66 +87,34 @@ export function auditIngestionRegistryExecutability(
 ): IngestionTaskExecutabilityIssue[] {
 	return registries.flatMap((registry) =>
 		registry.tasks.flatMap((task) => {
-			const classification = classifyIngestionRegistryTaskExecutability({
-				registry,
-				task,
-			});
+			const classification = classifyIngestionRegistryTaskExecutability({ registry, task });
 			if (classification.status === "executable") {
 				return [];
 			}
-			return [
-				{
-					...classification,
-					message: registryExecutabilityIssueMessage(task, classification),
-				},
-			];
+			return [{ ...classification, message: registryExecutabilityIssueMessage(task) }];
 		}),
 	);
 }
 
-function ingestionHandlerIdentityKey(identity: IngestionHandlerIdentity): string {
-	return [
-		identity.sourceFamily,
-		identity.corpus,
-		identity.collection,
-		identity.registryTaskId,
-	].join("/");
-}
-
-function registryExecutabilityIssueMessage(
-	task: IngestionTaskRegistryTask,
-	classification: IngestionTaskExecutabilityClassification,
-): string {
-	switch (task.executor_kind) {
-		case "ts_control":
-			if (defaultTsTaskForIdentityKey(classification.identity)) {
-				return "registry-declared ts_control task contract does not match default handler";
-			}
-			return "registry-declared ts_control task has no default handler";
-		case "rust_kernel":
-			if (!task.kernel_id) {
-				return "registry-declared rust_kernel task is missing kernel_id";
-			}
-			if (defaultRustKernelForId(task.kernel_id)) {
-				return "registry-declared rust_kernel task contract does not match default kernel bridge";
-			}
-			return "registry-declared rust_kernel task has no default kernel bridge";
-		default: {
-			const exhaustiveCheck: never = task.executor_kind;
-			return `unsupported ingestion task executor_kind: ${String(exhaustiveCheck)}`;
-		}
+function registryExecutabilityIssueMessage(task: IngestionTaskRegistryTask): string {
+	if (task.executor_kind === "source_collector") {
+		return defaultSourceCollectorForId(task.registry_task_id)
+			? "registry-declared source collector contract does not match its handler"
+			: "registry-declared source collector task has no handler";
 	}
+	if (!task.kernel_id) {
+		return "registry-declared rust kernel task is missing kernel_id";
+	}
+	return defaultRustKernelForId(task.kernel_id)
+		? "registry-declared rust kernel contract does not match its bridge"
+		: "registry-declared rust kernel task has no bridge";
 }
 
-function defaultTsTaskForIdentity(
-	identity: TsTaskHandlerIdentity,
-): DefaultExecutableTsTask | undefined {
-	return defaultTsTaskForIdentityKey(ingestionHandlerIdentityKey(identity));
-}
-
-function defaultTsTaskForIdentityKey(identityKey: string): DefaultExecutableTsTask | undefined {
-	return DEFAULT_EXECUTABLE_TS_TASKS.find(
-		(candidate) => ingestionHandlerIdentityKey(candidate) === identityKey,
+function defaultSourceCollectorForId(
+	registryTaskId: string,
+): DefaultExecutableSourceCollectorTask | undefined {
+	return DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASKS.find(
+		(candidate) => candidate.registryTaskId === registryTaskId,
 	);
 }
 

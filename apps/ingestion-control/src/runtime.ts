@@ -1,28 +1,14 @@
 import { createServer } from "node:http";
 import { loadIngestionTaskRegistryCatalogFromRoot } from "ingest-core/node";
 import { Pool } from "pg";
-import type { IngestionControlServiceTokens } from "./http";
-import { createIngestionControlHandler } from "./http";
 import {
-	createOfficialWebControlPlaneService,
-	type OfficialWebControlPlaneService,
-} from "./official-web-control-plane-service";
-import { createPgOfficialWebControlPlaneStore } from "./official-web-control-plane-store";
+	createIngestionControlHandler,
+	type IngestionControlHandler,
+	type IngestionControlServiceTokens,
+} from "./http";
 import {
-	buildOfficialWebExecutionStatusService,
-	type OfficialWebExecutionStatusService,
-} from "./official-web-execution-status-service";
-import {
-	buildOfficialWebProjectionProjector,
-	type OfficialWebProjectionProjector,
-} from "./official-web-projection-service";
-import {
-	createPgOfficialWebProjectionStore,
-	ensureOfficialWebPostgresSchema,
-} from "./official-web-projection-store";
-import {
+	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
-	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
 import {
 	type ClosableIngestionWorkflowStarter,
@@ -32,21 +18,21 @@ import {
 import { buildIngestionTemporalConfig, type IngestionTemporalConfig } from "./temporal-config";
 import type { IngestionTaskStore } from "./types";
 
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+const API_DATABASE_TIMEOUT_MS = 4_000;
+
 export interface IngestionControlRuntimeConfig {
 	databaseUrl: string;
 	registryRoot: string;
 	host: string;
 	port: number;
 	serviceTokens: Required<IngestionControlServiceTokens>;
-	sourceBucket: string;
 	temporal: IngestionTemporalConfig;
 }
 
 export interface IngestionControlRuntime {
 	close(): Promise<void>;
-	officialWebControlPlaneService: OfficialWebControlPlaneService;
-	officialWebExecutionStatusService: OfficialWebExecutionStatusService;
-	officialWebProjectionProjector: OfficialWebProjectionProjector;
+	readinessCheck(): Promise<void>;
 	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
 	store: IngestionTaskStore;
 	workflowStarter: IngestionWorkflowStarter;
@@ -55,22 +41,15 @@ export interface IngestionControlRuntime {
 export function buildIngestionControlRuntimeConfig(
 	env: Record<string, string | undefined>,
 ): IngestionControlRuntimeConfig {
-	const databaseUrl = requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL");
 	return {
-		databaseUrl,
+		databaseUrl: requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL"),
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
 		port: readPort(env.INGESTION_CONTROL_PORT),
 		serviceTokens: {
 			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
 			appApiProjectionToken: env.INGESTION_CONTROL_APP_API_PROJECTION_TOKEN?.trim() || null,
-			officialWebCollectorToken: env.INGESTION_CONTROL_OFFICIAL_WEB_COLLECTOR_TOKEN?.trim() || null,
-			officialWebExecutionStatusToken:
-				env.INGESTION_CONTROL_OFFICIAL_WEB_EXECUTION_STATUS_TOKEN?.trim() || null,
-			officialWebProjectionToken:
-				env.INGESTION_CONTROL_OFFICIAL_WEB_PROJECTION_TOKEN?.trim() || null,
 		},
-		sourceBucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
 		temporal: buildIngestionTemporalConfig(env),
 	};
 }
@@ -81,30 +60,29 @@ export async function startIngestionControlServer(
 ): Promise<{ close(): Promise<void> }> {
 	const runtime = input.runtime ?? (await createIngestionControlRuntime(config));
 	const handler = createIngestionControlHandler({
-		officialWebControlPlaneService: runtime.officialWebControlPlaneService,
-		officialWebExecutionStatusService: runtime.officialWebExecutionStatusService,
-		officialWebProjectionProjector: runtime.officialWebProjectionProjector,
+		readinessCheck: runtime.readinessCheck,
 		registryCatalog: runtime.registryCatalog,
 		serviceTokens: config.serviceTokens,
 		store: runtime.store,
 		workflowStarter: runtime.workflowStarter,
 	});
-
-	const server = createServer(async (request, response) => {
-		const body = await readRequestBody(request);
-		const runtimeRequest = new Request(`http://ingestion-control${request.url ?? "/"}`, {
-			body: body.length > 0 ? new Uint8Array(body) : undefined,
-			headers: request.headers as HeadersInit,
-			method: request.method,
+	const server = createServer((request, response) => {
+		void serveNodeRequest({ handler, request, response }).catch((error) => {
+			if (response.destroyed || response.writableEnded) {
+				return;
+			}
+			response.statusCode = error instanceof RequestBodyTooLargeError ? 413 : 500;
+			response.setHeader("content-type", "application/json");
+			response.end(
+				JSON.stringify({
+					error:
+						error instanceof RequestBodyTooLargeError
+							? "request_body_too_large"
+							: "internal_server_error",
+				}),
+			);
 		});
-		const runtimeResponse = await handler(runtimeRequest);
-		response.statusCode = runtimeResponse.status;
-		runtimeResponse.headers.forEach((value, key) => {
-			response.setHeader(key, value);
-		});
-		response.end(Buffer.from(await runtimeResponse.arrayBuffer()));
 	});
-
 	try {
 		await new Promise<void>((resolve, reject) => {
 			server.once("error", reject);
@@ -117,53 +95,46 @@ export async function startIngestionControlServer(
 		await runtime.close();
 		throw error;
 	}
-
 	return {
-		async close(): Promise<void> {
-			await new Promise<void>((resolve, reject) => {
-				server.close((error) => (error ? reject(error) : resolve()));
-			});
+		async close() {
+			await new Promise<void>((resolve, reject) =>
+				server.close((error) => (error ? reject(error) : resolve())),
+			);
 			await runtime.close();
 		},
 	};
 }
 
 async function createIngestionControlRuntime(
-	config: Pick<
-		IngestionControlRuntimeConfig,
-		"databaseUrl" | "registryRoot" | "sourceBucket" | "temporal"
-	>,
+	config: Pick<IngestionControlRuntimeConfig, "databaseUrl" | "registryRoot" | "temporal">,
 ): Promise<IngestionControlRuntime> {
-	const pool = new Pool({ connectionString: config.databaseUrl });
+	const pool = new Pool({
+		connectionString: config.databaseUrl,
+		connectionTimeoutMillis: API_DATABASE_TIMEOUT_MS,
+		query_timeout: API_DATABASE_TIMEOUT_MS,
+		statement_timeout: API_DATABASE_TIMEOUT_MS,
+	});
 	let workflowStarter: ClosableIngestionWorkflowStarter | null = null;
-	await ensureIngestionControlPostgresSchema(pool);
-	await ensureOfficialWebPostgresSchema(pool);
-	workflowStarter = await createTemporalIngestionWorkflowStarter(config.temporal);
-	const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot);
-	const store = createPostgresIngestionTaskStore({ pool });
-	const officialWebProjectionStore = createPgOfficialWebProjectionStore({ pool });
-	return {
-		async close(): Promise<void> {
-			await workflowStarter?.close();
-			await pool.end();
-		},
-		officialWebControlPlaneService: createOfficialWebControlPlaneService({
-			store: createPgOfficialWebControlPlaneStore({ pool }),
-		}),
-		officialWebExecutionStatusService: buildOfficialWebExecutionStatusService({
-			store: officialWebProjectionStore,
-		}),
-		officialWebProjectionProjector: buildOfficialWebProjectionProjector({
-			registryCatalog,
-			sourceBucket: config.sourceBucket,
-			store: officialWebProjectionStore,
-			taskStore: store,
+	try {
+		await assertIngestionControlPostgresSchema(pool);
+		workflowStarter = await createTemporalIngestionWorkflowStarter(config.temporal);
+		return {
+			async close() {
+				await workflowStarter?.close();
+				await pool.end();
+			},
+			async readinessCheck() {
+				await Promise.all([pool.query("SELECT 1"), workflowStarter?.checkReady()]);
+			},
+			registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
+			store: createPostgresIngestionTaskStore({ pool }),
 			workflowStarter,
-		}),
-		registryCatalog,
-		store,
-		workflowStarter,
-	};
+		};
+	} catch (error) {
+		await workflowStarter?.close();
+		await pool.end();
+		throw error;
+	}
 }
 
 function requiredEnv(env: Record<string, string | undefined>, key: string): string {
@@ -185,10 +156,45 @@ function readPort(value: string | undefined): number {
 	return parsed;
 }
 
-async function readRequestBody(request: import("node:http").IncomingMessage): Promise<Buffer> {
+export async function readRequestBody(
+	request: import("node:http").IncomingMessage,
+): Promise<Buffer> {
+	const contentLength = Number(request.headers["content-length"] ?? 0);
+	if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BODY_BYTES) {
+		request.resume();
+		throw new RequestBodyTooLargeError();
+	}
 	const chunks: Buffer[] = [];
+	let byteLength = 0;
 	for await (const chunk of request) {
-		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+		const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+		byteLength += bytes.byteLength;
+		if (byteLength > MAX_REQUEST_BODY_BYTES) {
+			request.resume();
+			throw new RequestBodyTooLargeError();
+		}
+		chunks.push(bytes);
 	}
 	return Buffer.concat(chunks);
 }
+
+async function serveNodeRequest(input: {
+	handler: IngestionControlHandler;
+	request: import("node:http").IncomingMessage;
+	response: import("node:http").ServerResponse;
+}): Promise<void> {
+	const body = await readRequestBody(input.request);
+	const runtimeRequest = new Request(`http://ingestion-control${input.request.url ?? "/"}`, {
+		body: body.length > 0 ? new Uint8Array(body) : undefined,
+		headers: input.request.headers as HeadersInit,
+		method: input.request.method,
+	});
+	const runtimeResponse = await input.handler(runtimeRequest);
+	input.response.statusCode = runtimeResponse.status;
+	runtimeResponse.headers.forEach((value, key) => {
+		input.response.setHeader(key, value);
+	});
+	input.response.end(Buffer.from(await runtimeResponse.arrayBuffer()));
+}
+
+class RequestBodyTooLargeError extends Error {}

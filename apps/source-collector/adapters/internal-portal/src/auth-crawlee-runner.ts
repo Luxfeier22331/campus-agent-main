@@ -108,15 +108,7 @@ function createDefaultAuthPortalCrawler(input: AuthPortalCrawlerFactoryInput) {
 	const crawler = new PlaywrightCrawler(
 		{
 			headless: input.headless,
-			launchContext: {
-				launchOptions: {
-					channel: "chrome",
-					proxy: input.proxyServer ? { server: input.proxyServer } : undefined,
-					timeout: input.timeoutMs,
-				},
-				useChrome: true,
-				useIncognitoPages: true,
-			},
+			launchContext: createAuthPortalLaunchContext(input),
 			maxRequestRetries: 0,
 			navigationTimeoutSecs: Math.ceil(input.timeoutMs / 1000),
 			requestHandler: async (context) => {
@@ -129,5 +121,18 @@ function createDefaultAuthPortalCrawler(input: AuthPortalCrawlerFactoryInput) {
 	);
 	return {
 		run: async (requests: RequestOptions[]) => await crawler.run(requests),
+	};
+}
+
+export function createAuthPortalLaunchContext(input: {
+	proxyServer: string | null;
+	timeoutMs: number;
+}) {
+	return {
+		launchOptions: {
+			proxy: input.proxyServer ? { server: input.proxyServer } : undefined,
+			timeout: input.timeoutMs,
+		},
+		useIncognitoPages: true,
 	};
 }

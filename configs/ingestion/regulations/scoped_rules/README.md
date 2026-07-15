@@ -43,9 +43,9 @@ Current scaffold note:
 - repo no longer keeps a Python scoped-rule materialization or local chunk-prep
   path. Active execution starts from explicit canonical `document-units` refs and
   uses the registry-declared Rust validation/chunk kernels.
-- selected historical scoped-rule inputs may only be reintroduced by adding a
-  real `ts_control` document materializer or Rust kernel bridge in the same
-  change as its task-registry entry.
+- source materialization is not implemented and has no placeholder task. The
+  active v3 registry only accepts digest-pinned canonical units for Rust
+  validation/chunk preparation.
 - `annual_cycle_rule` candidates must pass applicability gating before target
   materialization; expired unit/year-specific annual cycle notices are retained
   for notice-level query rather than published to the regulation reader

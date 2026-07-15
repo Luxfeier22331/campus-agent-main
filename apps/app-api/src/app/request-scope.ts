@@ -4,22 +4,6 @@ import {
 	readPublicNoticeURLAllowlist,
 	resolveEnvironment,
 } from "../config";
-import {
-	buildAuthenticatedNoticeProcessingCommandService,
-	createPgAuthenticatedNoticeProcessingCommandStore,
-} from "../modules/authenticated-notice-processing-command";
-import {
-	buildAuthenticatedNoticeProcessingQueryService,
-	createPgAuthenticatedNoticeProcessingQueryStore,
-} from "../modules/authenticated-notice-processing-query";
-import {
-	buildAuthenticatedNoticeRunProcessingCommandService,
-	createPgAuthenticatedNoticeRunProcessingCommandStore,
-} from "../modules/authenticated-notice-run-processing-command";
-import {
-	buildAuthenticatedNoticeRunProcessingQueryService,
-	createPgAuthenticatedNoticeRunProcessingQueryStore,
-} from "../modules/authenticated-notice-run-processing-query";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import {
 	buildCampusServicesOpsService,
@@ -43,31 +27,6 @@ import {
 	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
-import {
-	buildOfficialWebQueryService,
-	createPgOfficialWebQueryStore,
-} from "../modules/official-web-query";
-import {
-	buildOfficialWebReleaseTaskProcessingCommandService,
-	createPgOfficialWebReleaseTaskProcessingCommandStore,
-} from "../modules/official-web-release-task-processing-command";
-import {
-	buildOfficialWebReleaseTaskProcessingQueryService,
-	createPgOfficialWebReleaseTaskProcessingQueryStore,
-} from "../modules/official-web-release-task-processing-query";
-import {
-	buildOfficialWebTargetInventoryService,
-	createPgOfficialWebTargetInventoryFieldStatusStore,
-	createPgOfficialWebTargetInventoryPreviewEvidenceStore,
-} from "../modules/official-web-target-inventory";
-import {
-	buildOfficialWebTargetJobService,
-	createPgOfficialWebTargetJobStore,
-} from "../modules/official-web-target-jobs";
-import {
-	buildOfficialWebTargetReleaseGateService,
-	createPgOfficialWebTargetReleaseGateStore,
-} from "../modules/official-web-target-release-gates";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import {
 	buildProviderConfigService,
@@ -75,10 +34,6 @@ import {
 } from "../modules/provider-config";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
-import {
-	buildWeChatOfficialAccountCommandService,
-	createPgWeChatOfficialAccountCommandStore,
-} from "../modules/wechat-official-account-command";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
 
@@ -96,14 +51,6 @@ export function createRequestScopeFactory(input: {
 	return {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
-			let authenticatedNoticeProcessingCommandService =
-				input.dependencies.authenticatedNoticeProcessingCommandService ?? null;
-			let authenticatedNoticeProcessingQueryService =
-				input.dependencies.authenticatedNoticeProcessingQueryService ?? null;
-			let authenticatedNoticeRunProcessingCommandService =
-				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
-			let authenticatedNoticeRunProcessingQueryService =
-				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
 			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
 			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
 			let campusServicesTransportScheduleService =
@@ -114,76 +61,9 @@ export function createRequestScopeFactory(input: {
 			let docsService = input.dependencies.docsService ?? null;
 			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
-			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
-			let officialWebReleaseTaskProcessingCommandService =
-				input.dependencies.officialWebReleaseTaskProcessingCommandService ?? null;
-			let officialWebReleaseTaskProcessingQueryService =
-				input.dependencies.officialWebReleaseTaskProcessingQueryService ?? null;
-			let officialWebTargetInventoryService =
-				input.dependencies.officialWebTargetInventoryService ?? null;
-			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
-			let officialWebTargetReleaseGateService =
-				input.dependencies.officialWebTargetReleaseGateService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
 			let providerConfigService = input.dependencies.providerConfigService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
-			let weChatOfficialAccountCommandService =
-				input.dependencies.wechatOfficialAccountCommandService ?? null;
-
-			function resolveAuthenticatedNoticeProcessingCommandService() {
-				if (authenticatedNoticeProcessingCommandService) {
-					return authenticatedNoticeProcessingCommandService;
-				}
-
-				authenticatedNoticeProcessingCommandService =
-					buildAuthenticatedNoticeProcessingCommandService({
-						store: createPgAuthenticatedNoticeProcessingCommandStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					});
-				return authenticatedNoticeProcessingCommandService;
-			}
-
-			function resolveAuthenticatedNoticeProcessingQueryService() {
-				if (authenticatedNoticeProcessingQueryService) {
-					return authenticatedNoticeProcessingQueryService;
-				}
-
-				authenticatedNoticeProcessingQueryService = buildAuthenticatedNoticeProcessingQueryService({
-					store: createPgAuthenticatedNoticeProcessingQueryStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return authenticatedNoticeProcessingQueryService;
-			}
-
-			function resolveAuthenticatedNoticeRunProcessingCommandService() {
-				if (authenticatedNoticeRunProcessingCommandService) {
-					return authenticatedNoticeRunProcessingCommandService;
-				}
-
-				authenticatedNoticeRunProcessingCommandService =
-					buildAuthenticatedNoticeRunProcessingCommandService({
-						store: createPgAuthenticatedNoticeRunProcessingCommandStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					});
-				return authenticatedNoticeRunProcessingCommandService;
-			}
-
-			function resolveAuthenticatedNoticeRunProcessingQueryService() {
-				if (authenticatedNoticeRunProcessingQueryService) {
-					return authenticatedNoticeRunProcessingQueryService;
-				}
-
-				authenticatedNoticeRunProcessingQueryService =
-					buildAuthenticatedNoticeRunProcessingQueryService({
-						store: createPgAuthenticatedNoticeRunProcessingQueryStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					});
-				return authenticatedNoticeRunProcessingQueryService;
-			}
 
 			function resolveChatConversationService() {
 				if (chatConversationService) {
@@ -265,47 +145,6 @@ export function createRequestScopeFactory(input: {
 				return diningOperationsService;
 			}
 
-			function resolveOfficialWebTargetJobService() {
-				if (officialWebTargetJobService) {
-					return officialWebTargetJobService;
-				}
-
-				officialWebTargetJobService = buildOfficialWebTargetJobService({
-					store: createPgOfficialWebTargetJobStore(input.env, { getDb: runtime.getDb }),
-				});
-				return officialWebTargetJobService;
-			}
-
-			function resolveOfficialWebTargetInventoryService() {
-				if (officialWebTargetInventoryService) {
-					return officialWebTargetInventoryService;
-				}
-
-				officialWebTargetInventoryService = buildOfficialWebTargetInventoryService({
-					fieldStatusStore: createPgOfficialWebTargetInventoryFieldStatusStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-					previewEvidenceStore: createPgOfficialWebTargetInventoryPreviewEvidenceStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return officialWebTargetInventoryService;
-			}
-
-			function resolveOfficialWebTargetReleaseGateService() {
-				if (officialWebTargetReleaseGateService) {
-					return officialWebTargetReleaseGateService;
-				}
-
-				officialWebTargetReleaseGateService = buildOfficialWebTargetReleaseGateService({
-					inventoryService: resolveOfficialWebTargetInventoryService(),
-					store: createPgOfficialWebTargetReleaseGateStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return officialWebTargetReleaseGateService;
-			}
-
 			function resolveDocsService() {
 				if (docsService) {
 					return docsService;
@@ -342,45 +181,6 @@ export function createRequestScopeFactory(input: {
 					fetchImplementation: input.dependencies.ingestionTaskProjectionFetch,
 				});
 				return ingestionTaskProjectionClient;
-			}
-
-			function resolveOfficialWebQueryService() {
-				if (officialWebQueryService) {
-					return officialWebQueryService;
-				}
-
-				officialWebQueryService = buildOfficialWebQueryService({
-					store: createPgOfficialWebQueryStore(input.env, { getDb: runtime.getDb }),
-				});
-				return officialWebQueryService;
-			}
-
-			function resolveOfficialWebReleaseTaskProcessingCommandService() {
-				if (officialWebReleaseTaskProcessingCommandService) {
-					return officialWebReleaseTaskProcessingCommandService;
-				}
-
-				officialWebReleaseTaskProcessingCommandService =
-					buildOfficialWebReleaseTaskProcessingCommandService({
-						store: createPgOfficialWebReleaseTaskProcessingCommandStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					});
-				return officialWebReleaseTaskProcessingCommandService;
-			}
-
-			function resolveOfficialWebReleaseTaskProcessingQueryService() {
-				if (officialWebReleaseTaskProcessingQueryService) {
-					return officialWebReleaseTaskProcessingQueryService;
-				}
-
-				officialWebReleaseTaskProcessingQueryService =
-					buildOfficialWebReleaseTaskProcessingQueryService({
-						store: createPgOfficialWebReleaseTaskProcessingQueryStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					});
-				return officialWebReleaseTaskProcessingQueryService;
 			}
 
 			function resolveProfileMemoryService() {
@@ -431,25 +231,8 @@ export function createRequestScopeFactory(input: {
 				return runtimeRunService;
 			}
 
-			function resolveWeChatOfficialAccountCommandService() {
-				if (weChatOfficialAccountCommandService) {
-					return weChatOfficialAccountCommandService;
-				}
-
-				weChatOfficialAccountCommandService = buildWeChatOfficialAccountCommandService({
-					store: createPgWeChatOfficialAccountCommandStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return weChatOfficialAccountCommandService;
-			}
-
 			return {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
-				resolveAuthenticatedNoticeProcessingCommandService,
-				resolveAuthenticatedNoticeProcessingQueryService,
-				resolveAuthenticatedNoticeRunProcessingCommandService,
-				resolveAuthenticatedNoticeRunProcessingQueryService,
 				resolveCampusExperienceService,
 				resolveCampusServicesOpsService,
 				resolveCampusServicesTransportScheduleService,
@@ -459,16 +242,9 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService,
 				resolveIdentityPlatformService,
 				resolveIngestionTaskProjectionClient,
-				resolveOfficialWebQueryService,
-				resolveOfficialWebReleaseTaskProcessingCommandService,
-				resolveOfficialWebReleaseTaskProcessingQueryService,
-				resolveOfficialWebTargetInventoryService,
-				resolveOfficialWebTargetJobService,
-				resolveOfficialWebTargetReleaseGateService,
 				resolveProfileMemoryService,
 				resolveProviderConfigService,
 				resolveRuntimeRunService,
-				resolveWeChatOfficialAccountCommandService,
 				telemetry: input.telemetry,
 			};
 		},

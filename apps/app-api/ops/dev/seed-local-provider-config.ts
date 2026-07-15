@@ -2,8 +2,7 @@ import process from "node:process";
 
 type PromptRole = "eval_judge_llm" | "eval_ragas_llm" | "hindsight_llm" | "primary_agent";
 type EmbeddingRole = "eval_ragas_embedding" | "hindsight_embedding" | "rag_query_embedding";
-type RerankRole = "rag_reranker";
-type SeedStage = "all" | "embedding" | "prompt" | "rerank";
+type SeedStage = "all" | "embedding" | "prompt";
 
 interface Args {
 	apiKey: string;
@@ -24,15 +23,6 @@ interface Args {
 	models: Record<PromptRole, string>;
 	operatorEmail: string;
 	provider: string;
-	rerank: {
-		apiKey: string;
-		baseUrl: string;
-		model: string;
-		path: string;
-		provider: string;
-		timeoutMs: number;
-		transport: string;
-	} | null;
 	stage: SeedStage;
 	timeoutMs: number;
 	transports: Record<PromptRole, string>;
@@ -110,22 +100,6 @@ async function main() {
 			});
 		}
 	}
-	if (args.rerank && shouldRunStage(args.stage, "rerank")) {
-		await createAndActivateProfile(args, {
-			connection: await createConnection(args, {
-				apiKey: args.rerank.apiKey,
-				baseUrl: args.rerank.baseUrl,
-				features: ["rerank"],
-				featureConfig: { rerank: { path: args.rerank.path } },
-				provider: args.rerank.provider,
-			}),
-			kind: "rerank",
-			model: args.rerank.model,
-			role: "rag_reranker",
-			timeoutMs: args.rerank.timeoutMs,
-			transport: args.rerank.transport,
-		});
-	}
 }
 
 function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
@@ -194,7 +168,6 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		},
 		operatorEmail,
 		provider: readCli(values, "provider") || "openai",
-		rerank: parseRerankArgs(values, env, stage),
 		stage,
 		timeoutMs: parsePositiveInteger(readCli(values, "timeout-ms") || "30000", "--timeout-ms"),
 		transports: {
@@ -242,42 +215,6 @@ function parseEmbeddingArgs(
 	};
 }
 
-function parseRerankArgs(
-	values: Map<string, string>,
-	env: NodeJS.ProcessEnv,
-	stage: SeedStage,
-): Args["rerank"] {
-	const model = readCli(values, "rerank-model") || readEnv(env, "RERANK_MODEL");
-	const apiKey = readCli(values, "rerank-api-key") || readEnv(env, "RERANK_API_KEY");
-	const configuredPath = readCli(values, "rerank-path") || readEnv(env, "RERANK_PATH");
-	if (!shouldRunStage(stage, "rerank")) {
-		return null;
-	}
-	if (!(model || apiKey)) {
-		return null;
-	}
-	if (!(model && apiKey)) {
-		throw new Error(
-			"--rerank-model/RERANK_MODEL and --rerank-api-key/RERANK_API_KEY are required when seeding rerank",
-		);
-	}
-	return {
-		apiKey,
-		baseUrl:
-			readCli(values, "rerank-base-url") ||
-			readEnv(env, "RERANK_BASE_URL") ||
-			"https://ai.gitee.com/v1",
-		model,
-		path: configuredPath || "/rerank",
-		provider: readCli(values, "rerank-provider") || readEnv(env, "RERANK_PROVIDER") || "gitee",
-		timeoutMs: parsePositiveInteger(
-			readCli(values, "rerank-timeout-ms") || "30000",
-			"--rerank-timeout-ms",
-		),
-		transport: readCli(values, "rerank-transport") || "gitee_rerank",
-	};
-}
-
 async function createConnection(
 	args: Args,
 	body: {
@@ -300,9 +237,9 @@ async function createAndActivateProfile(
 	input: {
 		connection: { connection: { connectionId: string } };
 		dimensions?: number;
-		kind: "embedding" | "rerank";
+		kind: "embedding";
 		model: string;
-		role: EmbeddingRole | RerankRole;
+		role: EmbeddingRole;
 		timeoutMs: number;
 		transport: string;
 	},
@@ -384,10 +321,10 @@ function firstCsvValue(value: string): string {
 }
 
 function parseStage(value: string): SeedStage {
-	if (value === "all" || value === "prompt" || value === "embedding" || value === "rerank") {
+	if (value === "all" || value === "prompt" || value === "embedding") {
 		return value;
 	}
-	throw new Error("--stage must be one of all, prompt, embedding, rerank");
+	throw new Error("--stage must be one of all, prompt, embedding");
 }
 
 function shouldRunStage(configured: SeedStage, candidate: Exclude<SeedStage, "all">): boolean {

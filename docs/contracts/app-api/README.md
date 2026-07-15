@@ -22,7 +22,7 @@ grouping. Detailed endpoint bodies live in split contract docs.
 - `chat.md`
   - Chat: conversation, request, stream and event endpoints
 - `operator.md`
-  - Operator: authenticated-notice, official-web and ingestion projection endpoints
+  - Operator ingestion task projection endpoint
 - `identity.md`
   - Account center and identity product projection endpoints
 - `federation.md`
@@ -43,8 +43,6 @@ grouping. Detailed endpoint bodies live in split contract docs.
   - Request, stream and finalization lifecycle
 - `observability.md`
   - Expanded operator observability, quality, safety, cost and audit
-- `official-web.md`
-  - Official-web control-plane and operator-safe API
 - campus map route semantics:
   `docs/architecture/domains/navigation/architecture.md` and
   `docs/domains/place.md`
@@ -68,8 +66,8 @@ grouping. Detailed endpoint bodies live in split contract docs.
   `https://app-api.internal` 只是内部 Request URL origin
 - `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress，
   不是本文 browser-facing app contract
-- `official_web` collector command surface、operator observability detail、eval
-  ingress、request lifecycle and error model are owned by their split docs
+- operator observability detail、eval ingress、request lifecycle and error model
+  are owned by their split docs
 
 ## Route Exposure Classes
 
@@ -81,7 +79,6 @@ contract test carrier。新增 route 必须声明：
   `panel`，不表示长期只存在 `operator-console-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
-- `collector-machine`：由 official-web collector command caller 调用
 - `system`：health / readiness probe
 
 ## Cross-Cutting Rules

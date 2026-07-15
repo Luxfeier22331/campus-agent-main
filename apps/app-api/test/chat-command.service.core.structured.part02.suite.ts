@@ -68,13 +68,13 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					answerText: currentCase.answerText,
 					error: null,
 					followUpQuestion: "",
-					resolvedScope: null,
+					resolvedTargets: [],
 					result: currentCase.result,
-					selectedTool: "transport_schedule_lookup",
+					selectedTool: "transport_schedule_lookup" as const,
 					sessionUpdate: null,
-					status: "completed",
+					status: "completed" as const,
 					traceId: "trace_0001",
-				} as const;
+				};
 			}),
 		};
 		const service = buildChatCommandService({

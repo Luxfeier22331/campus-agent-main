@@ -1,5 +1,4 @@
 import type { Configuration } from "crawlee";
-import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import {
 	buildOfficialWebFailureRecord,
 	findOfficialWebHostPolicy,
@@ -10,6 +9,7 @@ import {
 	type OfficialWebPageObservationRecord,
 	type OfficialWebUrlResultRecord,
 } from "./core/index.ts";
+import type { OfficialWebCrawlCandidate as OfficialWebPlannerPageCandidate } from "./crawl-candidates.ts";
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
@@ -24,6 +24,7 @@ import type {
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
 
 export interface CrawlHostsWithCrawleeInput {
+	abortSignal?: AbortSignal;
 	bundle: OfficialWebConfigBundle;
 	dynamicPlan: {
 		duePages: OfficialWebPlannerPageCandidate[];
@@ -69,6 +70,7 @@ export async function crawlHostsWithCrawlee(
 	let remainingTotalPages = input.maxTotalPages;
 
 	for (const plannedHost of selectedHosts) {
+		input.abortSignal?.throwIfAborted();
 		if (
 			remainingTotalPages <= 0 ||
 			failures.length >= input.plan.runLimits.maxTotalFailuresPerRun
@@ -103,6 +105,7 @@ export async function crawlHostsWithCrawlee(
 		}
 
 		const hostResult = await crawlSingleHost({
+			abortSignal: input.abortSignal,
 			bundle: input.bundle,
 			plan: input.plan,
 			hostPolicy,
@@ -117,6 +120,7 @@ export async function crawlHostsWithCrawlee(
 			disableConditionalHeaders: input.disableConditionalHeaders,
 			sourcePackLineageOverrides: input.sourcePackLineageOverrides,
 		});
+		input.abortSignal?.throwIfAborted();
 		hostSummaries.push(...hostResult.hostSummaries);
 		pageObservations.push(...(hostResult.pageObservations ?? []));
 		urlResults.push(...hostResult.urlResults);

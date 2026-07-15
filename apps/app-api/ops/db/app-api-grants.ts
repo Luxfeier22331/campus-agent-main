@@ -6,11 +6,8 @@ const APP_API_DML_SCHEMAS = [
 	"docs",
 	"identity",
 	"observability",
-	"official_web",
-	"operator",
 	"profile",
 	"provider_config",
-	"wechat_official_account",
 ] as const;
 
 export interface DatabaseGrantClient {

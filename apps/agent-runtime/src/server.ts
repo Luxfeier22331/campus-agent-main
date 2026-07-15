@@ -6,20 +6,27 @@ import {
 	createRequestScopedOpenAIAgentsRunner,
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
-import { startAgentRuntimeTelemetry } from "./telemetry.ts";
+import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
 const port = Number.parseInt(process.env.AGENT_RUNTIME_PORT ?? "27062", 10);
 const host = process.env.AGENT_RUNTIME_HOST ?? "127.0.0.1";
 const sharedSecret = process.env.AGENT_RUNTIME_SHARED_SECRET ?? "";
-const catalogPath = process.env.AGENT_RUNTIME_TOOL_REGISTRY_PATH ?? "configs/runtime/tools.v4.json";
+const catalogPath = process.env.AGENT_RUNTIME_TOOL_REGISTRY_PATH ?? "configs/runtime/tools.v5.json";
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
 const executionControlSharedSecret =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET ?? "";
 
-const telemetry = startAgentRuntimeTelemetry();
+const telemetry = (() => {
+	try {
+		return startAgentRuntimeTelemetry();
+	} catch (error) {
+		console.error("agent-runtime telemetry initialization failed", error);
+		return { configured: false, shutdown: async () => undefined };
+	}
+})();
 
 const catalog = loadToolCatalog(catalogPath);
 const runtime = createPrimaryAgentRuntime({
@@ -45,7 +52,9 @@ const server = createServer(async (request, response) => {
 		body: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
 		signal: nodeClientDisconnectSignal(request, response),
 	});
-	const webResponse = await handler(webRequest);
+	const webResponse = await runWithExtractedTraceContext(webRequest.headers, () =>
+		handler(webRequest),
+	);
 	response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()));
 	if (!webResponse.body) {
 		response.end();
@@ -74,7 +83,8 @@ server.listen(port, host, () => {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.once(signal, () => {
-		server.close();
-		void telemetry.shutdown().finally(() => process.exit(0));
+		server.close(() => {
+			void telemetry.shutdown().finally(() => process.exit(0));
+		});
 	});
 }

@@ -52,7 +52,7 @@ export function toRequestDetail(
 		},
 		outcomeSummary: {
 			refusalClass: normalizeNullableString(observabilityRow?.refusalClass),
-			scopeClass: normalizeNullableString(observabilityRow?.scopeClass),
+			resolvedTargets: normalizeStringArray(observabilityRow?.resolvedTargetsJson),
 			semanticOutcome: normalizeNullableString(observabilityRow?.semanticOutcome),
 		},
 		policySummary: {

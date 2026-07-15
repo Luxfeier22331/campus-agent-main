@@ -61,17 +61,6 @@ Reading model:
   - `../decisions/adr-0007-phase1-retrieval-baseline-update.md`
   - `../policies/student-rules-chunking.md`
 
-### Rerank
-
-- Owner: `apps/app-api` provider-config connection/profile.
-- Role: `rag_reranker`.
-- Local seed keys: `RERANK_BASE_URL`, `RERANK_API_KEY`, `RERANK_PATH`,
-  `RERANK_MODEL`.
-- Local seed template: `env/commands/provider-config-seed.env.example`.
-- Runtime truth: local provider projection artifact.
-- Rule: serving config must explicitly enable rerank; missing config, path,
-  score or provider response fails closed.
-
 ### Qdrant
 
 - Owner: ingestion/retrieval data plane.
@@ -218,9 +207,7 @@ Reading model:
 - Owner: WeChat official account public source-channel acquisition.
 - Env owner: `apps/source-collector/adapters/wechat-official-account/.env` or
   deploy-side secret store.
-- Keys: `FEEDWE_EMAIL`, `FEEDWE_PASSWORD`, `FEEDWE_BASE_URL`,
-  `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`,
-  `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.
+- Keys: `FEEDWE_EMAIL`, `FEEDWE_PASSWORD`, `FEEDWE_BASE_URL`.
 - Rule: FeedWe response is acquisition/audit input; canonical body/media must
   come from follow-up public article capture.
 
@@ -247,8 +234,8 @@ Reading model:
 - Rule: app runtime secrets stay in app-local Worker secret stores. Retrieval
   data-plane, object-store and execution-control compose env stay in ops-owned
   runtime env.
-- Worker vars/secrets do not own `primary_agent`, `rag_query_embedding`,
-  `rag_reranker` or `hindsight_*` active provider profiles. Those stay in app-api
+- Worker vars/secrets do not own `primary_agent`, `rag_query_embedding` or
+  `hindsight_*` active provider profiles. Those stay in app-api
   provider-config and are projected to runtimes through explicit snapshots.
 
 ### Kubernetes / GitOps Deploy

@@ -14,7 +14,9 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/ingestion-control/**
       - apps/ops-web/**
+      - apps/source-collector/**
       - jobs/app-api-schema/**
       - jobs/transport-publisher/**
       - apps/app-api/package.json
@@ -23,17 +25,24 @@ on:
       - apps/app-api/ops/db/**
       - apps/app-api/src/script-support/shared-db/**
       - configs/ingestion/**
+      - configs/sources/**
       - configs/runtime/execution-control/**
-      - configs/runtime/query-serving-scopes.v3.json
-      - configs/runtime/tool-function-schemas.v1.json
-      - configs/runtime/tools.v4.json
+      - configs/runtime/query-serving-targets.v1.json
+      - configs/runtime/tool-function-schemas.v2.json
+      - configs/runtime/tools.v5.json
       - configs/runtime/workflow-artifacts.v2.json
       - infra/k8s/**
       - packages/contracts/fixtures/tool_execution_contract/**
       - packages/contracts/schemas/transport-schedule-status.v1.schema.json
+      - packages/ingest-core/**
+      - packages/ingestion-contracts/**
+      - packages/ingestion-kernels-rs/**
+      - Cargo.lock
+      - Cargo.toml
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
+      - turbo.json
       - .dockerignore
 
 permissions:
@@ -67,9 +76,9 @@ jobs:
               - 'apps/execution-control/**'
               - 'configs/ingestion/**'
               - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-scopes.v3.json'
-              - 'configs/runtime/tool-function-schemas.v1.json'
-              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/query-serving-targets.v1.json'
+              - 'configs/runtime/tool-function-schemas.v2.json'
+              - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
               - 'packages/contracts/fixtures/tool_execution_contract/**'
             agent_runtime:
@@ -78,9 +87,43 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'apps/agent-runtime/**'
-              - 'configs/runtime/tool-function-schemas.v1.json'
-              - 'configs/runtime/tools.v4.json'
+              - 'configs/runtime/tool-function-schemas.v2.json'
+              - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
+            ingestion_control:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+            ingestion_control_worker:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+              - 'packages/ingestion-kernels-rs/**'
+            source_collector:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/source-collector/**'
+              - 'configs/ingestion/**'
+              - 'configs/sources/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
             app_api_schema:
               - '.dockerignore'
               - 'package.json'
@@ -120,10 +163,13 @@ jobs:
           fi
           images=()
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            images=(execution-control agent-runtime app-api-schema ops-web transport-publisher)
+            images=(execution-control agent-runtime ingestion-control ingestion-control-worker source-collector app-api-schema ops-web transport-publisher)
           else
             [ "${{ steps.release-filter.outputs.execution_control }}" = "true" ] && images+=(execution-control)
             [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
+            [ "${{ steps.release-filter.outputs.ingestion_control }}" = "true" ] && images+=(ingestion-control)
+            [ "${{ steps.release-filter.outputs.ingestion_control_worker }}" = "true" ] && images+=(ingestion-control-worker)
+            [ "${{ steps.release-filter.outputs.source_collector }}" = "true" ] && images+=(source-collector)
             [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
             [ "${{ steps.release-filter.outputs.ops_web }}" = "true" ] && images+=(ops-web)
             [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
@@ -188,9 +234,22 @@ jobs:
           trivy_cache_dir="${RUNNER_TOOL_CACHE}/trivy"
           echo '{}' > image-digests.json
           while IFS= read -r image; do
+            target=""
             case "$image" in
               execution-control) dockerfile=apps/execution-control/Dockerfile ;;
               agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
+              ingestion-control)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=api
+                ;;
+              ingestion-control-worker)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=worker
+                ;;
+              source-collector)
+                dockerfile=apps/source-collector/Dockerfile
+                target=runtime
+                ;;
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
               ops-web) dockerfile=apps/ops-web/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
@@ -224,17 +283,21 @@ jobs:
                 cat "$inspect_error" >&2
                 exit 1
               fi
-              docker buildx build \
-                --file "$dockerfile" \
-                --platform linux/amd64,linux/arm64 \
-                --pull \
-                --push \
-                --sbom=true \
-                --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-                --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-                --metadata-file "$metadata_file" \
-                --tag "$tag" \
-                .
+              build_args=(
+                --file "$dockerfile"
+                --platform "linux/amd64,linux/arm64"
+                --pull
+                --push
+                --sbom=true
+                --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+                --label "org.opencontainers.image.revision=${GITHUB_SHA}"
+                --metadata-file "$metadata_file"
+                --tag "$tag"
+              )
+              if [ -n "$target" ]; then
+                build_args+=(--target "$target")
+              fi
+              docker buildx build "${build_args[@]}" .
               digest="$(
                 jq -er \
                   '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \

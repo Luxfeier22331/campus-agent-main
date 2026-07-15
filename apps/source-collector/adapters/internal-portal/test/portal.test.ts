@@ -53,22 +53,44 @@ describe("internal portal source collector portal bootstrap", () => {
 		tempDirs.push(runtimeDir);
 
 		await expect(createApiContextFromStorageState(buildConfig(runtimeDir))).rejects.toThrow(
-			"auth storage state is required",
+			"auth storage state or explicit portal cookies are required",
 		);
 	});
 
-	it("does not create missing stored auth state from explicit operator cookies", async () => {
+	it("creates missing stored auth state from explicit operator cookies", async () => {
 		const runtimeDir = fs.mkdtempSync(
 			path.join(os.tmpdir(), "collector-portal-storage-seed-missing-"),
 		);
 		tempDirs.push(runtimeDir);
+		const config = {
+			...buildConfig(runtimeDir),
+			authJsessionId: "seeded-session",
+		};
 
-		await expect(
-			createApiContextFromStorageState({
-				...buildConfig(runtimeDir),
-				authSsoTgcToken: "seeded-ticket",
-			}),
-		).rejects.toThrow("auth storage state is required");
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				expect(input.storageState).toMatchObject({
+					cookies: [expect.objectContaining({ name: "JSESSIONID", value: "seeded-session" })],
+					origins: [],
+				});
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+		});
+
+		expect(fileMode(config.authStorageStatePath)).toBe(0o600);
+		expect(JSON.parse(fs.readFileSync(config.authStorageStatePath, "utf-8"))).toMatchObject({
+			cookies: [expect.objectContaining({ name: "JSESSIONID", value: "seeded-session" })],
+			origins: [],
+		});
+		await apiContext.dispose();
 	});
 
 	it("fails closed when stored auth state is invalid", async () => {
@@ -377,22 +399,12 @@ function buildConfig(runtimeDir: string): InternalPortalConfig {
 		authJsessionId: null,
 		authNginxCookie: null,
 		authSsoCookieDomain: null,
-		attachmentFetchRequestManifestPath: null,
-		attachmentFetchStatusDatabaseUrl: null,
-		attachmentFetchStatusDisabled: false,
 		defaultInlineVisualCapture: true,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authSsoTgcToken: null,
 		bypassProxyForPortal: true,
-		collectionMode: "incremental",
-		internalPortalRunLedgerDatabaseUrl: null,
-		internalPortalRunLedgerDisabled: false,
-		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: null,
-		noticeTypeAllowlist: null,
 		noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
-		packageRoot: runtimeDir,
-		repoRoot: runtimeDir,
 		portalBaseUrl: "https://portal.example.edu",
 		portalPageUrl: "https://portal.example.edu/page/11#/",
 		portalProxyServer: null,
@@ -400,7 +412,6 @@ function buildConfig(runtimeDir: string): InternalPortalConfig {
 		runtimeDir,
 		siteId: "portal_site",
 		sourceHomeUrl: "https://portal.example.edu",
-		writeLocalExports: false,
 	};
 }
 

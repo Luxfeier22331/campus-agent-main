@@ -52,10 +52,9 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			"tool_results":    []any{},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             12,
-				"output_tokens":            8,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 42,
+				"input_tokens":        12,
+				"output_tokens":       8,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -63,7 +62,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:001",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -134,7 +133,15 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if !ok || envelope["kind"] != "answer" {
 		t.Fatalf("agent metadata missing terminal envelope: %#v", agentMetadata)
 	}
-	assertPrimaryAgentLLMIOFingerprintForTest(t, agentMetadata)
+	if agentMetadata["activity_attempt"] != 1 || agentMetadata["model_name"] != "gpt-test" ||
+		agentMetadata["model_provider"] != "openai" {
+		t.Fatalf("agent metadata observability = %#v", agentMetadata)
+	}
+	promptTrace, ok := agentMetadata["prompt_trace"].(map[string]any)
+	if !ok || promptTrace["schema_version"] != "agent_runtime_prompt_trace.v1" ||
+		promptTrace["prompt_id"] != "primary_agent" {
+		t.Fatalf("agent metadata prompt_trace = %#v", agentMetadata["prompt_trace"])
+	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-001")
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
@@ -214,10 +221,9 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             12,
-				"output_tokens":            8,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 42,
+				"input_tokens":        12,
+				"output_tokens":       8,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -225,7 +231,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:streaming",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -334,10 +340,9 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             12,
-				"output_tokens":            1,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 42,
+				"input_tokens":        12,
+				"output_tokens":       1,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -346,7 +351,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:live-streaming",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -438,10 +443,9 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":             12,
-				"output_tokens":            8,
-				"cached_input_tokens":      0,
-				"estimated_cost_micro_usd": 42,
+				"input_tokens":        12,
+				"output_tokens":       8,
+				"cached_input_tokens": 0,
 			},
 		})
 	}))
@@ -449,7 +453,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:empty-memory",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -519,7 +523,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:provider-missing",
 	})
 	server.providerConfigResolver = staticProviderConfigResolver{}
@@ -571,7 +575,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:diagnostic",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -601,6 +605,25 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	}
 }
 
+func TestPrimaryAgentRuntimeFailureKindPreservesStableCodes(t *testing.T) {
+	for _, code := range []string{
+		"invalid_request",
+		"context_budget_exceeded",
+		"agent_deadline_exceeded",
+		"max_turns_exceeded",
+		"provider_unavailable",
+		"tool_execution_failed",
+		"run_failed",
+	} {
+		t.Run(code, func(t *testing.T) {
+			cause := agentRuntimeHTTPError{StatusCode: http.StatusInternalServerError, Code: code}
+			if got := primaryAgentRuntimeFailureKind(cause); got != code {
+				t.Fatalf("failure kind = %q, want %q", got, code)
+			}
+		})
+	}
+}
+
 func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 42, 0, 0, time.UTC)
@@ -619,7 +642,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    5,
+		AgentRuntimeDeadlineMS:   5,
 		TemporalWorkerIdentity:   "test:agent:timeout",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -669,7 +692,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 	}
 	if errorPayload["code"] != "agent_runtime_timeout" ||
 		errorPayload["message"] != "Agent runtime request timed out." ||
-		errorPayload["retryable"] != true {
+		errorPayload["retryable"] != false {
 		t.Fatalf("run.failed error payload = %#v", errorPayload)
 	}
 }

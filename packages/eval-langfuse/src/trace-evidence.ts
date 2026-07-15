@@ -21,35 +21,19 @@ const REQUIRED_OBSERVATION_ATTRIBUTES = [
 	"step_kind",
 	"task_queue",
 ];
-const TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS = new Set([
+const TRACE_SECRET_FIELDS = new Set([
+	"access_token",
 	"api_key",
 	"authorization",
+	"client_secret",
 	"cookie",
 	"cookies",
 	"database_url",
 	"jwt",
-	"bank_id",
-	"hindsight_bank_id",
-	"hindsight_document_id",
-	"memory_bank_id",
-	"memory_item_text",
 	"object_store_secret",
-	"operation_id",
-	"operation_ref",
-	"operation_status_ref",
-	"raw_memory_text",
-	"runtime_document_ref",
-]);
-const REPO_OWNED_OBSERVATION_FORBIDDEN_PAYLOAD_FIELDS = new Set([
-	...TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS,
-	"provider_raw_response",
-	"raw_answer",
-	"raw_prompt",
-	"raw_retrieved_snippet",
-	"raw_transcript",
-	"retrieved_snippet",
-	"source_body_text",
-	"standalone_query",
+	"password",
+	"refresh_token",
+	"secret_key",
 ]);
 
 export async function verifyLangfuseOnlineTraceEvidence(input: {
@@ -214,15 +198,9 @@ function assertExpectedTraceIdentity(
 
 function assertForbiddenPayloadFieldsAbsent(trace: JsonObject, observations: unknown[]): void {
 	const forbidden = new Set<string>();
-	collectForbidden(trace, forbidden, TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS);
+	collectForbidden(trace, forbidden, TRACE_SECRET_FIELDS);
 	for (const observation of observations) {
-		collectForbidden(
-			observation,
-			forbidden,
-			isRepoOwnedObservation(observation)
-				? REPO_OWNED_OBSERVATION_FORBIDDEN_PAYLOAD_FIELDS
-				: TRACE_HARD_FORBIDDEN_PAYLOAD_FIELDS,
-		);
+		collectForbidden(observation, forbidden, TRACE_SECRET_FIELDS);
 	}
 	if (forbidden.size > 0) {
 		throw new Error(`forbidden Langfuse payload fields: ${[...forbidden].sort().join(", ")}`);
@@ -240,9 +218,16 @@ function collectForbidden(value: unknown, result: Set<string>, forbiddenFields: 
 		return;
 	}
 	for (const [key, child] of Object.entries(mapping(value, "payload"))) {
-		if (forbiddenFields.has(key.toLowerCase())) {
+		if (forbiddenFields.has(normalizedPayloadKey(key))) {
 			result.add(key);
 		}
 		collectForbidden(child, result, forbiddenFields);
 	}
+}
+
+function normalizedPayloadKey(value: string): string {
+	return value
+		.replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
+		.replace(/[.\s-]+/gu, "_")
+		.toLowerCase();
 }

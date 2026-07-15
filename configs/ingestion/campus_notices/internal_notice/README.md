@@ -17,17 +17,11 @@ handler.
   - primary source unit, collection identity and source-truth projection notes
 - `chunk-profile.json`
   - generic chunk-preparation runtime defaults
-- `source-projections.v1.json`
-  - source-truth replay contract for parent notices and derived attachment
-    documents
 - `notice-family-classification.v1.json`
-  - read-only family admission, route policy and attachment-processing policy
-- `routing-taxonomy-eval.v1.jsonl`
-  - deterministic taxonomy assertion
-- `promotion-routing.v1.json`
-  - downstream regulation promotion scaffold
-- `consumption-layer-schema.sql`
-  - PG schema artifact/operator runbook for consumption projection stores
+  - deterministic source family and attachment-retention classification used by
+    the source collector
+- `task-registry.v3.json`
+  - executable Rust validation task for already-materialized canonical units
 
 ## Runtime Posture
 
@@ -37,23 +31,13 @@ Current defaults:
 - `primary_source_unit=notice`
 - `serving_stage=offline_preparation`
 - `retrieval_enabled=false`
-- `query_enabled_by_default=false`
 - `collection_visibility=restricted`
 - `default_entitlement=campus_members`
 
-Media and attachment extraction is admitted through ingestion-control and the
-typed `collected_notice_*_text_extraction_attempt` tables in
-`consumption-layer-schema.sql`. This config does not define a Python-owned
-internal notice OCR or multimodal processor runtime.
-
-## Non-Default Supporting Inputs
-
-- `historical-batches/run14-policy-regulation-core.v1.json`
-- `historical-batches/run14-policy-regulation-expanded.v1.json`
-- `historical-batches/run14-attachment-routing-probe.v1.json`
-
-These files are bounded replay/promotion probe inputs. They are not default live
-operator paths.
+Source capture enters through the central
+`configs/ingestion/sources/task-registry.v3.json` task
+`internal_portal.notice.capture`. This collection does not retain historical
+batch, promotion, OCR, media-closeout, or consumption-table scaffolds.
 
 ## References
 

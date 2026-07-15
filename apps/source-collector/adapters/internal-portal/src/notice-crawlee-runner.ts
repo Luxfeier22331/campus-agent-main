@@ -1,4 +1,5 @@
 import { BasicCrawler, type BasicCrawlingContext, type RequestOptions } from "crawlee";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 import { createAuthenticatedNoticeCrawlerConfiguration } from "./crawlee-runtime.js";
 import { buildBundleRecord, type SelectedNoticeSpec } from "./notice-export-core.js";
 import {
@@ -46,6 +47,7 @@ type NoticeCrawlRequestUserData =
 type NoticeCrawleeBasicContext = BasicCrawlingContext<NoticeCrawlRequestUserData>;
 
 export interface NoticeCrawleeRunnerInput {
+	abortSignal?: AbortSignal;
 	collectionMode: NoticeCollectionMode;
 	exportedAt: string;
 	fetchNoticeDetail: (input: {
@@ -181,6 +183,7 @@ export async function runNoticeCrawleeCollection(
 	};
 	const apiContext = input.apiContext ?? noopApiContext;
 	const requestHandler = async (context: NoticeCrawleeBasicContext) => {
+		input.abortSignal?.throwIfAborted();
 		const userData = normalizeRequestUserData(context.request.userData);
 		if (userData.type === "selects") {
 			const noticeSelects = await input.fetchNoticeSelects({
@@ -188,6 +191,7 @@ export async function runNoticeCrawleeCollection(
 				currentPage: 1,
 				pageSize: 15,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.observedNoticeTypes = normalizeObservedNoticeTypes(noticeSelects);
 			state.observedOrganizations = normalizeObservedOrganizations(noticeSelects);
 			return;
@@ -202,6 +206,7 @@ export async function runNoticeCrawleeCollection(
 				noticeType: userData.noticeType,
 				pageSize: userData.pageSize,
 			});
+			input.abortSignal?.throwIfAborted();
 			state.pagesFetched += 1;
 			const items = pageResponse.datas?.tables ?? [];
 			state.itemsSeen += items.length;
@@ -241,6 +246,7 @@ export async function runNoticeCrawleeCollection(
 				);
 			}
 			if (detailRequests.length > 0) {
+				input.abortSignal?.throwIfAborted();
 				await context.addRequests(detailRequests);
 			}
 			const totalCounts = pageResponse.datas?.page?.totalCounts;
@@ -258,6 +264,7 @@ export async function runNoticeCrawleeCollection(
 				(input.maxNotices === null ||
 					state.bundleMap.size + detailRequests.length < input.maxNotices)
 			) {
+				input.abortSignal?.throwIfAborted();
 				await context.addRequests([
 					buildNoticeListPageRequest({
 						currentPage: userData.currentPage + 1,
@@ -275,6 +282,7 @@ export async function runNoticeCrawleeCollection(
 			noticeId: userData.noticeId,
 			noticeType: userData.noticeType,
 		});
+		input.abortSignal?.throwIfAborted();
 		state.detailFetched += 1;
 		const detailInfo = detailResponse.datas?.notice_info;
 		const noticeTypeName =
@@ -307,7 +315,11 @@ export async function runNoticeCrawleeCollection(
 		maxRequestRetries: input.requestMaxRetries,
 		requestHandler,
 	});
-	await crawler.run(buildInitialRequests(input));
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: buildInitialRequests(input),
+	});
 
 	return {
 		bundleRecords: [...state.bundleMap.values()],
@@ -383,6 +395,7 @@ function createDefaultNoticeCrawler(input: {
 	return {
 		run: async (requests: RequestOptions<NoticeCrawlRequestUserData>[]) =>
 			await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 

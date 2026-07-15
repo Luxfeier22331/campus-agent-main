@@ -1,5 +1,4 @@
 import type {
-	ProviderConfigFeatureConfig,
 	ProviderConfigKind,
 	ProviderConfigValidationResult,
 	ProviderConfigValidators,
@@ -246,51 +245,6 @@ export async function defaultValidateEmbeddingProvider(
 	}
 }
 
-export async function defaultValidateRerankProvider(
-	input: Parameters<ProviderConfigValidators["validateRerank"]>[0],
-): Promise<ProviderConfigValidationResult> {
-	const path = rerankPathFromToolConfig(input.featureConfig);
-	if (!path) {
-		return {
-			errorCode: "rerank_path_missing",
-			message: "rerank feature path is not configured.",
-			ok: false,
-			status: "failed",
-		};
-	}
-	try {
-		const response = await fetch(`${input.baseUrl}${path}`, {
-			body: JSON.stringify({
-				documents: ["provider config validation document"],
-				model: input.model,
-				query: "provider config validation",
-			}),
-			headers: {
-				authorization: `Bearer ${input.apiKey}`,
-				"content-type": "application/json",
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(input.timeoutMs),
-		});
-		if (!response.ok) {
-			return {
-				errorCode: "provider_http_error",
-				message: `rerank provider validation returned HTTP ${response.status}`,
-				ok: false,
-				status: "failed",
-			};
-		}
-		return { message: "rerank provider validated", ok: true, status: "passed" };
-	} catch (error) {
-		return {
-			errorCode: "provider_request_failed",
-			message: error instanceof Error ? error.message : String(error),
-			ok: false,
-			status: "failed",
-		};
-	}
-}
-
 export async function defaultEmbeddingCompatibilityCheck() {
 	return {
 		ok: false,
@@ -306,24 +260,5 @@ export async function validateByKind(
 	if (kind === "embedding") {
 		return validators.validateEmbedding(input);
 	}
-	if (kind === "rerank") {
-		return validators.validateRerank(input);
-	}
 	return validators.validatePrompt(input);
-}
-
-function rerankPathFromToolConfig(config: ProviderConfigFeatureConfig): string {
-	const rerank = config.rerank;
-	if (!rerank || typeof rerank !== "object" || Array.isArray(rerank)) {
-		return "";
-	}
-	const path = (rerank as Record<string, unknown>).path;
-	if (typeof path !== "string") {
-		return "";
-	}
-	const normalized = path.trim();
-	if (!normalized.startsWith("/")) {
-		return "";
-	}
-	return normalized;
 }

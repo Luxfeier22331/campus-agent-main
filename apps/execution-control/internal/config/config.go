@@ -55,12 +55,17 @@ type Config struct {
 	TemporalStartTimeoutMS           int
 	AgentRuntimeBaseURL              string
 	AgentRuntimeSharedSecret         string
-	AgentRuntimeTimeoutMS            int
+	AgentRuntimeDeadlineMS           int
+	AgentRuntimeMaxOutputTokens      int
+	AgentRuntimeMaxTurns             int
+	AgentRuntimeSearchLimit          int
+	AgentRuntimeInputCharLimit       int
+	AgentRuntimeContextCharLimit     int
 	AppAPIInternalBaseURL            string
 	AppAPIInternalSharedSecret       string
 	AppAPIInternalTimeoutMS          int
 	ProviderConfigSnapshotPath       string
-	QueryServingScopesPath           string
+	QueryServingTargetsPath          string
 	InternalQuerySharedSecret        string
 	ToolReadModelTrustedTimeRFC3339  string
 	ToolReadModelTimeoutMS           int
@@ -128,12 +133,17 @@ type envValues struct {
 	TemporalStartTimeoutMS          int    `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
 	AgentRuntimeBaseURL             string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
 	AgentRuntimeSharedSecret        string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
-	AgentRuntimeTimeoutMS           int    `env:"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS" envDefault:"30000"`
+	AgentRuntimeDeadlineMS          int
+	AgentRuntimeMaxOutputTokens     int
+	AgentRuntimeMaxTurns            int
+	AgentRuntimeSearchLimit         int
+	AgentRuntimeInputCharLimit      int
+	AgentRuntimeContextCharLimit    int
 	AppAPIInternalBaseURL           string `env:"EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"`
 	AppAPIInternalSharedSecret      string `env:"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"`
 	AppAPIInternalTimeoutMS         int    `env:"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS" envDefault:"1000"`
 	ProviderConfigSnapshotPath      string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
-	QueryServingScopesPath          string
+	QueryServingTargetsPath         string
 	InternalQuerySharedSecret       string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	ToolReadModelTrustedTimeRFC3339 string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
 	ToolReadModelTimeoutMS          int
@@ -269,12 +279,17 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		TemporalStartTimeoutMS:          values.TemporalStartTimeoutMS,
 		AgentRuntimeBaseURL:             strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
 		AgentRuntimeSharedSecret:        strings.TrimSpace(values.AgentRuntimeSharedSecret),
-		AgentRuntimeTimeoutMS:           values.AgentRuntimeTimeoutMS,
+		AgentRuntimeDeadlineMS:          values.AgentRuntimeDeadlineMS,
+		AgentRuntimeMaxOutputTokens:     values.AgentRuntimeMaxOutputTokens,
+		AgentRuntimeMaxTurns:            values.AgentRuntimeMaxTurns,
+		AgentRuntimeSearchLimit:         values.AgentRuntimeSearchLimit,
+		AgentRuntimeInputCharLimit:      values.AgentRuntimeInputCharLimit,
+		AgentRuntimeContextCharLimit:    values.AgentRuntimeContextCharLimit,
 		AppAPIInternalBaseURL:           strings.TrimRight(strings.TrimSpace(values.AppAPIInternalBaseURL), "/"),
 		AppAPIInternalSharedSecret:      strings.TrimSpace(values.AppAPIInternalSharedSecret),
 		AppAPIInternalTimeoutMS:         values.AppAPIInternalTimeoutMS,
 		ProviderConfigSnapshotPath:      strings.TrimSpace(values.ProviderConfigSnapshotPath),
-		QueryServingScopesPath:          strings.TrimSpace(values.QueryServingScopesPath),
+		QueryServingTargetsPath:         strings.TrimSpace(values.QueryServingTargetsPath),
 		InternalQuerySharedSecret:       strings.TrimSpace(values.InternalQuerySharedSecret),
 		ToolReadModelTrustedTimeRFC3339: strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
 		ToolReadModelTimeoutMS:          values.ToolReadModelTimeoutMS,
@@ -320,7 +335,12 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		{"runtime config otel.export_interval_ms", values.OTelExportIntervalMS},
 		{"runtime config tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
-		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},
+		{"runtime config agent_runtime.deadline_ms", values.AgentRuntimeDeadlineMS},
+		{"runtime config agent_runtime.max_output_tokens", values.AgentRuntimeMaxOutputTokens},
+		{"runtime config agent_runtime.max_turns", values.AgentRuntimeMaxTurns},
+		{"runtime config agent_runtime.max_knowledge_searches", values.AgentRuntimeSearchLimit},
+		{"runtime config agent_runtime.current_input_char_limit", values.AgentRuntimeInputCharLimit},
+		{"runtime config agent_runtime.final_model_context_char_limit", values.AgentRuntimeContextCharLimit},
 		{"runtime config knowledge_search.top_k_max", values.RAGTopKMax},
 		{"runtime config knowledge_search.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
 		{"runtime config knowledge_search.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
@@ -330,6 +350,12 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		if check.value <= 0 {
 			return fmt.Errorf("%s must be a positive integer", check.name)
 		}
+	}
+	if values.AgentRuntimeSearchLimit > MaxKnowledgeSearches {
+		return fmt.Errorf(
+			"runtime config agent_runtime.max_knowledge_searches must not exceed %d",
+			MaxKnowledgeSearches,
+		)
 	}
 	if values.QueueCapacity < 0 {
 		return fmt.Errorf("runtime config queue_capacity must be a non-negative integer")

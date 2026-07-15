@@ -31,7 +31,7 @@ databases or internal operator evidence.
 - secrets, tokens, passwords, database URLs or private object-store keys
 - raw notices, source-derived documents, collected HTML, OCR output or canonical
   document artifacts
-- real source-derived qrels, answer-quality cases or eval gold truth unless
+- real source-derived eval cases or gold truth unless
   redistribution rights and license boundaries are explicit
 - real map tiles, third-party GeoJSON or generated publication artifacts
 - current serving truth such as release current pointers or mutable production

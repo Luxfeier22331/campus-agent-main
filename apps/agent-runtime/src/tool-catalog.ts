@@ -31,7 +31,7 @@ const rawToolSchema = z.object({
 	result_projection_policy: z.literal("bounded_json"),
 });
 const rawCatalogSchema = z.object({
-	schema_version: z.literal("tool-registry-v4"),
+	schema_version: z.literal("tool-registry-v5"),
 	registry_version: z.string().min(1),
 	tools: z.array(rawToolSchema).min(1),
 });
@@ -65,7 +65,7 @@ export interface ToolCatalogEntry {
 }
 
 export interface ToolCatalog {
-	schemaVersion: "tool-registry-v4";
+	schemaVersion: "tool-registry-v5";
 	registryVersion: string;
 	runtimeFingerprint: ToolRuntimeFingerprint;
 	tools: ToolCatalogEntry[];
@@ -74,10 +74,10 @@ export interface ToolCatalog {
 export interface ToolRuntimeFingerprint {
 	combinedSha256: string;
 	functionSchemaSha256: string;
-	functionSchemaVersion: "tool-function-schemas-v1";
+	functionSchemaVersion: "tool-function-schemas-v2";
 	schemaVersion: "tool_runtime_fingerprint.v1";
 	toolsRegistryVersion: string;
-	toolsSchemaVersion: "tool-registry-v4";
+	toolsSchemaVersion: "tool-registry-v5";
 	toolsSha256: string;
 	workflowArtifactRegistryVersion: string;
 	workflowArtifactSchemaVersion: "workflow-artifact-registry-v2";
@@ -216,8 +216,8 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 		throw new Error(`tool function schema config not found: ${path}`);
 	}
 	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
-	if (parsed.schema_version !== "tool-function-schemas-v1" || !Array.isArray(parsed.tools)) {
-		throw new Error("tool function schema config must use tool-function-schemas-v1");
+	if (parsed.schema_version !== "tool-function-schemas-v2" || !Array.isArray(parsed.tools)) {
+		throw new Error("tool function schema config must use tool-function-schemas-v2");
 	}
 	const result = new Map<string, JsonObjectSchema>();
 	for (const rawTool of parsed.tools) {
@@ -258,10 +258,10 @@ function buildToolRuntimeFingerprint(input: {
 		combinedSha256: sha256(
 			JSON.stringify({
 				function_schema_sha256: functionSchemaSha256,
-				function_schema_version: "tool-function-schemas-v1",
+				function_schema_version: "tool-function-schemas-v2",
 				schema_version: "tool_runtime_fingerprint.v1",
 				tools_registry_version: input.toolsRegistryVersion,
-				tools_schema_version: "tool-registry-v4",
+				tools_schema_version: "tool-registry-v5",
 				tools_sha256: toolsSha256,
 				workflow_artifact_registry_version: input.workflowArtifactRegistry.registryVersion,
 				workflow_artifact_schema_version: "workflow-artifact-registry-v2",
@@ -269,10 +269,10 @@ function buildToolRuntimeFingerprint(input: {
 			}),
 		),
 		functionSchemaSha256,
-		functionSchemaVersion: "tool-function-schemas-v1",
+		functionSchemaVersion: "tool-function-schemas-v2",
 		schemaVersion: "tool_runtime_fingerprint.v1",
 		toolsRegistryVersion: input.toolsRegistryVersion,
-		toolsSchemaVersion: "tool-registry-v4",
+		toolsSchemaVersion: "tool-registry-v5",
 		toolsSha256,
 		workflowArtifactRegistryVersion: input.workflowArtifactRegistry.registryVersion,
 		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2",
@@ -351,7 +351,7 @@ function stableJsonStringify(value: unknown): string {
 
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v1.json");
+		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v2.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}

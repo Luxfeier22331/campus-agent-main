@@ -1,0 +1,43 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build:worker": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/official_web/**"
+			]
+		},
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/official_web/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/packages/contracts/fixtures/**",
+				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/app-api.ts",
+				"$TURBO_ROOT$/turbo.json"
+			]
+		},
+		"test:worker": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/official_web/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			]
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/official_web/**",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			]
+		}
+	}
+}

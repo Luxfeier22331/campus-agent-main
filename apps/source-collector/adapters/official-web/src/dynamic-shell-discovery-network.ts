@@ -1,4 +1,5 @@
 import { PlaywrightCrawler, type RequestOptions } from "crawlee";
+import { runCrawleeWithCancellation } from "../../../src/crawlee-cancellation.ts";
 
 import { createOfficialWebCrawlerConfiguration } from "./crawlee-runtime.ts";
 import type {
@@ -13,14 +14,17 @@ import {
 } from "./dynamic-shell-discovery-url-extraction.ts";
 
 export async function captureDynamicShellNetwork(input: {
+	abortSignal?: AbortSignal;
 	crawlerFactory?: DynamicShellCrawlerFactory;
 	policy: OfficialWebDynamicShellDiscoveryPolicy;
 	url: string;
 }): Promise<DynamicShellPageObservation> {
 	const observations: DynamicShellPageObservation[] = [];
 	const requestHandler = async (context: DynamicShellCrawlerRequestHandlerContext) => {
+		input.abortSignal?.throwIfAborted();
 		observations.push(
 			await observeDynamicShellPage({
+				abortSignal: input.abortSignal,
 				page: context.page,
 				policy: input.policy,
 				url: input.url,
@@ -30,12 +34,16 @@ export async function captureDynamicShellNetwork(input: {
 	const crawler = (input.crawlerFactory ?? createDefaultDynamicShellCrawler)({
 		requestHandler,
 	});
-	await crawler.run([
-		{
-			uniqueKey: `dynamic_shell:${input.url}`,
-			url: input.url,
-		},
-	]);
+	await runCrawleeWithCancellation({
+		abortSignal: input.abortSignal,
+		crawler,
+		requests: [
+			{
+				uniqueKey: `dynamic_shell:${input.url}`,
+				url: input.url,
+			},
+		],
+	});
 
 	const [observed] = observations;
 	if (!observed) {
@@ -81,13 +89,16 @@ interface DynamicShellCrawlerFactoryInput {
 
 export type DynamicShellCrawlerFactory = (input: DynamicShellCrawlerFactoryInput) => {
 	run(requests: RequestOptions[]): Promise<unknown>;
+	stop?(reason?: string): Promise<void>;
 };
 
 export async function observeDynamicShellPage(input: {
+	abortSignal?: AbortSignal;
 	page: DynamicShellPageLike;
 	policy: OfficialWebDynamicShellDiscoveryPolicy;
 	url: string;
 }): Promise<DynamicShellPageObservation> {
+	input.abortSignal?.throwIfAborted();
 	const captures: DynamicShellNetworkCapture[] = [];
 	const pendingCaptures: Promise<void>[] = [];
 	const responseWaitPromise = waitForAnyResponse({
@@ -104,10 +115,12 @@ export async function observeDynamicShellPage(input: {
 		pendingCaptures.push(captureTextResponse(response, captures));
 	});
 	await input.page.goto(input.url, { waitUntil: "load" });
+	input.abortSignal?.throwIfAborted();
 	const [matchedResponseUrl, matchedSelector] = await Promise.all([
 		responseWaitPromise,
 		selectorWaitPromise,
 	]);
+	input.abortSignal?.throwIfAborted();
 	const waitOutcome = await waitAfterDynamicShellLoad({
 		matchedResponseUrl,
 		matchedSelector,
@@ -115,6 +128,7 @@ export async function observeDynamicShellPage(input: {
 		policy: input.policy,
 	});
 	await drainPendingCaptures(pendingCaptures);
+	input.abortSignal?.throwIfAborted();
 	return {
 		captures,
 		wait: {
@@ -171,6 +185,7 @@ function createDefaultDynamicShellCrawler(input: DynamicShellCrawlerFactoryInput
 	);
 	return {
 		run: async (requests: RequestOptions[]) => await crawler.run(requests),
+		stop: async (reason?: string) => await crawler.stop(reason),
 	};
 }
 

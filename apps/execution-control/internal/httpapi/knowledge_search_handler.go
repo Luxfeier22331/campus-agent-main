@@ -7,21 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
-
-type knowledgeVersionResolver interface {
-	ResolveKnowledgeVersion(
-		context.Context,
-		retrievalruntime.SearchRequest,
-	) (retrievalruntime.ResolvedVersion, error)
-}
 
 type knowledgeSearchEnvelope struct {
 	Payload       knowledgeSearchPayload       `json:"payload"`
@@ -29,15 +24,17 @@ type knowledgeSearchEnvelope struct {
 }
 
 type knowledgeSearchPayload struct {
-	QueryText string `json:"query_text"`
+	IncludeHistory bool   `json:"include_history"`
+	QueryText      string `json:"query_text"`
+	Target         string `json:"target"`
 }
 
 type knowledgeSearchAccessContext struct {
-	RunID          string                        `json:"run_id"`
-	TraceID        string                        `json:"trace_id"`
-	InvocationID   string                        `json:"invocation_id"`
-	KnowledgeScope string                        `json:"knowledge_scope"`
-	VersionQuery   retrievalruntime.VersionQuery `json:"version_query"`
+	ActivityAttempt int    `json:"activity_attempt"`
+	RunID           string `json:"run_id"`
+	TraceID         string `json:"trace_id"`
+	InvocationID    string `json:"invocation_id"`
+	SearchOrdinal   int    `json:"search_ordinal"`
 }
 
 func (s *Server) handleKnowledgeSearch(response http.ResponseWriter, request *http.Request) {
@@ -81,17 +78,24 @@ func decodeKnowledgeSearchEnvelope(body json.RawMessage) (knowledgeSearchEnvelop
 		return envelope, fmt.Errorf("knowledge_search request is invalid: %w", err)
 	}
 	envelope.Payload.QueryText = strings.TrimSpace(envelope.Payload.QueryText)
+	envelope.Payload.Target = strings.TrimSpace(envelope.Payload.Target)
 	envelope.AccessContext.RunID = strings.TrimSpace(envelope.AccessContext.RunID)
 	envelope.AccessContext.TraceID = strings.TrimSpace(envelope.AccessContext.TraceID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
-	envelope.AccessContext.KnowledgeScope = strings.TrimSpace(envelope.AccessContext.KnowledgeScope)
 	if envelope.Payload.QueryText == "" || envelope.AccessContext.RunID == "" ||
 		envelope.AccessContext.TraceID == "" || envelope.AccessContext.InvocationID == "" ||
-		envelope.AccessContext.KnowledgeScope == "" {
-		return envelope, errors.New("query_text, run_id, trace_id, invocation_id, and knowledge_scope are required")
+		envelope.Payload.Target == "" {
+		return envelope, errors.New("query_text, target, run_id, trace_id, and invocation_id are required")
 	}
-	if strings.TrimSpace(envelope.AccessContext.VersionQuery.Mode) == "" {
-		envelope.AccessContext.VersionQuery.Mode = "current"
+	if envelope.AccessContext.SearchOrdinal <= 0 ||
+		envelope.AccessContext.SearchOrdinal > config.MaxKnowledgeSearches {
+		return envelope, fmt.Errorf(
+			"search_ordinal must be between 1 and %d",
+			config.MaxKnowledgeSearches,
+		)
+	}
+	if envelope.AccessContext.ActivityAttempt <= 0 {
+		return envelope, errors.New("activity_attempt must be positive")
 	}
 	return envelope, nil
 }
@@ -120,46 +124,42 @@ func (s *Server) executeKnowledgeSearch(
 	if run.Status != execution.DurableRunStatusRunning {
 		return retrievalruntime.SearchResult{}, knowledgeSearchConflictError{message: "knowledge search run is not running"}
 	}
-	mode := strings.TrimSpace(envelope.AccessContext.VersionQuery.Mode)
-	admission, err := runtimepolicy.AdmitKnowledgeScope(runtimepolicy.KnowledgeScopeAdmissionRequest{
-		QueryMode: mode,
-		Scope:     envelope.AccessContext.KnowledgeScope,
-	}, s.config.QueryServingScopesPath)
-	if err != nil {
-		return retrievalruntime.SearchResult{}, err
+	if envelope.AccessContext.SearchOrdinal > s.primaryAgentRuntimeLimits().MaxKnowledgeSearches {
+		return retrievalruntime.SearchResult{}, knowledgeSearchConflictError{
+			message: "knowledge search ordinal exceeds the run search limit",
+		}
 	}
-	if !admission.Allowed {
-		return retrievalruntime.SearchResult{}, knowledgeSearchConflictError{message: "knowledge scope or version mode is not admitted"}
+	target, err := runtimepolicy.ResolveQueryTarget(
+		envelope.Payload.Target,
+		s.config.QueryServingTargetsPath,
+	)
+	if err != nil {
+		return retrievalruntime.SearchResult{}, knowledgeSearchConflictError{message: err.Error()}
 	}
 	access, err := knowledgeRetrievalAccessForRun(run)
 	if err != nil {
 		return retrievalruntime.SearchResult{}, err
 	}
-	topK := s.config.RAGTopKMax
-	if topK <= 0 || topK > retrievalruntime.MaxSearchEvidence {
-		topK = 8
+	topK := target.RetrievalTopK
+	if globalLimit := s.config.RAGTopKMax; globalLimit > 0 && topK > globalLimit {
+		topK = globalLimit
 	}
 	searchRequest := retrievalruntime.SearchRequest{
-		RunID:           run.RunID,
-		RequestID:       run.RequestID,
-		TraceID:         run.TraceID,
-		InvocationID:    envelope.AccessContext.InvocationID,
-		QueryText:       envelope.Payload.QueryText,
-		Scope:           admission.Scope,
-		Corpus:          admission.InternalScope.Corpus,
-		Collection:      admission.InternalScope.Collection,
-		TopK:            topK,
-		VersionQuery:    envelope.AccessContext.VersionQuery,
-		RetrievalAccess: access,
+		RunID:             run.RunID,
+		RequestID:         run.RequestID,
+		TraceID:           run.TraceID,
+		InvocationID:      envelope.AccessContext.InvocationID,
+		SearchOrdinal:     envelope.AccessContext.SearchOrdinal,
+		QueryText:         envelope.Payload.QueryText,
+		Target:            target.Target,
+		ServingConfigPath: target.ServingConfigPath,
+		IncludeHistory:    envelope.Payload.IncludeHistory,
+		TopK:              topK,
+		RetrievalAccess:   access,
 	}
 	if err := retrievalruntime.ValidateSearchRequest(searchRequest); err != nil {
 		return retrievalruntime.SearchResult{}, knowledgeSearchConflictError{message: err.Error()}
 	}
-	resolvedVersion, err := s.resolveKnowledgeSearchVersion(ctx, searchRequest)
-	if err != nil {
-		return retrievalruntime.SearchResult{}, err
-	}
-	searchRequest.ResolvedVersion = resolvedVersion
 	if s.knowledgeSearchErr != nil {
 		return retrievalruntime.SearchResult{}, s.knowledgeSearchErr
 	}
@@ -173,29 +173,24 @@ func (s *Server) executeKnowledgeSearch(
 	}
 	result.RunID = run.RunID
 	result.InvocationID = searchRequest.InvocationID
-	result.ResolvedScope = searchRequest.Scope
-	result.ResolvedVersion = resolvedVersion
+	result.SearchOrdinal = searchRequest.SearchOrdinal
+	result.RetrievalTarget = searchRequest.Target
+	result.IncludeHistory = searchRequest.IncludeHistory
 	result, err = retrievalruntime.FinalizeSearchResult(result)
 	if err != nil {
 		return retrievalruntime.SearchResult{}, err
 	}
-	if err := s.projectKnowledgeSearchResult(ctx, run, searchRequest, result, startedAt); err != nil {
+	if err := s.projectKnowledgeSearchResult(
+		ctx,
+		run,
+		searchRequest,
+		result,
+		startedAt,
+		envelope.AccessContext.ActivityAttempt,
+	); err != nil {
 		return retrievalruntime.SearchResult{}, err
 	}
 	return result, nil
-}
-
-func (s *Server) resolveKnowledgeSearchVersion(
-	ctx context.Context,
-	request retrievalruntime.SearchRequest,
-) (retrievalruntime.ResolvedVersion, error) {
-	if strings.TrimSpace(request.VersionQuery.Mode) == "current" {
-		return retrievalruntime.ResolveSearchVersion(request, nil)
-	}
-	if s.knowledgeVersionResolver == nil {
-		return retrievalruntime.ResolvedVersion{}, errors.New("knowledge version resolver is not configured")
-	}
-	return s.knowledgeVersionResolver.ResolveKnowledgeVersion(ctx, request)
 }
 
 func knowledgeRetrievalAccessForRun(run execution.DurableRun) (retrievalruntime.RetrievalAccess, error) {
@@ -220,71 +215,61 @@ func (s *Server) projectKnowledgeSearchResult(
 	request retrievalruntime.SearchRequest,
 	result retrievalruntime.SearchResult,
 	startedAt time.Time,
+	activityAttempt int,
 ) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	metadata := cloneTemporalMetadata(latest.Metadata)
-	searches := cloneAnyMapFromMetadata(metadata["knowledge_searches"])
-	searches[request.InvocationID] = map[string]any{
-		"query_sha256": retrievalruntime.HashText(request.QueryText),
-		"result":       knowledgeSearchResultMetadata(result),
-	}
-	metadata["knowledge_searches"] = searches
-	if err := s.runProjectionStore.ReplaceRunMetadata(ctx, run.RunID, metadata); err != nil {
-		return err
-	}
 	completedAt := time.Now().UTC()
-	evidenceRefs := make([]string, 0, len(result.Evidence))
-	for _, evidence := range result.Evidence {
-		evidenceRefs = append(evidenceRefs, evidence.EvidenceRef)
-	}
-	stepSuffix := retrievalruntime.HashText(request.InvocationID)
-	if len(stepSuffix) > 12 {
-		stepSuffix = stepSuffix[:12]
-	}
 	return s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
-		Tool:          "knowledge_search",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "knowledge.search." + stepSuffix,
-		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     startedAt,
-		CompletedAt:   completedAt,
-		UpdatedAt:     completedAt,
-		ResultKind:    "knowledge_search_result",
-		ProjectionRef: result.SearchRef,
-		Payload: map[string]any{
-			"evidence_refs":    evidenceRefs,
-			"invocation_id":    request.InvocationID,
-			"outcome":          result.Outcome,
-			"query_latency_ms": result.QueryLatencyMS,
-			"resolved_scope":   result.ResolvedScope,
-			"resolved_version": result.ResolvedVersion,
-		},
+		ActivityAttempt: activityAttempt,
+		Attempt:         activityAttempt,
+		Tool:            "knowledge_search",
+		Run:             run,
+		Status:          "completed",
+		StepID:          "knowledge.search." + strconv.Itoa(request.SearchOrdinal),
+		StepKind:        "retrieval",
+		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
+		WorkerID:        s.config.TemporalWorkerIdentity,
+		StartedAt:       startedAt,
+		CompletedAt:     completedAt,
+		UpdatedAt:       completedAt,
+		ResultKind:      "knowledge_search_result",
+		ProjectionRef:   result.SearchRef,
+		Payload:         knowledgeSearchResultProjectionPayload(request, result, activityAttempt),
 	})
 }
 
-func knowledgeSearchResultMetadata(result retrievalruntime.SearchResult) map[string]any {
+func knowledgeSearchResultProjectionPayload(
+	request retrievalruntime.SearchRequest,
+	result retrievalruntime.SearchResult,
+	activityAttempt int,
+) map[string]any {
 	evidence := make([]map[string]any, 0, len(result.Evidence))
 	for _, item := range result.Evidence {
 		evidence = append(evidence, map[string]any{
-			"canonical_url": item.CanonicalURL,
-			"evidence_ref":  item.EvidenceRef,
-			"snippet":       item.Snippet,
-			"title":         item.Title,
-			"version_id":    item.VersionID,
+			"canonical_url":    item.CanonicalURL,
+			"chunk_id":         item.ChunkID,
+			"document_id":      item.DocumentID,
+			"evidence_ref":     item.EvidenceRef,
+			"fusion_score":     item.FusionScore,
+			"rank":             item.Rank,
+			"retrieval_target": item.RetrievalTarget,
+			"snippet":          item.Snippet,
+			"title":            item.Title,
+			"version_id":       item.VersionID,
 		})
 	}
 	return map[string]any{
+		"activity_attempt": activityAttempt,
+		"candidate_count":  result.CandidateCount,
+		"discarded_count":  result.DiscardedCount,
 		"evidence":         evidence,
+		"include_history":  result.IncludeHistory,
+		"invocation_id":    request.InvocationID,
 		"outcome":          result.Outcome,
-		"resolved_scope":   result.ResolvedScope,
-		"resolved_version": result.ResolvedVersion,
+		"query_latency_ms": result.QueryLatencyMS,
+		"query_sha256":     retrievalruntime.HashText(request.QueryText),
+		"retrieval_target": result.RetrievalTarget,
+		"retriever_modes":  append([]string{}, result.RetrieverModes...),
+		"search_ordinal":   request.SearchOrdinal,
 		"search_ref":       result.SearchRef,
 	}
 }

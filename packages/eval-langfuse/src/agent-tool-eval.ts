@@ -5,6 +5,7 @@ import {
 	mappingList,
 	optionalString,
 	stringField,
+	stringList,
 } from "./shared";
 
 export const AGENT_TOOL_EVAL_DATASET_SCHEMA_VERSION = "agent_tool_eval_dataset.v1";
@@ -19,11 +20,15 @@ export interface AgentToolEvalCase extends JsonObject {
 	argument_mode: AgentToolEvalArgumentMode;
 	case_family?: string;
 	case_id: string;
-	dataset_item_id?: string;
-	dataset_run_id?: string;
+	dataset_item_id: string;
+	expected_outcome?: "answer" | "clarification" | "no_answer";
+	forbidden_context_ids: string[];
 	query: string;
 	reference?: string;
+	reference_context_ids: string[];
+	reference_contexts: string[];
 	reference_tool_calls: AgentToolEvalToolCall[];
+	setup_turns: string[];
 	surface_key?: string;
 }
 
@@ -78,7 +83,7 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 	);
 	if (argumentMode === "eval_safe_args") {
 		for (const toolCall of referenceToolCalls) {
-			if (Object.keys(toolCall.args).length === 0) {
+			if (toolCall.name !== "knowledge_query" && Object.keys(toolCall.args).length === 0) {
 				throw new Error(`${caseId} eval_safe_args requires non-empty reference tool args`);
 			}
 		}
@@ -87,13 +92,41 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 		argument_mode: argumentMode,
 		case_family: optionalString(metadata.case_family) ?? undefined,
 		case_id: caseId,
-		dataset_item_id: optionalString(item.id) ?? undefined,
-		dataset_run_id: optionalString(metadata.dataset_run_id) ?? undefined,
+		dataset_item_id: stringField(item.id, `${caseId}.dataset_item_id`),
+		expected_outcome: parseExpectedOutcome(expectedOutput.expected_outcome, caseId),
+		forbidden_context_ids: stringList(expectedOutput.forbidden_context_ids),
 		query: stringField(input.query ?? input.user_input, `${caseId}.input.query`),
 		reference: optionalString(expectedOutput.reference) ?? undefined,
+		reference_context_ids: stringList(expectedOutput.reference_context_ids),
+		reference_contexts: stringList(expectedOutput.reference_contexts),
 		reference_tool_calls: referenceToolCalls,
+		setup_turns: parseSetupTurns(input.setup_turns, caseId),
 		surface_key: optionalString(metadata.surface_key) ?? undefined,
 	};
+}
+
+function parseExpectedOutcome(
+	value: unknown,
+	caseId: string,
+): AgentToolEvalCase["expected_outcome"] {
+	const outcome = optionalString(value);
+	if (!outcome) {
+		return;
+	}
+	if (outcome === "answer" || outcome === "clarification" || outcome === "no_answer") {
+		return outcome;
+	}
+	throw new Error(`${caseId}.expected_outcome must be answer, clarification, or no_answer`);
+}
+
+function parseSetupTurns(value: unknown, caseId: string): string[] {
+	if (value === undefined || value === null) {
+		return [];
+	}
+	if (!Array.isArray(value)) {
+		throw new Error(`${caseId}.input.setup_turns must be a list`);
+	}
+	return value.map((turn, index) => stringField(turn, `${caseId}.input.setup_turns[${index}]`));
 }
 
 function parseArgumentMode(value: unknown, caseId: string): AgentToolEvalArgumentMode {

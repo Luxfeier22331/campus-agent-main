@@ -5,8 +5,6 @@ import {
 	type OfficialWebConsumerFamily,
 	type OfficialWebConsumerMaterializationPolicy,
 	type OfficialWebConsumerRequiredEvidence,
-	type OfficialWebCredentialsMode,
-	type OfficialWebDiscoveryMethod,
 	type OfficialWebTargetRetentionPolicy,
 } from "./config.ts";
 import type { OfficialWebUrlIdentityBasis } from "./policy.ts";
@@ -91,24 +89,15 @@ export interface OfficialWebPageTargetMatch {
 }
 
 export interface OfficialWebPageManifest {
-	schemaVersion: "official_web_page_manifest.v1";
+	schemaVersion: "official_web_page_manifest.v2";
 	sourceChannel: typeof OFFICIAL_WEB_SOURCE_CHANNEL;
 	siteId: string;
 	host: string;
 	rawAssetId: string;
 	rawVersionId: string;
-	requestedUrl: string;
-	finalUrl: string;
-	declaredCanonicalUrl: string | null;
 	normalizedCanonicalUrl: string;
 	urlIdentityBasis: OfficialWebUrlIdentityBasis;
-	fetchedAt: string;
 	publishedAt: string | null;
-	httpStatus: number;
-	contentType: string;
-	etag: string | null;
-	lastModified: string | null;
-	redirectChain: string[];
 	responseBodyHash: string;
 	retainedSnapshotHash: string;
 	fetcherName: string;
@@ -126,27 +115,6 @@ export interface OfficialWebPageManifest {
 	mainContentBlockCount: number;
 	navigationBlockCount: number;
 	boilerplateBlockCount: number;
-	discoveredFromUrl: string | null;
-	discoveryMethod: OfficialWebDiscoveryMethod;
-	crawlRunId: string;
-	hostPolicyVersion: string;
-	crawlPolicyVersion: string;
-	credentialsMode: OfficialWebCredentialsMode;
-	consumerDenominatorVersion?: string;
-	consumerMatches?: OfficialWebConsumerMatch[];
-	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
-	consumerRejectionReason?: string | null;
-	sourcePackId?: string | null;
-	sourcePackEntryId?: string | null;
-	compositionGroup?: string | null;
-	compositionRole?: string | null;
-	targetJobId?: string;
-	targetCandidateId?: string | null;
-	targetDeclarationVersion?: string;
-	targetMatches?: OfficialWebPageTargetMatch[];
-	materializationPolicy?: OfficialWebConsumerMaterializationPolicy;
-	selectedWriteTarget?: string;
-	reviewPolicy?: string;
 }
 
 export interface OfficialWebContentBlockRow {
@@ -242,11 +210,11 @@ export interface OfficialWebSourceTruthBundlePage {
 	sourcePackEntryId?: string | null;
 	compositionGroup?: string | null;
 	compositionRole?: string | null;
-	pageManifestObjectKey: string;
-	contentBlocksObjectKey: string;
-	providerExtractionObjectKey: string;
-	discoveredLinksObjectKey: string;
-	responseHtmlObjectKey: string;
+	pageManifestRef: OfficialWebPinnedArtifactRef;
+	contentBlocksRef: OfficialWebPinnedArtifactRef;
+	providerExtractionRef: OfficialWebPinnedArtifactRef;
+	discoveredLinksRef: OfficialWebPinnedArtifactRef;
+	responseHtmlRef: OfficialWebPinnedArtifactRef;
 	responseBodyHash: string;
 	blockCount: number;
 	consumerMatches?: OfficialWebConsumerMatch[];
@@ -261,8 +229,14 @@ export interface OfficialWebSourceTruthBundlePage {
 	reviewPolicy?: string;
 }
 
+export interface OfficialWebPinnedArtifactRef {
+	objectKey: string;
+	contentSha256: string;
+	byteSize: number;
+}
+
 export interface OfficialWebSourceTruthBundle {
-	schemaVersion: "official_web_source_truth_bundle.v1";
+	schemaVersion: "official_web_source_truth_bundle.v2";
 	sourceChannel: typeof OFFICIAL_WEB_SOURCE_CHANNEL;
 	siteId: string;
 	crawlRunId: string;
@@ -330,7 +304,7 @@ export function buildOfficialWebPageManifest(
 	input: Omit<OfficialWebPageManifest, "schemaVersion" | "sourceChannel">,
 ): OfficialWebPageManifest {
 	return {
-		schemaVersion: "official_web_page_manifest.v1",
+		schemaVersion: "official_web_page_manifest.v2",
 		sourceChannel: OFFICIAL_WEB_SOURCE_CHANNEL,
 		...input,
 	};
@@ -383,7 +357,7 @@ export function buildOfficialWebSourceTruthBundle(
 	},
 ): OfficialWebSourceTruthBundle {
 	return {
-		schemaVersion: "official_web_source_truth_bundle.v1",
+		schemaVersion: "official_web_source_truth_bundle.v2",
 		sourceChannel: OFFICIAL_WEB_SOURCE_CHANNEL,
 		generatedAt: input.generatedAt ?? new Date().toISOString(),
 		siteId: input.siteId,

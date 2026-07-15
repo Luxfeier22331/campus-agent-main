@@ -1,0 +1,89 @@
+import { type JsonObject, mapping, optionalString, stringField, stringList } from "./shared";
+import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
+
+export interface ExecutionRunEvalProjection {
+	answer?: string;
+	resolvedTargets: string[];
+	retrievedContextIds: string[];
+	retrievedContexts: string[];
+	runId: string;
+	toolTrajectory: ToolTrajectory;
+	traceId: string;
+}
+
+export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEvalProjection {
+	const payload = mapping(value, "run steps payload");
+	const projection = mapping(
+		payload.agentRuntimeEvalProjection ?? payload.agent_runtime_eval_projection ?? payload,
+		"agent runtime eval projection",
+	);
+	if (projection.schema_version !== "agent_runtime_eval_projection.v2") {
+		throw new Error("agent runtime eval projection must use agent_runtime_eval_projection.v2");
+	}
+	const run = mapping(projection.run, "agent runtime eval projection.run");
+	const rag = mapping(projection.rag ?? {}, "agent runtime eval projection.rag");
+	const planning = mapping(projection.planning ?? {}, "agent runtime eval projection.planning");
+	const toolTrajectory = parseToolTrajectory(projection.tool_trajectory);
+	const runId = stringField(run.run_id, "agent runtime eval projection.run.run_id");
+	const traceId = stringField(run.trace_id, "agent runtime eval projection.run.trace_id");
+	if (toolTrajectory.run_id !== runId || toolTrajectory.trace_id !== traceId) {
+		throw new Error("tool trajectory identity does not match agent runtime eval projection run");
+	}
+	return {
+		answer: optionalString(rag.answer) ?? undefined,
+		resolvedTargets: stringList(planning.resolved_targets),
+		retrievedContextIds: stringList(rag.retrieved_context_ids),
+		retrievedContexts: stringList(rag.retrieved_contexts),
+		runId,
+		toolTrajectory,
+		traceId,
+	};
+}
+
+export function buildRagasSampleFromExecutionRun(input: {
+	caseId: string;
+	datasetItemId?: string | null;
+	datasetRunId?: string | null;
+	question: string;
+	reference?: string | null;
+	referenceContextIds?: string[];
+	referenceContexts?: string[];
+	runStepsPayload: unknown;
+}): JsonObject {
+	const projection = parseExecutionRunEvalProjection(input.runStepsPayload);
+	const caseId = stringField(input.caseId, "caseId");
+	const question = stringField(input.question, `${caseId}.question`);
+	const answer = stringField(projection.answer, `${caseId}.answer`);
+	if (projection.retrievedContexts.length === 0) {
+		throw new Error(`${caseId}.retrieved_contexts must include at least one context`);
+	}
+	const sample: JsonObject = {
+		answer,
+		case_id: caseId,
+		contexts: projection.retrievedContexts,
+		metadata: {
+			resolved_targets: projection.resolvedTargets,
+			run_id: projection.runId,
+		},
+		question,
+		retrieved_context_ids: projection.retrievedContextIds,
+		trace_id: projection.traceId,
+	};
+	for (const [key, raw] of Object.entries({
+		dataset_item_id: input.datasetItemId,
+		dataset_run_id: input.datasetRunId,
+		reference: input.reference,
+	})) {
+		const value = optionalString(raw);
+		if (value) {
+			sample[key] = value;
+		}
+	}
+	if (input.referenceContextIds && input.referenceContextIds.length > 0) {
+		sample.reference_context_ids = [...input.referenceContextIds];
+	}
+	if (input.referenceContexts && input.referenceContexts.length > 0) {
+		sample.reference_contexts = [...input.referenceContexts];
+	}
+	return sample;
+}

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import math
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -20,8 +22,6 @@ DEFAULT_RAGAS_METRIC_NAMES = (
 OFFICIAL_RAGAS_METRIC_NAMES = (
     *DEFAULT_RAGAS_METRIC_NAMES,
     "context_precision_without_reference",
-    "id_context_precision",
-    "id_context_recall",
 )
 
 FORBIDDEN_SAMPLE_FIELD_NAMES = frozenset(
@@ -229,7 +229,8 @@ def run_ragas_score_batch(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
     )
     return {"items": len(scored_items), "output_path": str(output_path)}
 
@@ -240,65 +241,45 @@ def build_ragas_scorer(settings: RagasRunnerSettings) -> RagasScorer:
             "embedding_dimensions is not supported by the current RAGAS OpenAI embedding provider"
         )
 
-    from openai import OpenAI
-    from ragas import evaluate
+    from openai import AsyncOpenAI
     from ragas.embeddings.base import embedding_factory
     from ragas.llms import llm_factory
-    from ragas.run_config import RunConfig
-
-    llm_client = OpenAI(
-        api_key=settings.llm_api_key,
-        base_url=settings.llm_base_url,
-        max_retries=0,
-        timeout=settings.timeout_seconds,
-    )
-    embedding_client = OpenAI(
-        api_key=settings.embedding_api_key,
-        base_url=settings.embedding_base_url,
-        max_retries=0,
-        timeout=settings.timeout_seconds,
-    )
-    llm = llm_factory(
-        settings.llm_model,
-        client=llm_client,
-        temperature=0,
-    )
-    embeddings = embedding_factory(
-        provider="openai",
-        model=settings.embedding_model,
-        client=embedding_client,
-        interface="modern",
-    )
-    run_config = RunConfig(
-        timeout=settings.timeout_seconds,
-        max_retries=0,
-        max_workers=settings.max_workers,
-    )
 
     def _score(projection: RagasProjection) -> tuple[RagasResult, ...]:
-        results: list[RagasResult] = []
-        metric_applicability = dict(projection.metadata.get("metric_applicability") or {})
-        for requested_name, metric in _build_metrics(
-            metric_names=settings.metric_names,
-            llm=llm,
-            embeddings=embeddings,
-            projection=projection,
-        ):
-            if metric_applicability.get(requested_name) is False:
-                continue
-            dataset = _build_ragas_dataset(projection)
-            score_row = evaluate(
-                dataset=dataset,
-                metrics=[metric],
-                llm=llm,
-                embeddings=embeddings,
-                run_config=run_config,
-                raise_exceptions=True,
-                show_progress=False,
-            ).scores[0]
-            value = _extract_score_value(score_row, metric)
-            results.append(RagasResult(metric_name=requested_name, score=value))
-        return tuple(results)
+        async def _score_in_one_event_loop() -> tuple[RagasResult, ...]:
+            async with (
+                AsyncOpenAI(
+                    api_key=settings.llm_api_key,
+                    base_url=settings.llm_base_url,
+                    max_retries=0,
+                    timeout=settings.timeout_seconds,
+                ) as llm_client,
+                AsyncOpenAI(
+                    api_key=settings.embedding_api_key,
+                    base_url=settings.embedding_base_url,
+                    max_retries=0,
+                    timeout=settings.timeout_seconds,
+                ) as embedding_client,
+            ):
+                llm = llm_factory(
+                    settings.llm_model,
+                    client=llm_client,
+                    temperature=0,
+                )
+                embeddings = embedding_factory(
+                    provider="openai",
+                    model=settings.embedding_model,
+                    client=embedding_client,
+                    interface="modern",
+                )
+                return await _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=settings.metric_names,
+                    llm=llm,
+                    embeddings=embeddings,
+                )
+
+        return tuple(asyncio.run(_score_in_one_event_loop()))
 
     return _score
 
@@ -375,7 +356,16 @@ def _score_item(item: object, *, scorer: RagasScorer) -> dict[str, object]:
                 }
             )
             continue
-        scores[metric_name] = float(result.score)
+        score = float(result.score)
+        if not math.isfinite(score):
+            errors.append(
+                {
+                    "metric_name": metric_name,
+                    "reason": result.rationale or "ragas score is not finite",
+                }
+            )
+            continue
+        scores[metric_name] = score
     return {
         "case_id": case_id,
         "dataset_item_id": dataset_item_id,
@@ -388,32 +378,13 @@ def _score_item(item: object, *, scorer: RagasScorer) -> dict[str, object]:
     }
 
 
-def _build_ragas_dataset(projection: RagasProjection):
-    from ragas import EvaluationDataset, SingleTurnSample
-
-    return EvaluationDataset(
-        samples=[
-            SingleTurnSample(
-                user_input=projection.user_input,
-                retrieved_contexts=list(projection.retrieved_contexts),
-                reference_contexts=list(projection.reference_contexts),
-                retrieved_context_ids=list(projection.retrieved_context_ids),
-                reference_context_ids=list(projection.reference_context_ids),
-                response=projection.response,
-                reference=projection.reference,
-            )
-        ],
-        name=projection.case_id,
-    )
-
-
-def _build_metrics(
+async def _score_with_official_ragas_metrics(
+    projection: RagasProjection,
     *,
     metric_names: tuple[str, ...],
     llm: object,
     embeddings: object,
-    projection: RagasProjection,
-) -> tuple[tuple[str, object], ...]:
+) -> tuple[RagasResult, ...]:
     from ragas.metrics.collections import (
         AnswerRelevancy,
         ContextPrecision,
@@ -422,70 +393,54 @@ def _build_metrics(
         Faithfulness,
     )
 
-    use_id_metrics = bool(projection.retrieved_context_ids and projection.reference_context_ids)
-    use_reference_metrics = bool(projection.reference or projection.reference_contexts)
-    id_context_precision, id_context_recall = _load_public_id_metric_builders()
-    builders: dict[str, Callable[[], object]] = {
-        "faithfulness": lambda: Faithfulness(llm=llm),
-        "answer_relevancy": lambda: AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1),
-        "context_precision": (
-            id_context_precision
-            if use_id_metrics and id_context_precision is not None
-            else (
-                lambda: (
-                    ContextPrecision(llm=llm)
-                    if use_reference_metrics
-                    else ContextPrecisionWithoutReference(llm=llm)
-                )
-            )
-        ),
-        "context_recall": (
-            id_context_recall
-            if use_id_metrics and id_context_recall is not None
-            else lambda: ContextRecall(llm=llm)
-        ),
-        **(
-            {"id_context_precision": id_context_precision}
-            if id_context_precision is not None
-            else {}
-        ),
-        **({"id_context_recall": id_context_recall} if id_context_recall is not None else {}),
-        "context_precision_without_reference": lambda: ContextPrecisionWithoutReference(llm=llm),
-    }
-    entries: list[tuple[str, object]] = []
+    contexts = list(projection.retrieved_contexts)
+    applicability = dict(projection.metadata.get("metric_applicability") or {})
+    results: list[RagasResult] = []
     for metric_name in metric_names:
-        builder = builders.get(metric_name)
-        if builder is not None:
-            entries.append((metric_name, builder()))
-    return tuple(entries)
+        if applicability.get(metric_name) is False:
+            continue
+        if metric_name == "faithfulness":
+            score = await Faithfulness(llm=llm).ascore(
+                projection.user_input, projection.response, contexts
+            )
+        elif metric_name == "answer_relevancy":
+            score = await AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1).ascore(
+                projection.user_input, projection.response
+            )
+        elif metric_name == "context_precision":
+            score = await ContextPrecision(llm=llm).ascore(
+                projection.user_input, projection.reference, contexts
+            )
+        elif metric_name == "context_recall":
+            score = await ContextRecall(llm=llm).ascore(
+                projection.user_input, contexts, projection.reference
+            )
+        elif metric_name == "context_precision_without_reference":
+            score = await ContextPrecisionWithoutReference(llm=llm).ascore(
+                projection.user_input, projection.response, contexts
+            )
+        else:
+            continue
+        results.append(
+            RagasResult(
+                metric_name=metric_name,
+                score=_metric_value(score),
+                rationale=_metric_reason(score),
+            )
+        )
+    return tuple(results)
 
 
-def _load_public_id_metric_builders() -> tuple[
-    Callable[[], object] | None, Callable[[], object] | None
-]:
-    import ragas.metrics.collections as collections
-
-    precision = getattr(collections, "IDBasedContextPrecision", None)
-    recall = getattr(collections, "IDBasedContextRecall", None)
-    return (
-        (lambda: precision()) if callable(precision) else None,
-        (lambda: recall()) if callable(recall) else None,
-    )
+def _metric_value(result: object) -> float | None:
+    value = getattr(result, "value", result)
+    if isinstance(value, int | float) and math.isfinite(float(value)):
+        return float(value)
+    return None
 
 
-def _extract_score_value(score_row: Mapping[str, object], metric: object) -> float:
-    candidate_keys = (
-        str(getattr(metric, "name", "")).strip(),
-        str(type(metric).__name__),
-    )
-    for key in candidate_keys:
-        raw_value = score_row.get(key)
-        if isinstance(raw_value, int | float):
-            return float(raw_value)
-    numeric_items = [float(value) for value in score_row.values() if isinstance(value, int | float)]
-    if len(numeric_items) == 1:
-        return numeric_items[0]
-    raise ValueError(f"ragas score row did not include a single numeric value: {score_row}")
+def _metric_reason(result: object) -> str:
+    reason = getattr(result, "reason", None)
+    return reason.strip() if isinstance(reason, str) else ""
 
 
 def _load_json_object(path: Path) -> dict[str, object]:
@@ -549,20 +504,23 @@ def _metric_applicability(
     reference_contexts: tuple[str, ...],
     reference_context_ids: tuple[str, ...],
 ) -> dict[str, bool]:
-    if reference or reference_contexts or reference_context_ids:
+    _ = reference_contexts, reference_context_ids
+    if reference:
         return {}
-    return {"context_recall": False}
+    return {"context_precision": False, "context_recall": False}
 
 
 def _preflight_errors(metric_applicability: dict[str, bool]) -> list[dict[str, object]]:
-    if metric_applicability.get("context_recall") is False:
-        return [
-            {
-                "metric_name": "ragas.context_recall",
-                "reason": "missing reference for context_recall",
-            }
-        ]
-    return []
+    errors: list[dict[str, object]] = []
+    for metric_name in ("context_precision", "context_recall"):
+        if metric_applicability.get(metric_name) is False:
+            errors.append(
+                {
+                    "metric_name": f"ragas.{metric_name}",
+                    "reason": f"missing reference answer for {metric_name}",
+                }
+            )
+    return errors
 
 
 def _scalar_or_none(value: object) -> object:

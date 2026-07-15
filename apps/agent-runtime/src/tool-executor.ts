@@ -1,4 +1,5 @@
 import type { ToolExecutionRequest, ToolExecutionResult } from "./primary-agent.ts";
+import { injectTraceContext } from "./telemetry.ts";
 
 export interface ExecutionControlToolExecutorOptions {
 	baseUrl: string;
@@ -23,20 +24,23 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		}
 		let response: Response;
 		try {
-			response = await fetchImpl(new URL(request.tool.handler.endpoint, baseUrl), {
-				method: "POST",
-				headers: {
+			const headers = injectTraceContext(
+				new Headers({
 					"x-execution-query-auth": sharedSecret,
 					"content-type": "application/json",
-				},
+				}),
+			);
+			response = await fetchImpl(new URL(request.tool.handler.endpoint, baseUrl), {
+				method: "POST",
+				headers,
 				body: JSON.stringify({
 					payload: request.argumentsJson,
 					access_context: {
+						activity_attempt: request.activityAttempt ?? 1,
 						run_id: request.runId,
 						trace_id: request.traceId,
 						invocation_id: request.invocationId,
-						knowledge_scope: request.knowledge?.scope,
-						version_query: request.knowledge?.versionQuery,
+						search_ordinal: request.searchOrdinal,
 					},
 				}),
 				signal: composedAbortSignal([request.signal, AbortSignal.timeout(request.tool.timeoutMs)]),

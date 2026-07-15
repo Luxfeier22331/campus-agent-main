@@ -65,6 +65,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				result: {
 					sources: [{ doc_id: "handbook:library-hours" }],
 				},
+				resolvedTargets: ["student_rules"],
 				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
@@ -103,7 +104,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					},
 				}),
 				requestId: "req_0001",
-				requestedScope: null,
 				requestedTool: null,
 				safetyIdentifier: expectedSafetyIdentifier,
 				surface: "campus_web",
@@ -114,9 +114,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				}),
 				traceId: "trace_0001",
 				userGoal: "图书馆开放到几点？",
-				versionQuery: {
-					mode: "current",
-				},
 			}),
 		);
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
@@ -244,6 +241,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				error: null,
 				followUpQuestion: "",
 				result: {},
+				resolvedTargets: [],
 				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",

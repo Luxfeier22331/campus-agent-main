@@ -6,8 +6,16 @@
 	"request_timeout_ms": 95000,
 	"request_body_limit_bytes": 1048576,
 	"shutdown_grace_ms": 95000,
-	"query_serving_scopes_path": "/etc/campus-agent/query-serving-scopes.v3.json",
+	"query_serving_targets_path": "/etc/campus-agent/query-serving-targets.v1.json",
 	"tool_read_model_timeout_ms": 1000,
+	"agent_runtime": {
+		"deadline_ms": 90000,
+		"max_output_tokens": 2048,
+		"max_turns": 6,
+		"max_knowledge_searches": 3,
+		"current_input_char_limit": 8000,
+		"final_model_context_char_limit": 16000
+	},
 	"otel": {
 		"enabled": true,
 		"endpoint": "http://otel-collector:4318/v1/traces",

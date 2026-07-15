@@ -267,12 +267,8 @@ describe("runtime run service", () => {
 					payload: {
 						agent_result_ref: "agent-result-hidden",
 						observability: {
-							answer_eval_fingerprint: {
-								answer_fingerprint_sha256:
-									"sha256:abababababababababababababababababababababababababababababababab",
-							},
-							llm_io_fingerprint: {
-								provider_request_safe_hash: "hidden",
+							prompt_trace: {
+								rendered_prompt_sha256: "hidden",
 							},
 						},
 						request_id: "req_01HQ",
@@ -333,8 +329,6 @@ describe("runtime run service", () => {
 		expect(serializedPayload).not.toContain("observability");
 		expect(serializedPayload).not.toContain("tool_results");
 		expect(serializedPayload).not.toContain("workflow_trace_summary");
-		expect(serializedPayload).not.toContain("answer_eval_fingerprint");
-		expect(serializedPayload).not.toContain("llm_io_fingerprint");
 	});
 
 	it("keeps the default durable event subscription open long enough for RAG closeout", async () => {
@@ -534,7 +528,6 @@ describe("runtime run service", () => {
 					cancelOutcome: "",
 					completedAt: "2026-06-04T01:02:05.000Z",
 					durationMs: 10,
-					estimatedCostMicrousd: 0,
 					failCloseReason: "",
 					inputTokens: 0,
 					lateCompletionOutcome: "",

@@ -2,206 +2,111 @@
 
 ## Purpose
 
-This file is the repository entry guide for coding agents. Keep it short,
-practical and stable. Put detailed architecture, workflow and verification
-guidance in `docs/` and link to it from here.
+This file is the stable repository entry guide for coding agents. Detailed
+architecture, contracts, workflows and verification guidance belongs in
+`docs/` or the owning module README, not here.
 
-## Project Snapshot
+## Repository Truth
 
-- `campus-agent` is the v2 monorepo for the campus assistant system.
-- `main` is the long-lived integration and stable trunk. Short-lived feature
-  branches merge to `main` through pull requests.
-- When discussing merged truth, default to the state already merged into
-  `main`. Feature worktree progress is not merged truth until merged.
-- Production release state is selected through release tags and GitHub
-  Environments, not through a long-lived development branch.
-- `apps/` contains long-running transport/runtime boundaries, `jobs/` contains
-  manual or scheduled deployable runtime boundaries, and `packages/` contains
-  stable tool/domain boundaries.
-- `scripts/` contains repo-level executable entrypoints and shared deploy/env
-  primitives. Generic validation uses standard tool CLIs; domain and contract
-  invariants belong to their owning app or package tests.
-- Current forward student product surface is `campus-web`; `/docs/*` is the
-  Rspress-powered canonical reader surface.
-- `apps/app-api` is the Worker-owned shared browser-facing API surface.
-- `apps/execution-control` is the Go-owned execution-control service. Temporal
-  is the execution substrate. PostgreSQL stores sanitized run/event/step
-  projections, not raw workflow truth.
-- OpenAI Agents SDK is the only online agent and tool-loop owner. The primary
-  agent uses the SDK `handoff()` API to enter the Knowledge Agent, which can
-  call only the internal `knowledge_search` tool.
-- Temporal wraps one complete SDK run in a single Agent Activity. The workflow
-  has four phases: Memory Recall, Agent Activity, Finalization and Memory
-  Append. There is no separate knowledge worker or Go-owned RAG graph.
-- Current model-visible function-tool and handoff surfaces are controlled by
-  `configs/runtime/tools.v4.json`,
-  `configs/runtime/tool-function-schemas.v1.json` and
-  `configs/runtime/workflow-artifacts.v2.json`.
-- Python `apps/supervisor-agent-worker` has been removed from the active
-  workspace. Do not restore it as serving code.
-
-## Branch And Worktree
-
-- Work in the current feature worktree and branch unless the user explicitly
-  asks to switch.
-- Before editing, confirm the current worktree with `git status --short --branch`
-  when there is any chance of parallel worktree confusion.
-- Never revert user or other-worktree changes unless explicitly asked.
-- Ignore unrelated dirty files. If they block the task, call out the conflict
-  and work with the existing changes.
-- Use `rg` / `rg --files` for search. Use `pnpm` for Node/Worker work.
-- Do not add or maintain `package-lock.json`.
+- `main` is the long-lived integration and stable trunk. Feature worktrees are
+  not merged truth until their pull requests land.
+- Production state is selected through release tags and GitHub Environments.
+- `apps/` owns long-running transport and runtime boundaries, `jobs/` owns
+  scheduled or manual deployable runtimes, and `packages/` owns stable domain,
+  contract and reusable logic boundaries.
+- `scripts/` contains repository entrypoints and shared deploy/env primitives.
+  Domain and contract invariants belong to owner tests, not central scanners.
+- Python `apps/supervisor-agent-worker` and `apps/ingestion-worker` are retired.
+  Do not restore them as active runtime paths.
 
 ## Read First
 
-Use targeted reading. Do not load every document by default.
+Read only the sources relevant to the task:
 
 - Repo overview and commands: `README.md`
-- Documentation rules and truth classes:
-  `docs/README.md`, `docs/documentation-architecture.md`
-- Current merged architecture truth: `docs/architecture/current.md`
-- Product scope: `docs/architecture/product.md`
-- Target architecture: `docs/architecture/target.md`
+- Documentation ownership: `docs/README.md`,
+  `docs/documentation-architecture.md`
+- Current merged architecture: `docs/architecture/current.md`
+- Product and target boundaries: `docs/architecture/product.md`,
+  `docs/architecture/target.md`
 - Code organization: `docs/architecture/system/code-organization.md`
 - Verification lanes: `docs/reference/testing-and-verification-lanes.md`
-- Release and staging QA: `docs/runbooks/e2e-qa-release.md`
-- Workstream state: `.planning/PROJECT.md`, `.planning/WORKSTREAMS.md`
-- GSD workflow: `docs/runbooks/workstream-gsd-sdk-workflow.md`
+- Active workstreams: `.planning/PROJECT.md`, `.planning/WORKSTREAMS.md`
 
-For domain work, read the closest relevant `docs/architecture/system/*`,
-`docs/architecture/domains/*`, `docs/data/*`, `docs/contracts/*` or ADR before
-changing structure or contracts.
+For domain work, read the closest owner README, architecture document,
+contract, data document or ADR before changing structure or interfaces.
 
-## Hard Boundaries
+## Worktree Safety
 
-- Do not treat `docs/architecture/target.md` as current merged truth.
-- Do not treat local dev/test/deploy paths as architecture truth changes.
-- Do not restore old bootstrap/tool-adapter patterns as the product entry,
-  top-level router, hidden mega-agent or flat retrieval tool.
-- Keep retrieval internals, index building and vector DB details out of the
-  Execution Agent Layer and `packages/contracts`.
-- Do not leak `Agno`, `LlamaIndex`, `Qdrant`, `MinIO` or other infrastructure
-  types into `packages/contracts`.
-- Do not mix online query path and offline ingestion/data plane ownership.
-- `official_web` is not query-enabled until its offline publication chain is
-  complete and its scope is explicitly opened. Do not add live web-search or
-  provider fallback to the online knowledge path.
-- Hindsight personal memory is consumed only through execution-control Temporal
-  activities and sanitized projection. Do not expose raw memory ids or payloads
-  to primary-agent model-visible tools, app-api contracts or browser responses.
-- Campus services model-visible scope currently includes only
-  `transport_schedule_lookup`; do not open broader service tools casually.
-- `ToolSpec`, contract or JSON Schema existence does not make a tool
-  model-visible. Model-visible exposure is controlled by runtime tool registry
-  and function schema artifacts; runtime config owns dependency, budget and
-  telemetry settings, not a separate tool allowlist.
-- Prefer mature existing libraries and existing repo primitives for UI,
-  framework and generic infrastructure work. Add custom code only when repo
-  contracts, authz, projections or domain semantics require it.
+- Work in the current feature worktree and branch unless the user asks to
+  switch. Confirm with `git status --short --branch` when parallel worktrees
+  may be involved.
+- Never revert user changes or changes from another worktree unless explicitly
+  asked. Work with relevant existing changes and ignore unrelated ones.
+- Use `rg` / `rg --files` for search and `pnpm` for Node/Worker work. Do not add
+  or maintain `package-lock.json`.
 
-## Work Protocol
+## Stable Boundaries
 
-- First answer the user’s actual question. Do not turn deployment, local test or
-  review questions into architecture debates unless the user asks for that.
-- If the task is implementation work, read the relevant files and implement
-  end-to-end within the current turn when feasible.
-- Keep changes scoped to the requested owner/module. Do not do unrelated
-  refactors while passing through a file.
-- Structural changes must respect owner/runtime/domain boundaries from
+- Do not treat target architecture, local test paths or deployment procedures
+  as current merged runtime truth.
+- Keep provider, vector store, object store and framework-specific types out of
+  `packages/contracts`.
+- Keep online query execution separate from offline ingestion and publication
+  ownership.
+- Online knowledge admission comes from
+  `configs/runtime/query-serving-targets.v1.json`. A target binds one semantic
+  id to one `collection` and server-owned serving config; offline `corpus`
+  metadata is not duplicated into the target registry. `official_web` remains
+  unavailable while it is absent from that registry.
+- A schema, config or `ToolSpec` does not by itself make a capability
+  model-visible or product-ready. Follow the owning runtime registry and
+  product contract.
+- Do not restore retired bootstrap routers, hidden mega-agents, compatibility
+  wrappers or fallback execution paths without an explicit external migration
+  requirement.
+- Prefer mature libraries and existing repository primitives for generic UI,
+  framework and infrastructure work. Add custom code only for repository
+  contracts, authz, projections or domain semantics.
+
+## Implementation
+
+- Answer the user’s actual question first and keep edits scoped to the requested
+  owner. Do not perform unrelated refactors while passing through a file.
+- Respect ownership boundaries from
   `docs/architecture/system/code-organization.md`.
-- Cross-package contract changes should freeze or update `packages/contracts`
-  before dependent implementations.
-- Fail closed for missing contract, config, authz, evidence or deployment truth.
-  Do not add fallback, best-effort, silent recovery or implicit success unless
-  the user explicitly asks for it.
-- Parallelize independent read-only inspection with `multi_tool_use.parallel`.
-  Do not parallelize edits.
-- Use `apply_patch` for manual tracked-file edits.
-- For frontend changes, keep the first screen usable, respect existing design
-  system conventions, ensure mobile text/layout do not overlap, and verify
-  browser behavior when the change affects runtime UI.
+- Update executable contracts or schemas before dependent implementations when
+  a cross-package interface changes.
+- Do not add fallback, best-effort recovery, silent success or migration state
+  unless the requirement explicitly calls for it.
 
-## Verification Policy
+## Verification
 
-- Match verification to the phase and blast radius.
-- During implementation/exploration, default to local, relevant, repeatable and
-  cost-controlled checks.
-- Before PR, run the affected lint/typecheck/test/build lanes and report what
-  passed and what was not run.
-- Run real staging E2E, full E2E or release runbooks only when the user asks for
-  release/staging validation, the task itself is CI/release governance, or the
-  change is being prepared for release.
-- Do not list release validation as a normal feature’s current P0 implementation
-  step.
-- `pnpm repo:static` runs generic formatting and text hygiene only. It is not
-  architecture, runtime or E2E validation.
-- Use `docs/reference/testing-and-verification-lanes.md` for exact lane meaning
-  and commands.
+- Match checks to the changed owner and blast radius. During implementation,
+  prefer local, repeatable and cost-controlled checks.
+- Before a pull request, run affected lint, typecheck, test and build lanes and
+  report both executed and omitted checks.
+- Run full E2E, staging or release procedures only for release/staging work or
+  when the user asks for them.
+- `pnpm repo:static` proves generic formatting and text hygiene only. It is not
+  runtime, architecture or E2E validation.
+- `pnpm ci:repo` runs generic repository formatting and text hygiene only.
+- `pnpm ci:ingest` owns ingestion TypeScript typecheck/tests;
+  `pnpm ci:eval` owns Langfuse TypeScript and Ragas Python checks.
+- Use `docs/reference/testing-and-verification-lanes.md` for exact commands and
+  lane meaning.
 
-Common local commands:
+## External Facts
 
-```bash
-pnpm repo:static
-pnpm go:check
-pnpm ci:rust
-pnpm web:lint
-pnpm web:typecheck
-pnpm web:test
-pnpm web:test:worker
-pnpm web:test:integration
-pnpm web:build
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
-pnpm ci:contracts
-pnpm ci:eval
-```
+- For current capabilities, versions and best practices, check the relevant
+  official upstream documentation before answering.
+- Distinguish documented facts from repository-specific inference and include
+  source links. Local code and merged docs remain the source for repository
+  facts.
 
-## External Verification
+## Commits
 
-- 对“最佳实践”“最新推荐”“官方当前能力边界”“当前模型、agent、runtime 建议”这类问题，先联网查官方资料再回答
-- 优先查 `developers.openai.com`，其次 `openai.com`
-- 如果查不到足够依据，就明确说不确定，不要沿用旧知识补全
-- 回答时附实际参考链接，并区分文档事实与推断
-- 仓库本地事实、代码结构、已落盘 docs 不需要联网
-
-## Commit Style
-
-- Use Conventional Commit prefixes with Chinese result descriptions:
-  `feat:`、`fix:`、`docs:`、`refactor:`、`test:`、`chore:`.
-- Prefer verb-object titles, for example `docs: 精简 AGENTS 入口规则`.
-- Avoid vague titles such as `update`, `misc`, `init`, `fix stuff`.
-- Keep commits focused and do not mix unrelated formatting, refactor and
-  behavior changes.
-
-## Repo Map
-
-- `apps/campus-web`: student web shell, account surface and Rspress docs reader.
-- `apps/operator-console-web`: controlled operator browser surface.
-- `apps/ops-web`: self-hosted read-only runtime diagnosis surface; its server
-  owns fixed PostgreSQL/OpenObserve reads and raw-observability audit.
-- `apps/app-api`: Worker-owned shared browser-facing API and product proxy seam.
-- `apps/execution-control`: Go execution admission, Temporal control, memory
-  activities, internal query admission, evidence validation, source projection,
-  finalization and runtime observability.
-- `apps/agent-runtime`: OpenAI Agents SDK primary/Knowledge Agent runtime and
-  the only online agent/tool loop owner.
-- `apps/ingestion-control`: TS ingestion task control plane; owns task
-  admission, Temporal workflow start, registry-aware activity dispatch,
-  terminal closeout and operator projection.
-- `apps/source-collector`: TS/Crawlee source collectors and source-channel
-  adapters that emit object-store handoff artifacts.
-- `apps/ingestion-worker`: removed from the active workspace; old code may only
-  be traced through git history and must not be reattached to serving or
-  ingestion lifecycle.
-- `jobs/dining-sync`: dining data write job/CronJob.
-- `jobs/learning-loop-candidates`: learning-loop candidate selection and
-  Langfuse dataset publication job.
-- `packages/contracts`: shared execution/tool/evidence schemas without runtime
-  infrastructure leakage.
-- `packages/ingest-core`: runtime-neutral TS ingestion helpers, parsers,
-  canonical artifact writers and registry-aware dispatch helpers.
-- `packages/ingestion-contracts`: runtime-neutral TS ingestion task envelopes,
-  registry schemas and assertion fixtures.
-- `packages/ingestion-kernels-rs`: deterministic file-level ingestion kernels.
-- `packages/eval-langfuse`: TS Langfuse eval adapter.
-- `packages/ragas-runner`: narrow Python Ragas execution island.
+- Use Chinese Conventional Commit results with `feat:`, `fix:`, `docs:`,
+  `refactor:`, `test:` or `chore:`.
+- Keep commits focused and avoid vague titles such as `update`, `misc` or
+  `fix stuff`.

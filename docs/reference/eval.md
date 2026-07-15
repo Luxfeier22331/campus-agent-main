@@ -4,90 +4,139 @@ truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-06-28
-updated: 2026-07-11
+updated: 2026-07-13
 ---
 # Eval
 
 ## Active Shape
 
-Repo-owned eval is Langfuse/Ragas-first:
+Eval uses Langfuse for platform workflows and upstream Ragas for mature
+scoring.
 
-- `packages/eval-langfuse` owns Langfuse adapters, safe Ragas projection,
-  deterministic agent scorers, score publication and trace verification.
-- `packages/ragas-runner` is the only accepted Python island and runs upstream
-  Ragas over safe JSON input produced by TypeScript.
-- `packages/eval-langfuse/assets` stores repo-authored eval assets and score
-  registries.
-- `jobs/learning-loop-candidates` selects safe feedback and latency candidates
-  and may publish them to Langfuse datasets.
+- `packages/eval-langfuse` is the TypeScript adapter and dataset owner.
+- `packages/ragas-runner` is the only Python eval package and only executes
+  upstream Ragas metrics.
+- Runtime contract behavior stays in the owning app/package tests.
+- The repo does not implement a separate release-gate framework.
 
-The scoring loop is:
+`pnpm ci:eval` validates adapter and scorer behavior locally. It does not call
+external models or prove a release. Turbo runs the Langfuse TypeScript
+typecheck/tests and the isolated Ragas Python package task.
 
-```text
-Langfuse traces / materialized datasets
--> packages/eval-langfuse safe projection
--> packages/ragas-runner upstream Ragas or deterministic TS scorer
--> packages/eval-langfuse Langfuse scores
-```
+## Observation Sources
 
-## Active Lanes
+1. `GET /internal/execution/runs/:runId/steps` exposes
+   `agent_runtime_eval_projection.v2` with `tool_trajectory.v2`, answer,
+   retrieved contexts/document ids and resolved targets.
+1. Langfuse traces provide correlated SDK and runtime observations.
+1. The `agent-eval` runner executes versioned Langfuse dataset items through
+   the real product path and links each target turn to its product trace with
+   the official dataset-run-item API.
+1. Repo assets provide expected answers, context ids, target sequence, history
+   mode, outcome and search budget. A separate routing dataset supplies direct,
+   function-tool and Knowledge Agent handoff expectations.
 
-Workflow-dispatchable lanes are listed in `docs/reference/eval-map.md`:
+Raw prompt/provider/backend payloads are not observation sources for the safe
+lane.
 
-- `ragas-trace`
-- `ragas-dataset`
-- `agent-tool-use`
+## RAG Metrics
 
-`ragas-trace` and `ragas-dataset` score approved question, answer and context
-material. `agent-tool-use` consumes `tool_trajectory.v1` and evaluates direct
-answer, fail-closed, `transport_schedule_lookup` and `knowledge_query` handoff
-behavior.
+The default Ragas metrics use `ragas.metrics.collections` and `ascore()`:
 
-## Data Boundary
+- `ragas.faithfulness`;
+- `ragas.answer_relevancy`;
+- `ragas.context_precision`;
+- `ragas.context_recall`.
 
-Safe Ragas projection may include trace/dataset identity, approved question and
-answer text, retrieved/reference contexts or ids and metric applicability.
+`ragas.context_precision_without_reference` is optional through runtime config.
 
-Forbidden fields include raw prompts, transcripts, provider payloads,
-unrestricted source bodies, raw memory text, auth material, secrets, database
-URLs, object-store paths and retrieval backend dumps. There is no production raw
-model-I/O replay lane.
+The installed Ragas 0.4.x public collections API does not provide ID-based
+context precision/recall. `reference_context_ids` and
+`retrieved_context_ids` remain useful dataset/audit truth, but the repo does not
+publish custom metrics under a `ragas.*` name or probe private Ragas APIs.
 
-## Active Scores
+## Agent Metrics
 
-The default Ragas metrics are:
+Ragas agent scoring uses official:
 
-- `ragas.faithfulness`
-- `ragas.answer_relevancy`
-- `ragas.context_precision`
-- `ragas.context_recall`
+- `ToolCallAccuracy`;
+- `ToolCallF1`;
+- optional `AgentGoalAccuracyWithReference`.
 
-Optional metrics are enabled only through Ragas runtime config. Deterministic
-agent scores include `agent.tool_selection.correct` and other registered
-`agent.*` contract checks.
+Tool calls are built from `tool_trajectory.v2`. The reference trajectory begins
+with public `knowledge_query` and continues with the expected
+`knowledge_search` sequence. Argument-aware scoring includes only eval-safe
+`target` and `include_history`; query text remains excluded.
 
-Every score must exist in
-`packages/eval-langfuse/assets/registries/langfuse_score_registry.v1.json`.
-Unknown score names fail closed.
+TypeScript publishes two deterministic BOOLEAN scores when their dataset truth
+is present:
 
-## Asset Semantics
+- `execution.outcome_match` compares the product terminal kind with
+  `expected_outcome`;
+- `retrieval.forbidden_context_absent` checks that no forbidden context id was
+  retrieved.
 
-Repo-tracked public assets are synthetic examples for schema, qrels and
-safe-projection coverage. They are not the private release gold corpus. Real
-release denominators come from approved private assets, materialized Langfuse
-datasets or sanitized runtime trace projection.
+Published score names must exist in the Langfuse score registry.
 
-## Operator Boundary
+## Dataset Assets
 
-Langfuse owns dataset/run/score state. App-api and Operator Console do not
-recreate eval coverage, low-score candidate or sink mirror stores. Eval
-results can inform changes, but release authority remains with the owning
-product/runtime validation.
+Agent routing has one Langfuse dataset:
+
+- `campus/agent/routing`.
+
+It covers direct answers, transport tool selection, Knowledge Agent handoff and
+target selection, conversation follow-up, mixed intent, unavailable
+`official_web`, stale context and prompt injection. Expected trajectories use
+name-only matching where arguments are not stable and eval-safe
+`target`/`include_history` arguments for knowledge search.
+
+Each RAG collection has one `cases.v1.json` and one Langfuse dataset:
+
+- `campus/rag/student_rules`;
+- `campus/rag/institutional_rules`;
+- `campus/rag/curriculum`;
+- `campus/rag/cross_target`.
+
+One case contains the question, reference answer, reference context ids,
+expected targets, expected outcome and expected search count. Optional fields
+cover `setup_turns`, history mode, forbidden context ids and dataset split.
+Setup turns run sequentially in the same conversation before the scored target
+turn. Separate retrieval-denominator and answer-quality files are retired.
+
+Coverage includes single-target, cross-target, conversation follow-up, explicit
+historical/as-of/version-comparison questions, hard negatives, no-answer and
+three-search-budget behavior.
+
+## Platform Boundary
+
+Langfuse owns datasets, experiments, scores, annotation queues and analytics.
+The repo owns versioned case truth, safe projection and score registration.
+Temporal owns production execution. App-api and Operator Console do not mirror
+Langfuse score state into product tables.
+
+The eval runner does not use Langfuse `runExperiment`: the real product request
+already emits the canonical trace. It creates a dataset-run-item link for that
+trace and retains the returned dataset run id as case lineage. Each published
+score targets exactly one observation or trace through the synchronous
+Langfuse scores REST API; dataset item/run ids are not copied into that score
+payload.
+
+Missing, `NaN` and infinite Ragas values are emitted as per-metric omissions,
+never JSON scores. Runner output uses strict JSON encoding and the TypeScript
+publisher rejects non-finite numeric values.
+
+## Forbidden Shapes
+
+- Recreate `packages/evals`, broad Python eval or custom experiment/review
+  orchestration.
+- Treat a Ragas score as a standalone release verdict.
+- Invent ID metrics or custom scorers under upstream names.
+- Store raw prompt, transcript, source body, provider response, auth material
+  or local/object-store paths in safe samples or score metadata.
 
 ## Related Documents
 
-- `docs/reference/eval-map.md`
-- `docs/product/langfuse-evals.md`
-- `docs/architecture/system/learning-loop.md`
-- `docs/contracts/langfuse-runtime.md`
-- `docs/contracts/tool-trajectory.md`
+- `eval-map.md`
+- `eval-gold-truth-model.md`
+- `../contracts/tool-trajectory.md`
+- `../runbooks/eval-ragas.md`

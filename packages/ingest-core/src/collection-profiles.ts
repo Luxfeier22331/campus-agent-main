@@ -21,17 +21,11 @@ const ALLOWED_LISTING_PAGE_ROLES = [
 ] as const;
 const ALLOWED_EMBEDDING_PROVIDERS = ["openai-compatible", "openai", "mock"] as const;
 const ALLOWED_SPARSE_PROVIDERS = ["qdrant", "mock"] as const;
-const ALLOWED_DOCUMENT_SUPPORT_STRATEGIES = ["followup_query", "targeted_overfetch"] as const;
 const ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES = ["default", "mineru_primary"] as const;
 const ALLOWED_REVISION_TRACKS = ["source-faithful", "current-effective"] as const;
 
 const DEFAULT_DENSE_PREFETCH_LIMIT = 20;
 const DEFAULT_SPARSE_PREFETCH_LIMIT = 20;
-const DEFAULT_RRF_K = 60;
-const DEFAULT_RRF_DENSE_WEIGHT = 1.0;
-const DEFAULT_RRF_SPARSE_WEIGHT = 1.0;
-const DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24;
-const DEFAULT_DOCUMENT_SUPPORT_STRATEGY = "followup_query";
 const DEFAULT_EMBEDDING_QUERY_INSTRUCTION =
 	"Given a campus policy or handbook question, retrieve relevant passages that answer the query.";
 const DEFAULT_QDRANT_DENSE_VECTOR_NAME = "dense";
@@ -50,8 +44,6 @@ const OptionalTextSchema = z
 	.catch(null);
 
 const PositiveIntegerSchema = z.number().int().positive();
-const PositiveFloatSchema = z.number().positive();
-const ScoreSchema = z.number().min(0).max(1);
 
 const EmbeddingProfileSchema = z.object({
 	provider: z.enum(ALLOWED_EMBEDDING_PROVIDERS),
@@ -86,13 +78,10 @@ const CollectionRuntimeProfileSchema = z
 			.nullable()
 			.optional(),
 		retrieval_enabled: z.boolean(),
-		query_enabled_by_default: z.boolean(),
 		tool_read_model_enabled: z.boolean().default(false),
 		tool_read_model_tools: z.array(RequiredTextSchema).default([]),
 		supports_freshness_sensitive_queries: z.boolean().default(false),
 		freshness_max_age_hours: PositiveIntegerSchema.nullable().optional(),
-		retrieval_top_k: PositiveIntegerSchema.default(3),
-		current_only: z.boolean().default(false),
 		serving_revision_tracks: z.array(z.enum(ALLOWED_REVISION_TRACKS)).default([]),
 		serving_visibility_levels: z.array(RequiredTextSchema).default([]),
 		serving_visibility_scopes: z.array(RequiredTextSchema).default([]),
@@ -104,20 +93,7 @@ const CollectionRuntimeProfileSchema = z
 		duplicate_collapse_required: z.boolean().default(false),
 		dense_prefetch_limit: PositiveIntegerSchema.default(DEFAULT_DENSE_PREFETCH_LIMIT),
 		sparse_prefetch_limit: PositiveIntegerSchema.default(DEFAULT_SPARSE_PREFETCH_LIMIT),
-		rrf_k: PositiveIntegerSchema.default(DEFAULT_RRF_K),
-		rrf_dense_weight: PositiveFloatSchema.default(DEFAULT_RRF_DENSE_WEIGHT),
-		rrf_sparse_weight: PositiveFloatSchema.default(DEFAULT_RRF_SPARSE_WEIGHT),
-		reranker_enabled_by_default: z.boolean().default(false),
-		reranker_top_n: PositiveIntegerSchema.nullable().optional(),
-		reranker_profile_version: OptionalTextSchema.optional(),
-		reranker_adoption_evidence_id: OptionalTextSchema.optional(),
-		document_support_limit: PositiveIntegerSchema.default(DEFAULT_DOCUMENT_SUPPORT_LIMIT),
-		document_support_strategy: z
-			.enum(ALLOWED_DOCUMENT_SUPPORT_STRATEGIES)
-			.default(DEFAULT_DOCUMENT_SUPPORT_STRATEGY),
 		embedding_query_instruction: RequiredTextSchema.default(DEFAULT_EMBEDDING_QUERY_INSTRUCTION),
-		no_hit_min_top_score: ScoreSchema.nullable().optional(),
-		no_hit_min_score_gap: ScoreSchema.nullable().optional(),
 		qdrant_alias_name: RequiredTextSchema.default("unconfigured"),
 		qdrant_collection_prefix: RequiredTextSchema.default("unconfigured"),
 		qdrant_dense_vector_name: RequiredTextSchema.default(DEFAULT_QDRANT_DENSE_VECTOR_NAME),
@@ -132,13 +108,6 @@ const CollectionRuntimeProfileSchema = z
 					code: "custom",
 					message: "tool_read_model_serving requires retrieval_enabled=false",
 					path: ["retrieval_enabled"],
-				});
-			}
-			if (value.query_enabled_by_default) {
-				context.addIssue({
-					code: "custom",
-					message: "tool_read_model_serving requires query_enabled_by_default=false",
-					path: ["query_enabled_by_default"],
 				});
 			}
 			if (!value.tool_read_model_enabled) {
@@ -181,29 +150,6 @@ const CollectionRuntimeProfileSchema = z
 					code: "custom",
 					message: "sparse_profile sparse_vector_name must match qdrant binding",
 					path: ["sparse_profile", "sparse_vector_name"],
-				});
-			}
-		}
-		if (value.reranker_enabled_by_default) {
-			if (!value.reranker_top_n) {
-				context.addIssue({
-					code: "custom",
-					message: "reranker_top_n is required when reranker is enabled",
-					path: ["reranker_top_n"],
-				});
-			}
-			if (!value.reranker_profile_version) {
-				context.addIssue({
-					code: "custom",
-					message: "reranker_profile_version is required when reranker is enabled",
-					path: ["reranker_profile_version"],
-				});
-			}
-			if (!value.reranker_adoption_evidence_id) {
-				context.addIssue({
-					code: "custom",
-					message: "reranker_adoption_evidence_id is required when reranker is enabled",
-					path: ["reranker_adoption_evidence_id"],
 				});
 			}
 		}
@@ -287,13 +233,10 @@ export interface CollectionRuntimeProfile {
 	sourceParserVersion: string | null;
 	sourceOcrImageRoutingStrategy: string | null;
 	retrievalEnabled: boolean;
-	queryEnabledByDefault: boolean;
 	toolReadModelEnabled: boolean;
 	toolReadModelTools: string[];
 	supportsFreshnessSensitiveQueries: boolean;
 	freshnessMaxAgeHours: number | null;
-	retrievalTopK: number;
-	currentOnly: boolean;
 	servingRevisionTracks: string[];
 	servingVisibilityLevels: string[];
 	servingVisibilityScopes: string[];
@@ -305,18 +248,7 @@ export interface CollectionRuntimeProfile {
 	duplicateCollapseRequired: boolean;
 	densePrefetchLimit: number;
 	sparsePrefetchLimit: number;
-	rrfK: number;
-	rrfDenseWeight: number;
-	rrfSparseWeight: number;
-	rerankerEnabledByDefault: boolean;
-	rerankerTopN: number | null;
-	rerankerProfileVersion: string | null;
-	rerankerAdoptionEvidenceId: string | null;
-	documentSupportLimit: number;
-	documentSupportStrategy: string;
 	embeddingQueryInstruction: string;
-	noHitMinTopScore: number | null;
-	noHitMinScoreGap: number | null;
 	qdrantIndexBinding: QdrantIndexBindingProfile;
 	embeddingProfile: CollectionEmbeddingProfile | null;
 	sparseProfile: CollectionSparseProfile | null;
@@ -395,13 +327,10 @@ function toCollectionRuntimeProfile(
 		sourceParserVersion: value.source_parser_version ?? null,
 		sourceOcrImageRoutingStrategy: value.source_ocr_image_routing_strategy ?? null,
 		retrievalEnabled: value.retrieval_enabled,
-		queryEnabledByDefault: value.query_enabled_by_default,
 		toolReadModelEnabled: value.tool_read_model_enabled,
 		toolReadModelTools: value.tool_read_model_tools,
 		supportsFreshnessSensitiveQueries: value.supports_freshness_sensitive_queries,
 		freshnessMaxAgeHours: value.freshness_max_age_hours ?? null,
-		retrievalTopK: value.retrieval_top_k,
-		currentOnly: value.current_only,
 		servingRevisionTracks: value.serving_revision_tracks,
 		servingVisibilityLevels: value.serving_visibility_levels,
 		servingVisibilityScopes: value.serving_visibility_scopes,
@@ -413,18 +342,7 @@ function toCollectionRuntimeProfile(
 		duplicateCollapseRequired: value.duplicate_collapse_required,
 		densePrefetchLimit: value.dense_prefetch_limit,
 		sparsePrefetchLimit: value.sparse_prefetch_limit,
-		rrfK: value.rrf_k,
-		rrfDenseWeight: value.rrf_dense_weight,
-		rrfSparseWeight: value.rrf_sparse_weight,
-		rerankerEnabledByDefault: value.reranker_enabled_by_default,
-		rerankerTopN: value.reranker_top_n ?? null,
-		rerankerProfileVersion: value.reranker_profile_version ?? null,
-		rerankerAdoptionEvidenceId: value.reranker_adoption_evidence_id ?? null,
-		documentSupportLimit: value.document_support_limit,
-		documentSupportStrategy: value.document_support_strategy,
 		embeddingQueryInstruction: value.embedding_query_instruction,
-		noHitMinTopScore: value.no_hit_min_top_score ?? null,
-		noHitMinScoreGap: value.no_hit_min_score_gap ?? null,
 		qdrantIndexBinding: {
 			aliasName: value.qdrant_alias_name,
 			collectionPrefix: value.qdrant_collection_prefix,

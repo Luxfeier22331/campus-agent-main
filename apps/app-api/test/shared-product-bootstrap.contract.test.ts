@@ -79,23 +79,24 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(Object.keys(appApiSchema)).toEqual(expect.arrayContaining(["messageFeedback"]));
 	});
 
-	it("keeps the current baseline free of retired routing state", () => {
-		const baseline = readAppFile("drizzle/0000_initial.sql");
+	it("keeps the current schema snapshot free of retired routing state", () => {
 		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
-		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
+		const snapshot = readAppFile("drizzle/meta/0001_snapshot.json");
 
 		for (const retiredField of [
 			"intent_classifier_version",
 			"intent_schema_version",
 			"intent_tool",
-			"requested_scope_json",
-			"resolved_scope_json",
+			"requested_scope",
+			"resolved_scope",
+			"version_query_json",
+			"answer_eval_fingerprint_json",
+			"llm_io_fingerprint_json",
 		]) {
-			expect(baseline).not.toContain(retiredField);
 			expect(snapshot).not.toContain(retiredField);
+			expect(chatSchema).not.toContain(retiredField);
 		}
-		expect(chatSchema).toContain('"requested_scope" text');
-		expect(chatSchema).not.toContain('"resolved_scope" text');
+		expect(chatSchema).toContain('"resolved_targets_json" jsonb');
 	});
 
 	it("keeps retired replay and observability configuration out of the initial schema", () => {
@@ -117,16 +118,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
-			expect.arrayContaining([
-				"docs",
-				"dining",
-				"identity",
-				"official_web",
-				"operator",
-				"profile",
-				"runtime",
-				"wechat_official_account",
-			]),
+			expect.arrayContaining(["docs", "dining", "identity", "profile", "runtime"]),
 		);
 	});
 
@@ -160,7 +152,7 @@ describe("app-api shared product bootstrap contracts", () => {
 			"identityPlatformService = buildIdentityPlatformService({",
 		);
 		const identityServiceEnd = requestScopeSource.indexOf(
-			"function resolveOfficialWebQueryService()",
+			"function resolveIngestionTaskProjectionClient()",
 			identityServiceStart,
 		);
 
@@ -177,15 +169,10 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(freshDbReferences).toHaveLength(4);
 
 		for (const resolverName of [
-			"resolveAuthenticatedNoticeProcessingCommandService",
-			"resolveAuthenticatedNoticeRunProcessingCommandService",
 			"resolveCampusServicesOpsService",
 			"resolveIdentityPlatformService",
-			"resolveOfficialWebReleaseTaskProcessingCommandService",
-			"resolveOfficialWebTargetReleaseGateService",
 			"resolveProfileMemoryService",
 			"resolveRuntimeRunService",
-			"resolveWeChatOfficialAccountCommandService",
 		]) {
 			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
 			expect(resolverSource, `${resolverName} must not use APP_API_DB_FRESH`).not.toContain(
@@ -231,7 +218,7 @@ describe("app-api shared product bootstrap contracts", () => {
 			"diningOperationsService = buildDiningOperationsService({",
 		);
 		const diningServiceEnd = requestScopeSource.indexOf(
-			"function resolveOfficialWebTargetJobService()",
+			"function resolveDocsService()",
 			diningServiceStart,
 		);
 

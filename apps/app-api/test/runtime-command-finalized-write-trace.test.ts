@@ -69,7 +69,7 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		status: "completed",
 		traceId: "trace_accepted",
 		...overrides,
-		resolvedScope: overrides.resolvedScope ?? null,
+		resolvedTargets: overrides.resolvedTargets ?? [],
 		sessionUpdate: overrides.sessionUpdate ?? null,
 	};
 }
@@ -86,7 +86,6 @@ describe("buildFinalizedWrite trace integrity", () => {
 				durationMs: 3000,
 				principal: createPrincipal(),
 				requestId: "req_01HQ",
-				requestedScope: null,
 				requestedTool: "knowledge_query",
 				response: createResponse({
 					traceId: "trace_drifted",
@@ -98,7 +97,6 @@ describe("buildFinalizedWrite trace integrity", () => {
 				traceId: "trace_accepted",
 				turnSequence: 1,
 				userMessageId: "msg_user_01HQ",
-				versionQuery: null,
 			}),
 		).toThrowError(
 			expect.objectContaining({

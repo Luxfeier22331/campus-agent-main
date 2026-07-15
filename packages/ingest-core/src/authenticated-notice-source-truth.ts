@@ -29,7 +29,7 @@ import {
 	buildAuthenticatedNoticeSourceRootKeyFromManifestKey,
 } from "./authenticated-notice-source-truth-artifacts.ts";
 import {
-	assertOptionalSha256Digest,
+	assertArtifactRefBytes,
 	type ObjectStore,
 	parseJsonArrayBytes,
 	parseJsonObjectBytes,
@@ -56,10 +56,10 @@ export async function materializeAuthenticatedNoticeSourceTruthFromTask(input: {
 }): Promise<IngestionArtifactRef[]> {
 	const sourceInput = parseS3Uri(input.task.input_ref);
 	const captureReleaseBytes = await input.objectStore.getObject(sourceInput);
-	assertOptionalSha256Digest({
-		actualSha256: sha256Hex(captureReleaseBytes),
-		digest: input.task.input_ref.digest,
+	assertArtifactRefBytes({
+		bytes: captureReleaseBytes,
 		label: "authenticated notice capture release input_ref",
+		ref: input.task.input_ref,
 	});
 	const captureRelease = parseJsonObjectBytes(captureReleaseBytes, "capture release");
 	const parsedCaptureRelease = parseAuthenticatedNoticeCaptureRelease(captureRelease);

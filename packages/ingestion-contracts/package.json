@@ -8,7 +8,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"test": "vitest run",
+		"test": "pnpm run test:ingest",
+		"test:ingest": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {

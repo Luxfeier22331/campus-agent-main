@@ -27,8 +27,6 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 					conversationId: candidate.conversation.id,
 					prompt: candidate.questionPreview,
 					requestedTool: candidate.requestedTool,
-					scope: candidate.requestedScope,
-					versionQuery: candidate.versionQuery,
 				}
 			: {
 					conversationId: candidate.conversation.id,
@@ -59,8 +57,6 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 			conversationId: candidate.conversation.id,
 			prompt: candidate.questionPreview,
 			requestedTool: candidate.requestedTool,
-			requestedScope: candidate.requestedScope,
-			versionQuery: candidate.versionQuery,
 		},
 	};
 }

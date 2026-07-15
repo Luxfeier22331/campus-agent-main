@@ -316,7 +316,7 @@ function requiredMaterializedTraceId(
 function materializedRagasInputError(caseId: string, missing: string[]): string {
 	return `${caseId} is not materialized for Ragas scoring; missing ${missing.join(
 		", ",
-	)}. Sync qrels to Langfuse first, then attach a trace/observation with safe eval.answer and eval.retrieved_contexts before running ragas-score-dataset.`;
+	)}. Run the Langfuse dataset item through the instrumented agent first, then attach a trace/observation with safe eval.answer and eval.retrieved_contexts before running ragas-score-dataset.`;
 }
 
 function evalFieldsFrom(value: JsonObject): JsonObject {

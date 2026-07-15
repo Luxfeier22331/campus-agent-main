@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,167 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
+
+func TestPrimaryAgentContextBudgetDropsCategoriesInDeterministicOrder(t *testing.T) {
+	contextPayload := map[string]any{
+		"schema_version": "final_model_context.v2",
+		"recent_turns": []any{
+			map[string]any{"message_id": "msg-1", "role": "user", "content": strings.Repeat("旧问题", 30)},
+			map[string]any{"message_id": "msg-2", "role": "assistant", "content": strings.Repeat("旧回答", 30)},
+		},
+		"previous_evidence": []any{
+			map[string]any{
+				"access_scope": "public_student_rule",
+				"content_hash": "sha256:evidence",
+				"evidence_id":  "evidence-1",
+				"snippet":      "证据正文",
+				"source_id":    "student-rules/source",
+				"version_id":   "v2026",
+			},
+		},
+		"previous_tool_results": []any{
+			map[string]any{"projection_ref": "projection://one", "summary": strings.Repeat("旧工具结果", 30)},
+			map[string]any{"projection_ref": "projection://two", "summary": strings.Repeat("旧工具结果", 30)},
+		},
+		"memory_context": map[string]any{
+			"context_block": strings.Repeat("个人记忆", 30),
+			"memory_ref":    "projection://memory",
+		},
+	}
+	expected := deepCloneContextForTest(t, contextPayload)
+	expected["previous_tool_results"] = []any{}
+	delete(expected, "memory_context")
+	limit, err := primaryAgentContextCharacterCount(expected)
+	if err != nil {
+		t.Fatalf("count expected context: %v", err)
+	}
+
+	first := cloneAnyMapFromMetadata(contextPayload)
+	dropped, after, err := primaryAgentApplyContextBudget(first, limit)
+	if err != nil {
+		t.Fatalf("apply context budget: %v", err)
+	}
+	if !reflect.DeepEqual(first, expected) {
+		t.Fatalf("truncated context = %#v, want %#v", first, expected)
+	}
+	if !reflect.DeepEqual(dropped, map[string]any{"memory_context": 1, "previous_tool_results": 2}) {
+		t.Fatalf("dropped counts = %#v", dropped)
+	}
+	if after != limit {
+		t.Fatalf("context chars after = %d, want %d", after, limit)
+	}
+
+	second := cloneAnyMapFromMetadata(contextPayload)
+	secondDropped, secondAfter, err := primaryAgentApplyContextBudget(second, limit)
+	if err != nil {
+		t.Fatalf("apply context budget again: %v", err)
+	}
+	if !reflect.DeepEqual(second, first) || !reflect.DeepEqual(secondDropped, dropped) || secondAfter != after {
+		t.Fatalf("context truncation is not deterministic")
+	}
+}
+
+func TestPrimaryAgentContextBudgetDropsEvidenceSnippetButRetainsIdentity(t *testing.T) {
+	contextPayload := map[string]any{
+		"schema_version": "final_model_context.v2",
+		"recent_turns": []any{
+			map[string]any{"message_id": "msg-latest", "role": "user", "content": "上一轮问题"},
+		},
+		"previous_evidence": []any{
+			map[string]any{
+				"access_scope": "public_curriculum",
+				"content_hash": "sha256:curriculum",
+				"document_id":  "curriculum-computer-science",
+				"evidence_id":  "evidence-curriculum-1",
+				"snippet":      strings.Repeat("培养方案正文", 100),
+				"source_id":    "curriculum/computer-science",
+				"version_id":   "2026",
+			},
+		},
+		"previous_tool_results": []any{},
+	}
+	expected := deepCloneContextForTest(t, contextPayload)
+	expectedEvidence := anyListFromAny(expected["previous_evidence"])
+	expectedItem := cloneAnyMapFromMetadata(expectedEvidence[0])
+	delete(expectedItem, "snippet")
+	expectedEvidence[0] = expectedItem
+	expected["previous_evidence"] = expectedEvidence
+	limit, err := primaryAgentContextCharacterCount(expected)
+	if err != nil {
+		t.Fatalf("count expected context: %v", err)
+	}
+
+	dropped, _, err := primaryAgentApplyContextBudget(contextPayload, limit)
+	if err != nil {
+		t.Fatalf("apply context budget: %v", err)
+	}
+	if !reflect.DeepEqual(dropped, map[string]any{"previous_evidence_snippets": 1}) {
+		t.Fatalf("dropped counts = %#v", dropped)
+	}
+	evidence := cloneAnyMapFromMetadata(anyListFromAny(contextPayload["previous_evidence"])[0])
+	if _, exists := evidence["snippet"]; exists {
+		t.Fatalf("evidence snippet was not removed: %#v", evidence)
+	}
+	for key, want := range map[string]any{
+		"access_scope": "public_curriculum",
+		"content_hash": "sha256:curriculum",
+		"document_id":  "curriculum-computer-science",
+		"evidence_id":  "evidence-curriculum-1",
+		"source_id":    "curriculum/computer-science",
+		"version_id":   "2026",
+	} {
+		if evidence[key] != want {
+			t.Fatalf("evidence %s = %#v, want %#v", key, evidence[key], want)
+		}
+	}
+}
+
+func deepCloneContextForTest(t *testing.T, value map[string]any) map[string]any {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("encode context fixture: %v", err)
+	}
+	var cloned map[string]any
+	if err := json.Unmarshal(encoded, &cloned); err != nil {
+		t.Fatalf("decode context fixture: %v", err)
+	}
+	return cloned
+}
+
+func TestPrimaryAgentFinalModelContextRejectsOversizedCurrentInput(t *testing.T) {
+	run := execution.DurableRun{Metadata: map[string]any{
+		"execution_payload": map[string]any{"user_goal": strings.Repeat("界", 8001)},
+	}}
+	_, err := primaryAgentFinalModelContextForRun(run, temporalruntime.ExecutePrimaryAgentActivityInput{}, primaryAgentRuntimeLimits{
+		CurrentInputCharLimit: 8000,
+		ContextCharLimit:      16000,
+	})
+	if err == nil || !strings.Contains(err.Error(), "8001 characters") {
+		t.Fatalf("oversized input error = %v", err)
+	}
+}
+
+func TestPrimaryAgentContextBudgetRejectsUntrimmableContext(t *testing.T) {
+	contextPayload := map[string]any{
+		"schema_version":        "final_model_context.v2",
+		"recent_turns":          []any{},
+		"previous_evidence":     []any{},
+		"previous_tool_results": []any{},
+		"session_state": map[string]any{
+			"confirmed_slots": []any{map[string]any{
+				"confirmed": true,
+				"name":      "curriculum_program",
+				"value":     strings.Repeat("计算机科学与技术", 100),
+			}},
+			"turn_count": 1,
+		},
+	}
+	_, _, err := primaryAgentApplyContextBudget(contextPayload, 100)
+	if err == nil || !strings.Contains(err.Error(), "after deterministic truncation") {
+		t.Fatalf("untrimmable context error = %v", err)
+	}
+}
 
 func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelope(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
@@ -128,7 +290,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeTimeoutMS:    1000,
+		AgentRuntimeDeadlineMS:   1000,
 		TemporalWorkerIdentity:   "test:agent:context",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
@@ -151,47 +313,34 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 	if !ok {
 		t.Fatalf("agent runtime request missing final_model_context: %#v", seenBody)
 	}
-	if finalModelContext["schema_version"] != "final_model_context.v1" ||
-		finalModelContext["current_user_message"] != "那大一能不能申请？" {
+	if finalModelContext["schema_version"] != "final_model_context.v2" {
 		t.Fatalf("final_model_context = %#v", finalModelContext)
+	}
+	if _, exists := finalModelContext["current_user_message"]; exists {
+		t.Fatalf("final_model_context duplicates current_user_message: %#v", finalModelContext)
+	}
+	if _, exists := seenBody["memory_context"]; exists {
+		t.Fatalf("agent runtime request duplicates memory_context: %#v", seenBody)
+	}
+	if _, exists := seenBody["memory_projection_refs"]; exists {
+		t.Fatalf("agent runtime request exposes unused memory_projection_refs: %#v", seenBody)
 	}
 	usageSummary, ok := finalModelContext["usage_summary"].(map[string]any)
 	if !ok || usageSummary["memory_recall_state"] != "completed" ||
-		usageSummary["truncation_reason"] != "context_policy_limit" ||
-		intFromAny(usageSummary["token_estimate"]) <= 0 {
+		intFromAny(usageSummary["context_chars"]) <= 0 ||
+		intFromAny(usageSummary["current_input_chars"]) != 9 {
 		t.Fatalf("usage_summary = %#v", finalModelContext["usage_summary"])
 	}
-	truncationSummary, ok := usageSummary["truncation_summary"].(map[string]any)
-	if !ok || truncationSummary["schema_version"] != "truncation_summary.v1" ||
-		truncationSummary["policy_version"] != "primary_agent_context.v1" ||
-		truncationSummary["reason"] != "context_policy_limit" ||
-		intFromAny(truncationSummary["token_estimate_before"]) <= intFromAny(truncationSummary["token_estimate_after"]) {
-		t.Fatalf("truncation_summary = %#v", usageSummary["truncation_summary"])
-	}
-	droppedCounts, ok := truncationSummary["dropped_category_counts"].(map[string]any)
-	if !ok || intFromAny(droppedCounts["recent_turns"]) != 2 ||
-		intFromAny(droppedCounts["recent_turn_characters"]) <= 0 {
-		t.Fatalf("dropped_category_counts = %#v", truncationSummary["dropped_category_counts"])
-	}
-	encodedTruncationSummary, err := json.Marshal(truncationSummary)
-	if err != nil {
-		t.Fatalf("marshal truncation summary: %v", err)
-	}
-	for _, forbidden := range []string{"那大一能不能申请？", "转专业条件是什么？", "用户记忆"} {
-		if strings.Contains(string(encodedTruncationSummary), forbidden) {
-			t.Fatalf("truncation_summary leaked %q: %s", forbidden, encodedTruncationSummary)
-		}
+	if _, exists := usageSummary["token_estimate"]; exists {
+		t.Fatalf("usage_summary contains retired token estimate: %#v", usageSummary)
 	}
 	recentTurns, ok := finalModelContext["recent_turns"].([]any)
-	if !ok || len(recentTurns) != 6 {
+	if !ok || len(recentTurns) != 8 {
 		t.Fatalf("recent_turns = %#v", finalModelContext["recent_turns"])
 	}
 	firstRecentTurn, _ := recentTurns[0].(map[string]any)
-	trimmedAssistantTurn, _ := recentTurns[4].(map[string]any)
-	if firstRecentTurn["message_id"] != "msg_assistant_002" ||
-		len([]rune(firstNonEmptyText(trimmedAssistantTurn["content"]))) > 240 ||
-		!strings.HasSuffix(firstNonEmptyText(trimmedAssistantTurn["content"]), "...") {
-		t.Fatalf("bounded recent_turns = %#v", recentTurns)
+	if firstRecentTurn["message_id"] != "msg_user_000" {
+		t.Fatalf("recent_turn ordering = %#v", recentTurns)
 	}
 	previousEvidence, ok := finalModelContext["previous_evidence"].([]any)
 	if !ok || len(previousEvidence) != 1 {
@@ -219,14 +368,10 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		t.Fatalf("steps = %#v", steps)
 	}
 	contextUsage, ok := steps[0].SanitizedPayload["context_usage"].(map[string]any)
-	if !ok || contextUsage["schema_version"] != "final_model_context.v1" ||
+	if !ok || contextUsage["schema_version"] != "final_model_context.v2" ||
 		contextUsage["previous_evidence_count"] != 1 ||
-		contextUsage["previous_tool_result_count"] != 1 {
+		contextUsage["previous_tool_result_count"] != 1 ||
+		intFromAny(contextUsage["context_chars"]) <= 0 {
 		t.Fatalf("context_usage = %#v", steps[0].SanitizedPayload["context_usage"])
-	}
-	if summary, ok := contextUsage["truncation_summary"].(map[string]any); !ok ||
-		summary["schema_version"] != "truncation_summary.v1" ||
-		summary["reason"] != "context_policy_limit" {
-		t.Fatalf("context_usage truncation_summary = %#v", contextUsage["truncation_summary"])
 	}
 }

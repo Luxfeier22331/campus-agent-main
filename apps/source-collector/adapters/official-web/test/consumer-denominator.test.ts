@@ -9,8 +9,8 @@ import { loadOfficialWebConfig } from "../src/core/index.ts";
 import { crawlSite } from "../src/crawl";
 import type { CollectedPageArtifact } from "../src/page-artifacts";
 import {
+	buildTargetWorksetCandidatesForTest,
 	createCollectedPageArtifactForTest,
-	createTargetWorksetControlPlaneForTest,
 	readJsonArtifact,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	writeTestConfigRoot,
@@ -266,7 +266,7 @@ describe("official web consumer denominator", () => {
 			outputDir,
 			crawlRunId: "owrun_consumer_filter",
 			localArtifactsOnly: true,
-			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+			crawlCandidates: buildTargetWorksetCandidatesForTest({
 				runId: "owrun_consumer_filter",
 			}),
 			crawlHosts: async () => ({
@@ -336,6 +336,9 @@ describe("official web consumer denominator", () => {
 			pageManifest: {
 				...listingPage.pageManifest,
 				pageFamily: "listing_page",
+			},
+			targeting: {
+				...listingPage.targeting,
 				targetMatches: [
 					{
 						targetJobId: "owtarget_contact",
@@ -359,10 +362,10 @@ describe("official web consumer denominator", () => {
 		});
 
 		expect(result.retainedPages).toHaveLength(1);
-		expect(result.retainedPages[0]?.pageManifest.consumerRetentionDecision).toBe(
+		expect(result.retainedPages[0]?.targeting.consumerRetentionDecision).toBe(
 			"retain_source_truth",
 		);
-		expect(result.retainedPages[0]?.pageManifest.consumerRejectionReason).toBe(
+		expect(result.retainedPages[0]?.targeting.consumerRejectionReason).toBe(
 			"target_workset_retention_policy",
 		);
 		expect(result.summary).toMatchObject({

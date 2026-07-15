@@ -15,7 +15,7 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
@@ -161,7 +161,7 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
@@ -319,7 +319,7 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async ({ objectKey, data, contentType, metadata }) => {
+				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
 						contentType,
