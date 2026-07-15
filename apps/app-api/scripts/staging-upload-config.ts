@@ -14,6 +14,15 @@ function requireUuid(name: string, value: string): string {
 	return value;
 }
 
+function requireHyperdriveConfigurationId(name: string, value: string): string {
+	if (!/^[0-9a-f]{32}$/.test(value)) {
+		throw new Error(
+			`${name} must contain a 32-character lowercase hexadecimal Cloudflare Hyperdrive configuration ID.`,
+		);
+	}
+	return value;
+}
+
 function replaceBinding(
 	bindings: unknown,
 	bindingName: string,
@@ -56,13 +65,16 @@ export function buildAppApiStagingUploadConfig(
 		staging.hyperdrive,
 		"APP_API_DB",
 		"id",
-		requireUuid("STAGING_APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
+		requireHyperdriveConfigurationId("STAGING_APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
 	);
 	replaceBinding(
 		staging.hyperdrive,
 		"APP_API_DB_FRESH",
 		"id",
-		requireUuid("STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID", resources.freshHyperdriveId),
+		requireHyperdriveConfigurationId(
+			"STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID",
+			resources.freshHyperdriveId,
+		),
 	);
 	config.main = resolve(appDir, "src/index.ts");
 	return stringify(config);
