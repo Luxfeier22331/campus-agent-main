@@ -14,9 +14,6 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
-      - apps/ingestion-control/**
-      - apps/ops-web/**
-      - apps/source-collector/**
       - jobs/app-api-schema/**
       - jobs/transport-publisher/**
       - apps/app-api/package.json
@@ -25,7 +22,6 @@ on:
       - apps/app-api/ops/db/**
       - apps/app-api/src/script-support/shared-db/**
       - configs/ingestion/**
-      - configs/sources/**
       - configs/runtime/execution-control/**
       - configs/runtime/query-serving-targets.v1.json
       - configs/runtime/tool-function-schemas.v2.json
@@ -34,11 +30,6 @@ on:
       - infra/k8s/**
       - packages/contracts/fixtures/tool_execution_contract/**
       - packages/contracts/schemas/transport-schedule-status.v1.schema.json
-      - packages/ingest-core/**
-      - packages/ingestion-contracts/**
-      - packages/ingestion-kernels-rs/**
-      - Cargo.lock
-      - Cargo.toml
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
@@ -90,40 +81,6 @@ jobs:
               - 'configs/runtime/tool-function-schemas.v2.json'
               - 'configs/runtime/tools.v5.json'
               - 'configs/runtime/workflow-artifacts.v2.json'
-            ingestion_control:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-            ingestion_control_worker:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'Cargo.lock'
-              - 'Cargo.toml'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-              - 'packages/ingestion-kernels-rs/**'
-            source_collector:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/source-collector/**'
-              - 'configs/ingestion/**'
-              - 'configs/sources/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
             app_api_schema:
               - '.dockerignore'
               - 'package.json'
@@ -135,12 +92,6 @@ jobs:
               - 'apps/app-api/drizzle/**'
               - 'apps/app-api/ops/db/**'
               - 'apps/app-api/src/script-support/shared-db/**'
-            ops_web:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'apps/ops-web/**'
             transport_publisher:
               - '.dockerignore'
               - 'package.json'
@@ -163,15 +114,11 @@ jobs:
           fi
           images=()
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            images=(execution-control agent-runtime ingestion-control ingestion-control-worker source-collector app-api-schema ops-web transport-publisher)
+            images=(execution-control agent-runtime app-api-schema transport-publisher)
           else
             [ "${{ steps.release-filter.outputs.execution_control }}" = "true" ] && images+=(execution-control)
             [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
-            [ "${{ steps.release-filter.outputs.ingestion_control }}" = "true" ] && images+=(ingestion-control)
-            [ "${{ steps.release-filter.outputs.ingestion_control_worker }}" = "true" ] && images+=(ingestion-control-worker)
-            [ "${{ steps.release-filter.outputs.source_collector }}" = "true" ] && images+=(source-collector)
             [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
-            [ "${{ steps.release-filter.outputs.ops_web }}" = "true" ] && images+=(ops-web)
             [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
           fi
           if [ "${#images[@]}" -eq 0 ]; then
@@ -181,10 +128,6 @@ jobs:
           fi
           echo '{}' > image-digests.json
           echo "images=$images_json" >> "$GITHUB_OUTPUT"
-
-      - name: Setup QEMU
-        if: steps.images.outputs.images != '[]'
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4
 
       - name: Setup persistent Docker Buildx
         if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
@@ -238,20 +181,7 @@ jobs:
             case "$image" in
               execution-control) dockerfile=apps/execution-control/Dockerfile ;;
               agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
-              ingestion-control)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=api
-                ;;
-              ingestion-control-worker)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=worker
-                ;;
-              source-collector)
-                dockerfile=apps/source-collector/Dockerfile
-                target=runtime
-                ;;
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
-              ops-web) dockerfile=apps/ops-web/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
               *) echo "Unsupported image: $image" >&2; exit 1 ;;
             esac
@@ -267,11 +197,11 @@ jobs:
                   .manifest.mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
                 (.manifest.digest | test("^sha256:[0-9a-f]{64}$")) and
                 ([.manifest.manifests[]? |
-                  select(.platform.os == "linux" and .platform.architecture == "amd64")] |
+                  select(.platform.os == "linux" and .platform.architecture == "arm64")] |
                   length == 1) and
                 ([.manifest.manifests[]? |
-                  select(.platform.os == "linux" and .platform.architecture == "arm64")] |
-                  length == 1)
+                  select(.platform.os == "linux" and .platform.architecture != "arm64")] |
+                  length == 0)
               ' "$inspect_file" >/dev/null; then
                 echo "Existing immutable tag is incomplete or invalid: ${tag}." >&2
                 exit 1
@@ -285,7 +215,7 @@ jobs:
               fi
               build_args=(
                 --file "$dockerfile"
-                --platform "linux/amd64,linux/arm64"
+                --platform "linux/arm64"
                 --pull
                 --push
                 --sbom=true
@@ -304,7 +234,7 @@ jobs:
                   "$metadata_file"
               )"
             fi
-            for platform in linux/amd64 linux/arm64; do
+            for platform in linux/arm64; do
               trivy image \
                 --cache-dir "$trivy_cache_dir" \
                 --platform "$platform" \
@@ -424,15 +354,8 @@ jobs:
                   fi
                 done
                 if [ "${matches}" -eq 0 ]; then
-                  case "${image}" in
-                    execution-control|agent-runtime)
-                      echo "No required GitOps consumer for ${image}." >&2
-                      exit 1
-                      ;;
-                    *)
-                      echo "No GitOps consumer for optional image ${image}; candidate remains unpublished to staging."
-                      ;;
-                  esac
+                  echo "No GitOps consumer for ${image}." >&2
+                  exit 1
                 elif [ "${image}" = "execution-control" ]; then
                   execution_control_written=true
                 fi
@@ -508,6 +431,6 @@ jobs:
 
             ## 验证结果
 
-            - [x] 本次产生的镜像（如有）均在 amd64 与 arm64 上通过 HIGH / CRITICAL 漏洞扫描
+            - [x] 本次产生的镜像（如有）均在 arm64 上通过 HIGH / CRITICAL 漏洞扫描
             - [x] 所有 staging Kustomize overlay 可完整渲染
             - [x] Application 与 SealedSecret 清单可完整渲染

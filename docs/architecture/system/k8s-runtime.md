@@ -139,14 +139,16 @@ identity, not user-managed secrets.
 The ingestion lanes produce `ingestion-control`, `ingestion-control-worker`,
 and `source-collector`. The API image excludes the Rust runner and tokenizer;
 the ingestion worker image owns both. The source collector image contains only
-the Chromium headless shell used by its Temporal activities.
+the Chromium headless shell used by its Temporal activities. These images are
+not part of automatic execution-runtime publication until the environment
+repository declares their consumers.
 
 The PR lane builds, exercises the ingestion runtime contracts, and scans
-affected images. The main publish lane attaches an OCI SBOM, scans both target
-platforms, and pushes multi-architecture images. GitOps promotion selects
-digests; a mutable tag is never deployment truth. Until the environment
-repository declares ingestion image consumers, ingestion candidates are
-published but not promoted to staging.
+affected images. The main publish lane attaches an OCI SBOM, scans the ARM64
+target, and pushes ARM64 images for the current environment consumers. GitOps
+promotion selects digests; a mutable tag is never deployment truth. Ingestion
+and Ops Web images remain outside this publication lane until the environment
+repository declares their consumers.
 
 ## Verification
 

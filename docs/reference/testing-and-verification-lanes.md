@@ -64,12 +64,12 @@ Ragas/Langfuse scoring is an internal eval shell/runtime lane, not a GitHub
 Actions workflow.
 
 First-party K8s images are published with the source commit SHA and selected in
-the environment repository by multi-architecture manifest digest. Mutable
-staging tags and node-local image cache state are not deployment inputs.
-Publishing the same commit again must reuse an existing valid amd64/arm64
-manifest, rerun both platform vulnerability scans and leave its immutable tag
-unchanged. A missing tag may be built; an incomplete or invalid existing tag
-must fail closed instead of being overwritten.
+the environment repository by ARM64 manifest digest. Mutable staging tags and
+node-local image cache state are not deployment inputs. Publishing the same
+commit again must reuse an existing valid ARM64 manifest, rerun the ARM64
+vulnerability scan and leave its immutable tag unchanged. A missing tag may be
+built; an incomplete, non-ARM64 or otherwise invalid existing tag must fail
+closed instead of being overwritten.
 
 K8s/GitOps deployment validation is gated by live infrastructure bootstrap.
 Do not treat source-repository bases as deployed truth. Claim deployment
@@ -359,15 +359,15 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     persistent Trivy database, then removes loaded PR image tags after scanning.
   - It is included in `pr / required`.
 - `.github/workflows/execution-runtime-publish.yml`
-  - A `main` push publishes only affected multi-architecture SHA candidates;
-    manual dispatch publishes all managed candidates.
-  - BuildKit attaches an OCI SBOM, then Trivy scans both amd64 and arm64 by
-    manifest digest. GitOps promotion starts only after every scan passes.
+  - A `main` push publishes only affected ARM64 images with current GitOps
+    consumers; manual dispatch publishes the same managed set.
+  - BuildKit attaches an OCI SBOM, then Trivy scans the ARM64 manifest digest.
+    GitOps promotion starts only after every scan passes.
   - The environment pull request updates only image entries that already exist
-    in GitOps and source refs only when Kubernetes bases changed. A changed K8s
-    source ref, `execution-control` image or `agent-runtime` image must match at
-    least one GitOps consumer; zero matches fail promotion.
-  - Ingestion images remain optional promotion candidates until the environment
+    in GitOps and source refs only when Kubernetes bases changed. Every image
+    selected for publication must match at least one GitOps consumer; zero
+    matches fail promotion.
+  - Ingestion and Ops Web images remain outside this lane until the environment
     repository declares their staging consumers.
 - `.github/workflows/scorecard.yml`
   - Scheduled / manual OpenSSF Scorecard security posture signal.
