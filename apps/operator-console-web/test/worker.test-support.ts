@@ -11,8 +11,8 @@ export const packageManifest = JSON.parse(packageManifestRaw) as {
 export { default as stagingAccessServiceTokenSmokeSource } from "../e2e/staging-access-service-token.ts?raw";
 export { default as stagingBrowserE2ESource } from "../e2e/staging-browser.ts?raw";
 export { default as localAccessSmokeServerSource } from "../e2e/support/local-access-server.ts?raw";
-export { default as deployStagingSource } from "../scripts/deploy-staging.ts?raw";
 export { default as stagingPreflightSource } from "../scripts/preflight-staging.ts?raw";
+export { default as uploadStagingVersionSource } from "../scripts/upload-staging-version.ts?raw";
 export { default as worker } from "../src/index";
 export { default as viteConfigSource } from "../vite.config.ts?raw";
 export { default as wranglerLocalSmokeConfig } from "../wrangler.local-smoke.toml?raw";

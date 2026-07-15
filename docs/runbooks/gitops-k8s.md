@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-07-03
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 # Kubernetes GitOps Runbook
 
@@ -16,6 +16,9 @@ coordinates or commands for a specific private cluster.
 
 ADR-0074 is the ownership decision. The source repository is not Kubernetes
 deployment truth.
+
+This runbook also records the handoff to Cloudflare Terraform, but Argo CD
+continues to own Kubernetes only.
 
 ## Repository Ownership
 
@@ -35,6 +38,8 @@ The environment repository owns:
 - deployment ConfigMaps, registry pull credentials, SealedSecrets and trust
   anchors;
 - full source commit SHAs and first-party image digests;
+- Cloudflare Terraform state, non-secret platform resources and Worker version
+  selection;
 - environment-specific rollout, recovery and cluster verification.
 
 The self-hosted object store follows the same split: this repository owns the
@@ -65,21 +70,24 @@ not create Namespaces.
 
 ## Image Promotion
 
-On a successful `main` image build,
+On a successful `main` candidate build,
 `.github/workflows/execution-runtime-publish.yml`:
 
-1. publishes `execution-control`, `agent-runtime`, `app-api-schema` and
-   `transport-publisher` as ARM64 images with only the source commit SHA as a tag;
-2. resolves the four images currently owned by the execution-runtime environment overlay;
+1. publishes affected `execution-control`, `agent-runtime`, `app-api-schema` and
+   `transport-publisher` ARM64 images with only the source commit SHA as a tag,
+   and uploads affected Worker versions without changing traffic;
+2. requires every selected image to have a current GitOps consumer and records
+   only image and Worker entries already declared by the environment repository;
 3. authenticates as a dedicated GitHub App limited to the environment
    repository;
-4. updates the environment's source-base SHA, image digests and runtime release
-   id;
+4. updates the environment's source-base SHA, image digests, runtime release id
+   and Worker version manifest;
 5. renders every environment Kustomize target; and
 6. opens or updates one pull request for that source commit.
 
 The workflow never writes directly to environment `main`. Merging the GitOps
-pull request is the deployment action.
+pull request lets Argo CD reconcile Kubernetes and Terraform reconcile
+Cloudflare. The environment repository owns their ordering and health gates.
 
 Ops Web currently has source code but no environment overlay on GitOps `main`.
 It is not part of execution-runtime publication until that Application and overlay are merged.

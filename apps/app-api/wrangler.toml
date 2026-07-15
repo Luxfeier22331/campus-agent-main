@@ -5,9 +5,6 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 preview_urls = false
 
-[triggers]
-crons = ["*/1 * * * *"]
-
 [env.local]
 workers_dev = false
 preview_urls = false
@@ -38,10 +35,6 @@ required = [
   "APP_API_OTEL_INGEST_SHARED_SECRET",
   "SENTRY_DSN",
 ]
-
-[[env.staging.routes]]
-pattern = "api-staging.mucwiki-edge.link"
-custom_domain = true
 
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
@@ -74,16 +67,16 @@ required = [
 
 [[env.staging.vpc_services]]
 binding = "EXECUTION_CONTROL_PRIVATE"
-service_id = "019f45da-bf06-7f82-b06c-ee88af08c459"
+service_id = "00000000-0000-0000-0000-000000000000"
 remote = true
 
 [[env.staging.hyperdrive]]
 binding = "APP_API_DB"
-id = "c697741c51ca42eb912cdb3e013728f3"
+id = "00000000-0000-0000-0000-000000000000"
 
 [[env.staging.hyperdrive]]
 binding = "APP_API_DB_FRESH"
-id = "bcb527f5de2d4de49b2be59fac991838"
+id = "00000000-0000-0000-0000-000000000000"
 
 [[env.local.hyperdrive]]
 binding = "APP_API_DB"

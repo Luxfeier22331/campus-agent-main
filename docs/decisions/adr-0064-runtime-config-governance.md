@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0064
 status: accepted
 created: 2026-07-03
-updated: 2026-07-04
+updated: 2026-07-14
 ---
 # ADR-0064 Runtime Config Governance
 
@@ -48,14 +48,18 @@ delivery mechanisms keep their native ownership:
 - Kubernetes Secrets carry delivered secret material.
 - External Secrets Operator syncs external secret-store values into Kubernetes
   Secrets.
-- Cloudflare Worker vars/secrets remain in Wrangler / Cloudflare Worker deploy
-  workflows.
+- Cloudflare Worker vars are captured in uploaded immutable versions;
+  Cloudflare-derived public GitHub Environment variables are reconciled by the
+  environment repository's Terraform configuration.
+- Cloudflare Worker secret values remain in the Cloudflare Worker secret store
+  and are checked for presence before version upload.
 - Docker Compose env and secrets remain local-runtime bootstrap surfaces.
 - app-api provider-config owns app-operational provider profile truth.
 
 Repo-tracked policy files and static checks only express cross-substrate
-contracts and fail-closed drift detection. They must not replace Kubernetes,
-Wrangler, Docker Compose, External Secrets Operator or app-api provider-config.
+  contracts and fail-closed drift detection. They must not replace Kubernetes,
+  Cloudflare Terraform/Worker versions, Docker Compose, External Secrets
+  Operator or app-api provider-config.
 
 ## Consequences
 

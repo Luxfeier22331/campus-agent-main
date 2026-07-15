@@ -3,9 +3,9 @@ import rootPackageManifestRaw from "../../../package.json?raw";
 import sharedStagingPreflightSource from "../../../scripts/deploy/run-worker-staging-preflight.ts?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
-import deployStagingSource from "../scripts/deploy-staging.ts?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.ts?raw";
+import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -142,7 +142,7 @@ function createDocsReadinessResult() {
 }
 
 describe("app-api worker foundation", () => {
-	it("declares the staging custom domain, hyperdrive binding, and deploy gate", () => {
+	it("keeps traffic out of Wrangler and injects staging bindings at upload time", () => {
 		const stagingVarsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.staging.vars]",
@@ -153,9 +153,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
 		expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
-		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "api-staging.mucwiki-edge.link"');
-		expect(wranglerConfig).toContain("custom_domain = true");
+		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
@@ -174,7 +172,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
 		expect(wranglerConfig).toContain("[[env.staging.vpc_services]]");
 		expect(wranglerConfig).toContain('binding = "EXECUTION_CONTROL_PRIVATE"');
-		expect(wranglerConfig).toContain('service_id = "019f45da-bf06-7f82-b06c-ee88af08c459"');
+		expect(wranglerConfig).toContain('service_id = "00000000-0000-0000-0000-000000000000"');
 		expect(wranglerConfig).toContain("remote = true");
 		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
@@ -187,21 +185,24 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.ts");
-		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
+		expect(packageManifest.scripts?.["deploy:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["upload:staging"]).toContain("upload-staging-version.ts");
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
-		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
-		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(deployStagingSource).toContain("preflight-staging.ts");
+		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("loadRepoStagingEnvFile");
+		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
+		expect(uploadStagingVersionSource).toContain("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID");
+		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_HYPERDRIVE_ID");
+		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID");
+		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
 		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(
 			"pnpm exec tsx scripts/smoke/app-api.ts",
 		);
 		expect(appApiSmokeEntrypointSource).toContain("chat-durable-staging.ts");
 		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
-		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
+		expect(packageManifest.scripts?.["upload:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toBeUndefined();
@@ -233,10 +234,12 @@ describe("app-api worker foundation", () => {
 			"apps/app-api/scripts/verify-staging-config.ts",
 		);
 		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
-		expect(deployStagingSource).not.toContain("execution-control trusted machine ingress");
-		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientIdKeyLocal);
-		expect(deployStagingSource).not.toContain(retiredExecutionControlAccessClientSecretKeyLocal);
-		expect(deployStagingSource).not.toContain("execution-control origin");
+		expect(uploadStagingVersionSource).not.toContain("execution-control trusted machine ingress");
+		expect(uploadStagingVersionSource).not.toContain(retiredExecutionControlAccessClientIdKeyLocal);
+		expect(uploadStagingVersionSource).not.toContain(
+			retiredExecutionControlAccessClientSecretKeyLocal,
+		);
+		expect(uploadStagingVersionSource).not.toContain("execution-control origin");
 		expect(stagingPreflightSource).not.toContain("run-with-staging-db-env.mjs");
 		expect(stagingPreflightSource).not.toContain("bootstrap-shared-product-with-seeds.mjs");
 		expect(stagingPreflightSource).not.toContain("bootstrap-shared-product-database.ts");
@@ -248,7 +251,7 @@ describe("app-api worker foundation", () => {
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.local.secrets]",
-			"[[env.staging.routes]]",
+			"[env.staging.vars]",
 		);
 		const stagingSecretsBlock = readTomlBlock(
 			wranglerConfig,

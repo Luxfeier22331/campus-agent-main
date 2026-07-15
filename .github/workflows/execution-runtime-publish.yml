@@ -1,4 +1,4 @@
-name: execution-runtime-publish
+name: staging-candidate-publish
 
 on:
   workflow_dispatch:
@@ -14,14 +14,21 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/campus-web/**
+      - apps/operator-console-web/**
       - jobs/app-api-schema/**
       - jobs/transport-publisher/**
       - apps/app-api/package.json
+      - apps/app-api/scripts/**
+      - apps/app-api/src/**
+      - apps/app-api/wrangler.toml
       - apps/app-api/db/shared-product-schema/**
       - apps/app-api/drizzle/**
       - apps/app-api/ops/db/**
       - apps/app-api/src/script-support/shared-db/**
       - configs/ingestion/**
+      - configs/branding/**
+      - configs/sources/**
       - configs/runtime/execution-control/**
       - configs/runtime/query-serving-targets.v1.json
       - configs/runtime/tool-function-schemas.v2.json
@@ -30,6 +37,9 @@ on:
       - infra/k8s/**
       - packages/contracts/fixtures/tool_execution_contract/**
       - packages/contracts/schemas/transport-schedule-status.v1.schema.json
+      - packages/domains/dining/**
+      - packages/ingestion-contracts/**
+      - scripts/deploy/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
@@ -41,12 +51,23 @@ permissions:
   packages: write
 
 concurrency:
-  group: execution-runtime-publish
+  group: staging-candidate-publish
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    environment: staging
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
+      STAGING_ACCESS_POLICY_AUD: ${{ vars.STAGING_ACCESS_POLICY_AUD }}
+      STAGING_ACCESS_TEAM_DOMAIN: ${{ vars.STAGING_ACCESS_TEAM_DOMAIN }}
+      STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID }}
+      STAGING_APP_API_DB_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_HYPERDRIVE_ID }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
+      STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID }}
+      STAGING_MAP_DATA_BUCKET_NAME: ${{ vars.STAGING_MAP_DATA_BUCKET_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -102,6 +123,31 @@ jobs:
               - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
             k8s:
               - 'infra/k8s/**'
+            app_api_worker:
+              - 'apps/app-api/**'
+              - 'configs/runtime/**'
+              - 'configs/sources/**'
+              - 'packages/domains/dining/**'
+              - 'packages/ingestion-contracts/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            campus_web_worker:
+              - 'apps/campus-web/**'
+              - 'configs/branding/**'
+              - 'packages/domains/dining/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            operator_console_worker:
+              - 'apps/operator-console-web/**'
+              - 'configs/branding/**'
+              - 'scripts/deploy/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
 
       - name: Select images
         id: images
@@ -129,6 +175,60 @@ jobs:
           echo '{}' > image-digests.json
           echo "images=$images_json" >> "$GITHUB_OUTPUT"
 
+      - name: Select Workers
+        id: workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            app_api=true
+            campus_web=true
+            operator_console=true
+          else
+            app_api="${{ steps.release-filter.outputs.app_api_worker }}"
+            campus_web="${{ steps.release-filter.outputs.campus_web_worker }}"
+            operator_console="${{ steps.release-filter.outputs.operator_console_worker }}"
+          fi
+          workers=()
+          [ "$app_api" = "true" ] && workers+=(app-api)
+          [ "$campus_web" = "true" ] && workers+=(campus-web)
+          [ "$operator_console" = "true" ] && workers+=(operator-console-web)
+          if [ "${#workers[@]}" -eq 0 ]; then
+            workers_json='[]'
+          else
+            workers_json="$(printf '%s\n' "${workers[@]}" | jq -R . | jq -sc .)"
+          fi
+          mkdir -p worker-candidates
+          {
+            echo "app_api=$app_api"
+            echo "campus_web=$campus_web"
+            echo "operator_console=$operator_console"
+            echo "workers=$workers_json"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.workers.outputs.workers != '[]'
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Upload app-api candidate
+        if: steps.workers.outputs.app_api == 'true'
+        env:
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
+        run: pnpm --dir apps/app-api upload:staging
+
+      - name: Build and upload campus-web candidate
+        if: steps.workers.outputs.campus_web == 'true'
+        env:
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
+        run: pnpm --dir apps/campus-web build:staging && pnpm --dir apps/campus-web upload:staging
+
+      - name: Build and upload operator-console candidate
+        if: steps.workers.outputs.operator_console == 'true'
+        env:
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/operator-console-web-staging.json
+        run: >-
+          pnpm --dir apps/operator-console-web build:staging &&
+          pnpm --dir apps/operator-console-web upload:staging
       - name: Setup persistent Docker Buildx
         if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
@@ -254,7 +354,7 @@ jobs:
         if: >-
           github.ref == 'refs/heads/main' &&
           (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
+          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
@@ -269,7 +369,7 @@ jobs:
         if: >-
           github.ref == 'refs/heads/main' &&
           (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
+          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
@@ -281,7 +381,7 @@ jobs:
         if: >-
           github.ref == 'refs/heads/main' &&
           (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.release-filter.outputs.k8s == 'true')
+          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: source
         shell: bash
         env:
@@ -371,6 +471,30 @@ jobs:
                   (\"execution-control@\" + strenv(SHORT_SHA))" "${runtime_config}"
               fi
             '
+          for candidate in worker-candidates/*.json; do
+            [ -e "$candidate" ] || continue
+            worker_name="$(jq -er '.workerName' "$candidate")"
+            case "$worker_name" in
+              app-api-staging|campus-web-staging|operator-console-web-staging) ;;
+              *) echo "Unsupported Worker candidate: ${worker_name}." >&2; exit 1 ;;
+            esac
+            version_id="$(jq -er '.versionId | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"))' "$candidate")"
+            candidate_sha="$(jq -er '.sourceSha | select(test("^[0-9a-f]{40}$"))' "$candidate")"
+            if [ "$candidate_sha" != "$SOURCE_SHA" ]; then
+              echo "Worker candidate ${worker_name} was built from ${candidate_sha}, expected ${SOURCE_SHA}." >&2
+              exit 1
+            fi
+            jq \
+              --arg worker "$worker_name" \
+              --arg version "$version_id" \
+              --arg source "$candidate_sha" \
+              '.workers[$worker] = {versionId: $version, sourceSha: $source}' \
+              gitops/cloudflare/staging/worker-versions.json \
+              > gitops/cloudflare/staging/worker-versions.tmp
+            mv \
+              gitops/cloudflare/staging/worker-versions.tmp \
+              gitops/cloudflare/staging/worker-versions.json
+          done
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Detect GitOps changes
@@ -418,19 +542,21 @@ jobs:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
           base: main
-          branch: deploy/runtime-${{ github.sha }}
+          branch: deploy/staging-${{ github.sha }}
           delete-branch: true
-          commit-message: "chore: 部署运行时 ${{ steps.source.outputs.short_sha }}"
-          title: "chore: 部署运行时 ${{ steps.source.outputs.short_sha }}"
+          commit-message: "chore: 部署 staging 候选版本 ${{ steps.source.outputs.short_sha }}"
+          title: "chore: 部署 staging 候选版本 ${{ steps.source.outputs.short_sha }}"
           body: |
             ## 变更内容
 
             - 更新 `campus-agent@${{ github.sha }}` 产生的受影响镜像（如有）
+            - 更新受影响 Cloudflare Worker 的不可变版本（如有）
             - 仅更新环境仓已经声明的镜像 digest
             - Kubernetes 基座变化时同步源码引用
 
             ## 验证结果
 
             - [x] 本次产生的镜像（如有）均在 arm64 上通过 HIGH / CRITICAL 漏洞扫描
+            - [x] Worker 候选版本上传未改变当前流量版本
             - [x] 所有 staging Kustomize overlay 可完整渲染
             - [x] Application 与 SealedSecret 清单可完整渲染

@@ -48,8 +48,10 @@ third-party Helm values live in the deployment environment repository.
 
 ## Consequences
 
-- Argo CD does not manage Cloudflare Worker deploys, Worker vars/secrets,
-  Hyperdrive bindings or Cloudflare Access policy.
+- Argo CD does not manage Cloudflare resources. Terraform in the environment
+  repository manages Worker traffic, Hyperdrive, Workers VPC, Turnstile and
+  Access; Worker version upload remains in application CI and Worker secret
+  values remain in Cloudflare.
 - Argo CD does not manage app-api provider-config active profiles.
 - First-party services are not charted until a later ADR accepts a concrete
   reason such as multi-tenant reuse, a large environment matrix or external
@@ -79,5 +81,6 @@ and Kustomize gives clearer diffs and reviewable Kubernetes resources.
 
 ### Let Argo CD manage Cloudflare Workers
 
-Rejected. Workers are not Kubernetes resources. Their deploy config and secret
-store stay with Wrangler / Cloudflare deploy workflows.
+Rejected. Workers are not Kubernetes resources. The environment repository
+can own their desired state through Terraform without making Argo CD a
+Cloudflare controller.

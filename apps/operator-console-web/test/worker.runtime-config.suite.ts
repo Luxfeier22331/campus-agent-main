@@ -1,28 +1,26 @@
 import { expect, it } from "vitest";
 
 import {
-	deployStagingSource,
 	localAccessSmokeServerSource,
 	packageManifest,
 	stagingAccessServiceTokenSmokeSource,
 	stagingBrowserE2ESource,
 	stagingPreflightSource,
+	uploadStagingVersionSource,
 	viteConfigSource,
 	wranglerConfig,
 	wranglerLocalSmokeConfig,
 } from "./worker.test-support";
 
 export function registerWorkerRuntimeConfigSuite() {
-	it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
+	it("keeps traffic ownership out of Wrangler and retains upload gates", () => {
 		expect(packageManifest.dependencies?.["react-admin"]).toBeUndefined();
 		expect(packageManifest.dependencies?.["@mui/x-charts"]).toBeUndefined();
 		expect(packageManifest.dependencies?.["@radix-ui/react-slot"]).toBeTruthy();
 		expect(wranglerConfig).toContain("workers_dev = false");
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
-		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "panel-staging.mucwiki-edge.link"');
-		expect(wranglerConfig).toContain("custom_domain = true");
+		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
 		expect(wranglerConfig).toContain("[env.local.vars]");
 		expect(wranglerConfig).toContain(
 			'OPERATOR_CONSOLE_APP_API_BASE_URL = "https://app-api.internal"',
@@ -47,10 +45,11 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingVarsBlock).not.toContain("ACCESS_POLICY_AUD");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
-		expect(deployStagingSource).toContain("SENTRY_RELEASE:");
-		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(deployStagingSource).toContain("STAGING_ACCESS_TEAM_DOMAIN must start with https://");
-		expect(deployStagingSource).not.toContain("must start with http:// or https://");
+		expect(uploadStagingVersionSource).toContain("SENTRY_RELEASE");
+		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
+		expect(uploadStagingVersionSource).toContain(
+			"STAGING_ACCESS_TEAM_DOMAIN must start with https://",
+		);
 		expect(packageManifest.scripts?.build).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
 		expect(packageManifest.scripts?.["build:staging"]).toContain(
@@ -108,21 +107,23 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.ts");
-		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
+		expect(packageManifest.scripts?.["deploy:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["upload:staging"]).toContain("upload-staging-version.ts");
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
-		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
-		expect(deployStagingSource).toContain('loadRepoStagingEnvFile(import.meta.url, "../../..")');
-		expect(deployStagingSource).toContain("preflight-staging.ts");
+		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("loadRepoStagingEnvFile");
+		expect(uploadStagingVersionSource).toContain(
+			'loadRepoStagingEnvFile(import.meta.url, "../../..")',
+		);
+		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(stagingPreflightSource).toContain("worker-staging-operator-console-web");
 		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/operator-console-web");
 		expect(stagingPreflightSource).toContain(
 			"apps/operator-console-web/dist/operator_console_web/wrangler.json",
 		);
-		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
+		expect(packageManifest.scripts?.["upload:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toBeUndefined();

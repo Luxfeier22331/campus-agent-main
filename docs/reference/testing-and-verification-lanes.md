@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 # Testing And Verification Lanes
 
@@ -46,12 +46,12 @@ GitHub Actions keeps one automatic PR workflow:
 - Skipped conditional jobs are acceptable only when changed-surface detection
   correctly marks the untouched surface as out of scope.
 
-GitHub Environments own deploy credential separation. `staging` is used by
-`.github/workflows/deploy-staging.yml` after a successful PR merges to `main`.
-The `staging` environment keeps only deploy credentials and deploy-time public
-configuration: `CLOUDFLARE_API_TOKEN` as a secret, and
-`CLOUDFLARE_ACCOUNT_ID`, `STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY`,
-`STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` as variables.
+`.github/workflows/execution-runtime-publish.yml` uses the organization-level
+`CLOUDFLARE_AUTOMATION_TOKEN` secret after a successful PR merges to `main`.
+The same token is shared only with the source and GitOps repositories; the
+workflow exports it as Wrangler's standard `CLOUDFLARE_API_TOKEN` input. The
+`staging` Environment keeps Terraform-synchronized Cloudflare account, Worker,
+Hyperdrive, Workers VPC, Turnstile and Access values as variables.
 Execution-control staging upstream is a Worker VPC Service binding plus
 Kubernetes `cloudflared` connector, so GitHub deploy does not carry an
 execution-control public URL. Staging operator DB credentials and runtime
@@ -359,14 +359,16 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     persistent Trivy database, then removes loaded PR image tags after scanning.
   - It is included in `pr / required`.
 - `.github/workflows/execution-runtime-publish.yml`
-  - A `main` push publishes only affected ARM64 images with current GitOps
-    consumers; manual dispatch publishes the same managed set.
+  - A `main` push publishes affected ARM64 images with current GitOps consumers
+    and affected immutable Worker versions; manual dispatch publishes the same
+    managed set.
   - BuildKit attaches an OCI SBOM, then Trivy scans the ARM64 manifest digest.
     GitOps promotion starts only after every scan passes.
-  - The environment pull request updates only image entries that already exist
-    in GitOps and source refs only when Kubernetes bases changed. Every image
-    selected for publication must match at least one GitOps consumer; zero
-    matches fail promotion.
+  - The one environment pull request updates only declared image and Worker
+    entries, plus source refs when Kubernetes bases changed. Every selected
+    image must match at least one GitOps consumer; zero matches fail promotion.
+    Worker upload verifies that no active deployment changed before opening the
+    pull request.
   - Ingestion and Ops Web images remain outside this lane until the environment
     repository declares their staging consumers.
 - `.github/workflows/scorecard.yml`
@@ -376,19 +378,12 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
 - `.github/workflows/scheduled-health.yml`
   - Scheduled / manual full repository health check.
   - It is not a PR blocker and does not replace staging release closeout.
-- `.github/workflows/deploy-staging.yml`
-  - Automatic staging deployment after a successful PR merges to `main`, and
-    manual dispatch for a selected ref.
-  - It deploys and checks only affected app-api, campus-web or operator console
-    surfaces. It does not check execution runtime readiness before the GitOps
-    promotion is merged.
-  - Its GitHub secret surface is limited to Cloudflare deploy auth. App-api
-    staging reaches execution-control through the committed
-    `EXECUTION_CONTROL_PRIVATE` VPC Service binding and non-secret
-    `EXECUTION_CONTROL_PRIVATE_ORIGIN`; staging DB credentials stay in smoke /
-    closeout paths.
-  - Full staging validation is completed by the environment repository after
-    promotion; this source workflow is not a PR blocker.
+- Environment repository Cloudflare workflows
+  - Pull requests run Terraform format, validation and plan for platform and
+    Worker traffic roots.
+  - A merge applies platform resources, waits for the promoted Kubernetes
+    runtime when required, selects reviewed Worker versions and checks public
+    surfaces. These workflows are release automation, not PR code-test lanes.
 
 ## Rules
 

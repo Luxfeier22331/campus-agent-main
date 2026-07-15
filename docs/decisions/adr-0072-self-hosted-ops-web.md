@@ -48,7 +48,7 @@ ADR-0055 continues to govern the unified business operations concept and retirem
 domain back offices. This ADR supersedes only the assumption that privileged runtime diagnosis must
 share the same Worker implementation.
 
-Deployment follows ADR-0070. The source repository owns the application, image publication and
+Deployment follows ADR-0074. The source repository owns the application, image publication and
 namespace-neutral base. Environment repositories own access coordinates, configuration, secrets,
 network policy, ingress and immutable deployment selection.
 

@@ -31,7 +31,11 @@ const workerStagingSurfaceSpecs = {
 	},
 	"worker-staging-app-api": {
 		providers: {},
-		required_settings: {},
+		required_settings: {
+			staging_app_api_db_fresh_hyperdrive_id: ["STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID"],
+			staging_app_api_db_hyperdrive_id: ["STAGING_APP_API_DB_HYPERDRIVE_ID"],
+			staging_execution_control_vpc_service_id: ["STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID"],
+		},
 		optional_settings: {
 			staging_app_api_database_sslmode: ["STAGING_APP_API_DATABASE_SSLMODE"],
 			staging_app_api_operator_database_url: ["STAGING_APP_API_OPERATOR_DATABASE_URL"],
@@ -43,10 +47,9 @@ const workerStagingSurfaceSpecs = {
 		providers: {},
 		required_settings: {
 			staging_campus_auth_turnstile_site_key: ["STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY"],
+			staging_map_data_bucket_name: ["STAGING_MAP_DATA_BUCKET_NAME"],
 		},
 		optional_settings: {
-			staging_campus_auth_turnstile_appearance: ["STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE"],
-			staging_campus_auth_turnstile_execution: ["STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION"],
 			staging_sentry_release: ["STAGING_SENTRY_RELEASE"],
 		},
 		files: {},

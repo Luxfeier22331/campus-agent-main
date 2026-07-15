@@ -51,5 +51,4 @@ run("pnpm", [
 	"VAR:SENTRY_ENVIRONMENT=staging",
 	"VAR_ABSENT:AUTH_TURNSTILE_SITE_KEY",
 	"VAR_ABSENT:SENTRY_RELEASE",
-	"ROUTE:campus-staging.mucwiki-edge.link",
 ]);

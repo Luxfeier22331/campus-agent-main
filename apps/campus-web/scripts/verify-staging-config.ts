@@ -1,10 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const DEFAULT_TURNSTILE_APPEARANCE = "interaction-only";
-const DEFAULT_TURNSTILE_EXECUTION = "render";
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
-const VALID_TURNSTILE_APPEARANCES = new Set(["always", "execute", "interaction-only"]);
-const VALID_TURNSTILE_EXECUTIONS = new Set(["render", "execute"]);
 
 function fail(message: string): never {
 	console.error(message);
@@ -23,24 +19,6 @@ function expectAbsent(record: Record<string, unknown>, key: string, message: str
 	}
 }
 
-function resolveTurnstileOption(
-	name: string,
-	rawValue: string | undefined,
-	validValues: Set<string>,
-	defaultValue: string,
-): string {
-	const value = rawValue?.trim();
-	if (!value) {
-		return defaultValue;
-	}
-	if (!validValues.has(value)) {
-		fail(
-			`${name} must be one of ${JSON.stringify(Array.from(validValues))}. Received ${JSON.stringify(value)}.`,
-		);
-	}
-	return value;
-}
-
 async function main(): Promise<void> {
 	const turnstileSiteKey = process.env.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY?.trim();
 	if (!turnstileSiteKey) {
@@ -55,26 +33,13 @@ async function main(): Promise<void> {
 		);
 	}
 
-	resolveTurnstileOption(
-		"STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE",
-		process.env.STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE,
-		VALID_TURNSTILE_APPEARANCES,
-		DEFAULT_TURNSTILE_APPEARANCE,
-	);
-	resolveTurnstileOption(
-		"STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION",
-		process.env.STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION,
-		VALID_TURNSTILE_EXECUTIONS,
-		DEFAULT_TURNSTILE_EXECUTION,
-	);
-
 	const configPath = new URL("../dist/campus_web/wrangler.json", import.meta.url);
 	const rawConfig = await readFile(configPath, "utf8");
 	const config = JSON.parse(rawConfig);
 	const services = Array.isArray(config.services) ? config.services : [];
+	const r2Buckets = Array.isArray(config.r2_buckets) ? config.r2_buckets : [];
 	const vars: Record<string, unknown> =
 		config.vars && typeof config.vars === "object" ? config.vars : {};
-	const routes = Array.isArray(config.routes) ? config.routes : [];
 
 	const hasAppApiService = services.some(
 		(service) => service?.binding === "APP_API" && service?.service === "app-api-staging",
@@ -82,6 +47,17 @@ async function main(): Promise<void> {
 
 	if (!hasAppApiService) {
 		fail("Missing required service binding APP_API -> app-api-staging in built staging config.");
+	}
+
+	const mapBucketName = process.env.STAGING_MAP_DATA_BUCKET_NAME?.trim();
+	if (!mapBucketName) {
+		fail("STAGING_MAP_DATA_BUCKET_NAME is required for staging preflight.");
+	}
+	const hasMapBucket = r2Buckets.some(
+		(bucket) => bucket?.binding === "MAP_DATA" && bucket?.bucket_name === mapBucketName,
+	);
+	if (!hasMapBucket) {
+		fail(`Missing required MAP_DATA -> ${mapBucketName} binding in built staging config.`);
 	}
 
 	expectEqual(
@@ -120,14 +96,8 @@ async function main(): Promise<void> {
 		"SENTRY_RELEASE must not remain as a static staging var in built config.",
 	);
 
-	const hasRoute = routes.some(
-		(route) =>
-			route?.pattern === "campus-staging.mucwiki-edge.link" && route?.custom_domain === true,
-	);
-	if (!hasRoute) {
-		fail(
-			"Missing required campus-staging.mucwiki-edge.link custom domain route in built staging config.",
-		);
+	if (Array.isArray(config.routes) && config.routes.length > 0) {
+		fail("Built staging config must leave custom-domain traffic to GitOps Terraform.");
 	}
 }
 

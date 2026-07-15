@@ -21,12 +21,11 @@ async function main(): Promise<void> {
 	const configPath = new URL("../wrangler.toml", import.meta.url);
 	const source = await readFile(configPath, "utf8");
 
-	expectContains(
+	expectNotContains(
 		source,
-		'pattern = "api-staging.mucwiki-edge.link"',
-		"Missing staging custom domain route.",
+		"[[env.staging.routes]]",
+		"Staging custom-domain traffic is owned by the GitOps Terraform configuration.",
 	);
-	expectContains(source, "custom_domain = true", "Missing staging custom domain route flag.");
 	expectContains(
 		source,
 		'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',

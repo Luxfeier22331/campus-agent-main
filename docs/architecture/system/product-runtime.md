@@ -4,7 +4,7 @@ truth_scope: system
 owner_boundary: product-runtime
 status: active
 created: 2026-06-13
-updated: 2026-07-12
+updated: 2026-07-14
 ---
 
 # Product Runtime
@@ -94,7 +94,8 @@ tool 也不通过 app-api。
 
 ## 部署
 
-- browser-facing Worker 应用由 Cloudflare deploy workflow 管理。
+- browser-facing Worker 应用由源码 workflow 上传不可变版本，环境仓 Terraform 管理
+  custom domain、cron 与流量版本。
 - execution-control、workers、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
 - app-api Worker 通过 Hyperdrive/Workers VPC 访问私有 CNPG，不公开 PostgreSQL。
 - source repo 的 base 和镜像不是部署完成证明；环境 repo revision 和运行验证才是部署事实。

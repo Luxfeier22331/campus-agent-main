@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-11
+updated: 2026-07-14
 ---
 # Execution Control Staging Smoke Runbook
 
@@ -22,7 +22,7 @@ updated: 2026-07-11
 - 如何把 `campus-staging -> app-api-staging -> execution-control private service`
   跑通
 - 每轮 smoke 最少要验证哪些链路
-- 什么时候需要重新 deploy `app-api-staging`
+- 什么时候需要上传并晋级新的 `app-api-staging` Worker version
 
 当前 staging smoke 只以 Go `apps/execution-control` execution origin 为准。
 
@@ -48,11 +48,11 @@ updated: 2026-07-11
   SealedSecret 投递 tunnel token
 - `app-api-staging` runtime 必须已经通过 Cloudflare Worker secret store 配置
   `EXECUTION_CONTROL_SHARED_SECRET`；缺失时 fail closed
-- GitHub staging deploy 不注入 execution-control public URL。Worker VPC Service
+- Worker 候选版本上传不注入 execution-control public URL。Worker VPC Service
   binding 和 `EXECUTION_CONTROL_PRIVATE_ORIGIN` 由 `apps/app-api/wrangler.toml`
   承载。
 - 只有当 private Service binding、private origin 或 app-api Worker runtime secret
-  变化时，才需要重新 deploy 或重新配置 `app-api`
+  变化时，才需要上传并通过环境仓晋级新的 `app-api` version
 
 ## 判定标准
 
@@ -82,17 +82,15 @@ updated: 2026-07-11
   提供，不通过 execution-runtime overlay 或 host-bridge 补齐
 
 如果 `cloudflared-execution-control` 或 Cloudflare VPC Service binding 发生变化，先让
-GitOps 同步 K8s connector，再重新 deploy `app-api-staging`。
+环境仓同步 K8s connector 和 Cloudflare platform，再选择包含新 binding 的
+`app-api-staging` Worker version。
 
-## Step 2. 判断是否需要重新 deploy app-api staging
+## Step 2. 判断是否需要晋级 app-api staging
 
 如果 `EXECUTION_CONTROL_PRIVATE` binding、`EXECUTION_CONTROL_PRIVATE_ORIGIN` 或
-`EXECUTION_CONTROL_SHARED_SECRET` 发生变化，必须重新 deploy 或重新配置
-`app-api-staging`。
-
-```bash
-pnpm --dir apps/app-api deploy:staging
-```
+`EXECUTION_CONTROL_SHARED_SECRET` 发生变化，必须由源码 `main` 上传新的不可变
+Worker version，并通过环境仓 PR 选择该版本。不得直接运行 `wrangler deploy` 绕过
+环境仓流量状态。
 
 然后检查：
 

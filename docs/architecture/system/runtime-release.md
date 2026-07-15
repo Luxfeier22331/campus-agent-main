@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-14
-updated: 2026-07-11
+updated: 2026-07-14
 ---
 # Runtime Delivery And Release Hardening Architecture
 
@@ -36,8 +36,8 @@ updated: 2026-07-11
 
 三端 Worker surface 的长期发布闭环固定为：
 
-`repo-owned config truth -> pre-deploy config/secret gate -> deploy-time release
-identity injection -> post-deploy smoke -> release closeout artifact`
+`源码配置 -> 上传不可变 Worker 版本 -> 环境仓 PR 选择版本 -> Terraform 切换流量
+-> 健康检查`
 
 固定约束：
 
@@ -62,8 +62,11 @@ identity injection -> post-deploy smoke -> release closeout artifact`
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / agent-runtime / knowledge-search dependency unhealthy 才进入 degraded posture
-- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与
-  release closeout artifacts 共同决定
+- Wrangler 只上传版本，不管理 staging route、custom domain、cron 或流量
+- Terraform 管理 Cloudflare 非密资源与 Worker deployment；Argo CD 只管理 Kubernetes
+- Worker secret 值只保留在 Cloudflare，上传前只检查是否存在
+- 发布是否完成，不由 `/readyz` 单点决定，而由环境仓目标版本、Kubernetes readiness
+  与产品面健康检查共同决定
 
 ## Staging Baseline
 
@@ -102,19 +105,17 @@ release identity 的长期规则固定为：
 
 ## Staging Deployment Sequence
 
-Staging deployment uses two ordered owners:
+Staging deployment uses three ordered actions:
 
-1. A source-repository `main` push deploys the Cloudflare product surfaces and
-   checks their own health. It also publishes execution runtime images and
-   opens an environment-repository promotion pull request.
-1. Merging that promotion pull request lets Argo CD reconcile the pinned source
-   SHA and image digests. The environment repository then waits for public
-   `app-api /readyz` to report both runtime dependencies ready and the exact
-   `execution-control` release selected by desired state.
+1. 源码仓 `main` push 构建受影响镜像，并通过 `wrangler versions upload` 上传受影响
+   Worker 的不可变候选版本；上传动作验证当前 deployment id 不变。
+1. 同一个 workflow 把镜像 digest、Kubernetes source SHA 与 Worker version id 写入
+   一份环境仓 promotion pull request。
+1. 合并环境仓 PR 后，Terraform 先更新 Cloudflare 平台配置，Argo CD 同步 Kubernetes；
+   runtime readiness 满足后，Terraform 再把 Worker 流量切到已审查版本并执行产品面健康检查。
 
-The source-repository Worker deployment must not claim full runtime readiness
-before the environment promotion is merged. A healthy stale runtime release is
-not valid post-promotion evidence.
+源码仓上传成功只表示候选物可用，不表示 staging 已部署。环境仓合并后的目标版本、
+Argo CD 状态、Terraform apply 与健康检查共同构成部署事实。
 
 ## Pre-Deploy Gate
 
@@ -124,8 +125,9 @@ not valid post-promotion evidence.
 
 - required secret presence 必须在 deploy 前显式校验
 - non-secret runtime truth 可以存在于 repo-owned config
-- operator Access team domain、policy audience、deploy-side DB operator URL
-  等环境值继续通过 shell / secret store 注入，不回写 repo
+- operator Access team domain、policy audience、Hyperdrive id、VPC Service id 与
+  Turnstile sitekey 由环境仓 Terraform 同步到源码仓 `staging` Environment variables
+- 数据库密码和 API token 仍通过对应 secret store 注入，不写入 Git 或 Terraform 输出
 
 ### Cross-App Invariants
 
@@ -248,6 +250,8 @@ release closeout artifact 的长期 closure 固定为：
 - 不把 `/readyz = 200` 误写成完整 deploy closure
 - 不把临时浏览器注册账号重新引回 deployment smoke 主路径
 - 不把 runtime observability sink 反向当成 canonical app read model
+- 不在源码仓使用 `wrangler deploy`、`wrangler rollback` 或 route/cron 配置直接改变
+  staging 流量
 
 ## 相关稳定文档
 

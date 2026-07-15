@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-03-29
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 # Main Release Runbook
 
@@ -45,8 +45,8 @@ release 流程：
 
 - 所有功能和修复默认从短生命周期 worktree / branch 发起 PR。
 - PR 以 `main` 为 base，并通过 `pr / required` 聚合检查。
-- 合入 `main` 后，`deploy-staging` 可以自动部署 staging 并记录 GitHub
-  deployment。
+- 合入 `main` 后，`staging-candidate-publish` 发布受影响的镜像和 Worker 候选版本，
+  并创建一份环境仓 PR。
 - production 只允许选择已合入 `main` 的 ref 或 release tag；当前仓库尚未接入
   production deploy。
 
@@ -67,26 +67,26 @@ release 流程：
 
 ## Main 到 Staging
 
-PR 已经验证合入 `main` 的源码树，因此 `main` 不重复运行 PR 检查。Cloudflare
-产品面部署由 `.github/workflows/deploy-staging.yml` 按受影响应用承接，Kubernetes
-runtime 由环境仓 promotion pull request 与 Argo CD 承接。
+PR 已经验证合入 `main` 的源码树，因此 `main` 不重复运行 PR 检查。
+`.github/workflows/execution-runtime-publish.yml` 只发布候选物；Cloudflare 流量和
+Kubernetes runtime 都由同一份环境仓 promotion pull request 选择。
 
 标准做法：
 
 1. PR 合入 `main` 前确认 `pr / required` 为 success。
-1. 合入后等待源仓镜像发布、Cloudflare 产品面部署和环境仓 promotion pull
-   request。
-1. 合并环境仓 promotion pull request，等待 Argo CD 同步。
-1. staging 验证只在环境仓 post-promotion workflow 确认 `app-api /readyz`
-   报告目标 runtime release 后才视为完成。
+1. 合入后等待源仓发布受影响镜像和 Worker 候选版本，并生成环境仓 promotion PR。
+1. 审查 PR 中的 image digest、source SHA、Worker version id 和 Terraform plan。
+1. 合并环境仓 PR，等待 Cloudflare platform apply、Argo CD 同步、runtime readiness、
+   Worker traffic apply 与产品面健康检查依次完成。
 
 ### 镜像发布失败后的恢复
 
 镜像以 source commit SHA 作为不可变 tag。发布任务中途失败时，不创建新 commit，
-在 `main` 上对同一个 SHA 手动运行 `execution-runtime-publish`：
+在 `main` 上对同一个 SHA 手动运行 `staging-candidate-publish`：
 
-1. 保持 `promote=false`，先恢复缺失镜像。任务会复用已经完整发布的 ARM64
-   manifest，只构建缺失 tag，并重新扫描 ARM64。
+1. 保持 `promote=false`，先恢复缺失镜像或 Worker 版本。任务会复用已经完整发布的
+   ARM64 manifest，只构建缺失 tag 并重新扫描 ARM64；Worker 重传只产生未承载流量的
+   不可变候选版本。
 1. 如果已有 tag 缺平台或 manifest 无效，任务会停止，不覆盖该 tag；先调查 registry
    状态，不能用重复构建掩盖不可变 tag 冲突。
 1. 所有镜像发布成功后，对同一个 `main` SHA 再运行一次并设置 `promote=true`，创建

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0074
 status: accepted
 created: 2026-07-10
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 # ADR-0074 Source And Environment Repository Boundary
 
@@ -28,6 +28,7 @@ The application repository owns:
 - stable runtime and secret-consumption contracts;
 - namespace-neutral first-party Kustomize bases;
 - image build, scan, SBOM and immutable SHA-tag publication;
+- Cloudflare Worker build and immutable version upload without traffic changes;
 - a promotion workflow that proposes environment changes through a pull
   request.
 
@@ -38,6 +39,8 @@ Each deployment environment repository owns:
 - pinned third-party Helm versions and values;
 - strict-scope SealedSecrets and environment trust anchors;
 - first-party image digests and full source commit SHA references;
+- Cloudflare non-secret infrastructure, Worker version selection and traffic;
+- Terraform remote state and environment-derived public GitHub variables;
 - environment-specific rollout and cluster verification.
 
 Environment repositories consume source bases only by full commit SHA and
@@ -47,9 +50,11 @@ to the environment repository's `main` branch. Argo CD reads both repositories
 with a read-only GitHub App credential and reconciles an environment only after
 the environment pull request is merged.
 
-Cloudflare Worker deployment remains in the application repository because it
-is not Kubernetes desired state. Worker secrets remain in the Cloudflare secret
-store.
+Cloudflare is not managed by Argo CD. The application repository uploads
+immutable Worker versions, while the environment repository uses Terraform to
+select those versions, manage traffic and reconcile Cloudflare infrastructure.
+Worker secret values remain only in the Cloudflare Worker secret store and are
+not copied into Terraform state or Kubernetes Secrets.
 
 Existing private source history is not rewritten as part of this split. A
 future public release must be produced from a separately reviewed, sanitized
@@ -63,6 +68,8 @@ snapshot and must pass history-level secret and topology review.
   ConfigMap, select mutable image tags or inject registry credentials.
 - Deployment changes are reviewed where their blast radius is visible, and a
   merge to an environment repository is an explicit deployment action.
+- One environment pull request can select both Kubernetes image digests and
+  Cloudflare Worker versions produced by the same source commit.
 - Source CI can prove source and generic base quality. Environment CI and Argo
   status prove deployability; neither may claim the other's result.
 - Other institutions can fork the source repository and provide their own

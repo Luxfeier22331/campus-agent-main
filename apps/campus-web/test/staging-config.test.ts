@@ -1,27 +1,31 @@
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
 import packageManifest from "../package.json";
-import deployStagingSource from "../scripts/deploy-staging.ts?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
+import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.ts?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageScripts = packageManifest.scripts as Record<string, string | undefined>;
 
 describe("campus web staging config", () => {
-	it("keeps campus staging host and injects Turnstile sitekey only at deploy time", () => {
-		expect(wranglerConfig).toContain('pattern = "campus-staging.mucwiki-edge.link"');
+	it("keeps traffic ownership out of Wrangler and injects Turnstile at upload time", () => {
+		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
 		expect(wranglerConfig).toContain('CAMPUS_WEB_HOSTNAME = "campus-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
+		expect(wranglerConfig).toContain('bucket_name = "campus-agent-derived-unconfigured"');
+		expect(wranglerConfig).not.toContain('bucket_name = "campus-agent-derived-staging"');
 
 		expect(verifyStagingConfigSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(verifyStagingConfigSource).toContain("campus-staging.mucwiki-edge.link");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
 
-		expect(deployStagingSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_SITE_KEY:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_APPEARANCE:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_EXECUTION:");
+		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
+		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
+		expect(uploadStagingVersionSource).toContain("STAGING_MAP_DATA_BUCKET_NAME");
+		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
+		expect(packageScripts["deploy:staging"]).toBeUndefined();
+		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});
 
 	it("keeps app-only staging deploy separate from docs reader builds", () => {

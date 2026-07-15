@@ -48,5 +48,4 @@ run("pnpm", [
 	"VAR:OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal",
 	"VAR:SENTRY_ENVIRONMENT=staging",
 	"VAR_ABSENT:SENTRY_RELEASE",
-	"ROUTE:panel-staging.mucwiki-edge.link",
 ]);

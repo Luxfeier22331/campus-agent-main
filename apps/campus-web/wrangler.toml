@@ -32,17 +32,13 @@ required = ["SENTRY_DSN"]
 [env.staging.secrets]
 required = ["SENTRY_DSN"]
 
-[[env.staging.routes]]
-pattern = "campus-staging.mucwiki-edge.link"
-custom_domain = true
-
 [[env.staging.services]]
 binding = "APP_API"
 service = "app-api-staging"
 
 [[env.staging.r2_buckets]]
 binding = "MAP_DATA"
-bucket_name = "campus-agent-derived-staging"
+bucket_name = "campus-agent-derived-unconfigured"
 
 [assets]
 directory = "./dist/client"

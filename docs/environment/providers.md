@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-12
-updated: 2026-07-11
+updated: 2026-07-14
 ---
 
 # Providers
@@ -318,18 +318,20 @@ Add:
 Do not add these values to `apps/app-api/.dev.vars`; app-api online requests
 read published projections only.
 
-### Worker Staging Deploy
+### Worker Staging Candidate Upload
 
 Add:
 
-- Cloudflare deploy access
-- app-local Worker secrets for each deployed app
-- Cloudflare Access configuration for protected operator/machine ingress
+- Cloudflare Worker version upload access
+- app-local Worker secrets in the Cloudflare Worker secret store
+- Terraform-synchronized Hyperdrive, Workers VPC, R2, Turnstile and Access
+  public configuration in the GitHub `staging` Environment
 - Sentry / telemetry env for the deployed surface when enabled
 - controlled OTLP ingest endpoint/shared secret for app-api when enabled
 
 Execution-control Docker/K8s runtime env remains ops-owned and is not copied into
-Worker secret stores.
+Worker secret stores. Candidate upload does not select traffic; the environment
+repository's Terraform workflow owns that action.
 
 ### Not Required By Current Merged Truth
 
