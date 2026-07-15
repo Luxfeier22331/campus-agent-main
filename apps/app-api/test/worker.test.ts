@@ -143,10 +143,20 @@ function createDocsReadinessResult() {
 
 describe("app-api worker foundation", () => {
 	it("keeps traffic out of Wrangler and injects staging bindings at upload time", () => {
+		const localSecretsBlock = readTomlBlock(
+			wranglerConfig,
+			"[env.local.secrets]",
+			"[env.staging.vars]",
+		);
 		const stagingVarsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.staging.vars]",
 			"[env.staging.secrets]",
+		);
+		const stagingSecretsBlock = readTomlBlock(
+			wranglerConfig,
+			"[env.staging.secrets]",
+			"[[env.staging.vpc_services]]",
 		);
 		expect(wranglerConfig).toContain("workers_dev = false");
 		expect(wranglerConfig).toContain("preview_urls = false");
@@ -182,6 +192,8 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
+		expect(localSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
+		expect(stagingSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
