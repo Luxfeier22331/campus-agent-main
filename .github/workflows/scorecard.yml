@@ -12,32 +12,34 @@ jobs:
     name: OpenSSF Scorecard
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     permissions:
+      actions: read
       contents: read
       issues: read
       pull-requests: read
       checks: read
+      statuses: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          persist-credentials: false
-
-      - name: Setup amd64 emulation
-        if: runner.arch == 'ARM64'
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4
-        with:
-          platforms: amd64
-
       - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a  # v2.4.3
-        with:
-          results_file: scorecard.sarif
-          results_format: sarif
-          publish_results: false
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          output_dir="${RUNNER_TEMP}/scorecard"
+          rm -rf "$output_dir"
+          mkdir -p "$output_dir"
+          # scorecard-action is amd64-only; use the official multi-arch CLI on this ARM64 runner.
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --env GITHUB_AUTH_TOKEN \
+            --volume "$output_dir:/output" \
+            ghcr.io/ossf/scorecard:v5.5.0@sha256:3f24714e9366917adb7a05635382c97dfecb14b21eaef3dfa2ea48c8e23e0795 \
+            --repo="github.com/${GITHUB_REPOSITORY}" \
+            --format=json \
+            --output=/output/scorecard.json
 
       - name: Upload Scorecard artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: scorecard-results
-          path: scorecard.sarif
+          path: ${{ runner.temp }}/scorecard/scorecard.json
           retention-days: 14
