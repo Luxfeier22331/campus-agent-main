@@ -441,11 +441,6 @@
 			"scopes": ["app-api"],
 			"secret": true
 		},
-		"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": {
-			"owner": "worker-secret",
-			"scopes": ["app-api"],
-			"secret": true
-		},
 		"APP_API_INTERNAL_SHARED_SECRET": {
 			"owner": "worker-secret",
 			"scopes": ["app-api"],
