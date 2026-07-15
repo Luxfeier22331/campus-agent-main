@@ -150,6 +150,10 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
   changed-surface 分类与本次改动匹配
 - Dependabot PR 按依赖生态运行 `.github/workflows/pr.yml` 选择的 owner lanes；本地至少运行
   `pnpm ci:deps` 与受影响的 Node、Python、Go 或 Rust owner 验证
+- 常规 Dependabot 版本更新每月集中处理一次。GitHub Actions minor / patch 更新检查上游
+  release、完整 commit SHA 和 owner lane 后 squash；major 更新必须使用人工独立 PR
+- GitHub Actions 更新不自动合并，也不让 Dependabot 自动 rebase 反复触发 CI；发生冲突时在
+  计划合并前重新创建 PR
 - `pnpm ci:config` 直接运行 actionlint 与 zizmor；新增 GitHub Action 时优先使用
   官方维护的 action，将引用固定到完整 commit SHA，并按 zizmor 结果处理权限与引用风险
 - PR 的 `static` job 使用固定 manifest digest 的 Gitleaks CLI 镜像扫描本次提交范围；
