@@ -57,11 +57,27 @@ spec:
           envFrom:
             - configMapRef:
                 name: ingestion-runtime-rendered-config
-            - secretRef:
-                name: ingestion-control-database-secrets
-            - secretRef:
-                name: ingestion-control-api-secrets
           env:
+            - name: INGESTION_CONTROL_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_DATABASE_URL
+            - name: INGESTION_CONTROL_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_ADMIN_TOKEN
+            - name: INGESTION_CONTROL_APP_API_PROJECTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_APP_API_PROJECTION_TOKEN
+            - name: INGESTION_CONTROL_OPS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_OPS_TOKEN
             - name: INGESTION_CONTROL_HOST
               value: 0.0.0.0
             - name: INGESTION_CONTROL_PORT

@@ -8,7 +8,11 @@ import {
 } from "../src/temporal-client";
 import { testSnapshot } from "./fixtures";
 
-const tokens = { adminToken: "admin-token", appApiProjectionToken: "projection-token" };
+const tokens = {
+	adminToken: "admin-token",
+	appApiProjectionToken: "projection-token",
+	opsToken: "ops-token",
+};
 
 describe("ingestion-control HTTP", () => {
 	it("starts Temporal before any PostgreSQL projection exists", async () => {
@@ -130,10 +134,56 @@ describe("ingestion-control HTTP", () => {
 		expect(response.status).toBe(503);
 		expect(await response.json()).toEqual({ status: "unavailable" });
 	});
+
+	it("exposes and resumes only the fixed portal auth maintenance schedule", async () => {
+		const status = maintenanceStatus("PAUSED");
+		const starter = new RecordingStarter();
+		starter.maintenanceStatus = status;
+		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
+
+		const read = await handler(
+			new Request(
+				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance",
+				{ headers: { authorization: "Bearer ops-token" } },
+			),
+		);
+		expect(read.status).toBe(200);
+		expect(await read.json()).toMatchObject({ scheduleState: "PAUSED" });
+
+		const resume = await handler(
+			new Request(
+				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance/resume",
+				{ method: "POST", headers: { authorization: "Bearer ops-token" } },
+			),
+		);
+		expect(resume.status).toBe(200);
+		expect(starter.resumeCount).toBe(1);
+	});
+
+	it("rejects portal auth operations without the dedicated ops token", async () => {
+		const handler = handlerFor(new InMemoryIngestionTaskStore(), new RecordingStarter());
+		const response = await handler(
+			new Request(
+				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance",
+			),
+		);
+
+		expect(response.status).toBe(401);
+	});
 });
 
 class RecordingStarter implements IngestionWorkflowStarter {
+	maintenanceStatus = maintenanceStatus("ACTIVE");
+	resumeCount = 0;
 	readonly snapshots: unknown[] = [];
+	async getInternalPortalAuthMaintenanceStatus() {
+		return this.maintenanceStatus;
+	}
+	async resumeInternalPortalAuthMaintenance() {
+		this.resumeCount += 1;
+		this.maintenanceStatus = maintenanceStatus("ACTIVE");
+		return this.maintenanceStatus;
+	}
 	async startTask(snapshot: Parameters<IngestionWorkflowStarter["startTask"]>[0]) {
 		this.snapshots.push(snapshot);
 		return {
@@ -143,6 +193,22 @@ class RecordingStarter implements IngestionWorkflowStarter {
 			workflowStatus: "RUNNING" as const,
 		};
 	}
+}
+
+function maintenanceStatus(scheduleState: "ACTIVE" | "PAUSED") {
+	return {
+		errorCode: null,
+		lastAttemptAt: "2026-07-16T00:00:00.000Z",
+		lastOutcome: "SUCCESS" as const,
+		lastSuccessAt: "2026-07-16T00:00:03.000Z",
+		nextRunAt: "2026-07-16T00:30:00.000Z",
+		noticeProbeSucceeded: true,
+		portalSessionEstablished: true,
+		scheduleState,
+		serviceTicketIssued: true,
+		workflowId: "ingestion/internal-portal-auth-maintenance-2026-07-16T00:00:00Z",
+		workflowRunId: "run-001",
+	};
 }
 
 function handlerFor(store: InMemoryIngestionTaskStore, workflowStarter: IngestionWorkflowStarter) {

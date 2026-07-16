@@ -6,6 +6,10 @@
 	"description": "Unified source collector runtime for campus-agent ingestion source adapters.",
 	"packageManager": "pnpm@10.34.5",
 	"scripts": {
+		"auth:check:file-release": "tsx adapters/internal-portal/src/auth-check-file-release.ts",
+		"auth:check:notice": "tsx adapters/internal-portal/src/auth-check.ts",
+		"auth:refresh": "tsx adapters/internal-portal/src/auth-refresh.ts",
+		"auth:save": "tsx adapters/internal-portal/src/auth-save.ts",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
 		"test": "pnpm run test:ingest",
 		"test:fast": "vitest run -c vitest.fast.config.mts",

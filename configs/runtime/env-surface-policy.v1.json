@@ -276,6 +276,11 @@
 			"scopes": ["app-api", "command", "ingestion-control"],
 			"secret": true
 		},
+		"INGESTION_CONTROL_OPS_TOKEN": {
+			"owner": "ingestion-control-service-auth",
+			"scopes": ["command", "ingestion-control"],
+			"secret": true
+		},
 		"INGESTION_CONTROL_DATABASE_URL": {
 			"owner": "ingestion-control-runtime-secret",
 			"scopes": ["command", "ingestion-control"],
@@ -462,6 +467,11 @@
 			"secret": true
 		},
 		"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN": {
+			"owner": "source-collector-runtime",
+			"scopes": ["source-collector"],
+			"secret": false
+		},
+		"INTERNAL_PORTAL_SSO_TGC_FILE": {
 			"owner": "source-collector-runtime",
 			"scopes": ["source-collector"],
 			"secret": false

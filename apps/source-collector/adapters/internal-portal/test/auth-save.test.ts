@@ -1,54 +1,54 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { saveAuthStorageState } from "../src/auth-save.js";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { saveSsoTgc } from "../src/auth-save.js";
 
 describe("internal portal source collector auth save", () => {
-	it("opens the portal page and persists storage state after confirmation", async () => {
-		const calls: string[] = [];
-		const result = await saveAuthStorageState({
-			authStorageStatePath: "/tmp/collector-storage-state.json",
-			authTimeoutMs: 1_000,
-			confirmLogin: async () => undefined,
-			logger: {
-				log: () => undefined,
-			},
-			portalPageUrl: "https://portal.example.edu/page/11#/",
-			proxyServer: "http://127.0.0.1:7890",
-			runAuthPortalCrawler: async (input) => {
-				calls.push(`crawler.goto:${input.portalPageUrl}`);
-				calls.push(`crawler.proxy:${input.proxyServer ?? "none"}`);
-				await input.confirmLogin();
-				calls.push(`storageState:${input.storageStatePath}`);
-			},
-		});
+	const tempDirs: string[] = [];
 
-		expect(result).toEqual({
-			savedTo: "/tmp/collector-storage-state.json",
-		});
-		expect(calls).toEqual([
-			"crawler.goto:https://portal.example.edu/page/11#/",
-			"crawler.proxy:http://127.0.0.1:7890",
-			"storageState:/tmp/collector-storage-state.json",
-		]);
+	afterEach(() => {
+		for (const directory of tempDirs.splice(0)) {
+			fs.rmSync(directory, { force: true, recursive: true });
+		}
 	});
 
-	it("surfaces crawler bootstrap failures when confirmation times out", async () => {
+	it("writes only the captured TGC with restricted permissions", async () => {
+		const directory = fs.mkdtempSync(path.join(os.tmpdir(), "portal-auth-save-"));
+		tempDirs.push(directory);
+		const outputPath = path.join(directory, "auth", "sso_tgc");
+		const result = await saveSsoTgc({
+			authTimeoutMs: 1_000,
+			captureSsoTgc: async () => "captured-ticket",
+			logger: { log: () => undefined },
+			outputPath,
+			portalBaseUrl: "https://portal.example.edu",
+			proxyServer: null,
+		});
+
+		expect(result).toEqual({ savedTo: outputPath });
+		expect(fs.readFileSync(outputPath, "utf-8")).toBe("captured-ticket\n");
+		expect(fs.statSync(outputPath).mode & 0o777).toBe(0o600);
+	});
+
+	it("does not create a credential file when browser authentication fails", async () => {
+		const directory = fs.mkdtempSync(path.join(os.tmpdir(), "portal-auth-failure-"));
+		tempDirs.push(directory);
+		const outputPath = path.join(directory, "sso_tgc");
 		await expect(
-			saveAuthStorageState({
-				authStorageStatePath: "/tmp/collector-storage-state.json",
+			saveSsoTgc({
 				authTimeoutMs: 1_000,
-				confirmLogin: async () => {
+				captureSsoTgc: async () => {
 					throw new Error("login timeout exceeded");
 				},
-				logger: {
-					log: () => undefined,
-				},
-				portalPageUrl: "https://portal.example.edu/page/11#/",
+				logger: { log: () => undefined },
+				outputPath,
+				portalBaseUrl: "https://portal.example.edu",
 				proxyServer: null,
-				runAuthPortalCrawler: async (input) => {
-					await input.confirmLogin();
-				},
 			}),
 		).rejects.toThrow("login timeout exceeded");
+		expect(fs.existsSync(outputPath)).toBe(false);
 	});
 });

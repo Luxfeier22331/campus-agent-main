@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: apps/ops-web
 status: active
 created: 2026-07-08
-updated: 2026-07-11
+updated: 2026-07-16
 ---
 
 # Ops Web 接口
@@ -20,6 +20,9 @@ updated: 2026-07-11
 - `GET /api/ops/requests`
 - `GET /api/ops/requests/:requestId`
 - `GET /api/ops/requests/:requestId/observability`
+- `GET /api/ops/internal-portal-auth`
+- `PUT /api/ops/internal-portal-auth`
+- `POST /api/ops/internal-portal-auth/maintenance/resume`
 - `GET /healthz`
 - `GET /readyz`
 
@@ -32,6 +35,7 @@ updated: 2026-07-11
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
 - JWT 对应的人员邮箱或服务令牌 ID 必须进入基础操作者白名单。
 - 原始日志和调用链读取还必须进入独立的原始观测数据白名单。
+- 内部门户认证读写只允许基础白名单中的人员身份，服务令牌不能调用。
 - 浏览器不持有 PostgreSQL、OpenObserve 或外部平台凭据。
 
 ### 响应和错误
@@ -61,12 +65,16 @@ updated: 2026-07-11
 | ---: | --- | --- |
 | 400 | `OPS_INVALID_QUERY` | 查询参数或游标无效 |
 | 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
+| 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | TGC/Cookie 正文无效或超过 8 KiB |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_RAW_OBSERVABILITY_FORBIDDEN` | 无原始观测数据权限 |
+| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无凭据轮换权限或请求不是同源 |
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND` | 请求或接口不存在 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
 | 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | OpenObserve 查询不可用 |
+| 503 | `OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED`、`OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE` | 固定 Secret 未初始化或 Kubernetes API 不可用 |
+| 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定 Temporal Schedule 查询或恢复不可用 |
 | 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |
 
 ### 状态值
@@ -81,6 +89,63 @@ updated: 2026-07-11
 - `UNAVAILABLE`：来源未配置、连接失败、超时或响应无效。
 
 请求状态为 `COMPLETED`、`FAILED`、`CANCELLED`、`RUNNING` 或 `PENDING`。
+
+## 内部门户认证
+
+### `GET /api/ops/internal-portal-auth`
+
+返回固定 Secret 元数据、固定 Temporal Schedule 摘要和观测生命周期，不返回 Secret data、
+TGC 或 Service Ticket：
+
+```json
+{
+  "configured": true,
+  "updatedAt": "2026-07-15T12:00:00.000Z",
+  "updatedBy": "operator@example.com",
+  "maintenance": {
+    "scheduleState": "ACTIVE",
+    "nextRunAt": "2026-07-15T13:00:00.000Z",
+    "lastAttemptAt": "2026-07-15T12:30:00.000Z",
+    "lastOutcome": "SUCCESS",
+    "lastSuccessAt": "2026-07-15T12:30:03.000Z",
+    "serviceTicketIssued": true,
+    "portalSessionEstablished": true,
+    "noticeProbeSucceeded": true,
+    "errorCode": null
+  },
+  "observedLifetime": {
+    "lowerBoundSeconds": 1803,
+    "upperBoundSeconds": null
+  }
+}
+```
+
+Secret 不存在时返回 `configured=false`；Kubernetes API 不可用时返回 `503`，但不影响
+Ops Web 的其他接口或 `/readyz`。Temporal 查询不可用时 `maintenance.scheduleState` 为
+`UNAVAILABLE`，仍返回 Secret 元数据。
+
+### `PUT /api/ops/internal-portal-auth`
+
+请求必须同源、正文不超过 8 KiB，并包含：
+
+```json
+{ "credential": "raw SSO_TGC or Cookie header" }
+```
+
+服务端接受原始 TGC 或包含且只包含一个 `SSO_TGC` 的 Cookie 字符串。校验后只对
+`source-collector-internal-portal-auth` 执行 JSON Patch，写入 `data.sso_tgc`、更新时间和
+更新人 annotation。成功响应与 GET 相同，不回显凭据。接口不创建 Secret、不在线验证门户
+登录、不保存旧值，也不提供回滚。Secret 更新成功后服务端幂等恢复已暂停的 Schedule；恢复
+失败不会撤销凭据更新，响应以 `UNAVAILABLE` 显示维护状态。
+
+### `POST /api/ops/internal-portal-auth/maintenance/resume`
+
+人员操作者可以同源调用该接口，重试恢复固定
+`internal-portal-auth-maintenance` Schedule。接口不接受 Schedule ID、Workflow ID 或凭据，
+不立即触发运行；成功响应与 GET 相同。
+
+`lowerBoundSeconds` 是当前凭据更新时间到最近一次成功 Service Ticket 签发的时间；首次确认
+过期后才产生 `upperBoundSeconds`。这是约 30 分钟精度的观测区间，不是 CAS 配置声明。
 
 ## `GET /api/ops/overview`
 
@@ -261,5 +326,6 @@ pnpm --dir apps/app-api exec tsx ./scripts/run-with-staging-db-env.ts \
 - 根据 OpenObserve、Temporal、Langfuse、Sentry 或 Axiom 数据改写请求状态。
 - 让浏览器控制任意 OpenObserve 查询。
 - 返回数据库地址、JWT、Cookie 或服务凭据。
+- 创建、列举、删除或更新 `source-collector-internal-portal-auth` 以外的 Secret。
 - 恢复外部正文同步表、供应商响应缓存或通用观测查询接口。
 - 为旧 `/runtime` 或 `/api/ops/evidence/*` 增加兼容路由。

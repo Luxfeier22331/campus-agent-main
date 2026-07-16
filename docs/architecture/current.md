@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-07-13
+updated: 2026-07-15
 ---
 # 当前架构
 
@@ -227,11 +227,15 @@ offline-preparation 数据资产。
 
 ### `apps/ops-web`
 
-- 已有自托管只读运行排查源码，Hono 服务端同时提供 React 页面和固定 `/api/ops/*`
+- 已有自托管、默认只读的运行排查源码，Hono 服务端同时提供 React 页面和固定 `/api/ops/*`
 - 读取 `chat.turn_dispatches`、`chat.messages`、`runtime.agent_runs` 和
   `runtime.request_observability_fact` 的受限列，以及固定服务健康检查和 OpenObserve，不经过
   `app-api`
 - 使用 Access JWT、两级操作者白名单、列级数据库权限和原始观测读取审计
+- 人员操作者可通过固定接口替换 `source-collector-internal-portal-auth/sso_tgc`；Kubernetes
+  RBAC 仅允许该 Secret 的 `get`、`patch`，服务令牌和通用 Secret 操作均被拒绝
+- Temporal 每 30 分钟强制用挂载 TGC 建立新门户会话并探测通知接口；确认凭据失效时固定
+  Schedule 自动暂停，Ops Web 展示最近结果与观测有效区间，并允许人员恢复该 Schedule
 - 当前浏览器 serving truth 仍是 `operator-console-web`；Ops Web 源码和 K8s base 不证明
   staging 已部署，也不替换现有 Worker Console
 

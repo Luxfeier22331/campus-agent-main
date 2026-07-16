@@ -55,6 +55,12 @@ export interface RustKernelActivities {
 }
 
 export interface SourceCollectorActivities {
+	refreshInternalPortalAuthentication(): Promise<{
+		noticeProbeSucceeded: true;
+		portalSessionEstablished: true;
+		refreshedAt: string;
+		serviceTicketIssued: true;
+	}>;
 	executeSourceCollectorTask(
 		snapshot: IngestionTaskExecutionSnapshot,
 		preparationRef: IngestionArtifactRef | null,

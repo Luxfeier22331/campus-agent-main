@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/ingestion-control
 status: active
 created: 2026-07-13
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 # Ingestion
 
@@ -38,6 +38,11 @@ each file's SHA-256 in `ingestion_control.schema_migrations`. Reapplying the
 same revision is a no-op; modifying an already-applied file fails closed. An
 unjournaled pre-existing target table is rejected by the SQL migration rather
 than silently adopted or dropped.
+
+The deployment also runs the installed `schedule-sync.ts` entrypoint as a
+PostSync Job. It reconciles the fixed 30-minute internal-portal authentication
+Schedule. A missing Schedule is created paused until Ops Web writes the first
+valid TGC; later syncs preserve its current paused state.
 
 ## Local Runtime
 
@@ -149,21 +154,31 @@ kubeconform -strict -ignore-missing-schemas /tmp/ingestion-runtime.yaml
 The environment overlay must provide:
 
 - `ingestion-runtime-rendered-config`;
-- `ingestion-control-database-secrets`;
-- `ingestion-control-api-secrets`;
-- `ingestion-object-store-secrets`;
-- `source-collector-object-store-secrets`;
-- `source-collector-provider-secrets`;
+- `ingestion-control-secrets` with the control database URL and internal API tokens;
+- the existing `object-store-secrets` with separate source and derived identities;
+- `source-collector-internal-portal-auth` when internal-portal capture is enabled;
 - immutable `ingestion-control`, `ingestion-control-worker`, and
   `source-collector` image digests;
 - Temporal endpoint/namespace patches for both Connection and KEDA triggers;
-- schema migration job ordering before API/workers.
+- schema migration job ordering before API/workers;
+- one shared `INGESTION_CONTROL_OPS_TOKEN` value delivered to ingestion-control
+  and Ops Web for the fixed maintenance read/resume operations.
 
-`ingestion-object-store-secrets` must provide both source and derived access
-key/secret pairs. The source identity is limited to source capture artifacts;
-the derived identity is used by Rust kernels for canonical document inputs and
-kernel outputs. `source-collector-object-store-secrets` provides only the
-source pair; do not grant that Pod derived credentials.
+Secret objects are grouped by credential owner and mutation boundary, not by
+Pod. Workloads use explicit `secretKeyRef` entries instead of Secret-wide
+`envFrom`: source-collector receives only the source object-store pair, while
+the ingestion worker receives source and derived pairs. The two identities
+retain separate object-store policies even though the environment delivers
+them through the existing `object-store-secrets` object. Provider credentials
+are injected only by an environment that enables that provider; internal-portal
+capture does not require a provider Secret.
+
+`source-collector-internal-portal-auth` contains only the `sso_tgc` key and is
+mounted as a complete optional Secret volume. Internal-portal tasks fail when
+the file is absent, while unrelated source-collector adapters remain available.
+The environment creates this Secret once without credential data. Routine TGC
+replacement uses the fixed Ops Web operation rather than a SealedSecret PR;
+see `notice-release-auth-window.md`.
 
 The base runs all ingestion containers as non-root with a read-only root
 filesystem and no mounted service-account token. Writable state is limited to

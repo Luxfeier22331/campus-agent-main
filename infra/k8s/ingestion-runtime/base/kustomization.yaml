@@ -6,5 +6,6 @@ resources:
   - availability.yaml
   - ingestion-control.yaml
   - temporal-connection.yaml
+  - schedule-sync.yaml
   - workers.yaml
   - worker-resources.yaml

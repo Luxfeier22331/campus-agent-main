@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-07-03
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 # Kubernetes GitOps Runbook
 
@@ -73,11 +73,13 @@ not create Namespaces.
 On a successful `main` candidate build,
 `.github/workflows/execution-runtime-publish.yml`:
 
-1. publishes affected `execution-control`, `agent-runtime`, `app-api-schema` and
-   `transport-publisher` ARM64 images with only the source commit SHA as a tag,
-   and uploads affected Worker versions without changing traffic;
-2. requires every selected image to have a current GitOps consumer and records
-   only image and Worker entries already declared by the environment repository;
+1. publishes affected `execution-control`, `agent-runtime`, `ingestion-control`,
+   `ingestion-control-worker`, `source-collector`, `app-api-schema`, `ops-web`
+   and `transport-publisher` ARM64 images with only the source commit SHA as a
+   tag, and uploads affected Worker versions without changing traffic;
+2. records image and Worker entries already declared by the environment
+   repository; an image without a consumer remains a published candidate, while
+   an explicit manual promotion requires every selected image to have a consumer;
 3. authenticates as a dedicated GitHub App limited to the environment
    repository;
 4. updates the environment's source-base SHA, image digests, runtime release id
@@ -89,8 +91,8 @@ The workflow never writes directly to environment `main`. Merging the GitOps
 pull request lets Argo CD reconcile Kubernetes and Terraform reconcile
 Cloudflare. The environment repository owns their ordering and health gates.
 
-Ops Web currently has source code but no environment overlay on GitOps `main`.
-It is not part of execution-runtime publication until that Application and overlay are merged.
+Publishing an image does not make it active. The environment repository must
+declare its immutable digest and Application before Argo CD can deploy it.
 
 ## Secret Delivery
 

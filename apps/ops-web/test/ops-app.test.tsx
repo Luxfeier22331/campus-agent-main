@@ -42,6 +42,66 @@ describe("OpsWebApp", () => {
 		expect(screen.getByRole("link", { name: "返回请求列表" })).toHaveAttribute("href", "/requests");
 	});
 
+	it("replaces the internal portal credential and clears the sensitive input", async () => {
+		render(<OpsWebApp initialPath="/internal-portal-auth" />);
+
+		expect(await screen.findByRole("heading", { name: "门户认证" })).toBeInTheDocument();
+		expect(await screen.findByText("已配置")).toBeInTheDocument();
+		expect(await screen.findByText("ops@example.test")).toBeInTheDocument();
+		const credentialInput = screen.getByLabelText("SSO_TGC 或 Cookie");
+		fireEvent.change(credentialInput, {
+			target: { value: "SSO_TGC=TGT-ui-ticket; JSESSIONID=session" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "替换凭据" }));
+
+		expect(await screen.findByText("凭据已替换，将在下一个维护周期验证。")).toBeVisible();
+		expect(credentialInput).toHaveValue("");
+		expect(screen.getByRole("link", { name: "门户认证" })).toHaveAttribute("aria-current", "page");
+	});
+
+	it("retries resume after a newer credential is stored", async () => {
+		const originalFetch = globalThis.fetch;
+		const pausedStatus = {
+			configured: true,
+			maintenance: {
+				errorCode: "internal_portal_credential_expired",
+				lastAttemptAt: "2026-07-16T01:00:00.000Z",
+				lastOutcome: "CREDENTIAL_EXPIRED",
+				lastSuccessAt: "2026-07-16T00:30:02.000Z",
+				nextRunAt: null,
+				noticeProbeSucceeded: false,
+				portalSessionEstablished: false,
+				scheduleState: "PAUSED",
+				serviceTicketIssued: false,
+			},
+			observedLifetime: { lowerBoundSeconds: 1_802, upperBoundSeconds: 3_600 },
+			updatedAt: "2026-07-16T01:30:00.000Z",
+			updatedBy: "ops@example.test",
+		};
+		const resumedStatus = {
+			...pausedStatus,
+			maintenance: { ...pausedStatus.maintenance, scheduleState: "ACTIVE" },
+		};
+		const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+			Response.json(init?.method === "POST" ? resumedStatus : pausedStatus),
+		);
+		vi.stubGlobal("fetch", fetch);
+
+		try {
+			render(<OpsWebApp initialPath="/internal-portal-auth" />);
+			expect(await screen.findByText("待验证")).toBeInTheDocument();
+
+			fireEvent.click(screen.getByRole("button", { name: "恢复验证" }));
+
+			await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+			expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST" });
+			expect(await screen.findByText("待验证")).toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: "恢复验证" })).not.toBeInTheDocument();
+		} finally {
+			vi.stubGlobal("fetch", originalFetch);
+		}
+	});
+
 	it("renders the request investigation list", async () => {
 		render(<OpsWebApp initialPath="/requests" />);
 

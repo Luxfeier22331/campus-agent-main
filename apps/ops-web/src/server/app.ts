@@ -1,8 +1,11 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import {
+	OpsInternalPortalAuthStatusSchema,
+	OpsInternalPortalAuthUpdateSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsOverviewWindowSchema,
@@ -10,6 +13,20 @@ import {
 	OpsRequestListResponseSchema,
 	OpsRequestWindowSchema,
 } from "../shared/ops-contract.ts";
+import {
+	createInternalPortalAuthMaintenanceClientFromEnv,
+	type InternalPortalAuthMaintenanceClient,
+	type InternalPortalAuthMaintenanceEnv,
+	InternalPortalAuthMaintenanceUnavailableError,
+	unavailableMaintenanceStatus,
+} from "./internal-portal-auth-maintenance-client.ts";
+import {
+	createKubernetesInternalPortalAuthStore,
+	createUnavailableInternalPortalAuthStore,
+	type InternalPortalAuthStore,
+	InternalPortalAuthStoreUnavailableError,
+	parseInternalPortalCredential,
+} from "./internal-portal-auth-store.ts";
 import {
 	createOpenObserveClientFromEnv,
 	type OpenObserveClient,
@@ -44,11 +61,17 @@ interface OpsHealthEnv {
 	OPS_WEB_HEALTH_OPS_WEB_URL?: string;
 }
 
-type OpsAppEnv = OpsAdmissionEnv & OpenObserveEnv & OpsHealthEnv & OpsStatusEnv;
+type OpsAppEnv = OpsAdmissionEnv &
+	InternalPortalAuthMaintenanceEnv &
+	OpenObserveEnv &
+	OpsHealthEnv &
+	OpsStatusEnv;
 
 interface OpsAppOptions {
 	admission?: OpsAdmission;
 	env?: OpsAppEnv;
+	internalPortalAuthStore?: InternalPortalAuthStore;
+	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
 	openObserve?: OpenObserveClient;
 	overviewService?: OpsOverviewService;
 	staticRoot?: string;
@@ -79,6 +102,11 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
 	const env = options.env ?? process.env;
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
+	const internalPortalAuthStore =
+		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
+	const internalPortalMaintenanceClient =
+		options.internalPortalMaintenanceClient ??
+		createInternalPortalAuthMaintenanceClientFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
 	const openObserve = options.openObserve ?? createDefaultOpenObserveClient(env);
@@ -188,6 +216,110 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		await next();
 	});
 
+	app.get("/api/ops/internal-portal-auth", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (operator.principalClass !== "human") {
+			return internalPortalAuthForbiddenResponse();
+		}
+		try {
+			const credential = await internalPortalAuthStore.getStatus();
+			const maintenance = await readInternalPortalMaintenanceStatus(
+				internalPortalMaintenanceClient,
+			);
+			return context.json(
+				OpsInternalPortalAuthStatusSchema.parse(
+					buildInternalPortalAuthStatus(credential, maintenance),
+				),
+			);
+		} catch (error) {
+			return internalPortalAuthErrorResponse(error);
+		}
+	});
+
+	app.put(
+		"/api/ops/internal-portal-auth",
+		bodyLimit({ maxSize: 8 * 1024, onError: invalidInternalPortalCredentialResponse }),
+		async (context) => {
+			const operator = await admitOpsApiRequest(admission, context.req.raw);
+			if (operator instanceof Response) {
+				return operator;
+			}
+			if (operator.principalClass !== "human") {
+				return internalPortalAuthForbiddenResponse();
+			}
+			if (!requestHasSameOrigin(context.req.raw)) {
+				return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "凭据更新请求来源无效。", 403);
+			}
+
+			const body = await readBoundedJson(context.req.raw, 8 * 1024);
+			const parsed = OpsInternalPortalAuthUpdateSchema.safeParse(body);
+			if (!parsed.success) {
+				return invalidInternalPortalCredentialResponse();
+			}
+			let credential: string;
+			try {
+				credential = parseInternalPortalCredential(parsed.data.credential);
+			} catch {
+				return invalidInternalPortalCredentialResponse();
+			}
+
+			try {
+				const updatedAt = new Date().toISOString();
+				const credentialStatus = await internalPortalAuthStore.replaceCredential({
+					credential,
+					updatedAt,
+					updatedBy: operator.operatorId,
+				});
+				const maintenance = await resumeInternalPortalMaintenanceSafely(
+					internalPortalMaintenanceClient,
+				);
+				const status = OpsInternalPortalAuthStatusSchema.parse(
+					buildInternalPortalAuthStatus(credentialStatus, maintenance),
+				);
+				console.info("[ops-web] internal portal credential replaced", {
+					operatorId: operator.operatorId,
+					updatedAt,
+				});
+				return context.json(status);
+			} catch (error) {
+				return internalPortalAuthErrorResponse(error);
+			}
+		},
+	);
+
+	app.post("/api/ops/internal-portal-auth/maintenance/resume", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (operator.principalClass !== "human") {
+			return internalPortalAuthForbiddenResponse();
+		}
+		if (!requestHasSameOrigin(context.req.raw)) {
+			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "恢复请求来源无效。", 403);
+		}
+		try {
+			const maintenance = await internalPortalMaintenanceClient.resume();
+			const credential = await internalPortalAuthStore.getStatus();
+			return context.json(
+				OpsInternalPortalAuthStatusSchema.parse(
+					buildInternalPortalAuthStatus(credential, maintenance),
+				),
+			);
+		} catch (error) {
+			return error instanceof InternalPortalAuthMaintenanceUnavailableError
+				? jsonError(
+						"OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE",
+						"门户认证维护暂时不可用。",
+						503,
+					)
+				: internalPortalAuthErrorResponse(error);
+		}
+	});
+
 	app.get("/api/ops/overview", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -290,6 +422,73 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	return app;
 }
 
+function createDefaultInternalPortalAuthStore(): InternalPortalAuthStore {
+	try {
+		return createKubernetesInternalPortalAuthStore();
+	} catch (error) {
+		return createUnavailableInternalPortalAuthStore(
+			error instanceof InternalPortalAuthStoreUnavailableError
+				? error.reasonCode
+				: "KUBERNETES_CONFIG_UNAVAILABLE",
+		);
+	}
+}
+
+async function readInternalPortalMaintenanceStatus(client: InternalPortalAuthMaintenanceClient) {
+	try {
+		return await client.getStatus();
+	} catch (error) {
+		console.error("[ops-web] internal portal auth maintenance query failed", {
+			message: error instanceof Error ? error.message : String(error),
+		});
+		return unavailableMaintenanceStatus();
+	}
+}
+
+async function resumeInternalPortalMaintenanceSafely(client: InternalPortalAuthMaintenanceClient) {
+	try {
+		return await client.resume();
+	} catch (error) {
+		console.error("[ops-web] internal portal auth maintenance resume failed", {
+			message: error instanceof Error ? error.message : String(error),
+		});
+		return unavailableMaintenanceStatus();
+	}
+}
+
+function buildInternalPortalAuthStatus(
+	credential: Awaited<ReturnType<InternalPortalAuthStore["getStatus"]>>,
+	maintenance: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>,
+) {
+	const updatedAt = timestampMs(credential.updatedAt);
+	const lastSuccessAt = timestampMs(maintenance.lastSuccessAt);
+	const lastAttemptAt = timestampMs(maintenance.lastAttemptAt);
+	const lowerBoundSeconds =
+		updatedAt !== null && lastSuccessAt !== null && lastSuccessAt >= updatedAt
+			? Math.floor((lastSuccessAt - updatedAt) / 1_000)
+			: null;
+	const upperBoundSeconds =
+		updatedAt !== null &&
+		lastAttemptAt !== null &&
+		lastAttemptAt >= updatedAt &&
+		maintenance.lastOutcome === "CREDENTIAL_EXPIRED"
+			? Math.ceil((lastAttemptAt - updatedAt) / 1_000)
+			: null;
+	return {
+		...credential,
+		maintenance,
+		observedLifetime: { lowerBoundSeconds, upperBoundSeconds },
+	};
+}
+
+function timestampMs(value: string | null): number | null {
+	if (!value) {
+		return null;
+	}
+	const parsed = Date.parse(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
 function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
 	try {
 		return createOpsStatusStoreFromEnv(env);
@@ -354,6 +553,58 @@ function jsonError(
 		},
 		status,
 	});
+}
+
+function internalPortalAuthForbiddenResponse(): Response {
+	return jsonError("OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN", "当前操作者无权管理内部门户认证。", 403);
+}
+
+function invalidInternalPortalCredentialResponse(): Response {
+	return jsonError("OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID", "内部门户凭据格式无效。", 400);
+}
+
+function internalPortalAuthErrorResponse(error: unknown): Response {
+	if (!(error instanceof InternalPortalAuthStoreUnavailableError)) {
+		return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证存储暂时不可用。", 503);
+	}
+	if (error.reasonCode === "SECRET_NOT_INITIALIZED") {
+		return jsonError(
+			"OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED",
+			"内部门户认证 Secret 尚未初始化。",
+			503,
+		);
+	}
+	return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证存储暂时不可用。", 503, {
+		reasonCode: error.reasonCode,
+	});
+}
+
+async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
+	const contentLength = Number(request.headers.get("content-length") ?? "0");
+	if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+		return null;
+	}
+	try {
+		const body = await request.text();
+		if (new TextEncoder().encode(body).byteLength > maxBytes) {
+			return null;
+		}
+		return JSON.parse(body) as unknown;
+	} catch {
+		return null;
+	}
+}
+
+function requestHasSameOrigin(request: Request): boolean {
+	const origin = request.headers.get("origin");
+	if (!origin) {
+		return false;
+	}
+	try {
+		return new URL(origin).origin === new URL(request.url).origin;
+	} catch {
+		return false;
+	}
 }
 
 function isStaticAssetPath(path: string) {

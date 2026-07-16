@@ -13,3 +13,9 @@ data:
   OBJECT_STORE_REGION: us-east-1
   OBJECT_STORE_BUCKET_SOURCE: campus-agent-source
   OBJECT_STORE_BUCKET_DERIVED: campus-agent-derived
+  INTERNAL_PORTAL_BASE_URL: https://my.muc.edu.cn
+  INTERNAL_PORTAL_PAGE_URL: "https://my.muc.edu.cn/page/11#/"
+  INTERNAL_PORTAL_SOURCE_HOME_URL: https://my.muc.edu.cn
+  INTERNAL_PORTAL_SITE_ID: muc_internal_portal
+  INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: .muc.edu.cn
+  INTERNAL_PORTAL_BYPASS_PROXY: "true"

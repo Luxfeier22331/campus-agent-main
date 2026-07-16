@@ -1,3 +1,4 @@
+import { PortalSessionExpiredError } from "./auth-errors.js";
 import type {
 	ApiRequestContextLike,
 	ApiResponseLike,
@@ -189,7 +190,7 @@ export async function fetchAttachmentBinary(
 	const body = await readBinaryResponse(response, "downloadAttachment");
 	const maybeSessionInvalid = body.toString("utf-8").trim();
 	if (maybeSessionInvalid === "error_comsys_session_invalid") {
-		throw new Error("auth-expired: downloadAttachment failed: session invalid");
+		throw new PortalSessionExpiredError("downloadAttachment failed: session invalid");
 	}
 	return {
 		body,
@@ -310,7 +311,7 @@ export async function fetchFileReleaseCodeTypes(
 
 function buildRequestError(status: number, statusText: string, operation: string): Error {
 	if (status === 401 || status === 403) {
-		return new Error(`auth-expired: ${operation} failed: ${status} ${statusText}`);
+		return new PortalSessionExpiredError(`${operation} failed: ${status} ${statusText}`);
 	}
 	if (operation === "downloadAttachment") {
 		const terminalReason = terminalReasonForHttpStatus(status);
@@ -345,7 +346,7 @@ async function parseJsonResponse<T extends object>(
 	if (typeof response.text === "function") {
 		const payload = (await response.text()).trim();
 		if (payload === "error_comsys_session_invalid") {
-			throw new Error(`auth-expired: ${operation} failed: session invalid`);
+			throw new PortalSessionExpiredError(`${operation} failed: session invalid`);
 		}
 		try {
 			return JSON.parse(payload) as T;

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0072
 status: accepted
 created: 2026-07-11
-updated: 2026-07-12
+updated: 2026-07-16
 supersedes:
   - ADR-0055 single implementation surface for privileged runtime diagnosis
 ---
@@ -26,11 +26,18 @@ and arbitrary query capability.
 
 ## Decision
 
-Add `apps/ops-web` as a separate, self-hosted, read-only runtime diagnosis application.
+Add `apps/ops-web` as a separate, self-hosted operations application. It is read-only by default
+and may expose only repository-documented, resource-bounded runtime operations.
 
 - One Node/Hono process serves the React application and its fixed `/api/ops/*` endpoints.
 - The server reads only allowlisted columns from turn dispatches, user messages, agent runs and
-  observability facts, and writes only raw observability read audits.
+  observability facts. Its PostgreSQL account writes only raw observability read audits.
+- The only non-diagnostic operations are internal-portal credential rotation and resuming its
+  fixed maintenance Schedule. A human operator may replace `sso_tgc` in the fixed
+  `source-collector-internal-portal-auth` Secret and resume
+  `internal-portal-auth-maintenance` through ingestion-control. Ops Web cannot create, list,
+  delete or update other Secrets, select another Schedule, trigger a Workflow or return the
+  credential.
 - The server queries fixed OpenObserve streams with request-derived identifiers and bounded time
   windows. The browser cannot submit SQL or choose streams.
 - Cloudflare Access plus application allowlists protect all Ops APIs. Raw logs and traces require
@@ -42,7 +49,7 @@ Add `apps/ops-web` as a separate, self-hosted, read-only runtime diagnosis appli
 
 ADR-0067 continues to govern `app-api` and the Worker Operator Console: they do not mirror external
 sink bodies or query raw sinks. This ADR does not broaden that path. It creates a separate privileged
-self-hosted boundary whose only purpose is runtime diagnosis.
+self-hosted boundary for runtime diagnosis and explicitly listed cluster-local operations.
 
 ADR-0055 continues to govern the unified business operations concept and retirement of duplicate
 domain back offices. This ADR supersedes only the assumption that privileged runtime diagnosis must
@@ -56,8 +63,8 @@ network policy, ingress and immutable deployment selection.
 
 - Operators use one additional application for deep runtime diagnosis; this is accepted to keep
   privileged data access out of the public Worker API.
-- Ops Web has its own availability and credential lifecycle, but it does not become a general
-  control plane or product backend.
+- Ops Web has its own availability and credential lifecycle, but the fixed portal credential and
+  Schedule operations do not make it a general control plane or product backend.
 - Request state remains PostgreSQL summary truth. OpenObserve and external platforms cannot change
   it.
 - Raw observability access is auditable and fails closed when audit writes fail.

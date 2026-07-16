@@ -6,22 +6,20 @@ import { parse as parseDomain } from "tldts";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(packageRoot, "../../../..");
-const REQUIRED_NO_PROXY_HOSTS = [
-	"example.edu",
-	".example.edu",
-	"portal.example.edu",
-	"auth.example.edu",
-];
+const DEFAULT_PORTAL_BASE_URL = "https://portal.example.edu";
 const RETIRED_INTERNAL_PORTAL_ENV_PREFIX = "AUTHENTICATED_NOTICE_";
+const RETIRED_INTERNAL_PORTAL_AUTH_KEYS = new Set([
+	"INTERNAL_PORTAL_JSESSIONID",
+	"INTERNAL_PORTAL_NGINX",
+	"INTERNAL_PORTAL_SSO_TGC",
+]);
 
 export interface InternalPortalConfig {
 	runtimeDir: string;
 	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
-	authJsessionId: string | null;
-	authNginxCookie: string | null;
 	authSsoCookieDomain: string | null;
-	authSsoTgcToken: string | null;
+	authSsoTgcFile: string;
 	historicalBackfillMaxPagesPerType: number | null;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
@@ -36,8 +34,8 @@ export interface InternalPortalConfig {
 }
 
 export function loadInternalPortalEnv(): void {
-	dotenv.config({ path: path.join(repoRoot, ".env") });
-	dotenv.config({ path: path.join(packageRoot, ".env"), override: true });
+	dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
+	dotenv.config({ path: path.join(packageRoot, ".env"), override: true, quiet: true });
 	assertNoRetiredInternalPortalEnv(process.env);
 	applyInternalPortalNoProxyEnv(process.env);
 }
@@ -45,9 +43,10 @@ export function loadInternalPortalEnv(): void {
 export function applyInternalPortalNoProxyEnv(target: NodeJS.ProcessEnv): void {
 	assertNoRetiredInternalPortalEnv(target);
 	const raw = target.NO_PROXY ?? target.no_proxy;
+	const portalHosts = resolvePortalNoProxyHosts(target);
 	const merged = shouldBypassProxyForPortal(target.INTERNAL_PORTAL_BYPASS_PROXY)
-		? mergeNoProxyValue(raw)
-		: removePortalNoProxyHosts(raw);
+		? mergeNoProxyValue(raw, portalHosts)
+		: removePortalNoProxyHosts(raw, portalHosts);
 	target.NO_PROXY = merged;
 	target.no_proxy = merged;
 }
@@ -59,11 +58,8 @@ export function resolveInternalPortalConfig(
 	const runtimeDir = path.resolve(
 		String(source.INTERNAL_PORTAL_RUNTIME_DIR || path.join(packageRoot, "runtime")),
 	);
-	const portalBaseUrl = String(
-		source.INTERNAL_PORTAL_BASE_URL || "https://portal.example.edu",
-	).trim();
+	const portalBaseUrl = String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim();
 	const bypassProxyForPortal = shouldBypassProxyForPortal(source.INTERNAL_PORTAL_BYPASS_PROXY);
-	const authSsoTgcToken = normalizeOptionalSecret(source.INTERNAL_PORTAL_SSO_TGC);
 	return {
 		runtimeDir,
 		defaultInlineVisualCapture: parseBooleanFlag(
@@ -71,14 +67,13 @@ export function resolveInternalPortalConfig(
 			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-		authJsessionId: normalizeOptionalSecret(source.INTERNAL_PORTAL_JSESSIONID),
-		authNginxCookie: normalizeOptionalSecret(source.INTERNAL_PORTAL_NGINX),
 		authSsoCookieDomain: resolveSsoCookieDomain({
 			portalBaseUrl,
 			rawDomain: source.INTERNAL_PORTAL_SSO_COOKIE_DOMAIN,
-			ssoToken: authSsoTgcToken,
 		}),
-		authSsoTgcToken,
+		authSsoTgcFile: path.resolve(
+			String(source.INTERNAL_PORTAL_SSO_TGC_FILE || path.join(runtimeDir, "auth", "sso_tgc")),
+		),
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
 			source.INTERNAL_PORTAL_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
 		),
@@ -145,13 +140,27 @@ function parseBooleanFlag(raw: string | undefined, defaultValue: boolean): boole
 	return defaultValue;
 }
 
-function mergeNoProxyValue(raw: string | undefined): string {
+function resolvePortalNoProxyHosts(
+	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): string[] {
+	const portalHost = new URL(
+		String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim(),
+	).hostname.toLowerCase();
+	const configuredDomain = String(source.INTERNAL_PORTAL_SSO_COOKIE_DOMAIN ?? "")
+		.trim()
+		.replace(/^\./, "")
+		.toLowerCase();
+	const registrableDomain = configuredDomain || parseDomain(portalHost).domain || portalHost;
+	return [...new Set([registrableDomain, `.${registrableDomain}`, portalHost])];
+}
+
+function mergeNoProxyValue(raw: string | undefined, portalHosts: string[]): string {
 	const tokens = (raw || "")
 		.split(",")
 		.map((token) => token.trim())
 		.filter(Boolean);
 	const seen = new Set(tokens.map((token) => token.toLowerCase()));
-	for (const host of REQUIRED_NO_PROXY_HOSTS) {
+	for (const host of portalHosts) {
 		const normalized = host.toLowerCase();
 		if (seen.has(normalized)) {
 			continue;
@@ -162,8 +171,8 @@ function mergeNoProxyValue(raw: string | undefined): string {
 	return tokens.join(",");
 }
 
-function removePortalNoProxyHosts(raw: string | undefined): string {
-	const portalHosts = new Set(REQUIRED_NO_PROXY_HOSTS.map((host) => host.toLowerCase()));
+function removePortalNoProxyHosts(raw: string | undefined, hosts: string[]): string {
+	const portalHosts = new Set(hosts.map((host) => host.toLowerCase()));
 	return (raw || "")
 		.split(",")
 		.map((token) => token.trim())
@@ -201,16 +210,10 @@ function resolvePortalProxyServer(
 function resolveSsoCookieDomain(input: {
 	portalBaseUrl: string;
 	rawDomain: string | undefined;
-	ssoToken: string | null;
 }): string | null {
 	const normalized = normalizeOptionalSecret(input.rawDomain);
 	if (!normalized) {
-		if (!input.ssoToken) {
-			return null;
-		}
-		throw new Error(
-			"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN is required when INTERNAL_PORTAL_SSO_TGC is set",
-		);
+		return null;
 	}
 	const portalHost = new URL(input.portalBaseUrl).hostname.toLowerCase();
 	const cookieHost = normalized.replace(/^\./, "").toLowerCase();
@@ -228,7 +231,11 @@ function assertNoRetiredInternalPortalEnv(
 	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): void {
 	const retiredKeys = Object.keys(source)
-		.filter((key) => key.startsWith(RETIRED_INTERNAL_PORTAL_ENV_PREFIX))
+		.filter(
+			(key) =>
+				key.startsWith(RETIRED_INTERNAL_PORTAL_ENV_PREFIX) ||
+				RETIRED_INTERNAL_PORTAL_AUTH_KEYS.has(key),
+		)
 		.sort();
 	if (retiredKeys.length === 0) {
 		return;

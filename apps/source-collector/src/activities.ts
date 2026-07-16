@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Context } from "@temporalio/activity";
+import { ApplicationFailure, Context } from "@temporalio/activity";
 import {
 	assertArtifactRefBytes,
 	buildObjectStoreArtifactRef,
@@ -21,6 +21,7 @@ import type {
 } from "ingestion-contracts";
 import { z } from "zod";
 import { createAuthenticatedNoticeArtifactStoreFromEnv } from "../adapters/internal-portal/src/artifact-store.ts";
+import { isPortalCredentialFailure } from "../adapters/internal-portal/src/auth-errors.ts";
 import { resolveInternalPortalConfig } from "../adapters/internal-portal/src/config.ts";
 import {
 	collectFileReleaseBundle,
@@ -31,7 +32,10 @@ import {
 	uploadNoticeExportArtifacts,
 } from "../adapters/internal-portal/src/notice-export.ts";
 import { loadNoticeTypes } from "../adapters/internal-portal/src/notice-types.ts";
-import { createApiContextFromStorageState } from "../adapters/internal-portal/src/portal.ts";
+import {
+	createPortalApiContext,
+	refreshPortalAuthentication,
+} from "../adapters/internal-portal/src/portal.ts";
 import {
 	crawlSite,
 	createS3ArtifactStoreFromEnv,
@@ -153,6 +157,16 @@ export interface SourceCollectorActivityDependencies {
 
 export function createSourceCollectorActivities(input: SourceCollectorActivityDependencies) {
 	return {
+		async refreshInternalPortalAuthentication() {
+			try {
+				return await refreshPortalAuthentication(resolveInternalPortalConfig(input.env));
+			} catch (error) {
+				if (isPortalCredentialFailure(error)) {
+					throw ApplicationFailure.nonRetryable(error.message, error.code);
+				}
+				throw error;
+			}
+		},
 		async executeSourceCollectorTask(
 			snapshot: IngestionTaskExecutionSnapshot,
 			preparationRef: IngestionArtifactRef | null,
@@ -196,6 +210,11 @@ export function createSourceCollectorActivities(input: SourceCollectorActivityDe
 					snapshot,
 					summary: collected.summary,
 				});
+			} catch (error) {
+				if (isPortalCredentialFailure(error)) {
+					throw ApplicationFailure.nonRetryable(error.message, error.code);
+				}
+				throw error;
 			} finally {
 				clearInterval(heartbeatTimer);
 			}
@@ -350,7 +369,7 @@ async function runInternalNoticeCollector(input: Parameters<typeof runCollector>
 			attachmentArtifactStore: artifactStore,
 			backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
 			collectionMode: request.collection_mode,
-			createApiContext: () => createApiContextFromStorageState(config),
+			createApiContext: () => createPortalApiContext(config),
 			defaultInlineVisualCapture: config.defaultInlineVisualCapture,
 			exportedAt,
 			maxNotices: request.max_notices,
@@ -417,7 +436,7 @@ async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]
 		const collected = await collectFileReleaseBundle({
 			abortSignal: input.abortSignal,
 			attachmentArtifactStore: artifactStore,
-			createApiContext: () => createApiContextFromStorageState(config),
+			createApiContext: () => createPortalApiContext(config),
 			exportedAt,
 			maxFileReleases: request.max_file_releases,
 			maxPages: request.max_pages,

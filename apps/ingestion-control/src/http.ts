@@ -16,6 +16,7 @@ export type IngestionControlHandler = (request: Request) => Promise<Response>;
 export interface IngestionControlServiceTokens {
 	adminToken?: string | null;
 	appApiProjectionToken?: string | null;
+	opsToken?: string | null;
 }
 
 export function createIngestionControlHandler(input: {
@@ -27,6 +28,7 @@ export function createIngestionControlHandler(input: {
 }): IngestionControlHandler {
 	const tokens = {
 		admin: input.serviceTokens?.adminToken?.trim() || null,
+		ops: input.serviceTokens?.opsToken?.trim() || null,
 		projection: input.serviceTokens?.appApiProjectionToken?.trim() || null,
 	};
 	return async (request): Promise<Response> => {
@@ -42,6 +44,26 @@ export function createIngestionControlHandler(input: {
 					return jsonResponse({ status: "unavailable" }, 503);
 				}
 				return jsonResponse({ status: "ready" });
+			}
+			if (
+				request.method === "GET" &&
+				url.pathname === "/internal/ingestion/operations/internal-portal-auth-maintenance"
+			) {
+				requireToken(request, tokens.ops, "ops");
+				if (!input.workflowStarter?.getInternalPortalAuthMaintenanceStatus) {
+					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
+				}
+				return jsonResponse(await input.workflowStarter.getInternalPortalAuthMaintenanceStatus());
+			}
+			if (
+				request.method === "POST" &&
+				url.pathname === "/internal/ingestion/operations/internal-portal-auth-maintenance/resume"
+			) {
+				requireToken(request, tokens.ops, "ops");
+				if (!input.workflowStarter?.resumeInternalPortalAuthMaintenance) {
+					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
+				}
+				return jsonResponse(await input.workflowStarter.resumeInternalPortalAuthMaintenance());
 			}
 			if (request.method === "POST" && url.pathname === "/internal/ingestion/tasks") {
 				requireToken(request, tokens.admin, "admin");
@@ -124,7 +146,10 @@ export function createIngestionControlHandler(input: {
 				return jsonResponse({ error: error.message }, error.status);
 			}
 			const message = error instanceof Error ? error.message : "ingestion-control request failed";
-			const status = message.includes("workflow") || message.includes("Temporal") ? 503 : 400;
+			const status =
+				message.includes("workflow") || message.includes("Temporal") || message.includes("Schedule")
+					? 503
+					: 400;
 			return jsonResponse({ error: message }, status);
 		}
 	};

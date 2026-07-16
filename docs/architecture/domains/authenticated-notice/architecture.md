@@ -4,7 +4,7 @@ truth_scope: domain
 owner_boundary: authenticated-notice
 status: active
 created: 2026-04-02
-updated: 2026-07-13
+updated: 2026-07-16
 ---
 # Authenticated Notice Sources
 
@@ -56,6 +56,25 @@ released files whose bytes were captured and verified enter the source
 manifest. `reference_only` rows remain explicit capture evidence and cannot be
 promoted to document holding or serving.
 
+The portal runtime consumes only a file-projected `SSO_TGC`. Playwright follows
+the provider's browser SSO flow to derive `JSESSIONID` and `nginx`; those
+application cookies and storage state remain ephemeral worker state. Session
+expiry triggers one browser refresh and one retry of the failed provider
+request. The provider does not currently allow REST Service Ticket issuance
+for the portal registered service.
+
+The environment creates the fixed `source-collector-internal-portal-auth`
+Secret once. An admitted human operator replaces its `sso_tgc` value through
+Ops Web. Ops Web has resource-name-scoped `get` and `patch`; source-collector
+only reads the projected file. Routine rotations do not create Git history.
+
+A Temporal Schedule is deployed paused until Ops Web writes the first valid
+TGC. Credential replacement resumes the Schedule, which then forces CAS Service
+Ticket issuance every 30 minutes even when no capture task is running.
+Successful runs replace only worker-local derived session state. Credential
+expiry fails non-retryably and pauses the Schedule; the next replacement
+resumes it for the following interval.
+
 ## WeChat
 
 FeedWe is discovery/authentication infrastructure. Canonical source evidence is
@@ -65,7 +84,9 @@ before producing the task result manifest.
 
 ## Storage And Privacy
 
-- Provider credentials and cookies are source-collector secrets.
+- The provider TGC is a source-collector Secret; application cookies are
+  worker-local derived state.
+- Ops Web never returns the TGC and cannot enumerate or create Secrets.
 - Source bytes and detailed manifests are stored in the source bucket.
 - Temporal stores workflow/activity state, not cookies or raw page bodies.
 - PostgreSQL stores only the shared bounded ingestion task projection.

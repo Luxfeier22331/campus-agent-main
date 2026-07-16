@@ -19,6 +19,12 @@ online query targets, or execute Python fallback handlers. Source capture runs
 in `apps/source-collector`; deterministic file kernels run through
 `packages/ingestion-kernels-rs`.
 
+Temporal also owns the fixed `internal-portal-auth-maintenance` Schedule. A
+deployment sync command reconciles its 30-minute definition; ingestion-control
+does not run an in-process timer. A new Schedule starts paused until Ops Web
+writes the first valid credential and resumes it. The Schedule remains separate
+from ingestion task admission and projection.
+
 ## Runtime Roles
 
 | Role | Command | Responsibility |
@@ -55,6 +61,10 @@ Canonical queues:
 - `GET /internal/ingestion/operator-projection/tasks`: app-api projection token.
 - `GET /healthz`: process liveness.
 - `GET /readyz`: live PostgreSQL and Temporal dependency readiness.
+- `GET /internal/ingestion/operations/internal-portal-auth-maintenance`: fixed
+  maintenance Schedule summary for Ops Web.
+- `POST /internal/ingestion/operations/internal-portal-auth-maintenance/resume`:
+  resume that fixed Schedule after credential replacement.
 
 There are no source-specific lifecycle routes. A collector is invoked only by
 the workflow through its activity task queue.

@@ -4,7 +4,7 @@ truth_scope: system
 owner_boundary: product-runtime
 status: active
 created: 2026-06-13
-updated: 2026-07-14
+updated: 2026-07-15
 ---
 
 # Product Runtime
@@ -21,7 +21,7 @@ HTTP 字段由 contracts 定义，数据库表由 data 文档定义，部署状�
 | `campus-web` | 学生问答、账号、文档、地图、食堂和 campus status 页面 | 运行排查、数据库或内部 runtime 访问 |
 | `app-api` | browser auth、chat admission/finalization、产品 API、状态 API、provider 配置 API | Temporal worker、RAG 内部、通用运维数据 API |
 | `operator-console-web` | 模型服务配置 | 请求列表、执行诊断、数据库读取 |
-| `ops-web` | 自托管请求排查、运行概况、Temporal 队列和观测入口 | 产品写操作、模型配置、工作流控制 |
+| `ops-web` | 自托管请求排查、运行概况、观测入口、固定门户凭据替换 | 产品写操作、模型配置、工作流控制、通用 Secret 管理 |
 | `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection | browser auth、页面合同、operator config |
 | `agent-runtime` | primary agent execution | durable orchestration 和产品数据持久化 |
 
@@ -87,7 +87,8 @@ tool 也不通过 app-api。
 ## 配置与排查
 
 - `operator-console-web -> app-api` 管理 provider config。
-- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供只读排查。
+- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供只读排查；人员操作者可以通过
+  固定接口 patch `source-collector-internal-portal-auth`，不能操作其他 Secret。
 - 两个应用不互相代理，也不共享“通用运维后端”。
 - Temporal UI、Langfuse UI 和 OpenObserve 保留各自完整能力；Ops Web 只提供跨系统关联和
   常用摘要。

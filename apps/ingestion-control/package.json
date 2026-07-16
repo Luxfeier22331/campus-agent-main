@@ -10,6 +10,7 @@
 	"scripts": {
 		"dev": "node --experimental-strip-types ./src/server.ts",
 		"migrate": "tsx ./src/migrate.ts",
+		"schedules:sync": "tsx ./src/schedule-sync.ts",
 		"start": "node --experimental-strip-types ./src/server.ts",
 		"start:api": "node --experimental-strip-types ./src/server.ts",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",

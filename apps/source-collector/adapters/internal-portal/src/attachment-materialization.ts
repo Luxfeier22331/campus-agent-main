@@ -16,6 +16,11 @@ import {
 	type ExternalVisualFetcher,
 	runAttachmentCrawleeDownloadOutcomes,
 } from "./attachment-crawlee-runner.js";
+import {
+	PortalCredentialExpiredError,
+	PortalCredentialUnavailableError,
+	PortalSessionExpiredError,
+} from "./auth-errors.js";
 import type {
 	ApiRequestContextLike,
 	BundleAttachmentObservation,
@@ -343,6 +348,13 @@ async function materializeSingleAttachment(input: {
 		};
 	} catch (error) {
 		input.abortSignal?.throwIfAborted();
+		if (
+			error instanceof PortalSessionExpiredError ||
+			error instanceof PortalCredentialExpiredError ||
+			error instanceof PortalCredentialUnavailableError
+		) {
+			throw error;
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		if (isAttachmentDownloadTerminalUnavailableError(error)) {
 			const terminalMessage = `terminal_unavailable:${error.terminalReason}`;

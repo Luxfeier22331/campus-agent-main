@@ -8,9 +8,10 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList } from "lucide-react";
+import { Activity, ClipboardList, KeyRound } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
+import { InternalPortalAuthPage } from "./internal-portal-auth-page";
 import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
@@ -94,11 +95,18 @@ const requestDetailRoute = createRoute({
 	component: RequestDetailRoute,
 });
 
+const internalPortalAuthRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/internal-portal-auth",
+	component: InternalPortalAuthPage,
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
 	requestsRoute,
 	requestDetailRoute,
+	internalPortalAuthRoute,
 ]);
 
 function createOpsRouter(initialPath?: string) {
@@ -127,6 +135,7 @@ function RootLayout() {
 			navItems={[
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "请求排查" },
+				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 			]}
 		>
 			<Outlet />

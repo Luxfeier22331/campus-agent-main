@@ -34,7 +34,7 @@ import {
 	resolveReleasedFileContentType,
 	safeBasename,
 } from "./file-release-export-helpers.js";
-import { createApiContextFromStorageState } from "./portal.js";
+import { createPortalApiContext } from "./portal.js";
 import type {
 	ApiRequestContextLike,
 	BundleFileReleaseRecord,
@@ -201,7 +201,7 @@ export async function collectFileReleaseBundle(
 	input.abortSignal?.throwIfAborted();
 	const createApiContext =
 		input.createApiContext ??
-		(() => createApiContextFromStorageState(resolveInternalPortalConfig(process.env)));
+		(() => createPortalApiContext(resolveInternalPortalConfig(process.env)));
 	const apiContext = await createApiContext();
 	const disposeApiContext = bindApiContextCancellation(apiContext, input.abortSignal);
 	const fetchPage =

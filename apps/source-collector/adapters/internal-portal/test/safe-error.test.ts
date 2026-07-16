@@ -33,4 +33,13 @@ describe("internal portal source collector safe errors", () => {
 		expect(safe).toContain("JSESSIONID=<redacted>");
 		expect(safe).toContain("nginx=<redacted>");
 	});
+
+	it("redacts CAS service tickets from redirect URLs", () => {
+		const safe = formatSafeErrorMessage(
+			"page.goto failed at https://portal.example.edu/login?ticket=ST-secret&next=/notice",
+		);
+
+		expect(safe).not.toContain("ST-secret");
+		expect(safe).toContain("ticket=<redacted>");
+	});
 });

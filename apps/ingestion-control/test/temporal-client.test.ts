@@ -4,12 +4,17 @@ import { testSnapshot } from "./fixtures";
 
 const temporal = vi.hoisted(() => {
 	class AlreadyStartedError extends Error {}
+	class NotFoundError extends Error {}
 	return {
 		AlreadyStartedError,
+		NotFoundError,
 		close: vi.fn(async () => undefined),
 		connect: vi.fn(),
 		getSystemInfo: vi.fn(async () => ({})),
 		getHandle: vi.fn(),
+		scheduleDescribe: vi.fn(),
+		scheduleGetHandle: vi.fn(),
+		scheduleUnpause: vi.fn(async () => undefined),
 		start: vi.fn(),
 		withDeadline: vi.fn(async (_deadline: number, operation: () => Promise<unknown>) =>
 			operation(),
@@ -19,11 +24,13 @@ const temporal = vi.hoisted(() => {
 
 vi.mock("@temporalio/client", () => ({
 	Client: class {
+		readonly schedule = { getHandle: temporal.scheduleGetHandle };
 		readonly workflow = { getHandle: temporal.getHandle, start: temporal.start };
 	},
 	Connection: {
 		connect: temporal.connect,
 	},
+	ScheduleNotFoundError: temporal.NotFoundError,
 	WorkflowExecutionAlreadyStartedError: temporal.AlreadyStartedError,
 }));
 
@@ -52,6 +59,17 @@ describe("Temporal ingestion workflow starter", () => {
 				runId: "temporal-run-existing",
 				status: { code: 1, name: "RUNNING" },
 			})),
+		});
+		temporal.scheduleDescribe.mockResolvedValue({
+			info: {
+				nextActionTimes: [new Date("2026-07-16T00:30:00.000Z")],
+				recentActions: [],
+			},
+			state: { paused: false },
+		});
+		temporal.scheduleGetHandle.mockReturnValue({
+			describe: temporal.scheduleDescribe,
+			unpause: temporal.scheduleUnpause,
 		});
 	});
 
@@ -117,6 +135,97 @@ describe("Temporal ingestion workflow starter", () => {
 			name: "IngestionWorkflowIdentityConflictError",
 			taskId: "task-curriculum-chunk-001",
 			workflowId: "ingestion/task-curriculum-chunk-001",
+		});
+	});
+
+	it("reads the fixed maintenance workflow result and resumes its schedule", async () => {
+		temporal.scheduleDescribe.mockResolvedValue({
+			info: {
+				nextActionTimes: [new Date("2026-07-16T00:30:00.000Z")],
+				recentActions: [
+					{
+						action: {
+							type: "startWorkflow",
+							workflow: { firstExecutionRunId: "run-auth-1", workflowId: "auth-run-1" },
+						},
+						takenAt: new Date("2026-07-16T00:00:00.000Z"),
+					},
+				],
+			},
+			state: { paused: true },
+		});
+		temporal.getHandle.mockReturnValue({
+			describe: vi.fn(async () => ({ status: { name: "COMPLETED" } })),
+			result: vi.fn(async () => ({
+				completedAt: "2026-07-16T00:00:03.000Z",
+				errorCode: null,
+				lastSuccessAt: "2026-07-16T00:00:02.000Z",
+				noticeProbeSucceeded: true,
+				outcome: "success",
+				portalSessionEstablished: true,
+				schemaVersion: "internal_portal_auth_maintenance.v1",
+				serviceTicketIssued: true,
+				startedAt: "2026-07-16T00:00:00.000Z",
+			})),
+		});
+		const starter = await createTemporalIngestionWorkflowStarter(config);
+
+		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
+			lastOutcome: "SUCCESS",
+			lastSuccessAt: "2026-07-16T00:00:02.000Z",
+			scheduleState: "PAUSED",
+			serviceTicketIssued: true,
+		});
+		await starter.resumeInternalPortalAuthMaintenance?.();
+		expect(temporal.scheduleUnpause).toHaveBeenCalledWith("credential replaced through Ops Web");
+	});
+
+	it("maps a credential-expired workflow failure to a paused maintenance status", async () => {
+		temporal.scheduleDescribe.mockResolvedValue({
+			info: {
+				nextActionTimes: [],
+				recentActions: [
+					{
+						action: {
+							type: "startWorkflow",
+							workflow: { firstExecutionRunId: "run-auth-expired", workflowId: "auth-run-expired" },
+						},
+						takenAt: new Date("2026-07-16T01:00:00.000Z"),
+					},
+				],
+			},
+			state: { paused: true },
+		});
+		temporal.getHandle.mockReturnValue({
+			describe: vi.fn(async () => ({ status: { name: "FAILED" } })),
+			result: vi.fn(async () => {
+				throw new Error("workflow failed", {
+					cause: {
+						details: [
+							{
+								errorCode: "internal_portal_credential_expired",
+								failedAt: "2026-07-16T01:00:02.000Z",
+								lastSuccessAt: "2026-07-16T00:30:02.000Z",
+								startedAt: "2026-07-16T01:00:00.000Z",
+							},
+						],
+						type: "internal_portal_credential_expired",
+					},
+				});
+			}),
+		});
+		const starter = await createTemporalIngestionWorkflowStarter(config);
+
+		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
+			errorCode: "internal_portal_credential_expired",
+			lastAttemptAt: "2026-07-16T01:00:00.000Z",
+			lastOutcome: "CREDENTIAL_EXPIRED",
+			lastSuccessAt: "2026-07-16T00:30:02.000Z",
+			nextRunAt: null,
+			noticeProbeSucceeded: false,
+			portalSessionEstablished: false,
+			scheduleState: "PAUSED",
+			serviceTicketIssued: false,
 		});
 	});
 });

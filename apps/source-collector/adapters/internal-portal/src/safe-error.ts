@@ -24,6 +24,7 @@ export function formatSafeErrorMessage(error: unknown): string {
 	}
 
 	message = message.replace(/Bearer\s+[^;\s]+/gi, "Bearer <redacted>");
+	message = message.replace(/([?&]ticket=)[^&#\s]+/gi, "$1<redacted>");
 
 	return message;
 }

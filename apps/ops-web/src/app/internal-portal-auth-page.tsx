@@ -1,0 +1,254 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { KeyRound, RefreshCw } from "lucide-react";
+import { type FormEvent, useState } from "react";
+
+import { formatDuration, formatTimestamp } from "./format";
+import {
+	fetchInternalPortalAuthStatus,
+	replaceInternalPortalCredential,
+	resumeInternalPortalAuthMaintenance,
+} from "./ops-api-client";
+import { ErrorState, InlineError, KeyValue, PageHeader, PageShell } from "./ops-display";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+
+const STATUS_QUERY_KEY = ["ops", "internal-portal-auth"] as const;
+
+export function InternalPortalAuthPage() {
+	const queryClient = useQueryClient();
+	const [credential, setCredential] = useState("");
+	const status = useQuery({
+		queryFn: ({ signal }) => fetchInternalPortalAuthStatus({ signal }),
+		queryKey: STATUS_QUERY_KEY,
+	});
+	const replacement = useMutation({
+		mutationFn: replaceInternalPortalCredential,
+		onSuccess: (nextStatus) => {
+			queryClient.setQueryData(STATUS_QUERY_KEY, nextStatus);
+			setCredential("");
+		},
+	});
+	const resume = useMutation({
+		mutationFn: resumeInternalPortalAuthMaintenance,
+		onSuccess: (nextStatus) => queryClient.setQueryData(STATUS_QUERY_KEY, nextStatus),
+	});
+
+	if (status.isPending) {
+		return <PageShell title="门户认证">正在读取门户认证状态...</PageShell>;
+	}
+	if (status.isError || !status.data) {
+		return (
+			<section>
+				<PageHeader description="内部门户登录状态与轮换记录。" title="门户认证" />
+				<Card>
+					<CardContent className="p-4 sm:p-5">
+						<ErrorState
+							error={status.error}
+							onRetry={() => status.refetch()}
+							title="门户认证状态读取失败"
+						/>
+					</CardContent>
+				</Card>
+			</section>
+		);
+	}
+
+	const submit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (credential.trim() && !replacement.isPending) {
+			replacement.mutate(credential);
+		}
+	};
+	const pendingValidation = isPendingValidation(status.data);
+	const maintenanceLabel = pendingValidation
+		? "待验证"
+		: maintenanceStatusLabel(
+				status.data.maintenance.scheduleState,
+				status.data.maintenance.lastOutcome,
+			);
+	const maintenanceTone =
+		!pendingValidation &&
+		(status.data.maintenance.scheduleState === "PAUSED" ||
+			status.data.maintenance.lastOutcome === "CREDENTIAL_EXPIRED")
+			? "danger"
+			: pendingValidation ||
+					status.data.maintenance.lastOutcome === "TRANSIENT_FAILURE" ||
+					status.data.maintenance.scheduleState === "UNAVAILABLE"
+				? "warning"
+				: "success";
+	const canResume =
+		status.data.configured &&
+		pendingValidation &&
+		status.data.maintenance.scheduleState === "PAUSED";
+
+	return (
+		<section>
+			<PageHeader description="内部门户登录状态与轮换记录。" title="门户认证" />
+			<div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+				<Card>
+					<CardHeader>
+						<CardTitle>当前状态</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="mb-3 flex items-center gap-2">
+							<Badge tone={status.data.configured ? "success" : "warning"}>
+								{status.data.configured ? "已配置" : "未配置"}
+							</Badge>
+							<Badge tone={maintenanceTone}>{maintenanceLabel}</Badge>
+						</div>
+						<KeyValue
+							label="最近更新"
+							value={status.data.updatedAt ? formatTimestamp(status.data.updatedAt) : "暂无记录"}
+						/>
+						<KeyValue label="更新人" value={status.data.updatedBy ?? "暂无记录"} />
+						<KeyValue
+							label="最近验证"
+							value={
+								status.data.maintenance.lastAttemptAt
+									? formatTimestamp(status.data.maintenance.lastAttemptAt)
+									: "暂无记录"
+							}
+						/>
+						<KeyValue
+							label="最近成功"
+							value={
+								status.data.maintenance.lastSuccessAt
+									? formatTimestamp(status.data.maintenance.lastSuccessAt)
+									: "暂无记录"
+							}
+						/>
+						<KeyValue
+							label="下次验证"
+							value={
+								status.data.maintenance.nextRunAt
+									? formatTimestamp(status.data.maintenance.nextRunAt)
+									: "暂无记录"
+							}
+						/>
+						<KeyValue
+							label="已观测有效时长"
+							value={formatObservedLifetime(status.data.observedLifetime)}
+						/>
+						{canResume ? (
+							<div className="mt-4">
+								<Button disabled={resume.isPending} onClick={() => resume.mutate()} type="button">
+									<RefreshCw className="size-4" />
+									{resume.isPending ? "恢复中" : "恢复验证"}
+								</Button>
+								{resume.isError ? (
+									<div className="mt-3">
+										<InlineError error={resume.error} title="恢复验证失败" />
+									</div>
+								) : null}
+							</div>
+						) : null}
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>替换凭据</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<form className="grid gap-4" onSubmit={submit}>
+							<div className="grid gap-2">
+								<label className="font-medium text-slate-700 text-sm" htmlFor="portal-credential">
+									SSO_TGC 或 Cookie
+								</label>
+								<input
+									autoComplete="off"
+									className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 font-mono text-sm outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-200"
+									disabled={replacement.isPending}
+									id="portal-credential"
+									maxLength={8 * 1024}
+									onChange={(event) => {
+										setCredential(event.target.value);
+										replacement.reset();
+									}}
+									spellCheck={false}
+									type="password"
+									value={credential}
+								/>
+							</div>
+							{replacement.isError ? (
+								<InlineError error={replacement.error} title="凭据替换失败" />
+							) : null}
+							{replacement.isSuccess ? (
+								<p className="text-emerald-700 text-sm" role="status">
+									凭据已替换，将在下一个维护周期验证。
+								</p>
+							) : null}
+							<div>
+								<Button disabled={!credential.trim() || replacement.isPending} type="submit">
+									<KeyRound className="size-4" />
+									{replacement.isPending ? "替换中" : "替换凭据"}
+								</Button>
+							</div>
+						</form>
+					</CardContent>
+				</Card>
+			</div>
+		</section>
+	);
+}
+
+function isPendingValidation(status: {
+	maintenance: { lastAttemptAt: string | null };
+	updatedAt: string | null;
+}) {
+	if (!status.updatedAt) {
+		return false;
+	}
+	return !status.maintenance.lastAttemptAt || status.maintenance.lastAttemptAt < status.updatedAt;
+}
+
+function maintenanceStatusLabel(
+	scheduleState: "ACTIVE" | "PAUSED" | "MISSING" | "UNAVAILABLE",
+	lastOutcome:
+		| "SUCCESS"
+		| "TRANSIENT_FAILURE"
+		| "CREDENTIAL_EXPIRED"
+		| "CREDENTIAL_UNAVAILABLE"
+		| "RUNNING"
+		| "UNKNOWN"
+		| null,
+) {
+	switch (scheduleState) {
+		case "PAUSED":
+			return "已暂停";
+		case "MISSING":
+			return "未部署";
+		case "UNAVAILABLE":
+			return "状态不可用";
+		default:
+			break;
+	}
+	switch (lastOutcome) {
+		case "SUCCESS":
+			return "验证正常";
+		case "RUNNING":
+			return "验证中";
+		case "TRANSIENT_FAILURE":
+			return "暂时异常";
+		case "CREDENTIAL_EXPIRED":
+			return "凭据已过期";
+		case "CREDENTIAL_UNAVAILABLE":
+			return "凭据不可用";
+		default:
+			return "等待首次验证";
+	}
+}
+
+function formatObservedLifetime(input: {
+	lowerBoundSeconds: number | null;
+	upperBoundSeconds: number | null;
+}) {
+	if (input.lowerBoundSeconds === null) {
+		return "暂无记录";
+	}
+	const lower = formatDuration(input.lowerBoundSeconds * 1_000);
+	return input.upperBoundSeconds === null
+		? `至少 ${lower}`
+		: `${lower} - ${formatDuration(input.upperBoundSeconds * 1_000)}`;
+}

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { runAuthPortalCrawler } from "./auth-crawlee-runner.js";
+import { chromium } from "playwright";
+
 import { ensureRuntimeDirs, loadInternalPortalEnv, resolveInternalPortalConfig } from "./config.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 
@@ -9,98 +10,107 @@ interface LoggerLike {
 	log(message: string): void;
 }
 
-export interface SaveAuthStorageStateInput {
-	authStorageStatePath: string;
+export interface SaveSsoTgcInput {
 	authTimeoutMs: number;
-	confirmLogin?: (input: { authTimeoutMs: number; logger: LoggerLike }) => Promise<void>;
-	logger?: LoggerLike;
-	portalPageUrl: string;
+	outputPath: string;
+	portalBaseUrl: string;
 	proxyServer: string | null;
-	runAuthPortalCrawler?: (input: {
-		confirmLogin: () => Promise<void>;
-		headless: boolean;
-		portalPageUrl: string;
+	captureSsoTgc?: (input: {
+		authTimeoutMs: number;
+		portalBaseUrl: string;
 		proxyServer: string | null;
-		storageStatePath: string;
-		timeoutMs: number;
-	}) => Promise<unknown>;
+	}) => Promise<string>;
+	logger?: LoggerLike;
 }
 
-export interface SaveAuthStorageStateResult {
-	savedTo: string;
-}
-
-const DEFAULT_AUTH_TIMEOUT_MS = 5 * 60 * 1000;
-
-export async function saveAuthStorageState(
-	input: SaveAuthStorageStateInput,
-): Promise<SaveAuthStorageStateResult> {
+export async function saveSsoTgc(input: SaveSsoTgcInput): Promise<{ savedTo: string }> {
 	const logger = input.logger ?? console;
-	const confirmLogin = input.confirmLogin ?? defaultConfirmLogin;
-
-	fs.mkdirSync(path.dirname(input.authStorageStatePath), { recursive: true });
-	await (input.runAuthPortalCrawler ?? runAuthPortalCrawler)({
-		confirmLogin: async () => {
-			await confirmLogin({
-				authTimeoutMs: input.authTimeoutMs,
-				logger,
-			});
-		},
-		headless: false,
-		portalPageUrl: input.portalPageUrl,
+	logger.log("请在打开的浏览器里完成统一身份认证。");
+	const token = await (input.captureSsoTgc ?? captureSsoTgcWithPlaywright)({
+		authTimeoutMs: input.authTimeoutMs,
+		portalBaseUrl: input.portalBaseUrl,
 		proxyServer: input.proxyServer,
-		storageStatePath: input.authStorageStatePath,
-		timeoutMs: input.authTimeoutMs,
 	});
-	return {
-		savedTo: input.authStorageStatePath,
-	};
+	writeSecretFile(input.outputPath, token);
+	return { savedTo: input.outputPath };
 }
 
-async function defaultConfirmLogin(input: {
+async function captureSsoTgcWithPlaywright(input: {
 	authTimeoutMs: number;
-	logger: LoggerLike;
-}): Promise<void> {
-	input.logger.log("请在打开的浏览器里完成登录。");
-	input.logger.log(
-		`登录完成后，按 Enter 保存登录态；超时时间 ${Math.round(input.authTimeoutMs / 1000)} 秒。`,
-	);
-	await Promise.race([
-		new Promise<void>((resolve) => {
-			process.stdin.resume();
-			process.stdin.once("data", () => {
-				process.stdin.pause();
-				resolve();
+	portalBaseUrl: string;
+	proxyServer: string | null;
+}): Promise<string> {
+	const browser = await chromium.launch({
+		headless: false,
+		proxy: input.proxyServer ? { server: input.proxyServer } : undefined,
+	});
+	try {
+		const context = await browser.newContext();
+		try {
+			const page = await context.newPage();
+			await page.goto(input.portalBaseUrl, {
+				timeout: input.authTimeoutMs,
+				waitUntil: "domcontentloaded",
 			});
-		}),
-		new Promise<void>((_, reject) => {
-			setTimeout(() => {
-				process.stdin.pause();
-				reject(new Error("login timeout exceeded"));
-			}, input.authTimeoutMs);
-		}),
-	]);
+			const portalHost = new URL(input.portalBaseUrl).hostname;
+			if (new URL(page.url()).hostname !== portalHost) {
+				await page.waitForURL((url) => url.hostname === portalHost, {
+					timeout: input.authTimeoutMs,
+					waitUntil: "domcontentloaded",
+				});
+			}
+			const state = await context.storageState();
+			const token = state.cookies.find((cookie) => cookie.name === "SSO_TGC")?.value.trim();
+			if (!token) {
+				throw new Error("authenticated browser session did not contain SSO_TGC");
+			}
+			return token;
+		} finally {
+			await context.close();
+		}
+	} finally {
+		await browser.close();
+	}
+}
+
+function writeSecretFile(outputPath: string, value: string): void {
+	const directory = path.dirname(outputPath);
+	fs.mkdirSync(directory, { mode: 0o700, recursive: true });
+	fs.chmodSync(directory, 0o700);
+	const temporaryPath = `${outputPath}.${process.pid}.${Date.now()}.tmp`;
+	fs.writeFileSync(temporaryPath, `${value.trim()}\n`, { encoding: "utf-8", mode: 0o600 });
+	fs.renameSync(temporaryPath, outputPath);
+	fs.chmodSync(outputPath, 0o600);
 }
 
 function resolveAuthTimeoutMs(source: NodeJS.ProcessEnv): number {
 	const raw = Number(source.INTERNAL_PORTAL_AUTH_TIMEOUT_MS || "");
-	if (!Number.isFinite(raw) || raw <= 0) {
-		return DEFAULT_AUTH_TIMEOUT_MS;
+	return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5 * 60 * 1000;
+}
+
+function resolveOutputPath(args: string[], defaultPath: string): string {
+	const outputIndex = args.indexOf("--output");
+	if (outputIndex === -1) {
+		return defaultPath;
 	}
-	return Math.floor(raw);
+	const output = args[outputIndex + 1]?.trim();
+	if (!output) {
+		throw new Error("--output requires a file path");
+	}
+	return path.resolve(output);
 }
 
 export async function main(): Promise<void> {
 	loadInternalPortalEnv();
 	const config = resolveInternalPortalConfig(process.env);
 	ensureRuntimeDirs(config);
-	const result = await saveAuthStorageState({
-		authStorageStatePath: config.authStorageStatePath,
+	const result = await saveSsoTgc({
 		authTimeoutMs: resolveAuthTimeoutMs(process.env),
-		portalPageUrl: config.portalPageUrl,
+		outputPath: resolveOutputPath(process.argv.slice(2), config.authSsoTgcFile),
+		portalBaseUrl: config.portalBaseUrl,
 		proxyServer: config.portalProxyServer,
 	});
-	console.log(`storage state saved to ${result.savedTo}`);
+	console.log(`SSO_TGC saved to ${result.savedTo}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

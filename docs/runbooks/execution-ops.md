@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-07-11
+updated: 2026-07-16
 ---
 
 # Execution Control Staging Operations
@@ -29,9 +29,9 @@ the evidence contract and must not become a second environment runbook.
 
 The source deployment handoff is:
 
-1. `.github/workflows/execution-runtime-publish.yml` publishes the four immutable ARM64 runtime
-   images currently owned by the execution-runtime overlay, then opens an environment-repository
-   pull request. Ops Web is not published or promoted until its environment overlay exists.
+1. `.github/workflows/execution-runtime-publish.yml` publishes affected immutable ARM64 runtime
+   images. Images with existing environment consumers are added to the generated promotion pull
+   request; a newly introduced image can be published before its first consumer is declared.
 2. Environment CI renders and validates its Applications, values, overlays and
    encrypted secret inventory.
 3. Merging that pull request selects the deployment revision.

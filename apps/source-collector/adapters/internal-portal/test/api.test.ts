@@ -81,7 +81,7 @@ describe("internal portal source collector api", () => {
 				noticeType: "5",
 				pageSize: 3,
 			}),
-		).rejects.toThrow("auth-expired: getNoticeByPage failed: session invalid");
+		).rejects.toThrow("getNoticeByPage failed: session invalid");
 	});
 
 	it("downloads attachment bytes and exposes response headers", async () => {

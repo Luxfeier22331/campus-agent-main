@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 # Testing And Verification Lanes
 
@@ -359,9 +359,9 @@ detection after PR-level affected checks have kept ordinary feedback cheap.
     persistent Trivy database, then removes loaded PR image tags after scanning.
   - It is included in `pr / required`.
 - `.github/workflows/execution-runtime-publish.yml`
-  - A `main` push publishes affected ARM64 images with current GitOps consumers
-    and affected immutable Worker versions; manual dispatch publishes the same
-    managed set.
+  - A `main` push publishes affected ARM64 images and immutable Worker versions.
+    Existing GitOps consumers are promoted; images without a consumer remain
+    publish-only candidates. Manual `promote=true` requires complete consumers.
   - BuildKit attaches an OCI SBOM, then Trivy scans the ARM64 manifest digest.
     GitOps promotion starts only after every scan passes.
   - The one environment pull request updates only declared image and Worker

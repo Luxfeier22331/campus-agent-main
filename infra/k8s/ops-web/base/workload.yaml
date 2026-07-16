@@ -73,6 +73,13 @@ spec:
                 secretKeyRef:
                   name: execution-control-metrics-secrets
                   key: EXECUTION_CONTROL_METRICS_BEARER_TOKEN
+            - name: OPS_WEB_INGESTION_CONTROL_URL
+              value: http://ingestion-control:8000
+            - name: OPS_WEB_INGESTION_CONTROL_OPS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_OPS_TOKEN
             - name: ACCESS_TEAM_DOMAIN
               valueFrom:
                 secretKeyRef:
@@ -135,6 +142,9 @@ spec:
                   name: openobserve-reader-secrets
                   key: OPENOBSERVE_READER_TOKEN
           volumeMounts:
+            - name: kubernetes-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
               readOnly: true
@@ -161,6 +171,24 @@ spec:
             limits:
               memory: 768Mi
       volumes:
+        - name: kubernetes-api-access
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3600
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        apiVersion: v1
+                        fieldPath: metadata.namespace
         - name: postgres-ca
           secret:
             secretName: campus-agent-postgres-ca

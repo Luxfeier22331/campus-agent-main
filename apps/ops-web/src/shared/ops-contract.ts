@@ -11,6 +11,50 @@ export const OpsRequestWindowSchema = z.enum(["1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
+export const OpsInternalPortalCredentialStatusSchema = z.object({
+	configured: z.boolean(),
+	updatedAt: IsoDateTimeSchema.nullable(),
+	updatedBy: z.string().min(1).nullable(),
+});
+
+export const OpsInternalPortalMaintenanceStatusSchema = z.object({
+	errorCode: z.string().min(1).nullable(),
+	lastAttemptAt: IsoDateTimeSchema.nullable(),
+	lastOutcome: z
+		.enum([
+			"SUCCESS",
+			"TRANSIENT_FAILURE",
+			"CREDENTIAL_EXPIRED",
+			"CREDENTIAL_UNAVAILABLE",
+			"RUNNING",
+			"UNKNOWN",
+		])
+		.nullable(),
+	lastSuccessAt: IsoDateTimeSchema.nullable(),
+	nextRunAt: IsoDateTimeSchema.nullable(),
+	noticeProbeSucceeded: z.boolean().nullable(),
+	portalSessionEstablished: z.boolean().nullable(),
+	scheduleState: z.enum(["ACTIVE", "PAUSED", "MISSING", "UNAVAILABLE"]),
+	serviceTicketIssued: z.boolean().nullable(),
+});
+
+export const OpsInternalPortalAuthStatusSchema = OpsInternalPortalCredentialStatusSchema.extend({
+	maintenance: OpsInternalPortalMaintenanceStatusSchema,
+	observedLifetime: z.object({
+		lowerBoundSeconds: z.number().int().nonnegative().nullable(),
+		upperBoundSeconds: z.number().int().nonnegative().nullable(),
+	}),
+});
+
+export const OpsInternalPortalAuthUpdateSchema = z
+	.object({
+		credential: z
+			.string()
+			.min(1)
+			.max(8 * 1024),
+	})
+	.strict();
+
 const OpsStatusSchema = z.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING"]);
 const OpsStepStatusSchema = z.enum([
 	"COMPLETED",
@@ -247,6 +291,13 @@ export const OpsObservabilityResponseSchema = z.discriminatedUnion("kind", [
 
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;
 export type OpsHealthStatus = z.infer<typeof OpsHealthStatusSchema>;
+export type OpsInternalPortalAuthStatus = z.infer<typeof OpsInternalPortalAuthStatusSchema>;
+export type OpsInternalPortalCredentialStatus = z.infer<
+	typeof OpsInternalPortalCredentialStatusSchema
+>;
+export type OpsInternalPortalMaintenanceStatus = z.infer<
+	typeof OpsInternalPortalMaintenanceStatusSchema
+>;
 export type OpsObservabilityResponse = z.infer<typeof OpsObservabilityResponseSchema>;
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
 export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;

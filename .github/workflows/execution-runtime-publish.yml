@@ -14,6 +14,9 @@ on:
     paths:
       - apps/execution-control/**
       - apps/agent-runtime/**
+      - apps/ingestion-control/**
+      - apps/source-collector/**
+      - apps/ops-web/**
       - apps/campus-web/**
       - apps/operator-console-web/**
       - jobs/app-api-schema/**
@@ -38,8 +41,12 @@ on:
       - packages/contracts/fixtures/tool_execution_contract/**
       - packages/contracts/schemas/transport-schedule-status.v1.schema.json
       - packages/domains/dining/**
+      - packages/ingest-core/**
       - packages/ingestion-contracts/**
+      - packages/ingestion-kernels-rs/**
       - scripts/deploy/**
+      - Cargo.lock
+      - Cargo.toml
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
@@ -121,6 +128,47 @@ jobs:
               - 'jobs/transport-publisher/**'
               - 'apps/app-api/db/shared-product-schema/campus_services.sql'
               - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
+            ingestion_control:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+            ingestion_control_worker:
+              - '.dockerignore'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/ingestion-control/**'
+              - 'configs/ingestion/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+              - 'packages/ingestion-kernels-rs/**'
+            source_collector:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/source-collector/**'
+              - 'configs/ingestion/**'
+              - 'configs/sources/**'
+              - 'packages/ingest-core/**'
+              - 'packages/ingestion-contracts/**'
+            ops_web_image:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'apps/ops-web/**'
             k8s:
               - 'infra/k8s/**'
             app_api_worker:
@@ -160,12 +208,25 @@ jobs:
           fi
           images=()
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            images=(execution-control agent-runtime app-api-schema transport-publisher)
+            images=(
+              execution-control
+              agent-runtime
+              app-api-schema
+              transport-publisher
+              ingestion-control
+              ingestion-control-worker
+              source-collector
+              ops-web
+            )
           else
             [ "${{ steps.release-filter.outputs.execution_control }}" = "true" ] && images+=(execution-control)
             [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
             [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
             [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
+            [ "${{ steps.release-filter.outputs.ingestion_control }}" = "true" ] && images+=(ingestion-control)
+            [ "${{ steps.release-filter.outputs.ingestion_control_worker }}" = "true" ] && images+=(ingestion-control-worker)
+            [ "${{ steps.release-filter.outputs.source_collector }}" = "true" ] && images+=(source-collector)
+            [ "${{ steps.release-filter.outputs.ops_web_image }}" = "true" ] && images+=(ops-web)
           fi
           if [ "${#images[@]}" -eq 0 ]; then
             images_json='[]'
@@ -283,6 +344,19 @@ jobs:
               agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
+              ingestion-control)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=api
+                ;;
+              ingestion-control-worker)
+                dockerfile=apps/ingestion-control/Dockerfile
+                target=worker
+                ;;
+              source-collector)
+                dockerfile=apps/source-collector/Dockerfile
+                target=runtime
+                ;;
+              ops-web) dockerfile=apps/ops-web/Dockerfile ;;
               *) echo "Unsupported image: $image" >&2; exit 1 ;;
             esac
             repository="ghcr.io/${GITHUB_REPOSITORY,,}/${image}"
@@ -350,6 +424,18 @@ jobs:
             mv image-digests.tmp image-digests.json
           done < <(jq -r '.[]' <<< "$IMAGES")
 
+      - name: Summarize published image digests
+        if: steps.images.outputs.images != '[]'
+        shell: bash
+        run: |
+          {
+            echo "### Published image digests"
+            echo
+            echo '| Image | Digest |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| `\(.key)` | `\(.value)` |"' image-digests.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create GitOps promotion token
         if: >-
           github.ref == 'refs/heads/main' &&
@@ -386,6 +472,7 @@ jobs:
         shell: bash
         env:
           K8S_CHANGED: ${{ steps.release-filter.outputs.k8s }}
+          REQUIRE_ALL_IMAGE_CONSUMERS: ${{ github.event_name == 'workflow_dispatch' && inputs.promote }}
           SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
         run: |
@@ -397,6 +484,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             --env IMAGE_ROOT="${image_root}" \
             --env K8S_CHANGED \
+            --env REQUIRE_ALL_IMAGE_CONSUMERS \
             --env SHORT_SHA="${short_sha}" \
             --env SOURCE_REPOSITORY \
             --env SOURCE_SHA \
@@ -454,8 +542,11 @@ jobs:
                   fi
                 done
                 if [ "${matches}" -eq 0 ]; then
-                  echo "No GitOps consumer for ${image}." >&2
-                  exit 1
+                  if [ "${REQUIRE_ALL_IMAGE_CONSUMERS}" = "true" ]; then
+                    echo "No GitOps consumer for ${image}." >&2
+                    exit 1
+                  fi
+                  echo "Published ${image} without a GitOps consumer."
                 elif [ "${image}" = "execution-control" ]; then
                   execution_control_written=true
                 fi

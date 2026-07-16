@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0055
 status: accepted
 created: 2026-06-15
-updated: 2026-07-11
+updated: 2026-07-15
 supersedes:
   - ADR-0049 separate campus-ops-web product surface owner
 ---
@@ -17,8 +17,9 @@ Accepted on 2026-06-15.
 
 ADR-0072 supersedes only the single implementation-surface assumption for privileged runtime
 diagnosis. The unified business operations concept and all domain-operation boundaries in this ADR
-remain accepted. `apps/ops-web` is a separate read-only diagnosis application, not a second business
-operations backend.
+remain accepted. `apps/ops-web` is a separate, default-read-only operations application, not a
+second business operations backend. ADR-0072 owns its one fixed internal-portal credential
+operation.
 
 ## 背景
 

@@ -4,7 +4,7 @@ truth_scope: system
 owner_boundary: temporal-worker-runtime
 status: active
 created: 2026-07-03
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 # Kubernetes Runtime
 
@@ -139,16 +139,15 @@ identity, not user-managed secrets.
 The ingestion lanes produce `ingestion-control`, `ingestion-control-worker`,
 and `source-collector`. The API image excludes the Rust runner and tokenizer;
 the ingestion worker image owns both. The source collector image contains only
-the Chromium headless shell used by its Temporal activities. These images are
-not part of automatic execution-runtime publication until the environment
-repository declares their consumers.
+the Chromium headless shell used by its Temporal activities. Publication may
+produce these images before an environment declares their consumers; only a
+GitOps digest selection makes them deployable.
 
 The PR lane builds, exercises the ingestion runtime contracts, and scans
 affected images. The main publish lane attaches an OCI SBOM, scans the ARM64
-target, and pushes ARM64 images for the current environment consumers. GitOps
-promotion selects digests; a mutable tag is never deployment truth. Ingestion
-and Ops Web images remain outside this publication lane until the environment
-repository declares their consumers.
+target, and pushes ARM64 images for the affected source revision. GitOps
+promotion updates only declared consumers; a mutable tag is never deployment
+truth.
 
 ## Verification
 

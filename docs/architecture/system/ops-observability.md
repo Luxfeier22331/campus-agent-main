@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/ops-web
 status: active
 created: 2026-04-02
-updated: 2026-07-13
+updated: 2026-07-16
 ---
 
 # Ops Web 可观测性架构
@@ -15,7 +15,7 @@ updated: 2026-07-13
 Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/ops-web.md`，HTTP 字段见
 `../../contracts/ops-web.md`，Worker Operator Console 见 `operator-console.md`。
 
-本文不宣称 staging 已部署，也不记录环境地址、Secret 或资源规格；这些由环境 GitOps
+本文不宣称 staging 已部署，也不记录环境地址、Secret 内容或资源规格；这些由环境 GitOps
 仓库和实际运行证据负责。
 
 ## 核心结论
@@ -24,8 +24,9 @@ Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/op
 
 - `operator-console-web` 继续通过 `app-api` 承担供应商配置和业务操作。它仍受
   ADR-0055、ADR-0067 约束，不直连数据库或观测平台。
-- `ops-web` 是独立、自托管、只读的运行排查应用。它在服务端读取严格授权的 PostgreSQL
-  摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。
+- `ops-web` 是独立、自托管、默认只读的运行排查应用。它在服务端读取严格授权的 PostgreSQL
+  摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。写操作只包括人员操作者替换
+  固定内部门户 Secret 的 `sso_tgc`，以及恢复固定的门户认证维护 Schedule。
 
 两者不互相代理，也不共享一个通用运维后端。`ops-web` 不是产品 API、数据库浏览器、
 Temporal 控制台或通用日志平台。
@@ -41,6 +42,9 @@ flowchart LR
   Control[execution-control 队列状态接口]
   Health[固定服务健康检查]
   OpenObserve[(OpenObserve)]
+  PortalSecret[(internal portal Secret)]
+  IngestionControl[ingestion-control ops API]
+  AuthSchedule[Temporal auth maintenance Schedule]
   OTel[OpenTelemetry Collector]
   Runtime[应用运行时]
   TemporalUI[Temporal UI]
@@ -53,6 +57,9 @@ flowchart LR
   OpsWeb --> Control
   OpsWeb --> Health
   OpsWeb --> OpenObserve
+  OpsWeb -->|仅 get/patch 固定资源| PortalSecret
+  OpsWeb -->|读取状态/恢复固定 Schedule| IngestionControl
+  IngestionControl --> AuthSchedule
   Runtime --> OTel
   OTel --> OpenObserve
   OTel --> Sentry
@@ -70,8 +77,9 @@ flowchart LR
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| Ops Web 页面 | 展示、筛选、复制关联标识、打开已配置入口 | 持有服务凭据或提交任意查询 |
-| Ops Web 服务端 | Access 验证、固定查询、短缓存、响应校验、读取审计 | 写请求状态、执行工作流、提供通用代理 |
+| Ops Web 页面 | 展示、筛选、复制关联标识、打开入口、提交门户 TGC 替换或恢复固定维护 Schedule | 读取当前凭据或提交任意查询 |
+| Ops Web 服务端 | Access 验证、固定查询、短缓存、读取审计、固定 Secret patch、调用固定维护接口 | 写请求状态、触发任意工作流、提供通用代理 |
+| ingestion-control | 读取固定 Temporal Schedule 和最近 Workflow 摘要、幂等恢复该 Schedule | 接收任意 Schedule 或 Workflow 标识、保存凭据 |
 | PostgreSQL | turn dispatch、用户问题、agent run、observability fact 和读取审计 | Temporal 队列、原始日志、原始调用链 |
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
 | OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
@@ -171,6 +179,18 @@ Cloudflare Access 负责登录和 JWT 签发，Ops Web 服务端再次验证签�
 `ops_audit_maintenance` 账号只能执行固定的 180 天审计清理函数，不能直接访问审计表。
 非本地 PostgreSQL 连接使用 CA 和 `verify-full` 验证证书链及主机名。
 
+### 内部门户凭据
+
+只有已通过基础人员白名单的 human operator 可以读取门户认证状态或替换 TGC。Ops Web
+ServiceAccount 对 `source-collector-internal-portal-auth` 只有 `get`、`patch`，不能创建、
+列举、删除或修改其他 Secret。凭据不进入 PostgreSQL、日志、Temporal 或响应正文；该
+能力不可用不影响诊断页面和 `/readyz`。
+
+Temporal 每 30 分钟以挂载的 TGC 强制建立一次新门户会话并探测通知接口。凭据确认过期或
+不可用时 Workflow 失败且 Schedule 自动暂停；网络和供应商暂时故障只记录失败结果，不暂停。
+Ops Web 展示最近结果和凭据更新时间到成功/首次过期之间的观测区间。替换凭据会恢复固定
+Schedule，但不立即触发执行；完整执行历史继续留在 Temporal。
+
 ### OpenObserve 凭据
 
 环境必须为以下用途分配不同凭据：
@@ -191,6 +211,8 @@ GitOps 变更必须保持未完成状态，不能提交占位用户名、占位�
 - 审计写入失败：拒绝返回原始记录。
 - 外部入口未配置：显示未配置，不影响本地排查。
 - 外部输出失败：由 Collector 自身状态反映，不改写请求状态。
+- 门户维护暂时失败：Schedule 保持运行，下一周期重新验证。
+- 门户凭据确认过期或不可用：Workflow 失败且 Schedule 暂停，等待人员替换凭据并恢复。
 
 `/healthz` 只检查进程。`/readyz` 检查 Access 配置、PostgreSQL 读取和审计写入，不检查
 OpenObserve 或被观测服务。
@@ -209,6 +231,7 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - 不让浏览器直连 PostgreSQL、OpenObserve、Temporal、Langfuse 或 Hindsight。
 - 不让 Ops Web 服务端查询 Temporal、Langfuse 或 Hindsight 数据库。
 - 不让浏览器传入任意 SQL、数据流、`traceId`、时间范围或记录上限。
+- 不把固定 TGC 替换能力扩展为 Kubernetes 或 Secret 通用管理接口。
 - 不在 `app-api` 中保存 OpenObserve、Sentry、Axiom 或 Langfuse 查询结果。
 - 不把 raw audit log、raw trace、raw event、raw LLM observation 或 SDK trace body 写入
   PostgreSQL read model。

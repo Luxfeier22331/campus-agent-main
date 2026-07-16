@@ -34,6 +34,11 @@ Cancellation is propagated to provider fetches, Crawlee runners, portal API
 contexts, and object-store writes. A canceled activity cannot write its
 terminal result manifest.
 
+The same worker exposes one non-capture activity for internal-portal
+authentication maintenance. It forces a fresh browser SSO round trip from the
+file-projected TGC and returns only Service Ticket, portal-session and notice
+probe verdicts. No credential or provider ticket enters Temporal payloads.
+
 ## Runtime
 
 ```bash

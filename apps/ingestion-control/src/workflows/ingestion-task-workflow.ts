@@ -10,6 +10,11 @@ import type {
 	RustKernelActivities,
 	SourceCollectorActivities,
 } from "../activities";
+import {
+	type InternalPortalAuthMaintenanceFailureDetails,
+	type InternalPortalAuthMaintenanceResult,
+	parseInternalPortalAuthMaintenanceResult,
+} from "../internal-portal-auth-maintenance";
 import type {
 	IngestionTaskExecutionSnapshot,
 	IngestionTaskRecord,
@@ -72,6 +77,92 @@ export async function ingestionTaskWorkflow(
 		workflowId: info.workflowId,
 		workflowRunId: info.runId,
 	});
+}
+
+export async function internalPortalAuthMaintenanceWorkflow(input: {
+	sourceCollectorActivityTaskQueue: string;
+}): Promise<InternalPortalAuthMaintenanceResult> {
+	const sourceActivities = proxyActivities<SourceCollectorActivities>({
+		retry: {
+			backoffCoefficient: 2,
+			initialInterval: "5 seconds",
+			maximumAttempts: 3,
+			maximumInterval: "30 seconds",
+		},
+		startToCloseTimeout: "2 minutes",
+		taskQueue: input.sourceCollectorActivityTaskQueue,
+	});
+	return await runInternalPortalAuthMaintenance({
+		lastResult: workflowInfo().lastResult,
+		now: () => new Date().toISOString(),
+		refresh: sourceActivities.refreshInternalPortalAuthentication,
+	});
+}
+
+export async function runInternalPortalAuthMaintenance(input: {
+	lastResult?: unknown;
+	now: () => string;
+	refresh: SourceCollectorActivities["refreshInternalPortalAuthentication"];
+}): Promise<InternalPortalAuthMaintenanceResult> {
+	const startedAt = input.now();
+	const previous = parseInternalPortalAuthMaintenanceResult(input.lastResult);
+	try {
+		const refreshed = await input.refresh();
+		return {
+			completedAt: input.now(),
+			errorCode: null,
+			lastSuccessAt: refreshed.refreshedAt,
+			noticeProbeSucceeded: refreshed.noticeProbeSucceeded,
+			outcome: "success",
+			portalSessionEstablished: refreshed.portalSessionEstablished,
+			schemaVersion: "internal_portal_auth_maintenance.v1",
+			serviceTicketIssued: refreshed.serviceTicketIssued,
+			startedAt,
+		};
+	} catch (error) {
+		const credentialErrorCode = readPortalCredentialFailureType(error);
+		if (credentialErrorCode) {
+			const details: InternalPortalAuthMaintenanceFailureDetails = {
+				errorCode: credentialErrorCode,
+				failedAt: input.now(),
+				lastSuccessAt: previous?.lastSuccessAt ?? null,
+				startedAt,
+			};
+			throw ApplicationFailure.nonRetryable(
+				"internal portal credential maintenance requires operator action",
+				credentialErrorCode,
+				details,
+			);
+		}
+		return {
+			completedAt: input.now(),
+			errorCode: "internal_portal_auth_refresh_transient_failure",
+			lastSuccessAt: previous?.lastSuccessAt ?? null,
+			noticeProbeSucceeded: false,
+			outcome: "transient_failure",
+			portalSessionEstablished: false,
+			schemaVersion: "internal_portal_auth_maintenance.v1",
+			serviceTicketIssued: false,
+			startedAt,
+		};
+	}
+}
+
+function readPortalCredentialFailureType(
+	error: unknown,
+): InternalPortalAuthMaintenanceFailureDetails["errorCode"] | null {
+	let current: unknown = error;
+	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
+		if (
+			current instanceof ApplicationFailure &&
+			(current.type === "internal_portal_credential_expired" ||
+				current.type === "internal_portal_credential_unavailable")
+		) {
+			return current.type;
+		}
+		current = current.cause;
+	}
+	return null;
 }
 
 export async function runIngestionTaskWorkflowPlan(input: {

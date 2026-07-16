@@ -42,11 +42,32 @@ spec:
           envFrom:
             - configMapRef:
                 name: ingestion-runtime-rendered-config
-            - secretRef:
-                name: ingestion-control-database-secrets
-            - secretRef:
-                name: ingestion-object-store-secrets
           env:
+            - name: INGESTION_CONTROL_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ingestion-control-secrets
+                  key: INGESTION_CONTROL_DATABASE_URL
+            - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_SECRET_KEY
+            - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_SECRET_KEY
             - name: INGESTION_TASK_REGISTRY_ROOT
               value: /app/configs/ingestion
           volumeMounts:
@@ -106,15 +127,25 @@ spec:
           envFrom:
             - configMapRef:
                 name: ingestion-runtime-rendered-config
-            - secretRef:
-                name: source-collector-object-store-secrets
-            - secretRef:
-                name: source-collector-provider-secrets
           env:
+            - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_SECRET_KEY
             - name: INGESTION_TASK_REGISTRY_ROOT
               value: /workspace/configs/ingestion
             - name: OFFICIAL_WEB_CONFIG_ROOT
               value: /workspace/configs/sources/official_web
+            - name: INTERNAL_PORTAL_SSO_TGC_FILE
+              value: /var/run/secrets/campus-agent/internal-portal/sso_tgc
+            - name: INTERNAL_PORTAL_RUNTIME_DIR
+              value: /tmp/internal-portal
           volumeMounts:
             - name: browser-shared-memory
               mountPath: /dev/shm
@@ -122,6 +153,9 @@ spec:
               mountPath: /workspace/apps/source-collector/storage
             - name: runtime-tmp
               mountPath: /tmp
+            - name: internal-portal-auth
+              mountPath: /var/run/secrets/campus-agent/internal-portal
+              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -137,3 +171,8 @@ spec:
           emptyDir: {}
         - name: runtime-tmp
           emptyDir: {}
+        - name: internal-portal-auth
+          secret:
+            defaultMode: 0400
+            optional: true
+            secretName: source-collector-internal-portal-auth

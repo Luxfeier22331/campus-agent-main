@@ -4,6 +4,7 @@ import type {
 	OpsRequestWindow,
 } from "../shared/ops-contract";
 import {
+	OpsInternalPortalAuthStatusSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
@@ -95,6 +96,28 @@ async function readErrorBody(response: Response): Promise<{
 		return {};
 	}
 	return {};
+}
+
+export async function fetchInternalPortalAuthStatus(input: { signal?: AbortSignal } = {}) {
+	return OpsInternalPortalAuthStatusSchema.parse(
+		await fetchJson("/api/ops/internal-portal-auth", { signal: input.signal }),
+	);
+}
+
+export async function replaceInternalPortalCredential(credential: string) {
+	return OpsInternalPortalAuthStatusSchema.parse(
+		await fetchJson("/api/ops/internal-portal-auth", {
+			body: JSON.stringify({ credential }),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
+}
+
+export async function resumeInternalPortalAuthMaintenance() {
+	return OpsInternalPortalAuthStatusSchema.parse(
+		await fetchJson("/api/ops/internal-portal-auth/maintenance/resume", { method: "POST" }),
+	);
 }
 
 export async function fetchOpsRequests(

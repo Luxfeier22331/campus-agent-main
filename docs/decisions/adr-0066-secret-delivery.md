@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0066
 status: accepted
 created: 2026-07-03
-updated: 2026-07-10
+updated: 2026-07-16
 ---
 # ADR-0066 Secret Delivery
 
@@ -23,7 +23,11 @@ Use stable Kubernetes Secret names as the workload contract. The concrete
 secret delivery backend is deploy-time infrastructure, not workload
 architecture truth.
 
-- Workloads consume Kubernetes Secrets by stable, role-scoped names.
+- Secret objects are grouped by credential owner, lifecycle and mutation
+  boundary rather than duplicated for each Pod.
+- Workloads consume only the required keys through explicit projections. A
+  shared Secret object does not replace separate provider-side identities or
+  permissions.
 - Real secret material stays outside plaintext git.
 - Deployment environment repositories may contain delivery-backend references
   or encrypted secret resources, but not plaintext secret values. The
@@ -36,6 +40,11 @@ architecture truth.
   Secrets, External Secrets Operator and SOPS-backed encrypted Secret
   manifests. Switching backend must not change first-party Deployment/CronJob
   consumption contracts.
+- A short-lived runtime credential that requires frequent human rotation may
+  use a fixed, pre-created Secret whose data is updated by an explicitly
+  allowlisted in-cluster operation. That exception requires resource-name RBAC,
+  must not grant Secret creation or enumeration, and does not make Git a
+  credential history.
 
 Cloudflare Worker secrets remain in the Cloudflare Worker secret store and are
 audited through Worker deploy/preflight tooling. Worker secrets are not mirrored
@@ -51,6 +60,11 @@ secrets or app-api provider-config active profiles.
   delivery documentation instead.
 - Manual K8s Secret creation is accepted for small self-hosted deployments when
   the operator also owns rotation and audit runbooks.
+- The internal-portal `SSO_TGC` uses one empty environment-initialized Secret;
+  Ops Web may read and patch only that Secret. Long-lived API keys, DSNs and
+  trust anchors continue to use the environment's normal delivery backend.
+- The TGC cannot share a Secret object with other credentials because
+  Kubernetes Secret RBAC is resource-scoped, not key-scoped.
 - A deployment environment repository may provide a pinned
   `platform-sealed-secrets` Argo CD Application for the recommended default
   self-hosted GitOps path.

@@ -23,7 +23,7 @@ import {
 	normalizeRequiredNoticeId,
 	normalizeRequiredText,
 } from "./notice-export-helpers.js";
-import { createApiContextFromStorageState } from "./portal.js";
+import { createPortalApiContext } from "./portal.js";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
 import type {
 	ApiRequestContextLike,
@@ -223,7 +223,7 @@ export async function collectNoticeExportBundle(
 		(input.maxNotices ?? null) === null;
 	const createApiContext =
 		input.createApiContext ??
-		(() => createApiContextFromStorageState(resolveInternalPortalConfig(process.env)));
+		(() => createPortalApiContext(resolveInternalPortalConfig(process.env)));
 	const apiContext = await createApiContext();
 	const disposeApiContext = bindApiContextCancellation(apiContext, input.abortSignal);
 	const fetchPage = input.fetchNoticePage ?? ((pageInput) => fetchNoticePage({ ...pageInput }));
