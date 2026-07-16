@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
 
-function fail(message) {
+function fail(message: string): never {
 	console.error(message);
 	process.exit(1);
 }
 
-export function resolveGitSha(short = false) {
+export function resolveGitSha(short = false): string {
 	const result = spawnSync("git", ["rev-parse", ...(short ? ["--short"] : []), "HEAD"], {
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "inherit"],
@@ -23,14 +23,14 @@ export function resolveGitSha(short = false) {
 	return commitSha;
 }
 
-export function resolveGitShortSha() {
+export function resolveGitShortSha(): string {
 	return resolveGitSha(true);
 }
 
 export function resolveStagingSentryRelease(
-	appName,
+	appName: string,
 	override = process.env.STAGING_SENTRY_RELEASE,
-) {
+): string {
 	const trimmedOverride = override?.trim();
 	if (trimmedOverride) {
 		return trimmedOverride;

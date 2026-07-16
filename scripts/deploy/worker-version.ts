@@ -21,6 +21,13 @@ export interface UploadedWorkerVersion {
 	sourceSha: string;
 }
 
+interface WorkerVersionUploadOptions {
+	appName: string;
+	config?: string;
+	environment?: string;
+	variables: Record<string, string>;
+}
+
 function fail(message: string): never {
 	throw new Error(message);
 }
@@ -62,6 +69,31 @@ export function selectUploadedVersion(
 	return matches[0];
 }
 
+export function buildWorkerVersionUploadArgs(
+	options: WorkerVersionUploadOptions,
+	sourceSha: string,
+): string[] {
+	const args = ["versions", "upload"];
+	if (options.config) {
+		args.push("--config", options.config);
+	}
+	if (options.environment) {
+		args.push("--env", options.environment);
+	}
+	args.push(
+		"--tag",
+		`git-${sourceSha}`,
+		"--message",
+		`MUC-WIKI/campus-agent@${sourceSha} (${options.appName})`,
+	);
+	for (const [name, value] of Object.entries(options.variables).sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		args.push("--var", `${name}:${value}`);
+	}
+	return args;
+}
+
 export function uploadStagingWorkerVersion(options: {
 	appName: string;
 	config?: string;
@@ -73,17 +105,7 @@ export function uploadStagingWorkerVersion(options: {
 	const sourceSha = resolveGitSha();
 	const tag = `git-${sourceSha}`;
 	const deploymentBefore = readCurrentDeploymentId(options.cwd, options.workerName);
-	const args = ["versions", "upload"];
-	if (options.config) {
-		args.push("--config", options.config);
-	}
-	args.push("--env", options.environment ?? "staging");
-	args.push("--tag", tag, "--message", `MUC-WIKI/campus-agent@${sourceSha} (${options.appName})`);
-	for (const [name, value] of Object.entries(options.variables).sort(([left], [right]) =>
-		left.localeCompare(right),
-	)) {
-		args.push("--var", `${name}:${value}`);
-	}
+	const args = buildWorkerVersionUploadArgs(options, sourceSha);
 
 	const upload = runWranglerCommand(args, { cwd: options.cwd, stdio: "inherit" });
 	if (upload.status !== 0) {
