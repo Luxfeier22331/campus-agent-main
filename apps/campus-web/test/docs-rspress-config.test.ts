@@ -30,6 +30,10 @@ describe("campus docs Rspress build boundary", () => {
 			join(appDir, "scripts", "build-published-reader-docs.ts"),
 			"utf8",
 		);
+		const stagingEnvSource = readFileSync(
+			join(appDir, "src", "docs-reader-build", "run-with-staging-ingestion-env.ts"),
+			"utf8",
+		);
 
 		expect(packageJson.dependencies["@rspress/core"]).toBeTruthy();
 		expect(packageJson.devDependencies.pagefind).toBeUndefined();
@@ -48,6 +52,15 @@ describe("campus docs Rspress build boundary", () => {
 		expect(buildDocsSource).toContain("../../var/docs-reader-sync-manifest.json");
 		expect(buildDocsSource).toContain("./src/docs-reader-build/run-with-staging-ingestion-env.ts");
 		expect(buildDocsSource).toContain("../../var/docs-reader-sync-manifest.staging.json");
+		expect(buildDocsSource.indexOf("export-docs-reader-sync-manifest-cli.ts")).toBeLessThan(
+			buildDocsSource.indexOf("sync-campus-published-reader.ts"),
+		);
+		expect(stagingEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
+		expect(stagingEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(stagingEnvSource).toContain("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED");
+		expect(stagingEnvSource).toContain("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
+		expect(stagingEnvSource).not.toContain("STAGING_INGESTION_SHARED_POSTGRES_URL");
+		expect(stagingEnvSource).not.toContain("STAGING_INGESTION_OBJECT_STORE_SOURCE_ACCESS_KEY");
 		expect(buildDocsSource).toContain("rspress");
 		expect(buildDocsSource).toContain("filter-rspress-search-index.ts");
 		expect(buildDocsSource).toContain("mirrorPublishedReaderAssetsForRspressBuild");

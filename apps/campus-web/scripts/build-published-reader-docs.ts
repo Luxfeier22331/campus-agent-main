@@ -30,6 +30,19 @@ function run(command, commandArgs) {
 }
 
 if (isStaging) {
+	mkdirSync(resolve(repoRoot, "var"), { recursive: true });
+	run("pnpm", [
+		"exec",
+		"tsx",
+		"./src/docs-reader-build/run-with-staging-ingestion-env.ts",
+		"pnpm",
+		"--dir",
+		"../app-api",
+		"exec",
+		"tsx",
+		"./ops/docs-reader/export-docs-reader-sync-manifest-cli.ts",
+		stagingManifestPath,
+	]);
 	run("pnpm", [
 		"exec",
 		"tsx",
