@@ -19,8 +19,12 @@ spec:
     spec:
       serviceAccountName: ingestion-runtime
       automountServiceAccountToken: false
+      enableServiceLinks: false
       restartPolicy: OnFailure
       securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:

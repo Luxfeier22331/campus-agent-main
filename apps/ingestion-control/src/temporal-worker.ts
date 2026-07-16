@@ -18,10 +18,10 @@ import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
 } from "./postgres-store";
-import { buildIngestionControlRuntimeConfig } from "./runtime";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
+import { buildIngestionTemporalWorkerRuntimeConfig } from "./temporal-worker-config";
 import { resolveWorkerDeploymentOptions } from "./worker-versioning";
 
 const WORKER_DATABASE_CONNECTION_TIMEOUT_MS = 10_000;
@@ -30,7 +30,7 @@ const WORKER_DATABASE_QUERY_TIMEOUT_MS = 4 * 60_000;
 export async function startIngestionTemporalWorkers(
 	env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-	const runtimeConfig = buildIngestionControlRuntimeConfig(env);
+	const runtimeConfig = buildIngestionTemporalWorkerRuntimeConfig(env);
 	const temporalConfig = buildIngestionTemporalConfig(env);
 	const { Pool } = await import("pg");
 	const pool = new Pool({

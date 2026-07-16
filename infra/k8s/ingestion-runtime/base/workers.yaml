@@ -23,9 +23,13 @@ spec:
     spec:
       serviceAccountName: ingestion-runtime
       automountServiceAccountToken: false
+      enableServiceLinks: false
       securityContext:
         fsGroup: 2000
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 60
@@ -108,9 +112,13 @@ spec:
     spec:
       serviceAccountName: ingestion-runtime
       automountServiceAccountToken: false
+      enableServiceLinks: false
       securityContext:
         fsGroup: 2000
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 90
