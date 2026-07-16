@@ -112,11 +112,11 @@ For Sealed Secrets:
 Cloudflare Worker secrets remain in the Cloudflare secret store and are not
 mirrored into Kubernetes.
 
-Ops Web uses the stable Secret names documented by its base. The environment
-change must remain a draft until dedicated OpenObserve write, read and
-maintenance credentials exist and are sealed for their exact target names and
-namespace. Do not use the OpenObserve root account or commit placeholder
-credentials to make an overlay render.
+Ops Web uses the stable Secret names documented by its base. OpenObserve query
+support is enabled only when dedicated read credentials exist under
+`openobserve-reader-secrets`; absence of that optional Secret leaves the
+OpenObserve surface unavailable without blocking Ops Web readiness. Do not use
+the OpenObserve root account or commit placeholder credentials to enable it.
 
 ## Schema Ownership
 

@@ -136,11 +136,13 @@ spec:
                 secretKeyRef:
                   name: openobserve-reader-secrets
                   key: OPENOBSERVE_READER_USERNAME
+                  optional: true
             - name: OPENOBSERVE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: openobserve-reader-secrets
                   key: OPENOBSERVE_READER_TOKEN
+                  optional: true
           volumeMounts:
             - name: kubernetes-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount

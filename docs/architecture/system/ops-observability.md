@@ -201,7 +201,8 @@ Schedule，但不立即触发执行；完整执行历史继续留在 Temporal。
 - 保留期维护。
 
 Ops Web 和 Collector 不得使用 root 凭据。若环境尚未创建可用的读取服务账号，Ops Web
-GitOps 变更必须保持未完成状态，不能提交占位用户名、占位令牌或 root 密码。
+保持 OpenObserve 查询不可用，但其 PostgreSQL 摘要、门户凭据维护和 readiness 继续工作；
+不能提交占位用户名、占位令牌或 root 密码。
 
 ## 故障边界
 
