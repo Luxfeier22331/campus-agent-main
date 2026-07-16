@@ -23,7 +23,7 @@ spec:
         - type: temporal
           metadata:
             endpoint: temporal.default.svc.cluster.local:7233
-            namespace: default
+            namespace: ""
             taskQueue: campus-agent.ingestion.workflow
             queueTypes: workflow
             targetQueueSize: "8"
@@ -33,7 +33,7 @@ spec:
         - type: temporal
           metadata:
             endpoint: temporal.default.svc.cluster.local:7233
-            namespace: default
+            namespace: ""
             taskQueue: campus-agent.ingestion.activity.control
             queueTypes: activity
             targetQueueSize: "8"
@@ -43,7 +43,7 @@ spec:
         - type: temporal
           metadata:
             endpoint: temporal.default.svc.cluster.local:7233
-            namespace: default
+            namespace: ""
             taskQueue: campus-agent.ingestion.activity.rust-kernel
             queueTypes: activity
             targetQueueSize: "4"
@@ -76,7 +76,7 @@ spec:
         - type: temporal
           metadata:
             endpoint: temporal.default.svc.cluster.local:7233
-            namespace: default
+            namespace: ""
             taskQueue: campus-agent.ingestion.activity.source-collector
             queueTypes: activity
             targetQueueSize: "1"

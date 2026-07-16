@@ -1,5 +1,3 @@
-CREATE SCHEMA IF NOT EXISTS ingestion_control;
-
 CREATE TABLE ingestion_control.tasks (
     task_id text PRIMARY KEY,
     run_id text NOT NULL,

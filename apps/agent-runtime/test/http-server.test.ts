@@ -52,6 +52,18 @@ function schemaRef(schemaName: string, definitionName: string): string {
 }
 
 describe("agent runtime HTTP handler", () => {
+	it.each(["/healthz", "/readyz"])("serves %s without worker authorization", async (path) => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(new Request(`http://agent-runtime${path}`));
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ status: "ok" });
+	});
+
 	it("rejects missing worker authorization", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",

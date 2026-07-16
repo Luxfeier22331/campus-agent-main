@@ -38,6 +38,12 @@ spec:
     spec:
       serviceAccountName: ops-web
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
         - name: ops-web
           image: ghcr.io/muc-wiki/campus-agent/ops-web:replace-me

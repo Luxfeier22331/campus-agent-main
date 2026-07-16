@@ -48,7 +48,6 @@ export async function applyIngestionControlMigrations(
 	try {
 		await client.query("SET LOCAL lock_timeout = '30s'");
 		await client.query(`SELECT pg_advisory_xact_lock(${MIGRATION_LOCK_ID}::bigint)`);
-		await client.query("CREATE SCHEMA IF NOT EXISTS ingestion_control");
 		await client.query(
 			`CREATE TABLE IF NOT EXISTS ingestion_control.schema_migrations (
 				migration_id text PRIMARY KEY,

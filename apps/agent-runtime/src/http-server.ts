@@ -212,7 +212,7 @@ export function createAgentRuntimeHandler(
 ): AgentRuntimeHandler {
 	return async (request) => {
 		const url = new URL(request.url);
-		if (request.method === "GET" && url.pathname === "/readyz") {
+		if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/readyz")) {
 			return jsonResponse(200, { status: "ok" });
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-runs") {

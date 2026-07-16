@@ -25,7 +25,6 @@ describe("ingestion-control migrations", () => {
 			"BEGIN",
 			"SET LOCAL lock_timeout = '30s'",
 			expect.stringContaining("pg_advisory_xact_lock"),
-			"CREATE SCHEMA IF NOT EXISTS ingestion_control",
 			expect.stringContaining("CREATE TABLE IF NOT EXISTS ingestion_control.schema_migrations"),
 			expect.stringContaining("SELECT content_sha256"),
 			migration.sql,
