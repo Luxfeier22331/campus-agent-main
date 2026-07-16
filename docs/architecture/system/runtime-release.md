@@ -1,267 +1,82 @@
 ---
 doc_type: architecture
-truth_scope: ops
 owner_boundary: docs/architecture/system
 status: active
-created: 2026-04-14
-updated: 2026-07-14
 ---
-# Runtime Delivery And Release Hardening Architecture
+# 运行时发布架构
 
 ## 文档边界
 
-本文冻结 campus-web、Operator Console implementation surfaces、shared `app-api`
-这组 Worker surface 的长期 delivery / release hardening supporting architecture。
+本文定义 Cloudflare Worker、Kubernetes 服务和数据库变更的发布所有权。具体环境值、操作
+命令和验收步骤分别由环境仓、runbook 和 CI 工作流维护。
 
-它回答的是：
+## 所有权
 
-- 哪些 deploy / release 约束属于 repo 级长期 runtime truth
-- staging baseline、release identity、config gate 与 release closeout artifacts
-  应如何分层
-- 哪些发布动作属于 shared runtime closure，哪些仍是环境特定输入
+| 所有者 | 负责 |
+| --- | --- |
+| 源码仓 | 构建镜像、上传不可变 Worker 候选版本、产出 schema 和环境无关清单 |
+| 环境仓 | 选择镜像摘要和 Worker 版本，维护环境配置并发起实际发布 |
+| Cloudflare Terraform | Worker 绑定、域名、路由、非密配置和流量版本 |
+| Argo CD | Kubernetes 资源和镜像摘要 |
+| schema Job | 在依赖新结构的服务接收流量前完成数据库迁移和授权 |
 
-它不负责：
+源码仓产出候选物，不直接声明某个环境已经上线。环境仓选择并应用候选版本后，环境状态才
+构成部署事实。
 
-- 一次具体 deploy 的逐步操作命令
-- 某次 smoke 的截图、artifact 或手工验收结果
-- production hostname 何时启用
+## 发布链
 
-执行级 runbook 统一看：
+```text
+源码 main
+-> 构建不可变镜像并上传 Worker 候选版本
+-> 环境仓 PR 选择镜像摘要和 Worker 版本
+-> 数据库 schema 与平台配置收敛
+-> Argo CD 同步 Kubernetes
+-> Terraform 切换 Worker 流量
+-> 产品入口和依赖就绪检查
+```
 
-- `docs/runbooks/execution-ops.md`
-- `docs/runbooks/execution-smoke.md`
-- `docs/runbooks/worker-observability-smoke.md`
+规则如下：
 
-## 核心结论
+- Worker 上传使用版本接口，不在源码仓直接修改路由或流量；
+- Kubernetes 使用镜像摘要，不用可变标签表达环境目标；
+- 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
+- 一个应用失败不能被其他应用的健康状态掩盖；
+- 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
 
-三端 Worker surface 的长期发布闭环固定为：
+## 发布标识
 
-`源码配置 -> 上传不可变 Worker 版本 -> 环境仓 PR 选择版本 -> Terraform 切换流量
--> 健康检查`
+每次构建必须能够关联到源码提交、镜像摘要或 Worker 版本标识。应用日志、观测数据和环境
+仓变更应使用这些不可变标识定位同一次发布，不在仓库中长期写死某次发布号。
 
-固定约束：
+## 配置与密钥
 
-- `apps/campus-web`、Operator Console implementation surfaces、`apps/app-api` 必须共享一套
-  release hardening discipline，但仍保持独立 deploy unit
-- staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link` 与
-  `panel-staging.mucwiki-edge.link`；docs 作为
-  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
-  Worker `APP_API` Service Binding 调用 `app-api-staging`
-- `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local
-  diagnostics runtime projection；production target deploy substrate 已由 ADR-0078
-  固定为 Temporal Worker Controller + KEDA。live staging/production substrate 必须由 applied resources、
-  runtime env、operator projection 与 release closeout artifact 共同确认。
-- `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
-  upstream 参与 staging execution seam
-- repo-owned local diagnostics execution runtime shape 固定为
-  `execution-control + Temporal + workflow-worker + activity-worker-core +
-  activity-worker-agent + agent-runtime`；
-  不允许新增第二条 dev-backed serving fallback path
-- production target runtime 使用 KEDA Temporal scaler + Kubernetes HPA；本地不运行第二套
-  replica controller
-- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
-  瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
-  projection / agent-runtime / knowledge-search dependency unhealthy 才进入 degraded posture
-- Wrangler 只上传版本，不管理 staging route、custom domain、cron 或流量
-- Terraform 管理 Cloudflare 非密资源与 Worker deployment；Argo CD 只管理 Kubernetes
-- Worker secret 值只保留在 Cloudflare，上传前只检查是否存在
-- 发布是否完成，不由 `/readyz` 单点决定，而由环境仓目标版本、Kubernetes readiness
-  与产品面健康检查共同决定
+- 环境仓维护可审查的非密配置和资源引用；
+- 密钥由对应平台或密钥管理链路注入，不进入 Git、镜像、ConfigMap 或前端产物；
+- Worker 之间通过 Service Binding 调用，内部请求地址不是公开产品地址；
+- Kubernetes 服务使用集群内地址和最小权限身份；
+- 本地 `.env`、Compose 和临时隧道只服务开发，不作为环境配置来源。
 
-## Staging Baseline
+## 就绪与验收
 
-当前 accepted staging baseline 固定为：
+`/healthz` 只证明进程可以响应，`/readyz` 只证明该服务当前可以接收请求。发布验收还必须
+确认环境仓选择的版本已经生效，并从实际产品入口验证受影响路径。完整命令和检查范围见
+runbook，不在架构文档保存某次验收输出。
 
-- `apps/app-api` -> Worker `app-api-staging`，由 web surfaces 通过 `APP_API` Service
-  Binding 调用
-- `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
-- `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
-- `apps/operator-console-web` -> `<https://panel-staging.mucwiki-edge.link`>
-- `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
+## 不允许的形态
 
-长期规则：
+- 在源码仓用 `wrangler deploy`、回滚命令或路由配置直接改变环境流量；
+- 使用可变镜像标签或手写版本字符串代替不可变发布标识；
+- 让常驻应用自行执行数据库迁移；
+- 把 staging 域名、账号、截图或一次性检查结果写成长期架构；
+- 只凭单个健康接口判断整次发布完成；
+- 把本地 Compose 或源码清单当作线上环境事实。
 
-- `mucwiki-edge.link` 下项目隔离一级子域是当前 repo-owned staging truth
-- `ayafeed.com` 与 `*.rag.ayafeed.com` 不再作为 campus-agent staging forward truth
-- production hostname 应新增独立 env truth，而不是覆写 staging baseline
-- `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 在 Worker web
-  surfaces 中固定为 `https://app-api.internal`，只用于 Service Binding request construction
-- `api-staging.mucwiki-edge.link` 是 app-api public staging surface，不得被当作
-  browser-internal upstream invariant
+## 相关文档
 
-## Release Identity
-
-release identity 的长期规则固定为：
-
-- 每次 deploy 都必须显式生成当次 runtime release identity
-- `SENTRY_RELEASE` 不得继续在 repo 中长期写死为某个历史值
-- release identity 应优先从当前 git commit 或 CI release identifier 派生
-- release identity 必须进入三端 runtime env，并作为 release closeout artifact 的主键之一
-
-这意味着：
-
-- release naming 是 deploy-time concern，不是静态配置文件事实
-- observability、artifact 命名与 deploy 审计必须围绕同一 release identity 关联
-
-## Staging Deployment Sequence
-
-Staging deployment uses three ordered actions:
-
-1. 源码仓 `main` push 构建受影响镜像，并通过 `wrangler versions upload` 上传受影响
-   Worker 的不可变候选版本；上传动作验证当前 deployment id 不变。
-1. 同一个 workflow 把镜像 digest、Kubernetes source SHA 与 Worker version id 写入
-   一份环境仓 promotion pull request。
-1. 合并环境仓 PR 后，Terraform 先更新 Cloudflare 平台配置，Argo CD 同步 Kubernetes；
-   runtime readiness 满足后，Terraform 再把 Worker 流量切到已审查版本并执行产品面健康检查。
-
-源码仓上传成功只表示候选物可用，不表示 staging 已部署。环境仓合并后的目标版本、
-Argo CD 状态、Terraform apply 与健康检查共同构成部署事实。
-
-## Pre-Deploy Gate
-
-长期上，发布前 gate 至少分成四类：
-
-### Config / Secret Gate
-
-- required secret presence 必须在 deploy 前显式校验
-- non-secret runtime truth 可以存在于 repo-owned config
-- operator Access team domain、policy audience、Hyperdrive id、VPC Service id 与
-  Turnstile sitekey 由环境仓 Terraform 同步到源码仓 `staging` Environment variables
-- 数据库密码和 API token 仍通过对应 secret store 注入，不写入 Git 或 Terraform 输出
-
-### Cross-App Invariants
-
-- public/panel 都必须指向同一个 `app-api` staging origin
-- public/docs/panel 的 `app-api` staging origin 是 `APP_API` Service Binding +
-  `https://app-api.internal`，不是 public custom domain fetch
-- internal shared secret、operator allowlist、campus-web origin allowlist 必须按跨 app
-  invariant 统一
-- `AUTH_SHELL_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
-  `OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal` 不能漂移
-
-### Data Freshness / DB Gate
-
-- shared Postgres schema 必须先和 repo 当前 snapshot 对齐
-- `APP_API_DB` 与 `APP_API_DB_FRESH` 必须继续分 lane
-- auth 与其他 read-after-write-sensitive path 必须走 fresh lane，不接受被缓存 negative lookup
-  污染
-
-### Upstream Execution Gate
-
-- `app-api` staging deploy 必须包含 `EXECUTION_CONTROL_PRIVATE` Worker VPC Service
-  binding，并显式配置非密的 `EXECUTION_CONTROL_PRIVATE_ORIGIN`
-- staging forward deploy truth 是
-  `app-api Worker -> Worker VPC Service -> cloudflared in staging K8s ->
-  ClusterIP execution-control:8000`
-- staging 不再要求旧的 execution-control public URL deploy 变量，也不再通过
-  Cloudflare Access service-token 访问 execution-control public ingress
-- `127.0.0.1`、repo placeholder、失效 tunnel 或被删除的 Ingress 不属于 deploy truth
-- repo-owned staging runbook 只消费 app-api / campus-web / operator-console public
-  product surfaces；execution-control readiness 由 app-api readyz 与 K8s/GitOps
-  状态间接证明
-
-### Execution Runtime Gate
-
-Execution runtime 的 release gate 长期至少覆盖：
-
-- `execution-control /healthz`、`/readyz` 与 `/metrics` 可达
-- Temporal worker poller readiness 已被 `execution-control /readyz` 聚合
-- configured global budget 与 per-tool budget 未漂移
-- queue full、queue timeout、draining、tool runtime timeout 与 tool runtime
-  unavailable 都有 typed failure fingerprint
-- cancel / client disconnect path 不继续占用 Go request slot
-- OTel exporter 不阻塞 answer path，并暴露 export/drop/failure 状态
-- `POST /internal/execution/runs` 只作为 app-api 内部 execution command seam 验证，不作为
-  token streaming 或 browser 直连验收标准
-
-Kubernetes production target 还必须覆盖：
-
-- execution-control Service 只允许 trusted app-api / operator runtime caller 访问
-- 每个 worker role 都由 WorkerDeployment 生成 versioned Deployment，并具备 resource
-  request/limit、rollout 与 sunset policy
-- 每个 active build 通过 WorkerResourceTemplate 获得对应 ScaledObject 与 PDB
-- KEDA operator / metrics server healthy，HPA 不存在 metric fetch failure
-- ScaledObject 明确 min/max replicas、target queue size、polling interval、cooldown
-  与 HPA scale-down behavior
-- execution-control 队列接口能读取 fresh Temporal queue 状态，Kubernetes 能读取
-  WorkerDeployment/WorkerResourceTemplate/ScaledObject/HPA condition 和 versioned
-  Deployment replica
-
-这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 app-api chat
-finalization、Ops Web request correlation 或 browser smoke。
-
-## Protected Access And Operator Admission
-
-长期上，panel staging closure 固定依赖两层保护：
-
-- upstream Cloudflare Access protects the hostname
-- origin/runtime admission validates the Access JWT and operator allowlist
-
-固定规则：
-
-- `Missing Access JWT.` 只能说明入口保护未完成，不能当成 deploy success
-- Access application audience 与 team domain 是 runtime admission contract，不是 repo
-  placeholder
-- operator allowlist miss 导致的 `operator_identity_not_admitted` 属于
-  release-hardening miss，不属于 panel 产品逻辑问题
-
-## Smoke Identity
-
-长期上，发布 smoke 不依赖浏览器现场临时注册。
-
-固定规则：
-
-- online answer staging 使用 canonical smoke identity
-- smoke identity 的创建、密码重置、旧聊天清理统一由 repo-owned script 执行
-- operator smoke 继续使用真实 Access-admitted operator principal
-- smoke identity 只属于 deploy / verification tooling，不写进产品文案、测试快照或 runbook 摘要正文
-
-## Release Closeout Artifact Boundary
-
-release closeout artifact 的长期 closure 固定为：
-
-- `campus-web -> app-api` 至少一条真实 trace
-- `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
-  surface 是 `operator-console-web`
-- `app-api` 至少一条 runtime event / scheduled drain artifact
-- 当次 release 的 closeout artifact 落盘
-
-长期规则：
-
-- `Sentry` / `Axiom` 是 verification sink，不是 canonical operator read model
-- release hardening 的关闭条件是“真实请求和真实 runtime event 已进入 sink 并留存
-  closeout artifact”，不是“SDK 已接入”
-- closeout artifact 必须以 timestamp + release identity + environment 关联，供回归和发布审计复用
-
-## Out Of Scope
-
-以下内容不属于本文维护：
-
-- `official_web` collector live seam 是否与本次 staging 一起验收
-- `authenticated_notice` live portal scheduling
-- production rollout 的 hostname、证书或流量切换策略
-
-这些仍由各自 domain architecture、runbook 与 `.planning/` 负责。
-
-## Forbidden Shapes
-
-- 不把静态 `wrangler.toml` 里的历史 `SENTRY_RELEASE` 当成长期正确发布方案
-- 不把 panel Access placeholder 当成可接受的 staging protection truth
-- 不把 `/readyz = 200` 误写成完整 deploy closure
-- 不把临时浏览器注册账号重新引回 deployment smoke 主路径
-- 不把 runtime observability sink 反向当成 canonical app read model
-- 不在源码仓使用 `wrangler deploy`、`wrangler rollback` 或 route/cron 配置直接改变
-  staging 流量
-
-## 相关稳定文档
-
-- `docs/architecture/system/product-runtime.md`
-- `docs/runbooks/execution-ops.md`
-- `docs/runbooks/worker-observability-smoke.md`
-- `docs/architecture/system/k8s-runtime.md`
-- `docs/environment/README.md`
-- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
-- `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
-- `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0056-k8s-keda.md`
+- [产品运行时](./product-runtime.md)
+- [Kubernetes 运行时](./k8s-runtime.md)
+- [环境配置](../../environment/README.md)
+- [发布操作](../../runbooks/release.md)
+- [GitOps 操作](../../runbooks/gitops.md)
+- [ADR-0065](../../decisions/adr-0065-gitops.md)
+- [ADR-0078](../../decisions/adr-0078-worker-versioning.md)

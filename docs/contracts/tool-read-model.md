@@ -1,73 +1,60 @@
 ---
 doc_type: contract
-truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
-created: 2026-06-13
-updated: 2026-07-12
 ---
-# Tool Read Model Internal Runtime Contract
+# 工具读取模型合同
 
-## Document Boundary
+## 文档边界
 
-This document freezes the execution-control-owned internal query service seam
-used by OpenAI Agents SDK function tools. It does not own product serving opening,
-app-api browser HTTP contracts or source-truth schemas.
+本文规定 execution-control 为 OpenAI Agents SDK 函数工具提供的内部查询服务合同。它不
+决定产品开放状态，不拥有 app-api 浏览器 HTTP 合同或来源事实 schema。
 
-It complements:
+相关文档：
 
 - `docs/contracts/tool-execution.md`
 - `docs/architecture/system/tool-runtime.md`
-- `docs/architecture/domains/campus-services/architecture.md`
-- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/domains/transport.md`
+- `docs/data/internal-portal.md`
 
-## Endpoint Family
+## 接口
 
-Go `apps/execution-control` owns the internal tool read model endpoint family:
+Go `apps/execution-control` 拥有以下内部工具读取接口：
 
 - `POST /internal/query/campus-services/transport-schedule`
 - `POST /internal/query/knowledge/search`
 
-这组 endpoint 是 `domain tool -> thin adapter -> internal query
-service` 的 Docker-local seam，不是 browser-facing API，也不是 `app-api`
-product/control-plane endpoint。
+这些接口属于 `domain tool -> thin adapter -> internal query service` 的内部服务边界，
+不面向浏览器，也不是 `app-api` 的产品或控制接口。
 
-Contract rules:
+合同规则：
 
 - 仅允许 repo-owned trusted internal runtime caller 使用
 - 请求头使用 `x-execution-query-auth`，语义为 execution-control owned internal
   query authorization；不接受旧 runtime header alias。
 - JSON 命名保持 `snake_case`
-- response body 对齐对应 tool result contract 的 safe typed summary
-- runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
-  source bundle、notice HTML 或 generic retrieval chunk
+- 响应体必须匹配对应工具结果合同的安全类型化摘要；
+- 运行时只读已配置投影或标准化事实，不得在查询时回扫原始来源包、通知 HTML 或通用检索
+  分块。
 
-## Contracted Read-Model Backing
+## 读取来源
 
-The tool read model family reads PostgreSQL release current pointer + typed
-read model backing for these deterministic tools:
+确定性工具从 PostgreSQL 当前发布指针及类型化读取模型读取：
 
 - `transport_schedule_lookup`
-  - supports current snapshot metadata, route clarification, first / next /
-    last departure, departure list, service window, timetable and temporary
-    suspension summary
+  - 支持当前快照元数据、路线澄清、首班、下一班、末班、班次列表、服务时段、完整时刻表和
+    临时停运摘要。
 
-`knowledge_search` reads admitted indexed knowledge through scope/version
-validation, embedding, Qdrant lookup and optional rerank. It is internal-only
-and available only to the Knowledge Agent.
+`knowledge_search` 依次执行范围和版本校验、向量化、Qdrant 查询及可选重排，只供
+Knowledge Agent 内部使用。
 
-No notice read-model runtime tool endpoint is currently active. The old notice
-query endpoint has been removed from ToolSpec, runtime configs, workflow
-artifacts and contracts. Notice source/data materialization can still exist in
-the ingestion plane, but it does not make a serving tool endpoint available.
+当前没有通知读取模型工具接口。旧通知查询接口已从 ToolSpec、运行时配置、工作流产物和
+合同中删除。采集面可以继续物化通知来源和数据，但这不会自动开放查询工具。
 
-## Serving Boundary
+## 开放边界
 
-This contract does not open `campus_services` or `notice` product serving.
-Runtime opening requires a model-visible SDK tool admitted by execution-control
-and the matching domain serving truth.
+接口存在不会自动开放其他校园服务或通知工具。当前模型可见范围以 execution-control 工具
+注册表为准，并且必须有对应领域的真实数据。
 
-Tool production readiness is not defined by query-kernel executability alone.
-Normal, fail-close, cancel, timeout and late-completion outcomes must enter the
-sanitized execution trajectory and runtime projection before a tool can be
-considered production-open.
+查询内核可执行不等于工具可用于生产。正常、失败关闭、取消、超时和迟到完成结果都必须
+进入安全执行轨迹与运行时投影，才能判断工具已具备生产开放条件。

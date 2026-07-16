@@ -1,30 +1,21 @@
 # `campus_navigation/place_catalog`
 
-当前 place-finding canonical place seed。
+本目录保存校园地点的 synthetic reference seed。当前 app-api 地图 read model 不加载该文件；
+修改 seed 不会改变已发布浏览器地图。
 
-This directory is reference data, not an ingestion-control collection. It does
-not declare a task registry, serving config, retrieval alias, or query-serving
-surface.
+本目录是 reference data，不是 ingestion-control collection；不声明 task registry、serving
+config、retrieval alias 或 query-serving surface。
 
-Source inventory / admission posture:
+边界与开放数据规则见：
 
-- `docs/data/place-catalog.md`
-- `docs/reference/open-source-data.md`
+- `docs/domains/place.md`
+- `docs/policies/public-source-data.md`
 
 ## 用途
 
-- 作为 `navigation-specialist` 的 repo-owned spatial truth 输入
-- 提供 institution-scoped alias resolution，而不是把地点问句退回纯文档 RAG
-- 为 chat 内 `location card` 提供稳定 `place_id`、entity taxonomy 与受控 geometry posture
-
-## 当前范围
-
-首发只覆盖高频、位置稳定、运营价值明确的地点：
-
-- 主要建筑
-- 高频服务点
-- 校门
-- 少量校园周边 stop
+- 保存 schema 与小型 synthetic sample；
+- 为后续地点目录标准化提供离线输入；
+- 不证明 chat、location card 或 navigation capability 已开放。
 
 ## 约束
 

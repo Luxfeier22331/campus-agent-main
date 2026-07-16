@@ -1,214 +1,88 @@
 ---
 doc_type: architecture
-truth_scope: product
 owner_boundary: docs
 status: active
-created: 2026-04-05
-updated: 2026-06-13
 ---
-# Product Positioning
+# 产品定位
 
 ## 文档边界
 
-本文负责定义 `campus-agent` 的产品定位与产品边界。
-
-它回答的是：
-
-- `campus-agent` 服务谁
-- 它要解决什么问题
-- 首先应被理解成什么产品
-- 长期会扩展成什么产品
-- 哪些形态明确不属于它的产品定位
-
-它不负责：
-
-- 当前 merged truth 拓扑快照
-- 某一轮 phase 的执行顺序
-- 某个 app / package 的实现职责
-- 某个 agent、地图 SDK 或 provider 的具体技术选型
+本文定义 `campus-agent` 服务谁、解决什么问题、向用户承诺什么，以及哪些能力不属于产品
+范围。当前已经实现的界面和服务以 [current.md](./current.md) 为准；技术所有权和运行方式由
+目标架构、合同、数据文档和 ADR 维护。
 
 ## 核心定位
 
-`campus-agent` 是一个面向普通用户的 institution-scoped public campus
-question-answering assistant。普通用户包括潜在考生、家长、校外访问者、学生与教职工；在当前产品边界内，
-这些用户共享同一组已开放、成熟、只读的校园问答能力。
+`campus-agent` 是面向学校信息与校园服务的校园助手。它帮助访客、学生和教职工查找可信的
+学校资料、理解校园规则并读取已经开放的校园服务信息。
 
-它的核心目标不是做一个通用聊天机器人，而是以受控 serving surface、明确 tool / domain boundary 和可追溯 institution
-truth 为基础，持续承接高频校园问答、校园服务发现与后续校园地点寻找 / 导航场景。
+它不是开放域聊天机器人。系统只使用经过准入的学校知识和校园服务；无法可靠确认时，应
+要求用户澄清或明确说明无法回答，不得用模型猜测补齐缺失事实。
 
-长期上，`campus-agent` 是一个：
+## 用户
 
-- shared control-plane 下的 multi-entry campus product
-- Execution Agent Layer-led 的 tool-using campus assistant product
-- 以公开 / 已整理的机构知识、校园服务与空间信息为核心能力面的校园问答入口体系
+- 潜在考生、家长和校外访客：查询公开的学校、专业、制度和校园信息；
+- 学生和教职工：查询制度、培养方案、校园服务和地点信息；
+- 运营人员：通过独立的受控后台维护配置并排查运行问题。
 
-## 目标用户
+运营人员不是主问答能力的终端用户。采集、评测、发布和运维操作不得包装成普通用户可调用
+的工具。
 
-`campus-agent` 的主要用户包括：
+## 解决的问题
 
-- `prospective_user` 需要了解学校、专业、制度、办事路径和基础校园信息的潜在考生或家长
-- `public_visitor` 需要查询公开校园信息的未登录校外访问者
-- `campus_member` 需要获取制度、培养方案、服务点位、后续校园导航能力的学生和教职工
-- `operator` 需要通过受控后台、投影和可观测性能力维护产品运行面的校方运营人员
-
-`operator` 是后台 ops persona，通过 Operator Console 消费受控运维后台能力，不是主问答
-agent 的终端用户能力边界。operator / eval / ingestion / release 工作不进入用户 agent tool
-surface。
-
-## 要解决的问题
-
-这个产品存在的直接业务背景包括：
-
-- 校园高频问答长期依赖人工答疑群或人工客服，重复劳动明显
-- 机构知识分散在手册、培养方案、官网页面和线下经验里，用户难以快速定位可信答案
-- 校园服务点、办事入口和地点信息往往依赖熟人经验，不适合继续只靠自然语言 RAG 猜测
-- 服务开放时间、临时停办/闭馆、班车/接驳车安排等运营信息经常散落在通知里；用户真正想知道的通常是“当前状态”，而不是自己翻 notice
-- 长期上，校园内地点寻找、路线选择和位置相关 guidance 需要进入同一个产品体系与共享控制面，而不是与问答、文档、服务状态完全割裂
+- 高频校园问题长期依赖人工重复答复；
+- 学校资料分散，用户难以定位当前有效且可追溯的答案；
+- 班车、开放时间等信息适合结构化展示，不应依赖自然语言检索猜测；
+- 文档、问答、服务状态和校园地图需要共享一致的身份与校园事实。
 
 ## 产品承诺
 
-`campus-agent` 的产品承诺固定为：
+- 回答范围限定在学校信息和已经开放的校园服务；
+- 答案依据必须可追溯，来源不足时不得强行作答；
+- 只有具备真实数据、明确合同、运行实现和验证覆盖的能力才能向用户开放；
+- 主问答不按学生、教职工或院系拆出不同的工具集合；受限资料仍可按身份控制访问；
+- 账号、会话和额度可以限制使用，但不能改变事实来源或降低回答要求；
+- 状态页、文档页、地图和问答页可以分别呈现，但不得各自维护一份相互冲突的事实。
 
-- institution-scoped 优先回答学校范围内、可治理、可追溯的问题，而不是开放域泛化助手
-- controlled surface 只在显式开放的 serving surface 和 admitted tool boundary
-  内回答，不把未准备好的知识面伪装成“好像能答”
-- fail-close 面对地点歧义、证据不足、source truth 缺失、能力未成熟或当前状态不可验证时，优先澄清、说明无法可靠确认或进入受控失败，而不是强行猜测
-- productized tools / workflows 用稳定的 Execution Agent Layer / admitted tool set
-  承接能力，不把产品长期形态退化成一个拼接临时 tools 的聊天壳
-- shared entry-set experience 长期允许多个并列 browser surface 共同承接产品能力；`AI
-  助手`、`文档站`、`服务状态`、`校园地图` 等入口可以独立存在，但它们必须共享同一产品边界、控制面与 institution truth
+当前开放范围由代码注册表、产品配置和 [current.md](./current.md) 共同验证。schema、配置、
+页面占位或测试数据的存在不代表能力已经向用户开放。
 
-## 产品定位
+## 产品界面
 
-`campus-agent` 首先应被理解为：
+产品可以通过以下界面承载不同任务：
 
-- 一个受控的校园知识问答产品
-- 一个持续扩展到 campus service discovery、notice product、place finding 与
-  wayfinding 的校园助理
-- 一个由 shared control plane 约束多入口体验、tool readiness 与 institution
-  truth 的 campus assistant product
+- AI 助手：问答、澄清和已开放工具的统一入口；
+- 文档站：浏览和阅读规范文档；
+- 服务状态：展示班车等低频更新的结构化状态；
+- 校园地图：浏览地点和地图信息；
+- 账号页面：管理身份、会话和个人设置。
 
-产品初始重心是 institution knowledge question answering，但长期入口不应被理解成
-`RAG-first` 或 `knowledge-only`。
+这些界面属于同一个产品，但不要求所有功能都经过聊天或模型工具。当前界面是否存在及其
+部署方式以 [current.md](./current.md) 为准。
 
-产品能力扩展方向是：
+## 扩展边界
 
-- 在明确地图产品需求后补 place finding
-- 在具备 route truth 后再做 route planning / wayfinding
+新增校园能力必须先确认真实用户需求和数据所有者，再决定使用页面、查询接口还是模型工具。
+不得为了预留未来能力先建立空工具、空服务或未被消费的数据结构。
 
-因此，不应把 `campus-agent` 描述成单一校园导航产品；更准确的说法是，它是一个以校园问答为起点，
-并明确把地点寻找与导航纳入产品边界的校园助理产品。
+地点查找和路线导航尚未作为模型工具开放。其长期边界由
+[ADR-0027](../decisions/adr-0027-navigation.md) 记录；当前地图地点读取见
+[place.md](../domains/place.md)。开放域联网问答如需进入产品，必须另行作出产品决策，不能
+作为校园问答失败时的默认回退。
 
-补充约束：
+## 不属于本产品
 
-- 当前 merged truth 已从 chat-only / launcher model 转向 `campus-web` 学生侧主体验；
-  chat 仍是核心能力，但不再单独定义产品总入口
-- 当前 merged truth、已开放 serving surface 与具体 browser surface 拓扑由
-  `current.md` 维护
-- docs shell 自己的首页、collection 入口或局部导航，不自动上升为整个产品的顶层入口架构
-- `campus.muc.wiki` 是学生侧 product entry surface；它提供校园应用入口、账号壳与
-  same-origin browser seams，但不改变 query-serving truth 或 tool opening truth
-- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；campus-web 可以提供外部链接入口，
-  不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
-- `internal_portal`、`wechat_official_account` 与 tool read model source/data
-  stream 是长期输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺
-- 单个 surface 的内部信息架构不自动上升为整个产品的顶层入口架构
-- source/data stream 只有在显式开放后才上升为公开产品承诺
+- 通用开放域聊天或默认联网搜索；
+- 替代学校 ERP、OA、预约、支付或事务办理系统；
+- 让浏览器、用户或模型选择数据库、索引、供应商或内部集合；
+- 把运维、采集、评测和发布能力暴露为普通用户工具；
+- 用临时回退路径掩盖缺少数据、合同或下游故障；
+- 在没有路线事实时由模型生成导航路径。
 
-## 长期产品形态
+## 相关文档
 
-长期上，`campus-agent` 应稳定覆盖以下产品能力面：
-
-- institutional knowledge question answering
-- campus service discovery
-- campus service status / operating-condition lookup
-- campus notice product / canonical notice reading
-- campus place finding
-- campus navigation / wayfinding
-
-这意味着它的长期产品形态不是单一 RAG 问答器，而是一个能把不同校园能力面纳入同一产品交互、同一请求治理和同一 operator control plane
-的校园助理系统。
-
-其中：
-
-- 稳定制度、材料、流程类问题继续由受控知识面回答
-- 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain tool 承接
-- 用户明确在找通知、讲座、公示或结果原文时，应优先进入 redesigned notice
-  product / canonical notice reading 路径，而不是默认混入 generic RAG
-- 普通 chat 的第一语义决策长期由 primary agent 在 admitted tool set 内完成，而不是默认把所有请求先压成
-  `knowledge_query`
-
-产品助手还必须能在不调用校园 tool 的情况下回答产品身份、能力边界、普通寒暄与澄清类问题。
-这类 direct/no-tool answer 属于 first Execution Agent decision 的 terminal branch，
-不是 `assistant_intro`、`product_meta`、`product persona` 或 `surface prompt profile`。
-当 primary agent 识别到具体校园需求时，才调用已开放的 SDK function tool，
-或通过官方 `handoff()` 进入受限 specialist。tool call 与 handoff 都留在同一个
-Temporal Agent Activity 内，不形成额外 workflow routing path。
-
-工具开放口径固定为 readiness-first，而不是身份分层：
-
-- 普通用户默认共享同一组已开放、成熟、只读的 campus tools。
-- tool opening gate 只表达 source truth、typed contract、evidence / fail-close、projection
-  与 cancel / timeout readiness。
-- account / session / quota、operator surface access 与 user-scoped memory binding
-  由产品层治理；它们不表示学生 / 教职工 / 院系之间存在不同的主问答 tool 权限。
-- restricted documents、内部受限材料、approval / HITL、预约 / 提交 / 支付 /
-  工单等状态变更能力不属于当前主问答产品目标。
-
-长期入口模型固定为：
-
-- `multi-entry`
-- `shared control plane`
-- `cross-surface continuity`
-
-直接含义：
-
-- `AI 助手`、`文档站`、`服务状态`、`校园地图` 等能力可以作为并列独立入口存在
-- 单个 surface 的内部信息架构不等于整个产品的总入口信息架构
-- 某个能力以独立入口存在，不代表它拥有独立的 auth truth、request truth、operator truth 或 canonical
-  domain truth
-
-## 关于未来开放域能力
-
-长期上的产品扩展，默认仍然指校园能力面的扩展，而不是静默转向开放域聊天产品。
-
-产品边界固定为：
-
-- 主产品路径继续保持 `institution-scoped`
-- 不把“开放域 generalist / web 回答能力”视为默认产品组成部分
-- 不允许在 campus path 内用临时 web fallback 替代 `out_of_scope`
-
-如果未来产品明确接受开放域能力，它也必须作为单独 tool boundary 进入，而不是反向改写当前 campus assistant
-的产品承诺。
-
-## 明确不是什么
-
-`campus-agent` 明确不是：
-
-- 一个通用 open-domain LLM 聊天机器人
-- 一个只返回检索片段的校园搜索框
-- 一个把 Execution Agent Layer 退化成 inline tool router 的 agent 壳
-- 一个默认依赖外部地图站跳转完成主要体验的产品
-- 一个替代校园 ERP、OA 或事务系统的全栈业务系统
-- 一个按学生 / 教职工 / 院系身份拆分普通问答权限的复杂授权系统
-- 一个把 operator、ingestion、release、eval 工作包装成用户可调用 agent 工具的后台系统
-
-## 与其他文档的关系
-
-- 产品定位与产品边界：本文
-- 当前 merged truth、当前拓扑与当前 serving
-  surface：`docs/architecture/current.md`
-- 长期系统形态与硬约束：`docs/architecture/target.md`
-- primary-agent-first tool routing 与 surface tool
-  policy：`docs/architecture/system/tool-routing.md`
-- 产品/runtime supporting
-  architecture：`docs/architecture/system/product-runtime.md`
-- 导航 / wayfinding
-  长期能力边界：`docs/architecture/domains/navigation/architecture.md`
-- 文档 truth class 与冲突裁决：`docs/documentation-architecture.md`
-
-因此：
-
-- 当问题是“`campus-agent` 到底是什么产品、服务谁、不是谁”时，优先看本文
-- 当问题是“实现状态和开放范围是什么”时，优先看 `current.md`
-- 当问题是“长期架构边界怎样冻结”时，优先看 `target.md` 与对应 ADR
+- 当前实现：[current.md](./current.md)
+- 长期约束：[target.md](./target.md)
+- 产品运行边界：[system/product-runtime.md](./system/product-runtime.md)
+- 工具开放规则：[system/tool-routing.md](./system/tool-routing.md)
+- 文档治理：[../documentation-architecture.md](../documentation-architecture.md)

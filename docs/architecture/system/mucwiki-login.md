@@ -1,189 +1,85 @@
 ---
 doc_type: architecture
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-02
-updated: 2026-06-09
 ---
-# Federation And MUC Wiki Login Architecture
 
-## 文档边界
+# MUC Wiki 联邦登录架构
 
-本文冻结 `muc.wiki` login federation 的 target architecture 与 provider
-implementation boundary。
+## 边界
 
-它回答的是：
+本文定义 app-api Identity Platform 与 `muc.wiki` relying party 的 OIDC-compatible 关系。实际
+部署状态由环境和 `../../runbooks/federation.md` 验证，不从本文推断。
 
-- Identity Platform 如何作为 provider
-- `muc.wiki` 如何作为 relying party
-- 为什么不采用 cookie/session/database compatibility
-- Better Auth provider runtime 在架构中的位置
-
-本文不维护 `muc.wiki` production login federation 的 rollout state。provider
-route implementation status 属于 `current.md`；client provision、secret delivery 与
-MediaWiki verification procedure 属于 federation runbook。
-
-## Target Relationship
-
-长期关系固定为：
+## 关系
 
 ```text
-user browser
--> muc.wiki MediaWiki login extension
--> app-api Identity Platform federation endpoints
--> app-api account / identity / access truth
--> auth runtime adapter
+browser
+-> MediaWiki OpenID Connect / PluggableAuth
+-> app-api federation endpoints
+-> app-owned account / identity / access
+-> Better Auth provider adapter
 ```
 
-`apps/app-api` owns provider truth. `muc.wiki` owns wiki-local account linking
-and wiki permissions.
+app-api 拥有 issuer、client 和 claim policy；MediaWiki 拥有 Wiki 本地 account linking、group 和
+permission。
 
-## Protocol Choice
+## 协议与 Adapter
 
-Login federation uses an OIDC-compatible login surface. The selected runtime
-adapter is Better Auth OAuth Provider rather than the older Better Auth OIDC
-Provider plugin.
+使用 OAuth 2.1/OIDC-compatible authorization code + PKCE：
 
-The required semantics remain OIDC-level:
+- issuer、subject、ID token、userinfo 和 JWKS；
+- scope/claim policy；
+- 受控客户端注册表；
+- end-session。
 
-- issuer
-- subject
-- ID token
-- userinfo
-- JWKS
-- scopes and claims
-- relying-party client policy
-- end-session semantics
+runtime adapter 使用 `@better-auth/oauth-provider` 和 Better Auth `jwt()`。禁止在仓库自写 OAuth
+协议栈。native `/oauth2/*` 与 `/jwks` 只作为内部映射，public endpoint 使用 well-known 和
+`/api/federation/*`。
 
-## Provider Runtime
+public issuer 为 `https://campus.muc.wiki`；campus-web 只代理明确 allowlist 的 federation
+route，不成为 provider owner 或 generic app-api proxy。
 
-Better Auth provider plugins are accepted runtime adapters, not canonical
-architecture owners.
+## 客户端
 
-Current provider selection:
+首个 controlled client 为 `muc-wiki`：
 
-- Use `@better-auth/oauth-provider` for OAuth 2.1 provider behavior with
-  OIDC-compatible discovery, userinfo, ID token and end-session semantics.
-- Use Better Auth `jwt()` as the signing / JWKS substrate.
-- Do not make Better Auth OIDC Provider the production default while official
-  documentation marks it as active-development/deprecation-bound.
+- confidential，`client_secret_basic`；
+- `authorization_code` 和 `refresh_token`；
+- response type `code`；
+- scope `openid profile email`；
+- PKCE `S256`；
+- 受信任第一方同意策略；
+- redirect/post-logout URI 精确 allowlist；
+- dynamic registration 关闭。
 
-Current implementation readiness:
+client 由 app-api provision script 同时写入 app-owned policy 和 Better Auth runtime table，不由
+浏览器、MediaWiki 或 provider admin UI 创建。
 
-- `apps/app-api/src/modules/auth/auth.ts` mounts `jwt()` and
-  `oauthProvider()`.
-- Dynamic client registration is disabled.
-- `cachedTrustedClients` admits only `muc-wiki`.
-- Better Auth's ordinary `/token` endpoint is disabled so it cannot conflict
-  with OAuth `/oauth2/token`.
-- Better Auth native `/oauth2/*` and `/jwks` endpoints are internal mapping
-  targets behind the canonical public `/api/federation/*` routes.
-- Better Auth runtime tables live in `app_auth.*`.
-- App-owned federation policy remains in `identity.federation_*`.
-- The first client is materialized by the app-api provision script, not by
-  browser UI, MediaWiki or a provider admin UI.
+## 身份声明
 
-Do not write a hand-made OAuth/OIDC protocol stack in this repo.
+默认只发布 `sub`、`email`、`email_verified`、`name`、`preferred_username` 和
+`updated_at`。campus claim 必须使用命名空间并由 client policy 显式允许。
 
-## Public Origin And Routing
+raw entitlement、profile memory、chat history、operator flag 和 service principal material 不得
+发给普通 relying party。
 
-The public issuer is `https://campus.muc.wiki`, because campus-web is the
-student-facing product endpoint and account browser shell. That does not make
-campus-web the provider owner.
+## 账号关联
 
-Campus-web exposes only explicit allowlisted federation seams, namely discovery
-routes and canonical `/api/federation/*`, to `apps/app-api`. It must not become
-a generic app-api proxy or a MediaWiki federation backend outside the identity boundary.
+首次登录由 MediaWiki extension 按稳定 subject/email 建立 Wiki 本地映射。Wiki 权限继续由
+MediaWiki 判断；app-api 不导入 user、password hash、session、group 或 page permission。
 
-## Client Registry
+## 禁止形态
 
-首期 federation client registry 固定为 controlled/static posture。
+- 跨 campus/Wiki 共享 auth Cookie；
+- 导入 MediaWiki password/session；
+- profile memory 或聊天历史进入 claim；
+- 向普通 Wiki client 暴露 operator/service claim；
+- 在 Identity Platform 外增加专用 Wiki federation endpoint。
 
-The first client is `muc-wiki`:
+## 相关文档
 
-- client type: confidential
-- token endpoint auth: `client_secret_basic`
-- allowed scopes: `openid`, `profile`, `email`
-- response type: `code`
-- grant types: `authorization_code`, `refresh_token`
-- PKCE: required with `S256`
-- consent policy: `trusted_first_party_skip_repeated_consent`
-- end-session: enabled
-- redirect URI allowlist: the full MediaWiki `Special:PluggableAuthLogin`
-  callback URL
-- post-logout redirect URI allowlist: explicit wiki logout/return URL
-
-Dynamic public client registration is out of scope for the first implementation.
-
-## Claims Policy
-
-Default OIDC claims should be minimal:
-
-- `sub`
-- `email`
-- `email_verified`
-- `name`
-- `preferred_username`
-- `updated_at`
-
-Campus-specific claims must be namespaced and must not expose internal
-authorization store objects.
-
-Example namespace:
-
-```text
-https://campus.muc.wiki/claims/principal_type
-https://campus.muc.wiki/claims/identity_status
-```
-
-Authorization-sensitive details such as raw entitlement snapshots, profile
-memory, operator flags and internal service claims must not be emitted to generic
-relying parties.
-
-## Consent And Trusted Clients
-
-For first-party or institution-controlled clients, such as `muc.wiki`, a
-trusted-client policy may skip repeated consent only after the client is
-explicitly registered and documented.
-
-Skipping consent must be a property of the federation client policy, not a
-hard-coded behavior inside browser UI or MediaWiki integration code.
-
-## Account Linking
-
-MediaWiki owns wiki-side account linking.
-
-Identity Platform provides stable subject and claims. It does not import
-MediaWiki users, password hashes, session rows, group memberships or page
-permissions.
-
-Recommended posture:
-
-- first login maps OIDC subject/email to a wiki-local account according to
-  MediaWiki extension policy
-- wiki-local permissions continue to be evaluated by MediaWiki
-- app-api does not become MediaWiki permission authority
-
-Staging setup uses MediaWiki `OpenID Connect` extension plus
-`PluggableAuth`. Provider URL is `https://campus-staging.mucwiki-edge.link` for
-staging and `https://campus.muc.wiki` for production. The client secret is
-runtime secret material and is never committed.
-
-## Forbidden Shapes
-
-- Do not share `.muc.wiki` auth cookies across campus/app surfaces and MediaWiki.
-- Do not import MediaWiki password hashes or sessions into app-api.
-- Do not let MediaWiki database rows become app-api account truth.
-- Do not use profile memory or chat history in federation claims.
-- Do not expose operator or service principal claims to `muc.wiki` unless
-  explicitly modeled as a separate administrative federation client.
-- Do not write provider endpoints as one-off MediaWiki federation routes
-  outside Identity Platform.
-
-## Related Documents
-
-- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
-- `docs/architecture/system/identity-platform.md`
-- `docs/contracts/app-api/federation.md`
-- `docs/data/identity-platform.md`
+- `identity-platform.md`
+- `../../contracts/app-api/federation.md`
+- `../../data/identity-platform.md`
+- `../../runbooks/federation.md`

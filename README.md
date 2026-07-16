@@ -1,205 +1,107 @@
 # campus-agent
 
-`campus-agent` 是校园助理系统 v2 的入口 monorepo。
+`campus-agent` 是校园助理系统 v2 的入口 monorepo。产品不是通用聊天机器人，而是一个
+institution-scoped、campus-web first、由 Execution Agent Layer 驱动的校园助理系统。
 
-## Overview
+## 项目入口
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、
-`campus-web first`、Execution Agent Layer-led 的校园助理系统。
+- [当前架构](./docs/architecture/current.md)：已经合入 `main` 的实现事实；
+- [产品边界](./docs/architecture/product.md)：产品提供和不提供什么；
+- [目标架构](./docs/architecture/target.md)：长期必须满足的约束。
 
-根 README 只做仓库入口路由。当前 merged truth、长期目标约束和项目级
-planning signals 分别见：
+feature worktree 或未合并 branch 不是当前仓库事实。
 
-- [当前架构](./docs/architecture/current.md)
-- [目标架构](./docs/architecture/target.md)
-- [.planning/PROJECT.md](./.planning/PROJECT.md)
-- [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
+## 公开仓库边界
 
-## Public Repository Boundary
+公开仓库包含源码、合同、validator、公开文档、稳定的 self-authored 数据和 synthetic example。
+它不发布 secret、私有部署状态、受限来源正文、采集页面、raw notice、生产数据库投影、当前
+serving pointer 或运行时生成 artifact。
 
-This repository is intended to publish code, contracts, validators, public docs
-and synthetic examples. It does not publish private deployment state, real
-source-derived school corpora, raw notices, collected web pages, canonical docs
-artifacts, object-store publication outputs, credentials or current serving
-truth.
+学校级数据不因“真实”而自动排除。项目自有且权利清楚、稳定、适合审查的数据可以进入仓库；
+持续变化、受认证限制、体积较大或权利不明的数据进入 database、object storage 或对应 provider
+system。完整规则见 [公开仓库数据策略](./docs/policies/public-source-data.md)。
 
-Local development and public CI use synthetic fixtures. Features that depend on
-provider keys, object storage, operator databases or private content packs need
-the corresponding internal runtime configuration and are not expected to run
-from a public clone alone.
+public clone 使用 synthetic fixture。依赖 provider key、object storage、private database 或
+content pack 的能力需要对应内部配置，不承诺在公开 clone 中直接运行。
 
-See:
+安全与支持入口：
 
-- [public-source-data policy](./docs/policies/public-source-data.md)
-- [open-source data inventory](./docs/reference/open-source-data.md)
 - [SECURITY.md](./SECURITY.md)
 - [SUPPORT.md](./SUPPORT.md)
+- [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
 
-## Repository Layout
+## 目录
 
-仓库按 runtime boundary、job runtime boundary 与 tool boundary 组织：
+- [`apps/`](./apps/)：长驻 transport 与 runtime boundary；
+- [`jobs/`](./jobs/)：定时或手动 deployable runtime；
+- [`packages/`](./packages/)：稳定 domain、contract 与 reusable logic；
+- [`configs/`](./configs/)：runtime、ingestion、source 与 reference-data 配置；
+- [`infra/`](./infra/)：namespace-neutral 基础设施 source 与本地环境；
+- [`scripts/`](./scripts/)：仓库入口命令与共享 deploy/env primitive；
+- [`docs/`](./docs/)：architecture、decision、contract、data、runbook、policy 与 reference。
 
-- [`apps/`](./apps/)
-  - 长驻 runtime shell 与 transport boundary，例如 `campus-web`、
-    `operator-console-web`、`ops-web`、`app-api`、`execution-control`、
-    `ingestion-control`、`source-collector`
-- [`jobs/`](./jobs/)
-  - manual 或定时 deployable runtime，例如 `dining-sync`、
-    `learning-loop-candidates`
-- [`packages/`](./packages/)
-  - 稳定边界，例如
-    `ingest-core`、`ingestion-contracts`、`contracts`
-- [`configs/`](./configs/)
-  - collection serving config、ingestion 配置与 source config
-- [`docs/`](./docs/)
-  - 长期可引用的 architecture、decision、contract、data、runbook 与 policy truth
-- [`.planning/`](./.planning/)
-  - 当前项目级 planning signal surface；历史 phase/archive material 通过 git history
-    恢复
-具体 runtime、job 与 package ownership 以
-[`docs/architecture/system/code-organization.md`](./docs/architecture/system/code-organization.md)
-和各 area README 为准；根 README 只保留仓库入口路由。
+具体代码所有权见
+[code-organization.md](./docs/architecture/system/code-organization.md) 和最近的 owner README。
 
-## Documentation
+## 文档
 
-默认文档入口：
+从 [docs/README.md](./docs/README.md) 查找所属文档；文档分类、中文规范、冲突裁决和删除规则见
+[documentation-architecture.md](./docs/documentation-architecture.md)。
 
-- [docs/documentation-architecture.md](./docs/documentation-architecture.md)
-- [docs/README.md](./docs/README.md)
+稳定规则：
 
-文档与 planning 的分工：
+- `docs/` 保存可重复引用的事实，不保存本轮工作状态；
+- 已退役流程和旧设计通过 git history 追溯，不在 branch tip 维护 archive 副本；
+- 一个窄能力优先只有一份人类可读文档，机器合同仍由 schema/OpenAPI 拥有。
 
-- `docs/`
-  - 长期有效、应被反复引用的 source-of-truth 文档
-- `docs/documentation-architecture.md`
-  - 文档 truth class、冲突裁决顺序与入口路由规则
-- `docs/architecture/current.md`
-  - 当前 accepted merged truth
-- `.planning/PROJECT.md`
-  - compact project planning signals；不覆盖 architecture / contract / data truth
-- `.planning/WORKSTREAMS.md`
-  - compact active planning signals、owner areas、backlog signals 与恢复规则
-- git history
-  - 已退出 live truth 的 historical / superseded / completed planning snapshots
+协作规范见 [CONTRIBUTING.md](./CONTRIBUTING.md)、
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) 与 [AGENTS.md](./AGENTS.md)。
 
-仓库协作规则见：
+## 开发
 
-- [CONTRIBUTING.md](./CONTRIBUTING.md)
-- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
-- [AGENTS.md](./AGENTS.md)
-- [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md)
-
-## Development
-
-环境准备：
+安装依赖：
 
 ```bash
 uv sync --all-packages --dev
 pnpm install
 ```
 
-团队成员可按 Turborepo 官方流程为每个本地 worktree 启用 Remote Cache：
-
-```bash
-pnpm exec turbo login
-pnpm exec turbo link
-```
-
-链接信息写入已忽略的 `.turbo/config.json`；token 不进入仓库。GitHub Actions
-通过 `TURBO_TOKEN` secret 与 `TURBO_TEAM` variable 使用同一缓存。
-
-Public clone 默认验证入口：
+常用检查：
 
 ```bash
 pnpm ci:repo
-pnpm go:check
-pnpm ci:rust
-pnpm ci:contracts
-pnpm ci:eval
 pnpm ci:typescript
-pnpm web:typecheck
-pnpm web:test
-pnpm web:test:worker
+pnpm ci:contracts
+pnpm ci:go
+pnpm ci:rust
+pnpm ci:ingest
+pnpm ci:eval
+pnpm ci:worker
 ```
 
-内部 / full lane 需要对应 runtime 配置：
+按改动 owner 选择最小通道；命令含义、integration/E2E 与 release 边界见
+[测试与验证通道](./docs/reference/verification.md)。
 
-```bash
-pnpm web:test:integration
-pnpm web:build
-pnpm ci:typescript:full
+`pnpm repo:static` 只检查通用格式与文本卫生；`pnpm docs:check` 检查 frontmatter、ADR 标识、
+仓库内引用和中文正文。二者都不证明运行时、架构或 E2E 正确。
+
+需要 shared database、provider、object store 或私有 content 的命令必须显式提供所属环境配置。
+仓库不生成通用 env bundle，也不把 ignored `.env` / `.dev.vars` 在 worktree 之间复制。
+
+## 协作
+
+默认流程为：
+
+```text
+feature worktree -> pull request -> main
 ```
 
-- `pnpm web:test:integration` 需要 shared DB / Hyperdrive local connection env。
-- `pnpm web:build` 会构建文档站，需要已有 docs read-model sync manifest，
-  或可访问 app-api operator database 的 `APP_API_OPERATOR_DATABASE_URL`
-  等内部配置。`pnpm ci:typescript:full` 不构建文档站。
+`main` 是稳定主干。release tag 与 GitHub Environment 选择生产 release，不使用长期开发分支
+中转。未合并的计划和执行记录不作为默认分支的长期文档。
 
-## Docs Reader Data
+## 许可证
 
-文档站 seed 数据、reader asset 交付和 docs read-model 规则由 owner 文档维护：
-
-- [document-site architecture](./docs/architecture/system/document-site.md)
-- [document-reader data](./docs/data/document-reader.md)
-- [document-reader publish contract](./docs/contracts/document-reader-publish.md)
-- [forward-worker smoke runbook](./docs/runbooks/forward-worker-smoke.md)
-
-根 README 不维护对象存储 manifest、构建产物或导入流程细节。本地生成产物仍不得提交到
-repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
-或 `apps/campus-web/public/static/`。
-
-- `var/docs-read-model-manifest.json`
-- sync manifest 指向的对象存储 reader assets
-- 对应环境的 app-api operator database 与对象存储读取配置
-
-旧 document-reader 发布、导入、构建和验收流程已退出 branch tip；需要追溯时通过
-git history 恢复具体片段，再提升到当前 runbook 或 data contract。
-不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
-或 `apps/campus-web/public/static/` 中的本地生成产物。
-
-其中 `pnpm repo:static` 直接运行 Biome、Markdownlint 与 EditorConfig Checker，只负责通用格式和文本
-卫生；`pnpm docs:check` 只检查 ADR identity 唯一性和文件名/H1 对齐；`pnpm ci:repo`
-聚合二者。Python、Worker、contract、ingestion、Go、K8s 与依赖安全约束由对应 owner lane 或原生工具承担；
-这些 repo 检查不判断运行时能力或领域策略。
-
-更细的验证 lane 与 smoke 路径见：
-
-- [testing-and-verification-lanes](./docs/reference/testing-and-verification-lanes.md)
-- [runtime-serving-and-index-terms](./docs/reference/runtime-serving-and-index-terms.md)
-- [forward-worker-smoke](./docs/runbooks/forward-worker-smoke.md)
-
-## Collaboration
-
-默认协作流是：
-
-`feature/worktree -> PR -> main`
-
-`main` 是当前 merged truth。release tag 和 GitHub Environment 承接
-production / release 状态，不再通过长期开发分支中转。
-
-plain `codex` 继续用于讨论、评审、问答、方案分析与执行。
-workstream 的创建、查询、切换与完成由 GSD SDK 管理；执行现场由 Codex 原生会话承接。
-
-常用入口：
-
-```bash
-gsd-sdk query workstream.list --raw --cwd "$PWD"
-gsd-sdk query workstream.status <workstream-slug> --raw --cwd "$PWD"
-gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
-gsd-sdk query workstream.progress --raw --cwd "$PWD"
-```
-
-tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`；
-repo 不再维护 tracked phase tree、本地 lease、heartbeat、hook 注入或 terminal-result
-artifact。详细流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
-
-## License
-
-Repo-owned source code, tests, configuration and documentation are licensed under
-the [Apache License, Version 2.0](./LICENSE).
-
-Third-party dependencies, source-derived fixtures, campus website/document
-samples, OpenStreetMap-derived data and branding materials remain under their
-respective upstream ownership and license terms. See [NOTICE](./NOTICE) and
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) before redistributing source
-data, generated artifacts or release packages.
+仓库自有源码、测试、配置和文档使用
+[Apache License 2.0](./LICENSE)。第三方依赖、来源派生 fixture、地图数据、品牌资源和其他
+artifact 仍受各自上游所有权与许可证约束；再分发前检查 [NOTICE](./NOTICE) 与
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。

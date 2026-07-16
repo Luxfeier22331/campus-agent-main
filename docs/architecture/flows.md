@@ -1,57 +1,38 @@
 ---
 doc_type: architecture
-truth_scope: repository
 owner_boundary: docs/architecture
 status: active
-created: 2026-07-08
-updated: 2026-07-12
 ---
-# Architecture Flows
+# 架构流程图
 
-This page is a compact visual index for stable cross-owner flows. It does not
-own runtime, contract, schema, data or runbook truth. Owner documents remain the
-source of truth; diagrams here only show how those owners connect.
+本文只索引需要跨多个所有者理解的稳定流程。runtime、contract、schema、data 和 runbook
+事实仍由所属文档维护，图只展示连接关系。
 
-Use this page when the question is "which owner boundaries does this chain
-cross?" Use the linked owner document when the question is "what exactly is the
-contract, schema, runtime rule or operational procedure?"
+本地流程图应留在所属文档：runtime 位于 `docs/architecture/system/`，领域和来源位于
+`docs/architecture/domains/`，wire shape 位于 `docs/contracts/`，数据所有权位于
+`docs/data/`，操作步骤位于 `docs/runbooks/`。
 
-## Boundary
+## 所有者入口
 
-This document may contain only cross-owner flow diagrams that need more than one
-owner class to be understood. Local diagrams belong in their owner documents:
-
-- runtime or execution behavior: `docs/architecture/system/`
-- domain/source-channel behavior: `docs/architecture/domains/`
-- HTTP, tool and DTO shape: `docs/contracts/`
-- schema, source truth and read-model ownership: `docs/data/`
-- command procedures and closeout artifact rules: `docs/runbooks/`
-
-This document must not become a full diagram catalogue. When a flow is already
-clear inside one owner document, link to that owner instead of copying a diagram
-here.
-
-## Owner Map
-
-| Flow | Primary Owner Docs |
+| 流程 | 主要所有者文档 |
 | --- | --- |
-| product runtime | `docs/architecture/system/product-runtime.md`, `docs/contracts/app-api/request-lifecycle.md` |
-| online answer execution | `docs/architecture/system/execution-agent-layer.md`, `docs/architecture/system/tool-routing.md`, `docs/architecture/system/durable-runtime.md`, `docs/contracts/tool-execution.md` |
-| ingestion data plane | `docs/architecture/system/data-plane.md`, `docs/architecture/domains/official-web/architecture.md`, `docs/architecture/domains/authenticated-notice/architecture.md`, `docs/runbooks/ingestion.md` |
-| Knowledge Agent retrieval serving | `docs/architecture/system/retrieval-serving.md`, `docs/architecture/system/agentic-retrieval.md`, `docs/contracts/tool-execution.md` |
-| observability and eval loop | `docs/architecture/system/ops-observability.md`, `docs/architecture/system/langfuse.md`, `docs/architecture/system/learning-loop.md`, `docs/runbooks/eval-ragas.md` |
+| 产品运行 | `docs/architecture/system/product-runtime.md`、`docs/contracts/app-api/request-lifecycle.md` |
+| 在线回答 | `docs/architecture/system/durable-runtime.md`、`docs/architecture/system/agent-framework.md` |
+| 采集数据面 | `docs/architecture/system/data-plane.md`、领域 source 文档、`docs/runbooks/ingestion.md` |
+| Knowledge Agent 检索 | `docs/architecture/system/retrieval-serving.md`、`docs/architecture/system/agentic-retrieval.md` |
+| 可观测性与评测 | `docs/architecture/system/ops-observability.md`、`docs/architecture/system/langfuse.md` |
 
-## Product Runtime
+## 产品运行
 
 ```mermaid
 flowchart LR
-  Browser["browser"]
-  CampusWeb["campus-web\nstudent shell + docs + Q&A"]
-  OperatorWeb["operator-console-web\nprotected operator shell"]
-  AppAPI["app-api\nbrowser-facing API + operator facade"]
-  Exec["execution-control\nGo execution engine"]
-  Temporal["Temporal\nworkflow + activity queues"]
-  Projection["sanitized projections"]
+  Browser["浏览器"]
+  CampusWeb["campus-web\n学生界面"]
+  OperatorWeb["operator-console-web\n受保护运维界面"]
+  AppAPI["app-api\n产品 API"]
+  Exec["execution-control\n执行引擎"]
+  Temporal["Temporal\n工作流与 activity queue"]
+  Projection["脱敏投影"]
 
   Browser --> CampusWeb
   Browser --> OperatorWeb
@@ -63,105 +44,75 @@ flowchart LR
   Projection --> AppAPI
 ```
 
-## Online Answer Execution
+## 在线回答
 
 ```mermaid
 flowchart LR
-  Browser["browser request"]
-  AppAPI["app-api\nconversation + request admission"]
-  Exec["execution-control\nrun admission"]
+  Browser["浏览器请求"]
+  AppAPI["app-api\n会话与请求接纳"]
+  Exec["execution-control\n运行准入"]
   Temporal["Temporal workflow"]
-  Memory["memory recall activity"]
-  Agent["one agent activity\ncomplete OpenAI Agents SDK run"]
-  Final["finalization\nevidence validation + sources"]
-  Append["memory append activity"]
+  Memory["记忆召回 activity"]
+  Agent["单个 Agent Activity\n完整 Agents SDK run"]
+  Final["终结\n证据校验与来源生成"]
+  Append["记忆追加 activity"]
 
-  Browser --> AppAPI
-  AppAPI --> Exec
-  Exec --> Temporal
-  Temporal --> Memory
-  Memory --> Agent
+  Browser --> AppAPI --> Exec --> Temporal --> Memory --> Agent
   Agent --> Exec
-  Agent --> Final
-  Final --> Append
-  Append --> AppAPI
+  Agent --> Final --> Append --> AppAPI
 ```
 
-## Ingestion Data Plane
+## 采集数据面
 
 ```mermaid
 flowchart LR
-  Collector["source-channel collector"]
-  SourceBucket["source bucket\ncaptures + task input refs"]
-  API["ingestion-control-api\nadmission + registry validation"]
+  Input["带摘要固定的任务输入"]
+  API["ingestion-control\n准入与注册表校验"]
   Temporal["Temporal workflow"]
-  Worker["ingestion worker\nregistry-aware activities"]
-  Kernel["TS handlers / Rust kernels"]
-  Artifacts["source truth + projections"]
-  Consumers["app-api / execution-control /\noperator-safe reads"]
+  Collector["source-collector activity"]
+  Kernel["Rust 内核 activity"]
+  Storage["对象存储\n来源事实与结果"]
+  Projection["PostgreSQL\n有界任务投影"]
 
-  Collector --> SourceBucket
-  SourceBucket --> API
-  API --> Temporal
-  Temporal --> Worker
-  Worker --> Kernel
-  Kernel --> Artifacts
-  Artifacts --> Consumers
+  Input --> API --> Temporal
+  Temporal --> Collector --> Storage
+  Temporal --> Kernel --> Storage
+  Temporal --> Projection
 ```
 
-## Knowledge Agent Retrieval Serving
+## Knowledge Agent 检索
 
 ```mermaid
 flowchart LR
-  Primary["primary agent"]
-  Handoff["official handoff()"]
+  Primary["Primary Agent"]
+  Handoff["官方 handoff()"]
   Knowledge["Knowledge Agent"]
-  Search["internal knowledge_search"]
-  Admission["execution-control\ntarget + access admission"]
-  Retrieval["embedding + Qdrant dense/sparse RRF"]
-  Evidence["bounded evidence"]
-  Final["finalization\nvalidate refs + generate sources"]
+  Search["内部 knowledge_search"]
+  Admission["execution-control\n知识目标与访问准入"]
+  Retrieval["向量化 + Qdrant 稠密/稀疏 RRF"]
+  Evidence["有界回答证据"]
+  Final["终结\n校验引用并生成来源"]
 
-  Primary --> Handoff
-  Handoff --> Knowledge
-  Knowledge --> Search
-  Search --> Admission
-  Admission --> Retrieval
-  Retrieval --> Evidence
-  Evidence --> Knowledge
-  Knowledge --> Final
+  Primary --> Handoff --> Knowledge --> Search --> Admission --> Retrieval
+  Retrieval --> Evidence --> Knowledge --> Final
 ```
 
-## Observability And Eval Loop
+## 可观测性与评测
 
 ```mermaid
 flowchart LR
-  Runtime["real product execution + projections"]
-  OTel["OTel pipeline"]
-  Langfuse["Langfuse traces / datasets / scores"]
-  Ragas["Ragas runner"]
-  EvalAdapter["eval-langfuse adapter"]
-  Operator["operator diagnostics"]
-  Docs["contracts + runbooks"]
+  Runtime["真实产品执行与投影"]
+  OTel["OTel 管道"]
+  Langfuse["Langfuse\ntrace、dataset、score"]
+  Adapter["eval-langfuse 适配器"]
+  Ragas["Ragas 运行器"]
+  Operator["运维诊断"]
 
-  Runtime --> OTel
-  OTel --> Langfuse
-  Langfuse --> EvalAdapter
-  EvalAdapter -->|dataset-run-item link| Langfuse
-  EvalAdapter --> Ragas
-  Ragas --> EvalAdapter
-  EvalAdapter --> Langfuse
-  Langfuse --> Operator
-  Docs --> Runtime
+  Runtime --> OTel --> Langfuse
+  Langfuse --> Adapter
+  Adapter -->|dataset-run-item 关联| Langfuse
+  Adapter --> Ragas --> Adapter
+  Adapter --> Langfuse --> Operator
 ```
 
-## Exclusions
-
-The following document families intentionally do not get central diagrams here:
-
-- pure index pages, because they only route readers to owner docs
-- pure field dictionaries and executable schemas, because tooling verifies them
-  better than a diagram
-- owner-local runtime, source-channel, data or runbook flows, because those
-  diagrams belong in the owner document
-- archived or historical material recoverable through git history
+纯字段字典、所属模块内部流程和可从 Git 历史恢复的材料不进入中央流程图。

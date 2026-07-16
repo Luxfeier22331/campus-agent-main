@@ -1,47 +1,44 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: docs/contracts
 status: active
-created: 2026-04-21
-updated: 2026-06-12
 ---
 
-# Document Reader Publish Contract
+# 文档阅读器发布合同
 
 ## 文档边界
 
-本文冻结 canonical document reader 静态资源的发布 contract。
+本文定义规范文档阅读器静态资源的发布合同。
 
 它回答的是：
 
-- published reader assets 的长期真相应该放在哪里
-- 对象存储里的 reader asset package 应采用什么 object key 形式
-- campus-web docs build 如何从 app-api 导出的 manifest 消费 reader assets
-- public / restricted / historical reader 在静态交付上如何分层
+- 已发布阅读器资产保存在哪里；
+- 对象存储中的阅读器发布包使用什么对象路径；
+- `campus-web` 文档构建如何消费 `app-api` 导出的清单和阅读器资产；
+- 公开、受限和历史版本如何分开交付。
 
 它不负责：
 
-- Rspress 主题和像素级实现
-- docs search / citation 的 HTTP contract 细节
-- 某个具体 deploy script 的所有 CLI 参数
-- 对象存储 provider 的具体账号/凭据
+- Rspress 主题和像素级实现；
+- 文档搜索与引用接口细节；
+- 某个部署脚本的全部命令行参数；
+- 对象存储供应商的账号和凭据。
 
 补充约束：
 
-- canonical data-plane chain 仍以
+- 规范数据链以
   `docs/architecture/system/data-plane.md` 为准
-- campus docs 产品分层仍以
+- 文档站产品分层以
   `docs/architecture/system/document-site.md` 为准
-- browser-facing docs control-plane contract 仍以
+- 浏览器文档接口以
   `docs/contracts/app-api/document-reader.md` 为准
 
-## Core Conclusion
+## 核心结论
 
 published reader assets 的长期语义固定拆成两层：
 
-- object storage publish truth
-- campus-web static assets delivery copy
+- 对象存储发布事实；
+- campus-web 静态资产交付副本。
 
 这意味着：
 
@@ -51,14 +48,14 @@ published reader assets 的长期语义固定拆成两层：
 - 旧 `apps/public-docs` 不再是 forward product surface，且已从 active workspace 删除；
   历史脚本只能通过 git history 追溯
 
-## Publish Source Of Truth
+## 发布事实来源
 
 reader asset package 的真相源固定为：
 
 ```text
-canonical document artifacts
--> reader projection
--> object storage reader asset package
+规范文档产物
+-> 阅读器投影
+-> 对象存储中的阅读器资源包
 ```
 
 固定规则：
@@ -68,7 +65,7 @@ canonical document artifacts
 - 它不得以 repo 内 `assets/` 目录替代
 - deploy 过程可以生成本地 staging 目录，但 staging 目录必须是 gitignored 临时产物
 
-## Object Storage Key Layout
+## 对象存储键布局
 
 reader asset package 固定落在现有 document prefix 之下，不新增一套平行文档身份路径。
 
@@ -90,7 +87,7 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - `reader-assets/` 表示该版本的 reader-facing published artifact family
 - `year` 继续服从现有 derived document key 规则，不额外再塞一层 `version_slug`
 
-## Reader Asset Package Shape
+## 阅读器资产包结构
 
 每个 document version 的最小 package 固定包括：
 
@@ -122,24 +119,24 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - browser-facing route target 统一称为 reader permalink；既有 payload 中的
   `canonicalUrl` 字段名只表示兼容字段，不表示 SEO canonical URL。
 
-## Deploy-Time Sync Contract
+## 部署同步合同
 
 campus-web docs deploy pipeline 固定走：
 
 ```text
-app-api docs read model
--> deploy sync manifest
--> object storage fetch
--> campus-web generated docs/static dirs
--> campus-web Worker static assets deploy
+app-api 文档读取模型
+-> 部署同步 manifest
+-> 从对象存储读取
+-> campus-web 生成文档与静态目录
+-> 部署 campus-web Worker 静态资源
 ```
 
 这里固定拆成两个输入：
 
-- deploy sync manifest
+- 部署同步清单
   - 来自 app-owned control-plane truth
   - 负责声明“这次应发布哪些 public/admitted reader assets”
-- object storage reader asset package
+- 对象存储阅读器资产包
   - 提供真正的 bytes
 
 补充解释：
@@ -147,9 +144,9 @@ app-api docs read model
 - 对象存储输入只存在于 publish/build/deploy pipeline
 - `campus-web` browser runtime 不直连对象存储
 - browser 运行时只读取：
-  - same-origin `/api/docs/*` control-plane seam
-  - deploy sync 后落到 `/_docs/...`、`/_gated-docs/...` 的 static assets
-  - Rspress-built `/docs/*` reader pages
+  - 同源 `/api/docs/*` 控制接口
+  - 部署同步到 `/_docs/...`、`/_gated-docs/...` 的静态资产
+  - Rspress 构建的 `/docs/*` 阅读器页面
 
 固定规则：
 
@@ -160,7 +157,7 @@ app-api docs read model
 - 本地生成目录只承担 deploy staging，不承担长期真相
 - docs shell 不把对象存储当运行时数据源
 
-## Deploy Sync Manifest Shape
+## 部署同步清单结构
 
 当前 `app-api` 通过 `export-docs-reader-sync-manifest.ts` 导出文档阅读面发布
 manifest；命令环境变量为 `DOCS_READER_SYNC_MANIFEST_PATH`。旧 public-docs 导出脚本名和
@@ -244,7 +241,7 @@ deploy sync manifest 的最小逻辑形态固定为：
   hash 与 size
 - deploy pipeline 只能按 manifest 明确复制，不得目录级盲拷
 
-## Delivery Modes
+## 交付模式
 
 reader asset package 的 content format 可以统一，但 delivery mode 必须显式区分：
 
@@ -268,11 +265,11 @@ reader asset package 的 content format 可以统一，但 delivery mode 必须�
   presigned URL
 - `gated_asset` 返回给 browser 的 URL 应保持在 `campus.muc.wiki` /
   `campus-staging.mucwiki-edge.link` origin 下
-- v1 delivery 层必须先完成逐请求 `app-api` authz 校验，再读取 gated static assets
+- 当前交付层必须先完成逐请求 `app-api` 授权校验，再读取受限静态资源
 - short-lived grant token / local verification 不属于默认 contract
 - direct presigned URL 只允许作为 explicit exception，不作为默认 contract
 
-## Deploy Working Directory
+## 部署工作目录
 
 deploy 期间允许在 repo 内生成临时目录，例如：
 
@@ -288,7 +285,7 @@ deploy 期间允许在 repo 内生成临时目录，例如：
 - 这些目录只作为 build/deploy staging，不作为长期真相
 - 不允许手工把 object storage publish artifact 复制进 repo tracked `assets/`
 
-## Validation Gates
+## 校验门槛
 
 deploy sync 前必须至少验证：
 
@@ -306,7 +303,7 @@ deploy sync 前必须至少验证：
 - protected search unit 的 `canonicalUrl` 必须匹配生成的 reader route
 - protected search unit 的 `anchor` 与 `highlightRootUnitIds[]` 必须存在于 reader asset
 
-## Forbidden Shapes
+## 禁止形态
 
 - 不把 repo `assets/` 目录当长期 publish truth
 - 不让前端在 deploy 时自行遍历对象存储决定公开哪些文档
@@ -322,5 +319,5 @@ deploy sync 前必须至少验证：
 - `docs/contracts/app-api/document-reader.md`
 - `docs/data/document-reader.md`
 - `docs/architecture/system/data-plane.md`
-- `docs/decisions/adr-0002-local-minio-conventions.md`
-- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`
+- `docs/decisions/adr-0002-object-storage.md`
+- `docs/decisions/adr-0051-document-site.md`

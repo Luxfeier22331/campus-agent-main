@@ -1,44 +1,24 @@
 ---
 doc_type: index
-truth_scope: product
 owner_boundary: docs/product
 status: active
-created: 2026-06-18
-updated: 2026-07-08
 ---
 
-# Product Requirements
+# 产品需求
 
-`docs/product/` owns feature-level product requirements and launch-facing user
-experience requirements.
+`docs/product/` 保存功能级 PRD 和面向上线的用户体验要求，不保存产品定位、当前架构、
+目标架构、HTTP contract、data schema、操作步骤或活动工作状态。
 
-It does not own product positioning, current merged truth, target architecture,
-HTTP contracts, data schemas, operational procedures or active work status.
+## 当前 PRD
 
-## Active PRDs
+- [legal-consent.md](./legal-consent.md)：注册条款、隐私同意、法律页面和 sign-up admission；
+- [attachments.md](./attachments.md)：会话附件提案、message context、storage 和失败关闭；
+- [langfuse-evals.md](./langfuse-evals.md)：Langfuse trace、score、dataset、experiment 和 RAG
+  参数评测；
+- [run-context.md](./run-context.md)：run context、RAG follow-up、evidence ref reuse 和 context
+  quality eval；
+- [ops-web.md](./ops-web.md)：自托管运行概览、请求诊断和受控原始观测访问。
 
-- [legal-consent.md](./legal-consent.md)
-  - registration terms/privacy consent, legal pages and sign-up admission
-- [attachments.md](./attachments.md)
-  - proposed conversation attachment upload, per-message image/document context,
-    storage boundary and fail-closed semantics
-- [langfuse-evals.md](./langfuse-evals.md)
-  - Langfuse eval platform completion for trace evidence, score publishing,
-    datasets, experiments and RAG parameter evals
-- [run-context.md](./run-context.md)
-  - run context envelope, RAG follow-up resolution, previous evidence ref
-    reuse and context-quality evals
-- [ops-web.md](./ops-web.md)
-  - self-hosted runtime overview, request diagnosis and controlled raw
-    observability access
-
-## Use Rules
-
-- Product boundary and non-promises remain in
-  [`docs/architecture/product.md`](../architecture/product.md).
-
-- Current accepted implementation truth remains in
-  [`docs/architecture/current.md`](../architecture/current.md).
-- Runtime/API wire shape remains in [`docs/contracts/`](../contracts/).
-- A PRD may state user-facing behavior and acceptance criteria, but it must not
-  redefine architecture owners, data schemas or deployment runbooks.
+产品边界见 `docs/architecture/product.md`，当前实现见 `docs/architecture/current.md`，wire
+shape 见 `docs/contracts/`。PRD 可以定义用户行为和验收标准，但不得重新定义架构所有者、
+data schema 或部署 runbook。

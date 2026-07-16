@@ -1,33 +1,28 @@
 ---
 doc_type: contract
-truth_scope: eval
 owner_boundary: apps/app-api
 status: active
-created: 2026-04-23
-updated: 2026-07-12
 ---
-# Eval Benchmark HTTP
+# 评测基准接口
 
-## Boundary
+## 边界
 
-`POST /api/internal/evals/chat/requests` lets trusted eval automation execute
-the real app-api command path and receive request/trace correlation plus the
-safe execution result. It is not browser-facing and does not bypass
-execution-control or the Agent SDK loop.
+`POST /api/internal/evals/chat/requests` 供受信任的评测自动化执行真实 app-api 命令链，
+并取得请求、调用链关联标识及安全的执行结果。该接口不面向浏览器，也不绕过
+execution-control 或 Agent SDK 循环。
 
-## Authentication
+## 认证
 
-Required headers:
+必需请求头：
 
 - `content-type: application/json`;
 - `x-app-internal-auth` matching `APP_API_INTERNAL_SHARED_SECRET`;
 - `x-eval-user-email`.
 
-Optional `x-eval-*` identity headers may project user id/name, principal type,
-major, program, cohort, roles, departments, entitlement groups and retrieval
-visibility. Non-ASCII identity values may use `b64:<base64-utf8>`.
+可选的 `x-eval-*` 身份请求头可以提供用户标识、姓名、主体类型、专业、项目、年级、角色、
+部门、权限组和检索可见范围。非 ASCII 身份值可以使用 `b64:<base64-utf8>`。
 
-## Request
+## 请求
 
 ```json
 {
@@ -36,29 +31,25 @@ visibility. Non-ASCII identity values may use `b64:<base64-utf8>`.
 }
 ```
 
-`conversationId` and `requestedTool` are optional. `requestedTool` is the only
-trusted routing hint and is validated against the runtime registry. Scope,
-target, version, corpus, collection and retrieval controls are rejected.
+`conversationId` 和 `requestedTool` 可选。`requestedTool` 是唯一受信任的路由提示，必须
+通过运行时注册表校验。接口拒绝 scope、target、version、corpus、collection 和检索控制参数。
 
-When `knowledge_query` is forced, the SDK still performs the official handoff.
-Execution-control injects the active target list, the Knowledge Agent selects
-targets, and finalization validates evidence through the same product path.
+即使强制选择 `knowledge_query`，SDK 仍执行正式 handoff：execution-control 注入当前目标
+列表，Knowledge Agent 选择目标，终态处理通过同一产品链路验证依据。
 
-## Response
+## 响应
 
-Success returns `200`, `x-request-id`, `x-trace-id`, the normal chat `answer`
-shape and an eval-only safe `execution` projection. The execution projection may
-include status, selected tool, `resolvedTargets[]`, finalized answer, sources,
-observability and trace identity.
+成功时返回 `200`、`x-request-id`、`x-trace-id`、正常聊天 `answer` 结构，以及仅供评测
+使用的安全 `execution` 投影。该投影可以包含状态、所选工具、`resolvedTargets[]`、终态
+答案、来源、观测摘要和调用链标识。
 
-Raw prompts beyond the admitted request text, provider responses, source
-bodies, retrieval backend payloads and auth material are not returned.
+响应不得包含准入请求文本之外的原始提示词、供应商响应、来源正文、检索后端载荷或认证
+材料。
 
-## Errors
+## 错误
 
-- Missing or invalid internal auth returns `401 service_credential_required`.
-- Unsupported fields or invalid body shape return `422 validation_failed`.
-- Runtime errors use the normal correlated app-api error contract.
+- 内部认证缺失或无效：`401 service_credential_required`；
+- 字段不受支持或请求结构无效：`422 validation_failed`；
+- 运行时错误：使用带关联标识的 app-api 通用错误合同。
 
-The route returns command-path correlation directly and does not schedule the
-operator projection drain.
+该接口直接返回命令链关联信息，不调度运维投影排空任务。

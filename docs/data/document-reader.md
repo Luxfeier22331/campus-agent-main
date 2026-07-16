@@ -1,268 +1,146 @@
 ---
 doc_type: data
-truth_scope: data
 owner_boundary: data-plane/document-reader
 status: active
-created: 2026-04-21
-updated: 2026-07-08
 ---
-# Canonical Document Reader Model
+# 文档阅读器数据模型
 
 ## 文档边界
 
-本文冻结 canonical document reader 的逻辑数据模型。
+本文定义文档阅读器、文档站搜索和聊天来源卡片共享的逻辑数据模型。数据库表、HTTP 字段和
+发布包格式由各自合同维护。
 
-它回答的是：
+## 数据链位置
 
-- reader projection、published reader assets 与 canonical document truth 的关系是什么
-- docs site、docs search、chat source cards 应共享哪些核心字段
-- 哪些字段可以进入用户态路由/高亮，哪些只能停留在 retrieval/operator trace
+```text
+来源资料 -> 规范文档 -> 阅读器模型 -> 已发布阅读器资产
+来源资料 -> 规范文档 -> 文档单元 -> 分块 -> 检索索引
+```
 
-它不负责：
+阅读器和检索可以使用同一份规范文档，但阅读器正文不能来自检索分块。已发布阅读器资产是
+阅读器模型的交付结果，不是另一份文档事实。
 
-- 具体数据库表或 migration 方案
-- Qdrant payload 细节
-- source-truth/page-level schema
-- donor shell 的 UI 结构
-- source-card 人类行为说明，见 `docs/domains/source-card.md`
+## 稳定标识
 
-## Goal
+用户定位由两个标识组成：
 
-在不改写 repo canonical chain 的前提下，为文档阅读、版本切换、docs search、静态 reader asset 发布与 chat
-citation jump 提供统一的 reader-facing model。
+- `anchor`：章节内的稳定导航位置，用于 URL 锚点、目录和深链接；
+- `rootUnitId`：稳定正文块，用于搜索命中和来源卡片高亮。
 
-固定目标：
+`chunkId`、`sourceUnitKey` 和对象存储路径不能进入用户 URL。重新分块、改变搜索引擎或更换
+阅读器界面都不得改变 `docId`、`versionId`、`anchor` 和 `rootUnitId` 的含义。
 
-- canonical doc 是唯一用户阅读真相
-- public published reader content 优先以静态资产交付
-- reader 与 chat citation jump 共享同一 reader permalink 定位单位
-- version / visibility 从第一天起进入 model，而不是后补
+## 逻辑对象
 
-## Position In Canonical Chain
+### 文档标识
 
-reader model 的长期位置固定为：
+字段：`docId`、`documentSlug`、`corpus`、`collection`、`title`、`visibility`。
 
-`source truth -> declared projections -> canonical document artifacts -> reader
-projection -> published reader assets`
+- `docId` 标识一份逻辑文档；
+- `documentSlug` 是控制接口中的稳定文档标识，不保证能直接作为浏览器路径；
+- `campus-web` 可以在构建时生成 URL 安全的路径，但该路径不能替代 `documentSlug`；
+- `visibility` 是 `app-api` 已经判定的读取结果，阅读器不自行解释权限。
 
-`source truth -> declared projections -> canonical document artifacts ->
-document-units -> chunks -> index`
+### 文档版本
 
-因此：
+字段：`versionId`、`versionSlug`、`versionLabel`、`isCurrent`、`effectiveFrom`、
+`effectiveTo`、`revisionTrack`。
 
-- reader projection 的语义 owner 是 canonical document layer
-- published reader assets 是 reader projection 的发布产物，不是新的 truth layer
-- chunk/index 只是检索派生物，不是 reader truth owner
-- reader projection 可以复用 `document-units` 的稳定字段，但不等于原始 `document-units.jsonl`
-  文件逐行直出
-- document reader artifact key、canonical JSON / JSONL writer 与 source-channel
-  handoff DTO 由 TS `packages/ingest-core` 和 ingestion-control handlers 维护；Python
-  不再拥有通用 document import / registry / artifact key DTO。
+版本标识来自文档注册与版本数据。无版本链接表示当前可见版本；历史版本必须显式指定。
 
-## Core Conclusion
+### 目录节点
 
-用户态稳定定位单位固定拆成两层：
+字段：`anchor`、`title`、`depth`、`parentAnchor`、`order`。
 
-- `anchor`
-  - 稳定导航位置
-- `rootUnitId`
-  - 稳定高亮单位
+目录节点只负责章节导航，不包含正文。
 
-固定规则：
+### 阅读器章节
 
-- `anchor` 负责 URL fragment identifier、目录跳转、面包屑和版本内深链接
-- `rootUnitId` 负责 highlight query parameter、段落命中高亮和 citation jump
-- `chunkId`、`sourceUnitKey`、object-storage key 不进入用户态 model
+字段：`anchor`、`title`、`order`、`blocks[]`。
 
-## Logical Objects
+章节是可导航的阅读单位，不等于检索分块。
 
-### Document Identity
+### 阅读器正文块
 
-- `docId`
-- `documentSlug`
-- `corpus`
-- `collection`
-- `title`
-- `visibility`
+字段：`rootUnitId`、`kind`、`text`、`inlineLabels`、`highlighted`。
 
-语义：
+`kind` 只描述阅读表现，例如 `heading`、`paragraph`、`list` 或 `table`。
 
-- `docId` 表示逻辑文档身份
-- `documentSlug` 表示 document reader control-plane 中的稳定文档标识，不保证可直接作为
-  browser 静态 reader URL 路径片段
-- `campus-web` 可在 build-time 为公开 reader page 派生 URL-safe route slug；该 route slug
-  只属于 browser route / Rspress source / search permalink，不替代 `documentSlug`
-- `visibility` 表示当前 principal 可否读取，并由 `app-api` 决定
+### 阅读器固定链接
 
-### Document Version
+字段：`docId`、`versionId`、`permalink`、`anchor`、`highlightRootUnitIds[]`。
 
-- `versionId`
-- `versionSlug`
-- `versionLabel`
-- `isCurrent`
-- `effectiveFrom`
-- `effectiveTo`
-- `revisionTrack`
+文档搜索和聊天来源卡片都使用该对象作为跳转目标。既有 HTTP 字段 `canonicalUrl` 表示阅读器
+固定链接，不表示 SEO canonical URL。
 
-语义：
+### 阅读器资产
 
-- `versionId` / `versionSlug` 从第一天起进入 contract
-- `revisionTrack` 与 canonical document truth 对齐，不由 docs shell 自行发明
+字段：`deliveryMode`、`contentUrl`、`outlineUrl`、`integrity`。
 
-### Outline Node
+`deliveryMode` 当前允许 `public_static_asset` 和 `gated_asset`。该对象说明如何读取已发布
+内容，不暴露对象存储路径；内部对象位置只进入部署同步清单。
 
-- `anchor`
-- `title`
-- `depth`
-- `parentAnchor`
-- `order`
+### 来源卡片
 
-语义：
+字段：`documentTitle`、`sectionTitle`、`snippet`、`versionLabel`、`readerTarget`。
 
-- `OutlineNode` 是 reader TOC / section navigation 的最小单元
-- 它不承载正文内容
+来源卡片只包含浏览器可见摘要和阅读器目标，不包含原始检索分数、分块内部标识、供应商
+响应或来源原始内容。
 
-### Reader Section
+## 派生规则
 
-- `anchor`
-- `title`
-- `order`
-- `blocks[]`
+- `anchor` 来自规范文档单元中的 `anchor`；
+- `rootUnitId` 来自规范文档单元中的 `root_unit_id`；
+- `text` 来自规范文本，不从检索分块回写；
+- `versionId` 来自文档注册与版本数据；
+- `contentUrl` 和 `outlineUrl` 来自已发布阅读器资产清单，前端不得猜测路径。
 
-语义：
+这些字段的写入器和产物路径由 TypeScript ingestion owner 维护。Python 不拥有通用文档导入、
+注册、对象路径或跨语言 DTO。
 
-- `ReaderSection` 是一个可导航、可独立回链的阅读段
-- section 是 reader 组织单位，不等于 retrieval chunk
+## 可见性
 
-### Reader Block
+阅读器模型必须包含 `visibility`、`isCurrent` 和 `versionLabel`，但不得包含原始 JWT、会话、
+验证码、风险状态或检索权限内部字段。
 
-- `rootUnitId`
-- `kind`
-- `text`
-- `inlineLabels`
-- `highlighted`
+阅读器与聊天检索必须使用同一份版本和可见性结果。阅读器只消费 `app-api` 的准入结果，不
+自行推导用户权限。
 
-语义：
+## 搜索与问答
 
-- `ReaderBlock` 是用户看到的正文块
-- `rootUnitId` 是 citation jump / docs search jump 的稳定高亮单位
-- `kind` 只表达阅读表现，如 `heading`、`paragraph`、`list`、`table`
+文档搜索和聊天来源卡片共享：
 
-### Reader Permalink
+- 文档标题、章节标题和安全摘要；
+- 阅读器固定链接、锚点和高亮标识；
+- 版本标签。
 
-- `docId`
-- `versionId`
-- `permalink`
-- `anchor`
-- `highlightRootUnitIds[]`
+两者都不需要返回整篇阅读器正文，也不能把原始检索轨迹直接发送给浏览器。
 
-语义：
+## App API 读取模型
 
-- `ReaderPermalink` 是所有跳转类功能的统一目标对象
-- docs search result 与 chat source card 都应回收成这个形态
-- HTTP payload 中的 `canonicalUrl` 字段名语义上应读作
-  reader permalink，不是 SEO 语境的 canonical URL
+`apps/app-api` 使用 `docs.*` 保存浏览器读取所需的关系型投影：
 
-### Reader Asset Descriptor
+- `docs.collections`：文档集合名称与展示信息；
+- `docs.documents`：逻辑文档、固定标识和当前版本；
+- `docs.document_versions`：版本、当前标记、可见性和交付方式；
+- `docs.reader_assets`：已发布内容、目录和清单的读取位置；
+- `docs.search_units`：文档站搜索使用的章节命中信息。
 
-- `deliveryMode`
-- `contentUrl`
-- `outlineUrl`
-- `integrity`
+这些表不是规范文档或对象存储产物的替代品。浏览器响应不得暴露对象存储路径、来源内部
+位置或检索分块标识。
 
-语义：
+## 不负责
 
-- `ReaderAssetDescriptor` 表示某个 resolved reader permalink 的交付方式
-- `deliveryMode` 至少允许：
-  - `public_static_asset`
-  - `gated_asset`
-- 它描述“怎么拿到 published reader payload”，不重写 reader truth
-- 它不暴露对象存储 key；对象存储定位只存在于 deploy sync manifest
+- 来源资料的采集和保存；
+- 数据库迁移和物理表；
+- 检索分块、向量索引和 Qdrant 载荷；
+- 文档站界面和主题；
+- 运维观测中的原始来源记录。
 
-### Source Card
+## 相关文档
 
-- `documentTitle`
-- `sectionTitle`
-- `snippet`
-- `versionLabel`
-- `readerTarget`
-
-语义：
-
-- `SourceCard` 是 browser-safe citation object
-- 它不包含 raw retrieval 分数、raw chunk identity 或 provider/source-truth blob
-- source-card permalink / anchor / highlight 行为见
-  `docs/domains/source-card.md`
-
-## Derivation Rules
-
-reader model 与现有 canonical truth 的衔接固定如下：
-
-- `anchor`
-  - 来自 canonical `document-units` 中已稳定存在的 `anchor`
-- `rootUnitId`
-  - 来自 canonical `document-units` 中已稳定存在的 `root_unit_id`
-- `text`
-  - 来自 canonical 文本表示，而不是 chunk display text 回写
-- `versionId`
-  - 来自 document registry / version truth，不由 docs shell 自行猜测
-- `contentUrl` / `outlineUrl`
-  - 来自 published reader asset manifest，而不是由前端字符串猜路径
-
-固定约束：
-
-- 不能因为后续 chunking 改版而改变用户态跳转目标
-- 不能因为 docs UI donor 切换而改变 `docId / versionId / anchor / rootUnitId`
-- 不能因为静态发布策略变化而改变 reader permalink 语义
-
-## Visibility And Authorization Fields
-
-reader model 必须显式承载：
-
-- `visibility`
-- `isCurrent`
-- `versionLabel`
-
-但不承载：
-
-- raw JWT / raw session
-- retrieval ACL carrier 原始字段
-- captcha / challenge / risk posture
-
-固定规则：
-
-- reader admission 仍由 `app-api` 的 authz truth 决定
-- reader model 只消费结果，不解释授权
-
-## Relation To Search And Chat
-
-docs search 与 chat 共享的最小公共子集固定为：
-
-- `documentTitle`
-- `sectionTitle`
-- `snippet`
-- `permalink` / 既有 wire 字段 `canonicalUrl`
-- `anchor`
-- `highlightRootUnitIds`
-- `versionLabel`
-
-这意味着：
-
-- docs search 可以直接生成 source-card-compatible result
-- chat 可以把 supporting evidence 映射成 reader permalink，而不回退成 raw trace dump
-- 两者都不需要内嵌整篇 reader payload
-
-## Non-Goals
-
-- 不把 reader model 扩成 source-truth replay model
-- 不把 reader model 扩成 operator observability source-trace model
-- 不把 reader model 扩成 chunk/index schema
-- 不把 reader model 降成 donor static-file frontmatter 结构
-
-## 相关稳定文档
-
-- `docs/architecture/system/document-site.md`
-- `docs/architecture/system/data-plane.md`
-- `docs/domains/source-card.md`
-- `docs/policies/student-rules-chunking.md`
-- `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+- [文档站架构](../architecture/system/document-site.md)
+- [数据链](../architecture/system/data-plane.md)
+- [文档发布合同](../contracts/document-reader-publish.md)
+- [来源卡片](../domains/source-card.md)
+- [文档历史 ADR](../decisions/adr-0014-document-history.md)

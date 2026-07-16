@@ -1,43 +1,29 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-10
-updated: 2026-07-08
 ---
-# App API Chat Conversation HTTP Contract
 
-## Boundary
+# Chat HTTP 合同
 
-`apps/app-api` owns conversation truth: conversation rows, messages, run
-association, user-side archive/pin/delete state, answer feedback, and edit
-truncation. Browser surfaces, including `campus-web`, only render a UI
-projection and send commands through this contract.
+## 边界
 
-`campus-web` Q&A uses assistant-ui primitives for the browser experience, but
-the wire contract is app-api-owned durable lifecycle SSE:
-`POST /api/chat/requests/stream` creates or continues a run, and
-`GET /api/chat/runs/:runId/events/stream` resumes run event consumption.
-Conversation list/detail/search, feedback, run events and cancel remain
-explicit app-api routes; they are not a second browser-side conversation truth.
+`apps/app-api` 拥有 conversation、message、run 关联、archive/pin/delete、答案反馈和编辑截断
+真相。campus-web 只渲染投影并通过本文接口发送命令。
 
-This contract does not define provider raw token streaming, share/export, file
-upload, batch management, or local browser-only conversation truth. It does
-define app-api product-level `answer.delta` events derived from durable
-browser-visible run projections.
+默认问答使用 app-api 持久生命周期 SSE：`POST /api/chat/requests/stream` 创建或继续 run，
+`GET /api/chat/runs/:runId/events/stream` 恢复事件消费。本文不定义 provider raw token stream、
+分享导出、附件上传、批处理或浏览器本地 conversation truth。
 
-## Authorization Rules
+## 鉴权
 
-- Every route requires a resolved end-user session principal with chat access.
-- Conversation routes require current user ownership.
-- Run routes require current user ownership of the run.
-- Soft-deleted conversations are not returned by list, search, or detail routes.
-- Search never matches raw trace fields, source refs, provider internals, or
-  runtime error internals.
-- Error responses use `docs/contracts/app-api/error.md`.
+- 所有接口要求具有 chat access 的 end-user session principal；
+- conversation 和 run 只能由当前 owner 访问；
+- soft-deleted conversation 不进入列表、搜索或详情；
+- 搜索不匹配 raw trace、source ref、provider internal 或内部错误；
+- 错误使用 `error.md` 的共享 envelope。
 
-## Conversation Summary
+## 会话
 
 ```ts
 type ConversationSummary = {
@@ -50,199 +36,62 @@ type ConversationSummary = {
 };
 ```
 
-Pinned conversations sort before non-pinned conversations. Within each group,
-results sort by `updatedAt desc`.
+pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`。默认侧边栏只显示
+`active`，archived conversation 通过账号历史管理入口访问。
 
-## Browser Product Usage
+### 列表和搜索
 
-The default Q&A sidebar uses the `active` conversation view only. It presents
-new chat and chat search as primary commands, then active conversation history.
-Archived conversations are still part of the conversation management contract,
-but they are surfaced only from a deeper account settings history-management
-entry. The main sidebar and primary chat search do not expose archived
-conversations as a top-level view.
+- `GET /api/chat/conversations`
+  - `view=active|archived`，默认 `active`；
+  - `limit` 默认 50，最大 100；
+  - 不内嵌 message history。
+- `GET /api/chat/conversations/search`
+  - `q` trim 后必须非空；
+  - `view` 同列表；
+  - `limit` 默认 20，最大 50；
+  - 只搜索 title 和 message text。
 
-## Routes
+### 创建和详情
 
-### `GET /api/chat/conversations`
+- `POST /api/chat/conversations` 创建显式 draft；浏览器也可以跳过该接口，直接提交首个 prompt；
+- `GET /api/chat/conversations/:conversationId` 返回未删除详情、message 和 feedback 状态。
 
-Query:
+### 重命名、删除和状态
 
-- `view`: optional `active | archived`, default `active`
-- `limit`: optional integer, default `50`, maximum `100`
+- `PATCH /api/chat/conversations/:conversationId`：`title` trim 后长度 1 到 80；
+- `DELETE /api/chat/conversations/:conversationId`：soft delete，不等于物理清理；
+- `POST|DELETE /api/chat/conversations/:conversationId/archive`：归档或取消归档；
+- `POST|DELETE /api/chat/conversations/:conversationId/pin`：置顶或取消置顶。
 
-Response:
+### 编辑截断
 
-```ts
-type ConversationListResponse = {
-  conversations: ConversationSummary[];
-};
-```
+`DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing` 删除目标 message 及
+其后全部 message。编辑并重发是两个命令：先截断，再以修改后的 prompt 调用 stream request。
 
-Rules:
+## 答案反馈
 
-- `active` returns `deletedAt IS NULL AND archivedAt IS NULL`.
-- `archived` returns `deletedAt IS NULL AND archivedAt IS NOT NULL`.
-- The response does not embed message history.
+- `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+- `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 
-### `GET /api/chat/conversations/search`
+`vote` 允许 `helpful|unhelpful`；`reasonCodes` 只适用于 `unhelpful`。error message 不接受
+反馈。
 
-Query:
+反馈真相保存在 app-api：
 
-- `q`: required non-empty search query after trim
-- `view`: optional `active | archived`, default `active`
-- `limit`: optional integer, default `20`, maximum `50`
+- 隐藏 campus-web 入口只停止新增，不删除 `chat.message_feedback`；
+- 未登录、跨用户、非 assistant、`kind=error` 或缺少 `requestId` 必须失败关闭；
+- conversation detail 可以继续返回已有反馈；
+- 导入 Langfuse/eval 必须另有明确合同，不能隐式变成发布结论；
+- 回滚优先关闭前端入口或 Worker proxy，不删除 schema 或历史行。
 
-Response:
+## 提交问答
 
-```ts
-type ConversationSearchResponse = {
-  query: string;
-  conversations: ConversationSummary[];
-};
-```
-
-Rules:
-
-- Search matches conversation title and message text.
-- Search does not match trace IDs, source references, provider names, internal
-  errors, or observability payloads.
-
-### `POST /api/chat/conversations`
-
-Creates an explicit draft conversation.
-
-Response:
-
-```ts
-type ConversationCreateResponse = {
-  conversation: {
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    messages: [];
-  };
-};
-```
-
-The browser may skip this route and submit the first prompt directly through
-`POST /api/chat/requests/stream`.
-
-### `GET /api/chat/conversations/:conversationId`
-
-Returns the current user's non-deleted conversation detail with messages and
-message feedback state.
-
-### `PATCH /api/chat/conversations/:conversationId`
-
-Request:
-
-```ts
-type RenameConversationRequest = {
-  title: string;
-};
-```
-
-Response:
-
-```ts
-type ConversationMutationResponse = {
-  conversation: ConversationSummary;
-};
-```
-
-Rules:
-
-- `title` is trimmed server-side.
-- Trimmed title length must be 1 to 80 characters.
-- Empty or overlong titles return a validation error.
-- The server does not auto-generate a title for this command.
-
-### `DELETE /api/chat/conversations/:conversationId`
-
-Soft-deletes the conversation for the current user.
-
-Response:
-
-```ts
-type DeleteConversationResponse = {
-  deleted: true;
-};
-```
-
-Rules:
-
-- Delete sets `deletedAt`.
-- List, search, and detail do not return deleted conversations.
-- Physical retention and cleanup are separate data-retention work.
-
-### `POST /api/chat/conversations/:conversationId/archive`
-
-Archives the conversation and returns the updated summary.
-
-### `DELETE /api/chat/conversations/:conversationId/archive`
-
-Unarchives the conversation and returns the updated summary.
-
-### `POST /api/chat/conversations/:conversationId/pin`
-
-Pins the conversation and returns the updated summary.
-
-### `DELETE /api/chat/conversations/:conversationId/pin`
-
-Unpins the conversation and returns the updated summary.
-
-### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
-
-Deletes the target message and every later message in that conversation.
-
-Rules:
-
-- This route only truncates the conversation tail.
-- Editing and resending a prompt is a two-step browser command:
-  first trailing delete, then `POST /api/chat/requests/stream` with the edited
-  prompt.
-
-### `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
-
-Submits or updates answer feedback.
-
-Rules:
-
-- `vote` is `helpful | unhelpful`.
-- `reasonCodes` are only accepted for `unhelpful`.
-- Assistant error messages do not accept feedback.
-
-### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
-
-Removes the current user's feedback from the target assistant message.
-
-### Answer Feedback Rollout Posture
-
-Answer feedback is browser-facing product signal, but durable truth remains
-owned by `app-api`.
-
-Rules:
-
-- Hiding or disabling campus-web feedback UI only stops new browser entry; it
-  does not delete `chat.message_feedback` truth.
-- Feedback routes stay session-principal gated and fail closed for missing
-  login, cross-user conversations, non-assistant messages, `kind=error` messages
-  or messages without `requestId`.
-- Existing feedback can still be returned in conversation detail.
-- Using feedback for offline analysis or Langfuse / eval import requires a
-  separate explicit contract; it is not an implicit Operator Console quality or
-  release verdict surface.
-- Rollback should close the browser UI or worker route proxy first, not remove
-  the app-api schema or clear existing feedback rows.
+两个提交接口都接受 `Idempotency-Key` 请求头。`requestId` 是业务请求关联标识，`traceId`
+是运行轨迹关联标识；成功响应通过 `x-request-id` 和 `x-trace-id` 返回二者。
 
 ### `POST /api/chat/requests`
 
-Synchronous diagnostic command entry for online answer. The product default and
-release gate remain `POST /api/chat/requests/stream`.
-
-Request:
+同步诊断入口；产品默认仍为 stream。
 
 ```ts
 type ChatRequest = {
@@ -251,105 +100,72 @@ type ChatRequest = {
 };
 ```
 
-Rules:
-
-- `conversationId` is optional; when absent, app-api may lazy-create the
-  canonical conversation in the same command path.
-- `prompt` is required and trimmed server-side.
-- Public chat accepts no routing fields. App-api forwards authenticated conversation facts;
-  `execution-control` provides the admitted tool catalog and
-  `agent.primary` decides whether to call a tool.
-- Forced `knowledge_query` execution is available only through the trusted
-  internal eval contract in `eval-benchmark.md`.
-- Post-accept execution failures keep request/run correlation and return a
-  chat-visible error result; pre-accept rejections use the shared error envelope.
+- 缺少 `conversationId` 时 app-api 可以在同一路径创建 canonical conversation；
+- `prompt` trim 后必须非空；
+- public chat 不接受 routing 字段；
+- execution-control 提供已准入 tool catalog，Primary Agent 决定是否调用；
+- forced `knowledge_query` 只允许 `eval-benchmark.md` 的受信任内部评测合同；
+- accept 后的执行失败保留 request/run 关联并返回 chat-visible error；accept 前拒绝使用共享错误
+  envelope。
 
 ### `POST /api/chat/requests/stream`
 
-Creates or continues a conversation and streams lifecycle events.
+请求体与同步入口相同。该接口流式发送 app-api 产品事件，不发送 provider 或 execution-control
+原始事件。
 
-Request body is the same `ChatRequest` shape as `POST /api/chat/requests`.
+固定 browser-visible event：
 
-Rules:
+- `request.accepted`
+- `execution.queued`
+- `execution.running`
+- `answer.delta`
+- `request.completed`
+- `request.failed`
+- `request.cancelled`
 
-- This route streams app-api product lifecycle events, not provider raw token
-  events or execution-control raw events.
-- Fixed browser-visible events are `request.accepted`, `execution.queued`,
-  `execution.running`, `answer.delta`, `request.completed`, `request.failed`
-  and `request.cancelled`.
-- `request.accepted` is emitted only after app-api accept commit and durable run
-  creation; it must include `runId`.
-- `answer.delta` can only come from browser-visible durable
-  `run.answer_delta` projection. It is display-only; final answer truth remains
-  the terminal app-owned answer projection.
-- Terminal events are emitted after finalization commit. Browser disconnect
-  stops event consumption but must not cancel finalization.
-- If a stream has already emitted `answer.delta`, terminal closeout must not
-  synthesize the whole answer as another delta.
+规则：
 
-### `POST /api/chat/runs/:runId/cancel`
+- accept transaction 和 durable run 创建完成后才能发送 `request.accepted`，并携带 `runId`；
+- `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不是最终答案真相；
+- finalization transaction 完成后才能发送 terminal event；
+- 浏览器断开只停止消费，不取消 finalization；
+- 已发送 delta 后，终态不得再次把完整答案伪造成 delta。
 
-Requests cancellation for a non-terminal owned run.
+## Run 命令与读取
 
-Rules:
+### 取消
 
-- Only the owner can cancel a run.
-- Terminal runs return a typed non-retryable error.
-- A successful cancel request does not synthesize an answer.
+`POST /api/chat/runs/:runId/cancel` 只允许 owner 取消未终态 run。终态返回 typed
+non-retryable error；成功请求不生成答案。
 
-### `GET /api/chat/runs/:runId`
+### 摘要
 
-Returns the current user's durable run summary.
+`GET /api/chat/runs/:runId` 返回 owner 可见的产品 run summary，不暴露 execution-control raw
+storage。
 
-Rules:
+### 事件列表
 
-- Only the owner can read the run.
-- The response is a product runtime summary, not raw execution-control storage.
+`GET /api/chat/runs/:runId/events?after_sequence=<n>` 返回 cursor 后 browser-visible 持久事件，
+不创建请求或重新执行。
 
-### `GET /api/chat/runs/:runId/events`
+### 事件续传
 
-Returns browser-visible durable run events for an owned run.
+`GET /api/chat/runs/:runId/events/stream?after_sequence=<n>` 对既有 run 建立有界连续订阅：
 
-Query:
+- 不创建请求、不重新执行或重新 finalization；
+- 浏览器从最后已消费 sequence 恢复；
+- terminal completed 只通知完成，最终答案从 conversation detail 的 app-owned projection 读取；
+- 空流表示订阅预算内没有新事件，是合法结果。
 
-- `after_sequence`: optional non-negative integer cursor
+### 步骤轨迹
 
-Rules:
+`GET /api/chat/runs/:runId/steps` 返回 owner 可见的受控 `run`、`steps`、`attempts` 和
+`results`。它不是 execution-control raw passthrough，可用于验证 memory recall 等步骤，不依赖
+答案正文。
 
-- This route returns browser-visible events only.
-- This route does not create a new request or re-run execution.
+## 可执行来源
 
-### `GET /api/chat/runs/:runId/events/stream`
-
-Resumes browser-visible run events for an owned run.
-
-Query:
-
-- `after_sequence`: optional non-negative integer cursor
-
-Rules:
-
-- This is a bounded continuous subscription over an existing run. It does not
-  create a request, re-run execution or re-run finalization.
-- This route does not create a new request.
-- The browser resumes from the latest consumed event sequence.
-- Resume stream events are browser-facing chat lifecycle events plus
-  product-level `answer.delta` when durable `run.answer_delta` exists. Terminal
-  `request.completed` events notify completion only; the browser may refresh
-  `GET /api/chat/conversations/:conversationId` to render the app-owned answer
-  projection.
-- Empty streams are legal and mean no new browser-visible events arrived within
-  the subscription budget.
-
-### `GET /api/chat/runs/:runId/steps`
-
-Returns the current user's sanitized durable run step trajectory.
-
-Rules:
-
-- Only the owner can read the run step trajectory.
-- The response contains sanitized `steps`, `attempts`, `results`, and the
-  product `run` summary.
-- The response is not a raw execution-control `/steps` browser passthrough.
-- Browser and smoke consumers can use it to verify step-level projection such
-  as `memory.recall` completion without relying on answer text.
+- `apps/app-api/src/app/routes/chat.ts`
+- `apps/app-api/src/modules/runtime-command/`
+- `apps/app-api/src/db/schema/chat.ts`
+- `apps/campus-web/src/features/conversation/`

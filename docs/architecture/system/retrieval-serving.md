@@ -1,79 +1,62 @@
 ---
 doc_type: architecture
-truth_scope: execution
 owner_boundary: retrieval-serving
 status: active
-created: 2026-04-21
-updated: 2026-07-13
 ---
-# Retrieval Serving
+# 检索服务
 
-## Boundary
+## 边界
 
-This document owns server-side target admission and indexed evidence retrieval.
-It does not own top-level tool selection or answer synthesis.
+本文拥有 server-side target admission 和 indexed evidence retrieval，不拥有 top-level tool
+selection 或 answer synthesis。
 
-## Target Registry
+## 目标注册表
 
-`configs/runtime/query-serving-targets.v1.json` is the canonical mapping from a
-Knowledge Agent target to one `collection`, one server-owned serving config
-and one retrieval limit. The registry does not declare `corpus`.
-Current targets are:
+`configs/runtime/query-serving-targets.v1.json` 是 Knowledge Agent target 到一个 `collection`、
+一份 server-owned serving config 和一个 retrieval limit 的权威映射，不声明 `corpus`。
 
-- `student_rules`;
-- `institutional_rules`;
-- `curriculum`.
+target 是 semantic serving surface，不是 corpus alias。registry 中的 `collection` 用于校验
+所引用 serving config，不是 model-visible vector-store control。两个文件都通过验证且
+collection 一致时 target 才可用。当前 target 清单以 registry 为准；`official_web` 不在其中。
 
-Targets are semantic serving surfaces, not corpus aliases. The registry's
-`collection` is a consistency assertion against the referenced serving config,
-not a model-visible vector-store control. A target is available only when both
-files validate and the collection values match. `official_web` is absent and
-unavailable.
-
-## Search Pipeline
+## 搜索流程
 
 ```text
-run and access validation
--> target resolution
--> serving config validation
--> query embedding
--> Qdrant dense and sparse prefetch
--> Qdrant native RRF fusion
--> current/history and visibility filtering
--> bounded evidence shaping
+运行与访问校验
+-> 解析知识目标
+-> 校验查询配置
+-> 查询向量化
+-> Qdrant 稠密与稀疏预取
+-> Qdrant 原生 RRF 融合
+-> 当前或历史版本与可见性过滤
+-> 形成有界回答证据
 -> sanitized search projection
 ```
 
-This is an internal query inside the SDK Agent Activity, not a Temporal graph.
+该查询位于 SDK Agent Activity 内，不是 Temporal graph。
 
-## Current And Historical Documents
+`include_history=false` 要求 `is_current=true`；`include_history=true` 允许同 target 中已开放
+历史 document version。evidence 可以包含 source `version_id` 供引用和比较。
 
-`include_history=false` requires `is_current=true`. `include_history=true`
-allows admitted historical document versions in the same target. Returned
-evidence may include its source `version_id` for citation and comparison.
+## Serving 事实
 
-## Serving Truth
+target registry 引用的 serving config 拥有 offline `corpus` metadata、collection、Qdrant
+alias、embedding provider/model/dimension、dense/sparse vector name、retrieval enablement、
+revision track 和 visibility policy。execution-control 查询前校验完整 profile；这些字段只在
+runtime 内部使用。
 
-The target registry points to a serving config that owns offline `corpus`
-metadata, collection, Qdrant alias, embedding provider/model/dimensions,
-dense/sparse vector names, retrieval enablement, revision tracks and visibility
-policy. Execution-control validates the complete embedding/vector profile
-before querying. Those fields are runtime-internal and never tool arguments.
+index build、schema declaration 或 reader publication 都不会自动开放 target。unknown
+target、disabled config、vector mismatch 或缺失 access projection 时失败关闭。
 
-An index build, schema declaration or reader publication does not open a
-target. Unknown targets, disabled serving configs, vector mismatch or missing
-access projection fail closed.
+## Evidence 与观测
 
-## Evidence And Observability
+search 返回有界 answer-bearing evidence 和 stable ref。脱敏 projection 可以包含 target、
+history mode、search ordinal、latency、candidate/evidence count、document id 和 safe snippet。
+raw query vector、source body、credential 和 backend payload 保持内部。
 
-Search returns bounded, answer-bearing evidence and stable refs. Sanitized
-projection may include target, history mode, search ordinal, latency,
-candidate/evidence counts, document ids and safe snippets. Raw query vectors,
-source bodies, credentials and backend payloads remain internal.
-
-## Related Documents
+## 相关文档
 
 - `agentic-retrieval.md`
 - `data-plane.md`
 - `../../contracts/tool-read-model.md`
-- `../../decisions/adr-0075-target-based-knowledge-search.md`
+- `../../decisions/adr-0075-knowledge-search.md`

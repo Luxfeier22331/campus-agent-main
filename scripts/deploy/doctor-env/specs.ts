@@ -106,8 +106,6 @@ const surfaceSpecDefinitions = {
 		required_settings: {
 			object_store_endpoint: ["OBJECT_STORE_ENDPOINT"],
 			object_store_credentials: [],
-			ocr_base_url: ["OCR_BASE_URL"],
-			ocr_api_key: ["OCR_API_KEY"],
 			registry_database_url: [
 				"RAW_ASSET_REGISTRY_DATABASE_URL",
 				"DOCUMENT_REGISTRY_DATABASE_URL",

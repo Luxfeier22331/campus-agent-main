@@ -1,155 +1,95 @@
 ---
 doc_type: architecture
-truth_scope: system
 owner_boundary: temporal-worker-runtime
 status: active
-created: 2026-07-03
-updated: 2026-07-16
 ---
-# Kubernetes Runtime
+# Kubernetes 运行时
 
-## Boundary
+## 边界
 
-This document defines repository-owned Kubernetes bases for Temporal workers.
-Environment repositories own Argo CD Applications, namespaces, immutable image
-digests, Helm values, encrypted secrets, and environment-specific patches.
+本文定义源码仓拥有的 Temporal worker Kubernetes base 和与其直接相关的固定集群操作。
+环境仓拥有 Argo CD Application、namespace、immutable image digest、Helm value、encrypted
+Secret 和环境 patch。
 
-## Runtime Bases
+## 运行时基础
 
-`infra/k8s/execution-runtime/base` contains:
+`infra/k8s/execution-runtime/base` 和 `infra/k8s/ingestion-runtime/base` 分别提供 execution 与
+ingestion API/service、Temporal `WorkerDeployment`、`Connection`、
+`WorkerResourceTemplate`、ServiceAccount 和 NetworkPolicy。
 
-- execution-control and agent-runtime Services/Deployments;
-- `execution-workflow`, `execution-core`, and `execution-agent`
-  WorkerDeployments;
-- per-version KEDA ScaledObjects and PDBs;
-- the Temporal Connection, private connector, ServiceAccount, and network
-  policy resources.
+ingestion base 还包含 `ingestion-schedule-sync` PostSync Job，用于对齐固定的内部门户认证维护
+Schedule。source-collector 通过可选完整 Secret 卷读取 TGC；`infra/k8s/ops-web/base` 只为
+Ops Web 增加固定 Secret 的资源名级 `get`、`patch` 权限，不提供通用集群管理权限。
 
-`infra/k8s/ingestion-runtime/base` contains:
+具体资源清单以 Kustomize base 为准，不在架构文档复制。first-party base 不选择 namespace、
+环境 Secret 或 mutable image tag。
 
-- ingestion-control Service/Deployment;
-- `ingestion-control-worker` and `source-collector-worker`
-  WorkerDeployments;
-- per-version KEDA ScaledObjects and PDBs;
-- the Temporal Connection, ServiceAccount, and network policy resources.
+## 平台前置条件
 
-## Platform Prerequisites
+Temporal Server、Temporal Worker Controller、KEDA 和 cert-manager 必须使用相互兼容、支持
+本仓库 CRD/API 的 pinned version。具体版本和 Helm value 由环境仓维护。
 
-- Temporal Server `>= 1.29.1`
-- Temporal Worker Controller `>= 1.8.0`
-- KEDA `>= 2.20`
-- cert-manager for the WorkerResourceTemplate validating webhook
+Worker Controller 及 apply `WorkerResourceTemplate` 的 principal 必须具备管理模板中 KEDA
+`ScaledObject` 和 `PodDisruptionBudget` 的最小权限。
 
-Worker Controller Helm values must allow the two templated resource kinds:
+## Worker 版本
 
-```yaml
-workerResourceTemplate:
-  allowedResources:
-    - kinds: ["ScaledObject"]
-      apiGroups: ["keda.sh"]
-      resources: ["scaledobjects"]
-    - kinds: ["PodDisruptionBudget"]
-      apiGroups: ["policy"]
-      resources: ["poddisruptionbudgets"]
-```
-
-The user applying a WorkerResourceTemplate and the controller ServiceAccount
-must also have permission to manage the embedded resource kind.
-
-## Versioning
-
-Worker Controller hashes the pod template, creates a Kubernetes Deployment per
-build, and injects:
+Worker Controller 根据 pod template 创建每个 build 的 Kubernetes Deployment，并注入：
 
 - `TEMPORAL_DEPLOYMENT_NAME`
 - `TEMPORAL_WORKER_BUILD_ID`
 
-Go and TypeScript workers require both variables together, enable Temporal
-Worker Deployment Versioning, and use `PINNED` as the default behavior. Local
-workers may omit both variables. A partially configured pair fails startup.
+Go/TypeScript worker 要求两个变量同时存在，启用 Temporal Worker Deployment Versioning，
+默认使用 `PINNED`。local worker 可以同时省略；只提供一个变量时启动失败。
 
-The base rollout strategy is `AllAtOnce`. Old versions remain available for
-pinned work until Temporal reports them drained; the sunset policy scales them
-down after one hour and deletes their Kubernetes Deployment after 24 hours.
-Argo CD must not prune controller-created version Deployments independently.
+rollout strategy 使用 `AllAtOnce`。旧 version 在 Temporal 判定 pinned work 已 drain 前保持
+可用，再由 WorkerDeployment sunset policy 处理。Argo CD 不得独立 prune controller 创建的
+version Deployment。具体时间值属于环境配置。
 
-## Autoscaling
+## 自动扩缩
 
-WorkerResourceTemplate creates one ScaledObject per active worker build and
-injects its `scaleTargetRef`. KEDA reads Temporal backlog directly and resolves
-the deployment/build identity from the target worker environment. No
-application process, database projection, or custom autoscaler participates.
+`WorkerResourceTemplate` 为每个 active worker build 创建 `ScaledObject` 和 PDB，controller
+注入 `scaleTargetRef`。KEDA 直接读取 Temporal backlog，不经过应用进程、数据库 projection
+或 custom autoscaler。
 
-All worker pools use `minReplicaCount: 1`. This lets a new build start a poller,
-register its Worker Deployment version, and become current. Scale-to-zero is not
-the default because it can deadlock initial version registration.
+新 build 必须能够先启动 poller、注册 Worker Deployment version 并成为 current；baseline
+replica posture 和具体 trigger/threshold 由环境配置及所属 queue 需求决定。单 pod activity
+并发由 SDK worker option 限制，fleet capacity 由 KEDA replica 扩展。
 
-Execution pools scale independently by their workflow/core/agent queues.
-The ingestion-control worker uses three triggers on one versioned Deployment
-because one process polls workflow, control, and Rust-kernel queues. The source
-collector scales on its activity queue with a target backlog of one.
-Source-collector and Rust-kernel activity workers execute at most one activity
-per Pod. Browser and native-kernel concurrency therefore grows through KEDA
-replicas instead of unbounded in-process activity slots; workflow and bounded
-PostgreSQL control activities use fixed higher slot limits.
+## Desired State 所有权
 
-SDK shutdown grace stays below the Pod termination grace: 50 seconds for Go
-execution workers and ingestion-control, and 80 seconds for source-collector.
-This gives the SDK time to stop polling and drain or cancel active activities
-while leaving Kubernetes enough time to terminate the process cleanly.
+Argo CD 拥有：
 
-## Desired State
+- Connection、WorkerDeployment 和 WorkerResourceTemplate 期望状态；
+- 不可变第一方镜像 digest；
+- 环境 ConfigMap、Secret、schema job 和网络补丁；
+- 平台 chart 版本和同步顺序。
 
-Argo CD owns:
+Temporal 拥有 workflow/activity history 和 version routing；KEDA/HPA 拥有 replica count；
+PostgreSQL 只保存产品或 ingestion projection。workflow 不得部署、重启或修改自己的 worker
+resource。
 
-- Connection, WorkerDeployment, and WorkerResourceTemplate desired state;
-- immutable first-party image digests;
-- environment ConfigMaps, Secrets, schema jobs, and network patches;
-- platform chart versions and sync ordering.
+## 网络与 Secret
 
-Temporal owns workflow/activity history and version routing. KEDA/HPA owns
-replica count. PostgreSQL stores only product or ingestion projections. A
-workflow must never deploy, restart, or mutate its own worker resources.
+repository base 默认拒绝 ingress/egress，只开放 DNS 以及必需的 Temporal、PostgreSQL、
+object-store、OTLP、provider HTTPS 和 private-service traffic。环境 overlay 收窄 endpoint，
+并增加 private connector/VPC binding。浏览器不得直连 Temporal、worker、PostgreSQL 或
+object storage。
 
-Apply order is:
+database、object-store、provider、telemetry、memory 和 internal API Secret 必须分离。
+Worker Controller 注入的 version 变量是 runtime identity，不是用户管理 Secret。
 
-1. Temporal Server and namespace;
-2. KEDA and Worker Controller CRDs/controller/webhooks;
-3. encrypted secrets and database schema jobs;
-4. runtime Connections, APIs, WorkerDeployments, and WorkerResourceTemplates.
+内部门户 TGC 使用环境预创建的 `source-collector-internal-portal-auth`，key 固定为
+`sso_tgc`。source-collector 只读完整卷投影；Ops Web 只能读取和 patch 该 Secret，不能
+创建、列举、删除或操作其他 Secret。日常轮换不生成环境仓 Git 变更。
 
-## Networking And Secrets
+## Image 与发布
 
-Repository bases default-deny ingress and egress, then permit DNS and required
-Temporal, PostgreSQL, object-store, OTLP, provider HTTPS, and private-service
-traffic. Environment overlays narrow endpoints and add private connector/VPC
-bindings. Browser clients never connect directly to Temporal, workers,
-PostgreSQL, or object storage.
+源码 CI 构建、测试、扫描并发布不可变 image candidate；环境 GitOps 通过 digest 选择实际
+部署版本。mutable tag 不是部署事实。不同 runtime image 的内容和发布 lane 以 Dockerfile、
+workflow 和环境消费者为准，不在本文维护动态 inventory。
 
-Database, object-store, provider, telemetry, memory, and internal API secrets
-remain separate. Worker Controller version variables are generated runtime
-identity, not user-managed secrets.
-
-## Image Lanes
-
-- pull requests: `pr / image-scan` builds and scans affected runtime images;
-- main and manual publication: `execution-runtime-publish` publishes managed
-  immutable runtime image candidates.
-
-The ingestion lanes produce `ingestion-control`, `ingestion-control-worker`,
-and `source-collector`. The API image excludes the Rust runner and tokenizer;
-the ingestion worker image owns both. The source collector image contains only
-the Chromium headless shell used by its Temporal activities. Publication may
-produce these images before an environment declares their consumers; only a
-GitOps digest selection makes them deployable.
-
-The PR lane builds, exercises the ingestion runtime contracts, and scans
-affected images. The main publish lane attaches an OCI SBOM, scans the ARM64
-target, and pushes ARM64 images for the affected source revision. GitOps
-promotion updates only declared consumers; a mutable tag is never deployment
-truth.
-
-## Verification
+## 验证
 
 ```bash
 kubectl kustomize infra/k8s/execution-runtime/base
@@ -157,22 +97,22 @@ kubectl kustomize infra/k8s/ingestion-runtime/base
 kubeconform -strict -ignore-missing-schemas rendered.yaml
 ```
 
-Cluster verification checks WorkerDeployment status, current/target build IDs,
-WorkerResourceTemplate status, generated Deployments/ScaledObjects/PDBs, KEDA
-conditions, Temporal pollers, and draining versions.
+cluster verification 应检查 WorkerDeployment status、current/target build id、
+WorkerResourceTemplate、生成的 Deployment/ScaledObject/PDB、KEDA condition、Temporal poller
+和 draining version。
 
-## Forbidden Shapes
+## 禁止形态
 
-- static Deployments for Temporal workers;
-- static ScaledObjects tied to a single worker Deployment;
-- custom task-queue samplers or replica actuators;
-- workflow code that calls Kubernetes or Argo CD;
-- user-maintained Worker build IDs;
-- unversioned production pollers.
+- production Temporal worker 使用 static Deployment；
+- static ScaledObject 绑定单一 worker Deployment；
+- custom task-queue sampler 或 replica actuator；
+- workflow code 调用 Kubernetes 或 Argo CD；
+- 用户维护 Worker build id；
+- 未版本化的 production poller。
 
-## Related Documents
+## 相关文档
 
 - `docs/decisions/adr-0078-worker-versioning.md`
-- `docs/runbooks/temporal-self-host-operations.md`
+- `docs/runbooks/temporal.md`
 - `docs/architecture/system/durable-runtime.md`
 - `docs/architecture/system/data-plane.md`

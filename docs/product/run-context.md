@@ -1,13 +1,10 @@
 ---
 doc_type: product_requirement
-truth_scope: product
 owner_boundary: docs/product
 status: active
-created: 2026-06-21
-updated: 2026-07-13
 ---
 
-# Run Context PRD
+# 运行上下文产品需求
 
 ## 1. 背景
 
@@ -50,11 +47,11 @@ context schema owner。
 ## 4. 产品模型
 
 ```text
-app-api builds context.conversation provenance envelope
--> execution-control admits and validates the envelope
--> context.memory_recall enriches the run when enabled
--> one primary/Knowledge Agent SDK run consumes bounded model-visible slices
--> finalization writes bounded projection; Langfuse observes the sampled SDK run
+app-api 构造 context.conversation 来源载荷
+-> execution-control 准入并校验载荷
+-> 启用记忆时由 context.memory_recall 补充运行上下文
+-> 一次 Primary/Knowledge Agent SDK run 消费模型可见的有界内容
+-> finalization 写入有界投影；Langfuse 观测被采样的 SDK run
 ```
 
 不可协商原则：
@@ -93,7 +90,7 @@ app-api builds context.conversation provenance envelope
 
 系统应按 message / run 绑定和 turn sequence 处理，后完成的旧 run 不得覆盖更新的 active state。
 
-## 6. Context Source Mapping
+## 6. 上下文来源映射
 
 - current user message：来自 accepted app-api user message；model-visible。
 - recent turns：来自 app-api conversation messages；model-visible, sanitized。
@@ -111,7 +108,7 @@ app-api builds context.conversation provenance envelope
 
 ## 7. 功能要求
 
-### 7.1 Run Context Assembly
+### 7.1 运行上下文装配
 
 - app-api 必须在 accepted user message 已持久化后 assembly。
 - `context.conversation` 必须包含 conversation / message identity、current user
@@ -123,7 +120,7 @@ app-api builds context.conversation provenance envelope
 - Envelope 不包含 Hindsight recall result；recall result 由 execution-control enrichment
   产生。
 
-### 7.2 Execution Contract
+### 7.2 执行合同
 
 - Final wire shape 由 tool execution OpenAPI / schema 冻结。
 - Run context 必须纳入 execution `context.conversation`。
@@ -132,7 +129,7 @@ app-api builds context.conversation provenance envelope
 - `final_model_context.v2` schema version、recent turn count、previous evidence/tool
   result count、context/current-input character count 与 truncation reason 必须可观测。
 
-### 7.3 Model-visible Slices
+### 7.3 模型可见切片
 
 - SDK agent 输入必须使用结构化 input items 区分当前用户问题、历史对话、长期记忆、
   工具结果和 bounded evidence；这些动态数据不得拼入 developer instructions。
@@ -142,7 +139,7 @@ app-api builds context.conversation provenance envelope
 - 当前请求和历史信息冲突时，优先当前请求，并保留冲突诊断。
 - Actor / authz / trace / run metadata 不得作为自然语言上下文注入模型。
 
-### 7.4 Knowledge Follow-up Query
+### 7.4 知识追问查询
 
 - Primary/Knowledge Agent 必须从 current question、recent turns、previous evidence/tool
   summaries、session state 和 completed memory recall 理解追问。
@@ -153,7 +150,7 @@ app-api builds context.conversation provenance envelope
   repo-owned projection 记录安全 query shape/hash，trusted Langfuse trace 可观察实际
   model input/tool call。
 
-### 7.5 Previous Evidence Reuse
+### 7.5 上一轮依据复用
 
 - 追问上一轮 evidence 局部内容时，上一轮 selected evidence ref 用于指代消解和
   检索 framing。
@@ -164,7 +161,7 @@ app-api builds context.conversation provenance envelope
 - 缺 source / version / access / content hash 时不得复用。
 - Final answer 必须能区分上一轮 evidence 与本轮检索来源。
 
-### 7.6 Budget And Truncation
+### 7.6 预算与截断
 
 - execution-control 在 memory recall 与 prior-result enrichment 后执行 final model
   context character budget；当前用户输入使用独立 character limit。
@@ -176,7 +173,7 @@ app-api builds context.conversation provenance envelope
 - Provider actual token usage 进入 projection/trace；Langfuse 根据 model 与 usage
   计算成本，runtime 不维护自研 cost estimate。
 
-### 7.7 Turn Sequence
+### 7.7 轮次顺序
 
 - 每个 user message 生成独立 run。
 - Run 必须绑定 `user_message_id`。
@@ -186,7 +183,7 @@ app-api builds context.conversation provenance envelope
   active branch pointer。
 - Cancel / timeout / late completion 必须保留 projection 证据。
 
-### 7.8 Memory Merge
+### 7.8 记忆合并
 
 - Recent turns 用于当前 conversation continuity。
 - Hindsight recall 用于跨会话偏好、事实、长期状态和个性化提示。
@@ -223,10 +220,10 @@ app-api builds context.conversation provenance envelope
 
 ## 10. 相关文档
 
-- [Current Architecture](../architecture/current.md)
-- [Execution Agent Layer](../architecture/system/execution-agent-layer.md)
-- [Tool Execution Contract](../contracts/tool-execution.md)
-- [Memory Plane](../architecture/system/memory-plane.md)
-- [Retrieval Serving](../architecture/system/retrieval-serving.md)
-- [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
-- [Langfuse Eval Platform](./langfuse-evals.md)
+- [当前架构](../architecture/current.md)
+- [Agent 框架](../architecture/system/agent-framework.md)
+- [工具执行合同](../contracts/tool-execution.md)
+- [个人记忆](../architecture/system/memory-plane.md)
+- [检索服务](../architecture/system/retrieval-serving.md)
+- [Langfuse 运行合同](../contracts/langfuse-runtime.md)
+- [Langfuse 评测](./langfuse-evals.md)

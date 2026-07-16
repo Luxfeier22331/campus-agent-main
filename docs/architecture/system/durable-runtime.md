@@ -1,129 +1,96 @@
 ---
 doc_type: architecture
-truth_scope: execution
 owner_boundary: execution-control
 status: active
-created: 2026-06-04
-updated: 2026-07-11
 ---
-# Durable Agent Runtime Architecture
+# 持久 Agent 运行时
 
-## Boundary
+## 边界
 
-This document owns the durable online answer lifecycle. Temporal owns workflow
-history, task queues, retries, timers and activity dispatch. Execution-control
-owns admission and sanitized product projection. OpenAI Agents SDK owns the
-agent/tool loop inside one Agent Activity.
+本文拥有在线回答的持久生命周期。Temporal 拥有 workflow history、task queue、retry、timer
+和 activity dispatch；execution-control 拥有 admission 和脱敏产品 projection；OpenAI
+Agents SDK 拥有一个 Agent Activity 内的 agent/tool loop。
 
-## Canonical Objects
+## 主要对象
 
-- `Conversation` and `Turn` belong to app-api product truth.
-- `Run` is the product-visible durable execution object.
-- `ToolExecutionWorkflow` is the Temporal workflow for one run.
-- `RunEvent`, `RunStep`, `StepAttempt` and `StepResult` are sanitized
-  projections, not workflow history.
-- `Finalization` is the validated terminal projection consumed by app-api.
+- `Conversation`、`Turn`：app-api 产品事实；
+- `Run`：产品可见持久执行对象；
+- `ToolExecutionWorkflow`：一个 run 的 Temporal workflow；
+- `RunEvent`、`RunStep`、`StepAttempt`、`StepResult`：脱敏 projection，不是 workflow
+  history；
+- `Finalization`：app-api 消费的已验证终态 projection。
 
-PostgreSQL stores projection truth for product reads, Operator Console and
-eval. It is not the execution queue or raw Temporal history store.
+PostgreSQL 保存产品读取、operator 和 eval 所需 projection，不是 execution queue 或 raw
+Temporal history store。
 
-## Four Phases
+## 四个阶段
 
-The workflow order is fixed:
+1. **Memory Recall**：在 core activity queue 准备可选有界 personal-memory context。
+2. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 primary agent、
+   function tool、Knowledge Agent handoff、internal search 和 structured terminal output。
+3. **Finalization**：在 core queue 校验 terminal output/evidence、生成 source 并写最终
+   projection。
+4. **Memory Append**：在 core queue 提交有界 post-answer memory update。
 
-1. **Memory Recall** on the core activity queue prepares optional bounded
-   personal-memory context.
-1. **Agent Activity** on the agent queue invokes `apps/agent-runtime` once. The
-   complete OpenAI Agents SDK run includes primary-agent reasoning, SDK
-   function tools, official handoff to the Knowledge Agent, internal
-   `knowledge_search` calls and structured terminal output.
-1. **Finalization** on the core queue validates terminal output and evidence,
-   generates sources and writes the final projection.
-1. **Memory Append** on the core queue submits the bounded post-answer memory
-   update.
+SDK run 不按 tool call、handoff、retrieval、synthesis 或 grounding 拆成额外 Temporal
+activity，也不存在 workflow replan state。
 
-The SDK run is not split into Temporal activities for tool calls, handoffs,
-retrieval, synthesis or grounding. There is no workflow replan state.
+## Worker 池
 
-## Worker Pools
+- `workflow-worker`：workflow task queue；
+- `activity-worker-core`：core activity queue；
+- `activity-worker-agent`：agent activity queue。
 
-Only these WorkerDeployment roles belong to the online execution plane:
-
-- `workflow-worker` polls the workflow task queue;
-- `activity-worker-core` polls the core activity queue;
-- `activity-worker-agent` polls the agent activity queue.
-
-There is no knowledge, tool, retrieval or specialist worker/queue. Temporal
-Worker Controller versions the three roles; per-version KEDA/HPA resources may
-scale them without owning workflow state or product projection.
+不存在 knowledge/tool/retrieval/specialist worker。Temporal Worker Controller 管理版本，
+KEDA/HPA 可以按 version 扩缩，但不拥有 workflow state 或产品 projection。
 
 ## Agent Activity
 
-Execution-control supplies run identity, admitted visible tools, query-serving
-targets, provider config and bounded memory context. Agent-runtime
-returns structured terminal output, sanitized SDK tool-call summaries, usage
-and trace correlation.
+execution-control 提供 run identity、admitted visible tool、query-serving target、provider
+config 和有界 memory context。agent-runtime 返回 structured terminal output、脱敏 SDK tool
+summary、usage 和 trace correlation。
 
-SDK `maxTurns` bounds the run's agent/tool turns. It is not a retry count,
-replanning budget or additional durable phase.
+SDK `maxTurns` 只限制该 run 的 agent/tool turn，不是 retry count、replanning budget 或新
+durable phase。internal SDK tool 在 Agent Activity 生命周期内调用带认证的 execution-control
+query endpoint。
 
-Internal SDK tools use authenticated execution-control query endpoints while
-the Agent Activity is running. Their calls may produce sanitized diagnostic
-projection, but they remain inside the Agent Activity lifecycle.
+## Cancel、Timeout 与 Finalization
 
-## Cancellation And Timeout
+Temporal cancellation 和 activity deadline 必须传播到 agent-runtime 以及进行中的
+provider/internal-query call。终态 projection 区分 cancellation、timeout、fail-close 和 late
+completion；late success 不得覆盖已终态 run。
 
-Temporal cancellation and activity deadlines must propagate to agent-runtime
-and all in-flight provider/internal-query calls. Terminal projection must
-distinguish cancellation, timeout, fail-close and late completion. A late
-success cannot overwrite an already terminal run.
+Finalization 执行确定性校验：
 
-Provider calls expose bounded latency, usage, cost and abort outcome when those
-facts are available. Missing abort proof must not be represented as confirmed
-provider cancellation.
+- 校验 terminal schema 和允许 outcome；
+- 根据已开放 `knowledge_search` result 校验 evidence ref；
+- 从受信任 evidence metadata 生成 browser-safe source；
+- 拒绝缺失、伪造或 cross-target evidence；
+- 写入 final answer、source、usage 和 terminal reason。
 
-## Finalization
+Finalization 不调用 LLM、不生成第二个答案、不改写 SDK answer；app-api 也不改写。
 
-Finalization is deterministic validation and projection:
+## Streaming 与容量
 
-- validate terminal schema and allowed outcome;
-- validate evidence references against admitted `knowledge_search` results;
-- derive browser-safe source items from trusted evidence metadata;
-- reject missing, forged or cross-target evidence;
-- write final answer, sources, usage and terminal reason.
+browser streaming 订阅脱敏 run event。HTTP connection lifetime 不拥有 execution lifetime；
+reconnect 读取持久 event projection 和 current run state，不启动 fallback execution。
 
-Finalization does not invoke an LLM, synthesize a second answer or paraphrase
-the SDK answer. App-api does not rewrite the finalized answer.
+execution-control 根据 runtime readiness、policy 和 downstream budget 接纳新 run。process-local
+limit 只是保护，Temporal task queue 和 worker autoscaling posture 定义部署容量。缺失
+Temporal、projection、provider、internal query、target registry 或 evidence truth 时失败关闭。
 
-## Streaming
+## 禁止形态
 
-Browser streaming is a subscription to sanitized run events. HTTP connection
-lifetime does not own execution lifetime. Reconnect reads the durable event
-projection and current run state; it does not start a fallback execution.
+- 每个 SDK tool/specialist 一个 Temporal activity 或 queue；
+- 独立 Knowledge Agent worker；
+- deterministic workflow code 选择 semantic tool；
+- 固定 retrieval/synthesis/grounding activity graph；
+- 从 SDK turn 派生 durable replanning state；
+- app-api 或 finalization 改写答案；
+- indexed knowledge 回退到 live public web search。
 
-## Admission And Capacity
+## 相关文档
 
-Execution-control admits new runs against runtime readiness, policy and
-downstream budgets. Process-local limits are protection only. Temporal task
-queues and the worker autoscaling posture define deploy-level capacity.
-
-Missing Temporal, projection, provider, internal query, target registry or
-evidence truth fails closed. Redis and PostgreSQL rows do not replace Temporal
-queue truth.
-
-## Forbidden Shapes
-
-- one Temporal activity or queue per SDK tool/specialist
-- a separate Knowledge Agent worker
-- deterministic workflow code that selects semantic tools
-- a fixed retrieval/synthesis/grounding activity graph
-- durable replanning state derived from SDK turns
-- app-api or finalization answer rewriting
-- fallback from indexed knowledge to live public web search
-
-## Related Documents
-
-- `execution-agent-layer.md`
 - `agent-framework.md`
 - `k8s-runtime.md`
 - `../../contracts/durable-runtime.md`

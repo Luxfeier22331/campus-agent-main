@@ -162,8 +162,6 @@ function selfTestIngestionBucketScopedCredentials(): void {
 				"OBJECT_STORE_SOURCE_SECRET_KEY=source-sk",
 				"OBJECT_STORE_DERIVED_ACCESS_KEY=derived-ak",
 				"OBJECT_STORE_DERIVED_SECRET_KEY=derived-sk",
-				"OCR_BASE_URL=https://ocr.example.com/api/v2/ocr/jobs",
-				"OCR_API_KEY=ocr-secret",
 				"DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
 			].join("\n")}\n`,
 		);

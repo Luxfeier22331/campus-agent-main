@@ -1,20 +1,16 @@
 ---
 doc_type: product_requirement
-truth_scope: product
 owner_boundary: docs/product
 status: active
-created: 2026-06-18
-updated: 2026-06-22
 ---
 
-# Account Registration Legal Consent PRD
+# 注册协议产品需求
 
 ## 1. 背景
 
-校园问答已经具备账号注册、登录、聊天记录、个性化记忆、安全验证和第三方模型服务接入能力。用户在注册前需要明确知道服务边界、AI
-回答限制、个人信息处理方式和第三方服务参与情况。
-
-当前缺口是：注册链路没有强制用户阅读并同意《用户服务协议》和《隐私政策》，也没有用户可访问的协议页面。
+校园问答提供账号注册、登录、聊天记录、个性化记忆、安全验证和第三方模型服务接入。
+用户在注册前必须明确知道服务边界、AI 回答限制、个人信息处理方式和第三方服务参与情况。
+本文定义注册同意、法律页面和服务端准入必须持续满足的产品要求，不记录实现进度。
 
 ## 2. 目标
 
@@ -75,7 +71,7 @@ x-campus-legal-accepted: terms-and-privacy
 
 ### 5.3 协议页面
 
-新增用户可访问页面：
+用户可访问页面固定为：
 
 - `/legal/terms`
 - `/legal/privacy`

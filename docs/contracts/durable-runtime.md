@@ -1,182 +1,146 @@
 ---
 doc_type: contract
-truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
-created: 2026-06-04
-updated: 2026-07-13
 ---
-# Durable Runtime
+# 持久执行合同
 
-## Boundary
+## 边界
 
-This document defines the stable durable execution projection consumed by
-app-api, Operator Console and eval jobs.
+本文定义在线执行链路对 app-api、诊断与评测开放的稳定投影。Temporal workflow history
+是执行事实；PostgreSQL 中的 run、event、step、attempt 和 result 只是有界投影，不承担
+queue、lease 或 workflow engine 职责。
 
-Temporal workflow history is execution truth. PostgreSQL run, event, step,
-attempt and result records are sanitized projections; they are not a second
-queue, lease system or workflow engine.
+私有 HTTP wire 以 `docs/contracts/schemas/tool-execution.openapi.yaml` 为准，逻辑数据模型见
+`docs/data/durable-runtime.md`。
 
-The private HTTP wire is owned by
-`docs/contracts/schemas/tool-execution.openapi.yaml`. The logical projection
-schema is documented in `docs/data/durable-runtime.md`.
+## 标识符
 
-## Identifiers
+- `conversation_id`：app-api 拥有的产品会话；
+- `turn_id`：一次用户轮次；
+- `request_id`：关联 app-api 请求与执行；
+- `run_id`：一次持久回答执行；
+- `step_id`：run 内一个 workflow 阶段或投影出的内部操作；
+- `attempt_id`：一次 Temporal activity attempt 投影；
+- `trace_id`：关联已批准的观测系统，不负责生命周期事实。
 
-- `conversation_id` identifies the product conversation owned by app-api.
-- `turn_id` identifies one user turn.
-- `request_id` correlates the app-api request ledger with execution.
-- `run_id` identifies one durable answer execution.
-- `step_id` identifies one sanitized workflow phase or projected internal
-  operation within a run.
-- `attempt_id` identifies one Temporal activity attempt projection.
-- `trace_id` correlates approved observability sinks; it does not own
-  lifecycle truth.
+run 创建后标识符不可变；嵌套 execution payload 的标识必须与 run envelope 一致。
 
-Identifiers are immutable after run creation. Nested execution payload identity
-must match the run envelope.
+## 生命周期
 
-## Run Lifecycle
+run 状态只能是 `created`、`queued`、`admitted`、`running`、`streaming`、
+`completed`、`failed`、`canceled` 或 `expired`。
 
-Run status is one of:
+`completed`、`failed`、`canceled` 和 `expired` 是终态。终态不可再次迁移，迟到的 activity
+成功也不能覆盖终态。每个终态 run 都必须包含低基数 `terminal_reason`。
 
-- `created`
-- `queued`
-- `admitted`
-- `running`
-- `streaming`
-- `completed`
-- `failed`
-- `canceled`
-- `expired`
+`streaming` 只表示执行已产生可流式传输的输出，不表示浏览器连接仍然存在。
 
-`completed`, `failed`, `canceled` and `expired` are terminal. A terminal
-run cannot transition again, and late activity success cannot overwrite it.
-Every terminal run carries a low-cardinality `terminal_reason`.
+## 工作流
 
-`streaming` means the execution produced streamable output; it does not mean
-that a browser connection is still open.
+`ToolExecutionWorkflow` 按顺序调度四个阶段：
 
-## Workflow
+1. core activity queue 上的 Memory Recall；
+1. agent activity queue 上的一次 Agent Activity；
+1. core activity queue 上的 Finalization；
+1. core activity queue 上的 Memory Append。
 
-`ToolExecutionWorkflow` dispatches exactly four ordered phases:
+Agent Activity 承载一次完整的 OpenAI Agents SDK run。Primary Agent 决策、正式 handoff、
+Knowledge Agent 执行和 SDK function-tool call 都留在该 activity 内。系统不存在独立 knowledge
+worker、specialist queue、typed-tool activity、agent-as-tool activity、Go RAG graph 或持久
+replan 阶段。
 
-1. Memory Recall on the core activity queue.
-1. One Agent Activity on the agent activity queue.
-1. Finalization on the core activity queue.
-1. Memory Append on the core activity queue.
+## Agent 与知识投影
 
-The Agent Activity owns one complete OpenAI Agents SDK run. Primary Agent
-decisions, official handoffs, Knowledge Agent execution and SDK function-tool
-calls stay inside that activity.
+Agent Activity 只能投影有界事实，例如：
 
-There is no knowledge worker, specialist queue, typed-tool activity,
-agent-as-tool activity, Go RAG graph or durable replan phase.
+- active/selected agent 与 tool 标识；
+- SDK handoff 和 function-tool 摘要；
+- 可公开的 provider/model 标识及 input/output/cached token 用量；
+- terminal envelope 和 provider response ref；
+- trace 关联与阶段耗时；
+- `agent_runtime_prompt_trace.v1` 的 prompt id 与 hash。
 
-## Agent And Knowledge Projection
+`final_model_context.v2` 只向持久投影提供数量、字符数和截断诊断；
+`truncation_summary.v2` 不保存被删除的内容。模型费用由 Langfuse 计算，不写入 PostgreSQL
+attempt 字段。
 
-The Agent Activity may project only bounded facts such as:
+`knowledge_query` 是模型可见的 handoff；Knowledge Agent 唯一的内部工具是
+`knowledge_search`。execution-control 按 run 绑定的 target 与访问上下文准入每次搜索，只能
+投影有界 result ref、outcome 和 source identity。
 
-- active and selected agent/tool identities;
-- SDK handoff and function-tool summaries;
-- provider/model-safe identity and input/output/cached token usage;
-- terminal envelope and provider response reference;
-- trace correlation and stage timing;
-- `agent_runtime_prompt_trace.v1` prompt id and hashes.
+原始 prompt、SDK state、tool arguments、vector、Qdrant payload、provider response 和无限制
+snippet 不属于持久投影。
 
-`final_model_context.v2` contributes only count/character/truncation diagnostics
-to durable projection. `truncation_summary.v2` never stores dropped content.
-Model cost is derived in Langfuse rather than written as a PostgreSQL attempt
-field.
+## 终态处理
 
-`knowledge_query` is the model-visible handoff target. The Knowledge Agent's
-only internal tool is `knowledge_search`. Each search call is admitted by
-execution-control against the run-bound target/access context and may project a bounded
-result reference, outcome and source identity.
+Finalization 校验 SDK terminal envelope 和 evidence closure，不调用模型，也不改写答案。
+对于有证据支持的回答，execution-control 将每个终态 evidence ref 与可信
+`knowledge_search` result 对照并生成顶层 `result.sources`；伪造、缺失或冲突的引用会使 run
+失败。
 
-Raw prompts, SDK state, tool arguments, vectors, Qdrant payloads, provider
-responses and unrestricted snippets are not durable projection data.
+最终响应可以包含：
 
-## Finalization
+- answer、status、follow-up 和 error；
+- 已搜索的 `resolved_targets[]`；
+- selected tool 及列表；
+- 已确认的 session update；
+- 顶层可信 source；
+- workflow trace summary、stage timing 和 trace 关联；
+- model/provider 标识与 `agent_runtime_prompt_trace.v1`。
 
-Finalization validates the SDK terminal envelope and evidence closure. It does
-not call a model or rewrite the answer.
+app-api 可以把已验证 source 转换为浏览器 source card 或诊断摘要，但不得根据缺失数据推断
+retrieval candidate、grounding verdict 或 quality score。
 
-For an evidence-backed answer, execution-control resolves every terminal
-evidence reference against trusted `knowledge_search` results and creates
-top-level `result.sources`. Forged, missing or conflicting evidence references
-fail the run.
+## Event、Step 与 Result
 
-The final response may include:
+同一 run 内的 event 按单调递增 sequence 排序。step、attempt 和 result 投影记录阶段状态、
+Temporal queue/worker 标识，以及 retry、cancel、timeout 和 fail-close 结果。
 
-- answer, status, follow-up and error fields;
-- searched `resolved_targets[]`;
-- selected tool and selected tool list;
-- confirmed session updates;
-- top-level trusted sources;
-- workflow trace summary, stage timing and trace correlation;
-- model/provider identity and `agent_runtime_prompt_trace.v1`.
+四个 workflow 阶段可以表示为 step。SDK 内部 handoff 与 function call 可以形成有界摘要或
+子投影，但不得形成第二套持久执行图。消费者读取这些投影或基于它们形成的 read model，不回放
+Temporal history 内部数据。
 
-App-api may normalize validated sources into browser source cards and safe
-operator source summaries. It must not infer retrieval candidates, grounding
-verdicts or quality scores from missing runtime data.
+## 队列
 
-## Events And Steps
+正式 queue 与 WorkerDeployment 角色为：
 
-Run events are ordered by a monotonic sequence within one run. Step, attempt and
-result projections attribute phase status, Temporal queue/worker identity,
-retry, cancellation, timeout and fail-close outcomes.
+- `workflow-worker` 轮询 workflow task queue；
+- `activity-worker-core` 轮询 core activity task queue；
+- `activity-worker-agent` 轮询 agent activity task queue。
 
-The four workflow phases may be represented as steps. SDK-internal handoffs and
-function calls may appear as sanitized summaries or child projections, but
-must not create a second durable graph.
+PostgreSQL row 和进程内 queue 都不是调度事实。不得新增 knowledge、retrieval、tool 或
+specialist task queue。
 
-Event and result payloads contain bounded refs and summaries only. Browser,
-operator and eval consumers read these projections or derived read models, not
-Temporal history internals.
+## 取消与重试
 
-## Queue Contract
+Temporal 负责 activity retry、timeout、heartbeat 与 cancellation 语义；execution-control
+负责取消准入和终态投影。
 
-Canonical queues and WorkerDeployment roles are:
+- retry 增加 Temporal/activity attempt 投影；
+- 显式取消以 `canceled` 结束 run；
+- timeout 使用允许的 timeout reason 结束 run；
+- 迟到完成记录为 ignored，不能重新打开 run；
+- 面向用户的文本不能替代 terminal 或 fail-close code。
 
-- the workflow task queue polled by `workflow-worker`;
-- the core activity task queue polled by `activity-worker-core`;
-- the agent activity task queue polled by `activity-worker-agent`.
+Agent runtime 终态错误在有界失败投影中保留
+`context_budget_exceeded`、`agent_deadline_exceeded`、`max_turns_exceeded`、
+`provider_unavailable`、`tool_execution_failed` 或 `run_failed`。
 
-PostgreSQL rows and process-local queues are not canonical dispatch truth.
-Do not add knowledge, retrieval, tool or specialist task queues.
+## 数据安全
 
-## Cancellation And Retry
+持久投影不得包含：
 
-Temporal owns activity retry, timeout, heartbeat and cancellation semantics.
-Execution-control owns cancel admission and terminal projection.
+- 原始 prompt、transcript 或 provider request/response；
+- 原始 model/tool output payload；
+- 原始 memory payload 或 vendor memory id；
+- auth token、cookie、credential 或宽泛 identity snapshot；
+- 原始 source body、vector record 或 object-store bytes；
+- 本地文件路径。
 
-- retry increments the Temporal/activity attempt projection;
-- explicit cancellation terminates the run with `canceled`;
-- timeout terminates with an approved timeout reason;
-- late completion is recorded as ignored and cannot reopen the run;
-- human-facing text cannot replace terminal or fail-close codes.
+## 验证
 
-Agent runtime terminal errors preserve one of
-`context_budget_exceeded`, `agent_deadline_exceeded`, `max_turns_exceeded`,
-`provider_unavailable`, `tool_execution_failed` or `run_failed` in the bounded
-failure projection.
-
-## Data Safety
-
-Durable projections must not contain:
-
-- raw prompt, transcript or provider request/response;
-- raw model or tool output payload;
-- raw memory payload or vendor memory id;
-- auth token, cookie, credential or broad identity snapshot;
-- raw source body, vector record or object-store bytes;
-- local filesystem path.
-
-## Verification
-
-Use the contract and Go lanes defined in
-`docs/reference/testing-and-verification-lanes.md`:
+按 `docs/reference/verification.md` 执行合同与 Go 检查：
 
 ```bash
 pnpm contracts:generate

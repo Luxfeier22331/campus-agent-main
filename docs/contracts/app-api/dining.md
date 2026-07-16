@@ -1,16 +1,13 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-08
-updated: 2026-07-02
 ---
-# App API Dining HTTP Contract
+# App API 食堂 HTTP 合同
 
 ## 文档边界
 
-本文冻结 `apps/app-api` 面向 `campus-web` 的学生端 dining public contract。
+本文定义 `apps/app-api` 面向 `campus-web` 的学生端食堂公开接口。
 
 它补充：
 
@@ -25,7 +22,7 @@ audit、source observation 与 operator 工作台字段属于
 Floorplan SVG owner、anchor 和 manifest lifecycle 见
 `docs/architecture/domains/dining/architecture.md`。
 
-## Implemented Endpoints
+## 已实现接口
 
 ```http
 GET /api/dining/halls
@@ -33,7 +30,7 @@ GET /api/dining/halls/:hallId/floors/:floorId
 GET /api/dining/halls/:hallId/reviews
 ```
 
-## Source And Failure Boundary
+## 来源与失败边界
 
 学生端 dining routes 只读取 latest published dining release snapshot。
 `@campus-agent/dining/floorplans` 的 SVG/manifest 或
@@ -58,7 +55,7 @@ GET /api/dining/halls/:hallId/reviews
 - 当前评价投影必须先按 `校区 + 食堂 + 档口` 解析到已发布 catalog 的
   `hallId`、`stallProfileId` 与 `windowId`；不一致记录不得猜测映射到其他校区、食堂或档口。
 
-## Hall Summary
+## 食堂摘要
 
 ### `GET /api/dining/halls`
 
@@ -89,7 +86,7 @@ GET /api/dining/halls/:hallId/reviews
 - `floors` 是历史字段名；学生端把它解释为可选地图列表。单地图食堂只返回
   一个 `{floorId, label}`，前端不展示楼层切换，也不把 `label` 当成学生端楼层信息。
 
-## Floor Projection
+## 楼层投影
 
 ### `GET /api/dining/halls/:hallId/floors/:floorId`
 
@@ -173,7 +170,7 @@ GET /api/dining/halls/:hallId/reviews
   缺失价格必须保留为 `null`；app-api 和 campus-web 都不得合成占位价格。
 - `filters.tags` 来自当前 published floor projection，不由前端硬编码。
 
-## Hall Reviews
+## 食堂评价
 
 ### `GET /api/dining/halls/:hallId/reviews`
 
@@ -217,7 +214,7 @@ GET /api/dining/halls/:hallId/reviews
   token、附件下载 URL 或 operator-only source 字段。
 - hall 不存在时返回 typed `404`。
 
-## UI Consumption Rules
+## 界面消费规则
 
 `campus-web` 可以：
 

@@ -1,307 +1,107 @@
 ---
 doc_type: data
-truth_scope: data
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-02
-updated: 2026-06-03
 ---
-# Identity Platform Schema
 
-## 文档边界
+# 身份平台数据
 
-本文冻结 MUC Wiki Identity Platform 的 logical data ownership。
+## 边界
 
-它区分：
+本文说明 auth adapter table、app-owned identity truth、产品 projection 和 federation policy 的
+逻辑所有权。精确字段与索引由 `apps/app-api/src/db/schema/identity.ts`、`auth.ts`、migration
+和测试维护。
 
-- auth runtime adapter tables
-- app-owned identity product truth
-- projection/read-model fields exposed to campus and other first-party surfaces
-- federation client policy data
+## Schema 分组
 
-本文不替代 migration files、Better Auth adapter schema docs 或 physical table DDL。
+- `app_auth.*`：Better Auth 凭据、session、OAuth 和 JWKS 运行时；
+- `identity.accounts`：产品账号生命周期；
+- `identity.identity_profiles`：校园身份与声明版本；
+- `identity.access_snapshots`：访问与权限投影；
+- `identity.preference_settings`：账号级偏好；
+- `identity.federation_*`：客户端、声明策略和用户授权。
 
-Current implementation note:
+`identity` 是当前物理 schema 名。改变名称可以另行决策，但 app-owned 与 adapter-owned 分层
+不得消失。
 
-- `apps/app-api/src/db/schema/identity.ts` is the first physical
-  materialization of the app-owned `identity.*` schema family.
-- `apps/app-api/drizzle/0000_initial.sql` creates the initial
-  `identity.accounts`, `identity.identity_profiles`,
-  `identity.access_snapshots`, `identity.preference_settings`,
-  `identity.federation_clients`, `identity.federation_claims_policies` and
-  `identity.federation_user_grants` tables.
-- The first account-center projection may derive account/session fields from
-  the resolved Better Auth principal and reads only profile memory summary from
-  `profile.*`.
-- `PATCH /api/me/preferences` is the first explicit identity materialization
-  write path. It updates `profile.memory_settings` and, in the same app-owned
-  write boundary, materializes `identity.accounts`,
-  `identity.identity_profiles`, `identity.preference_settings` and
-  `identity.access_snapshots`.
-- Better Auth adapter rows and existing `profile.memory_items` are not migrated
-  wholesale into `identity.*` in this batch.
-- Federation runtime materializes the controlled `muc-wiki` client into
-  `identity.federation_*` product policy tables and Better Auth-owned
-  `app_auth.oauthClient` through app-api provision scripts.
+## 认证适配器
 
-## Schema Families
+`app_auth` 包括 user、session、account、verification、OAuth client/token/consent 和 JWKS。
 
-Long-term logical families:
-
-- `app_auth.*`
-  - auth runtime adapter tables currently owned by Better Auth
-- `identity.account_*`
-  - app-owned account lifecycle and product identity records
-- `identity.identity_*`
-  - verified campus identity and claims versions
-- `identity.access_*`
-  - entitlements, app availability and authorization projection snapshots
-- `identity.preference_*`
-  - user preferences and profile memory summary ownership
-- `identity.federation_*`
-  - client registry, claims policy, user grants and relying-party connections
-
-The default physical schema name is `identity`. Changing it requires an ADR or
-contract update; the ownership split must remain.
-
-## Auth Runtime Adapter Tables
-
-Current auth runtime tables live under `app_auth.*` and are Better Auth-owned.
-
-Current logical set:
-
-- `app_auth.user`
-- `app_auth.session`
-- `app_auth.account`
-- `app_auth.verification`
-- `app_auth.oauthClient`
-- `app_auth.oauthRefreshToken`
-- `app_auth.oauthAccessToken`
-- `app_auth.oauthConsent`
-- `app_auth.jwks`
-
-Rules:
-
-- Better Auth internal column shape is not the product account schema.
-- App-domain migrations must not hand-edit Better Auth internal columns unless
-  the adapter contract explicitly supports it.
-- Runtime code may map Better Auth user/session into app-owned account/session
-  projection.
-- Product contracts must not expose raw Better Auth rows.
-
-Better Auth OAuth/JWT tables remain runtime substrate. Federation product truth
-is not read from these rows directly; the app-owned `identity.federation_*`
-tables define client policy, allowed scopes, allowed claims and grant posture.
+- Better Auth internal column 不是产品 account schema；
+- 产品 migration 不直接修改 adapter internal column；
+- runtime 可以将 user/session 映射为 app-owned projection；
+- HTTP 不暴露 raw row、token 或 credential；
+- federation runtime row 不替代 app-owned client/claim policy。
 
 ## `identity.accounts`
 
-Purpose:
+保存 account ID、primary email、display name、status 和时间。status 允许 `active`、
+`suspended`、`deleted`、`pending_recovery`。
 
-- canonical app-owned account lifecycle truth
-- stable account identity independent of current session runtime
-
-Minimum fields:
-
-- `account_id`
-- `primary_email`
-- `display_name`
-- `status`
-- `created_at`
-- `updated_at`
-
-Allowed `status` values:
-
-- `active`
-- `suspended`
-- `deleted`
-- `pending_recovery`
-
-Rules:
-
-- `account_id` may initially match Better Auth user id, but product contracts
-  refer to it as app-owned account id.
-- Account status does not grant or deny restricted content by itself; access
-  remains in entitlement/policy data.
-- Deletion/suspension lifecycle must be reflected in session admission and
-  federation token issuance.
+account ID 可以暂时与 Better Auth user ID 相同，但合同将其视为 app-owned identity。account
+status 不直接决定 restricted content，access 由 entitlement/policy 判断。
 
 ## `identity.identity_profiles`
 
-Purpose:
+保存 account/principal identity、principal type、verification status、claims version、campus
+attribute 和有效期。
 
-- verified campus identity and principal-class truth
+end-user principal type 为 `campus_member`、`student`、`staff`、`faculty`；operator 和
+service 是独立 runtime principal class，不折叠为普通用户 profile。
 
-Minimum fields:
-
-- `account_id`
-- `principal_id`
-- `principal_type`
-- `verification_status`
-- `claims_version`
-- `campus_attributes_json`
-- `verified_at`
-- `expires_at`
-- `updated_at`
-
-Allowed end-user `principal_type` values align with app-api campus end-user
-principal projection:
-
-- `campus_member`
-- `student`
-- `staff`
-- `faculty`
-
-`operator` and `service` remain valid app principal classes in the runtime, but
-they must not be silently folded into ordinary end-user identity profile rows.
-
-Allowed `verification_status` values:
-
-- `unverified`
-- `verified`
-- `expired`
-- `manual_review`
-
-Rules:
-
-- Better Auth sign-in alone does not write `verification_status=verified`.
-- Campus attributes must come from accepted identity source, directory sync or
-  entitlement snapshot.
-- Operator and service identity must not be conflated with end-user campus
-  identity.
+verification status 为 `unverified`、`verified`、`expired` 或 `manual_review`。Better Auth
+登录本身不能写 verified；campus attribute 必须来自接受的 identity source 或 entitlement
+snapshot。
 
 ## `identity.access_snapshots`
 
-Purpose:
+保存 account/principal、entitlement group、available app、permission、restricted-surface
+posture、policy version 和有效期。
 
-- compact app-owned access / entitlement projection snapshot
-
-Minimum fields:
-
-- `snapshot_id`
-- `account_id`
-- `principal_id`
-- `entitlement_groups_json`
-- `available_apps_json`
-- `permissions_json`
-- `restricted_surfaces_ready`
-- `policy_projection_version`
-- `created_at`
-- `expires_at`
-
-Rules:
-
-- Snapshot rows are projection material, not the canonical policy store itself.
-- Profile memory and preferences cannot mutate entitlement groups.
-- Execution and retrieval receive compact projection, not raw policy store
-  objects.
+snapshot 是有界 projection，不是 policy store。memory/preference 不能修改 entitlement。
+execution/retrieval 只消费 projection，不读取 raw policy object。
 
 ## `identity.preference_settings`
 
-Purpose:
+保存个人记忆开关、显式界面偏好和更新时间。`profile.memory_settings` 与
+`profile.memory_items` 保存用户可见的显式个人资料记忆及其产品设置；Hindsight 仍拥有在线
+记忆提取、合并和召回。`identity.*` 只保存账号中心需要的读取结果。
 
-- account-level preferences not owned by auth runtime
+偏好只能影响用户体验和个性化，不能授予访问权限或默认改变联邦身份声明。
 
-Minimum fields:
+`profile.memory_items` 只接受受控键和值，不得表达授权、权限或文档可见性。删除项目时必须
+通过 execution-control 同步删除对应 Hindsight 文档；关闭个人记忆只停止后续执行使用，
+不删除现有项目。
 
-- `account_id`
-- `profile_memory_enabled`
-- `ui_preferences_json`
-- `updated_at`
+## 联邦身份
 
-Rules:
+### `identity.federation_clients`
 
-- Existing `profile.memory_settings` and `profile.memory_items` remain the
-  current profile memory durable truth until an implementation explicitly
-  migrates or aliases them.
-- The current scoped preference mutation writes `profile.memory_settings` and
-  mirrors the account-level preference into `identity.preference_settings` as
-  Identity Platform product materialization.
-- Preferences affect UX and personalization only.
-- Preferences cannot grant access or alter federation claims by default.
+保存 controlled client ID/type/name、redirect 和 post-logout allowlist、scope、claim policy、
+consent policy 和 enabled 状态。首个 `muc-wiki` client 由 app-api provision script 创建。
+client secret 不进入该文档、fixture 或公开 config。
 
-## `identity.federation_clients`
+### `identity.federation_claims_policies`
 
-Purpose:
+保存 allowed scope/claim 与 campus claim namespace。raw entitlement、memory、chat、operator
+secret 和 service principal material 不能成为通用 claim。
 
-- controlled relying-party client registry
+### `identity.federation_user_grants`
 
-Minimum fields:
+保存 account/client、granted scope、grant state 和 revoke 时间。grant 不替代 client policy 或
+session admission；revoke 也不会自动删除 MediaWiki 本地 account linking。
 
-- `client_id`
-- `client_type`
-- `client_name`
-- `redirect_uris_json`
-- `post_logout_redirect_uris_json`
-- `allowed_scopes_json`
-- `claims_policy_id`
-- `consent_policy`
-- `enabled`
-- `created_at`
-- `updated_at`
+## 物化
 
-Rules:
+registration 和 account-center lifecycle 可以从 resolved principal materialize app-owned account、
+profile、preference 和 access snapshot。scoped preference mutation 同时更新 memory setting 和
+identity product projection。
 
-- First implementation uses controlled/static client registration.
-- The first `muc-wiki` client policy is materialized by
-  `apps/app-api/ops/identity/provision-muc-wiki-federation-client.ts`.
-- Browser shells and MediaWiki do not create, mutate or own federation client
-  policy.
-- Client secret values are secret material and must not be committed as schema
-  fixture data or documentation examples.
-- Dynamic public client registration is out of scope until a new ADR accepts it.
+不得把全部 Better Auth row 或 profile memory value 批量复制进 `identity.*`。
 
-## `identity.federation_claims_policies`
+## 相关文档
 
-Purpose:
-
-- named policy for which claims each relying party may receive
-
-Minimum fields:
-
-- `claims_policy_id`
-- `allowed_scopes_json`
-- `allowed_claims_json`
-- `campus_claim_namespace_json`
-- `updated_at`
-
-Rules:
-
-- Raw entitlement snapshots, profile memory, chat history, operator secrets and
-  service principal material must not be emitted as generic relying-party claims.
-- Campus-specific claims must be namespaced.
-
-## `identity.federation_user_grants`
-
-Purpose:
-
-- user-facing record of relying-party consent or trusted-client grant state
-
-Minimum fields:
-
-- `grant_id`
-- `account_id`
-- `client_id`
-- `granted_scopes_json`
-- `grant_state`
-- `created_at`
-- `revoked_at`
-
-Rules:
-
-- Grant state is not a substitute for client policy or account/session
-  admission.
-- Revoking a grant does not mutate MediaWiki-local account linking by itself.
-
-## Relationship To Current `profile.*`
-
-Current profile memory tables remain under `profile.*`. Identity Platform may
-project a profile-memory enabled flag and count for account center UX, but it
-must not duplicate or reinterpret profile memory values as identity, access or
-federation truth.
-
-## Related Documents
-
-- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
-- `docs/architecture/system/identity-platform.md`
-- `docs/contracts/app-api/identity.md`
-- `docs/contracts/app-api/federation.md`
+- `../architecture/system/identity-platform.md`
+- `../contracts/app-api/identity.md`
+- `../contracts/app-api/federation.md`

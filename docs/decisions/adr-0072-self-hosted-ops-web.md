@@ -1,94 +1,52 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0072
 status: accepted
-created: 2026-07-11
-updated: 2026-07-16
-supersedes:
-  - ADR-0055 single implementation surface for privileged runtime diagnosis
+partially_supersedes: ADR-0055
 ---
 
-# ADR-0072 Self-Hosted Ops Web
+# ADR-0072：自托管 Ops Web
 
-## Context
+## 背景
 
-`operator-console-web` runs on Cloudflare Workers and calls allowlisted `app-api` routes. That
-boundary is appropriate for provider configuration and business operations, but complete runtime
-diagnosis needs self-hosted PostgreSQL summaries, cluster health checks and locally retained logs
-and traces.
+`operator-console-web` 运行在 Cloudflare Workers，通过白名单 app-api 接口管理 provider 和
+业务操作。完整运行诊断需要读取自托管 PostgreSQL 摘要、Temporal 状态和本地日志/trace。
 
-Sending those reads through `app-api` would widen a browser-facing Worker API, duplicate an
-internal observability backend and move database and OpenObserve credentials into the wrong
-runtime. Letting the browser query the data sources directly would expose privileged credentials
-and arbitrary query capability.
+如果让 app-api 代理这些读取，会扩大 browser-facing Worker API 并把内部 credential 放到错误
+边界；如果浏览器直连数据源，则会暴露 credential 和任意查询能力。
 
-## Decision
+## 决策
 
-Add `apps/ops-web` as a separate, self-hosted operations application. It is read-only by default
-and may expose only repository-documented, resource-bounded runtime operations.
+新增 `apps/ops-web` 作为独立、自托管、默认只读的运行诊断应用：
 
-- One Node/Hono process serves the React application and its fixed `/api/ops/*` endpoints.
-- The server reads only allowlisted columns from turn dispatches, user messages, agent runs and
-  observability facts. Its PostgreSQL account writes only raw observability read audits.
-- The only non-diagnostic operations are internal-portal credential rotation and resuming its
-  fixed maintenance Schedule. A human operator may replace `sso_tgc` in the fixed
-  `source-collector-internal-portal-auth` Secret and resume
-  `internal-portal-auth-maintenance` through ingestion-control. Ops Web cannot create, list,
-  delete or update other Secrets, select another Schedule, trigger a Workflow or return the
-  credential.
-- The server queries fixed OpenObserve streams with request-derived identifiers and bounded time
-  windows. The browser cannot submit SQL or choose streams.
-- Cloudflare Access plus application allowlists protect all Ops APIs. Raw logs and traces require
-  a second, narrower allowlist.
-- Temporal UI and Langfuse UI remain the complete native views for their systems. Sentry and Axiom
-  remain external destinations where configured.
-- `operator-console-web` remains the Worker surface for configuration and business operations; it
-  does not proxy Ops Web or inherit its database and OpenObserve access.
+- 一个 Node/Hono 进程同时提供 React 静态应用和固定 `/api/ops/*`；
+- 服务端只读取白名单 PostgreSQL 字段，数据库账号只写原始观测读取审计；
+- 唯一非诊断操作是人员替换固定 `source-collector-internal-portal-auth/sso_tgc`，以及通过
+  ingestion-control 恢复固定 `internal-portal-auth-maintenance` Schedule；
+- Ops Web 不得创建、列举或删除 Secret，不得选择其他 Schedule、立即触发工作流或返回凭据；
+- OpenObserve 查询固定 stream、关联标识和有界时间窗口，浏览器不能提交 SQL 或选择 stream；
+- Cloudflare Access 与应用 allowlist 保护全部接口，原始日志/trace 使用更窄权限；
+- Temporal UI、Langfuse UI 保留各自完整能力；
+- Operator Console 继续负责配置和业务操作，不代理 Ops Web，也不继承其 credential。
 
-ADR-0067 continues to govern `app-api` and the Worker Operator Console: they do not mirror external
-sink bodies or query raw sinks. This ADR does not broaden that path. It creates a separate privileged
-self-hosted boundary for runtime diagnosis and explicitly listed cluster-local operations.
+ADR-0067 对 app-api/Operator Console 的限制保持不变。本文只增加独立诊断边界和明确列出的
+集群内操作，不把 Ops Web 变成通用控制面或产品后端。
 
-ADR-0055 continues to govern the unified business operations concept and retirement of duplicate
-domain back offices. This ADR supersedes only the assumption that privileged runtime diagnosis must
-share the same Worker implementation.
+源码仓拥有应用、image 和 namespace-neutral base；环境仓拥有访问坐标、配置、secret、network
+policy、ingress 和不可变部署选择。
 
-Deployment follows ADR-0074. The source repository owns the application, image publication and
-namespace-neutral base. Environment repositories own access coordinates, configuration, secrets,
-network policy, ingress and immutable deployment selection.
+## 后果
 
-## Consequences
+- 运维人员增加一个请求中心化诊断入口，以换取内部数据不经过公开 Worker API；
+- Ops Web 有独立可用性和凭据生命周期；固定门户凭据与 Schedule 操作不构成通用控制面；
+- request 状态仍以 PostgreSQL 产品/执行投影为准，日志平台不能改写；
+- 原始观测读取必须审计，审计写入失败时关闭读取；
+- manifest 或 image 存在不证明应用已经部署。
 
-- Operators use one additional application for deep runtime diagnosis; this is accepted to keep
-  privileged data access out of the public Worker API.
-- Ops Web has its own availability and credential lifecycle, but the fixed portal credential and
-  Schedule operations do not make it a general control plane or product backend.
-- Request state remains PostgreSQL summary truth. OpenObserve and external platforms cannot change
-  it.
-- Raw observability access is auditable and fails closed when audit writes fail.
-- A merged manifest or published image does not prove Ops Web is deployed or usable.
+## 否决方案
 
-## Alternatives Considered
-
-### Expand `app-api` and `operator-console-web`
-
-Rejected. It would make a browser-facing Worker mediate internal database and observability access,
-expand credentials and weaken the existing allowlisted API boundary.
-
-### Add a separate `ops-api`
-
-Rejected. Ops Web is the only consumer and Hono can serve the fixed API and static application in
-one deployable unit.
-
-### Use only Temporal, Langfuse, Sentry and Axiom UIs
-
-Rejected. They do not provide one request-centered view of repo-owned status, service health,
-Temporal queue summaries and locally available raw logs/traces, and external services may be
-unreachable from the internal operations network.
-
-### Let the browser query PostgreSQL or OpenObserve
-
-Rejected. It would expose credentials and arbitrary query capability, and could not enforce the
-server-side correlation and audit rules.
+- **扩展 app-api/Operator Console**：扩大公开 API、credential 和攻击面；
+- **拆独立 ops-api**：Ops Web 是唯一消费方，一个 Hono 部署单元已经足够；
+- **只使用平台原生 UI**：无法提供跨系统请求关联，且外部平台可能不在内网可达；
+- **浏览器直连 PostgreSQL/OpenObserve**：无法保护 credential、限制查询或可靠审计。

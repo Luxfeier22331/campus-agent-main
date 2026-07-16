@@ -1,42 +1,35 @@
-# curriculum_plan collection
+# curriculum_plan 集合配置
 
-This directory defines the physical `curriculum/curriculum_plan` collection
-used by the public `curriculum` knowledge target.
+本目录定义 `curriculum` knowledge target 使用的物理 `curriculum/curriculum_plan` collection。
 
-## Files
+## 文件
 
-- `serving-config.json`: query-serving and Qdrant contract
-- `split-manifest.v1.json`: synthetic public logical-document boundaries
-- `chunk-profile.json`: section and table chunking profile
-- `query-planning.json`: curriculum retrieval hints
-- `retrieval-profile.json`: collection retrieval configuration
-- `samples/`: synthetic document-unit samples
-- `task-registry.v3.json`: executable ingestion tasks
+- `serving-config.json`：query-serving 与 Qdrant 合同；
+- `split-manifest.v1.json`：公开 synthetic logical-document boundary；
+- `chunk-profile.json`：section 与 table chunk profile；
+- `query-planning.json`、`retrieval-profile.json`：retrieval 配置；
+- `samples/`：synthetic document-unit sample；
+- `task-registry.v3.json`：可执行 ingestion task。
 
-## Runtime
+## 运行时
 
-- `configs/runtime/query-serving-targets.v1.json` deliberately exposes the
-  domain target as `curriculum` while mapping it to this physical collection.
-- The collection is `query_serving` and uses the `curriculum_plan` Qdrant
-  alias.
-- Query serving requires a published alias whose vector configuration matches
-  the active embedding profile.
+- `configs/runtime/query-serving-targets.v1.json` 以 `curriculum` 暴露领域 target，并映射到本
+  physical collection；
+- collection 状态为 `query_serving`，使用 `curriculum_plan` Qdrant alias；
+- 在线查询要求 alias 已发布，且 vector 配置与当前 embedding profile 一致。
 
-## Ingestion
+## 采集
 
-The active registry starts from canonical `document-units` and exposes two
-deterministic tasks:
+当前 registry 从 canonical `document-units` 开始，只开放两个确定性 task：
 
 - `document_units_validate`
 - `chunk_prepare`
 
-Source parsing, document materialization, indexing, and alias publication are
-not task entries in this collection registry. Private artifacts provide real
-curriculum source and reviewed split data; checked-in manifests and samples are
-synthetic public fixtures.
+source parsing、document materialization、indexing 与 alias publication 不属于本 collection
+registry。真实 curriculum source 和已审查 split 数据来自私有 artifact；仓库内 manifest 与
+sample 是公开 synthetic fixture。
 
-Curriculum `document-units` preserve the structure required to reconstruct
-sections and tables, including headings, reading order, HTML/table cells,
-caption ownership, and continuation groups. Dropping these fields is a contract
-violation. Runtime chunking is loaded from `serving-config.json` and
-`chunk-profile.json`; section and table profiles remain collection-owned.
+curriculum `document-units` 必须保留重建 section 与 table 所需的 heading、reading order、
+HTML/table cell、caption ownership 和 continuation group；删除这些字段违反合同。runtime
+chunking 从 `serving-config.json` 与 `chunk-profile.json` 加载，section/table profile 由本
+collection 拥有。

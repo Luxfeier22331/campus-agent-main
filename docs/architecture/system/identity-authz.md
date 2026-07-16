@@ -1,178 +1,82 @@
 ---
 doc_type: architecture
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-04-02
-updated: 2026-07-10
 ---
-# Account, Operator Access, And Memory Binding Architecture
 
-## 文档边界
+# 身份与准入
 
-本文冻结主问答产品路径上的 account / session、operator access、quota / abuse control 与
-user-scoped memory binding supporting architecture。
+## 边界
 
-它回答的是：
+本文说明主问答链中的 account/session、operator access、quota/abuse 和 user-scoped memory
+binding。校园身份平台模型见 `identity-platform.md`，个人记忆运行时见 `memory-plane.md`。
 
-- 哪些 truth layer 存在
-- 它们分别属于谁
-- execution / retrieval path 只能消费什么投影
-- memory 为什么不是 policy / opening truth
+## 真相分层
 
-本文不把 restricted documents、学生 / 教职工差异化 tool 权限、approval / HITL 或
-state-changing tools 作为当前主问答产品目标。若历史 ADR 提到这些主题，应按历史决策或非目标分支阅读，不得反向影响当前
-Campus Assistant 主链路。
+- app-api：account、session、principal mapping、operator access、quota/abuse 和 memory binding；
+- identity source/policy：校园身份验证和 entitlement；
+- document/retrieval stack：机构知识、来源信任和 evidence；
+- execution-control：消费最小 actor/authz projection 并执行 runtime tool admission；
+- Hindsight：个人记忆内容与检索。
 
-## Canonical Truth Layers
+这些层不能互相授予权限。
 
-长期主问答真相固定拆成：
+## 准入
 
-- `account / session`
-- `operator access`
-- `quota / abuse control`
-- `user-scoped memory binding`
-- `institutional knowledge`
+产品请求依次确认：
 
-其中：
+1. session 和 principal mapping；
+2. account 状态；
+3. quota/abuse posture；
+4. protected ops surface 的 operator permission；
+5. execution-control 的 tool/target admission；
+6. 所属工具和来源 readiness。
 
-- account / session、operator access、quota / abuse control 与 user-scoped memory
-  binding 由 `apps/app-api` 拥有 canonical product truth
-- `institutional knowledge` 由 document / retrieval / evidence stack 拥有 canonical
-  truth
+当前普通 chat 用户共享同一组已开放 read-only tool，不按学生、教职工或院系建立隐式 tool
+差异。未来若引入 restricted source 或 state-changing tool，必须增加明确产品和授权合同。
 
-## Accepted Ownership Posture
+## 执行投影
 
-account / operator / memory supporting architecture 当前已经明确：
+app-api 只向 execution path 提供最小 typed actor/context/authz。execution-control 和 agent 不读取
+raw JWT、Cookie、session row、profile table 或 MediaWiki identity。
 
-- `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/campus-web` 只拥有 account browser shell；它不拥有 auth database、session
-  storage、principal mapping 或 authorization truth
-- execution path 只消费 typed actor/context projection
-- retrieval path 只消费 admitted source / serving config / evidence policy，不拥有
-  account、operator access 或 memory binding truth
-- personal memory 存在，但只是 per-user advisory context；它不是 account、operator
-  access、source truth、tool opening 或 fail-close truth
+retrieval 只执行已准入 target、source trust 和 evidence policy，不解析账号或记忆授权。
 
-## Ownership Model
+## Memory 边界
 
-### `apps/app-api`
+personal memory 可以影响：
 
-- product-layer auth / session / principal mapping
-- account / session truth
-- operator access truth
-- quota / abuse-control truth
-- user-scoped memory binding truth
+- 会话追问；
+- 偏好和措辞；
+- 常用校区、地点、服务或别名消歧；
+- 查询表述。
 
-### execution path
+personal memory 不得决定 tool opening、source trust、fail-close、operator access、account/session
+或 entitlement。
 
-- 只消费 typed projection
-- 不直接解析 raw JWT、raw session、raw memory、raw transcript
+## 人机验证
 
-### retrieval path
+Turnstile 等验证只加强 sign-in/sign-up/reset admission。成功结果不是 principal、identity、
+memory、operator permission 或 tool opening；raw captcha token 和 provider risk signal 不进入执行、
+检索或运维读模型。
 
-- 只执行 admitted retrieval / source-trust / serving config constraints
-- 不拥有 account / operator / memory binding resolution
-- 不把 memory 当成授权来源
+## 外部 Wiki
 
-## Product Admission Model
+MediaWiki 是 sibling service。不得共享 `.muc.wiki` Cookie、导入 password/session/user table，
+或让执行链读取 Wiki 账号状态。联邦登录只通过 `mucwiki-login.md` 的显式协议实现。
 
-主问答 admission 至少覆盖：
+## 禁止形态
 
-- principal mapping
-- account / session validity
-- quota / abuse-control posture
-- operator surface access when caller is using protected ops APIs
-- execution-control runtime tool admission
-- tool readiness / opening posture enforced by the owning runtime
+- memory、偏好或聊天历史成为授权来源；
+- raw auth/session 进入 agent 或 retrieval；
+- Operator Console 绕过 app-api 解释权限；
+- captcha/risk score 成为账号或工具真相；
+- MediaWiki 本地账号成为 app identity truth。
 
-普通 chat 用户默认共享同一组成熟 read-only campus tools。当前主问答架构不设计学生 /
-教职工 / 院系之间的 tool 权限差异。
+## 相关文档
 
-## Memory Vs Applicability
-
-personal memory 只能作为 applicability / context signal：
-
-- follow-up continuity
-- user preference / wording preference
-- common campus, alias, service, route, or topic disambiguation
-- query framing hints
-
-personal memory 不能决定：
-
-- tool 是否开放
-- tool 是否 allowed
-- source trust 是否放宽
-- fail-close 是否绕过
-- operator / panel access
-- account / session truth
-
-## Projection To Execution
-
-execution path 的长期规则：
-
-- `apps/app-api` 提供最小 typed actor/context
-- `apps/execution-control` 只做 caller admission，不恢复最终业务 actor
-- Execution Agent Layer / agent 基于 typed projection 做 planning、clarification、wording
-
-## Operator Access
-
-operator access 属于 protected ops surface 的 product truth；protected surface 的 runtime
-shell 仍由 `docs/architecture/system/product-runtime.md` 负责。
-
-这里的硬约束只有：
-
-- upstream protected access 不等于最终授权完成
-- minimal operator context 仍来自 app-owned truth
-- panel 不自建 end-user account product
-
-## Human Verification And Auth Admission
-
-Turnstile 这类 human verification 属于 auth admission hardening，不属于 canonical
-account / session truth。
-
-边界固定为：
-
-- verification 失败只代表 auth-family request 在 admission 处 fail-close
-- verification 成功也不会变成 principal、profile、memory binding、operator access 或
-  tool opening truth
-- interactive challenge escalation 属于 product runtime / edge provider
-  posture，不下沉到 Execution Agent Layer、retrieval 或 panel
-- raw captcha token、provider-specific risk signal 与 challenge state 不进入
-  execution path、retrieval path 或 operator read model
-
-## MediaWiki External Identity Boundary
-
-既有 `muc.wiki` MediaWiki 继续作为 sibling service 运营。
-
-当前 posture 固定为 `external_link_only`：
-
-- hub 只暴露 external card 到 `https://muc.wiki`
-- `/wiki` 不是 hub internal slug
-- 不迁移 MediaWiki 用户、页面内容或上传媒体
-- 不把 MediaWiki cookie、session、user table 或 password hash 导入 `apps/app-api`
-- 不让 Execution Agent Layer、agent、retrieval 或 Operator Console 读取 MediaWiki
-  account/session state
-- 不设置 `.muc.wiki` 共享 auth cookie；new app-set auth cookie scope 保持在 hub/app
-  browser shell 的 origin 语义内，并由 app-api / Better Auth 负责 server-side truth
-
-如果未来要做 legacy login federation，只能通过显式 federation protocol / MediaWiki auth
-extension 进入新的 workstream；不得把本地 MediaWiki session 复用当成捷径。
-
-## Forbidden Shapes
-
-- 不把 memory 提升成授权来源
-- 不把 raw JWT / raw session 洩漏给 Execution Agent Layer / agent / retrieval
-- 不把 MediaWiki cookie / session / password hash 提升为 app identity truth
-- 不把 captcha token / challenge state / risk score 提升成 account、operator access 或
-  tool-opening truth
-- 不让 Operator Console 旁路 `app-api` 直接做授权解释
-- 不把 personal memory 当作 source truth、tool opening truth 或 fail-close override
-
-## 相关稳定文档
-
-- `docs/architecture/product.md`
-- `docs/architecture/system/tool-routing.md`
-- `docs/architecture/system/memory-plane.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
+- `identity-platform.md`
+- `identity-browser.md`
+- `memory-plane.md`
+- `tool-routing.md`
+- `../../decisions/adr-0015-memory-boundaries.md`

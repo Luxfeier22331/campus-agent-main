@@ -1,84 +1,18 @@
 ---
 doc_type: index
-truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
-created: 2026-04-12
-updated: 2026-07-11
 ---
-# Runbooks
+# 操作手册
 
-`runbooks/` 保存可重复执行的操作步骤、部署流程和验收手册。
-`active` runbook 必须描述当前可执行入口；只剩对照价值的历史流程不得留在
-branch tip 作为默认操作说明。
-稳定 runtime / data flow 图见 `../architecture/flows.md`；runbook 只写可重复执行的操作。
+- 发布：[release.md](./release.md)、[e2e.md](./e2e.md)；
+- 运行时：[execution.md](./execution.md)、[temporal.md](./temporal.md)、
+  [gitops.md](./gitops.md)；
+- 采集与知识：[ingestion.md](./ingestion.md)、[portal-auth.md](./portal-auth.md)、
+  [rag.md](./rag.md)、[ragas.md](./ragas.md)；
+- 可观测性：[otel.md](./otel.md)、[worker-otel.md](./worker-otel.md)；
+- 本地与领域：[local-smoke.md](./local-smoke.md)、[dining.md](./dining.md)、
+  [federation.md](./federation.md)；
+- 安全与协作：[safety.md](./safety.md)、[provider-secrets.md](./provider-secrets.md)。
 
-## Core Deploy / Smoke / Release
-
-- `e2e-qa-release.md`
-  - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
-    public surfaces、chat、docs、panel、observability、data-plane sanity 与 release
-    closeout artifacts。
-- `execution-ops.md`
-  - execution-control + Temporal staging deploy、ingress、daily operations、
-    recovery 与 triage 入口。
-- `forward-worker-smoke.md`
-- `main-release.md`
-- `ingestion.md`
-  - 当前 ingestion/data-plane operational 入口。
-
-## Collaboration / Workstreams
-
-- `workstream-gsd-sdk-workflow.md`
-  - 当前 workstream / Codex 协作总入口；具体决策见
-    `../decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`。
-- `public-product-safety.md`
-
-## Environment-Specific Smoke / Evidence
-
-- `gitops-k8s.md`
-  - source/environment repository boundary、Argo CD bootstrap、immutable image
-    promotion、secret delivery 与 Kubernetes staging 验证入口。
-- `execution-smoke.md`
-- `temporal-self-host-operations.md`
-  - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
-    bootstrap、worker identity、task queue poller closeout、failure-mode closeout
-    与 KEDA autoscaler posture validation。
-- `runtime-otel-collector-pipeline.md`
-- `worker-observability-smoke.md`
-
-## Local Infra / Recovery
-
-- `local-runtime-smoke.md`
-- `provider-secret-governance.md`
-- `mucwiki-federation.md`
-  - `muc-wiki` federation client provision and staging verification entry.
-- `dining-sync.md`
-  - dining catalog/review sync launch path and published snapshot verification.
-
-## Authenticated Notice / Internal Notice
-
-- `notice-release-auth-window.md`
-- `ingestion.md`
-  - authenticated notice / internal notice 的 ingestion task lifecycle 入口；
-    current notice mainline 使用 explicit object-store capture-release input。
-
-## Official Web
-
-- `ingestion.md`
-  - official-web offline capture task 入口。
-
-## Collection rebuild checklists
-
-- `rag-release.md`
-  - target-based RAG release review over owning runtime tests and Langfuse
-    dataset runs
-
-## Eval / Acceptance automation
-
-- `eval-ragas.md`
-
-## Historical Material
-
-只剩追溯价值的 runbook 正文不保留在 active docs。需要恢复旧链路时，通过
-git history 找到具体片段，再通过新的设计评审提升为当前 runbook 或 architecture 文档。
+runbook 只保存可重复操作，不决定产品或架构是否完成。历史步骤通过 git history 追溯。

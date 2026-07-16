@@ -1,94 +1,75 @@
 ---
 doc_type: architecture
-truth_scope: ops
-owner_boundary: execution-control
+owner_boundary: runtime-observability
 status: active
-created: 2026-06-18
-updated: 2026-07-13
 ---
+
 # Langfuse
 
-## Boundary
+## 边界
 
-Langfuse is the LLM observability and eval platform. It stores traces,
-datasets, experiment runs, scores and annotation workflows. It is not an
-execution runtime, product database, Temporal history store, contract owner or
-release authority.
+Langfuse 是 LLM 可观测和评测平台，保存 trace、dataset、experiment run、score 和 annotation
+工作流。它不拥有在线执行、产品数据库、Temporal history、仓库合同或发布决定。
 
-## Runtime Trace Path
+## Trace 链路
 
 ```text
 app-api W3C context
--> execution-control Go OTel spans
+-> execution-control Go OTel
 -> agent-runtime OpenAI Agents SDK instrumentation
--> standard OTLP exporter
--> Collector or Langfuse OTLP endpoint
+-> OTLP exporter
+-> Collector / Langfuse OTLP endpoint
 -> Langfuse trace
 ```
 
-Agent-runtime uses OpenInference instrumentation and the official
-`@langfuse/otel` span processor. Execution-control uses the standard Go OTel
-SDK. Both propagate `traceparent` and `baggage`; exporter endpoint, headers and
-service name come from standard OTel configuration.
+agent-runtime 使用 OpenAI Agents SDK instrumentation、`@langfuse/otel` span processor 和标准
+OTLP exporter。execution-control 使用 Go OTel SDK。两者传递 `traceparent` 和 `baggage`；
+endpoint、header 和 service name 来自部署配置。
 
-Langfuse unavailability must not block online answers. Temporal and PostgreSQL
-sanitized projections remain lifecycle and diagnostic truth.
+Langfuse 不可用不得阻塞在线回答。Temporal 和 PostgreSQL 受控投影仍是执行生命周期与产品诊断
+真相。
 
-## Eval Path
+## 评测链路
 
 ```text
-repo-authored Langfuse dataset item
--> real app-api / Temporal / Agent SDK execution
--> execution-control eval projection + product trace
--> official Langfuse dataset-run-item link
--> packages/eval-langfuse safe adapter
--> packages/ragas-runner official Ragas metrics collections
--> packages/eval-langfuse registered Langfuse scores
+repo cases.v1.json
+-> 真实 app-api / Temporal / Agent SDK 请求
+-> eval projection + product trace
+-> Langfuse dataset-run-item 关联
+-> eval-langfuse 安全适配
+-> ragas-runner 官方指标
+-> Langfuse registered scores
 ```
 
-`packages/eval-langfuse` owns platform API adaptation, product-backed dataset
-runs, dataset/score config sync, safe projection, dataset-run-item linking,
-score publishing and trace verification.
-`packages/ragas-runner` is a narrow Python library boundary that calls official
-Ragas `ascore()` APIs. It does not own datasets, orchestration or release gates.
+`packages/eval-langfuse` 负责平台 API、真实产品 dataset run、dataset/score config sync、安全
+投影、trace 关联、score 发布和 trace 验证。`packages/ragas-runner` 只调用 Ragas 官方
+`ascore()`，不拥有 dataset、编排或发布 gate。
 
-## Observation Ownership
+## 观测所有权
 
-`tool_trajectory.v2` owns public and internal tool-call facts.
-`agent_runtime_eval_projection.v2` owns answer, retrieved contexts/document ids
-and resolved targets derived from execution steps. Langfuse correlates those
-facts through trace and dataset identity but does not redefine their schemas.
+- `tool_trajectory.v2` 拥有 public/internal tool call 事实；
+- `agent_runtime_eval_projection.v2` 拥有答案、检索上下文、文档 ID 和 resolved target；
+- `cases.v1.json` 拥有 reference、预期 target、outcome、搜索次数和 context ID；
+- Langfuse 通过 trace/dataset identity 关联这些事实，但不能重新定义 schema。
 
-Repo datasets under `packages/eval-langfuse/assets/datasets/agent` and
-`packages/eval-langfuse/assets/datasets/rag` are the versioned source for tool
-trajectory, expected outcome, target sequence, search count, reference answer
-and reference context ids. The unified manifest publishes
-`campus/agent/routing` and `campus/rag/*` datasets for Langfuse experiments and
-scoring.
+每个 dataset item 通过官方 API 关联真实 product trace，不使用 `runExperiment` 创建第二条
+合成执行 trace。score 同步写入一个 observation 或 trace；dataset identity 只作为 lineage。
 
-Langfuse calculates model cost from model identity and token usage. Runtime OTel
-and PostgreSQL projections do not maintain a parallel micro-USD estimate.
+模型成本由 Langfuse 根据 model identity 和 token usage 计算，运行投影不维护平行成本估算。
 
-`packages/eval-langfuse` links each dataset item to the real product trace with
-the official dataset-run-item API and retains the returned dataset run id as
-internal lineage. Score writes use the synchronous scores REST API and target
-exactly one observation or trace; dataset ids are not score target fields. It
-does not use `runExperiment` to create a second synthetic trace.
+## 数据边界
 
-## Data Boundary
+self-hosted Langfuse 是受信任内部观测面。采样 trace 可以包含用户/session 关联、模型输入输出、
+memory context 和已授权检索事实；Authorization、Cookie、API key、密码、数据库凭据和对象存储
+secret 始终禁止。
 
-Self-hosted Langfuse is a trusted internal observability plane. Sampled traces
-may contain user/session association, model input/output, memory context and
-authorized retrieved facts. Credentials and secrets remain forbidden.
+app-api、Ops Web 和 Operator Console 只保存关联标识与有界摘要，不复制 Langfuse trace 正文。
+score metadata 只允许标量白名单字段，答案和 context text 留在 trace、dataset 和 Ragas sample。
 
-App-api and Operator Console keep a separate bounded projection and never copy
-Langfuse trace bodies. Score metadata is scalar and allowlisted; answer and
-context text remain in trace, dataset and Ragas sample fields.
-
-## Related Documents
+## 相关文档
 
 - `../../contracts/langfuse-runtime.md`
 - `../../reference/eval.md`
-- `../../runbooks/eval-ragas.md`
+- `../../runbooks/ragas.md`
 - `../../decisions/adr-0062-ragas-langfuse.md`
 - `../../decisions/adr-0076-langfuse-trace-data.md`

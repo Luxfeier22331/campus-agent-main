@@ -1,20 +1,17 @@
 # ingestion-kernels-rs
 
-Deterministic high-performance kernels for ingestion/data-plane work.
+采集数据面的确定性高性能 kernel。
 
-This package is the long-term Rust execution substrate for CPU-heavy,
-deterministic ingestion tasks. It is not a deployable service and does not own
-runtime orchestration.
+本 package 是 CPU 密集、确定性采集任务的 Rust 执行层，不是可独立部署的服务，也不负责
+runtime orchestration。
 
-Current kernels:
+当前 kernel：
 
-- `validate-document-units`: validate canonical document-unit JSONL.
-- `chunk-document-units`: prepare token-budgeted chunks from canonical
-  document-unit JSONL.
-- `validate-release-manifest`: validate release manifest shape plus digest and
-  duplicate-artifact consistency.
+- `validate-document-units`：校验 canonical document-unit JSONL；
+- `chunk-document-units`：按 token budget 将 canonical document-unit JSONL 切分为 chunk；
+- `validate-release-manifest`：校验 release manifest 结构、digest 与重复 artifact 一致性。
 
-CLI runner:
+CLI runner：
 
 ```bash
 cargo run -p ingestion-kernels-rs --bin ingestion-kernel-runner -- \
@@ -30,30 +27,26 @@ cargo run -p ingestion-kernels-rs --bin ingestion-kernel-runner -- \
   validate-release-manifest < release-manifest.json
 ```
 
-Implementation rules:
+## 实现规则
 
-- JSON / JSONL validation uses `jsonschema` rather than hand-written field
-  checks.
-- canonical document units use the shared `canonical_document_units.v1` shape
-  from `packages/ingestion-contracts`: input identity is `doc_id` + `chunk_id`,
-  and chunk output uses `doc_id`, not legacy `document_id`.
-- release manifest validation uses the shared `ingestion_release_manifest.v2`
-  schema from `packages/ingestion-contracts`; Rust only adds deterministic
-  digest and duplicate-artifact consistency checks.
-- chunk budgeting uses a local Hugging Face `tokenizer.json` through
-  `tokenizers` / `text-splitter`; kernels must not download tokenizer assets.
-- `--max-chars` is retired and must not be used for chunk budgeting.
-- Runtime collection profile parsing stays in TypeScript. Rust kernels receive
-  resolved CLI parameters only.
+- JSON / JSONL 使用 `jsonschema` 校验，不手写字段检查；
+- canonical document unit 使用 `packages/ingestion-contracts` 的
+  `canonical_document_units.v1`：输入标识是 `doc_id` + `chunk_id`，chunk 输出使用 `doc_id`，
+  不使用旧 `document_id`；
+- release manifest 使用共享 `ingestion_release_manifest.v2` schema；Rust 只增加确定性 digest
+  与重复 artifact 一致性检查；
+- chunk budget 通过 `tokenizers` / `text-splitter` 使用本地 Hugging Face `tokenizer.json`；
+  kernel 不得下载 tokenizer asset；
+- `--max-chars` 已退役，不得用于 chunk budget；
+- runtime collection profile 留在 TypeScript 解析，Rust kernel 只接收已解析的 CLI 参数。
 
-Boundary:
+## 边界
 
-- no Postgres
-- no Qdrant
-- no object-store client
-- no provider calls
-- no source-channel business semantics
+- 不连接 Postgres；
+- 不连接 Qdrant；
+- 不包含 object-store client；
+- 不调用 provider；
+- 不包含 source-channel 业务语义。
 
-Kernels receive already materialized file content and return deterministic
-reports through stdout. `apps/ingestion-control` owns the object-store bridge,
-task closeout and fail-closed runtime dispatch.
+kernel 接收已经物化的文件内容，通过 stdout 返回确定性报告。`apps/ingestion-control` 负责
+object-store bridge、task closeout 和 fail-closed runtime dispatch。

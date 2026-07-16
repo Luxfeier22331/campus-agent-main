@@ -1,69 +1,68 @@
 ---
 doc_type: policy
-truth_scope: repository
 owner_boundary: docs/policies
 status: active
-created: 2026-07-01
-updated: 2026-07-10
 ---
-# Public Source And Data Policy
+# 公开仓库数据策略
 
-## Boundary
+## 边界
 
-This policy governs source, fixtures, config and data-like artifacts that are
-tracked in the public repository.
+本策略规定公开仓库可以跟踪哪些 source、fixture、config 和 data-like artifact。
 
-It does not govern private content packs, object-store artifacts, production
-databases or internal operator evidence.
+是否包含学校信息不是唯一判断标准。归属项目、权利清楚、稳定且适合代码审查的数据可以进入
+仓库；持续变化、受认证限制、体积较大或由运行时生成的数据应进入 database、object storage
+或对应 provider system。
 
-## Allowed In Public Repo
+本策略不管理 private content pack、object-store artifact、production database 或内部运维
+evidence 的具体保留周期。
 
-- source code, schemas, validators, migrations and public docs
-- synthetic fixtures that preserve behavior without source-derived content
-- self-authored low-frequency product seeds when ownership is documented
-- attribution-only metadata that does not copy restricted source content
-- `.env.example` / `.dev.vars.example` templates with placeholders only
-- namespace-neutral Kubernetes workload bases with placeholder deployment
-  inputs
+## 允许进入仓库
 
-## Not Allowed In Public Repo
+- source code、schema、validator、migration 与公开文档；
+- 不包含来源原文的 synthetic fixture、eval case 与 mini-corpus；
+- 已记录所有权的 self-authored seed、示意图、坐标、GeoJSON 或 tile；
+- 具有明确再分发权利、provenance、attribution 与兼容 license 的第三方或来源派生 artifact；
+- 不复制受限正文的 attribution-only metadata；
+- 只含 placeholder 的 `.env.example` / `.dev.vars.example`；
+- namespace-neutral Kubernetes workload base 与 placeholder deployment input。
 
-- secrets, tokens, passwords, database URLs or private object-store keys
-- raw notices, source-derived documents, collected HTML, OCR output or canonical
-  document artifacts
-- real source-derived eval cases or gold truth unless
-  redistribution rights and license boundaries are explicit
-- real map tiles, third-party GeoJSON or generated publication artifacts
-- current serving truth such as release current pointers or mutable production
-  projections
-- real cluster names, machine names, private hostnames, IP/CIDR topology,
-  environment Helm values, Argo Applications or encrypted secret inventory
+项目自己标注或绘制的地图数据不会仅因“真实”而被排除；从 OSM、供应商、学校网站或其他来源
+复制、转换的数据，必须先确认上游许可与再分发条件。attribution 本身不等于获得再分发权利。
 
-## Provenance Classes
+## 禁止进入仓库
 
-Every non-code fixture or data-like source that remains tracked must fit one
-class:
+- secret、token、password、database URL、private endpoint 或 object-store key；
+- 无再分发权利的 raw notice、采集 HTML、attachment、OCR output、source-derived document 或
+  地图数据；
+- 权利不清楚的真实 eval case、gold truth、photograph、logo、model/tokenizer asset；
+- canonical document artifact、chunk、index、embedding、Qdrant dump 或 provider response；
+- current pointer、mutable production projection、object-store manifest 等运行状态；
+- 真实 cluster/machine 名、private hostname、IP/CIDR topology、environment Helm value、Argo
+  Application 或 encrypted secret inventory；
+- 本地生成的 crawl output、log、trace、closeout file 或 publication artifact。
 
-- `synthetic`: created only for tests or examples
-- `self-authored`: authored by this project and not copied from a restricted
-  upstream
-- `source-derived-publicly-redistributable`: derived from a source whose
-  redistribution rights are documented
-- `internal-only-not-for-public-repo`: must be removed or replaced before
-  publication
+## Provenance 分类
 
-## Runtime Content Rule
+仓库内每个非代码 fixture 或 data-like source 必须属于：
 
-Runtime content is not read from git. Tool, status, docs and product surfaces
-consume DB/read-model state and object-store artifacts through the documented
-runtime boundaries. Git may hold code, contracts, validators and synthetic
-examples.
+- `synthetic`：只为测试或示例创建；
+- `self-authored`：由本项目创作且未复制受限上游；
+- `source-derived-publicly-redistributable`：来源及再分发权利已有记录；
+- `internal-only-not-for-public-repo`：公开前必须移除或替换。
 
-## Required Checks
+新增第三方或来源派生 artifact 时，按需更新 `NOTICE`、`THIRD_PARTY_NOTICES.md` 或所属
+provenance 文档。
 
-- Run `pnpm repo:static` before publication-sensitive changes.
-- Run the public source-token and source-clean guards after editing fixtures,
-  source configs, public assets or eval samples.
-- Run the dependency license policy check after changing dependency locks.
-- Run a separate git-history secret scan before making a private repository
-  public. Working-tree checks do not prove history is clean.
+## 运行时内容
+
+tool、status、docs 与产品页面通过正式 runtime 边界消费 database/read model 和 object-store
+artifact，不从 git 读取持续变化的生产内容。git 可以保存代码、合同、validator、稳定
+self-authored 数据与 synthetic example。
+
+## 检查
+
+- 涉及公开发布的变更执行 `pnpm repo:static`；
+- 修改 fixture、source config、public asset 或 eval sample 后执行所属 owner 测试和 source
+  hygiene 检查；
+- 修改 dependency lock 后执行 dependency license policy 检查；
+- 私有仓库首次公开前单独扫描 git history；working-tree 检查不能证明历史记录干净。

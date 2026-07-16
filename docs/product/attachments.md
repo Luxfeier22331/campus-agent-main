@@ -1,13 +1,10 @@
 ---
 doc_type: product_requirement
-truth_scope: product
 owner_boundary: docs/product
 status: active
-created: 2026-06-23
-updated: 2026-07-08
 ---
 
-# Conversation Attachment Upload PRD
+# 对话附件产品需求
 
 ## 1. 背景
 
@@ -83,13 +80,13 @@ durable chat lifecycle SSE 请求只接收当前用户消息文本，并只向 a
 附件必须先上传，再随消息引用：
 
 ```text
-campus-web composer
--> app-api attachment upload
--> object storage raw object
--> app-api attachment metadata
--> /api/chat/requests/stream text + attachment_refs
--> execution-control bounded attachment projection
--> one OpenAI Agents SDK Agent Activity
+campus-web 输入框
+-> app-api 上传附件
+-> 对象存储原始对象
+-> app-api 附件元数据
+-> /api/chat/requests/stream 文本 + attachment_refs
+-> execution-control 有界附件投影
+-> 一次 OpenAI Agents SDK Agent Activity
 -> finalization.write
 ```
 
@@ -131,14 +128,14 @@ model-visible projection 可以包含：
 
 runtime-only metadata 包括：
 
-- object key
-- sha256
-- storage bucket
-- owner / principal binding
-- internal extraction state
-- provider file id
+- 对象键；
+- SHA-256；
+- 存储桶；
+- 所有者与主体绑定；
+- 内部抽取状态；
+- 供应商文件标识。
 
-runtime-only metadata 不得进入 prompt。
+仅供运行时使用的元数据不得进入 prompt。
 
 ## 6. 功能需求
 

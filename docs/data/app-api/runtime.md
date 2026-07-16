@@ -1,13 +1,10 @@
 ---
 doc_type: data
-truth_scope: data
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-13
-updated: 2026-07-12
 ---
 
-# App API Runtime Schema
+# App API 运行时数据
 
 ## 文档边界
 

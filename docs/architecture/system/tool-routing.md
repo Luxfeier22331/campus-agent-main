@@ -1,67 +1,58 @@
 ---
 doc_type: architecture
-truth_scope: execution
 owner_boundary: tool-routing
 status: active
-created: 2026-04-21
-updated: 2026-07-13
 ---
-# Tool Routing
+# 工具路由
 
-## Boundary
+## 边界
 
-Execution-control admits a run and supplies its model-visible tools. OpenAI
-Agents SDK owns semantic tool selection, function calls and handoffs.
+execution-control 接纳 run 并提供 model-visible tool；OpenAI Agents SDK 拥有 semantic tool
+selection、function call 和 handoff。
 
-## Canonical Order
+## 调用顺序
 
 ```text
-app-api auth, session and conversation transport
--> execution-control run and tool admission
+app-api auth/session/conversation transport
+-> execution-control run 与 tool admission
 -> Temporal Agent Activity
 -> primary agent SDK loop
--> direct output, function call or Knowledge Agent handoff
+-> direct output、function call 或 Knowledge Agent handoff
 -> structured terminal output
--> execution-control evidence validation and final projection
+-> execution-control evidence validation 与 final projection
 ```
 
-App-api does not classify intent, choose a knowledge target or maintain a
-parallel tool allowlist. Execution-control does not inspect user text to select
-a tool.
+app-api 不分类 intent、不选择 knowledge target，也不维护平行 tool allowlist。execution-control
+不分析用户文本来选择工具。
 
-## Primary Agent Decision
+## Primary Agent 决策
 
-The primary agent may answer, clarify, refuse, call
-`transport_schedule_lookup` or hand off through `knowledge_query`. The handoff
-accepts only the complete `query_text`.
+primary agent 可以回答、澄清、拒绝、调用已开放 function tool，或通过 `knowledge_query`
+handoff。handoff 只接收完整 `query_text`。
 
-There is no model-visible retrieval target, collection or version field on the
-primary-agent handoff. The Knowledge Agent receives admitted targets after the
-handoff and selects them when it calls `knowledge_search`.
+primary-agent handoff 不暴露 retrieval target、collection 或 version。Knowledge Agent 在
+handoff 后收到已开放 target，并在调用 `knowledge_search` 时选择。
 
-## Trusted Tool Hint
+## 受信任 Tool Hint
 
-The private execution contract may carry `requested_tool` for trusted eval or
-debug calls. It constrains SDK tool choice but does not select a target, create
-a Temporal branch or bypass registry and evidence validation. Ordinary product
-chat omits it.
+私有 execution contract 可以为受信任 eval/debug call 携带 `requested_tool`。它只约束 SDK
+tool choice，不选择 target、不创建 Temporal branch，也不绕过 registry/evidence validation。
+普通产品 chat 不提供该字段。
 
-## Official Web
+`official_web` 没有 query-serving target，Knowledge Agent 无法使用。系统没有 public-web、
+provider-native search 或 live-source fallback。
 
-`official_web` has no query-serving target and is unavailable to the Knowledge
-Agent. There is no public-web, provider-native search or live-source fallback.
+## 禁止形态
 
-## Forbidden Shapes
+- primary agent 前由 app-api/execution-control 分类 intent；
+- caller 选择 corpus、collection、target 或 version control；
+- handoff acknowledgement 后再执行 Go semantic graph；
+- per-tool Temporal activity 或 specialist queue；
+- SDK terminal output 后改写答案。
 
-- app-api or execution-control intent classification before the primary agent;
-- caller-selected corpus, collection, target or version controls;
-- handoff acknowledgement followed by a Go semantic graph;
-- per-tool Temporal activities or specialist queues;
-- answer rewriting after SDK terminal output.
-
-## Related Documents
+## 相关文档
 
 - `agent-framework.md`
 - `tool-runtime.md`
 - `agentic-retrieval.md`
-- `../../decisions/adr-0075-target-based-knowledge-search.md`
+- `../../decisions/adr-0075-knowledge-search.md`

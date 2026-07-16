@@ -171,8 +171,7 @@ jobs:
               - 'docs/decisions/adr-0062-ragas-langfuse.md'
               - 'docs/product/langfuse-evals.md'
               - 'docs/reference/eval.md'
-              - 'docs/reference/eval-map.md'
-              - 'docs/runbooks/eval-ragas.md'
+              - 'docs/runbooks/ragas.md'
               - 'scripts/deploy/doctor-env/**'
               - 'scripts/deploy/lib/env-file.ts'
             go:

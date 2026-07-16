@@ -1,32 +1,18 @@
 ---
 doc_type: architecture
-truth_scope: product
 owner_boundary: apps/campus-web
 status: active
-created: 2026-06-02
-updated: 2026-07-13
 ---
-# Identity Browser Experience Architecture
 
-## 文档边界
+# 账号浏览器体验
 
-本文冻结 browser account experience 如何承接 Identity Platform。
+## 边界
 
-它回答的是：
+campus-web 负责账号 route shell、组件组合、中文文案、Turnstile 配置和安全 return target；账号、
+身份、权限、偏好和联邦真相仍由 app-api Identity Platform 拥有。
 
-- `campus-web` account center 应消费什么 product projection
-- `campus-web` 拥有哪些 account browser shell responsibility
-- account browser UI 哪些部分由 Better Auth UI HeroUI 组件承接
-- browser shell 不应拥有哪些 auth、identity、access 或 federation truth
+## 当前页面
 
-本文不定义 app-api canonical identity schema，不定义 Better Auth runtime config，
-也不定义 `muc.wiki` MediaWiki 侧 account linking。
-
-## Current Shape
-
-当前 `campus-web` 拥有：
-
-- `/` student campus experience shell
 - `/account`
 - `/account/login`
 - `/account/register`
@@ -36,118 +22,49 @@ updated: 2026-07-13
 - `/account/settings/security`
 - `/account/federation/consent`
 - `/account/federation/error`
-- same-origin allowlisted app-api seams for `/api/me/*`, selected `/api/auth/*`
-  and implemented `/api/federation/*`
 
-Account browser UI 当前形态：
+认证与设置 UI 使用仓库当前 Better Auth UI/HeroUI 组件。campus-web 只增加 route composition、
+本地化、Turnstile、返回路径和注册法律同意字段，不维护第二套登录/注册/设置表单。
 
-- `/account/login`、`/account/register`、`/account/forgot-password` 和
-  `/account/reset-password` 由 `@better-auth-ui/heroui` 的 `Auth` 承接
-- `/account`、`/account/settings/account` 和 `/account/settings/security` 由
-  `@better-auth-ui/heroui` 的 `Settings` 承接
-- Q&A 顶栏未登录入口与 runtime login-required flow 打开 HeroUI `Modal`；
-  modal 内容仍由 `@better-auth-ui/heroui` 的 `Auth` 承接；已登录账号菜单仍由
-  `@better-auth-ui/heroui` 的 `UserButton` 承接
-- `campus-web` 只保留 route composition、中文文案、Turnstile runtime config、
-  return target，以及通过 Better Auth UI required field 注入的注册协议确认
-- 账号 surface 的 auth/settings/product UI primitive 由 Better Auth UI HeroUI
-  stack 和 HeroUI modal shell 承接；`campus-web` 不再维护第二套账号表单或账号设置产品组件
+## 数据消费
 
-## Target Account Center IA
+认证动作通过明确 allowlist 的 `/api/auth/*` seam 调用 app-api。产品页面读取：
 
-目标 account center 固定为 auth runtime UI + Identity Platform projection
-consumer 的组合，而不是 `campus-web` 自研账号产品组件。
+- `GET /api/me/overview`
+- `GET /api/me/identity`
+- `GET /api/me/access`
+- `GET|PATCH /api/me/preferences`
+- session 和 authorized-app command。
 
-Current route shape:
+浏览器不得从 raw Better Auth payload 推导 campus identity、entitlement 或 memory truth。
 
-- `/account`
-  - account settings landing
-- `/account/settings/account`
-  - account profile settings
-- `/account/settings/security`
-  - password and session security settings
+## 登录连续性
 
-Existing auth action routes remain:
+- 未登录用户看到 login/register；
+- 已登录用户看到账号摘要和允许的产品入口；
+- restricted/operator surface 不作为普通首页卡片暴露；
+- app availability 来自 app-api access projection，不在浏览器复制 policy。
 
-- `/account/login`
-- `/account/register`
-- `/account/forgot-password`
-- `/account/reset-password`
+## 所有权
 
-If the product later needs campus identity, access or preferences views, those
-sections must be added as separate product projection pages. They must not be
-implemented by expanding Better Auth UI raw session payloads, and they must not
-reintroduce a second self-built auth/settings UI.
+campus-web 拥有：
 
-## Product Projection
+- 校园与账号路由外壳；
+- Better Auth 界面接线和本地化；
+- 非持久注册法律确认；
+- 浏览器返回目标校验；
+- 应用导航展示。
 
-Campus identity/access/preferences product pages, when implemented, consume
-`apps/app-api` product projections:
+campus-web 不拥有 auth DB、session store、principal mapping、verified identity、authorization、
+profile memory、federation client registry、MediaWiki mapping 或 consent ledger。
 
-- `GET /api/me/overview` for the account shell and session/federation summary
-- `GET /api/me/identity` for the identity section
-- `GET /api/me/access` for the access and app availability section
-- `GET /api/me/preferences` and `PATCH /api/me/preferences` for preference
-  read/write state
+## MediaWiki
 
-Auth/settings UI may call Better Auth client APIs through Better Auth UI HeroUI
-for auth runtime actions such as sign-in, sign-up, password reset, sign-out,
-password change and session management. Product identity/access/preference truth
-still belongs to `apps/app-api` projections.
+`https://muc.wiki` 是 sibling service。campus-web 不提供内部 `/wiki`、不代理页面/上传、不读取
+Wiki session，并且在联邦合同与部署验证完成前不得把登录联邦描述成可用。
 
-## Signed-In Continuity
+## 相关文档
 
-Student surface signed-in continuity should be lightweight:
-
-- unauthenticated users see login/register entry points
-- authenticated users see account summary and app availability
-- restricted or operator surfaces are not exposed as homepage cards
-- app entries remain governed by `campus-web` information architecture and
-  product availability
-
-Account availability comes from `app-api` identity/access projection, not from
-browser-shell-local policy duplication.
-
-## Browser Shell Ownership
-
-`campus-web` owns:
-
-- browser route shell for campus/account routes
-- account route composition
-- Better Auth UI provider wiring, localization and non-persistent registration
-  legal consent field wiring
-- return target validation for browser navigation
-- campus app grid/navigation presentation
-
-`campus-web` does not own:
-
-- auth database
-- session storage
-- principal mapping
-- verified identity truth
-- authorization truth
-- profile memory durable truth
-- federation client registry
-- MediaWiki account mapping
-- long-lived consent ledger or audit log for registration legal acceptance
-
-## MediaWiki Boundary
-
-The MUC Wiki content site remains a sibling service at `https://muc.wiki`.
-
-`campus-web` must not:
-
-- serve `/wiki` as an internal route
-- proxy MediaWiki page/content/upload traffic
-- read MediaWiki session or user tables
-- present MediaWiki login federation as already enabled before the federation
-  contract is implemented
-
-`muc.wiki` login belongs to the federation architecture and `apps/app-api`
-provider truth, not to the browser shell.
-
-## Related Documents
-
-- `docs/architecture/system/identity-platform.md`
-- `docs/architecture/system/mucwiki-login.md`
-- `docs/contracts/app-api/identity.md`
+- `identity-platform.md`
+- `mucwiki-login.md`
+- `../../contracts/app-api/identity.md`

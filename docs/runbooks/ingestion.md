@@ -1,54 +1,49 @@
 ---
 doc_type: runbook
-truth_scope: ops
 owner_boundary: apps/ingestion-control
 status: active
-created: 2026-07-13
-updated: 2026-07-16
 ---
-# Ingestion
 
-## Purpose
+# 采集运行
 
-Operate the Temporal-backed ingestion API and workers. This runbook does not
-cover source-specific HTTP callbacks, run ledgers, or publication to online
-query targets because those surfaces do not exist.
+## 范围
 
-## Prerequisites
+本文说明 Temporal-backed ingestion API 和 worker 的操作。系统没有来源 callback、独立 run
+ledger 或自动发布 query target，因此本文不描述这些路径。
 
-- PostgreSQL reachable by the environment's ingestion migration job;
-- S3-compatible source and derived buckets with separate credentials;
-- Temporal namespace;
-- ingestion-control API, ingestion-control worker, and source-collector images
-  built from the same source revision;
-- v3 task registries under `configs/ingestion`;
-- provider credentials for any source task being run.
+## 前置条件
 
-The local migration command is `pnpm --filter ingestion-control migrate`. A
-containerized migration Job uses the image's installed executable directly:
+- ingestion migration job 可以访问 PostgreSQL；
+- source 和 derived 使用独立凭据访问 S3-compatible object storage；
+- Temporal namespace 可用；
+- ingestion-control API/worker 与 source-collector image 来自同一 source revision；
+- `configs/ingestion` 下 v3 registry 已通过校验；
+- 目标来源所需 provider credential 已注入；
+- 启用内部门户时，固定 `source-collector-internal-portal-auth` Secret 已初始化，且 Ops Web
+  与 ingestion-control 使用同一个 `INGESTION_CONTROL_OPS_TOKEN` 合同。
 
-```text
-/app/apps/ingestion-control/node_modules/.bin/tsx \
-  /app/apps/ingestion-control/src/migrate.ts
+本地迁移：
+
+```bash
+pnpm --filter ingestion-control migrate
 ```
 
-Runtime containers do not invoke Corepack or pnpm. The runner uses a
-transaction-scoped advisory lock, applies ordered SQL files once, and stores
-each file's SHA-256 in `ingestion_control.schema_migrations`. Reapplying the
-same revision is a no-op; modifying an already-applied file fails closed. An
-unjournaled pre-existing target table is rejected by the SQL migration rather
-than silently adopted or dropped.
+容器 migration Job 直接调用 image 内 `tsx src/migrate.ts`，runtime container 不调用 pnpm 或
+Corepack。migration 使用 transaction advisory lock，并在
+`ingestion_control.schema_migrations` 保存 SQL 文件 SHA-256；修改已经应用的 migration 必须
+失败，不能静默接管已有未登记表。
 
-The deployment also runs the installed `schedule-sync.ts` entrypoint as a
-PostSync Job. It reconciles the fixed 30-minute internal-portal authentication
-Schedule. A missing Schedule is created paused until Ops Web writes the first
-valid TGC; later syncs preserve its current paused state.
+部署通过 `ingestion-schedule-sync` PostSync Job 对齐固定认证维护 Schedule。首次创建时保持
+暂停；后续对齐只更新动作、策略和周期，保留现有暂停状态。本地需要验证该路径时显式运行：
 
-## Local Runtime
+```bash
+pnpm --filter ingestion-control schedules:sync
+```
 
-Load the values from
-`env/commands/ingestion-control-runtime.env.example`, then run the three
-processes in separate shells:
+## 本地启动
+
+使用 `env/commands/ingestion-control-runtime.env.example` 明确准备本地变量，在独立 shell
+启动：
 
 ```bash
 pnpm --filter ingestion-control migrate
@@ -57,20 +52,17 @@ pnpm --filter ingestion-control start:temporal-worker
 pnpm --filter source-collector start:temporal-worker
 ```
 
-Local workers omit `TEMPORAL_DEPLOYMENT_NAME` and
-`TEMPORAL_WORKER_BUILD_ID`. Production Worker Controller injects both.
-
-Health checks:
+本地 worker 不设置 `TEMPORAL_DEPLOYMENT_NAME` 和 `TEMPORAL_WORKER_BUILD_ID`；生产由 Worker
+Controller 注入。
 
 ```bash
 curl -fsS http://127.0.0.1:8000/healthz
 curl -fsS http://127.0.0.1:8000/readyz
 ```
 
-## Submit A Task
+## 提交 Task
 
-Write the request document to the source bucket, calculate SHA-256, and submit
-only the v3 envelope:
+先把 request document 写入 source bucket 并计算 SHA-256，再只提交 v3 envelope：
 
 ```bash
 curl -fsS \
@@ -90,43 +82,29 @@ curl -fsS \
   http://127.0.0.1:8000/internal/ingestion/tasks
 ```
 
-`202` means Temporal accepted the workflow or confirmed that the same workflow
-is still running. The canonical workflow id is `ingestion/<task_id>`. Reusing a
-task id is idempotent only when `run_id`, `registry_task_id`, and `input_ref`
-still match the frozen request; a mismatch returns `409 ingestion_task_conflict`.
-Use a new task id for a new execution. A closed duplicate with no PostgreSQL
-projection returns `409 ingestion_projection_missing` and its Temporal status
-instead of pretending that work was accepted again.
+`202` 表示 Temporal 接受 workflow，或相同 workflow 仍在运行。canonical workflow ID 为
+`ingestion/<task_id>`。只有 `run_id`、`registry_task_id` 和 `input_ref` 与冻结请求一致时
+才幂等；不一致返回 `409 ingestion_task_conflict`。新的执行使用新 task ID。
 
-The example is a source-collector task. Rust kernel envelopes reference
-canonical document units in the derived bucket and write their result artifact
-back to that bucket.
+已关闭 workflow 若缺少 PostgreSQL projection，返回 `409 ingestion_projection_missing`，
+不得伪装成再次接受。
 
-## Inspect
-
-Task detail:
+## 查询
 
 ```bash
 curl -fsS \
   -H "Authorization: Bearer ${INGESTION_CONTROL_ADMIN_TOKEN}" \
   http://127.0.0.1:8000/internal/ingestion/tasks/task-001
-```
 
-Operator projection:
-
-```bash
 curl -fsS \
   -H "Authorization: Bearer ${INGESTION_CONTROL_APP_API_PROJECTION_TOKEN}" \
   'http://127.0.0.1:8000/internal/ingestion/operator-projection/tasks?limit=50'
 ```
 
-Use Temporal UI/CLI for workflow history, attempts, heartbeats, timeout, and
-cancellation details. PostgreSQL is a bounded projection, not a replacement
-for Temporal history.
+workflow history、attempt、heartbeat、timeout 和 cancellation 使用 Temporal UI/CLI。PostgreSQL
+只保存有界投影。
 
-## Cancel
-
-Cancellation uses Temporal directly; there is no source-specific cancel route.
+## 取消
 
 ```bash
 temporal workflow cancel \
@@ -135,59 +113,39 @@ temporal workflow cancel \
   --workflow-id ingestion/task-001
 ```
 
-The workflow cancels the active activity and records `canceled` through its
-non-cancellable projection cleanup, then preserves the Temporal Workflow
-`Canceled` outcome. After an executor has returned its result, the completion
-projection is the non-cancellable terminal commit point; a later cancel request
-does not replace an accepted result with a contradictory canceled projection.
-Do not edit the PostgreSQL row manually.
+系统没有来源专用 cancel route。workflow 取消 active activity，并通过 non-cancellable cleanup
+写 `canceled` 投影；executor result 已被接受后，晚到 cancel 不得覆盖 completed projection。
+不得手工修改 PostgreSQL 行。
 
 ## Kubernetes
-
-Render before changing the environment repository:
 
 ```bash
 kubectl kustomize infra/k8s/ingestion-runtime/base >/tmp/ingestion-runtime.yaml
 kubeconform -strict -ignore-missing-schemas /tmp/ingestion-runtime.yaml
 ```
 
-The environment overlay must provide:
+环境 overlay 必须提供：
 
-- `ingestion-runtime-rendered-config`;
-- `ingestion-control-secrets` with the control database URL and internal API tokens;
-- the existing `object-store-secrets` with separate source and derived identities;
-- `source-collector-internal-portal-auth` when internal-portal capture is enabled;
-- immutable `ingestion-control`, `ingestion-control-worker`, and
-  `source-collector` image digests;
-- Temporal endpoint/namespace patches for both Connection and KEDA triggers;
-- schema migration job ordering before API/workers;
-- one shared `INGESTION_CONTROL_OPS_TOKEN` value delivered to ingestion-control
-  and Ops Web for the fixed maintenance read/resume operations.
+- `ingestion-runtime-rendered-config`；
+- 含数据库 URL、管理令牌和固定运维令牌的 `ingestion-control-secrets`；
+- 含不同来源与派生身份的 `object-store-secrets`；
+- 启用内部门户时预创建的 `source-collector-internal-portal-auth`；
+- 不可变 ingestion-control、worker 和 source-collector 镜像摘要；
+- Temporal Connection、KEDA 补丁和 migration-before-runtime 同步顺序。
 
-Secret objects are grouped by credential owner and mutation boundary, not by
-Pod. Workloads use explicit `secretKeyRef` entries instead of Secret-wide
-`envFrom`: source-collector receives only the source object-store pair, while
-the ingestion worker receives source and derived pairs. The two identities
-retain separate object-store policies even though the environment delivers
-them through the existing `object-store-secrets` object. Provider credentials
-are injected only by an environment that enables that provider; internal-portal
-capture does not require a provider Secret.
+Secret 按凭据所有者和变更边界组织，不按 Pod 重复创建。workload 使用显式
+`secretKeyRef`，不能用 Secret 级 `envFrom` 扩大权限。ingestion-control worker 可以获得
+source/derived 对象存储凭据；source-collector 只能获得 source 凭据。
 
-`source-collector-internal-portal-auth` contains only the `sso_tgc` key and is
-mounted as a complete optional Secret volume. Internal-portal tasks fail when
-the file is absent, while unrelated source-collector adapters remain available.
-The environment creates this Secret once without credential data. Routine TGC
-replacement uses the fixed Ops Web operation rather than a SealedSecret PR;
-see `notice-release-auth-window.md`.
+`source-collector-internal-portal-auth` 只包含 `sso_tgc`，以完整可选卷挂载。日常轮换通过
+Ops Web 固定操作完成，不为每次轮换提交 SealedSecret；获取、校验和故障处理见
+`portal-auth.md`。
 
-The base runs all ingestion containers as non-root with a read-only root
-filesystem and no mounted service-account token. Writable state is limited to
-`emptyDir` volumes: `/tmp` for process/browser runtime data, the collector's
-Crawlee storage directory, and a bounded memory-backed `/dev/shm` for Chromium.
-Keep the Pod `fsGroup`; fresh volumes otherwise may not be writable by the
-image's non-root user.
+所有 container 使用 non-root、read-only root filesystem 且不挂 service-account token。可写
+状态只放 `emptyDir` 的 `/tmp`、Crawlee storage 和受限 `/dev/shm`；保留 `fsGroup` 以确保
+非 root 用户可写新 volume。
 
-## Worker Diagnosis
+## Worker 排查
 
 ```bash
 kubectl get connection,workerdeployment,workerresourcetemplate
@@ -196,32 +154,28 @@ kubectl describe workerdeployment ingestion-control-worker
 kubectl describe workerdeployment source-collector-worker
 ```
 
-Check in this order:
+依次检查：
 
-1. Connection health and Temporal namespace;
-2. target/current Worker Deployment build IDs;
-3. worker pod startup and both injected version variables;
-4. WorkerResourceTemplate status and generated ScaledObject/PDB;
-5. Temporal pollers and activity heartbeat freshness;
-6. object-store digest errors;
-7. bounded task projection.
+1. Connection 健康状态和 Temporal namespace；
+2. 目标与当前 build ID；
+3. Worker 启动及两个版本变量；
+4. WorkerResourceTemplate、ScaledObject 和 PDB；
+5. Temporal poller 与 heartbeat；
+6. 对象存储 digest；
+7. 有界任务投影。
 
-## Failure Rules
+## 失败规则
 
-- Missing registry/config/schema/credential: fix configuration; do not add a
-  fallback executor.
-- Digest mismatch: reject the task/artifact; do not recalculate and accept it.
-- Activity timeout: inspect last heartbeat and provider/object-store latency,
-  then start a new task when appropriate.
-- Temporary object-store or PostgreSQL projection failure after successful
-  execution: let Temporal retry the control activity; do not rerun capture.
-- Result manifest, digest, observation schema, or frozen-identity mismatch: the
-  task fails as `invalid_ingestion_task_result`; fix the producer before
-  starting a new task.
-- Failed source capture: retain written artifacts for diagnosis and start a new
-  task id after correcting the cause.
+- 缺少 registry/config/schema/credential：修复配置，不增加 fallback executor；
+- digest 不一致：拒绝 task/artifact，不重新计算后接受；
+- activity timeout：检查 heartbeat 和 provider/object-store latency，再决定新 task；
+- 执行成功后 projection 暂时失败：让 Temporal retry control activity，不重复采集；
+- result manifest、schema 或 frozen identity 不一致：以
+  `invalid_ingestion_task_result` 失败，先修 producer；
+- 内部门户凭据缺失或失效：替换固定 Secret 并恢复固定 Schedule，不修改任务载荷；
+- source capture 失败：保留已写 artifact，修复后使用新 task ID。
 
-## Verification
+## 验证
 
 ```bash
 pnpm ci:contracts
@@ -229,5 +183,4 @@ pnpm ci:ingest
 pnpm ci:rust
 ```
 
-Run staging capture only when validating an environment or release; it is not a
-normal local implementation check.
+staging capture 只用于环境或发布验证，不是普通本地实现检查。

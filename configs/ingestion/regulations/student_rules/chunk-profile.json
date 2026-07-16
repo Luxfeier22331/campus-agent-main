@@ -12,11 +12,9 @@
 	},
 	"cleaning_policy_version": "student_rules_cleaning_v1",
 	"notes": [
-		"Chunk only document-level document-units.jsonl rows after handbook cleanup.",
-		"Keep article_body, policy_page, table, and table_row as the fixed phase-1 unit set.",
-		"Budget against final contextualized chunk text instead of raw display_text.",
-		"Use Qwen3-Embedding-4B tokenizer as the budgeting source of truth.",
-		"Emit answer-ready semantic roles for regulation clauses instead of only budget-sized structure blocks.",
-		"Emit category_overview policy_list chunks from the policy category registry for discovery/list queries."
+		"Chunk clean_text from canonical document-units.jsonl rows.",
+		"Use a local Qwen3-Embedding-4B tokenizer.json for token budgeting.",
+		"The current Rust kernel performs generic token splitting and same-document short-chunk merging.",
+		"Profile names and notes do not imply structure-specific splitting or answer-role metadata."
 	]
 }

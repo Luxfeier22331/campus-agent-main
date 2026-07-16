@@ -1,31 +1,24 @@
-# Local Compose Harnesses
+# 本地 Compose 环境
 
-## Boundary
+## 边界
 
-`infra/local` contains local Docker Compose harnesses only. It is not the
-production deployment owner; K8s/GitOps owns staging and future production
-runtime lifecycle.
+`infra/local` 只包含本地 Docker Compose 环境，不负责生产部署；staging 与 production runtime
+生命周期由 K8s/GitOps 拥有。
 
-Each compose file owns one narrow local concern:
+每个 compose 文件只负责一个本地边界：
 
-- `docker-compose.execution-runtime.yml`: execution-control, agent-runtime,
-  Temporal, Hindsight and runtime workers for local execution diagnostics.
-- `docker-compose.execution-runtime.fanout.yml`: optional OTel fan-out overlay
-  for local external sink testing.
-- `docker-compose.langfuse.yml`: optional self-hosted Langfuse dependency stack
-  for local fan-out testing.
-- `docker-compose.postgres.yml`: shared local Postgres only.
-- `docker-compose.ingestion-control.yml`: local ingestion-control service.
-- `docker-compose.object-store.yml`: local S3-compatible object store.
-- `docker-compose.qdrant.yml`: local non-TLS Qdrant.
-- `docker-compose.qdrant-tls.yml`: TLS Qdrant harness for TLS-specific local
-  checks.
+- `docker-compose.execution-runtime.yml`：本地 execution-control、agent-runtime、Temporal、
+  Hindsight 与 runtime worker；
+- `docker-compose.execution-runtime.fanout.yml`：测试外部观测目的地时使用的可选 OTel overlay；
+- `docker-compose.langfuse.yml`：本地观测 fan-out 所需的可选 self-hosted Langfuse；
+- `docker-compose.postgres.yml`：共享本地 Postgres；
+- `docker-compose.ingestion-control.yml`：本地 ingestion-control；
+- `docker-compose.object-store.yml`：本地 S3-compatible object store；
+- `docker-compose.qdrant.yml`：本地非 TLS Qdrant；
+- `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。
 
-## Rules
+## 规则
 
-- Do not put app or job services into dependency compose files such as
-  `postgres`, `object-store` or `qdrant`.
-- Do not add staging lifecycle scripts here. Staging uses GitOps runbooks and
-  K8s manifests.
-- Add a new compose file only when the runtime boundary is distinct and cannot
-  be expressed as an explicit overlay.
+- 不得把 app 或 job 放入 `postgres`、`object-store`、`qdrant` 等依赖 compose；
+- 不得在此增加 staging 生命周期脚本，staging 使用 GitOps runbook 与 K8s manifest；
+- 只有 runtime 边界确实独立且不能表达为明确 overlay 时，才新增 compose 文件。

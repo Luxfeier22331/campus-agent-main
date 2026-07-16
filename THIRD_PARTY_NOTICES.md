@@ -1,50 +1,38 @@
-# Third-Party Notices
+# 第三方声明
 
-This repository is licensed under the Apache License, Version 2.0 unless a file
-or directory states otherwise.
+除非文件或目录另有说明，本仓库使用 Apache License, Version 2.0。
 
-This file records source and attribution boundaries that are not automatically
-covered by the repository's Apache-2.0 license grant.
+本文记录不自动包含在仓库 Apache-2.0 授权中的来源和署名边界。
 
-## Dependency Licenses
+## 依赖许可证
 
-The root `LICENSE` and `NOTICE` files cover repo-owned source code,
-configuration, tests and documentation. Third-party package dependencies remain
-licensed by their respective upstream authors.
+根目录 `LICENSE` 和 `NOTICE` 覆盖仓库自有源码、配置、测试和文档。第三方 package dependency
+继续使用各自上游作者的许可证。
 
-Dependency license inventory for `pnpm`, `uv`, Cargo, Go and Maven dependencies
-must be generated and reviewed separately before publishing release artifacts.
-Do not treat this file as a complete machine-generated dependency license
-report.
+发布 release artifact 前，必须分别生成并评审 `pnpm`、`uv`、Cargo、Go 和 Maven dependency
+license inventory。本文不是完整的机器生成依赖许可证报告。
 
-## Source Data and Fixtures
+## 来源数据与 Fixture
 
-The repository contains source-derived configuration, tests, fixtures and
-reference data used to validate ingestion and rendering behavior. Source-derived
-content keeps its original upstream ownership and license terms. The
-Apache-2.0 license for this repository does not relicense upstream campus
-website pages, notices, documents or other third-party content.
+仓库包含用于验证 ingestion 和 rendering 行为的来源派生配置、测试、fixture 和 reference
+data。这些内容保留原上游所有权和许可证；仓库 Apache-2.0 不会重新授权校园网站页面、
+notice、document 或其他第三方内容。
 
-Known source-derived categories include:
+已知类别包括：
 
-- Synthetic public website snippets and HTML fixtures used by collector tests.
-- Synthetic campus notice, document, curriculum or regulation samples used to
-  validate ingestion behavior.
-- Map loader code and synthetic map fixtures. Real map assets and source
-  references live outside the public repo in the configured object-storage data
-  boundary.
+- collector test 使用的 synthetic public website snippet 和 HTML fixture；
+- ingestion test 使用的 synthetic campus notice、document、curriculum 或 regulation sample；
+- map loader code、synthetic map fixture 和项目 self-authored map data。
 
-The tracked source/data publication inventory is maintained in
-`docs/reference/open-source-data.md`.
+可公开 source/data 路径边界见 `docs/policies/public-source-data.md`。
 
-## Map Data
+## 地图数据
 
-Real GeoJSON, tiles and upstream map references are not committed to the public
-repository. When runtime deployments load external map data, keep the upstream
-license and attribution metadata with that private/object-storage release.
+项目 self-authored GeoJSON、tile 与坐标可以按仓库许可证保留。第三方或来源派生地图数据只有在
+再分发权利、上游 license 与 attribution 要求明确时才能提交；否则由受控对象存储加载，并让
+license 与 attribution metadata 随 release 保存。
 
-## Trademarks and Branding
+## 商标与品牌
 
-Project names, organization names, logos and other brand identifiers are not
-licensed for trademark use by the Apache-2.0 license except as required for
-reasonable and customary use in describing the origin of the Work.
+Apache-2.0 不授权项目名、组织名、logo 或其他品牌标识的商标使用，但为合理说明作品来源
+而进行的通常使用除外。

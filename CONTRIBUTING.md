@@ -1,4 +1,4 @@
-# Contributing
+# 贡献指南
 
 `campus-agent` 进入多人协作后，默认按“共享真相写入文档，执行现场留在 worktree”来工作。
 
@@ -9,10 +9,6 @@
 - `docs/README.md`
 - `docs/architecture/product.md`
 - `docs/architecture/current.md`
-- `.planning/PROJECT.md`
-
-只有在需要判断当前 backlog signals 或并发 workstream 入口时，再读 `.planning/WORKSTREAMS.md`。
-具体执行现场由 GSD SDK / Codex native session 承接，不从 tracked phase 目录恢复。
 
 ## 分支与合流
 
@@ -23,37 +19,7 @@
 - 改动长期边界、contract 或 serving surface 时，同时更新对应
   `docs/architecture/`、`docs/decisions/`、`docs/contracts/`、`docs/data/`
 
-## Workstream Workflow
-
-多人并发时，不再靠口头约定或把“谁在做什么”写回 tracked planning 文档。repo 当前使用
-GSD SDK 管理 workstream registry / active workstream / progress，执行现场交给 Codex 原生会话。
-
-常用查询和切换入口：
-
-```bash
-gsd-sdk query workstream.list --raw --cwd "$PWD"
-gsd-sdk query workstream.status <workstream-slug> --raw --cwd "$PWD"
-gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
-gsd-sdk query workstream.progress --raw --cwd "$PWD"
-```
-
-创建或完成 workstream：
-
-```bash
-gsd-sdk query workstream.create "<name>" --raw --cwd "$PWD"
-gsd-sdk query workstream.complete <workstream-slug> --raw --cwd "$PWD"
-```
-
-补充说明：
-
-- plain `codex` 用于普通讨论、代码评审、架构辨析、问答和执行，不再进入 repo 自建
-  terminal-result contract
-- tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`
-- 本地会话状态、执行记录和临时上下文不写回 tracked planning 文档
-- 需要恢复某条线时，先用 GSD SDK 查询 workstream registry / status / progress，再回到
-  对应 docs、ADR、contract、runbook 或 git history 提取 durable facts
-
-完整命令与恢复流程见 `docs/runbooks/workstream-gsd-sdk-workflow.md`。
+staging、正式发布和紧急修复步骤见 `docs/runbooks/release.md`。
 
 ## 环境准备
 
@@ -100,7 +66,7 @@ pnpm web:test:worker
 - 局部 Python 验证继续优先使用 `uv run --all-packages python -m unittest ...`
 - JS/TS surface 优先使用 repo root `pnpm` + `turbo` 命令，而不是在各 app 手动串行拼命令
 
-## Public Source / Data Rules
+## 公开来源与数据规则
 
 这个仓库可以公开协作的默认面是代码、schema、validator、文档、synthetic examples 和明确自有的低频
 seed。不要把真实学校 source-derived 内容放进 public PR。
@@ -113,21 +79,21 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 - 不把 current serving truth、release current pointer 或生产 projection 写进 git
 - 触及这些路径时运行所属 package/app 测试，并确认 Gitleaks 与对应数据边界检查通过
 
-长期策略见 `docs/policies/public-source-data.md`，公开仓可接受的数据分类与路径边界见
-`docs/reference/open-source-data.md`。
+长期分类与路径边界见 `docs/policies/public-source-data.md`。
 
-## 文档与规划分工
+## 文档分工
+
+- 仓库自有的长期人类可读文档正文使用简体中文；GitHub Issue/PR 模板保持仓库既有英文
+  格式。路径、命令、代码、字段、状态值和产品正式名称保持原值。详细规则见
+  `docs/documentation-architecture.md`。
 
 - 新增或重写文档时，先选成熟文档模式，再选 repo owner class：Diataxis 承接 tutorial /
   how-to / reference / explanation，MADR / Nygard 承接 ADR，OpenAPI / JSON Schema
   承接机器 contract，RFC 2119 / RFC 8174 承接规范性措辞。
 - `docs/` 记录共享、可长期引用的真相
-- `.planning/PROJECT.md` 记录当前项目级范围与关键决策
-- `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
-- GSD SDK / Codex native session 记录 live workstream/session state
-- git history 只用于追溯已删除 planning archive；需要的结论必须提升到当前 owner 文档
-- 不恢复 `.planning/workstreams`、`.planning/quick`、`.planning/milestones`、
-  `docs/plans` 或 repo-owned terminal-result / heartbeat / hook harness
+- 未合并的计划、待办和执行记录不作为默认分支的长期文档；其中形成的长期事实必须写入
+  对应的产品、架构、合同、数据、决策或操作文档
+- git history 只用于追溯已删除文档；当前仍需要的结论必须进入所属文档
 
 如果你在改这些内容：
 
@@ -175,14 +141,11 @@ seed。不要把真实学校 source-derived 内容放进 public PR。
 - 验证命令要写实际跑过的命令，不写“should pass”
 - 如果存在 worktree-local 前置条件、未关闭 blocker 或暂未覆盖的 lane，要在 PR 中显式写出
 
-## License and Third-Party Content
+## 许可证与第三方内容
 
-By intentionally submitting a contribution to this repository, you agree that
-your contribution is licensed under the Apache License, Version 2.0 unless you
-explicitly mark it as "Not a Contribution".
+向本仓库提交贡献，即表示你同意该贡献按 Apache License, Version 2.0 授权，除非明确标记为
+“Not a Contribution”。
 
-Do not add third-party source code, website captures, datasets, fixtures, media,
-fonts, maps or generated artifacts unless their source and license are known.
-When such material is necessary for tests or documentation, keep it minimal and
-update `THIRD_PARTY_NOTICES.md` or the owning data/source documentation with the
-source, license and redistribution boundary.
+来源和许可证不明时，不得添加第三方源码、网站 capture、dataset、fixture、media、font、
+map 或 generated artifact。测试或文档确实需要时，只保留最小内容，并在
+`THIRD_PARTY_NOTICES.md` 或所属 data/source 文档中记录来源、许可证和再分发边界。

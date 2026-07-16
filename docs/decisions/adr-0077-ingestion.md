@@ -1,70 +1,52 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0077
 status: accepted
-created: 2026-07-13
-updated: 2026-07-13
-supersedes:
-  - adr-0018-app-api-official-web-control-plane-ownership.md
-  - adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md
-  - adr-0032-internal-notice-notice-family-stratified-admission.md
-  - adr-0054-ingestion-control-plane-and-kernel-boundary.md
-  - adr-0070-official-web-target-first-consumption.md
 ---
-# ADR-0077 Temporal Ingestion
+# ADR-0077 Temporal 采集
 
-## Context
+## 背景
 
-The repository had accumulated source-specific HTTP lifecycle routes,
-PostgreSQL run ledgers, task lease/closeout models, adapter callbacks, and v2
-task envelopes that duplicated Temporal. Those paths made app-api,
-ingestion-control, and collectors share workflow ownership and made an
-artifact's storage location implicit.
+仓库曾积累 source-specific HTTP lifecycle route、PostgreSQL run ledger、task lease/closeout
+model、adapter callback 和 v2 task envelope，重复 Temporal 职责。这些路径让 app-api、
+ingestion-control 和 collector 共同拥有 workflow，也让 artifact storage location 隐式存在。
 
-## Decision
+## 决策
 
-Every ingestion task is one Temporal workflow started by
-`apps/ingestion-control`.
+每个 ingestion task 都是由 `apps/ingestion-control` 启动的一个 Temporal workflow。
 
-- `ingestion_task_envelope.v3` carries only task/run identity, a registry task
-  id, and a SHA-256-pinned object-store input ref.
-- `ingestion_task_registry.v3` freezes executor, source/target identity, and
-  input/output contracts before workflow start.
-- Active executors are only `source_collector` and `rust_kernel`.
-- `source_collector` activities run in `apps/source-collector`; Rust kernels run
-  through the ingestion-control bridge to `packages/ingestion-kernels-rs`.
-- An activity returns exactly one `ingestion_task_result.v1` ref and a bounded
-  summary. Detailed output remains in object storage.
-- Temporal owns durable state, retry, timeout, heartbeat, cancellation, and
-  task dispatch. PostgreSQL stores only bounded task projections and the latest
-  official-web URL freshness state.
-- Source-specific lifecycle endpoints, run ledgers, target-workset callbacks,
-  app-api collector routes, and Python fallback executors do not exist.
-- Source capture may emit deterministic classification metadata, but it does
-  not run downstream admission, multimodal processing, projection rebuild, or
-  query-serving read-model materialization.
-- Official-web capture remains offline and cannot become query-enabled until a
-  complete publication chain is implemented and admitted separately.
+- `ingestion_task_envelope.v3` 只包含 task/run identity、registry task id 和 SHA-256-pinned
+  object-store input ref。
+- `ingestion_task_registry.v3` 在 workflow start 前固定 executor、source/target identity 和
+  input/output contract。
+- active executor 只有 `source_collector` 和 `rust_kernel`。
+- `source_collector` activity 在 `apps/source-collector` 运行；Rust kernel 通过
+  ingestion-control bridge 调用 `packages/ingestion-kernels-rs`。
+- 一个 activity 只返回一个 `ingestion_task_result.v1` ref 和有界 summary；详细 output
+  保存在 object storage。
+- Temporal 拥有 durable state、retry、timeout、heartbeat、cancellation 和 task dispatch。
+  PostgreSQL 只保存有界 task projection 和最新 official-web URL freshness state。
+- 来源特定的 lifecycle endpoint、run ledger、target-workset callback、app-api collector route
+  和 Python fallback executor 均不存在。
+- source capture 可以输出确定性 classification metadata，但不执行 downstream admission、
+  multimodal processing、projection rebuild 或 query-serving read-model materialization。
+- official-web capture 保持 offline；完整 publication chain 独立实现并开放前不能
+  query-enable。
 
-Long activities report coarse progress through Temporal Activity heartbeats.
-They do not emit thousands of workflow signals or write progress rows. Input,
-preparation, observations, and terminal output cross runtime boundaries as
-digest-pinned object references.
+长 activity 使用 Temporal Activity heartbeat 报告粗粒度进度，不发送大量 workflow
+signal 或写 progress row。input、preparation、observation 和 terminal output 都以
+digest-pinned object ref 跨运行时传递。
 
-## Consequences
+## 后果
 
-- Workflow history stays bounded and replayable.
-- Retry and cancellation have one owner.
-- Collectors can change Crawlee/provider internals without changing task
-  contracts.
-- A task cannot infer source, target, executor, or output contract from mutable
-  request fields.
-- Reintroducing a source-specific route or ledger requires a new ADR; it cannot
-  be added as a compatibility path.
+- workflow history 保持有界且可 replay。
+- retry 和 cancellation 只有一个所有者。
+- collector 可以更换 Crawlee/provider 内部实现而不改变 task contract。
+- task 不能从 mutable request field 推断 source、target、executor 或 output contract。
+- 恢复 source-specific route/ledger 需要新 ADR，不能作为 compatibility path 添加。
 
-## References
+## 参考
 
 - [Temporal Activities](https://docs.temporal.io/activities)
 - [Temporal Activity heartbeats](https://docs.temporal.io/encyclopedia/detecting-activity-failures#activity-heartbeat)

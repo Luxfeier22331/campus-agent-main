@@ -1,10 +1,7 @@
 ---
 doc_type: architecture
-truth_scope: ops
 owner_boundary: apps/ops-web
 status: active
-created: 2026-04-02
-updated: 2026-07-16
 ---
 
 # Ops Web 可观测性架构
@@ -15,7 +12,7 @@ updated: 2026-07-16
 Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/ops-web.md`，HTTP 字段见
 `../../contracts/ops-web.md`，Worker Operator Console 见 `operator-console.md`。
 
-本文不宣称 staging 已部署，也不记录环境地址、Secret 内容或资源规格；这些由环境 GitOps
+本文不宣称 staging 已部署，也不记录环境地址、Secret 或资源规格；这些由环境 GitOps
 仓库和实际运行证据负责。
 
 ## 核心结论
@@ -24,9 +21,9 @@ Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/op
 
 - `operator-console-web` 继续通过 `app-api` 承担供应商配置和业务操作。它仍受
   ADR-0055、ADR-0067 约束，不直连数据库或观测平台。
-- `ops-web` 是独立、自托管、默认只读的运行排查应用。它在服务端读取严格授权的 PostgreSQL
-  摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。写操作只包括人员操作者替换
-  固定内部门户 Secret 的 `sso_tgc`，以及恢复固定的门户认证维护 Schedule。
+- `ops-web` 是独立、自托管、默认只读的运行排查应用。它在服务端读取严格授权的
+  PostgreSQL 摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。唯一非诊断操作是
+  人员替换固定内部门户 TGC，以及恢复固定认证维护 Schedule。
 
 两者不互相代理，也不共享一个通用运维后端。`ops-web` 不是产品 API、数据库浏览器、
 Temporal 控制台或通用日志平台。
@@ -42,9 +39,9 @@ flowchart LR
   Control[execution-control 队列状态接口]
   Health[固定服务健康检查]
   OpenObserve[(OpenObserve)]
-  PortalSecret[(internal portal Secret)]
-  IngestionControl[ingestion-control ops API]
-  AuthSchedule[Temporal auth maintenance Schedule]
+  PortalSecret[(固定内部门户 Secret)]
+  IngestionControl[ingestion-control 运维接口]
+  AuthSchedule[Temporal 认证维护 Schedule]
   OTel[OpenTelemetry Collector]
   Runtime[应用运行时]
   TemporalUI[Temporal UI]
@@ -77,9 +74,9 @@ flowchart LR
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| Ops Web 页面 | 展示、筛选、复制关联标识、打开入口、提交门户 TGC 替换或恢复固定维护 Schedule | 读取当前凭据或提交任意查询 |
-| Ops Web 服务端 | Access 验证、固定查询、短缓存、读取审计、固定 Secret patch、调用固定维护接口 | 写请求状态、触发任意工作流、提供通用代理 |
-| ingestion-control | 读取固定 Temporal Schedule 和最近 Workflow 摘要、幂等恢复该 Schedule | 接收任意 Schedule 或 Workflow 标识、保存凭据 |
+| Ops Web 页面 | 展示、筛选、复制关联标识、打开入口和替换门户 TGC | 读取现有凭据或提交任意查询 |
+| Ops Web 服务端 | Access 验证、固定查询、短缓存、读取审计和固定 Secret patch | 写请求状态、触发工作流或提供通用代理 |
+| ingestion-control | 读取固定 Schedule 与最近结果、幂等恢复该 Schedule | 接收任意 Schedule 或 Workflow 标识 |
 | PostgreSQL | turn dispatch、用户问题、agent run、observability fact 和读取审计 | Temporal 队列、原始日志、原始调用链 |
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
 | OpenObserve | 保存并查询内网可用的日志、指标和调用链 | 决定产品请求成功或失败 |
@@ -118,7 +115,7 @@ context；这些正文不进入 PostgreSQL 摘要、OpenObserve、Sentry 或 Axi
 
 ## 运行概况
 
-Ops Web 并行读取三类信息：
+Ops Web 并行读取四类信息：
 
 1. PostgreSQL 提供请求数量、状态、95% 耗时和趋势。
 2. execution-control 通过 Temporal SDK 提供当前任务队列状态。
@@ -170,6 +167,16 @@ Ops Web 查询固定日志流、指标流和调用链流。浏览器只能选择
 Cloudflare Access 负责登录和 JWT 签发，Ops Web 服务端再次验证签发方、受众、签名和
 操作者白名单。原始日志和调用链使用更窄的独立白名单。
 
+内部门户认证接口只允许基础白名单中的人员身份，不接受服务令牌。修改请求必须同源，正文
+上限为 8 KiB；响应、日志、数据库和读取审计都不得包含 TGC。
+
+### 集群权限
+
+Ops Web 的 ServiceAccount 只可对 `source-collector-internal-portal-auth` 执行 `get` 和
+`patch`。它不能创建、列举、删除 Secret，也不能修改其他资源。调用 ingestion-control 时
+只能读取和恢复固定 `internal-portal-auth-maintenance` Schedule，不能选择 Schedule、立即
+触发工作流或发送其他 Temporal 命令。
+
 ### 数据库权限
 
 `ops_web` 账号拥有四个允许来源的列级读取权限，并只能向
@@ -178,18 +185,6 @@ Cloudflare Access 负责登录和 JWT 签发，Ops Web 服务端再次验证签�
 
 `ops_audit_maintenance` 账号只能执行固定的 180 天审计清理函数，不能直接访问审计表。
 非本地 PostgreSQL 连接使用 CA 和 `verify-full` 验证证书链及主机名。
-
-### 内部门户凭据
-
-只有已通过基础人员白名单的 human operator 可以读取门户认证状态或替换 TGC。Ops Web
-ServiceAccount 对 `source-collector-internal-portal-auth` 只有 `get`、`patch`，不能创建、
-列举、删除或修改其他 Secret。凭据不进入 PostgreSQL、日志、Temporal 或响应正文；该
-能力不可用不影响诊断页面和 `/readyz`。
-
-Temporal 每 30 分钟以挂载的 TGC 强制建立一次新门户会话并探测通知接口。凭据确认过期或
-不可用时 Workflow 失败且 Schedule 自动暂停；网络和供应商暂时故障只记录失败结果，不暂停。
-Ops Web 展示最近结果和凭据更新时间到成功/首次过期之间的观测区间。替换凭据会恢复固定
-Schedule，但不立即触发执行；完整执行历史继续留在 Temporal。
 
 ### OpenObserve 凭据
 
@@ -200,9 +195,9 @@ Schedule，但不立即触发执行；完整执行历史继续留在 Temporal。
 - Ops Web 读取；
 - 保留期维护。
 
-Ops Web 和 Collector 不得使用 root 凭据。若环境尚未创建可用的读取服务账号，Ops Web
-保持 OpenObserve 查询不可用，但其 PostgreSQL 摘要、门户凭据维护和 readiness 继续工作；
-不能提交占位用户名、占位令牌或 root 密码。
+Ops Web 和 Collector 不得使用 root 凭据。环境尚未创建专用读取账号时，Ops Web 的
+OpenObserve 查询保持不可用，但 PostgreSQL 摘要、门户认证维护和 `/readyz` 继续工作。不得
+为了启用查询提交占位用户名、占位令牌或 root 密码。
 
 ## 故障边界
 
@@ -210,18 +205,19 @@ Ops Web 和 Collector 不得使用 root 凭据。若环境尚未创建可用的�
 - OpenObserve 失败：原始记录和观测状态不可用，请求摘要仍可读取。
 - 单个健康检查失败：该服务显示故障，其他服务继续展示。
 - 审计写入失败：拒绝返回原始记录。
+- Kubernetes API 或固定 Secret 不可用：门户认证页面返回明确错误，其他排查接口继续工作。
+- ingestion-control 认证维护接口不可用：凭据仍可更新，维护状态显示不可用；显式恢复返回错误。
 - 外部入口未配置：显示未配置，不影响本地排查。
 - 外部输出失败：由 Collector 自身状态反映，不改写请求状态。
-- 门户维护暂时失败：Schedule 保持运行，下一周期重新验证。
-- 门户凭据确认过期或不可用：Workflow 失败且 Schedule 暂停，等待人员替换凭据并恢复。
 
 `/healthz` 只检查进程。`/readyz` 检查 Access 配置、PostgreSQL 读取和审计写入，不检查
-OpenObserve 或被观测服务。
+OpenObserve、门户认证依赖或被观测服务。
 
 ## 部署边界
 
 源码仓库拥有 `apps/ops-web`、镜像发布和 `infra/k8s/ops-web/base`。该 base 不选择
-namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角色或保留期任务。
+namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角色或保留期任务；base
+只声明固定 Secret 的资源名级 RBAC 和所需的受限 ServiceAccount token 投影。
 
 环境 GitOps 仓库拥有这些环境事实，并以完整源码提交 SHA 引用 base、以镜像 digest 选择
 `ops-web` 镜像。应用、OpenObserve、OTel、PostgreSQL 和 Secret 全部渲染成功仍不是上线证明；
@@ -232,13 +228,13 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - 不让浏览器直连 PostgreSQL、OpenObserve、Temporal、Langfuse 或 Hindsight。
 - 不让 Ops Web 服务端查询 Temporal、Langfuse 或 Hindsight 数据库。
 - 不让浏览器传入任意 SQL、数据流、`traceId`、时间范围或记录上限。
-- 不把固定 TGC 替换能力扩展为 Kubernetes 或 Secret 通用管理接口。
 - 不在 `app-api` 中保存 OpenObserve、Sentry、Axiom 或 Langfuse 查询结果。
 - 不把 raw audit log、raw trace、raw event、raw LLM observation 或 SDK trace body 写入
   PostgreSQL read model。
 - 不把 vendor-specific observability schema 写进 `packages/contracts`。
 - 不恢复供应商正文同步任务或外部观测数据镜像表。
 - 不把 Ops Web 做成通用管理后台、工作流控制台或外部平台复制品。
+- 不允许 Ops Web 创建、列举、删除 Secret，或修改固定门户 Secret 以外的 Secret。
 - 不为 Ops Web 单独拆分一个只有它消费的后端服务。
 
 ## 相关文档
@@ -249,7 +245,7 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - `k8s-runtime.md`
 - `langfuse.md`
 - `../../contracts/stage-timing.md`
-- `../../reference/runtime-otel-telemetry-taxonomy.md`
+- `../../reference/telemetry.md`
 - `../../decisions/adr-0067-ops-index-external-sinks.md`
-- `../../decisions/adr-0074-source-and-environment-repository-boundary.md`
+- `../../decisions/adr-0074-repository-boundary.md`
 - `../../decisions/adr-0072-self-hosted-ops-web.md`

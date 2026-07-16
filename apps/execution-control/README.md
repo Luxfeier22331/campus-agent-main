@@ -1,15 +1,11 @@
 # execution-control
 
-Go-owned internal execution runtime for the Temporal-backed answer path.
+Go 实现的内部执行运行时，承载基于 Temporal 的在线回答链路。
 
-`apps/execution-control` owns execution admission, runtime policy, Temporal
-command/query/cancel, memory activities, internal query admission, evidence
-validation, source projection, sanitized run/step/event projection and internal
-runtime observability. It is not a browser-facing product surface.
+本应用拥有执行准入、运行策略、Temporal 命令与查询、取消、记忆 activity、内部查询准入、
+证据校验、来源投影、脱敏运行投影和内部可观测性。它不面向浏览器。
 
-## Runtime Scope
-
-Current HTTP surface:
+## 当前接口
 
 - `GET /healthz`
 - `GET /readyz`
@@ -19,68 +15,56 @@ Current HTTP surface:
 - `GET /internal/execution/runs/:runId/events`
 - `GET /internal/execution/runs/:runId/steps`
 - `POST /internal/execution/runs/:runId/cancel`
-- internal query/tool read-model endpoints protected by
-  `x-execution-query-auth`
+- 由 `x-execution-query-auth` 保护的内部查询和工具读取模型接口
 
-Temporal owns workflow/activity scheduling. The current online path is:
+Temporal 拥有工作流与 activity 调度。当前在线路径为：
 
 ```text
 app-api -> execution-control -> Temporal -> context.memory_recall
--> one agent activity running the complete OpenAI Agents SDK loop
--> finalization.write -> context.memory_append -> app-api projection reads
+-> 一个运行完整 OpenAI Agents SDK 循环的 agent activity
+-> finalization.write -> context.memory_append -> app-api 读取投影
 ```
 
-The primary agent selects admitted function tools or official handoff targets
-inside that SDK run. For governed knowledge questions it uses the SDK
-`handoff()` API to enter the Knowledge Agent. The Knowledge Agent can call only
-the internal `knowledge_search` tool.
-Execution-control admits target/access requests, runs embedding and Qdrant
-dense/sparse RRF lookup, projects bounded evidence, validates terminal evidence refs, generates
-sources and writes finalization. It does not run a separate knowledge queue,
-RAG graph, synthesis provider or replanning loop.
+Primary Agent 在同一次 SDK run 中选择已准入函数工具或 handoff。知识问题通过官方
+`handoff()` 进入 Knowledge Agent，后者只能调用内部 `knowledge_search`。
 
-## Boundaries
+execution-control 校验知识目标与访问请求，执行 embedding 和 Qdrant dense/sparse RRF
+检索，投影有界证据，校验终态证据引用，生成来源并写入终结结果。它不运行第二条知识队列、
+RAG 图、独立合成模型或重规划循环。
 
-- `app-api` remains the browser-facing submit/status/event surface.
-- `agent-runtime` owns the only model-facing agent/tool loop and calls
-  execution-control internal query endpoints from SDK tools.
-- The whole primary/Knowledge Agent SDK run executes inside
-  `activity-worker-agent`; only workflow, core and agent worker pools exist.
-- App-api persists and streams the finalized answer and sources; it does not
-  rewrite answer text.
-- Python supervisor/handoff serving is retired and must not be reintroduced.
-- Function tools and handoffs are closed by default and opened only through the
-  runtime registry and strict schema artifacts after product/eval admission.
-- Hindsight owns personal memory storage/extraction/recall; execution-control
-  only consumes bounded memory recall packets and writes sanitized projections.
+## 边界
 
-## References
+- `app-api` 继续拥有浏览器提交、状态和事件接口；
+- `agent-runtime` 拥有唯一面向模型的代理与工具循环；
+- 完整 Primary/Knowledge Agent run 位于 `activity-worker-agent`；worker pool 只有 workflow、
+  core 和 agent 三类；
+- app-api 持久化并流式输出已终结答案，不改写答案正文；
+- Python supervisor 与 handoff serving 已退役，不得恢复；
+- 函数工具和 handoff 默认关闭，只有运行时注册表、严格 schema、产品与评测均准入后才能
+  开放；
+- Hindsight 拥有个人记忆存储、提取和召回，execution-control 只消费有界召回结果并写脱敏
+  投影。
 
-- current topology: `docs/architecture/current.md`
-- execution agent layer: `docs/architecture/system/execution-agent-layer.md`
-- durable runtime: `docs/architecture/system/durable-runtime.md`
-- tool runtime: `docs/architecture/system/tool-runtime.md`
-- tool routing/admission: `docs/architecture/system/tool-routing.md`
-- memory plane: `docs/architecture/system/memory-plane.md`
-- local runtime smoke: `docs/runbooks/local-runtime-smoke.md`
-- staging operations: `docs/runbooks/execution-ops.md`
-- Temporal operations: `docs/runbooks/temporal-self-host-operations.md`
+## 相关文档
 
-## Local Development
+- `docs/architecture/current.md`
+- `docs/architecture/system/durable-runtime.md`
+- `docs/architecture/system/agent-framework.md`
+- `docs/architecture/system/tool-runtime.md`
+- `docs/architecture/system/tool-routing.md`
+- `docs/architecture/system/memory-plane.md`
+- `docs/runbooks/local-smoke.md`
+- `docs/runbooks/execution.md`
+- `docs/runbooks/temporal.md`
 
-Requirements:
+## 本地开发
 
-- Go `1.26.x`
-- `golangci-lint v2.11.4`
-
-Common commands:
+要求 Go `1.26.x` 和 `golangci-lint v2.11.4`。
 
 ```bash
 pnpm go:check
 pnpm repo:static
 ```
 
-Runtime env, provider projection, Hindsight projection, Qdrant, Temporal and
-run projection store setup are operational concerns documented in the runbooks
-above. Do not add inactive compatibility settings or local secret values to
-this README.
+运行变量、供应商投影、Hindsight、Qdrant、Temporal 和运行投影存储由上述 runbook 维护。
+不得在本文加入未启用的兼容设置或本地 Secret 值。

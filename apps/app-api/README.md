@@ -1,77 +1,63 @@
 # app-api
 
-Shared Cloudflare Worker backend for `campus-web` and
-`operator-console-web`.
+`campus-web` 与 `operator-console-web` 共用的 Cloudflare Worker 后端。
 
-`apps/app-api` owns product ingress, auth/session handling, chat request
-admission, product projections and Worker-facing operator APIs. It does not own
-agent orchestration, tool execution, browser UI shells or panel business logic.
+本应用拥有产品入口、认证与会话、聊天请求准入、产品投影和面向 Worker 的运维接口。它不
+拥有代理编排、工具执行、浏览器界面或运维页面业务逻辑。
 
-## Runtime Scope
+## 当前范围
 
-Current public/product surfaces include:
+- `GET /healthz`、`GET /readyz`；
+- Better Auth 和当前用户投影；
+- 联邦登录接口；
+- 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
+- 运维请求、可观测性和领域投影接口；
+- 食堂、供应商配置和校园服务操作接口；
+- 文档阅读器导入、导出和读取模型接口。
 
-- health and readiness: `GET /healthz`, `GET /readyz`
-- Better Auth and current principal projection
-- federation endpoints
-- chat request submit/stream, run event/step reads and feedback writes
-- operator request, observability and domain projection APIs
-- dining, provider-config and campus-services operation routes
-- docs reader import/export and read-model APIs
+HTTP 字段以 `docs/contracts/app-api/` 为准；本文只作为应用入口。
 
-Endpoint-level wire truth belongs in `docs/contracts/app-api/`; this README is
-only the app entry point.
+## 数据所有权
 
-## Data And Runtime Ownership
+app-api 拥有认证、聊天、请求观测、用户资料和相关产品操作的 Worker 侧 schema。采集运维
+接口只代理 ingestion-control 的有界投影，不重建来源处理生命周期表。
 
-`app-api` owns the Worker-side product schemas for auth, chat, runtime request
-observability, profile projection and related product operation surfaces.
-Operator ingestion routes proxy ingestion-control's bounded projection; app-api
-does not recreate source-processing lifecycle tables.
-
-Durable schema and database ownership live in:
+数据文档：
 
 - `docs/data/app-api/README.md`
 - `docs/data/app-api/runtime.md`
 - `docs/data/app-api/operator.md`
 - `docs/data/postgres-ownership.md`
 
-`APP_API_DB` and `APP_API_DB_FRESH` are two Hyperdrive lanes to the same shared
-Postgres, not two logical databases. Read-after-write-sensitive paths must be
-explicitly admitted by the data owner docs.
+`APP_API_DB` 与 `APP_API_DB_FRESH` 是指向同一共享 PostgreSQL 的两条 Hyperdrive 通道，不是
+两个逻辑数据库。只有数据所有者文档明确允许的路径才能使用写后立即读通道。
 
-Dining student routes read published `dining.*` projections. Dining catalog
-fixture truth belongs to `packages/domains/dining`; import/review sync belongs to
-`jobs/dining-sync`, not the app-api request path.
+学生食堂接口只读取已发布的 `dining.*` 投影。食堂目录 fixture 属于
+`packages/domains/dining`，导入与评价同步属于 `jobs/dining-sync`，不得进入 app-api 请求
+主路径。
 
-Repeatable local / staging database artifacts stay under app-owned `ops/`
-entry points, `apps/app-api/drizzle/0000_initial.sql` and
-`apps/app-api/db/shared-product-schema/chat_current.sql` rather than
-package lifecycle scripts:
+可重复的数据库入口位于应用自己的 `ops/`、`drizzle/0000_initial.sql` 和
+`db/shared-product-schema/chat_current.sql`，不放入 package 生命周期脚本：
 
 - `ops/db/bootstrap-shared-product-database.ts`
 - `ops/db/ensure-app-auth-role-search-path.ts`
 
-The shared product database includes app-api-owned `profile.*`, `runtime.*`,
-`dining.*`, `docs.*`, `identity.*`, `campus_services_ops.*`, `observability.*`
-and `provider_config.*` schemas. The separately managed shared-product
-baselines provide `app_auth.*` and `chat.*`, as documented in
-`docs/data/app-api/`.
+共享产品数据库包含 app-api 所有的 `profile.*`、`runtime.*`、`dining.*`、`docs.*`、
+`identity.*`、`campus_services_ops.*`、`observability.*` 和 `provider_config.*`；
+`app_auth.*` 与 `chat.*` 由共享基线管理。
 
-## References
+## 相关文档
 
-- product/runtime boundary: `docs/architecture/system/product-runtime.md`
-- current accepted topology: `docs/architecture/current.md`
-- identity/auth: `docs/architecture/system/identity-platform.md`
-- app-api contracts: `docs/contracts/app-api/README.md`
-- app-api data: `docs/data/app-api/README.md`
-- operator ownership: `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
-- offline official-web ownership:
-  `docs/architecture/domains/official-web/architecture.md`
-- dining domain/data ownership: `docs/architecture/domains/dining/architecture.md`,
-  `docs/data/dining.md`
+- 产品运行时：`docs/architecture/system/product-runtime.md`
+- 当前架构：`docs/architecture/current.md`
+- 身份平台：`docs/architecture/system/identity-platform.md`
+- 接口合同：`docs/contracts/app-api/README.md`
+- 数据所有权：`docs/data/app-api/README.md`
+- 运行排查：`docs/decisions/adr-0072-self-hosted-ops-web.md`
+- 公开官网采集：`docs/domains/official-web.md`
+- 食堂：`docs/architecture/domains/dining/architecture.md`、`docs/data/dining.md`
 
-## Local Development
+## 本地开发
 
 ```bash
 pnpm install
@@ -84,40 +70,22 @@ pnpm ci:app-api-migration
 pnpm --dir apps/app-api typecheck
 ```
 
-Shared product database bootstrap entry points live under `apps/app-api/ops/db/`:
+本地 Wrangler 与 Drizzle 进程变量放在 `apps/app-api/.env`，Worker 字符串变量放在
+`apps/app-api/.dev.vars`。从所属密钥存储或 runbook 直接填写应用本地文件，不从根目录
+`.env` 扩散数据库 URL。
 
-- `bootstrap-shared-product-database.ts` applies shared DB migrations. Dining
-  catalog fixture import stays with `jobs/dining-sync`.
-- `ensure-app-auth-role-search-path.ts`
+## 部署
 
-The fixed shared product schemas include `app_auth.*` and `chat.*`.
-
-Local Wrangler / Drizzle process env lives in `apps/app-api/.env`; Worker string
-env for local runtime lives in `apps/app-api/.dev.vars`. Fill these app-local
-files directly from the owning local secret store or deployment runbook; do not
-fan out database URLs from the root worktree `.env`.
-
-## Deployment Notes
-
-Apply the complete App API schema installer with the direct management
-connection before deploying a Worker revision that depends on the new schema.
-It converges current auth/chat baselines, applies the immutable Drizzle journal
-and then grants runtime roles:
+依赖新 schema 的 Worker 上线前，使用直接管理连接运行完整 schema 安装器：
 
 ```bash
 APP_API_OPERATOR_DATABASE_URL="$DIRECT_DATABASE_URL" \
   pnpm --dir apps/app-api exec tsx ops/db/schema.ts
 ```
 
-Do not run migrations through Hyperdrive or from the long-running Worker. After
-the migration, verify the expected tables/columns through the same direct
-connection before continuing deployment.
+不得通过 Hyperdrive 或长期 Worker 进程运行 migration。安装后使用同一直接连接验证预期表与
+列，再继续部署。
 
-The deployed Worker must fail closed when required auth, database,
-operator-admission or execution-control configuration is absent. Dynamic
-product/API responses use `Cache-Control: no-store` unless a specific contract
-states otherwise.
-
-Observability policy and allowed telemetry fields are owned by
-`docs/architecture/system/ops-observability.md` and the app-api observability
-contracts; this app does not query telemetry sinks as product truth.
+缺少认证、数据库、运维准入或 execution-control 配置时，Worker 必须失败关闭。动态产品
+响应默认使用 `Cache-Control: no-store`，除非具体合同另有规定。app-api 不把观测平台查询
+结果当作产品事实。

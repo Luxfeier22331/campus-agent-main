@@ -1,13 +1,10 @@
 ---
 doc_type: contract
-truth_scope: runtime
 owner_boundary: apps/execution-control
 status: active
-created: 2026-06-13
-updated: 2026-07-12
 ---
 
-# Temporal Queue Status
+# Temporal Queue 状态合同
 
 ## 文档边界
 
@@ -18,11 +15,11 @@ projection、自研 autoscaler、HPA 决策或 Temporal workflow history。
 
 `GET /internal/ops/temporal/task-queues`
 
-- owner：`apps/execution-control`；
-- consumer：`apps/ops-web` 服务端；
-- auth：`Authorization: Bearer <metrics token>`；
-- timeout：execution-control 的 Temporal query timeout；
-- source：Temporal SDK `DescribeTaskQueue`/enhanced task queue description。
+- 所有者：`apps/execution-control`；
+- 消费方：`apps/ops-web` 服务端；
+- 认证：`Authorization: Bearer <metrics token>`；
+- 超时：execution-control 的 Temporal 查询超时；
+- 来源：Temporal SDK `DescribeTaskQueue` 或增强任务队列描述。
 
 成功响应：
 

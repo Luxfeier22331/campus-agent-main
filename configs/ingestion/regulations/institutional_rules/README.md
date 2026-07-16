@@ -1,47 +1,43 @@
-# institutional_rules collection
+# institutional_rules 集合配置
 
-This directory defines the physical `regulations/institutional_rules`
-collection used by the public `institutional_rules` knowledge target.
+本目录定义 `institutional_rules` knowledge target 使用的物理
+`regulations/institutional_rules` collection。
 
-## Files
+## 文件
 
-- `serving-config.json`: query-serving and Qdrant contract
-- `canonical-profile.json`: document identity and provenance fields
-- `chunk-profile.json`: canonical document chunking profile
-- `query-planning.json`: title-aware retrieval hints
-- `task-registry.v3.json`: executable ingestion tasks
+- `serving-config.json`：query-serving 与 Qdrant 合同；
+- `canonical-profile.json`：document identity 与 provenance 字段；
+- `chunk-profile.json`：canonical document chunk profile；
+- `query-planning.json`：title-aware retrieval hint；
+- `task-registry.v3.json`：可执行 ingestion task。
 
-## Runtime
+## 运行时
 
-- `configs/runtime/query-serving-targets.v1.json` maps the
-  `institutional_rules` target to this collection.
-- The collection is `query_serving`, uses the `institutional_rules` Qdrant
-  alias, and admits public or campus-restricted evidence.
-- Query serving requires the alias to exist and its dense and sparse vector
-  configuration to match the active embedding profile.
+- `configs/runtime/query-serving-targets.v1.json` 将 `institutional_rules` target 映射到本
+  collection；
+- collection 状态为 `query_serving`，使用 `institutional_rules` Qdrant alias，可准入 public
+  或 campus-restricted evidence；
+- 在线查询要求 alias 已存在，且 dense/sparse vector 配置与当前 embedding profile 一致。
 
-## Ingestion
+## 采集
 
-The active registry starts from canonical `document-units` and exposes two
-deterministic tasks:
+当前 registry 从 canonical `document-units` 开始，只开放两个确定性 task：
 
 - `document_units_validate`
 - `chunk_prepare`
 
-Source materialization, indexing, and alias publication are not task entries in
-this collection registry. No placeholder promotion declaration is retained.
+source materialization、indexing 与 alias publication 不属于本 collection registry，不保留
+占位 promotion 声明。
 
-Canonical regulation identity is based on the regulation work, issuer, and
-semantic applicability rather than a wrapper notice id. Promotion preserves
-source notice provenance while keeping `source_notice_document_id` separate
-from `semantic_owner_document_id`.
+canonical regulation identity 以 regulation work、issuer 与 semantic applicability 为依据，
+不使用 wrapper notice id。promotion 保留 source notice provenance，同时区分
+`source_notice_document_id` 与 `semantic_owner_document_id`。
 
-Display metadata keeps these meanings distinct:
+display metadata 必须区分：
 
-- `regulation_work_title`: stable work identity
-- `regulation_edition_label`: edition or revision label
-- `regulation_display_title`: rendered work and edition title
-- `source_title_literal`: source-facing title
+- `regulation_work_title`：稳定 work identity；
+- `regulation_edition_label`：edition 或 revision label；
+- `regulation_display_title`：渲染后的 work 与 edition title；
+- `source_title_literal`：来源原始 title。
 
-Annual-cycle and time-bound rules belong to `regulations/scoped_rules`, not
-this collection.
+年度周期与限时规则属于 `regulations/scoped_rules`，不属于本 collection。

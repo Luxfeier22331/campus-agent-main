@@ -1,24 +1,20 @@
-# fresh_news collection
+# fresh_news 集合配置
 
-This directory defines the offline `official_web/fresh_news` collection for
-news, notices, activities, lectures, and other freshness-sensitive public web
-content.
+本目录定义离线 `official_web/fresh_news` collection，用于新闻、通知、活动、讲座等时效敏感的
+公开网页内容。
 
-## Current Boundary
+## 当前边界
 
-- `serving-config.json` is `offline_preparation` with retrieval disabled.
-- The collection is absent from
-  `configs/runtime/query-serving-targets.v1.json`; `knowledge_query` cannot
-  select or search it.
-- There is no live-search fallback.
-- Article detail pages are evidence candidates; listing pages are discovery
-  inputs only.
-- Materialized records must preserve `published_at`, `crawled_at`,
-  `last_seen_at`, host, page family, section, and news kind metadata.
+- `serving-config.json` 为 `offline_preparation`，retrieval 关闭；
+- 该 collection 不在 `configs/runtime/query-serving-targets.v1.json` 中，`knowledge_query`
+  不能选择或搜索它；
+- 不存在 live-search fallback；
+- article detail page 可以作为 evidence candidate，listing page 只用于 discovery；
+- materialized record 必须保留 `published_at`、`crawled_at`、`last_seen_at`、host、page family、
+  section 与 news kind metadata。
 
-## Ingestion
+## 采集
 
-This collection has no executable task registry. `official_web.capture` only
-produces source artifacts and URL freshness state. Notice normalization,
-publication, and serving admission will be defined by the notice redesign; no
-placeholder ingestion task or query target is kept here.
+该 collection 没有可执行 task registry。`official_web.capture` 只生成 source artifact 与 URL
+freshness state。仓库不为尚未实现的 notice normalization、publication 或 serving admission
+保留占位 task 与 query target。

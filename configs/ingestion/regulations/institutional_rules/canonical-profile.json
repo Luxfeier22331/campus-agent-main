@@ -10,9 +10,9 @@
 		"This collection stores canonical regulation text only, not source-channel wrapper notices.",
 		"Provenance must preserve source_notice_ids and explicitly separate source_notice_document_id from semantic_owner_document_id when promotion originates from internal_notice.",
 		"The target collection is source-channel-agnostic: future canonical regulation sources may promote into the same collection.",
-		"Current execution truth uses regulation_work_title for document identity inputs and regulation_display_title for projected/materialized title.",
-		"Current display-title truth preserves the full edition label semantics such as 2026版 or 2026年修订; it does not collapse display_title to a bare year token.",
-		"Current execution preserves regulation_title_normalized and source_title_literal as source-facing title metadata.",
-		"The remaining ADR-0040 migration work is replay/rematerialization and downstream consumer convergence, not identity-shape redesign."
+		"The target contract uses regulation_work_title for document identity inputs and regulation_display_title for presentation.",
+		"The target display title preserves full edition semantics such as 2026版 or 2026年修订; it does not collapse an edition to a bare year token.",
+		"A future materializer must preserve source_title_literal as source-facing metadata.",
+		"The active task registry does not implement source materialization or promotion."
 	]
 }

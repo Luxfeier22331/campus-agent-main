@@ -1,19 +1,17 @@
 ---
 doc_type: contract
-truth_scope: ops
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-08
-updated: 2026-07-08
 ---
-# App API Dining Ops HTTP Contract
+# App API 食堂运维 HTTP 合同
 
 ## 文档边界
 
-本文冻结 `apps/app-api` 的 dining operations HTTP contract。
+本文定义 `apps/app-api` 的食堂运维 HTTP 合同。
 
-Dining operations 是 Operator Console 内的受控 operations domain。当前 route inventory
-仍使用 `/api/ops/dining/*`，当前 implementation surface 是 `apps/operator-console-web`。
+这些接口已在 app-api 注册为 `operator-via-panel` 路由，但当前
+`apps/operator-console-web` 明确拒绝 `/api/ops/dining/*`，也没有食堂运维页面。因此本文只
+定义服务端合同，不表示当前存在浏览器消费面。
 
 它补充：
 
@@ -21,11 +19,9 @@ Dining operations 是 Operator Console 内的受控 operations domain。当前 r
 - `docs/data/dining.md`
 - `docs/architecture/domains/dining/architecture.md`
 
-当前 contract 是 candidate-first release lifecycle。直接发布 current draft 的 route
-不是目标 contract，也不在当前 route inventory 中。Source observation 的
-apply/reject 语义只保留为 reserved boundary，不进入 accepted route inventory。
+当前合同采用发布候选生命周期。接口不得直接发布可变的当前草稿。
 
-## Accepted Target Endpoints
+## 已注册接口
 
 ```http
 GET    /api/ops/dining/halls
@@ -51,15 +47,15 @@ POST   /api/ops/dining/releases/:releaseId/rollback
 GET    /api/ops/dining/audit-events
 ```
 
-## Object Model
+## 对象模型
 
-## Floorplan Reference
+## 平面图引用
 
 Dining floorplan owner、anchor、manifest lifecycle 和 technology choices 见
 `docs/architecture/domains/dining/architecture.md`。本文只冻结 ops HTTP fields and
 route behavior.
 
-### Hall
+### 食堂
 
 ```json
 {
@@ -78,7 +74,7 @@ route behavior.
 }
 ```
 
-### Window
+### 窗口
 
 ```json
 {
@@ -93,10 +89,9 @@ route behavior.
 }
 ```
 
-`svgAnchorId` binds the dining window to a sanitized SVG anchor. It is not
-navigation route graph truth.
+`svgAnchorId` 将食堂窗口绑定到已清理的 SVG 锚点，不属于导航路网事实。
 
-### Assignment
+### 窗口分配
 
 ```json
 {
@@ -107,7 +102,7 @@ navigation route graph truth.
 }
 ```
 
-### Stall Profile
+### 档口资料
 
 ```json
 {
@@ -119,7 +114,7 @@ navigation route graph truth.
 }
 ```
 
-### Menu Item
+### 菜品
 
 ```json
 {
@@ -130,7 +125,7 @@ navigation route graph truth.
 }
 ```
 
-### Menu Offering
+### 菜品供应
 
 ```json
 {
@@ -141,7 +136,7 @@ navigation route graph truth.
 }
 ```
 
-## Read Routes
+## 读取接口
 
 ### `GET /api/ops/dining/halls`
 
@@ -165,22 +160,22 @@ navigation route graph truth.
     "hallId": "haidian-canteen-1",
     "label": "海淀一食堂一层",
     "draftVersionId": "dining_draft_version:42",
-        "floorplan": {
-          "anchorInventory": [
-            {
-              "anchorId": "window-01",
-              "label": "一号窗口",
-              "role": "window"
-            }
-          ],
-          "floorId": "haidian-canteen-1-1f",
-          "floorplanId": "floorplan:haidian-canteen-1:haidian-canteen-1-1f",
-          "hallId": "haidian-canteen-1",
-          "sha256": "sha256:...",
-          "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
-        },
-        "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
-      },
+    "floorplan": {
+      "anchorInventory": [
+        {
+          "anchorId": "window-01",
+          "label": "一号窗口",
+          "role": "window"
+        }
+      ],
+      "floorId": "haidian-canteen-1-1f",
+      "floorplanId": "floorplan:haidian-canteen-1:haidian-canteen-1-1f",
+      "hallId": "haidian-canteen-1",
+      "sha256": "sha256:...",
+      "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+    },
+    "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+  },
   "menuItems": [],
   "menuOfferings": [],
   "stallProfiles": [],
@@ -195,9 +190,9 @@ navigation route graph truth.
 - ops response 只返回 repo floorplan manifest metadata，不返回 SVG markup、
   object storage bucket/key 或上传资产字段；Operator Console 通过
   `@campus-agent/dining/floorplans` package 渲染同一份 floorplan manifest
-- floorplan changes are application releases, not ops HTTP commands
+- 平面图变更随应用发布，不通过运维 HTTP 命令修改
 
-## Write Routes
+## 写入接口
 
 ### `PATCH /api/ops/dining/windows/:windowId`
 
@@ -344,10 +339,9 @@ navigation route graph truth.
 }
 ```
 
-## Release Candidate Routes
+## 发布候选接口
 
-Release candidate routes are the accepted target publish lifecycle. They do not
-publish mutable current draft directly.
+发布候选接口是已接受的发布生命周期，不直接发布可变的当前草稿。
 
 ### `GET /api/ops/dining/release-candidates`
 
@@ -414,7 +408,7 @@ publish mutable current draft directly.
 }
 ```
 
-Blocker examples:
+阻塞项示例：
 
 - `missing_floorplan_manifest`
 - `floorplan_manifest_checksum_mismatch`
@@ -451,9 +445,9 @@ Blocker examples:
 
 规则：
 
-- only approved candidates can be scheduled
-- scheduler must revalidate before publish
-- scheduler must never publish mutable current draft
+- 只有已批准的候选可以定时发布；
+- 调度器必须在发布前重新校验；
+- 调度器不得发布可变的当前草稿。
 
 ### `POST /api/ops/dining/release-candidates/:candidateId/publish`
 
@@ -477,19 +471,16 @@ Blocker examples:
 
 规则：
 
-- publish is all-or-nothing
-- validation blockers fail closed
-- stale candidate fails closed
-- publish freezes the candidate floorplan manifest refs into the snapshot
-- missing floorplan manifest entry fails closed
-- floorplan manifest checksum mismatch fails closed
-- failure must not update latest published pointer
+- 发布必须全部成功或全部失败；
+- 校验阻塞项、过期候选、缺少平面图 manifest 或校验和不匹配时失败关闭；
+- 发布时把候选中的平面图 manifest 引用冻结到快照；
+- 失败时不得更新最新发布指针。
 
 ### `POST /api/ops/dining/release-candidates/:candidateId/cancel`
 
 取消尚未 published 的 candidate。Cancelled candidate 保留审计记录，不能再次发布。
 
-## Published Release Routes
+## 已发布版本接口
 
 ### `GET /api/ops/dining/releases`
 
@@ -507,8 +498,8 @@ Blocker examples:
 
 ### `POST /api/ops/dining/releases/:releaseId/rollback`
 
-回滚到历史 published release，或基于历史 snapshot 创建 rollback candidate。具体策略由实现选择，
-但不得回写 mutable draft。
+把 latest pointer 切回指定的既有 published release 和 snapshot，不创建新 release，也不回写
+mutable draft。
 
 请求：
 
@@ -521,23 +512,14 @@ Blocker examples:
 
 规则：
 
-- rollback must write audit event
-- rollback must not synthesize snapshot payload
-- rollback must not read draft tables to rebuild historical projection
-- rollback failure must leave latest pointer unchanged
+- 回滚必须写入审计事件；
+- 回滚不得合成快照载荷；
+- 回滚不得读取草稿表重建历史投影；
+- 回滚失败时不得修改最新发布指针。
 
-## Source Observations Reserved Boundary
+## 审计接口
 
-以下 route 不属于 accepted route inventory：
+### `GET /api/ops/dining/audit-events`
 
-```http
-GET  /api/ops/dining/source-observations
-POST /api/ops/dining/source-observations/:observationId/apply
-POST /api/ops/dining/source-observations/:observationId/reject
-```
-
-规则：
-
-- source observation 只代表采集或人工观测，不代表线上事实
-- apply/reject 不属于 accepted route inventory
-- 如后续重新启用 apply/reject，必须先更新本 contract，再实现显式 operator command
+按时间倒序返回 `{ "events": [] }`。事件只包含受控操作摘要，不包含供应商原始记录、凭据、
+附件内容或对象存储路径。

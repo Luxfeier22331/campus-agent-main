@@ -1,74 +1,62 @@
 ---
 doc_type: domain
-truth_scope: product
 owner_boundary: domains/source-card
 status: active
-created: 2026-06-28
-updated: 2026-07-08
 ---
-# Source Card
+# 来源卡片
 
-This is the canonical human document for source-card permalink, anchor and
-highlight behavior across Q&A and the docs reader.
+本文统一说明问答与文档阅读器中来源卡片的 permalink、anchor 和 highlight 行为。
 
-## Boundary
+## 边界
 
-A source card is the browser-safe citation target produced from selected
-supporting evidence. It exists so Q&A answers, docs search results and direct
-reader navigation land on the same canonical reader permalink.
+来源卡片由已选 supporting evidence 生成，是可交付浏览器的引用目标。问答答案、文档搜索结果
+和直接阅读入口必须落到同一 reader permalink。
 
-It is not:
+来源卡片不是：
 
-- raw retrieval trace
-- raw chunk id / source unit key
-- object storage key
-- provider score or debug payload
-- reader content payload
+- 原始 retrieval trace；
+- 原始 chunk id 或 source unit key；
+- object storage key；
+- provider score 或 debug payload；
+- reader content payload。
 
-## Consumption
+## 消费结构
 
-The shared target shape is:
+共享结构为：
 
 ```text
-SupportingEvidence + CanonicalReference
-  -> SourceCard
+回答证据 + 规范引用
+  -> 来源卡片
   -> /docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>
 ```
 
-Fixed rules:
+固定规则：
 
-- assistant prose contains the answer, not stringified citation fields.
-- source cards carry canonical document title, optional section title, snippet,
-  version label and reader target.
-- `canonicalUrl` remains the legacy wire field name, but its semantics are
-  reader permalink, not SEO canonical URL.
-- `anchor` is the stable navigation target.
-- `highlightRootUnitIds[]` is the stable temporary highlight target.
+- assistant 正文只包含答案，不拼接序列化引用字段；
+- 来源卡片携带 canonical document title、可选 section title、snippet、version label 与 reader
+  target；
+- `canonicalUrl` 保留旧 wire 字段名，但语义是 reader permalink，不是 SEO canonical URL；
+- `anchor` 是稳定跳转目标；
+- `highlightRootUnitIds[]` 是稳定的临时高亮目标。
 
-## Reader Target
+## Reader 路径
 
-Reader permalink semantics are:
+reader permalink 语义：
 
-- current version: `/docs/:corpus/:collection/:docSlug`
-- explicit version: `/docs/:corpus/:collection/:docSlug/v/:versionSlug`
-- section jump: `#<anchor>`
-- temporary highlight: `?hl=<rootUnitId1>,<rootUnitId2>`
+- 当前版本：`/docs/:corpus/:collection/:docSlug`；
+- 指定版本：`/docs/:corpus/:collection/:docSlug/v/:versionSlug`；
+- section 跳转：`#<anchor>`；
+- 临时高亮：`?hl=<rootUnitId1>,<rootUnitId2>`。
 
-`anchor` and `rootUnitId` come from canonical document units and must not be
-derived from current chunk ids or vendor result ids.
+`anchor` 与 `rootUnitId` 来自 canonical document unit，不得根据当前 chunk id 或 vendor result
+id 派生。
 
-## Owner Documents
+## 所有者文档
 
-- Browser/docs control-plane fields:
-  `../contracts/app-api/document-reader.md`
-- Canonical reader model:
-  `../data/document-reader.md`
-- Knowledge evidence and final source contract:
-  `../contracts/tool-execution.md`
-- Indexed retrieval serving boundary:
-  `../architecture/system/retrieval-serving.md`
-- Docs reader architecture:
-  `../architecture/system/document-site.md`
+- Browser/docs control-plane 字段：`../contracts/app-api/document-reader.md`；
+- canonical reader model：`../data/document-reader.md`；
+- knowledge evidence 与 final source 合同：`../contracts/tool-execution.md`；
+- indexed retrieval serving 边界：`../architecture/system/retrieval-serving.md`；
+- docs reader 架构：`../architecture/system/document-site.md`。
 
-Those documents own their machine-readable contracts and data models. This
-document owns the human behavior summary for source-card navigation.
+上述文档拥有各自机器合同与数据模型；本文只拥有来源卡片导航的人类可读行为规则。

@@ -1,200 +1,126 @@
 ---
 doc_type: architecture
-truth_scope: execution
 owner_boundary: docs/architecture/system
 status: active
-created: 2026-04-05
-updated: 2026-07-12
 ---
 
-# Prompt And Instruction Architecture
+# Prompt 与指令架构
 
-## Document Boundary
+## 文档范围
 
-This document owns prompt and instruction supporting architecture for
-`campus-agent`.
+本文定义 `campus-agent` 的 prompt/instruction 装配边界，包括：
 
-It answers:
+- system、developer、task 和 evidence instruction 如何分层；
+- code、Agents SDK runtime 和 internal retrieval 分别拥有哪些事实；
+- 模型执行期间的可信与不可信内容；
+- prompt 变化需要通过哪些验证。
 
-- how system/developer/task/evidence instructions are layered
-- which prompt facts are owned by code, the Agents SDK runtime and internal
-  retrieval
-- which content is trusted or untrusted during model execution
-- what prompt changes must prove before release
+本文不定义供应商 SDK 调用、模型选择、一次性 prompt 文案、retrieval serving scope、tool
+opening、source admission 或临时执行状态。
 
-It does not own:
-
-- vendor SDK call details or model choice
-- one-off prompt wording
-- retrieval serving scope, tool opening or source-truth admission
-- active workstream status
-
-## Core Posture
-
-`campus-agent` uses:
+## 核心原则
 
 ```text
-code-first orchestration + prompt-scoped reasoning
+代码负责边界，提示词负责边界内推理
 ```
 
-Code owns boundary, auth, policy, serving truth, tool opening, deterministic
-stop conditions, schema validation, evidence validation and terminal
-projection. The OpenAI Agents SDK run owns semantic routing, official handoff,
-the tool loop, clarification wording and answer text inside those boundaries.
-Execution-control does not rewrite that answer text.
+代码拥有边界、认证、policy、serving truth、tool opening、确定性停止条件、schema/evidence
+validation 和 terminal projection。OpenAI Agents SDK run 在这些边界内拥有 semantic
+routing、官方 handoff、tool loop、澄清文案和 answer text。execution-control 不改写答案。
 
-Prompt must not replace:
+prompt 不得替代：
 
-- current query-serving targets
-- serving config / serving alias / release manifest
-- fail-close deny path
-- tool readiness / opening gate
-- source-trust / freshness gate
-- policy, target admission or grounding truth
+- 当前查询服务目标；
+- 服务配置、服务别名或发布 manifest；
+- 失败关闭路径；
+- 工具就绪与开放门槛；
+- 来源可信度与新鲜度门槛；
+- policy、target admission 或 grounding truth。
 
-## Runtime Baseline
+## 当前职责
 
-Current accepted baseline:
+- Go `apps/execution-control` 拥有确定性 admission/policy、四阶段 Temporal workflow、
+  internal `knowledge_search`、evidence validation、source generation 和脱敏 terminal
+  projection。
+- `apps/agent-runtime` 拥有完整 OpenAI Agents SDK run：primary/Knowledge Agent
+  instruction、官方 `handoff()`、model-visible function schema、tool call、answer text 和 SDK
+  trace normalization。
+- Knowledge Agent 只能调用 internal `knowledge_search`，并在同一 Agent Activity 内生成有
+  evidence 支持的 structured answer。
+- `apps/app-api` 拥有当前 provider-config product contract 和 operator mutation API，不
+  组装产品路径 prompt。
 
-- Go `apps/execution-control` owns deterministic admission and policy, the
-  four-phase Temporal workflow, internal `knowledge_search`, evidence
-  validation, source generation and sanitized terminal projection.
-- `apps/agent-runtime` owns the complete OpenAI Agents SDK run: primary-agent
-  and Knowledge Agent instructions, official `handoff()`, model-visible
-  function schemas, tool calls, answer text and SDK trace normalization.
-- The Knowledge Agent can call only internal `knowledge_search`. It synthesizes
-  the evidence-backed structured answer inside the same Agent Activity.
-- `apps/app-api` owns encrypted provider-config profiles and operator mutation
-  APIs. It exposes internal active provider snapshots for explicit projection
-  sync jobs, but does not assemble product-path prompts.
+固定约束：
 
-Fixed constraints:
+- online serving 消费显式 provider-config projection，不使用临时 provider env fallback；
+- provider `refusal`、`incomplete`、schema failure 和 content-filter outcome 失败关闭；
+- `official_web` 不在 online target registry 中，Agent 没有 public-web 或 provider-native
+  search tool。
 
-- Online serving consumes explicit provider-config projection artifacts, not
-  ad-hoc provider env fallback.
-- Provider `refusal`, `incomplete`, schema failure and content-filter outcomes
-  fail closed instead of being treated as schema-valid success.
-- Official-web content is not in the online target registry, and neither agent
-  has a public-web or provider-native search tool.
-
-## Assembly Model
-
-Runtime assembly order:
+## 装配顺序
 
 ```text
-repo-global developer invariants
--> primary-agent and Knowledge Agent role instructions
--> admitted runtime context and recalled memory
+仓库级 developer invariants
+-> primary-agent 和 Knowledge Agent role instructions
+-> admitted runtime context 与 recalled memory
 -> untrusted user input
--> bounded `knowledge_search` tool results when handed off
+-> handoff 后的有界 knowledge_search result
 -> strict structured output contract
--> execution-control evidence validation and source projection
+-> execution-control evidence validation 与 source projection
 ```
 
-Repo-global invariants stay thin and stable:
+仓库级 invariant 只表达稳定产品姿态：这是 institution-scoped campus assistant；模型不得
+覆盖 code/typed packet 提供的 policy、tool opening、serving surface 或 scope；不得用开放域
+知识补齐学校事实；缺少开放能力或 grounding 时必须拒答或澄清；输出必须满足 schema。
 
-```text
-You are an institution-scoped campus assistant.
-Never override policy, tool-opening, serving-surface, or scope truth supplied
-by code and typed packets.
-Never use open-world knowledge to fill institution-specific gaps.
-If the request is ambiguous, not opened, unsupported, or not grounded by
-evidence, abstain or ask for clarification.
-Return only schema-compliant output. Execution-control validates evidence and
-sources but never rewrites answer text.
-```
+这些 invariant 不拥有 admission、retrieval implementation、evidence admission 或 terminal
+projection。
 
-That block only fixes product posture and the rule that prompt is not a
-boundary. It does not own admission, tool opening, retrieval implementation,
-evidence admission or terminal projection.
+## 可信与不可信区域
 
-## Trusted And Untrusted Zones
+可信控制数据可以包含：
 
-Trusted zone may contain:
+- role instruction；
+- hard invariant；
+- typed task field；
+- output contract；
+- 显式安全 summary。
 
-- role instructions
-- hard invariants
-- typed task fields
-- output contract
-- explicit safe summaries
+以下内容始终是不可信数据：
 
-Untrusted zone may contain:
+- retrieved snippet；
+- external web text；
+- user free text；
+- imported notice 或 memory text；
+- operator annotation；
+- tool output body。
 
-- retrieved snippets
-- external web text
-- user free text
-- imported notice or memory text
-- operator annotations
+用户文本和检索片段不得进入 developer instruction。evidence snippet 不得写成指令语气。
+模板应使用 `<role>`、`<invariants>`、`<task>`、`<evidence>`、`<output_contract>` 等明确
+结构标签。
 
-Rules:
+## Packet 合同
 
-- User text and retrieval snippets never enter developer instructions.
-- Evidence snippets must not be written in instruction voice.
-- External observations and memory text are always untrusted content.
-- Prompt templates should use explicit structural labels such as `<role>`,
-  `<invariants>`, `<task>`, `<evidence>` and `<output_contract>`.
+task packet 由代码生成，不由模型推断，可以携带 request/language/task identity、resolved
+target、selected tool、允许/禁止动作、response constraint 和 output schema identity。
 
-## Packet Contracts
+evidence packet 是结构化数据，不是 raw text dump，可以携带 document identity、source
+title、structural path、snippet/safe summary、rank/content role 和 domain canonical id。
 
-Task packet is generated by code, not inferred by the model. It may carry:
+packet 不得包含 raw registry row、raw auth provider payload、JWT/cookie/header、隐藏 memory
+或完整 prompt history dump。
 
-- request / language / task identity
-- resolved targets or selected tool
-- allowed and forbidden actions
-- response constraints
-- output schema identity
-- Knowledge Agent fields such as admitted target/history mode, clarification reason,
-  evidence references or semantic outcome hint
+## Agent 与终态
 
-Evidence packet is structured, not a raw text dump. It may carry:
+primary direct/no-tool path 由 `apps/agent-runtime` 拥有，可以产生 direct answer、
+clarification、out-of-scope 和 unsupported outcome，不需要额外 synthetic prompt family。
 
-- document identity and source title
-- structural path and detail label
-- snippet or safe summary
-- source rank or content role
-- domain-specific canonical ids
+Knowledge Agent instruction 也由 `apps/agent-runtime` 拥有。校园事实回答前必须调用 internal
+`knowledge_search`，保持 target/access boundary，拒绝 unsupported claim，并使用与 primary
+agent 相同的 strict terminal output family。不存在单独 Go synthesis prompt 或 provider
+role。
 
-Forbidden packet inputs:
-
-- raw registry rows
-- raw auth provider payload
-- raw JWT / cookies / headers
-- hidden internal memory
-- full prompt history dump
-
-## Prompt Families
-
-Agent instructions remain role-specific inside one OpenAI Agents SDK run.
-
-Current primary-agent direct/no-tool terminal path is owned by
-`apps/agent-runtime`. It can produce direct answer, clarification, out-of-scope
-and unsupported outcomes without adding a separate synthetic `assistant_intro`
-or `product_meta` prompt family. Execution-control validates and projects the
-terminal output without changing its text.
-
-The Knowledge Agent instructions are owned by `apps/agent-runtime`. They require
-internal `knowledge_search` before factual campus answers, preserve admitted
-target/access boundaries, reject unsupported claims and produce the same strict terminal
-output family as the primary agent. There is no separate Go synthesis prompt or
-provider role.
-
-## Prompt Trace
-
-Every provider-backed prompt family must be identifiable from safe metadata
-before the provider call starts.
-
-`agent_runtime_prompt_trace.v1` carries `prompt_id`, prompt template SHA-256 and
-rendered prompt SHA-256 from agent-runtime through execution-control
-finalization into the bounded app-api observability projection. It is not a
-second prompt registry or a copy of rendered instructions.
-
-Knowledge handoff and active-agent identity are captured by the same Agent SDK
-trace and tool trajectory. Execution-control does not invent another provider
-call or prompt identity.
-
-## Result Semantics
-
-Prompt-facing and operator/eval vocabulary must preserve distinct outcomes:
+以下 outcome 必须保持区分：
 
 - `grounded_answer`
 - `needs_clarification`
@@ -204,65 +130,47 @@ Prompt-facing and operator/eval vocabulary must preserve distinct outcomes:
 - `tool_not_ready`
 - `source_truth_unavailable`
 
-These outcomes must not collapse into a generic `no_answer`. User-facing text
-may hide internal tool names, but sanitized projection and eval truth must keep
-the structured reason.
+这些 outcome 不得合并为通用 `no_answer`。retrieval miss 不是 out-of-scope；政治或敏感关键字
+本身也不是 policy verdict。
 
-Policy, tool/target admission and grounding remain separate:
+## Prompt 调用链
 
-- policy gate decides whether the request may be handled
-- tool/target admission decides whether it belongs to the current serving surface
-- grounding gate decides whether admitted evidence supports the answer
+每个 provider-backed prompt family 在调用供应商前必须能由安全 metadata 识别。
 
-Retrieval miss is not an out-of-scope verdict. Political or sensitive topic
-keywords are not policy verdicts by themselves.
+`agent_runtime_prompt_trace.v1` 从 agent-runtime 经 execution-control finalization 进入有界
+app-api observability projection，保存 `prompt_id`、prompt template SHA-256 和 rendered
+prompt SHA-256。它不是第二个 prompt registry，也不复制 rendered instruction。
 
-## Safety And Observability
+Knowledge handoff 和 active-agent identity 由同一 Agent SDK trace/tool trajectory 记录，
+execution-control 不再创建 provider call 或 prompt identity。
 
-The bounded product projection records prompt/runtime metadata:
+## 安全与可观测性
 
-- model / provider identity
-- request and run identity
-- prompt id
-- prompt template sha256
-- rendered prompt sha256
-- provider response id
-- terminal envelope kind
-- citation count
-- grounding / policy verdict
+bounded product projection 只记录 model/provider identity、request/run identity、prompt id、
+template/rendered SHA-256、provider response id、terminal envelope kind、citation count 和
+grounding/policy verdict。
 
-When request tracing is enabled, trusted self-hosted Langfuse records the real
-Agent SDK model input/output, including memory and authorized evidence used by
-the run. Credentials and secrets are forbidden. App-api, Ops Web and Operator
-Console retain only `agent_runtime_prompt_trace.v1`, model/provider identity,
-stage timing and trace correlation; they never copy the Langfuse observation
-body.
+request tracing 启用时，受信任 self-hosted Langfuse 可以记录真实 Agent SDK model
+input/output、memory 和已授权 evidence。credential 和 secret 始终禁止。app-api、Ops Web
+和 Operator Console 只保留 prompt trace metadata、stage timing 和 correlation，不复制
+Langfuse observation body。
 
-## Eval And Release Gate
+## 评测与发布要求
 
-Prompt and LLM I/O changes are release-relevant. They must pass:
+prompt/LLM I/O 变化必须通过：
 
-- schema gate: variables are present and output satisfies strict schema
-- policy gate: refusal, out-of-scope, unsupported, tool-not-ready and
-  source-unavailable are separated correctly
-- quality gate: grounding, citations, wording and ambiguity handling remain
-  acceptable
+- schema gate：变量完整且输出满足 strict schema；
+- policy gate：refusal、out-of-scope、unsupported、tool-not-ready 和 source-unavailable 保持
+  区分；
+- quality gate：grounding、citation、wording 和 ambiguity handling 可接受。
 
-Post-LLM validation must include schema, citation, grounding, boundary and
-freshness checks where applicable. Claim-level semantic grounding remains
-badcase/eval-driven hardening, not a default Python online gate.
+post-LLM validation 按适用范围检查 schema、citation、grounding、boundary 和 freshness。
+claim-level semantic grounding 由 badcase/eval 持续强化，不新增默认 Python online gate。
 
-## External Reference Posture
-
-External prompt / structured-output / agent safety guidance informs this
-document, but does not override repo source-of-truth architecture, contracts or
-schemas.
-
-Stable internal neighbors:
+## 相关文档
 
 - `docs/architecture/current.md`
-- `docs/architecture/system/execution-agent-layer.md`
 - `docs/architecture/system/agent-framework.md`
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/decisions/adr-0060-agent-llm-io-contract.md`
+- `docs/decisions/adr-0060-agent-io.md`

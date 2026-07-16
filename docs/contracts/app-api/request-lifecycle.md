@@ -1,20 +1,17 @@
 ---
 doc_type: contract
-truth_scope: app_api
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-13
-updated: 2026-07-12
 ---
 
-# Chat Request Lifecycle
+# 聊天请求生命周期
 
 ## 文档边界
 
 本文定义 `POST /api/chat/requests` 和 stream 变体从接收 turn 到最终消息写入的持久化与
 幂等规则。execution-control 的 Temporal workflow、事件合同和内部步骤不在本文重复定义。
 
-## 权威数据
+## 数据所有者
 
 - `chat.conversations` 和 `chat.messages` 保存用户可见会话。
 - `chat.turn_dispatches` 保存一次 turn 的 admission、关联标识、幂等键和最终状态。
@@ -53,7 +50,7 @@ app-api 完成身份、授权、输入和幂等检查后，在同一事务内：
 事务提交后才调用 execution-control 创建 durable run。创建失败或请求被限流时，app-api
 通过同一 finalization 规则收口，不能留下无法解释的 accepted turn。
 
-## Durable Run
+## 持久运行
 
 app-api 向 execution-control 发送 `request_id`、`run_id`、`trace_id`、conversation context、
 principal/authorization 和显式 tool/scope 请求。三组关联标识必须在后续事件中保持一致；

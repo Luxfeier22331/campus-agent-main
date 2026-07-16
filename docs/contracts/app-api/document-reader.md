@@ -1,31 +1,26 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-04-21
-updated: 2026-06-12
 ---
-# App API Document Reader HTTP Contract
+# App API 文档阅读器 HTTP 合同
 
 ## 文档边界
 
-本文冻结 shared `apps/app-api` 对 `campus-web /docs/*` 暴露的 browser-facing docs
-control-plane HTTP contract。
+本文定义 `apps/app-api` 为 `campus-web /docs/*` 提供的浏览器文档接口。
 
 它回答的是：
 
-- docs site 通过 same-site `/api/docs/*` 应读取哪些稳定 seam
-- 哪些能力继续属于 control-plane API，哪些正文内容不应再由 API 每次返回
-- restricted / gated docs search、version list、citation permalink、reader asset resolve
-  各自返回什么
-- chat source-card payload 在 app-api docs seam 中应遵循什么最小 wire shape
+- 文档站通过同源 `/api/docs/*` 读取哪些信息；
+- 哪些信息由接口返回，哪些正文由静态阅读器资产交付；
+- 受限文档搜索、版本列表、引用固定链接和阅读器资产解析各自返回什么
+- 聊天来源卡片在文档接口中使用的最小结构。
 
 它不负责：
 
-- Rspress 主题、static asset routing 或部署方式
-- docs shell 的 UI 细节
-- `campus-web` 当前已上线消息 shape
+- Rspress 主题、静态资产路由或部署方式；
+- 文档站界面细节；
+- `campus-web` 的其他消息结构。
 - retrieval backend 的底层算法或存储实现
 - source-card 人类语义，见 `docs/domains/source-card.md`
 
@@ -35,7 +30,7 @@ control-plane HTTP contract。
   为准；本文是 docs site 的 forward contract
 - restricted visibility 与 version mode 规则分别服从
   `docs/architecture/system/identity-authz.md` 与
-  `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+  `docs/decisions/adr-0014-document-history.md`
 
 ## 适用范围
 
@@ -66,7 +61,7 @@ control-plane HTTP contract。
 - gated static reader 的逐请求 admission 仍由 `app-api` 决定，`campus-web` 不缓存或重建
   visibility truth
 
-## Cross-Cutting Rules
+## 通用规则
 
 - JSON body 使用 `camelCase`
 - `corpus` / `collection` / `versionMode` 使用小写语义值
@@ -82,19 +77,16 @@ control-plane HTTP contract。
   reader permalink，不是 SEO canonical URL，也不表示公开文档站运行时必须调用
   `app-api` 解析链接
 
-## Endpoint Summary
+## 接口清单
 
 - `GET /api/docs/readyz`
 - `GET /api/docs/collections/:corpus/:collection/navigation`
 - `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
-- `GET
-  /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
-- `GET
-  /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
-- `GET
-  /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
+- `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
+- `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
+- `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
 
-## Docs Readiness Contract
+## 文档阅读器就绪合同
 
 ### `GET /api/docs/readyz`
 
@@ -121,7 +113,7 @@ control-plane HTTP contract。
 - 失败时返回 `503 dependency_not_ready`，message 固定为
   `Document reader control plane is not ready.`
 
-## Navigation Contract
+## 导航合同
 
 ### `GET /api/docs/collections/:corpus/:collection/navigation`
 
@@ -152,7 +144,7 @@ control-plane HTTP contract。
 - navigation 只返回当前 principal 可见的节点
 - navigation node 可承载 section shortcut，但不返回全文块内容
 
-## Document Summary Contract
+## 文档摘要合同
 
 ### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
 
@@ -174,7 +166,7 @@ control-plane HTTP contract。
 }
 ```
 
-## Version List Contract
+## 版本列表合同
 
 ### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
 
@@ -204,7 +196,7 @@ control-plane HTTP contract。
 - first launch 即使只开放 current reader，也要返回稳定 `versionId` / `versionSlug`
 - historical rollout 只在这里扩 version list，不改 reader URL contract
 
-## Reader Asset Resolve Contract
+## 阅读器资产解析合同
 
 ### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
 
@@ -261,7 +253,7 @@ control-plane HTTP contract。
 - response 不返回 `chunkId`、`score`、`sourceUnitKey`、raw snippet dump
 - `gated_asset` 的默认 URL 为 same-origin `/_gated-docs/*`，由 `campus-web` Worker-first
   校验后交付
-- `gated_asset` 的 v1 delivery 默认要求 `campus-web` 逐请求向 `app-api` 做 authz 校验
+- `gated_asset` 当前默认要求 `campus-web` 逐请求向 `app-api` 做授权校验
 - `gated_asset` 不应把对象存储 endpoint、presigned URL 或 bucket key 暴露给 browser
 - `gated_asset` 可以拥有 Rspress bootstrap route，但正文必须通过 resolve/admission 后
   same-origin 读取；匿名 Rspress index 不得包含 gated 文档 title/slug
@@ -269,7 +261,7 @@ control-plane HTTP contract。
 - restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
   path
 
-## Gated Reader Admission Contract
+## 受限阅读器准入合同
 
 ### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
 
@@ -288,7 +280,7 @@ control-plane HTTP contract。
 - 授权失败、对象不存在或 projection 不可安全判定时 fail-close
 - `campus-web` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
 
-## Restricted / Gated Docs Search Delivery Contract
+## 受限文档搜索交付合同
 
 browser-facing docs site 不再调用，app-api 也不再注册
 `GET /api/docs/collections/:corpus/:collection/search`。公开 current 文档搜索由 Rspress
@@ -343,7 +335,7 @@ native local search 处理；受限文档搜索由 campus-web 交付 admission �
 - `/api/docs/collections/:corpus/:collection/search` 不属于 app-api
   document reader HTTP contract，也不得被 campus-web Worker allowlist。
 
-## Source Card Shared Payload
+## 来源卡片共享载荷
 
 source-card 行为语义统一见 `docs/domains/source-card.md`。本文只冻结
 app-api/docs seam 的最小 citation target wire shape：
@@ -369,7 +361,7 @@ app-api/docs seam 的最小 citation target wire shape：
   URL-safe route slug
 - source card 自身不承载整篇 reader payload
 
-## Forbidden Shapes
+## 禁止形态
 
 - 不新增 `browser -> app-api` 的 docs public direct-call contract
 - 不返回 raw `chunkId` / `sourceUnitKey` 作为用户跳转目标
@@ -385,4 +377,4 @@ app-api/docs seam 的最小 citation target wire shape：
 - `docs/domains/source-card.md`
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/system/identity-authz.md`
-- `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+- `docs/decisions/adr-0014-document-history.md`

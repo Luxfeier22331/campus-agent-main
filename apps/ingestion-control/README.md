@@ -1,96 +1,84 @@
 # ingestion-control
 
-Temporal-backed control plane for offline ingestion tasks.
+基于 Temporal 的离线采集任务控制面。
 
-## Ownership
+## 所有权
 
-This app owns:
+本应用负责：
 
-- authenticated task admission through `ingestion_task_envelope.v3`;
-- registry snapshot validation through `ingestion_task_registry.v3`;
-- one Temporal workflow per task;
-- PostgreSQL task, official-web URL freshness, and configured-seed projections;
-- control activities and the Rust kernel process bridge;
-- terminal projection from a single object-store-backed
-  `ingestion_task_result.v1`.
+- 通过 `ingestion_task_envelope.v3` 认证并准入 task；
+- 通过 `ingestion_task_registry.v3` 校验 registry snapshot；
+- 为每个 task 启动一个 Temporal workflow；
+- 维护 PostgreSQL task、Official Web URL freshness 和 configured-seed 投影；
+- 执行 control activity 与 Rust kernel 进程 bridge；
+- 从一个由对象存储支撑的 `ingestion_task_result.v1` 写入终态投影。
 
-It does not crawl providers, run a second scheduler, keep a run ledger, publish
-online query targets, or execute Python fallback handlers. Source capture runs
-in `apps/source-collector`; deterministic file kernels run through
-`packages/ingestion-kernels-rs`.
+本应用不采集 provider、不运行进程内 scheduler、不维护 run ledger、不发布在线查询 target，
+也不执行 Python fallback handler。source capture 位于 `apps/source-collector`；确定性文件
+kernel 位于 `packages/ingestion-kernels-rs`。
 
-Temporal also owns the fixed `internal-portal-auth-maintenance` Schedule. A
-deployment sync command reconciles its 30-minute definition; ingestion-control
-does not run an in-process timer. A new Schedule starts paused until Ops Web
-writes the first valid credential and resumes it. The Schedule remains separate
-from ingestion task admission and projection.
+Temporal 还拥有固定的 `internal-portal-auth-maintenance` Schedule。部署同步命令维护其
+30 分钟周期；Schedule 首次创建时暂停，凭据确认失效时再次暂停，人员通过 Ops Web 更新
+凭据后恢复。该维护流程与采集任务准入和任务投影分离。
 
-## Runtime Roles
+## 运行角色
 
-| Role | Command | Responsibility |
+| 角色 | 命令 | 职责 |
 | --- | --- | --- |
-| HTTP API | `pnpm --filter ingestion-control start:api` | Validate a v3 envelope, freeze the registry task, start Temporal, and expose bounded task projections. |
-| Temporal worker | `pnpm --filter ingestion-control start:temporal-worker` | Poll workflow, control-activity, and Rust-kernel queues and write terminal projections. |
-| Schema migration | `pnpm --filter ingestion-control migrate` | Apply ordered SQL migrations under one advisory lock and verify the migration journal. |
+| HTTP API | `pnpm --filter ingestion-control start:api` | 校验 v3 envelope、冻结 registry task、启动 Temporal 并提供有界 task 投影。 |
+| Temporal worker | `pnpm --filter ingestion-control start:temporal-worker` | 轮询 workflow、control-activity 与 Rust-kernel queue，并写入终态投影。 |
+| Schema migration | `pnpm --filter ingestion-control migrate` | 在一个 advisory lock 下按顺序执行 SQL migration，并校验 migration journal。 |
+| Schedule 同步 | `pnpm --filter ingestion-control schedules:sync` | 创建或更新固定认证维护 Schedule，并保留现有暂停状态。 |
 
-Production keeps these roles in one package but publishes separate image
-targets:
+生产环境仍由一个 package 提供这些角色，但构建为两个 image target：
 
-| Image | Docker target | Consumer |
+| Image | Docker target | 用途 |
 | --- | --- | --- |
-| `ingestion-control` | `api` | HTTP Deployment and schema migration command. |
-| `ingestion-control-worker` | `worker` | Temporal WorkerDeployment with the Rust runner and frozen embedding tokenizer. |
+| `ingestion-control` | `api` | HTTP Deployment 与 schema migration command。 |
+| `ingestion-control-worker` | `worker` | 包含 Rust runner 与固定 embedding tokenizer 的 Temporal WorkerDeployment。 |
 
-The source-collector activity queue is polled by the separate
-`source-collector` image. Kubernetes production workers are managed through
-Temporal Worker Controller `WorkerDeployment` resources; the controller
-injects `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_WORKER_BUILD_ID` together.
-Local workers may omit both variables and run unversioned.
+source-collector activity queue 由独立 `source-collector` image 轮询。Kubernetes 生产 worker
+通过 Temporal Worker Controller 的 `WorkerDeployment` 资源管理；controller 同时注入
+`TEMPORAL_DEPLOYMENT_NAME` 与 `TEMPORAL_WORKER_BUILD_ID`。本地 worker 可以不设置这两个变量，
+以 unversioned 方式运行。
 
-Canonical queues:
+正式 queue：
 
 - `campus-agent.ingestion.workflow`
 - `campus-agent.ingestion.activity.control`
 - `campus-agent.ingestion.activity.rust-kernel`
 - `campus-agent.ingestion.activity.source-collector`
 
-## HTTP Surface
+## HTTP 接口
 
-- `POST /internal/ingestion/tasks`: admin-token task admission.
-- `GET /internal/ingestion/tasks/:taskId`: admin-token task detail.
-- `GET /internal/ingestion/operator-projection/tasks`: app-api projection token.
-- `GET /healthz`: process liveness.
-- `GET /readyz`: live PostgreSQL and Temporal dependency readiness.
-- `GET /internal/ingestion/operations/internal-portal-auth-maintenance`: fixed
-  maintenance Schedule summary for Ops Web.
-- `POST /internal/ingestion/operations/internal-portal-auth-maintenance/resume`:
-  resume that fixed Schedule after credential replacement.
+- `POST /internal/ingestion/tasks`：使用 admin token 准入 task；
+- `GET /internal/ingestion/tasks/:taskId`：使用 admin token 查询 task 详情；
+- `GET /internal/ingestion/operator-projection/tasks`：使用 app-api projection token 查询；
+- `GET /internal/ingestion/operations/internal-portal-auth-maintenance`：使用固定运维令牌读取认证维护状态；
+- `POST /internal/ingestion/operations/internal-portal-auth-maintenance/resume`：恢复固定认证维护 Schedule；
+- `GET /healthz`：进程存活状态；
+- `GET /readyz`：实时检查 PostgreSQL 与 Temporal 依赖。
 
-There are no source-specific lifecycle routes. A collector is invoked only by
-the workflow through its activity task queue.
+系统没有来源专用采集生命周期接口。collector 只能由 workflow 通过 activity task queue 调用；
+认证维护接口不能选择其他 Schedule、立即触发工作流或提交采集任务。
 
-## Storage
+## 存储
 
-`migrations/0001_tasks.sql` defines the current schema. PostgreSQL stores the
-bounded task projection plus latest official-web URL and configured-seed state.
-Temporal is the workflow truth; object storage is the artifact truth. Source
-capture uses the source bucket, while Rust kernels use separate derived-bucket
-credentials for canonical inputs and deterministic outputs. The process fails
-at startup when the required database schema is absent or still contains
-retired lease/task-kind columns.
+`migrations/0001_tasks.sql` 定义当前 schema。PostgreSQL 保存有界 task 投影、最新 Official Web
+URL 状态和 configured-seed 状态。Temporal 是 workflow 事实，对象存储是 artifact 事实。
+source capture 使用 source bucket；Rust kernel 使用 derived-bucket credential 读写正式输入与
+确定性输出。所需 database schema 缺失或仍含已退役的 lease/task-kind column 时，进程启动失败。
 
-Object writes are create-or-verify and every cross-runtime ref contains a
-SHA-256 digest plus byte size. Preparation, Rust-kernel and terminal result
-artifacts are attempt-scoped under
-`runs/<run-id>/attempts/<activity-attempt>/`; a retry cannot overwrite bytes
-from an earlier attempt. Official-web freshness upserts order observations by
-`(observed_at, last_observed_run_id)` so equal timestamps converge
-deterministically instead of allowing a late run to overwrite a newer one.
+对象写入采用 create-or-verify，所有跨 runtime ref 都包含 SHA-256 digest 与 byte size。
+preparation、Rust-kernel 和 terminal result artifact 按 attempt 写入
+`runs/<run-id>/attempts/<activity-attempt>/`；retry 不能覆盖早期 attempt 的 bytes。Official
+Web freshness upsert 按 `(observed_at, last_observed_run_id)` 排序，使 timestamp 相同时也能
+确定性收敛，迟到 run 不会覆盖更新状态。
 
-## Local Run
+## 本地运行
 
-Start Temporal, PostgreSQL, and the object store, apply the current migration,
-then load `env/commands/ingestion-control-runtime.env.example` into the shell.
+启动 Temporal、PostgreSQL 与对象存储，执行当前 migration，再将
+`env/commands/ingestion-control-runtime.env.example` 加载到 shell：
 
 ```bash
 pnpm --filter ingestion-control migrate
@@ -99,14 +87,14 @@ pnpm --filter ingestion-control start:temporal-worker
 pnpm --filter source-collector start:temporal-worker
 ```
 
-Local image builds use the same Dockerfile with explicit targets:
+本地 image 使用同一 Dockerfile 的明确 target：
 
 ```bash
 docker build --target api -f apps/ingestion-control/Dockerfile -t ingestion-control .
 docker build --target worker -f apps/ingestion-control/Dockerfile -t ingestion-control-worker .
 ```
 
-## Verification
+## 验证
 
 ```bash
 pnpm ci:ingest

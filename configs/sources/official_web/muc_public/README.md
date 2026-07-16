@@ -1,80 +1,29 @@
-# muc_public official_web source config
+# muc_public 来源配置
 
-This directory freezes the public-web source config for the `muc_public` site.
+本目录定义 `muc_public` site 的公开网页来源边界、调度与质量策略。它不直接开放任何在线查询
+target。
 
-It defines source reachability, scheduler lanes, QC policy and target-first
-consumer admission inputs. It does not open `fresh_news`, a future
-historical-news/archive surface, or any college-specific query-serving surface.
+## 配置所有权
 
-## Config Files
+- `site.json`、`hosts.json`、`seeds.json`：site、host 与 seed 事实；
+- `crawl-policy.json`、`scheduler-policy.json`、`qc-policy.json`：crawl、调度与质量策略；
+- `credentials.schema.json`：匿名公开采集所需 credential 结构；
+- `projection-declarations.json`：target 准入后的 page-family action hint；
+- `target-source-map.json`：target-first 准入；
+- `consumer-denominator.json`、`target-inventory.json`：已准入下游消费范围；
+- `source-packs/`：显式 target-first batch manifest；
+- `projection-routing.json`：保留的 projection route 配置，当前值以文件为准。
 
-- `site.json`
-  - site identity and shared request baseline
-- `hosts.json`
-  - host allowlist, host grouping, rollout order and host-scoped crawl policy
-- `seeds.json`
-  - public seed set for enabled hosts
-- `crawl-policy.json`
-  - shared URL admission and content-fetch policy
-- `scheduler-policy.json`
-  - lane identity, cadence, host scope and budget truth
-- `qc-policy.json`
-  - site-scoped QC allowlist for known review-only shell families
-- `credentials.schema.json`
-  - anonymous public crawl posture
-- `projection-declarations.json`
-  - page-family action hints used only after target admission
-- `projection-routing.json`
-  - reserved projection routing config; current routes stay empty
-- `consumer-denominator.json`
-  - downstream consumer denominator for retained source-truth candidates
-- `target-source-map.json`
-  - target-first admitted downstream surfaces
-- `target-inventory.json`
-  - operator-facing inventory truth for admitted target-first pages
-- `source-packs/`
-  - repo-tracked source-pack manifests for explicit target-first batches
+具体 lane、host、budget、保留动作和 rollout 值只由对应 JSON 拥有，README 不维护副本。
 
-## Scheduler Lanes
+## 边界
 
-- `consumer-candidate-hot`
-  - bounded hot lane for support/reference candidates on admitted
-    university-level surfaces
-- `consumer-stable-baseline`
-  - daily baseline lane for school-level core/support consumer candidates
-- `college-single-host-baseline`
-  - disabled template for one-college validation
-- `topic-single-host-baseline`
-  - disabled template for one-topic validation
-- `repair`
-  - retry lane for failed observations without widening coverage
+- host group 与 scheduler lane 只是 source-layer segmentation，不代表在线 target 已开放；
+- listing page 默认用于 discovery，保留与投影由配置及明确 target admission 决定；
+- `projection-declarations.json` 不能独立扩大 `stable_reference` 或其他 serving surface；
+- `projection-routing.json` 不能独立开放 Official Web 在线查询；
+- expansion batch 通过质量检查也不会自动改变 scheduler cadence 或 query-serving scope。
 
-Passing an expansion batch does not change scheduler cadence or query-serving
-scope. Hosts outside the stable regression gate must be admitted through
-explicit source-pack or target workset inputs.
+## 相关文档
 
-## Retention Rules
-
-- fetched pages without downstream consumer evidence are rejected from retained
-  source-truth in `retain_matching_only` mode
-- listing pages are discovery by default
-- contact/service candidates require extracted fact evidence before selected
-  write
-- notice/news candidates remain `inventory_only`
-- public regulation candidates route to `regulations/institutional_rules` or
-  `regulations/student_rules`
-
-`projection-declarations.json` does not own target admission and must not
-independently fan out broad crawl pages to `stable_reference`. It may only guide
-the action/document kind after a page has matched an explicit target. Target
-admission is owned by `target-source-map.json` and its consumer/inventory
-companions until those files are consolidated.
-
-`projection-routing.json` must not independently open official-web serving
-surfaces.
-
-## References
-
-- `docs/architecture/domains/official-web/architecture.md`
-- `docs/data/official-web.md`
-- `docs/policies/official-web-crawl-policy.md`
+- `docs/domains/official-web.md`

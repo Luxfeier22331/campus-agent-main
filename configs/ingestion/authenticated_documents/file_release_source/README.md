@@ -1,14 +1,11 @@
 # `authenticated_documents/file_release_source`
 
-This scope holds canonical `internal_portal/file_release` source
-records plus the released original file provenance.
+本配置范围保存规范的 `internal_portal/file_release` 来源记录，以及已发布原文件的来源信息。
 
-Current boundary:
+当前边界：
 
-- stop at source-truth and document holding
-- raw asset registry points at the released original bytes
-- capture and verified source-manifest production are owned by the
-  `internal_portal.file_release.capture` source-collector activity
-- `reference_only` collector rows fail closed and stay outside this holding
-  scope
-- no regulation promotion or restricted document-center serving in this scope
+- 处理止于来源事实和文档暂存；
+- 原始资产注册表指向已发布原文件的字节内容；
+- `internal_portal.file_release.capture` 来源采集 activity 负责采集并生成已验证的来源清单；
+- `reference_only` 采集记录采用失败关闭，不进入此暂存范围；
+- 此范围不负责提升为规章，也不提供受限文档中心读取能力。

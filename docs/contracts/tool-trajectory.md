@@ -1,78 +1,72 @@
 ---
 doc_type: contract
-truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
-created: 2026-07-03
-updated: 2026-07-12
 ---
-# Tool Trajectory
+# 工具轨迹合同
 
-## Boundary
+## 边界
 
-`tool_trajectory.v2` is the sanitized tool-decision projection consumed by
-operator diagnostics and eval. It is not a Langfuse DTO, browser contract,
-Temporal history shape or provider response.
+`tool_trajectory.v2` 是供执行诊断和评测消费的工具决策投影。它不是 Langfuse DTO、浏览器
+合同、Temporal history 结构或 provider response。
 
-## Top-Level Shape
+## 顶层结构
 
-A projection contains:
+投影包含：
 
-- `schema_version=tool_trajectory.v2`;
-- request, run and trace identity;
-- optional conversation, surface, environment and release identity;
-- `available_tools`;
-- `decision_kind=direct_answer|tool_call|fail_closed`;
-- selected tool or fail-close reason when applicable;
-- public `tool_calls[]`;
-- internal `internal_tool_calls[]`.
+- `schema_version=tool_trajectory.v2`；
+- request、run 与 trace 标识；
+- 可选的 conversation、surface、environment 与 release 标识；
+- `available_tools`；
+- `decision_kind=direct_answer|tool_call|fail_closed`；
+- 适用时的 selected tool 或 fail-close reason；
+- 对外的 `tool_calls[]`；
+- 内部的 `internal_tool_calls[]`。
 
-The projection is derived from the sanitized run/step/result spine. It never
-requires raw prompt, provider response, source body or Temporal history replay.
+该投影从有界 run/step/result 数据派生，不需要原始 prompt、provider response、source body 或
+Temporal history replay。
 
-## Public Tool Calls
+## 模型可见调用
 
-`tool_calls[]` records primary-agent-visible function calls and handoffs. A
-knowledge handoff appears as `knowledge_query` with result kind
-`agent_handoff`; internal searches do not appear in this list.
+`tool_calls[]` 记录 Primary Agent 可见的 function call 与 handoff。知识 handoff 记为
+result kind 是 `agent_handoff` 的 `knowledge_query`；内部搜索不进入该列表。
 
-A call may carry tool call id, tool name, status, result kind, duration,
-argument shape/hash, fail-close reason and safe provider/model identity.
+每次调用可以携带 tool call id、tool name、status、result kind、duration、argument
+shape/hash、fail-close reason 和可公开的 provider/model 标识。
 
-## Internal Search Calls
+## 内部搜索调用
 
-`internal_tool_calls[]` records Knowledge Agent `knowledge_search` calls in
-ordinal order. In addition to the common call fields, each search carries:
+`internal_tool_calls[]` 按顺序记录 Knowledge Agent 的 `knowledge_search`。除通用字段外，每次
+搜索还包含：
 
-- positive `search_ordinal`;
-- eval-safe `{target, include_history}` arguments;
-- optional query hash;
-- outcome;
-- candidate and discarded counts.
+- 正整数 `search_ordinal`；
+- 可用于评测的 `{target, include_history}` arguments；
+- 可选 query hash；
+- outcome；
+- candidate 与 discarded 数量。
 
-The search query text and evidence snippets are not trajectory fields. RAG text
-needed by an admitted eval comes from `agent_runtime_eval_projection.v2`.
+搜索 query 原文与 evidence snippet 不属于 trajectory 字段。获准评测所需的 RAG 文本来自
+`agent_runtime_eval_projection.v2`。
 
-## Decision Semantics
+## 决策语义
 
-`direct_answer` means no model-visible tool was selected. `tool_call` means an
-admitted SDK function tool or handoff ran. `fail_closed` means a required
-contract, configuration, policy or execution condition rejected the run.
+- `direct_answer`：未选择模型可见工具；
+- `tool_call`：已准入的 SDK function tool 或 handoff 已执行；
+- `fail_closed`：合同、配置、策略或执行条件拒绝了本次 run。
 
-Clarification, refusal and ordinary direct answers are not synthetic tools.
+澄清、拒绝和普通直接回答不得伪装成工具。
 
-## Forbidden Data
+## 禁止数据
 
-Trajectory projection must reject, not sanitize after the fact:
+trajectory 必须在写入前拒绝以下数据，不能事后再脱敏：
 
-- raw prompt, transcript, provider response or model output;
-- raw tool arguments, retrieval query or source body;
-- raw memory content or Hindsight identifiers;
-- credentials, auth headers, cookies, database URLs or object-store locations.
+- 原始 prompt、transcript、provider response 或 model output；
+- 原始 tool arguments、retrieval query 或 source body；
+- 原始 memory content 或 Hindsight identifier；
+- credential、auth header、cookie、database URL 或 object-store location。
 
-## Eval Consumption
+## 评测消费
 
-`packages/eval-langfuse` parses only v2. It uses public calls for primary tool
-selection and the internal search sequence for Ragas official tool-call metrics
-and target/history diagnostics. Answer and retrieval quality remain separate
-Ragas metrics over the execution eval projection.
+`packages/eval-langfuse` 只解析 v2。它使用对外调用判断 Primary Agent 的工具选择，并使用内部
+搜索序列计算 Ragas tool-call metric 及 target/history 诊断。答案质量和检索质量仍通过
+execution eval projection 上相互独立的 Ragas metric 评估。

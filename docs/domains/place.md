@@ -1,43 +1,37 @@
 ---
 doc_type: domain
-truth_scope: data
 owner_boundary: domains/navigation/place
 status: active
-created: 2026-06-28
-updated: 2026-07-10
 ---
-# Place Catalog
+# 校园地点
 
-## Boundary
+## 边界
 
-This document defines the repo-owned campus place catalog boundary.
+本文定义当前校园地图地点目录。它服务 campus-web 地图读取，不是模型可见工具、路线规划器、
+geocoder 或 RAG collection。
 
-The catalog stores stable place identity, aliases, campus area, location
-description and optional map bindings. It supports campus-map reads and future
-navigation work. It is not an active chat tool, route planner, geocoder or RAG
-collection.
+## 当前实现
 
-Current facts:
+- app-api 的 `apps/app-api/src/modules/campus-experience` 拥有当前浏览器 read model；
+- `GET /api/campus-map/places` 返回 campus 与地点列表；
+- `GET /api/campus-map/places/:placeId` 返回单个地点；
+- campus-web 通过 `apps/campus-web/src/features/map/api.ts` 消费这两个接口；
+- 当前没有模型可见的地点工具或 execution contract。
 
-- canonical record shape and seed posture live in `../data/place-catalog.md`
-- navigation architecture lives in
-  `../architecture/domains/navigation/architecture.md`
-- browser map reads use `GET /api/campus-map/places` and
-  `GET /api/campus-map/places/:placeId`
-- no model-visible place tool or execution contract exists
+`configs/reference-data/campus_navigation/place_catalog/seed.v1.json` 是 synthetic reference
+fixture，当前 app-api 不加载它。修改该 seed 不会改变浏览器地图；不得把它描述为已发布的
+runtime catalog。
 
-## Map Binding
+## 浏览器数据
 
-Each place can expose a point GeoJSON feature as its interaction center.
-Places backed by campus base-map geometry may also expose `mapFeatureRefs[]`
-with explicit `{ sourceId, layer, fid }` bindings.
+`CampusMapPlace` 包含稳定 `id`、title、campus、category、description、tag、source ref、可选
+access note 和一个 point GeoJSON feature。坐标顺序为 longitude、latitude。
 
-Browser interaction must not infer canonical place identity from base-map
-labels, nearest geometry, provider ids or free-form source references.
+若地点对应校园底图 geometry，可以通过 `mapFeatureRefs[]` 显式绑定
+`{ sourceId, layer, fid }`。浏览器不得根据底图 label、最近 geometry、provider id 或自由格式
+source ref 推断 place identity。
 
-## Future Capability
+## 相关文档
 
-A future place-finding or wayfinding capability must start from a product
-requirement and add a real runtime owner, ToolSpec, strict payload/result
-schema, projection contract and evaluation denominator. The catalog alone does
-not reserve a tool id or make that capability available.
+- `../decisions/adr-0027-navigation.md`
+- `../decisions/adr-0028-map-provider.md`

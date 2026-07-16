@@ -20,7 +20,6 @@ target-version = "py312"
 line-length = 100
 force-exclude = true
 extend-exclude = [
-  ".planning",
   ".tmp",
   ".worktrees",
   "apps/app-api/drizzle/meta",

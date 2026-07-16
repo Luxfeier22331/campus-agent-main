@@ -1,57 +1,38 @@
-# scoped_rules collection config
+# scoped_rules 配置
 
-This directory holds the repo-tracked config scaffold for the `scoped_rules`
-collection within the `regulations` corpus.
+本目录保存 `regulations/scoped_rules` 的仓库配置 scaffold。
 
-- `serving-config.json`: canonical serving gate for the unified scoped-rule
-  holding collection
-- `canonical-profile.json`: canonical identity and provenance truth for imported
-  scoped-rule documents
-- `chunk-profile.json`: chunk-preparation scaffold for canonical scoped-rule
-  text
-- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze
-  that adjudicated scoped rules should import first into one unified holding
-  collection instead of waiting for full query semantics
+## 配置文件
 
-Current serving truth:
+- `serving-config.json`：collection serving gate 和 index compatibility；
+- `canonical-profile.json`：imported scoped-rule document 的 identity 和 provenance；
+- `chunk-profile.json`：canonical scoped-rule text 的 chunk-preparation 配置。
 
-- serving stage: `query_serving`
-- retrieval enabled: `true`
-- query enabled by default: `false`
-- serving alias: `scoped_rules`
-- collection prefix: `scoped_rules`
-- downstream admission policy: excluded from current document-site read-model and
-  RAG release candidate admission; historical backfills may only prepare
-  canonical/document-units/chunk-only evidence
+## Collection 边界
 
-Collection boundary:
+该 collection 只接受 canonical scoped rule text：
 
-- this collection accepts canonical scoped rule text only
-- current document natures:
-  - `annual_cycle_rule`
-  - `time_bound_operational_rule`
-- wrapper notices remain in `campus_notices/internal_notice`
-- stable institution-wide regulations remain in
-  `regulations/institutional_rules`
-- clearly historical annual-cycle notices remain in
-  `campus_notices/internal_notice` with `promotion_disposition=hold_in_internal_notice`
+- `annual_cycle_rule`；
+- `time_bound_operational_rule`。
 
-Current scaffold note:
+wrapper notice 保留在 `campus_notices/internal_notice`；稳定校级规章属于
+`regulations/institutional_rules`；没有当前产品用途的历史年度通知不进行 target
+publication。
 
-- this collection is canonical/chunk-preparation ready, but query disabled by
-  default and excluded from document-site/RAG downstream consumption
-- repo no longer keeps a Python scoped-rule materialization or local chunk-prep
-  path. Active execution starts from explicit canonical `document-units` refs and
-  uses the registry-declared Rust validation/chunk kernels.
-- source materialization is not implemented and has no placeholder task. The
-  active v3 registry only accepts digest-pinned canonical units for Rust
-  validation/chunk preparation.
-- `annual_cycle_rule` candidates must pass applicability gating before target
-  materialization; expired unit/year-specific annual cycle notices are retained
-  for notice-level query rather than published to the regulation reader
-- target scope refresh must rewrite `document-units/chunks` when provenance
-  metadata expands, even if semantic content hash and version id stay stable
-- local-only quality acceptance must use an isolated snapshot root instead of
-  reusing the long-lived historical local-smoke object-store output root
-- detailed `current / historical / as_of / compare` semantics are future work
-  and do not block import
+## 当前执行能力
+
+active v3 task registry 只接收 digest-pinned canonical `document-units`，并调用 Rust kernel
+执行 validation/chunk preparation。仓库没有 source materialization 或 promotion task，也
+不保留 Python scoped-rule materializer。
+
+该 collection 不在 `configs/runtime/query-serving-targets.v1.json` 中，因此不能在线查询。
+serving config、canonical profile 和 chunk profile 的存在只描述目标兼容性，不代表已经
+materialize、publish 或对 RAG/reader 开放。
+
+未来开放查询前，需要独立定义 applicability、effective time、history/as-of/compare、
+filter 和 evaluation 合同。
+
+## 相关文档
+
+- `docs/decisions/adr-0037-scoped-rules.md`
+- `docs/decisions/adr-0035-regulation-promotion.md`

@@ -1,26 +1,22 @@
-# Code Of Conduct
+# 行为准则
 
-## Expected Behavior
+## 期望行为
 
-Participants are expected to keep discussions technical, specific and
-respectful. Good-faith disagreement about architecture, correctness, security or
-scope is welcome when it is grounded in evidence and focused on the work.
+参与者应保持讨论技术化、具体且相互尊重。围绕架构、正确性、安全或范围的善意分歧受到
+欢迎，但必须基于证据并聚焦当前工作。
 
-## Unacceptable Behavior
+## 不可接受行为
 
-- harassment, threats or personal attacks
-- publishing another person's private information
-- sharing secrets, credentials, private source data or non-public deployment
-  details
-- repeatedly derailing technical discussions after maintainers have set scope
+- 骚扰、威胁或人身攻击；
+- 公开他人的隐私信息；
+- 分享 Secret、credential、私有来源数据或非公开部署细节；
+- 维护者已经明确范围后，仍反复让技术讨论偏离主题。
 
-## Enforcement
+## 执行
 
-Maintainers may edit, hide or remove comments, issues or pull requests that
-violate this code. Repeated or severe violations may lead to temporary or
-permanent loss of participation privileges.
+维护者可以编辑、隐藏或删除违反本准则的评论、Issue 或 PR。反复或严重违规可能导致临时
+或永久失去参与权限。
 
-## Reporting
+## 报告
 
-Report conduct concerns to the maintainers through private project channels.
-For security-sensitive material, follow `SECURITY.md` instead.
+行为问题通过项目私有渠道报告给维护者。涉及安全敏感材料时遵循 `SECURITY.md`。

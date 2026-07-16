@@ -1,21 +1,19 @@
 # operator-console-web
 
-Cloudflare Worker shell for the controlled Operator Console surface.
+受控 Operator Console 的 Cloudflare Worker 页面。
 
-This app only owns the browser shell, static assets, Worker-local readiness and
-an explicit allowlist of proxied operator routes into `apps/app-api`. It must not
-become a second operator backend, a generic admin platform, or a direct browser
-client for execution-control, Temporal, PG, Sentry or Axiom.
+本应用只拥有浏览器 shell、静态资源、Worker 本地就绪检查，以及代理到 `apps/app-api` 的明确
+接口白名单。它不得成为第二个运维后端、通用管理平台，也不得让浏览器直连
+execution-control、Temporal、PostgreSQL、Sentry 或 Axiom。
 
-## Current Surface
+## 当前范围
 
-- protected SPA routes for the current operator workflows
-- `GET /healthz`
-- `GET /readyz`
-- Worker-local `/api/*` routes that proxy only admitted app-api operator APIs
-- no generic `/api/*` passthrough
+- 当前运维流程的受保护 SPA 路由；
+- `GET /healthz`、`GET /readyz`；
+- 只代理已准入 app-api 运维接口的 Worker 本地 `/api/*`；
+- 不提供通用 `/api/*` 透传。
 
-The current product and proxy surface is defined by:
+产品与代理边界由以下文档定义：
 
 - `docs/architecture/system/operator-console.md`
 - `docs/architecture/system/product-runtime.md`
@@ -23,10 +21,9 @@ The current product and proxy surface is defined by:
 - `docs/contracts/app-api/operator-ops.md`
 - `docs/contracts/app-api/observability.md`
 
-Request and runtime diagnosis belongs to the self-hosted `apps/ops-web` surface.
-This Worker does not proxy those read APIs.
+请求与运行排查属于自托管 `apps/ops-web`，本 Worker 不代理这些接口。
 
-## Runtime Env
+## 运行变量
 
 - `OPERATOR_CONSOLE_APP_NAME`
 - `OPERATOR_CONSOLE_APP_API_SHARED_SECRET`
@@ -38,15 +35,15 @@ This Worker does not proxy those read APIs.
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
 
-Required bindings:
+必需 binding：
 
 - `APP_API`
 - `ASSETS`
 
-`/readyz` must fail closed until the trusted app-api bridge, assets, shared
-secret and Cloudflare Access assertion settings are configured.
+受信任 app-api 通道、静态资源、共享 Secret 或 Cloudflare Access 断言配置缺失时，`/readyz`
+必须失败关闭。
 
-## Local Commands
+## 本地命令
 
 ```bash
 pnpm install
@@ -59,8 +56,7 @@ pnpm dev
 pnpm deploy
 ```
 
-Authenticated local smoke uses the same signed-assertion admission path as the
-Worker:
+认证冒烟测试使用与 Worker 相同的签名断言准入路径：
 
 ```bash
 pnpm --dir apps/operator-console-web exec tsx ./e2e/support/local-access-server.ts
@@ -68,20 +64,16 @@ cd apps/operator-console-web
 OPERATOR_CONSOLE_LIVE_SMOKE=1 pnpm dev
 ```
 
-Then open:
+然后打开：
 
 ```text
 http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/operations/provider-config
 ```
 
-## Operational Notes
+## 运行约束
 
-- Proxied panel API responses are `Cache-Control: no-store`.
-- Raw Access JWTs, cookies, operator email, prompt text, answer text and
-  transcript text must not enter telemetry sinks.
-- Local smoke requires a compatible `apps/app-api` runtime.
-- Missing dining seed or eval coverage snapshot should surface the governed
-  backend diagnostic state, not synthesized frontend data.
-- Current minimal Operator Console does not expose a dining operations
-  workspace. Dining review ingestion is handled by `jobs/dining-sync`; do not
-  route Feishu/Lark credentials or dining sync controls through this Worker.
+- 代理响应使用 `Cache-Control: no-store`；
+- Access JWT、Cookie、运维邮箱、提示词、答案和会话正文不得进入观测平台；
+- 本地冒烟测试需要兼容的 `apps/app-api`；
+- 食堂 seed 或评测快照缺失时，应显示后端诊断状态，不得在前端合成数据；
+- 当前界面不提供食堂运维工作区；飞书凭据和同步控制继续属于 `jobs/dining-sync`。

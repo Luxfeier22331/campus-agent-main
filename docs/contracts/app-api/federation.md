@@ -1,114 +1,34 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-02
-updated: 2026-06-09
 ---
-# App API Federation HTTP Contract
 
-## 文档边界
+# Federation HTTP 合同
 
-本文冻结 Identity Platform OAuth/OIDC-compatible provider surface 的 HTTP
-contract。
+## 边界
 
-本文描述当前已实现的 provider route surface。Relying-party rollout、client
-provision 和 MediaWiki OpenID Connect smoke 属于
-`docs/runbooks/mucwiki-federation.md`，不属于本文 wire contract。
+app-api Identity Platform 使用 Better Auth OAuth Provider + `jwt()` 作为 OIDC-compatible runtime
+adapter。public contract 固定在 well-known 和 `/api/federation/*`；native `/oauth2/*` 与
+`/jwks` 只是内部映射。
 
-## Provider Posture
+首期只允许 controlled/static client，不开放动态注册。Better Auth runtime state 位于
+`app_auth.*`，client/claim/grant policy 位于 `identity.federation_*`。
 
-Provider owner: `apps/app-api` Identity Platform.
+## 发现
 
-Runtime substrate: Better Auth OAuth Provider is the selected runtime adapter
-for the OIDC-compatible login surface. Better Auth OIDC Provider must not be
-treated as the production default while official documentation marks it as
-active-development/deprecation-bound.
+- `GET /.well-known/openid-configuration`
+- `GET /.well-known/oauth-authorization-server`
 
-Current implementation: `apps/app-api` mounts `@better-auth/oauth-provider` as
-the selected provider runtime adapter and Better Auth `jwt()` as the signing /
-JWKS substrate. The auth runtime disables the ordinary Better Auth `/token`
-endpoint and disables JWT header emission so OAuth `/oauth2/token` and
-`/oauth2/userinfo` remain the only federation token/userinfo semantics.
+metadata 至少包含 issuer、authorization/token/userinfo/JWKS/end-session endpoint，以及支持的
+response type、grant type、scope、claim 和 signing algorithm。
 
-`apps/app-api` exposes canonical public routes under `/api/federation/*` and
-well-known discovery routes. Better Auth native `/oauth2/*` and `/jwks` paths
-are internal mapping targets, not the public contract.
+production issuer 为 `https://campus.muc.wiki`，staging 使用部署环境 issuer。metadata host
+必须与当前部署 origin 一致，不能把 staging origin 写成 production。
 
-Client posture: controlled/static client registry for first implementation.
-Open dynamic client registration is out of scope.
+## 授权
 
-Runtime persistence:
-
-- Better Auth-owned runtime state lives in `app_auth.oauthClient`,
-  `app_auth.oauthRefreshToken`, `app_auth.oauthAccessToken`,
-  `app_auth.oauthConsent` and `app_auth.jwks`.
-- App-owned product policy lives in `identity.federation_clients`,
-  `identity.federation_claims_policies` and
-  `identity.federation_user_grants`.
-- The `muc-wiki` client is materialized by app-api-owned provision tooling
-  described in `docs/runbooks/mucwiki-federation.md`, not by browser UI or
-  MediaWiki.
-
-## Discovery
-
-### `GET /.well-known/openid-configuration`
-
-Returns provider metadata for OIDC clients.
-
-Required fields include:
-
-```json
-{
-  "issuer": "https://campus.muc.wiki",
-  "authorization_endpoint": "https://campus.muc.wiki/api/federation/authorize",
-  "token_endpoint": "https://campus.muc.wiki/api/federation/token",
-  "userinfo_endpoint": "https://campus.muc.wiki/api/federation/userinfo",
-  "jwks_uri": "https://campus.muc.wiki/api/federation/jwks",
-  "end_session_endpoint": "https://campus.muc.wiki/api/federation/logout",
-  "response_types_supported": ["code"],
-  "grant_types_supported": ["authorization_code", "refresh_token"],
-  "subject_types_supported": ["public"],
-  "id_token_signing_alg_values_supported": ["RS256"],
-  "scopes_supported": ["openid", "profile", "email"],
-  "claims_supported": [
-    "sub",
-    "email",
-    "email_verified",
-    "name",
-    "preferred_username",
-    "updated_at"
-  ]
-}
-```
-
-The final issuer and endpoint host must match deployed Identity Platform
-origin. Local/staging origins must not be documented as production truth.
-
-Production issuer:
-
-```text
-https://campus.muc.wiki
-```
-
-Staging issuer:
-
-```text
-https://campus-staging.mucwiki-edge.link
-```
-
-If the issuer is `https://campus.muc.wiki`, campus-web only exposes explicit
-allowlisted federation seams to `apps/app-api`. Endpoint ownership remains in
-`apps/app-api`.
-
-## Authorization Endpoint
-
-### `GET /api/federation/authorize`
-
-Accepts OIDC authorization code requests.
-
-Required request parameters:
+`GET /api/federation/authorize` 接受 authorization code request：
 
 - `client_id`
 - `redirect_uri`
@@ -119,111 +39,66 @@ Required request parameters:
 - `code_challenge`
 - `code_challenge_method=S256`
 
-Rules:
+redirect URI 必须精确匹配 registry。endpoint 要求 active app-api session。trusted-client consent
+skip 只能来自 client policy，caller 不能自行指定。
 
-- `redirect_uri` must match client registry exactly.
-- The first `muc-wiki` confidential client requires PKCE by client policy.
-- The endpoint requires an active app-api session principal.
-- Trusted-client consent skipping must come from client policy, not caller
-  input.
+## Token 交换
 
-## Token Endpoint
+`POST /api/federation/token` 支持 `authorization_code`，以及 client 明确允许时的
+`refresh_token`。
 
-### `POST /api/federation/token`
+confidential client 按 registry 的 auth method 认证，public client 必须使用 PKCE。access/refresh
+token 不记录日志，也不进入 browser account overview。
 
-Exchanges authorization code for tokens.
+## 用户信息
 
-Supported grant types:
+`GET /api/federation/userinfo` 只返回 scope 与 claim policy 允许的字段：
 
-- `authorization_code`
-- `refresh_token`, only if explicitly enabled for the client
+- `sub`
+- `email`
+- `email_verified`
+- `name`
+- `preferred_username`
+- `updated_at`
 
-Rules:
+`sub` 对 issuer/client policy 稳定。profile memory、chat history、raw entitlement、operator
+secret 和 service principal material 始终禁止；campus claim 必须使用命名空间。
 
-- confidential clients must authenticate according to registered token endpoint
-  auth method
-- public clients must use PKCE
-- access tokens and refresh tokens are never logged or returned through the
-  browser shell
-  account overview
+## JWKS
 
-## Userinfo Endpoint
+`GET /api/federation/jwks` 只返回 public signing key。private key 不进入仓库或浏览器接口；轮换
+必须保证未过期 token 仍可验证。
 
-### `GET /api/federation/userinfo`
+## 结束会话
 
-Returns claims allowed by client policy and granted scopes.
+`GET /api/federation/logout` 实现 relying-party end-session：
 
-Default claim set:
+- post-logout redirect 必须匹配 client registry；
+- provider logout 不删除 MediaWiki 本地 account linking；
+- app-api session revoke 与 relying-party local logout 是不同操作。
 
-```json
-{
-  "sub": "acct_01HQ...",
-  "email": "name@example.edu",
-  "email_verified": true,
-  "name": "Name",
-  "preferred_username": "name",
-  "updated_at": 1798790400
-}
-```
+## 首个 Client
 
-Rules:
+`muc-wiki` 为 confidential trusted first-party client：
 
-- `sub` must be stable for the issuer and client policy.
-- profile memory, chat history, raw entitlement snapshots, operator secrets and
-  service principal material are never emitted.
-- campus claims must be namespaced and separately allowed by claims policy.
+- auth method `client_secret_basic`；
+- grant `authorization_code`、`refresh_token`；
+- response type `code`；
+- scope `openid profile email`；
+- PKCE required；
+- end-session enabled；
+- redirect 和 post-logout URI 精确 allowlist。
 
-## JWKS Endpoint
+secret 只进入部署 secret store。配置步骤见 `../../runbooks/federation.md`。
 
-### `GET /api/federation/jwks`
+## 可执行来源
 
-Returns public signing keys.
+- `apps/app-api/src/app/routes/federation.ts`
+- `apps/app-api/src/modules/auth/auth.ts`
+- `apps/app-api/ops/identity/`
 
-Rules:
+## 相关文档
 
-- private signing keys must never be stored in repo or returned by any browser
-  endpoint
-- key rotation must preserve validation of unexpired issued tokens
-
-## End Session Endpoint
-
-### `GET /api/federation/logout`
-
-Supports relying-party logout / end-session semantics when implemented by the
-provider runtime.
-
-Rules:
-
-- provider logout must not silently mutate MediaWiki-local account linking
-- post-logout redirect must match client registry
-- app-api session revocation and relying-party local logout are separate
-  operations
-
-## Client Registry
-
-First implementation uses controlled/static client registration.
-
-The first client is:
-
-- `clientId`: `muc-wiki`
-- `clientType`: `confidential`
-- `clientName`: `MUC Wiki`
-- `allowedScopes`: `["openid", "profile", "email"]`
-- `claimsPolicyId`: `muc-wiki-default`
-- `consentPolicy`: `trusted_first_party_skip_repeated_consent`
-- `enabled`: `true`
-- `tokenEndpointAuthMethod`: `client_secret_basic`
-- `grantTypes`: `["authorization_code", "refresh_token"]`
-- `responseTypes`: `["code"]`
-- `requirePKCE`: `true`
-- `enableEndSession`: `true`
-
-Client secret values must be stored as secret material, not in docs or committed
-config. Client materialization steps belong to
-`docs/runbooks/mucwiki-federation.md`.
-
-## Related Documents
-
-- `docs/architecture/system/mucwiki-login.md`
-- `docs/architecture/system/identity-platform.md`
-- `docs/data/identity-platform.md`
+- `../../architecture/system/mucwiki-login.md`
+- `../../architecture/system/identity-platform.md`
+- `../../data/identity-platform.md`

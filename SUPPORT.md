@@ -1,29 +1,29 @@
-# Support
+# 支持
 
-## Public Support
+## 公开支持
 
-Use public GitHub issues for reproducible problems in:
+以下可复现问题使用公开 GitHub Issue：
 
-- repository source code
-- documented local development setup
-- public CI/static checks
-- synthetic examples and public fixtures
-- documentation for public interfaces
+- 仓库源码；
+- 已记录的本地开发环境；
+- 公开 CI 和静态检查；
+- synthetic example 和公开 fixture；
+- 公开接口文档。
 
-Include the exact command, expected behavior and observed output.
+报告应包含准确命令、预期行为和观察到的输出。
 
-## Not Public Support
+## 非公开支持
 
-Do not open public issues for:
+以下问题不得创建公开 Issue：
 
-- production or staging incidents
-- private content packs or school source data
-- credentials, secrets, database URLs or object-store keys
-- internal deployment topology
-- screenshots or logs containing private data
+- production/staging incident；
+- 私有内容包或学校来源数据；
+- credential、Secret、database URL 或 object-store key；
+- 内部部署拓扑；
+- 包含私有数据的 screenshot/log。
 
-Use internal channels for those cases.
+这些问题使用内部渠道。
 
-## Security Reports
+## 安全报告
 
-For suspected vulnerabilities, follow `SECURITY.md`.
+疑似漏洞遵循 `SECURITY.md`。

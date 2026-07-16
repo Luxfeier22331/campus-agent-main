@@ -1,75 +1,56 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0078
 status: accepted
-created: 2026-07-13
-updated: 2026-07-13
-supersedes:
-  - adr-0056-k8s-keda.md
 ---
-# ADR-0078 Worker Versioning
+# ADR-0078 Worker 版本管理
 
-## Context
+## 背景
 
-Static Kubernetes Deployments plus one long-lived KEDA ScaledObject per queue
-cannot preserve Temporal Worker Deployment version identity across image
-rollouts. Updating a worker image in place can place incompatible workflow code
-behind the same unversioned poller set, while an autoscaler tied to one
-Deployment does not follow draining versions.
+每个 queue 使用一个 static Kubernetes Deployment 和长期 KEDA ScaledObject，无法在 image
+rollout 期间保留 Temporal Worker Deployment version identity。原地更新 image 会让不兼容
+workflow code 进入同一 unversioned poller set，绑定单个 Deployment 的 autoscaler 也无法
+跟随 draining version。
 
-## Decision
+## 决策
 
-Production Temporal workers are managed by Temporal Worker Controller
-`WorkerDeployment` resources.
+production Temporal worker 由 Temporal Worker Controller `WorkerDeployment` 管理。
 
-- Temporal Worker Controller must be v1.8.0 or newer.
-- Temporal Server must be v1.29.1 or newer.
-- KEDA must be v2.20 or newer.
-- Every SDK worker enables Worker Deployment Versioning with controller-injected
-  `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_WORKER_BUILD_ID` and defaults to
-  `PINNED`. Supplying only one variable is a startup error. Local development
-  may omit both.
-- Rollout strategy is `AllAtOnce`; Temporal routing and pinned workflow
-  behavior, not a second application rollout controller, protect existing
-  executions.
-- KEDA `ScaledObject` and `PodDisruptionBudget` resources are attached per
-  worker version through `WorkerResourceTemplate`.
-- `scaleTargetRef: {}` and `selector.matchLabels: {}` are left for controller
-  injection. KEDA resolves the Worker Deployment name and Build ID from the
-  target worker environment.
-- WorkerResourceTemplate Helm values must allow `ScaledObject` in
-  `keda.sh/scaledobjects` and `PodDisruptionBudget` in
-  `policy/poddisruptionbudgets`.
-- `minReplicaCount: 1` is the baseline so a new version can register pollers and
-  become current without a bootstrap deadlock.
+- Temporal Server、Worker Controller 和 KEDA 必须使用相互兼容且支持本决策所需 API 的
+  pinned version；具体版本由环境仓维护。
+- 每个 SDK worker 启用 Worker Deployment Versioning，读取 controller 注入的
+  `TEMPORAL_DEPLOYMENT_NAME` 和 `TEMPORAL_WORKER_BUILD_ID`，默认使用 `PINNED`。只提供其中
+  一个变量时启动失败；local development 可以同时省略。
+- rollout strategy 使用 `AllAtOnce`；已有执行由 Temporal routing 和 pinned workflow
+  behavior 保护，不再增加应用级 rollout controller。
+- 每个 worker version 通过 `WorkerResourceTemplate` 获得 KEDA `ScaledObject` 和
+  `PodDisruptionBudget`。
+- `scaleTargetRef`、selector 和 Worker Deployment/build identity 由 controller 注入，不在
+  first-party manifest 中复制。
+- baseline `minReplicaCount` 保证新 version 可以注册 poller 并成为 current；具体扩缩容参数
+  属于环境配置。
 
-Argo CD owns the desired `Connection`, `WorkerDeployment`, and
-`WorkerResourceTemplate` resources and immutable image digest selection.
-Temporal owns workflow/activity execution and version routing. KEDA/HPA owns
-replica count. None of these systems writes product or ingestion workflow
-truth into PostgreSQL.
+Argo CD 拥有 `Connection`、`WorkerDeployment`、`WorkerResourceTemplate` desired state 和
+immutable image digest selection。Temporal 拥有 workflow/activity execution 与 version
+routing。KEDA/HPA 只拥有 replica count。任何一方都不把产品或 ingestion workflow truth
+写入 PostgreSQL。
 
-Current WorkerDeployments are:
+具体 WorkerDeployment 清单、controller/chart version 和环境参数属于环境仓，不在 ADR 中
+冻结。
 
-- execution: `execution-workflow`, `execution-core`, `execution-agent`;
-- ingestion: `ingestion-control-worker`, `source-collector-worker`.
+## 后果
 
-## Consequences
+- static worker Deployment 和 static per-Deployment ScaledObject 退出 production path。
+- 每个 active/draining build 拥有自己的 autoscaler/PDB，并按 WorkerDeployment sunset
+  policy 清理。
+- worker image/config 变化产生显式 Temporal version。
+- apply custom resource 前，环境必须先验证 controller、Temporal 和 KEDA 兼容性。
 
-- Static worker Deployments and static per-Deployment ScaledObjects are removed.
-- Each active/draining build receives its own autoscaler and PDB and is cleaned
-  up with the WorkerDeployment sunset policy.
-- Worker image/config changes create an explicit Temporal version.
-- Cluster installation and GitOps overlays must be upgraded before applying
-  these custom resources.
+## 参考
 
-## References
-
-- [Temporal Worker Controller v1.8.0](https://github.com/temporalio/temporal-worker-controller/releases/tag/v1.8.0)
-- [WorkerResourceTemplate](https://github.com/temporalio/temporal-worker-controller/blob/v1.8.0/docs/worker-resource-templates.md)
+- [Temporal Worker Controller](https://github.com/temporalio/temporal-worker-controller)
 - [Temporal Worker Versioning](https://docs.temporal.io/production-deployment/worker-deployments/worker-versioning)
-- [KEDA Temporal scaler 2.20](https://keda.sh/docs/2.20/scalers/temporal/)
+- [KEDA Temporal scaler](https://keda.sh/docs/latest/scalers/temporal/)
 - `docs/architecture/system/k8s-runtime.md`
-- `docs/runbooks/temporal-self-host-operations.md`
+- `docs/runbooks/temporal.md`

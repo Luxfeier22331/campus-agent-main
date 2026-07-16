@@ -1,23 +1,11 @@
 ---
 doc_type: index
-truth_scope: ops
 owner_boundary: docs/policies
 status: active
-created: 2026-04-12
-updated: 2026-07-12
 ---
-# Policies
+# 治理策略
 
-`policies/` 保存治理规则、质量门禁与 collection-specific 运行约束。
+- [student-rules-chunking.md](./student-rules-chunking.md)：学生规章清洗与分块；
+- [public-source-data.md](./public-source-data.md)：公开仓库来源数据与再分发。
 
-## 当前 policy 集合
-
-- `official-web-crawl-policy.md`
-- `official-web-chunking.md`
-- `public-source-data.md`
-- `student-rules-chunking.md`
-
-## 使用规则
-
-- policy 写“必须/禁止/阈值”，不写执行历史
-- 如果 policy 改变了长期边界，应同步补 ADR 或 architecture 文档
+策略只写规则和门槛，不保存执行历史。改变长期边界时同时更新所属架构或 ADR。

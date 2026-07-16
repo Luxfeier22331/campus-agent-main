@@ -1,38 +1,25 @@
-# official_web source config
+# Official Web 来源配置
 
-This tree holds repo-tracked source-level configuration for the `official_web`
-source channel.
+本目录保存 `official_web` source channel 的仓库配置。
 
-- `configs/sources/official_web/<site_id>/site.json`: site identity and shared
-  runtime baseline
-- `configs/sources/official_web/<site_id>/hosts.json`: host-level admission,
-  crawl, robots policy, host grouping, and rollout order
-- `configs/sources/official_web/<site_id>/seeds.json`: repo-tracked seed URLs
-  and reasons
-- `configs/sources/official_web/<site_id>/crawl-policy.json`: shared
-  URL/content/frontier policy
-- `configs/sources/official_web/<site_id>/scheduler-policy.json`: lane cadence,
-  stable lane identity, host scope, and per-run budget policy
-- `configs/sources/official_web/<site_id>/credentials.schema.json`: runtime
-  secret shape only
-- `configs/sources/official_web/<site_id>/projection-declarations.json`:
-  page-family action hints used only after explicit target admission
-- `configs/sources/official_web/<site_id>/target-source-map.json`:
-  target-first admission map
-- `configs/sources/official_web/<site_id>/consumer-denominator.json`:
-  retained source-truth denominator for downstream consumers
-- `configs/sources/official_web/<site_id>/target-inventory.json`:
-  operator-facing target inventory
+- `site.json`：site identity 与共享 runtime baseline；
+- `hosts.json`：host 准入、crawl/robots policy、分组与 rollout order；
+- `seeds.json`：仓库维护的 seed URL 与理由；
+- `crawl-policy.json`：共享 URL、content 与 frontier policy；
+- `scheduler-policy.json`：lane identity、cadence、host scope 与每次 run 的 budget；
+- `credentials.schema.json`：runtime secret 结构，不保存 secret；
+- `projection-declarations.json`：target 已明确准入后使用的 page-family action hint；
+- `target-source-map.json`：target-first 准入映射；
+- `consumer-denominator.json`：下游消费 retained source truth 的 denominator；
+- `target-inventory.json`：已准入 target 的运维清单。
 
-Host policy groups are source-layer segmentation only. They distinguish
-university-level, college-level, topic, and excluded hosts inside the same
-`official_web` source channel. They do not create new source channels, retrieval
-collections, or query-serving surfaces.
+host policy group 只在来源层分区；它不会创建新的 source channel、retrieval collection 或
+query-serving surface。
 
-Scheduler lanes use explicit `lane_id` values as stable operator/run keys.
-Multiple lanes may share the same `run_intent` when their `lane_id` values are
-different. Use `host_filter` and host-level `rollout_order` to keep university
-pages first, then roll out college/topic hosts one at a time.
+scheduler lane 以明确 `lane_id` 作为稳定 run key。不同 `lane_id` 可以共享 `run_intent`；
+host 范围与 rollout 顺序由配置文件决定，不在 README 复制具体值。
 
-These files are source-channel truth. They are not collection serving configs,
-and they do not prove document/chunk/index/release or serving alias publish.
+这些文件是 source-channel 事实，不是 collection serving config；它们不能证明 document、
+chunk、index、release 或 serving alias 已发布。
+
+采集、产物、时效状态和在线边界见 `docs/domains/official-web.md`。

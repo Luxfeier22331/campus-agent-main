@@ -1,55 +1,17 @@
 ---
 doc_type: index
-truth_scope: repository
 owner_boundary: docs/reference
 status: active
-created: 2026-04-12
-updated: 2026-07-13
 ---
-# Reference
+# 参考资料
 
-`reference/` 保存术语、指标、清单、质量验收记录和已落盘事实。
-当前仍作为默认 baseline 的材料保持 `active`；只保留追溯/对照价值的证据记录改为 `historical`。
-它不是当前执行状态板，也不是 plan。
+`docs/reference/` 保存稳定术语、验证语义和评测口径：
 
-## 基础术语与验证基线
+- [serving-terms.md](./serving-terms.md)：查询、索引、工具和来源术语；
+- [verification.md](./verification.md)：验证通道及其证明范围；
+- [dependencies.md](./dependencies.md)：根依赖覆盖的依据和删除条件；
+- [eval.md](./eval.md)：评测所有权、运行方式和评分边界；
+- [eval-cases.md](./eval-cases.md)：评测用例格式；
+- [telemetry.md](./telemetry.md)：仓库实际发出的遥测事件和字段。
 
-- `runtime-serving-and-index-terms.md`
-  - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
-- `testing-and-verification-lanes.md`
-- `dependency-overrides.md`
-  - 根 pnpm override 的当前依据与删除条件
-- `eval.md`
-  - Langfuse/Ragas observation, scoring and dataset boundaries.
-- `eval-map.md`
-  - observation、truth、official scorer 与 score sink 对照表。
-- `eval-gold-truth-model.md`
-- `runtime-otel-telemetry-taxonomy.md`
-- `observability-ledger.md`
-  - trace / observability completion ledger and verification mapping
-
-## Authenticated Notice / Internal Notice 策略与口径
-
-- `internal-notice-pdf-chunks.md`
-
-## Authenticated Notice / Internal Notice Quality Acceptance
-
-- `institutional-rules-promotion.md`
-
-## Public Data
-
-- `open-source-data.md`
-  - Stable publication classification for fixtures, media, map data and
-    source-derived corpora.
-
-真实 institutional regulation inventory、navigation source inventory 与 release
-gold corpus 属于 private source/data boundary，不在公开 repo 的 active
-reference namespace 中保留。公开仓库只保留数据形态、admission 规则与 synthetic
-fixtures。
-
-补充规则：
-
-- 已被并入 canonical 文档的 historical redirect notes 不再继续占据默认 root namespace
-- 文档治理规范归 `docs/documentation-architecture.md`；reference root 不保留
-  单独治理快照或 cleanup ledger。
-- 需要追溯已退役 reference 材料时，通过 git history 恢复具体片段，再提升到当前 owner 文档。
+动态清单、一次性验收记录和清理报告不进入 reference；需要追溯时使用 git history。

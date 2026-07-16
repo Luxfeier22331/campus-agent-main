@@ -1,28 +1,21 @@
 ---
 doc_type: contract
-truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
-created: 2026-03-28
-updated: 2026-07-12
 ---
-# Execution Contract
+# 执行合同
 
-## Boundary
+## 边界
 
-This document explains the private command/query contract between
-`apps/app-api` and `apps/execution-control`. The executable source is
-`schemas/tool-execution.openapi.yaml`; generated TypeScript and Go types must
-match it.
+本文规定 `apps/app-api` 与 `apps/execution-control` 之间的私有命令和查询合同。可执行
+来源是 `schemas/tool-execution.openapi.yaml`，生成的 TypeScript 与 Go 类型必须与其一致。
 
-- App-api owns browser auth, conversation truth and browser transport.
-- Execution-control owns admission, Temporal lifecycle, internal query policy,
-  finalization and sanitized projection.
-- Agent-runtime owns the complete OpenAI Agents SDK loop inside one Temporal
-  Agent Activity.
-- Browsers never call this contract directly.
+- app-api 拥有浏览器认证、会话事实和浏览器传输；
+- execution-control 拥有准入、Temporal 生命周期、内部查询策略、终态处理和安全投影；
+- agent-runtime 在单个 Temporal Agent Activity 内运行完整 OpenAI Agents SDK 循环；
+- 浏览器不得直接调用本合同。
 
-## Endpoints
+## 接口
 
 - `POST /internal/execution/runs`
 - `GET /internal/execution/runs/:runId`
@@ -30,16 +23,16 @@ match it.
 - `GET /internal/execution/runs/:runId/steps`
 - `POST /internal/execution/runs/:runId/cancel`
 
-All private wire bodies use strict `snake_case` JSON.
+所有私有 JSON 消息严格使用 `snake_case`。
 
-## Run Creation
+## 创建运行
 
-The run envelope carries immutable run, conversation, turn, request, owner,
-surface and trace identity. Its only metadata field is `execution_payload`.
-Nested conversation, request and trace ids must match the envelope.
+运行信封携带不可变的 run、conversation、turn、request、owner、surface 和 trace 标识，
+唯一元数据字段是 `execution_payload`。嵌套的 conversation、request 和 trace 标识必须与
+信封一致。
 
-The active payload is `tool_execution_v2` with response contract
-`execution_finalization_response_v3`:
+当前载荷是 `tool_execution_v2`，响应合同是
+`execution_finalization_response_v3`：
 
 ```json
 {
@@ -57,55 +50,49 @@ The active payload is `tool_execution_v2` with response contract
 }
 ```
 
-`tenant_id` and `requested_tool` are optional. Ordinary product chat omits
-`requested_tool`; the primary agent chooses from the admitted model-visible
-tools. Trusted internal eval/debug requests may constrain SDK tool choice, but
-the hint never supplies a knowledge target or retrieval controls.
+`tenant_id` 与 `requested_tool` 可选。普通产品聊天不发送 `requested_tool`，由 Primary Agent
+从已准入的模型可见工具中选择。受信任的内部评测或调试请求可以限制 SDK 工具选择，但
+该提示不得提供知识目标或检索控制参数。
 
-The caller does not send scope, version query, corpus, collection, top-k,
-provider, vector-store or task-queue fields.
+调用方不得发送 scope、version query、corpus、collection、top-k、provider、vector-store
+或 task-queue 字段。
 
-## Tool Exposure
+## 工具开放
 
-`configs/runtime/tools.v5.json` and
-`configs/runtime/tool-function-schemas.v2.json` are runtime tool truth.
+`configs/runtime/tools.v5.json` 与
+`configs/runtime/tool-function-schemas.v2.json` 是运行时工具事实：
 
-- `knowledge_query` is a model-visible SDK handoff with `{query_text}`.
-- `transport_schedule_lookup` is a model-visible internal-query function tool.
-- `knowledge_search` is internal-only to the Knowledge Agent with
-  `{query_text, target, include_history}`.
+- `knowledge_query`：参数为 `{query_text}` 的模型可见 SDK handoff；
+- `transport_schedule_lookup`：模型可见的内部查询函数工具；
+- `knowledge_search`：仅供 Knowledge Agent 使用，参数为
+  `{query_text, target, include_history}`。
 
-Execution-control injects targets from
-`configs/runtime/query-serving-targets.v1.json`. App-api does not choose or
-validate a target.
+execution-control 从 `configs/runtime/query-serving-targets.v1.json` 注入目标。app-api 不
+选择或校验目标。
 
-## Temporal And Finalization
+## Temporal 与终态处理
 
-`ToolExecutionWorkflow` runs Memory Recall, one complete Agent Activity,
-Finalization and Memory Append. SDK handoffs and function calls do not create
-additional Temporal activities.
+`ToolExecutionWorkflow` 依次运行 Memory Recall、一个完整 Agent Activity、Finalization 和
+Memory Append。SDK handoff 和函数调用不创建额外 Temporal Activity。
 
-`ExecutionFinalizationResponse` contains selected tool, status, answer,
-follow-up, confidence, result, error, `resolved_targets[]`, session update and
-trace id. Optional fields include observability, workflow trace summary and
-stage timing. It does not return sink refs or per-request telemetry controls.
+`ExecutionFinalizationResponse` 包含所选工具、状态、答案、追问、置信度、结果、错误、
+`resolved_targets[]`、会话更新和 trace 标识；可选字段包括观测摘要、工作流调用链摘要和
+阶段耗时。它不返回外部平台引用或逐请求遥测控制项。
 
-For knowledge answers, execution-control validates every terminal evidence ref
-against completed search projections and derives `result.sources` plus
-`resolved_targets[]`. It does not call a model or rewrite answer text.
+对于知识答案，execution-control 根据已完成的搜索投影校验每个终态依据引用，并派生
+`result.sources` 与 `resolved_targets[]`；该阶段不调用模型，也不改写答案。
 
-## Projection And Strictness
+## 投影与严格性
 
-Temporal history is execution truth. PostgreSQL stores sanitized run, event,
-step, attempt and result projections. App-api converts those projections to SSE
-and product responses without recreating execution state.
+Temporal 历史是执行事实。PostgreSQL 保存安全的 run、event、step、attempt 和 result
+投影；app-api 将投影转换为 SSE 和产品响应，不重建执行状态。
 
-- Unknown fields and camel-case private wire fields are rejected.
-- Generated TS and Go artifacts must match OpenAPI.
-- Tool and target admission remains server-owned after schema validation.
-- There is no fallback parser, alias loader or dual request shape.
+- 拒绝未知字段和 camelCase 私有消息字段；
+- 生成的 TypeScript 与 Go 产物必须匹配 OpenAPI；
+- schema 校验后，工具与目标准入仍由服务端拥有；
+- 不提供 fallback parser、别名加载器或双请求结构。
 
-## Verification
+## 验证
 
-Use `pnpm ci:contracts`, `pnpm go:check` and the app-api typecheck/test lanes
-listed in `../reference/testing-and-verification-lanes.md`.
+运行 `pnpm ci:contracts`、`pnpm go:check`，以及
+`../reference/verification.md` 列出的 app-api 类型检查和测试通道。

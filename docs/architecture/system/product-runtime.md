@@ -1,13 +1,10 @@
 ---
 doc_type: architecture
-truth_scope: system
 owner_boundary: product-runtime
 status: active
-created: 2026-06-13
-updated: 2026-07-15
 ---
 
-# Product Runtime
+# 产品运行时
 
 ## 文档边界
 
@@ -21,7 +18,7 @@ HTTP 字段由 contracts 定义，数据库表由 data 文档定义，部署状�
 | `campus-web` | 学生问答、账号、文档、地图、食堂和 campus status 页面 | 运行排查、数据库或内部 runtime 访问 |
 | `app-api` | browser auth、chat admission/finalization、产品 API、状态 API、provider 配置 API | Temporal worker、RAG 内部、通用运维数据 API |
 | `operator-console-web` | 模型服务配置 | 请求列表、执行诊断、数据库读取 |
-| `ops-web` | 自托管请求排查、运行概况、观测入口、固定门户凭据替换 | 产品写操作、模型配置、工作流控制、通用 Secret 管理 |
+| `ops-web` | 自托管请求排查、运行概况、观测入口和固定门户凭据替换 | 产品写操作、模型配置、任意工作流控制或通用 Secret 管理 |
 | `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection | browser auth、页面合同、operator config |
 | `agent-runtime` | primary agent execution | durable orchestration 和产品数据持久化 |
 
@@ -65,19 +62,19 @@ events，最终以原子事务写 assistant message、terminal dispatch 和 obse
 
 ## 数据边界
 
-- conversation/message/turn dispatch：`apps/app-api`；
-- workflow run/event/step/tool/memory projection：`apps/execution-control`；
+- 会话、消息和轮次派发：`apps/app-api`；
+- 工作流 run、event、step、tool 和 memory 投影：`apps/execution-control`；
 - 完整 Temporal history：Temporal；
-- model trace/eval：Langfuse；
-- logs/metrics/traces：OpenTelemetry/OpenObserve 及已启用 sink；
-- personal memory：Hindsight，仅由 execution-control Activities 调用。
+- 模型调用链与评测：Langfuse；
+- 日志、指标和调用链：OpenTelemetry、OpenObserve 及已启用平台；
+- 个人记忆：Hindsight，仅由 execution-control Activity 调用。
 
 这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不复制成
 operator request projection。
 
-## Campus Services
+## 校园服务
 
-`campus_services.*` 是 campus status 页面和 model-visible tool 的共享权威读模型。
+`campus_services.*` 是班车状态页面和模型可见工具共享的读取模型。
 publisher 写一次，app-api status API 与 execution-control tool 分别读取；状态页不调用 tool，
 tool 也不通过 app-api。
 
@@ -87,8 +84,8 @@ tool 也不通过 app-api。
 ## 配置与排查
 
 - `operator-console-web -> app-api` 管理 provider config。
-- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供只读排查；人员操作者可以通过
-  固定接口 patch `source-collector-internal-portal-auth`，不能操作其他 Secret。
+- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供只读排查；人员可以通过固定接口
+  patch `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
 - 两个应用不互相代理，也不共享“通用运维后端”。
 - Temporal UI、Langfuse UI 和 OpenObserve 保留各自完整能力；Ops Web 只提供跨系统关联和
   常用摘要。

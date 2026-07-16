@@ -12,8 +12,8 @@
 	},
 	"cleaning_policy_version": "official_web_cleaning_v2",
 	"notes": [
-		"Chunk stable official-web reference pages from source-truth-preserving document_units.jsonl.",
-		"Keep institutional overview, organization, and long-lived explanatory pages compact enough for citation-grounded RAG answers.",
-		"This profile backs the query-serving official_web/stable_reference scope and must stay aligned with serving-config.json."
+		"This profile is configuration for offline preparation; it does not open query serving.",
+		"No official-web chunk task is registered until a task registry and executable contract are added.",
+		"When used by the generic Rust kernel, the profile controls token splitting and same-document short-chunk merging only."
 	]
 }

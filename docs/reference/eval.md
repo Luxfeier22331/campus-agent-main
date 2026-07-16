@@ -1,142 +1,113 @@
 ---
 doc_type: reference
-truth_scope: eval
 owner_boundary: packages/eval-langfuse
 status: active
-created: 2026-06-28
-updated: 2026-07-13
 ---
-# Eval
 
-## Active Shape
+# 评测
 
-Eval uses Langfuse for platform workflows and upstream Ragas for mature
-scoring.
+## 当前形态
 
-- `packages/eval-langfuse` is the TypeScript adapter and dataset owner.
-- `packages/ragas-runner` is the only Python eval package and only executes
-  upstream Ragas metrics.
-- Runtime contract behavior stays in the owning app/package tests.
-- The repo does not implement a separate release-gate framework.
+- `packages/eval-langfuse` 是 TypeScript 平台适配器和数据集所有者；
+- `packages/ragas-runner` 是唯一 Python 评测包，只调用 Ragas 官方指标；
+- Langfuse 拥有 dataset、experiment、score、annotation queue 和分析；
+- Temporal 运行真实产品请求，所属 app/package 测试拥有确定性合同；
+- 仓库不维护第二套 experiment、annotation 或 release-gate 框架。
 
-`pnpm ci:eval` validates adapter and scorer behavior locally. It does not call
-external models or prove a release. Turbo runs the Langfuse TypeScript
-typecheck/tests and the isolated Ragas Python package task.
+`pnpm ci:eval` 只运行本地适配器和 scorer 测试，不调用外部模型，也不证明发布质量。
 
-## Observation Sources
+## 观测来源
 
-1. `GET /internal/execution/runs/:runId/steps` exposes
-   `agent_runtime_eval_projection.v2` with `tool_trajectory.v2`, answer,
-   retrieved contexts/document ids and resolved targets.
-1. Langfuse traces provide correlated SDK and runtime observations.
-1. The `agent-eval` runner executes versioned Langfuse dataset items through
-   the real product path and links each target turn to its product trace with
-   the official dataset-run-item API.
-1. Repo assets provide expected answers, context ids, target sequence, history
-   mode, outcome and search budget. A separate routing dataset supplies direct,
-   function-tool and Knowledge Agent handoff expectations.
+1. execution-control 的 `agent_runtime_eval_projection.v2` 提供答案、检索上下文、文档 ID、
+   已解析 target 和 `tool_trajectory.v2`；
+2. Langfuse trace 提供相关联的 SDK 和模型观测；
+3. `agent-eval` 通过真实 app-api 路径执行 Langfuse dataset item，并将目标 turn 关联到真实
+   product trace；
+4. 仓库 `cases.v1.json` 提供 reference、context ID、target、outcome、history mode 和搜索预算。
 
-Raw prompt/provider/backend payloads are not observation sources for the safe
-lane.
+安全评测投影不从 raw provider payload、未裁剪 prompt 或私有 trace 正文反推合同事实。
 
-## RAG Metrics
+## 指标
 
-The default Ragas metrics use `ragas.metrics.collections` and `ascore()`:
+RAG 默认使用 Ragas 0.4.x collections API 的：
 
-- `ragas.faithfulness`;
-- `ragas.answer_relevancy`;
-- `ragas.context_precision`;
-- `ragas.context_recall`.
+- `Faithfulness`
+- `AnswerRelevancy`
+- `ContextPrecision`
+- `ContextRecall`
 
-`ragas.context_precision_without_reference` is optional through runtime config.
+`context_precision_without_reference` 只在配置启用时使用。Ragas 公共 API 没有基于 context ID
+的 precision/recall；仓库不得用自研指标冒充 `ragas.*`。
 
-The installed Ragas 0.4.x public collections API does not provide ID-based
-context precision/recall. `reference_context_ids` and
-`retrieved_context_ids` remain useful dataset/audit truth, but the repo does not
-publish custom metrics under a `ragas.*` name or probe private Ragas APIs.
+Agent/tool 评测使用：
 
-## Agent Metrics
+- `ToolCallAccuracy`
+- `ToolCallF1`
+- 可选 `AgentGoalAccuracyWithReference`
 
-Ragas agent scoring uses official:
+工具调用来自 `tool_trajectory.v2`。参数评测只允许稳定且适合评测的 `target` 和
+`include_history`，不把用户原始 query 写入 score metadata。
 
-- `ToolCallAccuracy`;
-- `ToolCallF1`;
-- optional `AgentGoalAccuracyWithReference`.
+仓库另发布两个确定性 BOOLEAN score：
 
-Tool calls are built from `tool_trajectory.v2`. The reference trajectory begins
-with public `knowledge_query` and continues with the expected
-`knowledge_search` sequence. Argument-aware scoring includes only eval-safe
-`target` and `include_history`; query text remains excluded.
+- `execution.outcome_match`
+- `retrieval.forbidden_context_absent`
 
-TypeScript publishes two deterministic BOOLEAN scores when their dataset truth
-is present:
+所有 score 名必须先登记在 Langfuse score registry。
 
-- `execution.outcome_match` compares the product terminal kind with
-  `expected_outcome`;
-- `retrieval.forbidden_context_absent` checks that no forbidden context id was
-  retrieved.
+## 数据集
 
-Published score names must exist in the Langfuse score registry.
+Primary Agent 路由使用 `campus/agent/routing`，覆盖直接回答、班车工具、Knowledge Agent
+handoff、target 选择、跟进、多意图、关闭来源、过期上下文和 prompt injection。
 
-## Dataset Assets
+RAG 数据集包括：
 
-Agent routing has one Langfuse dataset:
+- `campus/rag/student_rules`
+- `campus/rag/institutional_rules`
+- `campus/rag/curriculum`
+- `campus/rag/cross_target`
 
-- `campus/agent/routing`.
+每个数据集由一个 `cases.v1.json` 维护。用例规范见 `eval-cases.md`。
 
-It covers direct answers, transport tool selection, Knowledge Agent handoff and
-target selection, conversation follow-up, mixed intent, unavailable
-`official_web`, stale context and prompt injection. Expected trajectories use
-name-only matching where arguments are not stable and eval-safe
-`target`/`include_history` arguments for knowledge search.
+## 观测、真相、评分与落点
 
-Each RAG collection has one `cases.v1.json` and one Langfuse dataset:
+| 关注点 | 观测 | 真相 | 评分器 | 落点 |
+| --- | --- | --- | --- | --- |
+| Primary 工具选择 | public tool trajectory | routing dataset | Ragas tool metrics | Langfuse `ragas.tool_call_*` |
+| 知识搜索顺序 | internal tool calls | target/history/search count | 参数感知 tool metrics | Langfuse `ragas.tool_call_*` |
+| 答案忠实度 | 答案和检索上下文 | reference | `Faithfulness` | Langfuse |
+| 答案相关性 | 问题和答案 | dataset question | `AnswerRelevancy` | Langfuse |
+| 上下文质量 | 问题、reference、上下文 | reference/context IDs | context metrics | Langfuse |
+| Agent 目标 | 消息和终态 | expected outcome | 可选 goal accuracy | Langfuse |
+| 产品终态 | terminal kind | `expected_outcome` | 确定性相等 | `execution.outcome_match` |
+| 禁止上下文 | retrieved IDs | `forbidden_context_ids` | 确定性缺席检查 | `retrieval.forbidden_context_absent` |
+| 合同完整性 | finalization/search projection | owner contract | runtime tests | 所属测试 |
 
-- `campus/rag/student_rules`;
-- `campus/rag/institutional_rules`;
-- `campus/rag/curriculum`;
-- `campus/rag/cross_target`.
+授权、取消、超时、schema 严格性和 source ref 校验必须留在所属 runtime 测试，不能交给 LLM
+judge。
 
-One case contains the question, reference answer, reference context ids,
-expected targets, expected outcome and expected search count. Optional fields
-cover `setup_turns`, history mode, forbidden context ids and dataset split.
-Setup turns run sequentially in the same conversation before the scored target
-turn. Separate retrieval-denominator and answer-quality files are retired.
+## 平台边界
 
-Coverage includes single-target, cross-target, conversation follow-up, explicit
-historical/as-of/version-comparison questions, hard negatives, no-answer and
-three-search-budget behavior.
+真实产品请求已经产生 canonical trace，因此 runner 不使用 Langfuse `runExperiment` 创建第二条
+合成 trace。它通过官方 dataset-run-item API 建立关联，并保留 Langfuse 返回的 run identity。
 
-## Platform Boundary
+每个 score 只指向一个 observation 或 trace；dataset item/run ID 是 lineage，不是 score target。
+缺失、`NaN` 和无穷值不会发布为 JSON score。
 
-Langfuse owns datasets, experiments, scores, annotation queues and analytics.
-The repo owns versioned case truth, safe projection and score registration.
-Temporal owns production execution. App-api and Operator Console do not mirror
-Langfuse score state into product tables.
+Langfuse、Ragas 或 score 不可用不阻塞在线回答。app-api 和 Operator Console 不镜像 Langfuse
+score、dataset 或 annotation 状态。
 
-The eval runner does not use Langfuse `runExperiment`: the real product request
-already emits the canonical trace. It creates a dataset-run-item link for that
-trace and retains the returned dataset run id as case lineage. Each published
-score targets exactly one observation or trace through the synchronous
-Langfuse scores REST API; dataset item/run ids are not copied into that score
-payload.
+## 禁止形态
 
-Missing, `NaN` and infinite Ragas values are emitted as per-metric omissions,
-never JSON scores. Runner output uses strict JSON encoding and the TypeScript
-publisher rejects non-finite numeric values.
+- 恢复 broad Python eval 或自研 experiment orchestration；
+- 把单个 Ragas score 当作发布结论；
+- 在 upstream 名称下实现私有指标；
+- 在安全 sample 或 score metadata 中保存 prompt、聊天全文、source body、provider response、
+  auth material 或本地/对象存储路径。
 
-## Forbidden Shapes
+## 相关文档
 
-- Recreate `packages/evals`, broad Python eval or custom experiment/review
-  orchestration.
-- Treat a Ragas score as a standalone release verdict.
-- Invent ID metrics or custom scorers under upstream names.
-- Store raw prompt, transcript, source body, provider response, auth material
-  or local/object-store paths in safe samples or score metadata.
-
-## Related Documents
-
-- `eval-map.md`
-- `eval-gold-truth-model.md`
+- `eval-cases.md`
 - `../contracts/tool-trajectory.md`
-- `../runbooks/eval-ragas.md`
+- `../architecture/system/langfuse.md`
+- `../runbooks/ragas.md`

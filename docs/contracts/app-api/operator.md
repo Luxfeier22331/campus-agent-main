@@ -1,34 +1,22 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-13
-updated: 2026-07-13
 ---
-# App API Operator HTTP
 
-## Ingestion Tasks
+# Operator Ingestion 接口
 
-```text
-GET /api/operator/ingestion/tasks
-```
+`GET /api/operator/ingestion/tasks` 要求 operator principal，并把已校验的 source、target、
+registry task、run、status 和 limit 过滤条件转发给 ingestion-control 的有界运维投影。
 
-The route requires the existing operator principal and proxies validated query
-parameters to ingestion-control's bounded operator projection. It does not
-create, cancel, retry, or mutate ingestion tasks.
+该接口只读，不创建、取消、重试或修改 ingestion task。无效参数使用 app-api 共享错误 envelope。
+响应不得包含原始来源正文、对象存储 ref、provider credential、Temporal history 或数据库所有者
+字段。
 
-Supported filters are the ingestion-control projection filters for source,
-target, registry task, run, status, and bounded limit. Invalid values use the
-shared app-api error envelope.
+app-api 不提供 authenticated notice processing、official-web release task 或 WeChat collector
+运维接口。
 
-The response contains no raw source content, object-store ref, provider
-credential, Temporal history, or database owner field.
-
-App-api has no authenticated-notice processing, official-web release-task, or
-WeChat collector operator routes.
-
-## Executable Sources
+## 可执行来源
 
 - `apps/app-api/src/app/routes/operator.ts`
 - `apps/app-api/src/modules/integration/ingestion-control.ts`

@@ -1,594 +1,182 @@
 ---
 doc_type: documentation_architecture
-truth_scope: repository
 owner_boundary: docs
 status: active
-created: 2026-06-13
-updated: 2026-07-13
 ---
 
-# Documentation Standards and Source-of-Truth Mapping
-
-## Document Boundary
-
-This document maps mature documentation standards onto `campus-agent` source
-ownership.
-
-It is not a standalone documentation framework. The repository uses mature
-documentation patterns by default, and keeps only a thin Source-of-Truth mapping
-layer for facts that mature writing frameworks do not decide on their own.
-
-It answers:
-
-- which class of fact each document type is allowed to own
-- which document wins when two documents appear to conflict
-- which content must be moved instead of repeated
-- which mature documentation standard a document area follows
-- how to distinguish architecture truth, contract truth, operational truth and
-  planning truth
-
-It does not answer:
-
-- whether a specific product feature is complete
-- which backlog item should be implemented next
-- how to deploy, smoke, release or operate a runtime surface
-- detailed contract fields, schemas, ADR reasoning or domain-specific source
-  truth
-- authoring style rules that are already covered by a mature standard
-
-## Core Rule
-
-`campus-agent` uses mature documentation standards with a repo-owned
-Source-of-Truth overlay.
-
-Every durable fact must have exactly one owning document class. Other documents
-may link to that fact, summarize it briefly, or explain how to consume it, but
-they must not redefine it.
-
-`AGENTS.md` is a thin repository or owner entrypoint for coding agents. It may
-route to canonical documents and state stable collaboration rules, but it must
-not duplicate current architecture, runtime topology, repository inventories or
-verification command catalogues.
-
-The primary failure mode this architecture prevents is mixing product chain
-truth, tool readiness, operator/eval diagnostics, release-closeout artifacts,
-deployment validation and active planning into the same paragraph.
-
-When a paragraph mixes lifecycle states, it must label each state explicitly:
-
-- `current fact`: implemented and accepted in the current branch truth.
-- `accepted target`: intended target architecture, not proof of current serving.
-- `reserved / closed capability`: named config, profile or scope that exists but
-  is not open to product traffic.
-- `retired historical artifact`: kept only to explain why it must not be
-  restored.
-- `compatibility name/path`: old naming or route retained by current code; it is
-  not the target vocabulary for new work.
-
-Config, schema, fixture or ToolSpec existence alone does not prove a capability
-is product-visible, query-ready, published or release-ready.
-
-Human documentation must also stay small enough to keep that ownership
-observable:
-
-- Use directories for context and short filenames for the object itself.
-  Prefer `domains/transport.md` over repeating the full path context in the
-  filename.
-- A narrow domain/tool surface has one canonical human document. Architecture, contract,
-  data, config README and audit notes may link to it, but they must not each
-  restate the same domain/tool truth.
-- Machine-readable JSON Schema, OpenAPI and fixtures may remain separate
-  executable contracts. They do not justify parallel human prose documents for
-  the same narrow domain/tool surface.
-- ADRs keep their historical lifecycle. Do not delete or rename ADRs only to
-  satisfy short-name cleanup; supersede them when the decision changes.
-- Archive directories are not long-term garbage drawers. Historical full text
-  stays tracked only when it still carries unique retained evidence or
-  migration value. If the remaining value is traceability, use git history
-  instead of keeping a branch-tip body or redirect stub.
-- Documentation governance lives here. Do not add a second tracked inventory,
-  cleanup ledger or mirror of the Markdown tree; counts and cleanup history
-  belong in tooling output and git history.
-- Root and area README files are route maps, not catalogues. They should point
-  to canonical entry documents and area landing pages instead of listing every
-  related second-level or third-level document.
-
-## Long-Term Governance Loop
-
-Documentation governance is a standing maintenance loop, not a cleanup project.
-Every durable documentation change should follow this order:
-
-1. Identify the owning truth class before adding or moving text.
-2. Update the owning document first. Other documents may route to it or summarize
-   it briefly, but must not redefine it.
-3. Update route-map indexes only when the reader entry point changes.
-4. Update `docs/architecture/flows.md` only for compact cross-owner diagrams;
-   owner-local diagrams stay in the owner document.
-5. If a decision changed, write or update an ADR lifecycle entry instead of
-   editing history into an active architecture page.
-6. If a contract or schema changed, update the executable schema or contract
-   source and then update prose.
-7. Add or tighten a low-false-positive check when the change fixes a repeatable
-   documentation failure mode.
-
-Do not create branch-tip audit inventories, cleanup ledgers or one-off document
-tree snapshots. Use git history for cleanup history and repository checks for
-the current invariant.
-
-The standing verification loop is:
-
-- `pnpm repo:static` for generic Biome, Markdownlint and EditorConfig hygiene
-- `pnpm docs:check` for unique ADR identity and filename / H1 alignment
-- the owning app or package checks for executable schema, contract and domain
-  invariants
-- `pnpm ci:repo` as the aggregate of those two narrow repository checks
-
-The generic static check does not validate truth ownership, route-map semantics,
-reference-graph completeness or architecture claims. `docs:check` deliberately
-does not expand beyond ADR identity. Other semantic claims remain review
-responsibilities; executable owner invariants belong in the owning app or
-package test.
-
-## Mature Standards Mapping
-
-The repository does not invent document genres. Use the mature standard for the
-document's reader need, then apply the smallest repo-specific ownership mapping
-needed to avoid conflicting truth.
-
-- Diataxis:
-  - Use tutorial, how-to, reference and explanation as the default content
-    modes.
-  - `docs/runbooks/` are how-to operational procedures.
-  - `docs/reference/` and most `docs/contracts/` prose are technical
-    reference.
-  - Architecture docs are explanation plus explicit constraints.
-- MADR / Nygard ADR:
-  - `docs/decisions/` records architecturally significant decisions with
-    context, decision, alternatives and consequences.
-  - ADRs keep lifecycle state. Supersede or deprecate old decisions instead of
-    deleting them from the active history.
-- OpenAPI / JSON Schema:
-  - Machine-readable contract truth lives in OpenAPI, JSON Schema or the
-    registered runtime JSON artifacts.
-  - Prose contract docs explain owner boundary and semantic intent, but do not
-    replace executable schemas.
-- RFC 2119 / RFC 8174:
-  - Normative constraints use `MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT` and
-    `MAY` only when they are intended as requirement keywords.
-  - Avoid vague requirement words when a behavior is contractually required.
-- GitHub Issue Forms:
-  - `.github/ISSUE_TEMPLATE/*.yml` owns issue intake structure.
-  - Do not keep parallel Markdown issue templates.
-  - `.github/ISSUE_TEMPLATE/config.yml` owns blank-issue and contact-link
-    behavior.
-  - GitHub templates are collaboration metadata, not `docs/` durable
-    documentation, and they do not use docs frontmatter.
-- GitHub Markdown pull request template:
-  - `.github/pull_request_template.md` stays short.
-  - The pull request template uses GitHub-native, Apache-style Markdown fields:
-    why, what changed, verification, related issue, change category,
-    user-facing release note, API / contract / migration impact and
-    documentation links.
-  - Do not use Kubernetes / Prow slash commands such as `/kind` or
-    `/release-note-none`; this repository does not run a bot that consumes
-    them. GitHub labels are managed through GitHub labels, not PR body commands.
-  - When there is no related issue, use `N/A`; do not leave empty `Closes:`
-    placeholders.
-  - Short reviewer guidance may appear only when it changes review decisions;
-    do not make "Reviewer Notes" a standing template section.
-  - CI, security, data-boundary and release discipline belong in workflows,
-    contracts, runbooks, issue forms and review, not in a checklist-heavy PR
-    body.
-
-The repo-specific terms below are mappings onto those standards. They are not a
-parallel documentation genre.
-
-## Truth Classes
-
-Truth classes identify the owner of a durable fact inside this repository. They
-do not replace Diataxis content modes, MADR ADR structure, OpenAPI / JSON Schema
-contract shape or RFC requirement wording.
-
-### `product_truth`
-
-- Owns: product boundary, target users, product promises and explicit
-  non-promises.
-- Default location: `docs/architecture/product.md`.
-- Must not own: runtime progress, release-closeout artifacts or tool implementation
-  status.
-
-### `product_requirement`
-
-- Owns: feature-level PRDs, launch-facing user experience requirements and
-  acceptance criteria.
-- Default location: `docs/product/`.
-- Must not own: product positioning, current merged truth, target architecture,
-  wire contracts, data schemas, operational run steps or active work status.
-
-### `current_truth`
-
-- Owns: current accepted merged topology and serving surfaces.
-- Default locations: `docs/architecture/current.md` and the compact
-  repo state in `.planning/PROJECT.md`.
-- Must not own: backlog, target-state design, feature-branch state or staging
-  closeout.
-
-### `target_invariant`
-
-- Owns: long-term architecture constraints and non-regression boundaries.
-- Default location: `docs/architecture/target.md`.
-- Must not own: current completion, P0/P1/P2 status, staging closeout artifacts or
-  one-off implementation order.
-
-### `supporting_architecture`
-
-- Owns: cross-domain owner boundaries, runtime semantics and system design.
-- Default location: `docs/architecture/system/`.
-- Must not own: workstream progress, release closeout or domain source-channel
-  details.
-- Stable cross-owner flow diagrams may be indexed in
-  `docs/architecture/flows.md`. That page visualizes owner-doc facts; it does
-  not create a new truth class or override the owner document. It must stay a
-  compact cross-boundary map, not a complete diagram catalogue.
-
-### `domain_architecture`
-
-- Owns: tool/domain boundary and source-channel architecture.
-- Default location: `docs/architecture/domains/`.
-- Must not own: main-chain completion status, operator/release-closeout artifacts or
-  cross-domain runtime ownership.
-
-### `domain`
-
-- Owns: canonical human behavior, opening boundary and owner routing for a
-  narrow capability.
-- Default location: `docs/domains/`.
-- Must not own: broad domain hub routing, source-channel architecture, wire
-  schema, data schema, runbook procedure or active work status.
-
-### `contract_truth`
-
-- Owns: HTTP/runtime wire contracts, DTOs, tool contracts and schema-adjacent
-  interfaces.
-- Default location: `docs/contracts/`.
-- Must not own: product positioning, implementation roadmap or operational run
-  steps.
-
-### `data_truth`
-
-- Owns: source truth schemas, read-model ownership and canonical data
-  boundaries.
-- Default location: `docs/data/`.
-- Must not own: architecture rationale, runbook procedure or planning status.
-
-### `decision_record`
-
-- Owns: accepted architecture decisions, supersession and reasoning.
-- Default location: `docs/decisions/`.
-- Must not own: active work status, command checklists or detailed inventory
-  matrices.
-
-### `operational_truth`
-
-- Owns: deployment, smoke, staging, recovery, readiness procedure and
-  release-closeout artifact production rules.
-- Default locations: `docs/runbooks/`, `docs/environment/` and
-  `docs/policies/`.
-- Must not own: architecture completion definition, product promises or
-  target-state invariants.
-  Environment documents are operational references; they define env ownership
-  and readiness semantics, not staging state inventory.
-
-### `planning_signal`
-
-- Owns: active planning signals, backlog signals and session-independent planning
-  pointers.
-- Default locations: `.planning/PROJECT.md` and `.planning/WORKSTREAMS.md`.
-- Must not own: long-term architecture truth, current merged topology override
-  or historical phase ledger.
-
-### `reference`
-
-- Owns: glossary, matrices, inventories, quality baselines and stable
-  explanatory reference.
-- Default location: `docs/reference/`.
-- Must not own: active workstream state, architecture owner decisions or
-  procedural run steps.
-
-## Conflict Resolution Order
-
-When documents appear to disagree, apply this order before changing code or
-implementing a plan:
-
-1. `product_truth` defines what the product is and is not.
-2. `product_requirement` defines feature-level user experience requirements and
-   acceptance criteria.
-3. `target_invariant` defines long-term boundaries that must not regress.
-4. `current_truth` defines what is already accepted at the branch tip.
-5. `supporting_architecture` defines cross-domain system ownership.
-6. `domain_architecture` defines tool-local boundaries.
-7. `domain` defines canonical human behavior for a narrow capability.
-8. `contract_truth` and `data_truth` define executable wire/schema truth.
-9. `decision_record` explains why a decision was accepted and how it was
-   superseded.
-10. `operational_truth` defines how to operate or verify a system.
-11. `planning_signal` defines what work is currently queued or signaled.
-12. `reference` provides stable lookup material but does not override the owner
-    classes above.
-
-If the document with lower precedence is more recent, do not silently treat it
-as a replacement. Promote the change into the owning document class or write a
-new ADR.
-
-## Canonical Question Routing
-
-- What is this product and what does it not promise?
-  - Owning class: `product_truth`
-  - First place: `docs/architecture/product.md`
-- What should a feature deliver for users?
-  - Owning class: `product_requirement`
-  - First place: `docs/product/`
-- What is currently merged and accepted?
-  - Owning class: `current_truth`
-  - First place: `docs/architecture/current.md`
-- What must the architecture converge to?
-  - Owning class: `target_invariant`
-  - First place: `docs/architecture/target.md`
-- Is the main question-answer chain closed?
-  - Owning classes: `supporting_architecture` and `current_truth`
-  - First places: primary-agent / execution-chain architecture and
-    `current.md`
-- Is a specific tool product-ready?
-  - Owning classes: `domain_architecture` and `contract_truth`
-  - First places: the tool domain doc and matching contract
-- Is answer grounding sufficient?
-  - Owning class: `contract_truth` or a domain-specific answer contract
-  - First place: tool answer/evidence contracts
-- Is release or staging closeout sufficient?
-  - Owning class: `operational_truth`
-  - First place: release and staging runbooks
-- How does resume, cancel or replay behave?
-  - Owning class: `supporting_architecture`
-  - First place: durable runtime architecture
-- Why did we accept a boundary?
-  - Owning class: `decision_record`
-  - First place: matching ADR
-- What work remains?
-  - Owning class: `planning_signal`
-  - First places: `.planning/PROJECT.md` and `.planning/WORKSTREAMS.md`
-
-## Main Chain Completion Rule
-
-Main question-answer chain completion is judged only by the generic online
-execution skeleton:
-
-`app-api -> execution-control -> Temporal -> memory recall -> primary agent
-decision -> direct/no-tool finalization or admitted tool branch ->
-sanitized finalization projection`
-
-The following must not be counted as main-chain blockers unless they break that
-generic execution skeleton:
-
-- maturity of individual tools or tool content
-- notice, campus-services, navigation or RAG answer quality
-- Operator Console, eval, badcase or release-closeout artifact consumption
-- staging closeout, production smoke or release closeout
-- planned multi-step workflow coverage
-- replay or repair features beyond existing event-stream resume
-
-Tool readiness, operator diagnostics and release-closeout artifacts remain
-important, but they live in their own truth classes.
-
-## Evidence Terminology
-
-The unqualified word `evidence` is ambiguous in this repository. New or edited
-docs should prefer one of these terms:
-
-- `answer_grounding_evidence`: source material, citations, retrieval support,
-  grounding verdicts or bounded artifacts used to support an answer.
-- `release_closeout_artifact`: staging, smoke, closeout, deploy, readiness or
-  regression output used to accept a release or operational change.
-- `operator_diagnostic_evidence`: sanitized trajectory, step, attempt, metric or
-  trace-derived facts used by operator/eval/badcase surfaces.
-
-Do not use release-closeout artifacts to define whether the online main chain is
-architecturally closed. Do not use answer grounding evidence as a substitute
-for release closeout. A runbook closeout artifact is one execution's retained
-output, not durable current truth.
-
-`proof` is not a truth class. When a procedure needs retained outputs, name
-them as closeout artifacts. When a lane checks behavior, name it as validation
-or smoke. Do not promote a per-run retained file into architecture, current or
-target truth.
-
-This vocabulary is repo-specific disambiguation. It does not create another
-documentation style; write the containing document using the mature standard
-for that document type.
-
-## Content Ownership Rules
-
-### Index Pages
-
-Index pages own navigation only. They may answer "where should I start?" and
-"which owner document should I read next?" They must not become exhaustive
-inventories of the tree, duplicate owner summaries or permanent cleanup
-ledgers.
-
-Root indexes should link to canonical entry documents and area README files.
-Area indexes may list their direct owner documents when that improves routing,
-but should avoid expanding into every related dependency. If an index needs a
-large topic explanation, move that explanation into the owning document class.
-
-### Flow Diagrams
-
-Flow diagrams follow the same ownership rules as prose:
-
-- local runtime, data, contract, source-channel or runbook flows belong in the
-  owning document
-- cross-owner diagrams belong in `docs/architecture/flows.md` only when the
-  value is seeing several owner classes together
-- `flows.md` is an index and visual overview, not a second source of truth
-- do not copy an owner-local diagram into `flows.md` only to make a complete
-  diagram catalogue
-
-When a diagram conflicts with prose, the owner document wins. Fix the owner
-document first, then update or delete the diagram.
-
-### Large Documents
-
-Large documents are allowed only when they follow one mature content mode and
-remain owner-clean.
-
-A large document is owner-clean when:
-
-- it has one truth class
-- it has one primary Diataxis mode or one ADR / contract / runbook standard
-- its frontmatter owner boundary matches the content it owns
-- it does not redefine another document class
-- it is not carrying active work status, release closeout or staging closeout unless
-  it is an operational runbook
-
-Large but owner-clean documents may remain large without a separate inventory
-entry. The review result is the document itself staying owner-clean at branch
-tip; later additions still need to respect the same owner boundary.
-
-If a large document mixes truth classes, split the mixed section into the owning
-document class before adding new content. Do not leave durable docs with
-permanent `audit_split_boundary` or `split_or_compress` actions after the
-governance pass.
-
-### Current Truth
-
-`current_truth` documents may say what is merged and accepted. They must not
-carry:
-
-- `remaining gap`
-- `next work`
-- `staging closeout`
-- `opening evidence`
-- `planned target`
-- active phase status
-
-If a current-truth document needs to mention deferred work, link to the owning
-planning or runbook document without restating its details.
-
-### Target Invariants
-
-`target_invariant` documents may say what must remain true in the long term.
-They must not carry:
-
-- current completion status
-- P0/P1/P2 work labels
-- runbook validation state
-- staging or release-closeout evidence
-- implementation-order checklists
-
-### Supporting Architecture
-
-`supporting_architecture` documents may define boundaries, ownership and runtime
-semantics. They must not become mega-documents that own every related domain.
-When a section becomes tool-specific, move it to `domain_architecture`.
-When a section becomes an executable schema or wire contract, move it to
-`contract_truth` or `data_truth`.
-
-### Operational Truth
-
-`operational_truth` documents may define commands, checks, deployment steps,
-smoke steps and release-closeout artifact requirements. They must not define
-whether a product or architecture target is correct.
-
-### Planning Signal
-
-`.planning/` documents are compact planning signals. They may point to backlog signals
-and active lanes. They must not override architecture, contract, data or ADR
-truth.
-
-### Reference Graph
-
-Active and accepted documents must not use historical, superseded, deprecated or
-retired compatibility documents as current owner truth.
-
-Allowed historical references are limited to explicitly labeled historical /
-archive / superseded-background context. Internal compatibility entries do not
-survive as source-of-truth documents; migrate their references to the current
-owner document or delete the stale route.
-
-Concrete internal Markdown references in active and accepted documents must
-resolve to an existing file. Glob patterns, route placeholders and external
-absolute paths are not treated as concrete source-of-truth references.
-
-Markdown paths must not be split across lines. If a path is too long for normal
-prose, use a shorter relative path or a Markdown link label instead of breaking
-the `.md` suffix.
-
-## Naming Rules
-
-Active source-of-truth documents use semantic short names. Directory placement
-already carries document class, so filenames should name the owned object, not
-repeat the class.
-
-Rules:
-
-- Top-level architecture documents use compact owner names, for example
-  `product.md`, `current.md` and `target.md`.
-- Supporting system architecture documents use `<topic>.md`. Do not require the
-  suffix `-architecture` when the parent directory already says
-  `architecture/system`.
-- Contract, data and runbook documents use their parent directory for class.
-  Their filenames should name the API, schema, runtime or procedure object.
-- ADR filenames use `adr-XXXX-<short-topic>.md`. Keep the number and make the
-  topic concise enough to scan in indexes.
-- Split-document directories follow the same short-name rule as their index
-  document. Do not keep a long directory name after shortening the index file.
-- Historical archive documents may keep old long names when renaming would
-  create churn without improving the active reading path.
-
-Do not add compatibility placeholder documents for renamed internal docs.
-Migrate references to the current owner path and let missing stale links fail
-the documentation checks.
-
-## Frontmatter Target
-
-New durable `docs/` Markdown files MUST use:
+# 文档规范与事实所有权
+
+## 文档范围
+
+本文规定仓库各类长期事实由哪类文档维护、发生冲突时如何判断，以及新增、迁移和删除
+文档时必须遵守的规则。它不判断具体功能是否完成，也不保存当前工作进度、命令清单或
+领域 schema。
+
+## 核心规则
+
+每条长期事实只能有一个文档所有者。其他文档可以链接或简要解释，但不得重新定义。
+
+文档中同时出现不同生命周期时，必须明确区分：
+
+- **当前已合并事实**：当前 `main` 已接受并实现的状态；
+- **已接受目标**：需要收敛到的方向，不代表已经运行；
+- **保留但未开放的能力**：名称或配置存在，但尚未进入产品流量；
+- **已退役历史**：仅用于解释为何不得恢复；
+- **兼容名称或路径**：当前代码仍使用的旧标识，不是新工作的目标词汇。
+
+schema、配置、fixture 或 `ToolSpec` 的存在不证明能力已对产品开放、已可查询或已完成
+发布。
+
+## 语言规范
+
+- 仓库自有的人类可读正文、标题、表头和图表标签使用简体中文。
+- 能用清晰中文表达的仓库自有概念不得改用英文黑话；代码标识应放在反引号中，并在首次
+  出现时说明中文含义。
+- 路径和文件名使用简短 ASCII。
+- 代码、命令、路径、环境变量、API 字段、schema 标识、状态枚举、产品正式名称和 URL
+  保持原值，并使用反引号或代码块标识。
+- OpenAPI/JSON Schema 的字段名保持不变，面向人的 `title`、`description` 使用中文。
+- 法定文本、上游版权声明和明确标注的外部引文可以保留原语言；仓库自有说明使用中文。
+- 不维护中英双份正文。中文是当前唯一权威文档语言。
+- GitHub Issue 和 PR 模板属于协作元数据，不适用 `docs/` 中文正文规则；保持仓库既有的
+  英文模板与上游协作格式，除非另有独立决策。
+- 规范性要求使用“必须、不得、应、不应、可以”；引用外部标准时可附 `MUST`、
+  `MUST NOT`、`SHOULD`、`MAY`。
+
+## 成熟文档模式
+
+- Diataxis：tutorial、how-to、reference、explanation 按读者需求选用；runbook 属于
+  how-to，reference 和大部分 contract 属于 reference，架构属于 explanation。
+- MADR/Nygard ADR：`docs/decisions/` 记录重要决策、理由和替代关系。
+- OpenAPI/JSON Schema：机器可执行合同优先于重复的字段表述。
+- RFC 2119/8174：只在确实表达规范要求时使用规范性措辞。
+- GitHub 模板：Issue 和 PR 模板属于协作元数据，不使用 docs frontmatter。
+
+## 事实类别
+
+| 类别 | 所有内容 | 默认位置 | 不得包含 |
+| --- | --- | --- | --- |
+| `product_truth` | 产品边界、用户、承诺与非承诺 | `docs/architecture/product.md` | 实现进度、发布输出 |
+| `product_requirement` | 功能 PRD、用户体验和验收标准 | `docs/product/` | 当前架构、wire contract、操作步骤 |
+| `current_truth` | 当前已合并拓扑和服务面 | `docs/architecture/current.md` | 待办、目标设计、分支进度 |
+| `target_invariant` | 长期约束和不得回退的边界 | `docs/architecture/target.md` | 当前完成度、优先级、staging 结果 |
+| `supporting_architecture` | 跨领域所有权和运行时语义 | `docs/architecture/system/` | 工作进度、领域来源细节 |
+| `domain_architecture` | 领域、工具和来源架构 | `docs/architecture/domains/` | 主链完成度、跨领域所有权 |
+| `domain` | 窄能力行为和开放边界 | `docs/domains/` | wire/data schema、runbook、工作状态 |
+| `contract_truth` | HTTP、运行时、DTO 和工具合同 | `docs/contracts/` | 产品定位、路线图、操作步骤 |
+| `data_truth` | 数据结构、来源和读取模型所有权 | `docs/data/` | 架构理由、操作步骤、规划状态 |
+| `decision_record` | 架构决策、理由和替代关系 | `docs/decisions/` | 命令清单、动态 inventory |
+| `operational_truth` | 部署、验证、恢复和环境规则 | `docs/runbooks/`、`docs/environment/`、`docs/policies/` | 产品承诺、架构完成定义 |
+| `reference` | 术语、矩阵、基线和稳定参考 | `docs/reference/` | 活动进度、架构决策、操作步骤 |
+
+## 事实判断
+
+不同文档回答不同问题，不存在一条把 PRD、目标架构、当前实现和操作手册排成高低的全局
+优先级。先明确问题，再读取对应所有者：
+
+| 问题 | 文档所有者 | 必须核对的可执行事实 |
+| --- | --- | --- |
+| 产品是什么、承诺什么 | `product_truth` | 已公开产品入口和产品配置 |
+| 某功能应交付什么 | `product_requirement` | 对应合同、测试和实现状态 |
+| 当前 `main` 已经实现什么 | `current_truth` | 代码、schema、注册表、配置和所有者测试 |
+| 当前环境实际运行什么 | 环境仓和运行状态 | 已选择的 revision、部署状态和服务探针 |
+| 长期不得回退的边界 | `target_invariant` | accepted ADR 和现有所有者边界 |
+| HTTP、DTO 或数据结构是什么 | `contract_truth`、`data_truth` | OpenAPI、JSON Schema、类型、迁移和合同测试 |
+| 为什么接受某项设计 | `decision_record` | 决策当时的上下文和替代关系 |
+| 如何部署、恢复或验证 | `operational_truth` | 当前命令、环境配置和工具输出 |
+
+处理不一致时遵守以下规则：
+
+1. 跨类别文档描述不同生命周期，不把差异误判成冲突；明确标注“当前”或“目标”。
+2. 当前事实与可执行来源不一致时，以代码、schema、配置和测试为准，并立即修正文档。
+3. 部署事实不能从源码或目标架构推断，只能从环境仓和实际运行状态确认。
+4. 同类事实出现多个定义时，只保留一个所有者，其他位置改为链接或删除重复内容。
+5. 无法验证的快速变化事实不得写成高置信度结论；长期文档只记录可核验的当前事实或已接受
+   约束。
+
+## 常见问题入口
+
+- 产品是什么、不承诺什么：`docs/architecture/product.md`
+- 某功能应向用户交付什么：`docs/product/`
+- 当前已经合并什么：`docs/architecture/current.md`
+- 长期架构必须满足什么：`docs/architecture/target.md`
+- 某工具是否可用：对应领域文档和可执行合同
+- 请求如何恢复、取消或重放：durable runtime 架构
+- 为什么接受某条边界：对应 ADR
+- 如何部署、验证或恢复：对应 runbook
+
+## 主问答链完成定义
+
+主问答链只按通用在线执行骨架判断：
+
+```text
+app-api -> execution-control -> Temporal -> memory recall
+-> primary agent decision -> direct/no-tool finalization 或已开放工具分支
+-> sanitized finalization projection
+```
+
+单个工具内容质量、notice/navigation 等领域成熟度、Operator Console、eval、staging 和
+release 收尾不自动成为主链阻塞项，除非它们破坏上述通用骨架。它们分别由领域、评测和
+操作文档判断。
+
+## 证据术语
+
+不得无修饰地使用 `evidence` 表示不同用途。应明确写成：
+
+- `answer_grounding_evidence`：支持答案的来源、引用、检索内容和 grounding 结论；
+- `release_closeout_artifact`：用于接受部署或发布的 staging、smoke、readiness 输出；
+- `operator_diagnostic_evidence`：用于排查和评测的脱敏轨迹、步骤、指标或 trace 事实。
+
+`proof` 不是事实类别。一次运行输出不能升级为长期架构或当前事实。
+
+## 内容规则
+
+- README 只做入口路由，不维护完整目录、清理记录或第二份所有者摘要。
+- 本地流程图放在所属文档；只有跨多个所有者才能进入 `docs/architecture/flows.md`。
+- 大文档只有在单一事实类别、单一主要读者需求和正确所有者下才能保留。
+- `current_truth` 不写剩余缺口、后续工作、staging 结果或目标计划。
+- `target_invariant` 不写当前完成度、P0/P1/P2、实现顺序或 release 输出。
+- supporting architecture 不得扩张成拥有所有领域的总文档。
+- 未合并的计划、待办和执行记录不得作为默认分支的长期文档。
+- active/accepted 文档不得把 historical、superseded 或 deprecated 文档当作当前所有者。
+- 具体内部 Markdown 引用必须指向存在的文件，路径不得跨行拆分。
+
+## 命名与 frontmatter
+
+- 目录表达文档类别，文件名只表达对象，例如 `product.md`、`transport.md`、
+  `adr-0038-documentation.md`。
+- 不为已重命名内部文档保留 redirect stub；迁移引用后让旧链接失败。
+- 新增长期 `docs/` Markdown 使用：
 
 ```yaml
 ---
-doc_type: <truth class or existing doc type>
-truth_scope: <product | execution | data | ops | eval | repository>
-owner_boundary: <owning app/package/domain/docs boundary>
+doc_type: <文档类别或现有类型>
+owner_boundary: <所属应用、包、领域或 docs 边界>
 status: <active | historical | proposed | accepted | superseded | deprecated>
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
 ---
 ```
 
-Existing docs may keep their current frontmatter until touched for durable
-content changes, but new docs should not introduce ambiguous `doc_type:
-architecture` without `truth_scope` and `owner_boundary`.
+`doc_type` 表达文档用途，`owner_boundary` 表达维护边界，`status` 只表达文档生命周期。
+目录已经表达事实范围，因此不再维护重复的 `truth_scope`。创建和更新时间由 Git 历史提供，
+不在 frontmatter 手工复制。GitHub 模板等协作元数据不使用此 frontmatter。
 
-GitHub issue forms, pull request templates, workflow files and other
-collaboration metadata are outside this frontmatter target.
+## 维护流程
 
-## Migration Rules
+1. 新增文档前先确认事实类别和现有所有者。
+2. 先更新所有者，其他文档只迁移入口或简要说明。
+3. 决策变化时更新 ADR 生命周期，不把新决策伪装成旧历史。
+4. schema 或合同变化时先更新可执行来源，再更新正文。
+5. 完成记录、一次性审计和实施快照由 git history 保存。
+6. 删除没有唯一证据或迁移价值的历史正文，不维护清理清单。
+7. 可自动判断的重复错误可以增加低误报检查；领域真相仍由所有者测试和评审负责。
 
-- Move content to the owning truth class; do not duplicate it in place.
-- Preserve ADR history; if a decision changes, supersede it instead of deleting
-  it.
-- Preserve historical reference/runbook value by marking it `historical` or
-  moving it under `archive/`, not by leaving it on the default reading path.
-- Delete historical archive bodies that no longer carry unique retained
-  evidence or migration value. Use git history for traceability instead of
-  keeping tracked redirect stubs.
-- Do not keep branch-tip cleanup ledgers or inventory snapshots. When a cleanup
-  leaves durable rules behind, promote those rules into this document; otherwise
-  let the cleanup be discoverable through git history.
-- Do not restore tracked planning archive trees. Recover only specific durable
-  facts into active docs.
-- Prefer deleting stale cross-type summaries over maintaining compatibility
-  notes that repeat another document's truth.
-- Remove internal compatibility entries after their references are migrated.
+验证入口：
 
-## Related Documents
+- `pnpm repo:static`：Biome、Markdownlint、EditorConfig 文本卫生；
+- `pnpm docs:check`：frontmatter、ADR identity、内部文档引用和中文正文检查；
+- 所属应用或包测试：schema、合同和领域不变量；
+- `pnpm ci:repo`：聚合仓库级文档检查。
 
-- `docs/decisions/adr-0038-documentation-information-architecture-and-lifecycle.md`
-- `docs/decisions/adr-0039-reference-and-runbook-historical-lifecycle.md`
+## 相关文档
+
+- `docs/decisions/adr-0038-documentation.md`

@@ -1,70 +1,35 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0013
 status: accepted
-created: 2026-03-28
-updated: 2026-03-30
 ---
-# ADR-0013 App API Worker Runtime
-
-## 状态
-
-Accepted on 2026-03-28.
+# ADR-0013 App API Worker 运行时
 
 ## 背景
 
-`ADR-0012` 已经冻结了新的产品边界：
-
-- `apps/campus-web`
-- `apps/operator-console-web`
-- shared `apps/app-api`
-- `apps/execution-control` execution engine
-
-但当时还没有关闭一个问题：
-
-- `apps/app-api` 的 runtime 是否继续保持未冻结
-
-如果这个问题继续悬空，后续实现很容易再次退化为：
-
-- online answer / panel 各自长出独立后端
-- `app-api` 先做成 Docker 服务，随后与 Worker web surfaces 形成额外部署裂缝
-- `app-api` 为了实现便利重新吸收 orchestrator 语义
+共享产品后端需要与 Worker 浏览器界面兼容的运行环境，同时私有执行和数据服务继续
+自托管。
 
 ## 决策
 
-后续长期形态固定采用：
+`apps/app-api` 作为 Cloudflare Worker 运行，并保持 modular monolith。它拥有产品 HTTP
+合同，通过环境管理的 Cloudflare 私网连接访问 PostgreSQL。
 
-1. `apps/app-api` 的 runtime 冻结为 Cloudflare Worker。
-1. `apps/app-api` 默认保持 internal-only，不作为浏览器直连 public backend 暴露。
-1. `apps/campus-web` 与 `apps/operator-console-web` 通过内部 Worker runtime seam
-   调用 `apps/app-api`。
-1. `apps/app-api` 继续以模块化单体承接 auth/session/conversation、chat ingress、request
-   ledger/projection input 与 operator query。
-1. `apps/app-api` 内部继续保持 command/query 分离，不能退化为另一个 orchestrator。
+Campus Web 和 Operator Console 使用已开放的同源 proxy 或 Service Binding。app-api
+origin 不是第二个公开产品入口，浏览器不得借此绕过所属 Web 界面。
 
-## 约束
+execution-control 继续自托管。app-api 发送 typed execution request 并消费有界 projection，
+不托管 Temporal worker、检索或模型执行。
 
-这项决策同时冻结以下约束：
+## 后果
 
-- `apps/app-api` 不是 Docker-first 的默认长期形态
-- browser 不直接调用 `apps/execution-control`
-- panel 不直接查询数据库
-- `apps/execution-control` 继续只是 execution engine
-- `conversation/message` truth 不等于 operator request truth
+- app-api 不作为并行 Docker/Kubernetes 产品后端部署。
+- 数据库 migration 使用 management connection，不使用 Worker runtime binding。
+- Worker 部署细节和域名属于环境配置。
+- framework 内部变化不改变此运行时边界。
 
-## 结果
+## 相关文档
 
-直接结果如下：
-
-- 需要一份单独的 canonical architecture doc 描述 `app-api` 的 Worker runtime 与内部边界
-- repo 入口文档与 planning 入口需要把 `app-api runtime = Worker` 作为 accepted truth
-- legacy standalone online answer app 与 `apps/protected-internal-panel`
-  应被表述为历史实现参考或 migration source，而不是 forward backend truth
-
-## Complements
-
-这项决策 complements：
-
-- `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- `docs/decisions/adr-0012-app-api.md`
+- `docs/architecture/system/product-runtime.md`

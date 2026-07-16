@@ -1,41 +1,32 @@
-# academic_calendar reference data
+# academic_calendar 参考数据
 
-`academic_calendar` is a curated structured data asset. It is not exposed as a
-campus-services runtime tool.
+`academic_calendar` 是人工整理的结构化数据，不作为 campus-services runtime tool 暴露。
 
-This directory is reference data, not an ingestion-control collection. It does
-not declare a task registry, serving config, retrieval alias, or model-visible
-structured tool.
+本目录是 reference data，不是 ingestion-control collection；不声明 task registry、serving
+config、retrieval alias 或模型可见的结构化工具。
 
-## Source Truth
+## 来源事实
 
-- `source-truth.v1.json` declares reconciled academic-calendar source truth for
-  `calendar/academic_calendar`.
-- `curated-academic-calendars/synthetic-2026.v1.json` contains the public repo
-  baseline fixture for curated calendar facts.
-- `notice-calendar-arrangements/synthetic-course-adjustment.v1.json` contains
-  the public repo fixture for notice-derived calendar arrangement facts.
-- Official-web page/image source refs remain evidence only. Image-only collector
-  candidates must not be promoted directly to current facts without this
-  structured curated artifact.
-- Authenticated notice artifacts may override or supplement baseline calendar
-  facts only through source-truth admission. Runtime lookup never scans raw
-  notice exports, raw HTML, OCR assets or generic RAG for calendar facts.
+- `source-truth.v1.json` 声明 `calendar/academic_calendar` 已核对的 source truth；
+- `curated-academic-calendars/synthetic-2026.v1.json` 是公开仓库的 synthetic baseline
+  fixture；
+- `notice-calendar-arrangements/synthetic-course-adjustment.v1.json` 是通知派生校历安排的公开
+  synthetic fixture；
+- Official Web page/image ref 只作为 evidence；只有图片的 collector candidate 未形成结构化
+  curated artifact 前，不能直接提升为当前事实；
+- authenticated notice artifact 只能通过 source-truth admission 覆盖或补充 baseline。runtime
+  lookup 不扫描 raw notice export、raw HTML、OCR asset 或通用 RAG 来获取校历事实。
 
-## Publish
+## 发布
 
-This reference-data scope has no active ingestion-control task registry. The
-previous `structured_projection_publish` and `operator_projection_snapshot`
-task declarations were removed because they had no real default TS handlers.
+该 reference-data scope 没有有效 ingestion-control task registry。此前未对应真实默认 TS
+handler 的 `structured_projection_publish` 与 `operator_projection_snapshot` 声明已删除。
 
-There is no active Python publish CLI for this collection. If calendar
-publication needs to re-enter ingestion-control, add a real TS handler and the
-matching registry task in the same change; do not restore placeholder tasks or
-infer a partial projection from raw HTML, OCR assets or generic RAG.
+本 collection 没有有效 Python publish CLI。若校历发布重新进入 ingestion-control，必须在同一
+次变更中增加真实 TS handler 与对应 registry task，不得恢复占位 task，也不得从 raw HTML、
+OCR asset 或通用 RAG 推断不完整投影。
 
-## Public Repo Boundary
+## 公开仓库边界
 
-Tracked files in this directory are synthetic source-truth fixtures. Real
-academic-calendar releases, source images, OCR evidence and service-question
-smoke reports live in the private data/artifact boundary and are not published
-under the repository license.
+本目录跟踪的文件都是 synthetic source-truth fixture。真实校历 release、source image、OCR
+evidence 与 service-question smoke report 属于私有 data/artifact 边界，不随仓库许可证发布。

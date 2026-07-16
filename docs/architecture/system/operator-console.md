@@ -1,10 +1,7 @@
 ---
 doc_type: architecture
-truth_scope: system
 owner_boundary: apps/operator-console-web
 status: active
-created: 2026-06-13
-updated: 2026-07-16
 ---
 
 # Operator Console
@@ -43,11 +40,11 @@ notice、ingestion 或通用 dashboard 页面。
 | 修改 provider config | 读取运行概况和请求摘要 |
 | Cloudflare Worker | self-hosted Node/Hono |
 | 通过 app-api 写受控配置 | 直接使用最小数据库权限和内部观测接口 |
-| 不展示 request diagnosis | 不修改产品配置或请求，只能恢复固定门户认证维护 Schedule |
+| 不展示 request diagnosis | 不修改产品配置或请求，只维护固定门户认证 |
 
 Operator Console 不保留 request 兼容路由，也不代理 Ops Web。
-Ops Web 另有资源名固定的内部门户 TGC 替换和维护 Schedule 恢复操作；它们不经过
-Operator Console，且不扩展为通用配置、Kubernetes 或 Temporal 管理面。
+Ops Web 可以替换固定内部门户 TGC 并恢复固定维护 Schedule；这些操作不经过 Operator
+Console，也不能扩展成通用 Kubernetes、Secret 或 Temporal 管理面。
 
 ## 禁止形态
 

@@ -1,12 +1,9 @@
 ---
 doc_type: contract
-truth_scope: product
 owner_boundary: apps/app-api
 status: active
-created: 2026-03-28
-updated: 2026-04-06
 ---
-# App API Error Model
+# App API 错误模型
 
 ## 文档边界
 
@@ -18,7 +15,7 @@ updated: 2026-04-06
 - request lifecycle：`docs/contracts/app-api/request-lifecycle.md`
 - execution contract：`docs/contracts/tool-execution.md`
 
-## Error Envelope
+## 错误结构
 
 所有 HTTP error response 统一返回：
 
@@ -50,7 +47,7 @@ updated: 2026-04-06
 - `details`
   可选结构化细节，例如字段校验失败列表
 
-## HTTP Status Mapping
+## HTTP 状态映射
 
 ### `400 Bad Request`
 
@@ -133,13 +130,13 @@ updated: 2026-04-06
 
 - `execution_timeout`
 
-## Pre-Accept Vs Post-Accept
+## 准入前与准入后
 
-第一版固定区分：
+当前固定区分：
 
-- pre-accept failure
+- 准入前失败
   返回 HTTP error envelope
-- post-accept execution failure
+- 准入后执行失败
   返回 `200`，并在 `POST /api/chat/requests` 的 `answer.result.kind=error` 中表达
 
 示例：
@@ -153,9 +150,9 @@ updated: 2026-04-06
 - execution-control 在请求已 durable 接受后失败
   `200 + result.kind=error`
 
-## Domain Codes
+## 领域错误码
 
-### Auth / Admission
+### 认证与准入
 
 - `unauthorized`
 - `session_required`
@@ -166,7 +163,7 @@ updated: 2026-04-06
 - `operator_access_required`
 - `operator_identity_not_admitted`
 
-### Request Validation
+### 请求校验
 
 - `invalid_json`
 - `unsupported_media_type`
@@ -174,19 +171,19 @@ updated: 2026-04-06
 - `conversation_not_found`
 - `request_not_found`
 
-### Idempotency
+### 幂等性
 
 - `idempotency_conflict`
 - `request_in_progress`
 
-### Dependency / Runtime
+### 依赖与运行时
 
 - `dependency_not_ready`
 - `execution_runtime_unavailable`
 - `execution_timeout`
 - `internal_error`
 
-## Retry Rule
+## 重试规则
 
 默认建议：
 
@@ -200,7 +197,7 @@ updated: 2026-04-06
 - `retryable` 通过 `answer.result.retryable` 返回
 - 同时保留 `requestId` 与 `traceId`
 
-## Non-Goals
+## 不负责
 
 - 不把 `no_answer` 当作 HTTP error
 - 不把 operator projection eventual consistency 暴露成 transport exception taxonomy

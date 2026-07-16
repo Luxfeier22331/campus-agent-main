@@ -8,7 +8,7 @@ description = "Repository policy and documentation references to secret words"
 paths = [
   '''^SECURITY\.md$''',
   '''^CONTRIBUTING\.md$''',
-  '''^docs/reference/testing-and-verification-lanes\.md$''',
+  '''^docs/reference/verification\.md$''',
 ]
 
 [[allowlists]]

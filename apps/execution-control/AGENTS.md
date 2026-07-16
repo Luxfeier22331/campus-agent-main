@@ -1,29 +1,23 @@
 # AGENTS.md
 
-This file supplements the repository guide for `apps/execution-control`.
+本文件补充仓库级指南，仅适用于 `apps/execution-control`。
 
-## Owner Boundary
+## 所有权边界
 
-- This app owns the Go execution-control service, Temporal lifecycle,
-  sanitized projections and runtime observability.
-- Browser product state and auth belong to app-api. Agent/tool loops belong to
-  agent-runtime. Ingestion, vector collection lifecycle and source publication
-  stay outside this app.
-- Generated execution wire contracts remain the request/response source. Do
-  not add a second parser, alias model or compatibility envelope.
+- 本应用拥有 Go execution-control 服务、Temporal 生命周期、脱敏投影和运行时可观测性。
+- 浏览器产品状态和认证属于 app-api；Agent 与工具循环属于 agent-runtime；采集、向量集合
+  生命周期和来源发布不属于本应用。
+- 生成的执行 wire contract 是请求和响应的权威来源，不得再增加第二套解析器、别名模型
+  或兼容 envelope。
 
-Read `apps/execution-control/README.md` and the relevant runtime architecture
-and contract documents before changing service boundaries.
+修改服务边界前，先阅读 `apps/execution-control/README.md` 以及相关运行时架构和合同文档。
 
-## Go Layout
+## Go 代码组织
 
-- Keep `internal/httpapi/server.go` focused on assembly and route registration.
-- Add behavior tests to the relevant domain test file instead of growing
-  `internal/httpapi/server_test.go`.
-- Keep metrics state/recording separate from exposition formatting.
-- Split new Go files before they exceed the repository's 800-line review limit.
+- `internal/httpapi/server.go` 只负责组装和路由注册。
+- 行为测试放在所属领域或 handler 附近。
+- 指标状态与记录逻辑应和 exposition 格式化分离。
 
-## Verification
+## 验证
 
-Run `pnpm go:check` for Go changes and `pnpm repo:static` when Markdown or other
-repository text changes.
+具体命令以仓库验证指南为准。本应用的 Go 改动运行 `pnpm go:check`。

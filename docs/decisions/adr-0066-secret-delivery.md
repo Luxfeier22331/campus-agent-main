@@ -1,111 +1,71 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0066
 status: accepted
-created: 2026-07-03
-updated: 2026-07-16
 ---
-# ADR-0066 Secret Delivery
+# ADR-0066 Secret 投递
 
-## Context
+## 背景
 
-The repository previously carried K8s `secret.example.yaml` files alongside
-Worker `secrets.required` declarations. Plaintext Kubernetes Secret examples
-were useful during bootstrap, but they were too easy to mistake for
-staging/production inventory and did not define real secret delivery without
-copying local files or committing credentials.
+仓库过去在 K8s `secret.example.yaml` 旁维护 Worker `secrets.required`。plaintext Kubernetes
+Secret 示例虽然便于 bootstrap，却容易被误认为 staging/production inventory，也无法在不复制
+本地文件或提交 credential 的情况下定义真实 secret delivery。
 
-## Decision
+## 决策
 
-Use stable Kubernetes Secret names as the workload contract. The concrete
-secret delivery backend is deploy-time infrastructure, not workload
-architecture truth.
+workload 只以稳定 Kubernetes Secret 名与 key 作为合同。具体 secret delivery backend 属于
+部署基础设施，不是 workload architecture truth。
 
-- Secret objects are grouped by credential owner, lifecycle and mutation
-  boundary rather than duplicated for each Pod.
-- Workloads consume only the required keys through explicit projections. A
-  shared Secret object does not replace separate provider-side identities or
-  permissions.
-- Real secret material stays outside plaintext git.
-- Deployment environment repositories may contain delivery-backend references
-  or encrypted secret resources, but not plaintext secret values. The
-  application source repository contains only stable Secret consumption names
-  and placeholder examples.
-- Sealed Secrets is the recommended default for repo-supported self-hosted and
-  open-source deployments because it keeps GitOps reviewability without
-  requiring a separate hosted secret manager.
-- Supported delivery choices remain manual Kubernetes Secret creation, Sealed
-  Secrets, External Secrets Operator and SOPS-backed encrypted Secret
-  manifests. Switching backend must not change first-party Deployment/CronJob
-  consumption contracts.
-- A short-lived runtime credential that requires frequent human rotation may
-  use a fixed, pre-created Secret whose data is updated by an explicitly
-  allowlisted in-cluster operation. That exception requires resource-name RBAC,
-  must not grant Secret creation or enumeration, and does not make Git a
-  credential history.
+- Secret 按凭据所有者、生命周期和变更边界组织，不按 Pod 重复创建；
+- workload 只显式投影所需 key；共享 Secret 对象不代表共享上游身份或权限；
+- 真实 secret material 不进入 plaintext git；
+- 环境仓库可以保存 delivery-backend reference 或 encrypted secret resource，不能保存
+  plaintext value；
+- 应用源码仓库只保存稳定 consumption contract 与不含值的 placeholder；
+- self-hosted GitOps 默认推荐 Sealed Secrets，以保持可审查 desired state；已有外部 secret
+  manager 的环境可以使用 External Secrets Operator；
+- manual Kubernetes Secret、Sealed Secrets、External Secrets Operator 与 SOPS 都是允许的
+  delivery 方式，切换 backend 不得改变 first-party workload consumption contract；
+- 需要频繁人工轮换的短期凭据可以使用预创建的固定 Secret，由明确白名单内的集群操作更新；
+  该例外必须限制到资源名，不得授予 Secret 创建、列举或删除权限，也不把 Git 变成凭据历史。
 
-Cloudflare Worker secrets remain in the Cloudflare Worker secret store and are
-audited through Worker deploy/preflight tooling. Worker secrets are not mirrored
-through K8s.
+Cloudflare Worker secret 留在 Cloudflare secret store，通过 deploy/preflight tooling 检查是否
+存在，不镜像到 Kubernetes。Kubernetes secret delivery 也不拥有 Docker local secret 或
+app-level operational config。
 
-Kubernetes secret delivery does not own Cloudflare Worker secrets, Docker local
-secrets or app-api provider-config active profiles.
+## 后果
 
-## Consequences
+- K8s runtime 不再维护 `secret.example.yaml` inventory；
+- 内部门户 `SSO_TGC` 使用环境预创建的独立 Secret，Ops Web 只能读取和 patch 该资源；长期
+  API key、DSN 和信任锚仍使用环境的常规投递方式；
+- TGC 不与其他凭据共用 Secret，因为 Kubernetes Secret RBAC 只能限制资源，不能限制 key；
+- 小型 self-hosted deployment 可以手工创建 Secret，但 operator 必须负责 rotation 与 audit；
+- 环境仓库可以部署 pinned secret-delivery controller；
+- SealedSecret 默认使用 strict scope，namespace-wide 或 cluster-wide scope 需要单独风险接受；
+- policy check 必须拒绝 GitOps manifest/Helm value 中的 provider key、DSN、token 与 shared
+  secret；
+- local `.env` 只能作为受控 Secret 创建步骤的输入，本身不是 Kubernetes desired state；
+- repo check 可以验证 Secret/ConfigMap 分离、稳定 key 与禁止位置，但不能证明真实 secret 已
+  正确投递。
 
-- K8s `secret.example.yaml` inventory files are retired from execution-runtime
-  manifests. Secret contracts live in workload references and the GitOps secret
-  delivery documentation instead.
-- Manual K8s Secret creation is accepted for small self-hosted deployments when
-  the operator also owns rotation and audit runbooks.
-- The internal-portal `SSO_TGC` uses one empty environment-initialized Secret;
-  Ops Web may read and patch only that Secret. Long-lived API keys, DSNs and
-  trust anchors continue to use the environment's normal delivery backend.
-- The TGC cannot share a Secret object with other credentials because
-  Kubernetes Secret RBAC is resource-scoped, not key-scoped.
-- A deployment environment repository may provide a pinned
-  `platform-sealed-secrets` Argo CD Application for the recommended default
-  self-hosted GitOps path.
-- SealedSecret manifests committed to an environment repository must use the
-  default strict scope. Namespace-wide or cluster-wide sealing is a separate
-  risk acceptance, not a default.
-- Secret delivery checks must reject provider API keys, DSNs, tokens or shared
-  secrets in GitOps manifests and Helm values.
-- A deployment can switch from manual Secrets to Sealed Secrets, External
-  Secrets Operator or SOPS without changing workload consumption contracts.
-- Repo policy checks may verify Secret/ConfigMap separation, retired Secret
-  names and forbidden key placement, but real secret material remains outside
-  git.
-- Local `.env` files may be an operator input when creating a reviewed Secret,
-  SealedSecret, ExternalSecret backing value or SOPS-encrypted Secret. They are
-  not themselves Kubernetes desired state and must not be applied directly in
-  GitOps runbooks.
+## 未采用方案
 
-## Alternatives Considered
+### 强制 External Secrets Operator
 
-### Mandate External Secrets Operator
+拒绝。已有外部 secret manager 时它很合适，但会为小型 self-hosted 环境增加不必要 controller
+与 backend dependency。
 
-Rejected as a universal requirement. External Secrets Operator is appropriate
-when a deployment already has an external secret manager, but it adds a
-controller and backend dependency that small self-hosted installations may not
-need.
+### 只允许 Sealed Secrets
 
-### Mandate Sealed Secrets As The Only Backend
+拒绝。Sealed Secrets 仍需要 controller 与 sealing-key lifecycle，因此作为推荐默认值，而不是
+唯一 substrate。
 
-Rejected as a universal requirement. Sealed Secrets is lighter than a full
-external secret manager, but it still adds a controller and cluster sealing-key
-lifecycle. It is the recommended default for this repo's self-hosted GitOps
-path, not the only acceptable substrate.
+### 把 `.env` 复制到 staging host
 
-### Keep copying `.env` files to staging hosts
+拒绝作为仓库合同。operator 可以把 local env 作为受审查 secret creation 输入，workload 只能
+消费 Kubernetes Secret。
 
-Rejected as the repo contract. Operators may use local env only as input to a
-reviewed secret creation step; workloads must consume Kubernetes Secrets, not
-raw copied env files.
+### 用业务配置服务充当通用 secret manager
 
-### Use app-api provider-config as a general secret manager
-
-Rejected. Provider-config governs model/search provider profiles; it is not a
-generic deploy secret store.
+拒绝。业务配置控制面不负责通用部署 credential。

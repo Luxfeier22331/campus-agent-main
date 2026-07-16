@@ -1,72 +1,60 @@
 ---
 doc_type: product_requirement
-truth_scope: product
 owner_boundary: docs/product
 status: active
-created: 2026-06-19
-updated: 2026-07-13
 ---
-# Langfuse Evals
 
-## Goal
+# Langfuse 评测产品需求
 
-Engineering and Eval/QA can inspect the same trace, dataset run, Ragas scores
-and review workflow without creating a second eval platform in the repository.
+## 目标
 
-## Requirements
+工程和评测人员应在 Langfuse 中查看同一条真实产品 trace、dataset run、Ragas score 和
+annotation 工作流，仓库不再建设第二套评测平台。
 
-- Online Agent SDK and execution spans correlate by W3C trace identity.
-- Repo RAG cases sync to one Langfuse dataset per collection.
-- Dataset experiments execute the real product path and materialize answer,
-  retrieved contexts and tool trajectory.
-- Every scored target turn is linked to its real product trace through the
-  official Langfuse dataset-run-item API.
-- Ragas RAG and agent/tool metrics publish only registered score names.
-- Deterministic outcome and forbidden-context checks publish registered
-  BOOLEAN scores.
-- Langfuse experiments and annotation queues are used through official
-  platform workflows; the repo does not maintain parallel manifests or queues.
-- Trusted self-hosted Langfuse traces may contain user association, model I/O,
-  memory and authorized retrieved facts. Credentials and secrets are forbidden.
-- App-api and Operator Console keep a bounded projection and never copy
-  Langfuse observation bodies.
-- Langfuse availability never blocks online answers.
+## 要求
 
-## Knowledge Agent Coverage
+- Agent SDK 与 execution span 使用同一 W3C trace identity；
+- 每个 RAG collection 对应一个 Langfuse dataset；
+- dataset run 通过真实 app-api、Temporal 和 Agent SDK 路径执行；
+- 每个评分 turn 通过官方 dataset-run-item API 关联真实 product trace；
+- 只发布已登记的 Ragas RAG、Agent/tool 和确定性 score；
+- experiment、annotation queue 和分析使用 Langfuse 官方能力；
+- self-hosted Langfuse 可以在受信任边界保存用户关联、模型输入输出、memory 和已授权检索事实；
+- credential 和 secret 不得进入 trace、dataset 或 score；
+- app-api、Ops Web 和 Operator Console 不复制 Langfuse observation 正文；
+- Langfuse 不可用不得阻塞在线回答。
 
-`campus/agent/routing` covers direct versus function-tool versus handoff
-selection, target choice, conversation follow-up, mixed intent, closed sources,
-stale context and prompt injection. `campus/rag/*` datasets cover history mode,
-single- and cross-target search, search count, hard negatives, no-answer,
-grounding and source integrity.
+## 覆盖范围
 
-`tool_trajectory.v2` supplies public handoff and internal search facts.
-`agent_runtime_eval_projection.v2` supplies answer, contexts, document ids and
-resolved targets. Eval must not infer tool behavior from answer prose.
+`campus/agent/routing` 覆盖直接回答、function tool、Knowledge Agent handoff、target 选择、
+会话跟进、多意图、关闭来源、过期上下文和 prompt injection。
 
-## Non-Goals
+`campus/rag/*` 覆盖当前/历史模式、单 target、跨 target、搜索次数、hard negative、
+no-answer、grounding 和来源完整性。
 
-- Langfuse is not Temporal history, product storage or release authority.
-- Ragas scores are not a custom repo release gate.
-- App-api and Operator Console do not mirror Langfuse score/annotation state.
-- The repo does not restore broad Python eval, custom retrieval scoring, custom
-  experiment orchestration or private Ragas metrics.
+工具行为必须来自 `tool_trajectory.v2`，答案、context、document ID 和 resolved target 来自
+`agent_runtime_eval_projection.v2`；不得从答案措辞猜测调用轨迹。
 
-## Acceptance
+## 非目标
 
-- `pnpm ci:eval` passes without external services.
-- Dataset and score-config sync support dry-run.
-- The unified dataset manifest discovers both `assets/datasets/agent/**` and
-  `assets/datasets/rag/**` cases.
-- Trace and dataset scoring reject missing identity, missing materialized RAG
-  fields, secret-bearing payloads and unknown scores.
-- Agent scoring uses official Ragas tool metrics over v2 trajectory data.
-- Dataset run identity comes from Langfuse and remains internal lineage. Score
-  API payloads carry exactly one observation or trace id and no dataset ids.
+- Langfuse 不拥有 Temporal history、产品存储或发布决定；
+- Ragas score 不形成仓库自研 release gate；
+- 不恢复 broad Python eval、私有 Ragas API、自研 retrieval metric 或 experiment orchestration；
+- 不在产品数据库镜像 Langfuse score、dataset 或 annotation。
 
-## References
+## 验收
 
-- [Langfuse Architecture](../architecture/system/langfuse.md)
-- [Langfuse Runtime](../contracts/langfuse-runtime.md)
-- [Eval](../reference/eval.md)
-- [Ragas Runbook](../runbooks/eval-ragas.md)
+- `pnpm ci:eval` 在不访问外部服务时通过；
+- dataset 和 score config sync 支持 dry-run；
+- manifest 同时发现 Agent 与 RAG `cases.v1.json`；
+- trace/dataset scoring 拒绝缺失关联标识、缺失 materialized 字段、secret-bearing payload 和未知
+  score；
+- Agent 评分使用 Ragas 官方 tool metrics；
+- dataset run identity 由 Langfuse 返回，score payload 只包含一个 observation 或 trace ID。
+
+## 相关文档
+
+- [Langfuse 架构](../architecture/system/langfuse.md)
+- [Langfuse 合同](../contracts/langfuse-runtime.md)
+- [评测口径](../reference/eval.md)
+- [Ragas 操作](../runbooks/ragas.md)

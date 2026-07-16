@@ -1,41 +1,38 @@
 ---
 doc_type: reference
-truth_scope: ops
 owner_boundary: docs/environment
 status: active
-created: 2026-04-20
-updated: 2026-06-28
 ---
 <!-- markdownlint-disable MD013 -->
 
-# Environment Ownership And Overrides
+# 环境配置所有权
 
 ## 文档边界
 
-本文只负责环境配置的 ownership、分层和 override 规则。
+本文只负责环境配置的所有权、分层和覆盖规则。
 
 它回答的是：
 
-- 哪些值属于 repo root shared env
-- 哪些值属于 app-local env
-- 哪些值只应作为 command-scoped override
-- 本地 runtime 与 convenience script 分别服务什么边界
+- 哪些值属于仓库根共享环境；
+- 哪些值属于应用本地环境；
+- 哪些值只用于单条命令；
+- 本地运行时与辅助脚本各自服务什么边界。
 
 它不负责：
 
-- provider / secret 获取方式
-- staging deploy 步骤
-- post-deploy smoke
+- 供应商与密钥获取方式
+- staging 部署步骤
+- 部署后冒烟测试
 
 相关文档：
 
 - `providers.md`
 - `readiness.md`
-- `../runbooks/provider-secret-governance.md`
+- `../runbooks/provider-secrets.md`
 
-## Layering Rules
+## 分层规则
 
-### Repo root `.env` / `.env.example`
+### 仓库根 `.env` 与 `.env.example`
 
 只承载 repo-root shared database handles：
 
@@ -54,50 +51,48 @@ app-api provider-config active profiles 时，使用 command-scoped
 该模板只服务 seed command；online serving 仍消费 app-api provider-config 与显式
 projection artifact。
 
-### App-local env template
+### 应用环境模板
 
 每个 app 在自己的 runtime boundary 下维护自己的模板，不再由 repo root `.env.example` 代管。
 
-### Command-scoped override template
+### 命令环境模板
 
 默认 operator override 放在 `env/commands/*.env.example`。旧 Python ingestion
 closeout / rebuild / release command env 不再作为 tracked fallback surface；需要重建时按
 `apps/ingestion-control` task registry / executor seam 重新建模。
 
-## Ownership Matrix
+## 所有权清单
 
-### Repo root shared env
+### 仓库根共享环境
 
 - [`.env.example`](../../.env.example)
-  - shared Postgres runtime / operator DSN handles only
+  - 只保存共享 PostgreSQL 运行时和运维 DSN 句柄
 
-### App-local env
+### 应用本地环境
 
 - [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
-  - `app-api` Worker runtime string env
+  - `app-api` Worker 运行时字符串环境变量
 - [`apps/app-api/.env.example`](../../apps/app-api/.env.example)
-  - `app-api` Wrangler / Drizzle process env
+  - `app-api` Wrangler 与 Drizzle 进程环境变量
 - [`apps/campus-web/.dev.vars.example`](../../apps/campus-web/.dev.vars.example)
-  - `campus-web` Worker runtime string env
+  - `campus-web` Worker 运行时字符串环境变量
 - [`apps/source-collector/adapters/internal-portal/.env.example`][source-collector-internal-portal-env]
-  - `source-collector` internal-portal adapter portal auth、capture policy and
-    source-bucket runtime env
+  - `source-collector` internal-portal 适配器的门户认证、采集策略和来源桶运行环境
 - [`apps/source-collector/adapters/official-web/.env.example`][source-collector-official-web-env]
-  - `source-collector` official-web source config 与 source-bucket runtime env
+  - `source-collector` official-web 来源配置和来源桶运行环境
 - [`apps/source-collector/adapters/wechat-official-account/.env.example`][source-collector-wechat-env]
-  - `source-collector` wechat-official-account adapter FeedWe credentials 与
-    source-bucket runtime env
+  - `source-collector` wechat-official-account 适配器 FeedWe 凭据和来源桶运行环境
 - [`apps/operator-console-web/.dev.vars.example`](../../apps/operator-console-web/.dev.vars.example)
-  - `operator-console-web` Worker string env
+  - `operator-console-web` Worker 字符串环境变量
 - [`infra/otel/collector.env.example`](../../infra/otel/collector.env.example)
-  - local/staging OTel collector process env
+  - 本地与 staging OTel Collector 进程环境变量
 
-### Command-scoped override
+### 命令环境
 
 - [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
 - [`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)
 
-## Override Rules
+## 覆盖规则
 
 - env 只承载会随 deploy 或 runtime 变化的资源句柄、密钥、provider 配置、运行时 host/base URL
 - self-hosted Qdrant 的 URL 与 key 由 local/staging lifecycle 约定、生成并投影；
@@ -112,13 +107,10 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
 - K8s / Worker / Docker / app-api provider-config 各自使用成熟组件交付配置；
   repo 级 policy 只做跨 surface contract 与 static drift check，不承担运行时配置平台职责
-- `OCR_PROVIDER_MODE` 必须显式设置，不依赖 `OCR_BASE_URL` 推断 provider
-- `OCR_MINERU_*` 只表示附加 MinerU lane config，不表示 repo 级“second provider canonical
-  truth”
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection`
   等任务输入优先走 CLI args
 
-## App API Local Runtime
+## App API 本地运行
 
 - `apps/app-api` 本地 `pnpm dev` 固定走 `wrangler dev -e local`
 - `apps/app-api/.env` 负责 Wrangler / Drizzle process env
@@ -126,22 +118,20 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 - `apps/source-collector/adapters/*/.env` 只供 source-collector 本地进程读取；
   app-api 不读取 collector env，也不拥有 collector control plane
 
-## Feature Worktree Local Env
+## 功能 Worktree 本地环境
 
-Feature worktrees do not receive ignored `.env` / `.dev.vars` files from Git. A
-feature worktree must use explicit local env files owned by that checkout or by
-the developer's local secret manager. Do not copy secrets between worktrees and
-do not rely on repo scripts to fan out ignored env files.
+Git 不会向功能 worktree 带入被忽略的 `.env` 或 `.dev.vars`。每个 worktree 必须使用该
+检出目录自己的本地环境文件，或使用开发者的本地密钥管理器。不得在 worktree 之间复制
+密钥，也不得依赖仓库脚本分发被忽略的环境文件。
 
-## Canonical Checks
+## 检查入口
 
-- Local Worker observability env: `pnpm exec tsx scripts/deploy/doctor-env.ts
-  worker-observability-local --json`
-- Deployed Worker secret presence: `pnpm exec tsx
-  scripts/deploy/check-worker-secret-presence.ts --env staging --json`
-- External sink verification uses the Sentry / Axiom UI or their official APIs
-  from the operator workstation. The repo does not maintain Sentry query helper
-  scripts.
+- 本地 Worker 观测环境：`pnpm exec tsx scripts/deploy/doctor-env.ts
+  worker-observability-local --json`；
+- 已部署 Worker 密钥存在性：`pnpm exec tsx
+  scripts/deploy/check-worker-secret-presence.ts --env staging --json`；
+- 外部平台核验：运维工作站使用 Sentry、Axiom 界面或其官方 API；仓库不维护 Sentry 查询
+  辅助脚本。
 
 [source-collector-internal-portal-env]: ../../apps/source-collector/adapters/internal-portal/.env.example
 [source-collector-official-web-env]: ../../apps/source-collector/adapters/official-web/.env.example
@@ -149,6 +139,6 @@ do not rely on repo scripts to fan out ignored env files.
 
 对应 runbook：
 
-- `docs/runbooks/provider-secret-governance.md`
-- `docs/runbooks/local-runtime-smoke.md`
-- `docs/runbooks/worker-observability-smoke.md`
+- `docs/runbooks/provider-secrets.md`
+- `docs/runbooks/local-smoke.md`
+- `docs/runbooks/worker-otel.md`

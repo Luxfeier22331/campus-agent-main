@@ -1,67 +1,43 @@
-# Runtime OTel Collector Config
+# OTel Collector 配置
 
-This directory contains repo-owned OpenTelemetry Collector configuration for the
-`runtime-otel-observability-bridge` workstream.
+本目录包含仓库拥有的 OpenTelemetry Collector 配置。
 
-## Files
+## 文件
 
-- `collector-local-debug.yaml`: local debug Collector config. It receives
-  OTLP traces, metrics and logs, applies the repo forbidden-field deletion
-  policy and exports to the Collector `debug` exporter.
-- `collector-local-prodlike.yaml`: optional local fan-out Collector config. It
-  receives the same local OTLP signals, applies the forbidden-field deletion
-  policy and fans out traces to the local self-hosted Langfuse OTLP endpoint
-  plus the Collector `debug` exporter. Metrics are also exported to the Axiom
-  metrics dataset when Axiom endpoint/auth env is populated.
-- `collector-staging-template.yaml`: staging/production template. It receives OTLP,
-  applies the same redaction chain, samples traces/logs, exports traces to
-  Sentry, Axiom and Langfuse, exports logs to Axiom, and exports metrics to the
-  Axiom metrics dataset.
-- `collector.env.example`: required environment variables. Secret-bearing
-  values are intentionally blank and must be supplied by the deployment secret
-  manager. It also documents the protected Collector OTLP HTTP inputs used by
-  Worker-origin telemetry.
+- `collector-local-debug.yaml`：接收本地 OTLP trace、metric 与 log，删除禁止字段后写入
+  Collector `debug` exporter；
+- `collector-local-prodlike.yaml`：可选的本地 fan-out 配置；应用相同字段删除策略，将 trace
+  发往本地 Langfuse OTLP endpoint 与 `debug` exporter，并在配置 Axiom 环境变量后发送 metric；
+- `collector-staging-template.yaml`：staging/production 模板；应用相同字段删除与采样策略，将
+  trace 发往 Sentry、Axiom 与 Langfuse，将 log 和 metric 发往配置的 Axiom dataset；
+- `collector.env.example`：所需环境变量与受保护 OTLP HTTP 输入示例。secret 值保持为空，由
+  部署 secret manager 提供。
 
-## Signal Routing
+## 信号路由
 
-- Runtime apps send OTLP to this Collector, not directly to vendor sinks.
-- Cloudflare Worker surfaces send OTLP HTTP to the protected Collector OTLP
-  HTTP receiver. The receiver uses bearer auth and only accepts valid OTLP
-  signal paths such as `/v1/traces` and `/v1/logs`.
-- The Collector deletes the repo forbidden fields before any exporter runs.
-- Sentry receives traces only. Langfuse receives traces only. Axiom receives
-  traces/logs through `x-axiom-dataset=campus-agent-runtime` and metrics through
-  `x-axiom-dataset=campus-agent-runtime-metrics`.
-- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must be the base domain, for example
-  `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`,
-  `/v1/logs`, or `/v1/metrics` because the Collector `otlp_http` exporter
-  appends the signal path.
-- Worker surfaces must not configure Axiom REST ingest. Axiom endpoint, auth
-  header and dataset are Collector exporter settings only.
-- Default local execution-control runtime uses `collector-local-debug.yaml`.
-  It uses only the `debug` exporter and does not require Sentry, Axiom or
-  Langfuse credentials.
-- Add `infra/local/docker-compose.execution-runtime.fanout.yml` when a
-  local run intentionally exercises `collector-local-prodlike.yaml` and external
-  sink fan-out.
-- Start `infra/local/docker-compose.langfuse.yml` only when the
-  local fan-out run needs a self-hosted Langfuse dependency stack.
-- Langfuse OTLP endpoint should be the `/api/public/otel` endpoint. Use
-  `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` unless the Langfuse deployment
-  contract changes.
-- Canonical staging defaults to `collector-local-debug.yaml` so staging env can
-  stay free of external sink credentials. Set
-  `EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE=fanout` and
-  `EXECUTION_CONTROL_STAGING_OTEL_COLLECTOR_CONFIG_FILE=../otel/collector-staging-template.yaml`
-  only when Sentry/Axiom/Langfuse sink credentials are intentionally deployed.
-- The staging runtime compose exposes the Collector OTLP HTTP receiver through
-  the protected `otel-collector-staging.mucwiki-edge.link` route. It does not
-  expose vendor sinks or bypass the Collector pipeline.
+- runtime app 将 OTLP 发给 Collector，不直连外部观测平台；
+- Cloudflare Worker 通过受保护的 Collector OTLP HTTP receiver 发送信号；receiver 使用 bearer
+  auth，并只接受 `/v1/traces`、`/v1/logs` 等有效 OTLP 路径；
+- Collector 在任何 exporter 运行前删除仓库禁止字段；
+- Sentry 与 Langfuse 只接收 trace；Axiom 接收 trace、log 与 metric。endpoint、auth header 与
+  dataset 都由 Collector exporter 环境变量配置，Worker 不配置 Axiom REST ingest；
+- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` 必须是 base domain，不能包含 `/v1/traces`、
+  `/v1/logs` 或 `/v1/metrics`，因为 `otlp_http` exporter 会追加 signal path；
+- 默认本地 execution-control 使用 `collector-local-debug.yaml`，不需要外部平台 credential；
+- 只有明确测试外部 fan-out 时才加入
+  `infra/local/docker-compose.execution-runtime.fanout.yml`，需要本地 Langfuse 时再启动
+  `infra/local/docker-compose.langfuse.yml`；
+- Langfuse 使用 `/api/public/otel` endpoint；ingestion version 由
+  `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` 配置；
+- staging 默认使用 local-debug 配置。只有部署了外部平台 credential 时才切换到
+  `collector-staging-template.yaml`；
+- staging 的 Collector OTLP HTTP receiver 通过受保护 route 暴露，不直接暴露外部平台或绕过
+  Collector pipeline。
 
-## Validation
+## 验证
 
-Use `otelcol-contrib` for these configs because the repo pipeline relies on
-processors that may not be present in every minimal Collector distribution:
+这些配置依赖部分最小 Collector distribution 不一定包含的 processor，因此使用
+`otelcol-contrib` 校验：
 
 ```bash
 APP_API_OTEL_INGEST_SHARED_SECRET=local-otel-proof-token \
@@ -72,12 +48,10 @@ APP_API_OTEL_INGEST_SHARED_SECRET=local-otel-proof-token \
   otelcol-contrib validate --config=infra/otel/collector-local-prodlike.yaml
 ```
 
-The Collector receiver fails closed when `APP_API_OTEL_INGEST_SHARED_SECRET` is
-missing. The staging template also uses environment substitution for exporter
-values; populate `collector.env.example` values before validating fan-out with a
-real Collector binary.
+缺少 `APP_API_OTEL_INGEST_SHARED_SECRET` 时 Collector receiver 失败关闭。staging template 还会
+替换 exporter 环境变量；使用真实 Collector 校验 fan-out 前需填充 `collector.env.example`。
 
-Without a local Collector binary, run the repo structural guards:
+没有本地 Collector binary 时，执行仓库结构检查：
 
 ```bash
 pnpm ci:eval
@@ -85,12 +59,11 @@ pnpm contracts:check
 pnpm repo:static
 ```
 
-To check a populated staging shell before starting compose:
+启动 compose 前检查已填充的 staging shell：
 
 ```bash
 pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
 ```
 
-`pnpm contracts:check` also materializes
-`configs/runtime/observability-alerts.v1.json` into Axiom monitor specs and
-fails when an enabled alert rule cannot be represented as one monitor.
+`pnpm contracts:check` 还会将 `configs/runtime/observability-alerts.v1.json` 转换为 Axiom
+monitor spec；启用的 alert rule 无法表示为单个 monitor 时检查失败。

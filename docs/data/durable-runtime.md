@@ -1,121 +1,100 @@
 ---
 doc_type: data
-truth_scope: data
 owner_boundary: apps/execution-control
 status: active
-created: 2026-06-04
-updated: 2026-07-13
 ---
-# Durable Agent Runtime Schema
+# 持久执行数据
 
-## Boundary
+## 边界
 
-This document owns the logical sanitized projection model for online execution.
-Temporal history remains execution truth; PostgreSQL projection supports
-app-api, Operator Console, eval and diagnostics.
+本文定义在线执行的有界逻辑投影。Temporal history 始终是执行事实；PostgreSQL 投影供
+app-api、诊断和评测消费。
 
-## Core Records
+## 核心记录
 
-### Run
+### 运行
 
-A run binds conversation, turn, request, trace, owner, surface, lifecycle,
-runtime versions, selected tool/handoff, terminal reason and finalization ref.
+run 关联 conversation、turn、request、trace、owner、surface、lifecycle、runtime version、
+selected tool/handoff、terminal reason 与 finalization ref。
 
-Run status follows the admitted lifecycle and cannot be inferred from browser
-connection state. Terminal state is monotonic.
+run status 服从已准入的生命周期，不能根据浏览器连接状态推断；终态单调且不可回退。
 
-### Run Event
+### 运行事件
 
-Run events provide ordered sanitized lifecycle and streaming facts. Event
-sequence is monotonic within a run. Payloads contain safe refs and summaries,
-not raw prompts, transcripts, provider responses or source bodies.
+run event 按顺序记录有界生命周期与 streaming 事实。同一 run 内 event sequence 单调递增。
+payload 只能包含 ref 和 summary，不得包含原始 prompt、transcript、provider response 或
+source body。
 
-### Step, Attempt And Result
+### Step、Attempt 与 Result
 
-Step projection describes the four workflow phases:
+step 投影描述四个 workflow 阶段：`memory_recall`、`agent_activity`、`finalization` 和
+`memory_append`。
 
-- `memory_recall`;
-- `agent_activity`;
-- `finalization`;
-- `memory_append`.
+attempt 投影可以包含 Temporal queue/worker 标识、attempt number、timestamp、duration、
+retry/cancel/timeout outcome、可公开的 provider/model 标识及 input/output/cached token
+用量。模型费用由 Langfuse 计算，不属于 PostgreSQL 持久投影字段。
 
-Attempt projection may include Temporal queue/worker identity, attempt number,
-timestamps, duration, retry/cancel/timeout outcome, provider/model-safe identity
-and input/output/cached token usage. Model cost is calculated by Langfuse and is
-not a durable PostgreSQL projection field.
+result 投影包含 status、result kind/ref、fail-close reason 和有界 metadata。SDK 内部 handoff
+或 function call 不得由此形成第二套 workflow graph。
 
-Result projection contains status, result kind/ref, fail-close reason and safe
-metadata. It does not turn SDK-internal handoffs or function calls into a second
-workflow graph.
+## Agent Activity 投影
 
-## Agent Activity Projection
+Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 可以包含：
 
-The Agent Activity represents one complete OpenAI Agents SDK run. Its sanitized
-metadata may include:
+- primary/last-agent 标识；
+- 可用和已选的模型可见工具；
+- Knowledge Agent handoff 是否发生；
+- SDK function-tool 调用摘要；
+- provider response id 与 model/provider 标识；
+- input、output 与 cached token 数量；
+- 结构化终态结果。
 
-- primary/last-agent identity;
-- available and selected model-visible tools;
-- Knowledge Agent handoff occurrence;
-- SDK function-tool invocation summaries;
-- provider response id and model/provider identity;
-- input, output and cached token counts;
-- structured terminal outcome.
+正式投影不存储 SDK state、raw message 或 raw function payload。
 
-SDK state, raw messages and raw function payloads are not stored in canonical
-projection.
+## 知识搜索投影
 
-## Knowledge Search Projection
+每次内部 `knowledge_search` 调用都关联 run 与 SDK invocation id。有界投影包含：
 
-Each internal `knowledge_search` invocation is correlated to the run and SDK
-invocation id. Safe projection includes:
+- 已准入的查询结构和 hash；
+- 已解析目标、历史模式和搜索序号；
+- 找到或无依据结果；
+- 有界依据引用与来源标识；
+- 结果引用、延迟和失败关闭原因。
 
-- admitted query shape/hash;
-- resolved target, history mode and search ordinal;
-- found/no-evidence outcome;
-- bounded evidence refs and source identity;
-- result ref, latency and fail-close reason.
+原始 query vector、Qdrant payload、provider response 和无限制 snippet 一律禁止。
 
-Raw query vectors, Qdrant payloads, provider responses and unrestricted snippets
-are forbidden.
+## Finalization 投影
 
-## Finalization Projection
+Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从可信
+`knowledge_search` evidence 派生的浏览器可用 source。
 
-Finalization stores the SDK terminal answer and deterministic validation result.
-For evidence-backed answers it also stores browser-safe sources derived from
-trusted `knowledge_search` evidence.
+Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
+保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。
 
-Finalization may reject malformed or unsupported output, but it does not create
-or rewrite answer text. App-api may convert validated sources into product
-source-item shape while preserving answer text.
+## 终态与失败数据
 
-## Terminal And Failure Data
+cancellation、timeout、fail-close、late completion、provider abort proof 与 missing usage 必须
+能归因到所属阶段或内部 tool call。面向用户的 error 文本不能替代低基数 terminal/fail-close
+code。迟到成功不能覆盖已进入终态的 run 或 phase result。
 
-Cancellation, timeout, fail-close, late completion, provider abort proof and
-missing usage must be attributable to the owning phase or internal tool call.
-Human-facing error text does not replace low-cardinality terminal/fail-close
-codes.
+## 数据安全
 
-Late success cannot overwrite an already terminal run or phase result.
+正式投影不得包含：
 
-## Data Safety
+- 原始 prompt、transcript 或 model output payload；
+- 原始 provider request/response 或 SDK state；
+- 原始 memory payload 或 vendor id；
+- auth token、cookie 或 credential；
+- 原始 source body、Qdrant point 或 object-store bytes；
+- 本地文件路径。
 
-Canonical projection must not contain:
+## 消费
 
-- raw prompt, transcript or model output payload;
-- raw provider request/response or SDK state;
-- raw memory payload or vendor ids;
-- auth token, cookie or credential;
-- raw source body, Qdrant point or object-store bytes;
-- local filesystem path.
+app-api 从这些投影生成浏览器 read model。浏览器响应只接收 final answer、已批准 source item
+和公开 status/error 字段；诊断与评测消费有界生命周期、阶段/工具摘要和关联 ref，不读取原始
+执行 payload。
 
-## Read Models
-
-App-api materializes browser and operator read models from these projections.
-Browser responses receive only finalized answer, approved source items and
-public status/error fields. Operator diagnostics receive safe lifecycle,
-phase/tool summaries and correlation refs, never raw execution payloads.
-
-## Related Documents
+## 相关文档
 
 - `../contracts/durable-runtime.md`
 - `../contracts/tool-execution.md`

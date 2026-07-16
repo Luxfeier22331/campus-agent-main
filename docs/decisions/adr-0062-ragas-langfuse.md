@@ -1,84 +1,46 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0062
 status: accepted
-created: 2026-06-28
-updated: 2026-06-28
-supersedes:
-  - adr-0061-eval-runtime
 ---
-# ADR-0062: Ragas And Langfuse Collaboration
+# ADR-0062 Ragas 与 Langfuse
 
-## Context
+## 背景
 
-ADR-0059 accepted Langfuse as the LLM observability and eval platform. ADR-0061
-then made TypeScript plus Langfuse the default eval runtime path, while keeping
-RAGAS isolated in `packages/ragas-runner`.
+ADR-0061 最初只允许 Ragas 从 offline repository artifact 获取输入，因此无法评测已经带有
+相同 reviewed case identity 和有界评测字段的 Langfuse dataset run/trace。
 
-The original RAGAS boundary was too artifact-only. It required RAGAS scoring to
-start from repo-owned sanitized sample artifacts and stated that Langfuse traces
-were not a source of answer, retrieval context or reference text. That protected
-the telemetry boundary, but it prevented the standard Langfuse + Ragas workflow:
-sample Langfuse traces or datasets, run Ragas, and write scores back to
-Langfuse.
+## 决策
 
-Official guidance from both projects supports that workflow:
+Ragas 可以评测：
 
-- Langfuse RAGAS cookbook: <https://langfuse.com/guides/cookbook/evaluation_of_rag_with_ragas>
-- Langfuse external evaluation pipelines:
-  <https://langfuse.com/guides/cookbook/example_external_evaluation_pipelines>
-- Ragas Langfuse integration:
-  <https://docs.ragas.io/en/stable/howtos/integrations/_langfuse/>
+- 版本化 offline `ragas_sample_batch.v1` artifact；
+- 通过仓库 evaluation projection materialize 的 Langfuse dataset item 或 trace。
 
-## Decision
+正常协作路径：
 
-Use the official collaboration shape as the target RAG evaluation path:
+```text
+reviewed case 或 selected trace
+-> packages/eval-langfuse 构造 Ragas input
+-> packages/ragas-runner 计算已开放指标
+-> packages/eval-langfuse 发布 Langfuse score
+```
 
-`Langfuse traces / datasets -> Ragas evaluation -> Langfuse scores`
+evaluation projection 可以携带 case/trace identity、获准 user input、model answer、
+retrieved/reference context 和 metric applicability，不得携带 credential、provider raw
+response、unrestricted source body 或 backend dump。
 
-Langfuse may provide Ragas input only through a repo-owned safe eval projection.
-This projection may include:
+`packages/eval-langfuse` 拥有 selection、projection 和 publication。
+`packages/ragas-runner` 仍是仅负责计算的 Python process。Langfuse score 不替代 reviewed
+case 或仓库 release policy。
 
-- trace, observation, dataset item and case identity
-- user input or question when it is approved for eval storage
-- model response or answer when it is approved for eval storage
-- retrieved context ids and reference context ids
-- eval-safe retrieved context excerpts or reference excerpts
-- surface, variant, release and metric applicability metadata
+## 与 ADR-0061 的关系
 
-The projection must not include secrets, auth material, provider raw response,
-raw prompt, raw transcript, unrestricted source body, object-store paths or
-retrieval backend dumps.
+本决策只修订 ADR-0061 原有的 artifact-only Ragas input 假设。ADR-0061 的 runtime
+ownership 和 Python island 边界继续有效，本 ADR 不替代它。
 
-`ragas_sample_batch.v1` remains accepted as an offline / CI artifact path. It is
-no longer the only target source for RAGAS scoring.
+## 外部参考
 
-## Consequences
-
-- `packages/eval-langfuse` owns Langfuse dataset / trace selection, safe
-  projection construction, score publishing and dataset manifest construction.
-- `packages/ragas-runner` remains a narrow Python island for upstream Ragas
-  scoring. It does not own case truth, trace selection, provider projection,
-  Langfuse publishing, release gates or long-lived orchestration.
-- Golden qrels and reviewed cases remain repo-owned truth. When possible, qrels
-  should project into `reference_context_ids` and runtime retrieval should
-  project into `retrieved_context_ids` so Ragas ID-based context metrics can be
-  used before adding a separate IR metric runner.
-- Langfuse scores are allowed to carry trace or observation correlation when
-  that correlation comes from safe projection. Ops Web uses owner-table
-  correlation and safe sink links rather than storing app-api-owned
-  runtime/quality score projections; the old eval backlink projection is
-  retired.
-- The raw payload ban remains active. This ADR narrows the ban to raw and
-  unrestricted payloads; it does not prohibit safe RAG eval projection fields.
-
-## Relationship To Prior ADRs
-
-ADR-0059 remains active: Langfuse is still not execution runtime, product
-storage, operator query backend or repo contract owner.
-
-ADR-0061 remains active for eval runtime ownership, old `packages/evals`
-retirement and the `packages/ragas-runner` Python-island boundary. This ADR
-supersedes only the artifact-only RAGAS input assumption in ADR-0061.
+- <https://langfuse.com/guides/cookbook/evaluation_of_rag_with_ragas>
+- <https://docs.ragas.io/en/stable/howtos/integrations/_langfuse/>

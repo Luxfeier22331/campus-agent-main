@@ -1,69 +1,44 @@
 ---
 doc_type: decision
-truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0067
 status: accepted
-created: 2026-06-30
-updated: 2026-06-30
 ---
-# ADR-0067: Ops Index And External Observability Sinks
+# ADR-0067 Ops Index 与外部观测平台
 
-## Context
+## 背景
 
-The repository already uses external observability and LLM evaluation surfaces:
-Sentry for errors/tracing, Axiom for logs/events/query dashboards, and Langfuse
-for LLM traces, datasets, scores and review workflows.
+仓库使用 Sentry 处理 error/trace，Axiom 处理 log/event/query dashboard，Langfuse 处理 LLM
+trace、dataset、score 和 review workflow。
 
-Older operator observability documents described broad app-api-owned audit,
-quality, safety and cost read models. That shape duplicates external platforms,
-increases database scope and risks turning Operator Console into a custom
-observability product.
+旧 operator observability 文档提出由 app-api 保存大范围 audit、quality、safety 和 cost
+read model。这会重复外部平台、扩大数据库范围，并把 Operator Console 变成自研观测产品。
 
-## Decision
+## 决策
 
-Adopt `Ops Index + External Sinks` as the operator observability architecture.
+采用 `Ops Index + External Sinks`：
 
-- `apps/app-api` owns only the minimal product Ops Index needed for launch
-  triage: request identity, status, error code, timing, runtime health summary
-  and safe sink correlation.
-- Sentry, Axiom and Langfuse remain the detailed observability truth.
-- Operator Console may show safe links or dashboard entries, but it must not
-  copy external dashboard data, raw sink events, raw traces or raw LLM
-  observations into app-api.
-- External platform access is handled through the platforms' RBAC. The repo must
-  not use a high-privilege service token to re-distribute sink data through
-  Operator Console.
-- If future operators need summary access without external platform accounts,
-  that must be a new allowlisted curated-summary contract, not a revival of the
-  broad audit/quality/safety/cost model.
+- `apps/app-api` 只保存产品排查所需的最小 Ops Index：request identity、status、error code、
+  timing、runtime health summary 和安全 sink correlation。
+- Sentry、Axiom 和 Langfuse 保存各自详细观测事实。
+- Operator Console 可以展示安全链接或 dashboard 入口，但不得把 external dashboard data、
+  raw sink event、raw trace 或 raw LLM observation 复制进 app-api。
+- 外部平台访问使用各平台 RBAC；仓库不得用高权限 service token 通过 Operator Console
+  重新分发 sink data。
+- 未来如需让没有外部平台账户的 operator 查看摘要，必须新增 allowlisted curated-summary
+  contract，不能恢复大范围 audit/quality/safety/cost model。
 
-## Consequences
+## 后果
 
-- Broad operator quality, safety, cost, intent and standalone audit endpoints
-  are not target architecture.
-- Existing code or schema with those names is current-code residue until a
-  separate cleanup task removes or narrows it.
-- Operator Console remains a product operations surface, not an embedded
-  Sentry/Axiom/Langfuse viewer.
-- Langfuse remains the LLM observability and eval platform; app-api does not
-  become a score or trace database.
-- Worker and runtime smoke should verify that sinks receive data and can be
-  correlated by request/trace id, not that app-api stores sink dashboard content.
+- broad operator quality、safety、cost、intent 和 standalone audit endpoint 不是目标架构。
+- 仍使用这些名称的 code/schema 是待删除或收窄的残留，不代表目标能力。
+- Operator Console 是产品运维界面，不嵌入 Sentry/Axiom/Langfuse viewer。
+- app-api 不成为 Langfuse score 或 trace database。
+- smoke 验证 sink 能收到并通过 request/trace id 关联数据，不验证 app-api 是否保存 dashboard
+  正文。
 
-## Alternatives Considered
+## 未采用方案
 
-### Keep broad app-api observability projections
-
-Rejected. It duplicates external platforms and makes every dashboard field a
-repo-owned schema/API commitment.
-
-### Mirror external dashboards into app-api
-
-Rejected. It bypasses external RBAC, creates stale cached observability state
-and makes the backend responsible for vendor dashboard semantics.
-
-### Link-only with no product Ops Index
-
-Rejected. Operators still need the product to show whether a request failed,
-which request failed and which correlation id should be used for sink lookup.
+- **保留宽泛 app-api projection**：会复制外部平台并固定所有 dashboard 字段。
+- **镜像外部 dashboard**：会绕过 RBAC 并产生过期缓存。
+- **完全只提供链接**：产品仍需说明哪次请求失败以及使用哪个 correlation id。

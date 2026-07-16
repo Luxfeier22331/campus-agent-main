@@ -1,235 +1,128 @@
 ---
 doc_type: architecture
-truth_scope: system
 owner_boundary: ingestion-data-plane
 status: active
-created: 2026-04-02
-updated: 2026-07-14
 ---
-# Ingestion Data Plane
+# 采集数据面
 
-## Boundary
+## 边界
 
-This document describes the current offline ingestion runtime. It does not
-define online retrieval, product routes, source-specific browser APIs, or
-future publication steps.
-
-The accepted path is:
+本文描述当前 offline ingestion runtime，不定义 online retrieval、产品 route、来源特定浏览器
+API 或未来 publication step。
 
 ```text
-digest-pinned request in object storage
+对象存储中的 digest-pinned request
 -> ingestion-control HTTP admission
--> one Temporal workflow
--> source-collector or Rust-kernel activity
--> digest-pinned result manifest in object storage
--> bounded PostgreSQL projection
+-> 一个 Temporal workflow
+-> source-collector 或 Rust-kernel activity
+-> 对象存储中的 digest-pinned result manifest
+-> 有界 PostgreSQL projection
 ```
 
-There is no parallel scheduler, task lease table, collector callback API,
-source-specific run ledger, or Python executor.
+系统没有 parallel scheduler、task lease table、collector callback API、source-specific run
+ledger 或 Python executor。
 
-## Ownership
+## 所有权
 
-| Owner | Responsibilities | Must not own |
+| 所有者 | 负责 | 不得负责 |
 | --- | --- | --- |
-| `apps/ingestion-control` API | v3 envelope validation, registry snapshot, Temporal workflow start, task query, operator projection | provider capture, browser routes, activity execution in the API process |
-| `apps/ingestion-control` worker | workflow, control activities, Rust process bridge, terminal projection, official-web freshness preparation/projection | source provider clients, online publication |
-| `apps/source-collector` | Crawlee/Playwright/provider capture, source artifact writes, source result manifest | workflow start, PostgreSQL lifecycle truth, app-api commands |
-| `packages/ingestion-contracts` | canonical JSON Schemas and validators | Temporal, database, object-store, or provider clients |
-| `packages/ingest-core` | runtime-neutral refs, hashes, parsers, artifact writers, registry audit | concrete runtime lifecycle or infrastructure clients |
-| `packages/ingestion-kernels-rs` | deterministic file-level validation and chunk preparation | network, provider, database, object-store, or workflow ownership |
+| `apps/ingestion-control` API | v3 envelope 校验、registry snapshot、启动 Temporal、task query | provider capture、浏览器 route、在 API process 执行 activity |
+| ingestion-control worker | workflow、control activity、Rust bridge、terminal projection、official-web freshness | source provider client、online publication |
+| `apps/source-collector` | Crawlee/Playwright/provider capture、source artifact/result manifest | workflow start、PostgreSQL lifecycle truth、app-api command |
+| `packages/ingestion-contracts` | canonical JSON Schema 和 validator | Temporal、database、object-store、provider client |
+| `packages/ingest-core` | runtime-neutral ref、hash、parser、artifact writer、registry audit | 具体 runtime lifecycle 或 infrastructure client |
+| `packages/ingestion-kernels-rs` | 确定性 file validation 和 chunk preparation | network、provider、database、object-store、workflow |
 
-## Contracts
+## 合同
 
-### Task envelope
+`ingestion_task_envelope.v3` 只携带 `task_id`、`run_id`、`registry_task_id` 和包含
+`s3://` URI、`sha256:` digest 的 `input_ref`。caller 不选择 executor、source/target identity
+或 input/output contract；ingestion-control 从 registry 解析并冻结 execution snapshot。
 
-`ingestion_task_envelope.v3` contains:
+`ingestion_task_registry.v3` 只接受 `source_collector` 与 `rust_kernel` executor。entry 必须
+匹配 `packages/ingest-core` 中的 executable inventory；缺少 handler/kernel 或合同不一致时
+验证失败。
 
-- `task_id`
-- `run_id`
-- `registry_task_id`
-- `input_ref` with `s3://` URI and `sha256:` digest
+executor 返回一个 `ingestion_task_result.v1`，包含 identity、declared output contract、一个
+digest-pinned result-manifest ref 和有界 scalar summary。所有 object ref 都包含 digest 和
+`byte_size`。page、notice、attachment、document、chunk 和详细 error artifact 留在 object
+storage，不复制到 Temporal history 或 PostgreSQL。
 
-Callers cannot choose executor, source/target identity, input contract, or
-output contract. Ingestion-control resolves those fields from the registry and
-passes an immutable `ingestion_task_execution_snapshot.v1` to Temporal.
+## 对象 identity
 
-### Registry
+所有 writer 使用 create-or-verify：新 key 通过 conditional create 写入；key 已存在时，保存
+内容的 digest 和 byte size 必须一致，否则失败关闭。
 
-`ingestion_task_registry.v3` supports two executor kinds:
+execution-specific preparation、provider observation、raw response、kernel output 和 result
+manifest 写入 `runs/<encoded-run-id>/attempts/<activity-attempt>/...`。canonical source truth
+保持 content-addressed；timestamp、redirect、header 和 fetch error 属于 attempt observation。
 
-- `source_collector`
-- `rust_kernel`
-
-Every entry must match the default executable inventory in
-`packages/ingest-core`. A declaration without a concrete handler/kernel or
-with mismatched contracts fails repository validation.
-
-### Result
-
-Every executor returns `ingestion_task_result.v1`:
-
-- task/run/registry identity;
-- declared output contract;
-- one digest-pinned result-manifest ref;
-- a bounded scalar summary.
-
-Every object-store ref includes a `sha256:` digest and `byte_size`.
-`ingestion_release_manifest.v2` applies the same requirement to every release
-artifact.
-
-Detailed page, notice, attachment, document, chunk, and error artifacts remain
-in object storage. They are not copied into Temporal history or PostgreSQL.
-
-### Object identity
-
-All ingestion writers use create-or-verify semantics. A new object is written
-with conditional create; if the key already exists, its stored digest and byte
-size must match. Different bytes at the same key fail closed.
-
-Execution-specific preparation, provider observations, raw responses, kernel
-outputs and result manifests use
-`runs/<encoded-run-id>/attempts/<activity-attempt>/...`. Canonical source-truth
-keys remain content-addressed. The same Official Web page or WeChat article
-captured by another run/attempt must therefore produce byte-identical
-canonical manifests and rows; timestamps, redirects, headers and fetch errors
-belong to attempt observations.
-
-## Workflow
+## 工作流
 
 ```mermaid
 sequenceDiagram
-  participant Caller
-  participant API as ingestion-control API
+  participant Caller as 调用方
+  participant API as ingestion-control 接口
   participant Temporal
-  participant Control as control activity
-  participant Executor as source collector / Rust kernel
-  participant S3 as object storage
-  participant PG as PostgreSQL projection
+  participant Control as 控制 activity
+  participant Executor as 来源采集器 / Rust 内核
+  participant S3 as 对象存储
+  participant PG as PostgreSQL 投影
 
-  Caller->>S3: write request + SHA-256
-  Caller->>API: POST v3 task envelope
-  API->>API: validate envelope + freeze registry task
-  API->>Temporal: start ingestion/<task_id>
-  Temporal->>Control: record started projection
-  Control->>PG: insert running task
-  opt official_web.capture
-    Temporal->>Control: prepare due URL candidates
-    Control->>PG: read latest URL freshness
-    Control->>S3: write preparation manifest
-  end
-  Temporal->>Executor: execute immutable snapshot
-  Executor->>S3: verify input digest, write artifacts + result manifest
-  Executor-->>Temporal: result ref + bounded summary
-  Temporal->>Control: validate and complete
-  Control->>PG: update terminal projection
+  Caller->>S3: 写入请求与 SHA-256
+  Caller->>API: 提交 v3 任务载荷
+  API->>API: 校验载荷并冻结注册任务
+  API->>Temporal: 启动 ingestion/<task_id>
+  Temporal->>Control: 写入开始投影
+  Control->>PG: 插入运行中任务
+  Temporal->>Executor: 执行不可变快照
+  Executor->>S3: 校验输入并写入产物与结果 manifest
+  Executor-->>Temporal: 返回结果引用与有界摘要
+  Temporal->>Control: 校验并写入终态投影
+  Control->>PG: 更新终态
 ```
 
-The workflow retries start/preparation projection activities up to five times
-and executor activities up to three times. Terminal complete/fail/cancel
-projection activities have no maximum-attempt cap: Temporal keeps retrying
-transient projection failures so workflow history and PostgreSQL cannot settle
-on contradictory terminal states. Once an executor returns a result, completion
-projection runs in a non-cancellable scope; that is the terminal commit point.
-Source capture has a 12-hour start-to-close timeout; Rust kernels have a 2-hour
-timeout. Both heartbeat every 30 seconds or faster. Cancellation before the
-commit point closes the bounded projection from a non-cancellable cleanup
-scope.
+retry、timeout、heartbeat、cancellation 和 terminal projection commit point 由 workflow/activity
+代码及 runtime config 维护，不在架构文档固定数值。successful workflow 必须表示 completed
+PostgreSQL projection 已写入；failed/canceled workflow 保留相同 Temporal outcome 和对应有界
+projection。
 
-After a source or kernel activity fails, the workflow writes the failed task
-projection and rethrows the original failure, so Temporal remains `Failed`.
-Cancellation follows the same rule: it writes the canceled projection and
-preserves Temporal's `Canceled` outcome. A successful workflow therefore means
-that its completed PostgreSQL projection was also written.
+长 activity 通过 heartbeat 报告粗粒度进度。大量 observation 和详细进度进入 object
+storage，不使用大量 signal 或 per-item database row。
 
-Activity progress uses heartbeats. Large observations and detailed progress
-use object-store artifacts, not workflow signals or per-item database rows.
+## Official Web 时效性
 
-## Active Tasks
+`official_web.capture` 是 offline source task。采集前 control activity 从 URL freshness 和
+configured seed state 选择到期候选，写入 digest-pinned preparation manifest。成功后根据
+result manifest 校验 page observation，并按 `(observed_at, run_id)` 确定性更新最新 URL
+状态。
 
-Source collector tasks:
+PostgreSQL 不保存 page body、artifact inventory、crawl-run history、target workset 或 release
+gate。seed identity 单独投影，因为一个 seed 可以 redirect 到其他 canonical URL。
 
-| Registry task | Input | Output |
-| --- | --- | --- |
-| `official_web.capture` | `official_web_capture_request.v1` | `official_web_source_manifest.v1` |
-| `internal_portal.notice.capture` | `internal_portal_notice_capture_request.v1` | `authenticated_notice_source_manifest.v1` |
-| `internal_portal.file_release.capture` | `internal_portal_file_release_capture_request.v1` | `authenticated_file_release_source_manifest.v1` |
-| `wechat_official_account.capture` | `wechat_official_account_capture_request.v1` | `wechat_official_account_source_manifest.v1` |
+Official Web 不支持 query；source artifact 不代表 canonical document、chunk、index alias 或
+serving target 已存在。
 
-Rust tasks are declared only for the current curriculum and regulation
-collections and use `validate-document-units` or `chunk-document-units`.
-There are no placeholder release, alias-publish, vector-write, or source
-materialization tasks.
+## 持久化
 
-## Official Web Freshness
+- Temporal：workflow state、attempt、retry、timeout、heartbeat 和 cancellation；
+- object storage：request、preparation、source/kernel artifact 和 result manifest；
+- PostgreSQL `ingestion_control.tasks`：有界 operator/query projection；
+- PostgreSQL URL/seed table：下一次 official-web crawl 所需最新状态。
 
-`official_web.capture` is an offline source task. Before collection, the control
-activity selects due URLs from
-`ingestion_control.official_web_url_freshness` and reads configured seed
-identity from `ingestion_control.official_web_seed_state`. The collector
-combines due canonical URLs with configured seeds that have never been
-observed. The preparation manifest is written to object storage and
-digest-pinned before crossing the activity boundary.
+runtime 启动时断言 schema，不创建或放宽 table。独立 migration command 拥有 schema journal；
+raw、未记录 SQL 不能作为部署事实。
 
-On successful completion, ingestion-control finds the page-observation
-artifact through the result manifest, verifies every digest, and upserts the
-latest state per `(site_id, normalized_canonical_url)`. Observations are
-ordered by `(observed_at, last_observed_run_id)` so equal timestamps converge
-deterministically. PostgreSQL does not keep
-page bodies, artifact inventories, crawl-run history, target worksets, or
-release gates. Configured seed identity is projected separately by
-`(site_id, configured_seed_url)` because a seed can redirect to another
-canonical URL and multiple seeds can resolve to the same page.
+## 部署与发布边界
 
-Official web is not query-enabled. Its source artifacts do not imply canonical
-documents, chunks, an index alias, or a serving target.
+源码仓提供 namespace-neutral ingestion runtime Kustomize base 和 image build。环境仓选择
+immutable digest、namespace、Temporal/database/object-store/provider 配置和 network patch。
+具体 Deployment、WorkerDeployment 和 image inventory 以 base 与环境仓为准，不在本文复制。
 
-## Persistence
+完成 ingestion task 不会自动发布 online target。query serving 需要独立完整链路，产生
+canonical document、accepted chunk/index、release manifest 和 admitted serving target。
 
-- Temporal: canonical workflow state, attempts, retry, timeout, heartbeat, and
-  cancellation.
-- Object storage: requests, preparations, source artifacts, kernel artifacts,
-  and result manifests.
-- Source collectors and official-web freshness use source-bucket credentials;
-  Rust kernels use separate derived-bucket credentials for canonical inputs
-  and deterministic outputs.
-- PostgreSQL `ingestion_control.tasks`: bounded operator/query projection.
-- PostgreSQL `ingestion_control.official_web_url_freshness`: latest URL state
-  used for the next crawl decision.
-- PostgreSQL `ingestion_control.official_web_seed_state`: configured seed to
-  last-observed canonical URL mapping used to avoid redundant bootstrap fetches.
-
-The runtime asserts the current schema at startup. It does not create or relax
-tables at runtime and does not interpret retired lease/task-kind columns. The
-separate migration command owns `ingestion_control.schema_migrations`; startup
-also requires that journal so raw, untracked SQL application is not accepted as
-deployment truth.
-
-## Deployment
-
-`infra/k8s/ingestion-runtime/base` defines:
-
-- the replicated ingestion-control HTTP Deployment and Service;
-- `ingestion-control-worker` WorkerDeployment;
-- `source-collector-worker` WorkerDeployment;
-- per-version KEDA ScaledObjects and PDBs through WorkerResourceTemplate;
-- ServiceAccount, Connection, and NetworkPolicy resources.
-
-The ingestion image workflows publish three production artifacts from the two
-runtime packages: `ingestion-control` for the API and migrations,
-`ingestion-control-worker` for workflow/control/Rust activities, and
-`source-collector` for source activities. GitOps chooses immutable digests,
-namespace, Temporal endpoint/namespace, database, object-store, provider
-secrets, and environment-specific network patches.
-
-## Publication Boundary
-
-Completing an ingestion task does not publish an online target. Query serving
-requires a separate, complete chain that produces canonical documents,
-accepted chunks/index data, a release manifest, and an admitted serving target.
-No task or config file may infer that chain exists.
-
-## Verification
+## 验证
 
 ```bash
 pnpm ci:contracts
@@ -238,9 +131,9 @@ pnpm ci:rust
 kubectl kustomize infra/k8s/ingestion-runtime/base
 ```
 
-## Related Documents
+## 相关文档
 
 - `docs/decisions/adr-0077-ingestion.md`
 - `docs/decisions/adr-0078-worker-versioning.md`
-- `docs/architecture/domains/official-web/architecture.md`
+- `docs/domains/official-web.md`
 - `docs/runbooks/ingestion.md`

@@ -1,107 +1,77 @@
 ---
 doc_type: architecture
-truth_scope: execution
 owner_boundary: agent-runtime
 status: active
-created: 2026-06-13
-updated: 2026-07-13
 ---
-# Agent Framework
+# Agent 框架
 
-## Boundary
+## 边界
 
-`apps/agent-runtime` owns the model-facing OpenAI Agents SDK loop. It does not
-own product auth, durable lifecycle, retrieval admission, source truth or final
-projection persistence.
+`apps/agent-runtime` 拥有面向模型的 OpenAI Agents SDK loop，不拥有产品认证、持久生命
+周期、检索准入、来源事实或最终投影持久化。
 
-## Runtime Shape
+## 运行形态
 
-One Temporal Agent Activity invokes one SDK run containing:
+一个 Temporal Agent Activity 调用一个 SDK run，其中包含：
 
-1. the primary agent;
-1. admitted model-visible function tools;
-1. the official `knowledge_query` handoff;
-1. the Knowledge Agent and internal `knowledge_search`;
-1. one structured terminal output.
+1. primary agent；
+2. 已开放 model-visible function tool；
+3. 官方 `knowledge_query` handoff；
+4. Knowledge Agent 和 internal `knowledge_search`；
+5. 一个 structured terminal output。
 
-Execution-control injects the required `agent_runtime` limits from its runtime
-config. Current profiles set a 90-second SDK deadline, 2,048 output tokens, six
-SDK turns, three knowledge searches, 8,000 characters for the current input and
-16,000 characters for prior model context. Agent-runtime applies `maxTurns`,
-`maxTokens` and an abort signal; execution-control gives the HTTP transport a
-small grace period while Temporal retains the outer 180-second Activity bound.
+execution-control 从 runtime config 注入 deadline、turn、output、search 和 context limit。
+agent-runtime 应用 SDK `maxTurns`、`maxTokens` 和 abort signal；Temporal 保留外层 Activity
+timeout。具体数值属于配置，不在架构文档冻结。
 
-A handoff or function call is an SDK operation, not a Temporal activity or
-durable replan phase.
+handoff 或 function call 是 SDK operation，不是 Temporal activity 或 durable replan phase。
 
-## Model Input
+## 模型输入
 
-`final_model_context.v2` contains prior conversation turns, session state,
-bounded prior evidence/tool summaries and the completed memory recall block.
-Agent-runtime converts these values to SDK `AgentInputItem[]` and appends the
-current user message as the final user item. The current message is not copied
-into final context, and dynamic context is not appended to developer
-instructions.
+`final_model_context.v2` 包含历史 conversation turn、session state、有界旧 evidence/tool
+summary 和已完成 memory recall block。agent-runtime 将其转换为 SDK `AgentInputItem[]`，
+再把当前 user message 作为最后一个 user item 添加一次。动态 context 不进入 developer
+instruction。
 
-Execution-control measures Unicode characters after memory and prior-result
-enrichment. It deterministically drops oldest prior tool results, memory, old
-turns and evidence snippets in that order while retaining evidence identity.
-An oversized current input or an untrimmable context fails with
-`context_budget_exceeded`.
+execution-control 在 memory 和旧结果 enrichment 后计算 Unicode character budget，并按合同
+裁剪旧 tool result、memory、turn 和 evidence snippet。当前输入过大或无法安全裁剪时返回
+`context_budget_exceeded`。
 
-## Agent Ownership
+## Agent 所有权
 
-The primary agent makes the first semantic decision. It may answer, clarify,
-refuse, call an admitted model-visible tool or hand off a knowledge question.
-There is no app-api intent classifier or execution-control semantic router.
+primary agent 做第一次 semantic decision，可以回答、澄清、拒绝、调用已开放工具或 handoff
+知识问题。app-api 不做 intent classifier，execution-control 不做 semantic router。
 
-The Knowledge Agent receives the handoff state and the current query-serving
-target list. It can call only `knowledge_search`. It searches one target at a
-time, stops when evidence is sufficient and uses history only for an explicit
-prior-version, as-of-date or comparison question. Repeating the same normalized
-target/query/history tuple returns `duplicate_query` and still consumes the
-configured search budget. Insufficient evidence produces
-`unsupported_by_evidence`.
+Knowledge Agent 收到 handoff state 和当前 query-serving target，可以且只能调用
+`knowledge_search`。它每次搜索一个 target，证据充分后停止；只有明确历史或比较问题才
+包含历史版本。相同 normalized target/query/history 调用按合同拒绝重复。证据不足时返回
+`unsupported_by_evidence`，模型记忆不能补齐事实。
 
-## Tool Admission
+## 工具准入
 
-`configs/runtime/tools.v5.json` and
-`configs/runtime/tool-function-schemas.v2.json` define runtime exposure and
-strict model arguments.
+`configs/runtime/tools.v5.json` 与 `configs/runtime/tool-function-schemas.v2.json` 定义 exposure
+和 strict model argument。schema、endpoint 或实现存在都不会自动开放工具。
 
-- `transport_schedule_lookup` and `knowledge_query` are model-visible.
-- `knowledge_query` is an SDK handoff with `{query_text}`.
-- `knowledge_search` is internal-only with
-  `{query_text, target, include_history}`.
-- Schema or endpoint existence does not open a tool.
+execution-control 提供 request-visible tool name 和 admitted knowledge target，SDK 不得扩大
+任何一项。当前具体清单以 registry 为准，不在本文复制。
 
-Execution-control supplies the request-visible tool names and the admitted
-knowledge targets. The SDK cannot widen either list.
+## 输出与 Trace
 
-## Output And Tracing
+agent-runtime 返回 structured terminal envelope、public/internal tool summary、token usage、
+runtime fingerprint 和 trace correlation，并传播 W3C `traceparent`/`baggage`。
 
-Agent-runtime returns a structured terminal envelope, public and internal tool
-call summaries, token usage, tool runtime fingerprints and trace correlation.
-It propagates W3C `traceparent` and `baggage` across execution-control calls.
+runtime failure 使用稳定 non-retryable code，JSON 和 terminal SSE 使用同一 shape。code 清单
+由 executable contract 维护。
 
-Terminal runtime failures use stable non-retryable codes:
-`context_budget_exceeded`, `agent_deadline_exceeded`, `max_turns_exceeded`,
-`provider_unavailable`, `tool_execution_failed` or `run_failed`. The same shape
-is used by JSON and terminal SSE errors.
+OpenAI Agents SDK span 通过 OpenInference 和 Langfuse OTel processor 采集。配置 OTLP
+exporter 时，受信任 Langfuse trace 可以包含 model I/O；request 不得改变 telemetry config。
 
-OpenAI Agents SDK spans are instrumented through OpenInference and the official
-Langfuse OTel span processor. When the process has an OTLP traces exporter, the
-trusted Langfuse trace includes model I/O. Requests cannot change telemetry
-configuration.
+execution-control 校验 evidence ref 并写最终 projection，不生成或改写答案。PostgreSQL 保存
+token count，不自行计算 model cost；cost 由 Langfuse 根据 model identity 和 usage 计算。
 
-Execution-control validates evidence refs and writes final projection. It does
-not synthesize or rewrite the answer. PostgreSQL keeps input/output/cached token
-counts but no repo-calculated model cost; Langfuse calculates cost from model
-identity and usage.
-
-## Related Documents
+## 相关文档
 
 - `tool-routing.md`
 - `agentic-retrieval.md`
-- `execution-agent-layer.md`
+- `durable-runtime.md`
 - `../../contracts/tool-execution.md`

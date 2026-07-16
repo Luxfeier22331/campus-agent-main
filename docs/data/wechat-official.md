@@ -1,77 +1,68 @@
 ---
 doc_type: data
-truth_scope: domain
-owner_boundary: authenticated-notice
+owner_boundary: sources/wechat-official
 status: active
-created: 2026-04-27
-updated: 2026-07-13
 ---
-# WeChat Official Account Data
+# 微信公众号数据
 
-## Boundary
+## 边界
 
-FeedWe discovers article history. Canonical source evidence comes from the real
-WeChat article page and media fetched during the same collector activity. This
-data is offline source truth, not a notice read model or query-serving target.
+FeedWe 用于发现历史文章。正式 source evidence 来自同一次 collector activity 抓取的真实微信
+文章页面与媒体。该数据是离线 source truth，不是 notice read model 或在线查询 target。
 
-## Request
+## 请求
 
-`wechat_official_account_capture_request.v1` contains account identity and
-bounded page/article controls. The request is stored in the source bucket and
-submitted through `wechat_official_account.capture`.
+`wechat_official_account_capture_request.v1` 包含 account identity 和有界 page/article 控制。
+请求存入 source bucket，再通过 `wechat_official_account.capture` 提交。
 
-## Article Artifacts
+## 文章产物
 
-Each article version may contain:
+每个 article version 可以包含：
 
-- attempt-scoped provider response and request summary;
-- attempt-scoped fetched article HTML and fetch metadata;
-- parser extraction;
-- canonical captured cover/inline media plus attempt-scoped fetch metadata;
-- `source-truth/article-manifest.json`;
-- `source-truth/content-blocks.jsonl`;
-- `source-truth/media-refs.jsonl`.
+- attempt 范围内的 provider response 与 request summary；
+- attempt 范围内抓取的 article HTML 与 fetch metadata；
+- parser extraction；
+- 正式采集的 cover/inline media 及 attempt 范围内的 fetch metadata；
+- `source-truth/article-manifest.json`；
+- `source-truth/content-blocks.jsonl`；
+- `source-truth/media-refs.jsonl`。
 
-`wechat_official_account_article_manifest.v3` preserves stable account/article
-identity, canonical URL, provider identity, publish time, normalized title,
-body state, page kind/parser version, hashes, block/media counts, and media
-capture outcomes. Content blocks contain only observed title/summary/body text.
-`wechat_official_account_media_ref.v3` preserves source/final URL, object key,
-digest, type, size, status, and failure details. Capture timestamps are not
-canonical fields.
+`wechat_official_account_article_manifest.v3` 保留稳定 account/article identity、canonical URL、
+provider identity、publish time、normalized title、body state、page kind/parser version、hash、
+block/media count 和 media capture outcome。content block 只包含已观察到的 title、summary 与
+body text。
 
-Unchanged retries must produce byte-identical article manifests and media refs.
-Raw page HTML, FeedWe summaries and page/media fetch metadata are stored under
-`runs/<run-id>/attempts/<activity-attempt>/...`.
+`wechat_official_account_media_ref.v3` 保留 source/final URL、object key、digest、type、size、
+status 与 failure detail。capture timestamp 不是正式字段。
 
-## Capture Release
+内容不变的 retry 必须生成 bytes 完全相同的 article manifest 与 media ref。raw page HTML、
+FeedWe summary 和 page/media fetch metadata 写入
+`runs/<run-id>/attempts/<activity-attempt>/...`。
 
-After capture the worker writes:
+## 采集发布
+
+采集结束后 worker 写入：
 
 ```text
 wechat_official_account/<account_slug>/runs/<run_id>/attempts/<activity_attempt>/capture-release.json
 ```
 
-The release contains same-bucket refs to article manifests, content blocks, and
-media refs. The worker verifies those refs and writes
-`wechat_official_account_source_manifest.v1`, then returns one
-`ingestion_task_result.v1` ref with bounded counts.
+release 通过同桶 ref 引用 article manifest、content block 与 media ref。worker 验证这些 ref
+后写入 `wechat_official_account_source_manifest.v1`，再返回一个带有界数量的
+`ingestion_task_result.v1` ref。
 
-## Storage Boundary
+## 存储边界
 
-- Object storage owns source artifacts and releases.
-- Temporal owns execution state and attempts.
-- PostgreSQL stores only the shared ingestion task projection.
-- App-api has no WeChat collector routes, tokens, run ledger, or projection
-  tables.
+- 对象存储拥有 source artifact 与 release；
+- Temporal 拥有 execution state 与 attempt；
+- PostgreSQL 只保存共享 ingestion task 投影；
+- app-api 没有微信公众号 collector route、token、run ledger 或 projection table。
 
-## Downstream Boundary
+## 下游边界
 
-Deduplication against another source, notice normalization, authorization,
-publication, chunking, and online retrieval are future downstream contracts.
-They must not mutate the captured article evidence.
+跨来源去重、notice 归一化、authorization、publication、chunking 与 online retrieval 尚无本
+链路合同，不得因此修改已采集的 article evidence。
 
-## Related Documents
+## 相关文档
 
-- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/architecture/system/data-plane.md`

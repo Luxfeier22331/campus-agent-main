@@ -1,81 +1,26 @@
 ---
 doc_type: index
-truth_scope: execution
 owner_boundary: docs/architecture/system
 status: active
-created: 2026-04-23
-updated: 2026-07-08
 ---
-# System Architecture
+# 系统架构
 
-`system/` owns cross-domain supporting architecture. It explains repo-wide
-runtime, routing, execution, retrieval, data-plane and observability boundaries.
-Stable cross-boundary diagrams are indexed in `../flows.md`.
+本目录保存跨领域运行时边界。按问题读取对应所有者：
 
-It does not own phase status, release closeout, source-channel schemas or
-tool-local readiness.
+- 产品与交付：[product-runtime.md](./product-runtime.md)、
+  [runtime-release.md](./runtime-release.md)、[document-site.md](./document-site.md)；
+- 执行与 Agent：[durable-runtime.md](./durable-runtime.md)、[k8s-runtime.md](./k8s-runtime.md)、
+  [agent-framework.md](./agent-framework.md)、[prompt.md](./prompt.md)；
+- 工具与知识：[tool-routing.md](./tool-routing.md)、[tool-runtime.md](./tool-runtime.md)、
+  [retrieval-serving.md](./retrieval-serving.md)、
+  [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；
+- 身份与记忆：[identity-authz.md](./identity-authz.md)、
+  [identity-platform.md](./identity-platform.md)、[identity-browser.md](./identity-browser.md)、
+  [mucwiki-login.md](./mucwiki-login.md)、[memory-plane.md](./memory-plane.md)；
+- 运维与改进：[ops-observability.md](./ops-observability.md)、
+  [operator-console.md](./operator-console.md)、[langfuse.md](./langfuse.md)、
+  [learning-loop.md](./learning-loop.md)；
+- 代码边界：[code-organization.md](./code-organization.md)、
+  [python-boundaries.md](./python-boundaries.md)。
 
-## Question Routing
-
-- Product surfaces, browser shells and shared app-api runtime:
-  - `product-runtime.md`
-- Main answer chain and Execution Agent Layer ownership:
-  - `execution-agent-layer.md`
-- Tool routing, surface admission and visible tool set:
-  - `tool-routing.md`
-- SDK function-tool and internal-query runtime:
-  - `tool-runtime.md`
-- Agent framework / OpenAI Agents SDK boundary:
-  - `agent-framework.md`
-- Temporal, durable run/event/step projection, cancel, timeout and resume:
-  - `durable-runtime.md`
-- Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
-  - `k8s-runtime.md`
-- Runtime config, GitOps and secret delivery decisions:
-  - `../../decisions/adr-0064-runtime-config-governance.md`
-  - `../../decisions/adr-0065-gitops-argocd-helm-boundary.md`
-  - `../../decisions/adr-0066-secret-delivery.md`
-- Prompt, system instruction and provider-facing prompt ownership:
-  - `prompt.md`
-- Personal memory recall and memory lifecycle:
-  - `memory-plane.md`
-- Knowledge Agent and indexed retrieval serving:
-  - `retrieval-serving.md`
-  - `agentic-retrieval.md`
-- Data-plane owner boundaries:
-  - `data-plane.md`
-- Worker operator summaries and self-hosted runtime diagnosis:
-  - `ops-observability.md`
-- Runtime stage timing contract:
-  - `../../contracts/stage-timing.md`
-- User-usage learning loop and continuous improvement boundary:
-  - `learning-loop.md`
-- Langfuse LLM observability / eval platform boundary:
-  - `langfuse.md`
-- Code organization, decomposition and package ownership:
-  - `code-organization.md`
-- Runtime delivery, readiness and release hardening architecture:
-  - `runtime-release.md`
-- Document site and file asset architecture:
-  - `document-site.md`
-  - `file-asset-loader.md`
-- Identity, authorization and account boundary:
-  - `identity-authz.md`
-  - `identity-platform.md`
-  - `identity-browser.md`
-  - `mucwiki-login.md`
-- Operator Console operations domain and current implementation boundary:
-  - `operator-console.md`
-- Retired or offline Python boundary:
-  - `python-boundaries.md`
-
-## Use Rules
-
-- This directory owns cross-domain supporting truth only.
-- Domain-level source-channel details belong in `../domains/`.
-- Contract and schema details belong in `../../contracts/` or `../../data/`.
-- Staging/release validation and operational procedure belong in `../../runbooks/`,
-  `../../environment/` or `../../policies/`.
-- Completion ledgers, verification mappings and quality baselines belong in
-  `../../reference/`.
-- Workstream state and backlog signals belong in `.planning/`.
+稳定跨边界流程见 [flows.md](../flows.md)。领域细节、合同、数据和操作步骤不在本索引重复。

@@ -1,42 +1,23 @@
 ---
 doc_type: contract
-truth_scope: ops
 owner_boundary: apps/execution-control
 status: active
-created: 2026-07-03
-updated: 2026-07-12
 ---
-# Runtime Stage Timing Contract
+# 请求阶段耗时合同
 
-## Boundary
+## 边界
 
-This contract freezes `stage_timing.v1`, the repo-owned safe latency projection
-for online answer requests.
+`stage_timing.v1` 是在线回答请求的仓库自有有界耗时投影。它规定哪些每请求 timing 字段可以
+进入 app-api observability fact、字段由哪个 runtime 产生，以及诊断、metric 与 learning loop
+如何消费。
 
-It answers:
+它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Axiom/Collector schema 或
+Temporal history。告警阈值由 `configs/runtime/latency-budgets.v1.json` 与
+`configs/runtime/observability-alerts.v1.json` 拥有，不在本文复制。
 
-- which per-request timing fields may enter app-api request observability facts
-- which runtime owns each timing field
-- how Operator Console, metrics and learning-loop consumers may interpret timing
-- why raw SDK traces, raw provider payloads and raw Temporal history do not
-  define product-safe latency truth
+## 结构
 
-It does not define:
-
-- OpenAI Agents SDK trace payloads
-- Langfuse OTLP payloads
-- Sentry, Axiom or Collector schemas
-- Temporal workflow history shape
-- Operator Console layout
-- alert thresholds or release SLOs. The repo-owned per-field latency budget
-  artifact is `configs/runtime/latency-budgets.v1.json`; it classifies this
-  contract's fields for ops summary and learning-loop intake, but does not
-  change the timing field contract.
-
-## Shape
-
-`stage_timing.v1` is a JSON object whose keys are allowlisted stage names and
-whose values are durations in milliseconds:
+`stage_timing.v1` 是 JSON object；key 必须来自下表，value 是毫秒：
 
 ```json
 {
@@ -48,145 +29,94 @@ whose values are durations in milliseconds:
 }
 ```
 
-Rules:
+规则：
 
-- Keys must come from the canonical field table below.
-- Values must be finite non-negative numbers.
-- Values are durations in milliseconds.
-- Missing fields mean the stage did not run or the current producer cannot
-  measure it.
-- Producers must not write `0` as a placeholder for missing data.
-- Consumers must not infer unreported stages from another stage.
-- Timestamps, booleans, strings, arrays and nested objects are not valid timing
-  values.
+- value 必须是有限、非负 number；
+- 缺少字段表示阶段未运行或 producer 无法测量，不得用 `0` 占位；
+- consumer 不得根据其他阶段推断未上报字段；
+- timestamp、boolean、string、array 与 nested object 不是有效 timing value；
+- payload 不得包含原始 prompt、answer、transcript、trace body、provider response、tool I/O、
+  retrieval/memory 内容、auth material、secret、local path、object key 或 Temporal history。
 
-`stage_timing.v1` is a safe projection. It must not contain raw prompt, raw
-answer, raw transcript, raw trace body, raw provider response, raw tool IO, raw
-retrieval payload, raw memory text, auth material, secrets, local file paths,
-object-store keys or Temporal raw history.
+## 字段
 
-## Canonical Fields
-
-| Field | Producer | Meaning |
+| 字段 | Producer | 含义 |
 | --- | --- | --- |
-| `request.total_ms` | `apps/app-api` | Product request duration from accepted app-api request to terminal projection visible to app-api. |
-| `stream.browser_ttft_ms` | `apps/app-api` | Time from accepted browser-facing request to first answer delta emitted to the browser stream. |
-| `execution.admission_ms` | `apps/execution-control` | Time spent admitting the run into the execution path before productive runtime work starts. |
-| `memory.recall_ms` | `apps/execution-control` | Duration of personal memory recall and safe memory context projection. |
-| `agent.primary_ms` | `apps/execution-control` | End-to-end duration of the single Agent Activity, including primary/Knowledge Agent handoff and SDK tools. |
-| `agent.runtime_ms` | `apps/agent-runtime` | Duration of the complete OpenAI Agents SDK run. |
-| `agent.first_delta_ms` | `apps/agent-runtime` | Time from agent-runtime request start to first visible answer delta. |
-| `tool.total_ms` | `apps/execution-control` | Total projected duration of SDK tool calls for the run, including internal `knowledge_search`. |
-| `tool.transport_schedule_lookup_ms` | `apps/execution-control` | Duration of the admitted `transport_schedule_lookup` branch when selected. |
-| `knowledge.search_ms` | `apps/execution-control` | Sum of projected durations for internal `knowledge_search` calls in the Agent Activity. |
-| `finalization.write_ms` | `apps/execution-control` | Duration of sanitized finalization projection write. |
-| `projection.closeout_ms` | `apps/app-api` | Duration between execution finalization receipt and app-api observability fact closeout. |
+| `request.total_ms` | `apps/app-api` | 从 app-api 接受请求到终态投影对 app-api 可见。 |
+| `stream.browser_ttft_ms` | `apps/app-api` | 从接受浏览器请求到向 stream 发出第一个真实 answer delta。 |
+| `execution.admission_ms` | `apps/execution-control` | run 进入执行路径前的准入耗时。 |
+| `memory.recall_ms` | `apps/execution-control` | personal memory recall 与有界 context projection。 |
+| `agent.primary_ms` | `apps/execution-control` | 单个 Agent Activity 的端到端耗时，包括 handoff 与 SDK tool。 |
+| `agent.runtime_ms` | `apps/agent-runtime` | 完整 OpenAI Agents SDK run 耗时。 |
+| `agent.first_delta_ms` | `apps/agent-runtime` | agent-runtime 接受请求到第一个可见 answer delta。 |
+| `tool.total_ms` | `apps/execution-control` | 本次 run 中所有已投影 SDK tool call 的总耗时。 |
+| `tool.transport_schedule_lookup_ms` | `apps/execution-control` | 选中 `transport_schedule_lookup` 时该分支的耗时。 |
+| `knowledge.search_ms` | `apps/execution-control` | Agent Activity 内部 `knowledge_search` 调用耗时之和。 |
+| `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
+| `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
 
-Do not add vendor-specific fields to this table. If a field is useful only
-inside Langfuse, OpenAI SDK tracing, Sentry, Axiom or Temporal UI, keep it in
-that sink and expose only correlation identity through product projections.
+不得增加 vendor-specific 字段。只在 Langfuse、SDK trace、Sentry、Axiom 或 Temporal UI 有意义
+的细节留在对应系统，产品投影只保留 correlation identity。
 
-`provider_queue_ms` is not a required repo-owned timing field. Provider-internal
-queueing is not a stable repo-owned measurement unless an explicit
-contract admits a safe provider-derived projection. Use `agent.first_delta_ms`,
-`agent.runtime_ms`, `stream.browser_ttft_ms` and trace correlation for launch
-latency diagnosis.
+`provider_queue_ms` 不是必需字段。provider 内部 queue 只有形成明确、稳定且安全的合同后才能
+加入；当前通过 `agent.first_delta_ms`、`agent.runtime_ms`、`stream.browser_ttft_ms` 与 trace
+correlation 排查启动延迟。
 
-Every canonical field above must be admissible by
-`configs/runtime/latency-budgets.v1.json`. A field may be missing from an
-individual request because that stage did not run, but it must not be missing
-from the versioned budget artifact. `pnpm contracts:check` enforces that budget
-rules use canonical field names, unique enabled fields, unique candidate
-reasons, exact enabled-field coverage of the canonical field table and
-`critical_ms > warn_ms`.
+每个 canonical field 都必须被 `configs/runtime/latency-budgets.v1.json` 接受。单次请求可以
+缺少未运行阶段，但 versioned budget artifact 必须覆盖整张字段表。`pnpm contracts:check`
+负责校验字段、budget 与 alert materialization。
 
-## Producer Rules
+## 生产方
 
-`apps/app-api` owns browser-facing and app-api projection timings:
+app-api 只产生：
 
-- `request.total_ms`
-- `stream.browser_ttft_ms`
-- `projection.closeout_ms`
+- `request.total_ms`；
+- `stream.browser_ttft_ms`；
+- `projection.closeout_ms`。
 
-`request.total_ms` is measured from app-api request acceptance to terminal
-request observability fact. `stream.browser_ttft_ms` is measured only for browser
-streaming requests that emit a real answer delta. `projection.closeout_ms` is
-measured from execution finalization receipt to app-api observability fact
-closeout.
+execution-control 只产生：
 
-`apps/execution-control` owns durable runtime aggregation:
+- `execution.admission_ms`；
+- `memory.recall_ms`；
+- `agent.primary_ms`；
+- 表中 `tool.*_ms` 与 `knowledge.search_ms`；
+- `finalization.write_ms`。
 
-- `execution.admission_ms`
-- `memory.recall_ms`
-- `agent.primary_ms`
-- all `tool.*_ms` fields
-- all `rag.*_ms` fields
-- `finalization.write_ms`
+agent-runtime 只产生 `agent.runtime_ms` 与 `agent.first_delta_ms`。
 
-Execution-control aggregates these fields from sanitized durable run and step
-attempt projections when building the final execution response. It must not
-read raw Temporal history or raw provider / SDK payloads to build
-`stage_timing.v1`.
+跨 service 聚合只能发生在 execution-control 或 app-api 的有界投影边界。producer 不得读取
+raw Temporal history 或复制 downstream trace payload 来补 timing 字段。
 
-`apps/agent-runtime` owns local primary-agent runtime timings:
+## 消费方
 
-- `agent.runtime_ms`
-- `agent.first_delta_ms`
+- app-api 将有效 `stage_timing.v1` 写入 request observability fact；
+- Ops Web 与其他受控诊断面可以显示分组耗时和 correlation link，不渲染 raw trace tree；
+- learning loop 可以按 canonical field 选择 latency outlier，不复制 prompt、answer 或 provider
+  payload；
+- metric/OTel adapter 可以按 canonical stage name 生成低基数 histogram；request id、user id、
+  raw URL/error 与任意 tool name 不得成为 metric label；
+- app-api 的 `request.stage_timing` event 每个数字字段只发送 `stage_field`、`duration_ms`、
+  budget state 与已允许 correlation 字段。
 
-Each producer must emit only fields it owns. Cross-service aggregation happens
-at execution-control or app-api projection boundaries; producers must not copy
-raw downstream trace payloads into `stage_timing`.
+未知 timing key 不得展示或静默接受。非 canonical 的 app-api-owned timing 字段必须失败关闭。
 
-## Consumer Rules
+`configs/runtime/observability-alerts.v1.json` 只定义 symptom alert policy，并由 contract tooling
+转换为外部 monitor spec；它不创建 dashboard，也不镜像外部观测正文。
 
-Operator Console may show grouped timing summaries and safe external sink
-links. It must not render raw spans, raw trace trees, raw Temporal history or
-raw Langfuse / Sentry / Axiom payloads.
+## 与 Trace 的关系
 
-Operator Console renders canonical timing fields with product/operator labels
-instead of raw field names. Unknown stage timing keys are not rendered.
+`stage_timing.v1` 回答“哪个仓库自有阶段慢”，trace correlation 用于获准运维人员继续查看当前
+配置的观测系统。产品数据库只保存 correlation id 与有界 timing，不保存 sink URL、trace body
+或 delivery proof。
 
-Learning-loop candidate selection may use canonical fields to select latency
-outliers. It must not use raw debug trace bodies, raw prompts, raw answers or
-raw provider payloads as repo-owned candidate facts.
+OpenAI Agents SDK trace、Langfuse、Sentry 与 Axiom 可以提供进一步诊断，但不能替代本合同，
+也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
+`stage_timing.v1`。
 
-Metrics and OTel adapters may derive low-cardinality histograms from canonical
-fields. Stage names from this document are bounded labels. Request ids, user
-ids, raw URLs, raw errors and arbitrary tool names are not valid metric labels.
-The app-api runtime event for this projection is `request.stage_timing`; it
-emits one event per canonical numeric field with `stage_field`, `duration_ms`
-and budget state only.
-
-`configs/runtime/observability-alerts.v1.json` defines repo-owned symptom alert
-policy for this projection. It records signal, threshold, severity, window and
-runbook anchor for Collector/backend alert setup. The artifact must materialize
-to one Axiom monitor spec per enabled alert rule through
-`packages/contracts/scripts/contracts/materialize-observability-alerts.ts`; the contract gate validates that
-materialization. It does not create an Operator Console dashboard or mirror
-external sink data.
-
-App-api stores `stage_timing.v1` in request observability facts. It validates
-canonical finite numeric fields before exposing Operator-safe projections and
-fails closed on non-canonical app-api-owned timing fields.
-
-## Relationship To Traces
-
-`stage_timing.v1` answers "which repo-owned stage was slow?" Trace correlation
-lets an authorized operator investigate a configured external sink. Product
-data stores correlation ids, not sink URLs, trace bodies or delivery proof.
-
-OpenAI Agents SDK tracing, Langfuse OTLP, Sentry and Axiom do not replace
-`stage_timing.v1`. They can provide detail for diagnosis, but app-api, Ops Web
-and Operator Console consume only this bounded timing projection and
-correlation identity.
-`stage_timing.v1` must never embed SDK span bodies, provider payloads, tool I/O,
-prompt, answer or memory text.
-
-## Related Documents
+## 相关文档
 
 - `docs/contracts/app-api/observability.md`
 - `docs/contracts/langfuse-runtime.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/reference/observability-ledger.md`
 - `docs/architecture/system/learning-loop.md`
-- `docs/reference/runtime-otel-telemetry-taxonomy.md`
+- `docs/reference/telemetry.md`

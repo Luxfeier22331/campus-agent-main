@@ -1,33 +1,29 @@
 ---
 doc_type: contract
-truth_scope: ops
 owner_boundary: apps/app-api
 status: active
-created: 2026-06-08
-updated: 2026-07-02
 ---
-# App API Operator Operations HTTP Contract
+# App API 运维 HTTP 合同
 
 ## 文档边界
 
-本文冻结 `apps/app-api` 面向 Operator Console operations domains 的 browser-facing
-operator HTTP contract 横切规则。
+本文定义 `apps/app-api` 面向 Operator Console 的运维接口通用规则。
 
 它回答：
 
-- `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
-- Operator Console operations surface 与 `app-api` 的 proxy 边界
-- ops draft / release candidate / release / published projection 的通用 envelope
-- provider-config operator command 与 internal projection export 的边界
+- `/api/ops/*` 的调用方、授权、错误、分页与审计规则；
+- Operator Console 与 `app-api` 的代理边界；
+- 草稿、发布候选、发布版本和已发布读取模型的通用响应结构；
+- 供应商配置命令与内部配置导出的边界。
 
 它不负责：
 
-- dining 领域对象字段，见 `app-api/dining-ops.md`
-- operator observability query，见 `app-api/observability.md`
-- student-facing campus projection，见 `app-api/README.md`
-- auth/session/OAuth provider 细节
+- 食堂领域对象字段，见 [dining-ops.md](./dining-ops.md)；
+- 运维观测查询，见 [observability.md](./observability.md)；
+- 学生侧接口，见 [README.md](./README.md)；
+- 认证、会话和 OAuth 供应商细节。
 
-## Caller Model
+## 调用方
 
 `/api/ops/*` 的 browser surface owner 是 Operator Console。当前 dining operations
 implementation surface 是 `apps/operator-console-web`。
@@ -35,7 +31,7 @@ implementation surface 是 `apps/operator-console-web`。
 调用形态固定为：
 
 ```text
-operator browser -> operator console operations surface -> app-api /api/ops/*
+运维浏览器 -> Operator Console 操作界面 -> app-api /api/ops/*
 ```
 
 当前 `operator-console-web` Worker 只允许显式 proxy 已实现的 operations routes：
@@ -56,7 +52,7 @@ Provider configuration routes：
 长期 operator namespace 优先使用 `/api/operator/*`。`/api/ops/dining/*` 是当前 accepted
 dining operations route inventory，不表示存在第二套长期 ops product backend。
 
-## Authz
+## 授权
 
 当前实现使用 `ResolvedAppPrincipal.permissions.operator === true` 作为 ops route admission。
 Operator Console Worker 可以把两类 Cloudflare Access admission 映射到 app-api operator
@@ -75,18 +71,10 @@ principal：
 service token admission 只用于受控运维自动化，不代表普通 service principal 可以访问
 operator routes。
 
-目标权限模型保留以下语义位，但当前代码尚未拥有独立字段：
+普通 end-user、未准入的 service principal、未登录请求和非 operator principal 对
+`/api/ops/*` 必须失败关闭。
 
-- `operator_ops_viewer`：读取 ops workspace
-- `dining_editor`：编辑 dining draft
-- `dining_release_approver`：审批 dining release candidate
-- `dining_release_scheduler`：定时发布 dining release candidate
-- `dining_publisher`：发布 approved dining release candidate
-
-在细粒度权限落地前，文档不得把这些位写成当前已实现 admission truth。普通 end-user、
-service principal、未登录请求和非 operator principal 对 `/api/ops/*` 必须 fail closed。
-
-## Error Envelope
+## 错误结构
 
 所有错误响应复用 `docs/contracts/app-api/error.md`。
 
@@ -112,7 +100,7 @@ service principal、未登录请求和非 operator principal 对 `/api/ops/*` �
 - `active_provider_profile_immutable`
 - `embedding_profile_incompatible`
 
-## Release Candidate Envelope
+## 发布候选结构
 
 Ops release candidate command 返回：
 
@@ -148,7 +136,7 @@ Ops release candidate command 返回：
 - scheduled job 只能发布 approved candidate，不能发布当前 draft
 - candidate publish 失败时不更新 latest published snapshot
 
-## Published Release Envelope
+## 已发布版本结构
 
 Ops publish command 返回：
 
@@ -177,7 +165,7 @@ Ops publish command 返回：
 - release publish 必须写 audit event
 - release 不允许 best-effort 部分发布；失败时不更新 latest published snapshot
 
-## Audit Envelope
+## 审计结构
 
 Audit list 返回：
 
@@ -205,17 +193,16 @@ Audit list 返回：
 - audit response 不暴露 raw auth row、session token、operator cookie 或 secret
 - operator identity 只投影 principal id 和 display name
 
-## Pagination
+## 分页
 
 当前 dining ops list routes 只返回 bounded in-memory/DB result set，不冻结 cursor
 pagination shape。新增大列表时必须先在本 contract 中冻结 `limit`、`cursor` 和排序规则。
 
-## Provider Config Envelope
+## 供应商配置结构
 
-Connection / profile list and command responses returned to Operator Console must
-not include raw API keys.
+返回 Operator Console 的连接、配置列表和命令响应不得包含原始 API 密钥。
 
-Connection summary shape:
+连接摘要结构：
 
 ```json
 {
@@ -234,7 +221,7 @@ Connection summary shape:
 }
 ```
 
-Profile summary shape:
+配置摘要结构：
 
 ```json
 {
@@ -266,78 +253,64 @@ Profile summary shape:
 }
 ```
 
-Accepted roles:
+允许的角色：
 
 - prompt: `primary_agent`, `hindsight_llm`,
   `eval_ragas_llm`, `eval_judge_llm`
 - embedding: `rag_query_embedding`, `index_embedding`,
   `hindsight_embedding`, `eval_ragas_embedding`
 
-`primary_agent` covers the complete OpenAI Agents SDK run, including Knowledge
-Agent handoff. No separate online answer-generation or public-web provider role
-is admitted.
+`primary_agent` 覆盖完整 OpenAI Agents SDK 运行，包括 Knowledge Agent handoff。不再
+准入独立的在线答案生成或公开网页供应商角色。
 
-Rules:
+规则：
 
-- provider, base URL, tool-specific transport settings and raw API key are
-  owned by provider connections
-- profiles bind an active role to one connection plus model, kind, transport,
-  timeout and kind-specific dimensions
-- active profiles are immutable; replace by creating a new inactive profile
-  revision, validating it and activating it
-- activation requires a passing validation result
-- embedding activation must check compatibility with active vector dimensions by
-  calling execution-control internal
-  `POST /internal/provider-config/embedding:check-compatibility`
-- raw API keys may appear only in create/update command bodies and app-api
-  encrypted connection persistence; they must never appear in operator list
-  responses
-Internal provider projection export:
+- 供应商、base URL、工具专用传输设置和原始 API 密钥由供应商连接拥有；
+- 配置把一个活动角色绑定到连接、模型、类型、传输、超时和类型专用维度；
+- 已激活配置不可修改；替换时必须创建未激活的新版本，验证后再激活；
+- 激活必须已有通过的验证结果；
+- 激活向量模型前，必须调用 execution-control 内部接口
+  `POST /internal/provider-config/embedding:check-compatibility`，检查当前向量维度兼容性；
+- 原始 API 密钥只能出现在创建或更新命令体，以及 app-api 加密连接存储中；运维列表响应
+  不得返回原始密钥。
+
+内部供应商配置导出：
 
 ```text
 GET /api/internal/provider-config/active?role=primary_agent
 ```
 
-Requires `x-app-internal-auth`. Response resolves the active profile through its
-provider connection and includes raw `api_key`, `base_url`, `kind` and optional
-`tool_config`. It is a control-plane export used by explicit projection
-sync jobs. Self-host runtimes must consume a local
-`provider_config_projection.v1` artifact, not call this endpoint on their hot
-path. The endpoint is not browser-facing.
+该接口要求 `x-app-internal-auth`。响应通过供应商连接解析已激活配置，包含原始
+`api_key`、`base_url`、`kind` 和可选 `tool_config`。它只供显式投影同步任务调用；自托管
+运行时必须读取本地 `provider_config_projection.v1` 产物，不得在请求热路径调用该接口。
+该接口不面向浏览器。
 
-Internal OpenAI-compatible proxy:
+内部 OpenAI 兼容代理：
 
 ```text
 POST /api/internal/provider-config/openai-compatible/:role/v1/responses
 POST /api/internal/provider-config/openai-compatible/:role/v1/chat/completions
 ```
 
-Requires `Authorization: Bearer <APP_API_INTERNAL_SHARED_SECRET>`. The route reads
-the active provider-config profile for `:role`, overwrites the request body
-`model` with the active profile model, forwards to the profile `base_url`, and
-uses the active profile API key upstream. It exists for internal provider
-consumers that require an OpenAI-compatible endpoint while provider truth remains
-in app-api provider-config. Browser clients must not call this proxy.
+该接口要求 `Authorization: Bearer <APP_API_INTERNAL_SHARED_SECRET>`。它读取 `:role` 的
+已激活供应商配置，用活动模型覆盖请求体 `model`，再携带活动 API 密钥转发到配置的
+`base_url`。该代理只服务需要 OpenAI 兼容接口的内部调用方，供应商事实仍由 app-api 配置
+拥有；浏览器不得调用。
 
-Embedding compatibility request:
+向量模型兼容性检查：
 
 ```text
-app-api provider-config activation
+app-api 激活供应商配置
 -> execution-control /internal/provider-config/embedding:check-compatibility
 ```
 
-Rules:
+规则：
 
-- request uses `EXECUTION_CONTROL_SHARED_SECRET` / `x-worker-origin-auth`
-- request body includes role, provider, transport, base URL, model, dimensions
-  and timeout
-- request body must not include raw API key
-- `rag_query_embedding` / `index_embedding` compatibility is checked against
-  active query-serving RAG release metadata; `hindsight_embedding` is validated
-  as provider connectivity but is not checked against RAG release metadata
-- personal memory provider env is projected from `hindsight_llm` and
-  `hindsight_embedding` active profiles into the Hindsight runtime. Retired
-  `memory_graph_llm`, `personal_memory_extraction` and
-  `personal_memory_embedding` profiles remain invalid.
-- incompatible or unsupported roles return `{ "ok": false, "reason": "..." }`
-  and app-api activation fails closed
+- 请求使用 `EXECUTION_CONTROL_SHARED_SECRET` 和 `x-worker-origin-auth`；
+- 请求体包含角色、供应商、传输、base URL、模型、维度和超时，不得包含原始 API 密钥；
+- `rag_query_embedding` 和 `index_embedding` 根据已激活的 RAG 发布元数据检查兼容性；
+  `hindsight_embedding` 只验证供应商连接，不与 RAG 发布元数据比对；
+- Hindsight 运行环境从已激活的 `hindsight_llm` 和 `hindsight_embedding` 配置生成；已退役
+  的 `memory_graph_llm`、`personal_memory_extraction` 和
+  `personal_memory_embedding` 仍为无效角色；
+- 不兼容或不支持的角色返回 `{ "ok": false, "reason": "..." }`，app-api 激活失败关闭。

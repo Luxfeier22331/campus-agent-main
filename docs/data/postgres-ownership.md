@@ -1,13 +1,10 @@
 ---
 doc_type: data
-truth_scope: data
 owner_boundary: data-postgres
 status: active
-created: 2026-03-30
-updated: 2026-07-12
 ---
 
-# Postgres Ownership
+# PostgreSQL 所有权
 
 ## 文档边界
 
@@ -23,7 +20,7 @@ updated: 2026-07-12
 - schema installer 使用 owner 连接直连 CNPG，不通过 Hyperdrive。
 - PostgreSQL 不暴露公网入口，也不提供旧数据库或公共地址 fallback。
 
-完整连接决策见 `docs/decisions/adr-0073-private-postgres.md`。
+完整连接决策见 `docs/decisions/adr-0073-postgres.md`。
 
 ## 角色
 
@@ -31,7 +28,7 @@ updated: 2026-07-12
 | --- | --- | --- |
 | `campus_agent` | CNPG bootstrap | schema 安装和授权，不用于常驻 runtime |
 | `app_api` | `apps/app-api` | app-owned schema DML；只能访问允许的 `runtime.*` 表 |
-| `execution_control` | `apps/execution-control` | execution projection 写入和 campus services 读取 |
+| `execution_control` | `apps/execution-control` | 执行投影写入和班车读取 |
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `ops_web` | `apps/ops-web` | 明确列的读取和 observability read-audit 写入 |
 | `ops_audit_maintenance` | maintenance Job | 只执行审计清理函数 |
@@ -41,9 +38,11 @@ CNPG `DatabaseRole` 和部署 Secret 管理角色密码；应用 schema 只负�
 
 ## Schema 所有权
 
-- `app_auth.*`、`chat.*`、`docs.*`、`identity.*`、`profile.*`、
-  `provider_config.*` 和 app-facing operator schema 由
-  `apps/app-api` 拥有。
+- `app_auth.*`、`chat.*`、`docs.*`、`identity.*`、`profile.*`、`dining.*`、
+  `campus_services_ops.*`、`observability.*` 和 `provider_config.*` 的产品合同与运行时
+  访问由 `apps/app-api` 拥有。
+- `app_auth.*` 与 `chat.*` 通过共享产品 SQL 基线安装，不属于 App API Drizzle journal；
+  其余 app-owned schema 由 App API migration 管理。
 - `runtime.request_observability_fact` 由 app-api schema 安装并由运行链路更新。
 - `runtime.agent_*` 由 execution-control schema owner 管理；`app_api` 不读取这些表。
 - `campus_services.*` 由 `jobs/transport-publisher` 安装和发布；app-api 状态页与
@@ -59,6 +58,8 @@ projection、Temporal sampler projection 和 worker-autoscaler projection 不属
   `chat_current.sql`，再执行 immutable App API Drizzle journal，最后应用运行角色
   grant。这个顺序同时支持干净数据库和已有 baseline 数据升级。
 - app-api Drizzle journal 固定为 `drizzle.app_api_migrations`。
+- `apps/app-api/drizzle/0000_initial.sql` 是已发布的 App API 初始基线；
+  `apps/app-api/db/shared-product-schema/chat_current.sql` 是 `chat.*` 共享产品基线。
 - `jobs/transport-publisher install-schema` 安装 `campus_services.*` 并应用 publisher、
   app-api 和 execution-control 的最小权限；Ops Web 不读取该 schema。
 - execution-control 使用独立的 run-projection schema installer 和 journal。
@@ -96,4 +97,4 @@ projection、Temporal sampler projection 和 worker-autoscaler projection 不属
 - `docs/data/app-api/README.md`
 - `docs/architecture/system/data-plane.md`
 - `docs/architecture/system/k8s-runtime.md`
-- `docs/decisions/adr-0073-private-postgres.md`
+- `docs/decisions/adr-0073-postgres.md`
